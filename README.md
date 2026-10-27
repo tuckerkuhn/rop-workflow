@@ -5,6 +5,9 @@ through MEL (monitoring, evaluation & learning) and management follow-up.
 
 > **Status:** untested prototype using **synthetic data only**. See
 > [docs/ROP-END-TO-END-WORKFLOW-DRAFT.md](docs/ROP-END-TO-END-WORKFLOW-DRAFT.md) for the workflow design.
+> The connected procurement workflow is in
+> [docs/ROP-PROCUREMENT-BLUEPRINT.md](docs/ROP-PROCUREMENT-BLUEPRINT.md) (target-state design reconciled
+> with ROP Procurement Policy Draft 1.0, which is not approved) and shown at `/procurement`.
 
 ## Architecture
 
@@ -58,6 +61,7 @@ new file in `drizzle/`, and push.
 - [ ] **Phase 2** – Kobo XLSForms, submission mapping, daily sync, farmer/plot CSV push
 - [ ] **Phase 3** – MEL review queue, management action board, optional AI-assisted drafts (MEL validates)
 - [ ] **Phase 4** – Roles & approvals, audit, privacy/consent, pilot
+- [ ] **Procurement** – Replay one completed Large goods procurement through the payment-ready gate (see blueprint §11); schema waits on the decisions in §12
 
 ## License
 

@@ -1,26 +1,159 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --paper: #f6f3ec;
+  --surface: #ffffff;
+  --sunken: #efeadf;
+  --ink: #13201a;
+  --muted: #5a6a60;
+  --line: #e2dccd;
+  --forest: #1f4d36;
+  --forest-ink: #f4f1e8;
+  --leaf: #2f7d52;
+  --mist: #e6efe8;
+  --ochre: #b97a1c;
+  --ochre-soft: #f6e8cc;
+  --clay: #b04a35;
+  --clay-soft: #f6dfd8;
+  --sky: #23578a;
+  --sky-soft: #e1ecf7;
+  --plum: #5b4592;
+  --plum-soft: #ece7f6;
+  --deep: #1f4d36;
+  --deep-ink: #f4f1e8;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --paper: #0d1410;
+    --surface: #131c17;
+    --sunken: #0a100d;
+    --ink: #edf1ea;
+    --muted: #97a79c;
+    --line: #233029;
+    --forest: #84c99f;
+    --forest-ink: #0d1410;
+    --leaf: #6fbf8e;
+    --mist: #15241c;
+    --ochre: #e2a94e;
+    --ochre-soft: #2b2112;
+    --clay: #e07a62;
+    --clay-soft: #2d1813;
+    --sky: #8dbbe8;
+    --sky-soft: #142233;
+    --plum: #bba9ee;
+    --plum-soft: #211a33;
+    --deep: #10261b;
   }
 }
 
+@theme inline {
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-sunken: var(--sunken);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-forest: var(--forest);
+  --color-forest-ink: var(--forest-ink);
+  --color-leaf: var(--leaf);
+  --color-mist: var(--mist);
+  --color-ochre: var(--ochre);
+  --color-ochre-soft: var(--ochre-soft);
+  --color-clay: var(--clay);
+  --color-clay-soft: var(--clay-soft);
+  --color-sky: var(--sky);
+  --color-sky-soft: var(--sky-soft);
+  --color-plum: var(--plum);
+  --color-plum-soft: var(--plum-soft);
+  --color-deep: var(--deep);
+  --color-deep-ink: var(--deep-ink);
+  --font-sans: var(--font-inter);
+  --font-display: var(--font-fraunces);
+  --font-mono: var(--font-jetbrains);
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 5rem;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  font-feature-settings: "ss01", "cv11";
+}
+
+::selection {
+  background: var(--ochre-soft);
+  color: var(--ink);
+}
+
+/* Entrance + scroll reveal */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.rise {
+  animation: rise 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.fade-swap {
+  animation: fade 0.35s ease-out both;
+}
+.draw path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: draw 2.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition:
+    opacity 0.8s cubic-bezier(0.2, 0.7, 0.2, 1),
+    transform 0.8s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.reveal[data-visible="true"] {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .rise,
+  .fade-swap,
+  .draw path {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
 }
