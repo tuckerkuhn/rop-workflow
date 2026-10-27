@@ -20,3 +20,30 @@ jobs:
       - run: npm run build
         env:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+
+  # Applies new drizzle/ migrations to Supabase after checks pass on main.
+  migrate:
+    needs: check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: db-migrate
+      cancel-in-progress: false # never interrupt a running migration
+    env:
+      # Supabase session pooler URL (port 5432). Set in repo Settings > Secrets.
+      DIRECT_DATABASE_URL: ${{ secrets.DIRECT_DATABASE_URL }}
+    steps:
+      - name: Skip if database secret is not configured
+        if: env.DIRECT_DATABASE_URL == ''
+        run: echo "::notice::DIRECT_DATABASE_URL secret not set; skipping migrations."
+      - uses: actions/checkout@v4
+        if: env.DIRECT_DATABASE_URL != ''
+      - uses: actions/setup-node@v4
+        if: env.DIRECT_DATABASE_URL != ''
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+        if: env.DIRECT_DATABASE_URL != ''
+      - run: npm run db:migrate
+        if: env.DIRECT_DATABASE_URL != ''

@@ -41,6 +41,16 @@ Import the GitHub repo into [Vercel](https://vercel.com/new), add the variables 
 `.env.example` in Project Settings → Environment Variables, and deploy. Every pull
 request gets a preview URL.
 
+### Database migrations
+
+Pushing to `main` automatically applies any new migrations in `drizzle/` to Supabase
+(the `migrate` job in `.github/workflows/ci.yml`, after lint/typecheck/build pass).
+It requires a repository secret `DIRECT_DATABASE_URL` set to the Supabase **session
+pooler** connection string (port 5432). Without the secret, the job is skipped.
+
+To change the schema: edit `src/db/schema.ts`, run `npm run db:generate`, commit the
+new file in `drizzle/`, and push.
+
 ## Roadmap
 
 - [x] **Phase 0** – Repo, CI, schema, synthetic seed, Kobo webhook stub
