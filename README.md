@@ -1,36 +1,54 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ROP Workflow
 
-## Getting Started
+An open-source tool for running agricultural development projects from farm preparation
+through MEL (monitoring, evaluation & learning) and management follow-up.
 
-First, run the development server:
+> **Status:** untested prototype using **synthetic data only**. See
+> [docs/ROP-END-TO-END-WORKFLOW-DRAFT.md](docs/ROP-END-TO-END-WORKFLOW-DRAFT.md) for the workflow design.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Architecture
+
+| Layer | Tool |
+|---|---|
+| Field data collection (offline) | [KoboToolbox](https://www.kobotoolbox.org/) + XLSForms (`kobo/`) |
+| Web app + API | Next.js (React, TypeScript) on Vercel |
+| Database, auth, file storage | Supabase (Postgres) |
+| ORM / validation | Drizzle ORM, Zod |
+
+```
+KoboCollect / Enketo ──webhook──▶ /api/kobo/webhook ──▶ Supabase Postgres ◀──▶ Next.js UI
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Getting started
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. Create a free [Supabase](https://supabase.com) project.
+2. `cp .env.example .env.local` and fill in the connection strings and keys.
+3. Install and set up the database:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+   ```bash
+   npm install
+   npm run db:generate   # create SQL migrations from src/db/schema.ts
+   npm run db:migrate    # apply them
+   npm run db:seed       # load one fictional project/season
+   npm run dev
+   ```
 
-## Learn More
+4. Open http://localhost:3000.
 
-To learn more about Next.js, take a look at the following resources:
+## Deploying
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Import the GitHub repo into [Vercel](https://vercel.com/new), add the variables from
+`.env.example` in Project Settings → Environment Variables, and deploy. Every pull
+request gets a preview URL.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Roadmap
 
-## Deploy on Vercel
+- [x] **Phase 0** – Repo, CI, schema, synthetic seed, Kobo webhook stub
+- [ ] **Phase 1** – Synthetic MVP screens: season plan → readiness gate → correction/recheck → distribution ↔ expenditure → MEL finding → management action; farmer timeline
+- [ ] **Phase 2** – Kobo XLSForms, submission mapping, daily sync, farmer/plot CSV push
+- [ ] **Phase 3** – MEL review queue, management action board, optional AI-assisted drafts (MEL validates)
+- [ ] **Phase 4** – Roles & approvals, audit, privacy/consent, pilot
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## License
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+MIT
