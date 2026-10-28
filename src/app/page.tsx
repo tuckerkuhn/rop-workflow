@@ -169,7 +169,7 @@ export default function Home() {
                 href="/procurement"
                 className="group mt-8 inline-flex items-center gap-2 rounded-full bg-forest px-6 py-3.5 text-sm font-medium text-forest-ink transition hover:-translate-y-0.5"
               >
-                Explore procurement
+                Open the procurement workspace
                 <span aria-hidden className="transition group-hover:translate-x-0.5">→</span>
               </Link>
             </Reveal>
