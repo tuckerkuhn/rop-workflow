@@ -6,7 +6,11 @@
 
 export type StatusKind = "CUR" | "D1" | "D1*" | "TS" | "OPEN" | "PA";
 
-export type Role = "holder" | "procurement" | "committee" | "ho" | "approver" | "finance";
+import { formatMoney, holderOf, type ProcRole } from "@/lib/demo";
+
+export type Role = ProcRole;
+export type Money = (usd: number) => string;
+const usdFmt: Money = (n) => formatMoney(n, "USD");
 
 export const roles: { id: Role; label: string; short: string }[] = [
   { id: "holder", label: "Budget holder", short: "Budget holder" },
@@ -18,6 +22,11 @@ export const roles: { id: Role; label: string; short: string }[] = [
 ];
 
 export const roleLabel = (r: Role) => roles.find((x) => x.id === r)!.label;
+/** "Karim Ahmadi (Approving authority)" for a role. */
+export const rolePerson = (r: Role) => {
+  const u = holderOf("procurement", r);
+  return u ? `${u.name} (${roleLabel(r)})` : roleLabel(r);
+};
 
 export type Level = "Micro" | "Small" | "Medium" | "Large";
 
@@ -54,6 +63,8 @@ export type Issue = {
 
 export type TimelineEvent = { date: string; who: Role; what: string };
 
+export type Signature = { as: string; name: string; role: Role; date: string };
+
 export type Procurement = {
   id: string;
   title: string;
@@ -67,6 +78,10 @@ export type Procurement = {
   place: string;
   urgent: boolean;
   feeds?: string;
+  specification: string;
+  priceBasis: string;
+  esRisk: string;
+  signatures: Record<string, Signature[]>;
   step: string;
   checks: Record<string, boolean>;
   supplier?: { name: string; screenedOn: string };
@@ -94,7 +109,7 @@ export type Check = {
   why: string;
   tag: string;
   /** System-checked from the record. Returning null falls back to a manual tick. */
-  auto?: (p: Procurement) => CheckResult | null;
+  auto?: (p: Procurement, money: Money) => CheckResult | null;
   /** AI pre-check: findings shown, a person confirms they reviewed them. */
   ai?: boolean;
   /** Suggested issue when an automatic check fails. */
@@ -114,6 +129,8 @@ export type Step = {
   gate?: string;
   canReturn?: boolean;
   produces: string[];
+  /** The generated document this step's owner signs on completing it. */
+  signs?: { doc: string; as: string };
   note?: string;
   checks: Check[];
 };
@@ -148,6 +165,7 @@ export const steps: Step[] = [
     action: "Submit requisition",
     done: "Requisition submitted",
     produces: ["Purchase requisition", "Price reasonableness"],
+    signs: { doc: "Purchase requisition", as: "Submitted by (budget holder)" },
     checks: [
       {
         id: "budgetValue",
@@ -156,10 +174,10 @@ export const steps: Step[] = [
         tag: "D1 §4.1",
         fix: "Budget revision needed: agree with the funder before approval.",
         resolve: "Record funder-approved revision",
-        auto: (p) => {
+        auto: (p, money) => {
           const l = lineOf(p);
           if (!l) return null;
-          return { ok: valueOf(p) <= l.remainingValue, detail: `Needs $${fmt(valueOf(p))} · $${fmt(l.remainingValue)} left on ${l.code}` };
+          return { ok: valueOf(p) <= l.remainingValue, detail: `Needs ${money(valueOf(p))} · ${money(l.remainingValue)} left on ${l.code}` };
         },
       },
       {
@@ -175,8 +193,20 @@ export const steps: Step[] = [
           return { ok: p.qty <= l.remainingQty, detail: `Needs ${fmt(p.qty)} ${p.unit} · ${fmt(l.remainingQty)} ${l.unit} left` };
         },
       },
-      { id: "price", label: "Procurement's price basis is attached", why: "Past purchases, agreement prices, catalogues or a market survey, with the source. Without it the requisition is returned.", tag: "D1 §4.2" },
-      { id: "esrisk", label: "Environmental or social risk recorded (or none)", why: "Chemicals, fuel, works, waste, safety-relevant equipment or supplier labor must be flagged on the requisition.", tag: "D1 §2.8" },
+      {
+        id: "price",
+        label: "Price basis recorded",
+        why: "Past purchases, agreement prices, catalogs or a market survey, with the source. Without it the requisition is returned.",
+        tag: "D1 §4.2",
+        auto: (p) => ({ ok: p.priceBasis.trim().length > 0, detail: p.priceBasis.trim() || "Add it in the requisition form above" }),
+      },
+      {
+        id: "esrisk",
+        label: "Environmental or social risk recorded (or none)",
+        why: "Chemicals, fuel, works, waste, safety-relevant equipment or supplier labor must be flagged on the requisition.",
+        tag: "D1 §2.8",
+        auto: (p) => ({ ok: p.esRisk.trim().length > 0, detail: p.esRisk.trim() || "Add it in the requisition form above" }),
+      },
     ],
   },
   {
@@ -189,7 +219,8 @@ export const steps: Step[] = [
     done: "Requisition approved (Gate A)",
     gate: "A",
     canReturn: true,
-    produces: ["Requisition approval"],
+    produces: [],
+    signs: { doc: "Purchase requisition", as: "Approved by" },
     note: "No supplier may be approached until this is approved.",
     checks: [
       { id: "noContact", label: "No supplier has been approached yet", why: "Requisition approval comes before any supplier is approached, at every level. Otherwise it is a post-facto action.", tag: "D1 §3.2" },
@@ -205,6 +236,7 @@ export const steps: Step[] = [
     action: "Record selection",
     done: "Supplier selected from quotations",
     produces: ["Quotations", "Screening record", "Source selection memo"],
+    signs: { doc: "Source selection memo", as: "Prepared by (procurement)" },
     checks: [
       { id: "three", label: "Three suppliers priced (written quotes above $500)", why: "Micro: market pricing from three suppliers. Small: three written quotations, or a memo explaining why fewer.", tag: "D1 §5.1, §5.2" },
       { id: "lowest", label: "Lowest price that meets the specification chosen", why: "Small purchases are awarded to the lowest compliant quotation.", tag: "D1 §5.2" },
@@ -220,6 +252,7 @@ export const steps: Step[] = [
     action: "Send for approval",
     done: "Solicitation prepared",
     produces: ["Solicitation (RFQ/RFP)", "Evaluation plan"],
+    signs: { doc: "Solicitation (RFQ/RFP)", as: "Prepared by (procurement)" },
     checks: [
       { id: "method", label: "Instrument and method match (RFQ with lowest price, RFP with best value)", why: "The two go together so they are never mixed in one solicitation.", tag: "D1 §4.3" },
       { id: "passfail", label: "Pass/fail requirements kept separate from scored criteria", why: "A total score never stands in for a minimum requirement.", tag: "D1 §4.4" },
@@ -236,6 +269,7 @@ export const steps: Step[] = [
     done: "Cleared by Home Office",
     canReturn: true,
     produces: ["HO review clearance"],
+    signs: { doc: "Solicitation (RFQ/RFP)", as: "Compliance cleared by (Home Office)" },
     note: "Target: 3 working days from a complete submission.",
     checks: [
       { id: "aiSol", label: "AI consistency pre-check reviewed", why: "Weights sum as stated, every annex exists, thresholds read the same everywhere. AI flags; the reviewer decides.", tag: "D1 §5.4; TS", ai: true },
@@ -252,7 +286,8 @@ export const steps: Step[] = [
     done: "Solicitation approved (Gate B)",
     gate: "B",
     canReturn: true,
-    produces: ["Solicitation approval"],
+    produces: [],
+    signs: { doc: "Solicitation (RFQ/RFP)", as: "Approved for issue by" },
     note: "Criteria are locked once approved.",
     checks: [
       { id: "plan", label: "Evaluation plan (and bid plan for Large) approved", why: "Approved before issue. Large also fixes the committee membership.", tag: "D1 §3.2, §5.4" },
@@ -267,6 +302,7 @@ export const steps: Step[] = [
     action: "Hand to committee",
     done: "Bids opened",
     produces: ["Proof of advertising", "Bid opening record"],
+    signs: { doc: "Bid opening record", as: "Recorded by (procurement)" },
     checks: [
       {
         id: "advert",
@@ -297,6 +333,7 @@ export const steps: Step[] = [
     action: "Sign selection memo",
     done: "Source selection memo signed",
     produces: ["Committee declarations", "Evaluation sheets", "Source selection memo"],
+    signs: { doc: "Source selection memo", as: "Committee chair" },
     checks: [
       { id: "declare", label: "Every member declared against the named bidder list", why: "Signed before anyone sees a bid. A member connected to a bidder withdraws.", tag: "D1 §4.7" },
       { id: "qualify", label: "Pass/fail checked before any scoring", why: "A bid that fails a minimum requirement is not scored or ranked.", tag: "D1 §4.4" },
@@ -312,6 +349,7 @@ export const steps: Step[] = [
     action: "Send for award",
     done: "Supplier screened",
     produces: ["Screening record", "Due diligence"],
+    signs: { doc: "Screening record", as: "Screened and reviewed by" },
     checks: [
       { id: "lists", label: "Checked against the donor's lists and the OFAC plan", why: "Which lists depends on the funding source.", tag: "D1 §4.8" },
       { id: "human", label: "Result reviewed by a person; any match resolved with reasons", why: "Every screening result is reviewed before the workflow continues.", tag: "TS" },
@@ -328,7 +366,8 @@ export const steps: Step[] = [
     done: "Award approved (Gate C)",
     gate: "C",
     canReturn: true,
-    produces: ["Award approval", "Unsuccessful bidder notices"],
+    produces: ["Unsuccessful bidder notices"],
+    signs: { doc: "Source selection memo", as: "Award approved by" },
     note: "Nothing is committed to a supplier before this.",
     checks: [
       { id: "ssm", label: "Selection memo matches the published criteria", why: "The basis for award is stated exactly as in the solicitation.", tag: "D1 §4.9" },
@@ -344,6 +383,7 @@ export const steps: Step[] = [
     action: "Send for signature",
     done: "Contract checked (checklist pass 1)",
     produces: ["Contract / PO", "Conformity check", "Checklist pass 1"],
+    signs: { doc: "Contract / PO", as: "Prepared and checked by (procurement)" },
     checks: [
       { id: "clauses", label: "Required clauses present", why: "Audit, records, anti-corruption, safeguarding, labor, E&S, data, IP, termination, subcontracting.", tag: "D1 §4.11" },
       { id: "aiConform", label: "AI conformity check reviewed", why: "Contract compared with the solicitation, winning bid and donor annex before signature. AI flags; a person records the check.", tag: "D1 §4.11; TS", ai: true },
@@ -360,7 +400,8 @@ export const steps: Step[] = [
     done: "Contract signed (Gate D)",
     gate: "D",
     canReturn: true,
-    produces: ["Signed contract"],
+    produces: [],
+    signs: { doc: "Contract / PO", as: "Signed for Roots of Peace" },
     note: "Signing is the commitment.",
     checks: [
       { id: "corrections", label: "No required correction outstanding", why: "A contract is not signed while a correction is outstanding.", tag: "D1 §4.17" },
@@ -376,6 +417,7 @@ export const steps: Step[] = [
     action: "Sign received note",
     done: "Goods received note signed",
     produces: ["Goods received note"],
+    signs: { doc: "Goods received note", as: "Received and inspected by" },
     note: "The requester inspects, not procurement.",
     checks: [
       {
@@ -408,6 +450,7 @@ export const steps: Step[] = [
     done: "Payment-ready (Gate E): handed to Finance for approval and release",
     gate: "E",
     produces: ["Invoice match", "Payee verification", "Checklist pass 2"],
+    signs: { doc: "Checklist pass 2", as: "Verified by (finance)" },
     note: "Payment approval and release happen in Finance's own process, outside this tool.",
     checks: [
       {
@@ -416,9 +459,9 @@ export const steps: Step[] = [
         why: "Three-way match on amount and quantity.",
         tag: "TS",
         resolve: "Record corrected invoice or credit note",
-        auto: (p) =>
+        auto: (p, money) =>
           p.invoice
-            ? { ok: p.invoice.amount === valueOf(p) && p.invoice.qty === (p.grn?.qty ?? p.qty), detail: `Invoice $${fmt(p.invoice.amount)} for ${fmt(p.invoice.qty)} ${p.unit}` }
+            ? { ok: p.invoice.amount === valueOf(p) && p.invoice.qty === (p.grn?.qty ?? p.qty), detail: `Invoice ${money(p.invoice.amount)} for ${fmt(p.invoice.qty)} ${p.unit}` }
             : null,
       },
       {
@@ -447,6 +490,7 @@ export const steps: Step[] = [
     action: "Close procurement",
     done: "Closed",
     produces: ["Closeout checklist", "Vendor evaluation"],
+    signs: { doc: "Closeout checklist", as: "Closed by (procurement)" },
     checks: [
       { id: "closeout", label: "Closeout checklist complete (contracts over $5,000)", why: "New work: not done in any country office today.", tag: "D1 §4.15; CUR" },
       { id: "vendor", label: "Vendor performance recorded", why: "Scores feed future sourcing.", tag: "D1 §4.15" },
@@ -469,8 +513,8 @@ export function prevStep(p: Procurement): string {
   return i > 0 ? list[i - 1].id : p.step;
 }
 
-export function checkState(p: Procurement, c: Check): { ok: boolean; auto: boolean; detail?: string } {
-  const r = c.auto?.(p);
+export function checkState(p: Procurement, c: Check, money: Money = usdFmt): { ok: boolean; auto: boolean; detail?: string } {
+  const r = c.auto?.(p, money);
   if (r && !r.ok && p.checks[`fix.${p.step}.${c.id}`]) return { ok: true, auto: true, detail: `${r.detail} · ${c.resolve}` };
   if (r) return { ok: r.ok, auto: true, detail: r.detail };
   return { ok: !!p.checks[`${p.step}.${c.id}`], auto: false };
@@ -478,9 +522,22 @@ export function checkState(p: Procurement, c: Check): { ok: boolean; auto: boole
 
 export const blockingIssues = (p: Procurement) => p.issues.filter((i) => i.status === "open" && i.blocking);
 
+/** Key that records the step owner reviewed the generated document they are about to sign. */
+export const reviewKey = (p: Procurement) => `review.${p.step}`;
+
 export function ready(p: Procurement) {
   const s = stepById[p.step];
-  return !!s && s.checks.every((c) => checkState(p, c).ok) && blockingIssues(p).length === 0;
+  if (!s) return false;
+  const reviewed = !s.signs || !!p.checks[reviewKey(p)];
+  return reviewed && s.checks.every((c) => checkState(p, c).ok) && blockingIssues(p).length === 0;
+}
+
+/** Every signature line a document will carry for this procurement, filled where already signed. */
+export function signatureLines(p: Procurement, doc: string) {
+  const signed = p.signatures[doc] ?? [];
+  return stepsFor(p)
+    .filter((s) => s.signs?.doc === doc)
+    .map((s) => ({ as: s.signs!.as, role: s.owner, signed: signed.find((x) => x.as === s.signs!.as) }));
 }
 
 export const ownerOf = (p: Procurement): Role | null => stepById[p.step]?.owner ?? null;
@@ -488,28 +545,45 @@ export const ownerOf = (p: Procurement): Role | null => stepById[p.step]?.owner 
 export function documentsOf(p: Procurement): string[] {
   const list = stepsFor(p);
   const i = p.step === DONE ? list.length : list.findIndex((s) => s.id === p.step);
-  return list.slice(0, i).flatMap((s) => s.produces);
+  const docs = list.slice(0, i).flatMap((s) => s.produces);
+  // The document being prepared in the current step is already viewable as a draft.
+  const draft = stepById[p.step]?.signs?.doc;
+  return [...new Set(draft ? [...docs, draft] : docs)];
 }
 
 /* ---------- Synthetic records ---------- */
 
 function seed(
-  base: Omit<Procurement, "checks" | "timeline" | "issues"> & { issues?: Issue[]; doneChecks?: string[] },
+  base: Omit<Procurement, "checks" | "timeline" | "issues" | "signatures" | "specification" | "priceBasis" | "esRisk"> &
+    Partial<Pick<Procurement, "specification" | "priceBasis" | "esRisk">> & { issues?: Issue[]; doneChecks?: string[] },
 ): Procurement {
-  const p = { ...base, checks: {} as Record<string, boolean>, issues: base.issues ?? [], timeline: [] as TimelineEvent[] };
+  const p = {
+    specification: "As per the technical specification agreed with the agronomist.",
+    priceBasis: "Last two purchases (PR-2026-031, PR-2026-044) and a market survey of three suppliers.",
+    esRisk: "None identified",
+    ...base,
+    checks: {} as Record<string, boolean>,
+    signatures: {} as Record<string, Signature[]>,
+    issues: base.issues ?? [],
+    timeline: [] as TimelineEvent[],
+  };
   const list = stepsFor(p as Procurement);
   const i = list.findIndex((s) => s.id === p.step);
   list.slice(0, i).forEach((s, k) => {
     s.checks.forEach((c) => (p.checks[`${s.id}.${c.id}`] = true));
     const d = new Date(Date.parse(TODAY) - (i - k) * 4 * 86400000).toISOString().slice(0, 10);
     p.timeline.push({ date: d, who: s.owner, what: s.done });
+    if (s.signs) {
+      const name = holderOf("procurement", s.owner)?.name ?? roleLabel(s.owner);
+      p.signatures[s.signs.doc] = [...(p.signatures[s.signs.doc] ?? []), { as: s.signs.as, name, role: s.owner, date: d }];
+    }
   });
   (base.doneChecks ?? []).forEach((c) => (p.checks[`${p.step}.${c}`] = true));
   delete (p as { doneChecks?: string[] }).doneChecks;
   return p as Procurement;
 }
 
-const common = { activity: "1.2 Maize demonstration plots, 2027 Long Rains", funding: "Award A-2027 (fictional) · body rules apply" };
+const common = { activity: "1.2 Maize demonstration plots, 2027 Spring", funding: "Award A-2027 (fictional) · body rules apply" };
 
 export function seedProcurements(): Procurement[] {
   return [
@@ -525,7 +599,8 @@ export function seedProcurements(): Procurement[] {
       place: "Village B collection point",
       urgent: false,
       step: "requisition",
-      doneChecks: ["price"],
+      specification: "Field soil test kit: pH, N, P, K; at least 50 tests per kit; instructions in Dari.",
+      esRisk: "",
     }),
     seed({
       ...common,

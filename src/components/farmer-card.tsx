@@ -16,7 +16,7 @@ export function FarmerCard() {
             <div className="grid h-10 w-10 place-items-center rounded-full bg-mist font-display text-forest">AW</div>
             <div>
               <p className="text-sm font-semibold">Farmer F-0009</p>
-              <p className="text-xs text-muted">Village B · Maize · 0.8 ha · 2027 Long Rains</p>
+              <p className="text-xs text-muted">Village B · Maize · 0.8 ha · 2027 Spring</p>
             </div>
           </div>
           <span className="rounded-full bg-mist px-2.5 py-1 text-[11px] font-semibold text-leaf">Enrolled</span>

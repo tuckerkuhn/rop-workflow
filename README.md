@@ -7,7 +7,18 @@ through MEL (monitoring, evaluation & learning) and management follow-up.
 > [docs/ROP-END-TO-END-WORKFLOW-DRAFT.md](docs/ROP-END-TO-END-WORKFLOW-DRAFT.md) for the workflow design.
 > The connected procurement workflow is in
 > [docs/ROP-PROCUREMENT-BLUEPRINT.md](docs/ROP-PROCUREMENT-BLUEPRINT.md) (target-state design reconciled
-> with ROP Procurement Policy Draft 1.0, which is not approved) and shown at `/procurement`.
+> with ROP Procurement Policy Draft 1.0, which is not approved).
+>
+> The design follows [docs/ROP-PROJECT-HARNESS-BUILD-SPEC-v1.md](docs/ROP-PROJECT-HARNESS-BUILD-SPEC-v1.md):
+> each project (`/projects/A-2027`) runs Design → Execute → Verify → Report, and every reported number
+> traces Activity → Indicator → Target → Actual → Evidence, with named sign-offs and an audit trail.
+>
+> Sign in at `/` as a demo staff member or donor (no password). Managers see their direct reports' work. Each person gets a dashboard at
+> `/home` with their work now, a projected pipeline, and the workflows they can view, edit or create in:
+> **Field activities** (`/field`, with farmer profiles at `/field/farmers/F-0001`) and **Procurement**
+> (`/procurement`, where forms are filled in on screen and documents are generated, reviewed and signed).
+> Amounts switch between USD and Afghani at a demo rate. Records are fictional and saved in the browser.
+> The project overview is at `/about`.
 
 ## Architecture
 
