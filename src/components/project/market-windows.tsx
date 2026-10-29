@@ -10,6 +10,7 @@ import {
   VALIDATION_ITEMS,
   monthsLabel,
   overlap,
+  supplyMonths,
   targetLabel,
   windowById,
   windowsFor,
@@ -208,16 +209,34 @@ export function MarketTargetCard({ state, onOpen }: { state: ProjectState; onOpe
 const HATCH_COMP = "bg-[repeating-linear-gradient(135deg,var(--clay-soft)_0_4px,transparent_4px_8px)]";
 const HATCH_POLICY = "bg-[repeating-linear-gradient(135deg,var(--plum-soft)_0_4px,transparent_4px_8px)]";
 const cols = "grid grid-cols-[11rem_repeat(12,minmax(0,1fr))]";
+const cell = (i: number) => `${i === 0 ? "rounded-l" : ""} ${i === 11 ? "rounded-r" : ""}`;
 
-function MonthEditor({ months, onSave, onCancel }: { months: number[]; onSave: (months: number[], note: string) => void; onCancel: () => void }) {
+export type CalendarEditInput = { rowId: string; months: number[]; source: string; note?: string };
+
+function RowEditor({
+  months,
+  note,
+  noteLabel,
+  onSave,
+  onCancel,
+}: {
+  months: number[];
+  /** Present for competitor rows: how this origin competes in the market. */
+  note?: string;
+  noteLabel?: string;
+  onSave: (months: number[], source: string, note?: string) => void;
+  onCancel: () => void;
+}) {
   const [sel, setSel] = useState<number[]>(months);
-  const [note, setNote] = useState("");
+  const [how, setHow] = useState(note ?? "");
+  const [source, setSource] = useState("");
+  const field = "min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm focus:border-forest focus:outline-none";
   return (
     <form
       className="col-span-full mt-2 space-y-2 rounded-lg border border-line bg-paper p-3"
       onSubmit={(e) => {
         e.preventDefault();
-        if (note.trim() && sel.length) onSave([...sel].sort((a, b) => a - b), note.trim());
+        if (source.trim() && sel.length) onSave([...sel].sort((a, b) => a - b), source.trim(), note !== undefined ? how.trim() : undefined);
       }}
     >
       <div className="flex flex-wrap gap-1">
@@ -236,16 +255,22 @@ function MonthEditor({ months, onSave, onCancel }: { months: number[]; onSave: (
           );
         })}
       </div>
+      {note !== undefined && (
+        <label className="block">
+          <span className="text-xs font-medium text-muted">{noteLabel}</span>
+          <textarea rows={2} value={how} onChange={(e) => setHow(e.target.value)} className={`mt-1 w-full ${field}`} />
+        </label>
+      )}
       <div className="flex flex-wrap gap-2">
         <input
           autoFocus
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
+          value={source}
+          onChange={(e) => setSource(e.target.value)}
           placeholder="Where does this come from? (trader interview, partner record, link)"
-          className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm focus:border-forest focus:outline-none"
+          className={field}
         />
-        <button type="submit" disabled={!note.trim() || !sel.length} className="rounded-full bg-forest px-4 py-1.5 text-sm font-medium text-forest-ink disabled:opacity-35">
-          Save months
+        <button type="submit" disabled={!source.trim() || !sel.length} className="rounded-full bg-forest px-4 py-1.5 text-sm font-medium text-forest-ink disabled:opacity-35">
+          Save
         </button>
         <button type="button" onClick={onCancel} className="px-2 text-sm text-muted">
           Cancel
@@ -255,15 +280,15 @@ function MonthEditor({ months, onSave, onCancel }: { months: number[]; onSave: (
   );
 }
 
-function RowLabel({ title, sub, edit, onEdit }: { title: string; sub?: React.ReactNode; edit?: CalendarEdit; onEdit?: () => void }) {
+function RowLabel({ title, sub, edit, onEdit, indent = false }: { title: string; sub?: React.ReactNode; edit?: CalendarEdit; onEdit?: () => void; indent?: boolean }) {
   return (
-    <span className="flex flex-col pr-2">
-      <span className="text-sm font-medium leading-tight">{title}</span>
+    <span className={`flex flex-col pr-2 ${indent ? "ml-2 border-l-2 border-clay/30 pl-2" : ""}`}>
+      <span className={`leading-tight ${indent ? "text-xs" : "text-sm font-medium"}`}>{title}</span>
       {sub}
       {edit && <span className="text-[10px] leading-tight text-muted">edited by {personName(edit.by).split(" ")[0]} {edit.date}</span>}
       {onEdit && (
         <button type="button" onClick={onEdit} className="w-fit text-[11px] font-semibold text-forest hover:underline">
-          Edit months
+          Edit
         </button>
       )}
     </span>
@@ -273,6 +298,7 @@ function RowLabel({ title, sub, edit, onEdit }: { title: string; sub?: React.Rea
 export function Calendar({
   crop,
   area,
+  provinces,
   competitors,
   edits = [],
   highlight,
@@ -280,19 +306,22 @@ export function Calendar({
   onEdit,
 }: {
   crop: Crop;
+  /** The production area in use; "All Afghanistan" combines every province. */
   area: Area;
+  provinces: Area[];
+  /** Competing origins for this crop, each tied to one market. */
   competitors: Competitor[];
   edits?: CalendarEdit[];
   highlight?: string[];
   onPick?: (id: string) => void;
   /** Present for people who may correct the calendar. */
-  onEdit?: (rowId: string, months: number[], note: string) => void;
+  onEdit?: (e: CalendarEditInput) => void;
 }) {
   const [editing, setEditing] = useState<string | null>(null);
   const harvest = area.months;
   const lastEdit = (id: string) => [...edits].reverse().find((e) => e.rowId === id);
-  const cell = (i: number) => `${i === 0 ? "rounded-l" : ""} ${i === 11 ? "rounded-r" : ""}`;
   const edit = (id: string) => (onEdit ? () => setEditing(editing === id ? null : id) : undefined);
+  const harvestRows = area.id === "all" ? [...provinces, area] : [area];
 
   return (
     <div className="overflow-x-auto rounded-2xl border border-line bg-surface">
@@ -306,119 +335,136 @@ export function Calendar({
           ))}
         </div>
 
-        {/* Our production area */}
-        <div className={`${cols} mt-1 items-center gap-px`}>
-          <RowLabel title={`${area.name} harvest`} edit={area.id !== "all" ? lastEdit(area.id) : undefined} onEdit={area.id !== "all" ? edit(area.id) : undefined} />
-          {MONTHS.map((m, i) => (
-            <span key={m} className={`h-6 ${harvest.includes(i + 1) ? "bg-ochre" : "bg-sunken"} ${cell(i)}`} />
-          ))}
-          {editing === area.id && onEdit && (
-            <MonthEditor
-              months={area.months}
-              onCancel={() => setEditing(null)}
-              onSave={(ms, note) => {
-                onEdit(area.id, ms, note);
-                setEditing(null);
-              }}
-            />
-          )}
-        </div>
-        <p className="mt-1 pl-[11rem] text-[11px] text-muted">{area.note}</p>
-
-        {/* Markets */}
-        <p className="mt-3 text-[11px] font-semibold uppercase tracking-wide text-muted">Import markets</p>
+        {/* Our production: each province when looking at all Afghanistan, otherwise the chosen area */}
+        <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-muted">Afghan harvest</p>
         <div className="mt-1 space-y-1">
-          {windowsFor(crop).map((win) => {
-            const pill = statusPill[win.status];
-            const ov = overlap(win, harvest);
-            const comp = competitors.filter((c) => c.competesIn.includes(win.market));
-            const contested = new Set(comp.flatMap((c) => c.months.filter((m) => ov.includes(m))));
-            const on = highlight?.includes(win.id);
+          {harvestRows.map((a) => {
+            const combined = a.id === "all";
             return (
-              <button
-                key={win.id}
-                type="button"
-                disabled={!onPick || win.status !== "open"}
-                onClick={() => onPick?.(win.id)}
-                className={`${cols} w-full items-center gap-px rounded-lg py-1 text-left transition enabled:hover:bg-paper ${on ? "bg-mist ring-2 ring-forest" : ""}`}
-                aria-pressed={on}
-                title={win.status === "open" ? "Short-list this window" : pill.label}
-              >
-                <RowLabel
-                  title={win.market}
-                  sub={
-                    <span>
-                      <Pill tone={pill.tone}>{pill.label}</Pill>
-                    </span>
-                  }
-                />
-                {MONTHS.map((m, i) => {
-                  const month = i + 1;
-                  const open = win.months.includes(month);
-                  const inHarvest = harvest.includes(month);
-                  const bg = win.status === "policy" ? HATCH_POLICY : open && inHarvest ? "bg-forest" : open ? "bg-forest/35" : inHarvest ? "bg-ochre-soft" : "bg-sunken/60";
-                  return (
-                    <span
-                      key={m}
-                      className={`relative h-8 ${bg} ${inHarvest ? "shadow-[inset_0_-3px_0_var(--ochre)]" : ""} ${cell(i)}`}
-                      aria-label={`${m}: ${open ? "open" : "not open"}${inHarvest ? ", our harvest" : ""}${contested.has(month) ? ", competing supply" : ""}`}
-                    >
-                      {contested.has(month) && <span className="absolute inset-x-1 top-1 h-1.5 rounded-full bg-clay" />}
-                    </span>
-                  );
-                })}
-                <span className="col-span-12 col-start-2 pt-0.5 text-[11px] text-muted">
-                  {win.status === "open"
-                    ? ov.length
-                      ? `Open ${monthsLabel(win.months)} · overlaps our harvest in ${monthsLabel(ov)}${
-                          contested.size
-                            ? ` · competition in ${monthsLabel([...contested])} from ${comp
-                                .filter((c) => c.months.some((m) => contested.has(m)))
-                                .map((c) => c.origin)
-                                .join(", ")}`
-                            : " · no competing supply recorded"
-                        }`
-                      : `Open ${monthsLabel(win.months)} · no overlap with our harvest; needs storage`
-                    : win.status === "closed"
-                      ? "Closed: border closures"
-                      : win.status === "policy"
-                        ? "Opens when a big exporter restricts supply; no fixed months"
-                        : "Not assessed yet"}
-                </span>
-              </button>
+              <div key={a.id} className={`${cols} items-center gap-px`}>
+                <RowLabel title={combined && area.id === "all" ? "All Afghanistan (combined)" : a.name} edit={!combined ? lastEdit(a.id) : undefined} onEdit={!combined ? edit(a.id) : undefined} />
+                {MONTHS.map((m, i) => (
+                  <span key={m} className={`${combined ? "h-6" : "h-4"} ${a.months.includes(i + 1) ? (combined ? "bg-ochre" : "bg-ochre/70") : "bg-sunken"} ${cell(i)}`} />
+                ))}
+                {editing === a.id && onEdit && (
+                  <RowEditor
+                    months={a.months}
+                    onCancel={() => setEditing(null)}
+                    onSave={(months, source) => {
+                      onEdit({ rowId: a.id, months, source });
+                      setEditing(null);
+                    }}
+                  />
+                )}
+              </div>
             );
           })}
         </div>
+        <p className="mt-1 pl-[11rem] text-[11px] text-muted">{area.note}</p>
 
-        {/* Competing supply */}
-        <p className="mt-4 text-[11px] font-semibold uppercase tracking-wide text-muted">Competing supply · when other origins come on line</p>
-        <div className="mt-1 space-y-1">
-          {competitors.map((c) => (
-            <div key={c.id} className={`${cols} items-center gap-px py-1`}>
-              <RowLabel title={c.origin} sub={<span className="text-[10px] leading-tight text-muted">competes in {c.competesIn.join(", ")}</span>} edit={lastEdit(c.id)} onEdit={edit(c.id)} />
-              {MONTHS.map((m, i) => (
-                <span key={m} className={`h-6 ${c.months.includes(i + 1) ? HATCH_COMP + " border border-clay/40" : "bg-sunken/60"} ${cell(i)}`} />
-              ))}
-              <span className="col-span-12 col-start-2 text-[10px] text-muted">
-                {c.note}
-                {c.sources.map((s) => (
-                  <a key={s.url} href={s.url} target="_blank" rel="noreferrer" className="ml-1 underline decoration-dotted underline-offset-2 hover:text-forest">
-                    {s.label}
-                  </a>
-                ))}
-              </span>
-              {editing === c.id && onEdit && (
-                <MonthEditor
-                  months={c.months}
-                  onCancel={() => setEditing(null)}
-                  onSave={(ms, note) => {
-                    onEdit(c.id, ms, note);
-                    setEditing(null);
-                  }}
-                />
-              )}
-            </div>
-          ))}
+        {/* Markets, each with the origins competing there */}
+        <p className="mt-4 text-[11px] font-semibold uppercase tracking-wide text-muted">Import markets and competing supply</p>
+        <div className="mt-1 space-y-3">
+          {windowsFor(crop).map((win) => {
+            const pill = statusPill[win.status];
+            const ov = overlap(win, harvest);
+            const comp = competitors.filter((c) => c.market === win.market);
+            const selling = supplyMonths(win, harvest);
+            const contested = new Set(comp.flatMap((c) => c.months.filter((m) => selling.includes(m))));
+            const on = highlight?.includes(win.id);
+            return (
+              <div key={win.id} className={`rounded-lg ${on ? "bg-mist/60 ring-2 ring-forest" : ""}`}>
+                <button
+                  type="button"
+                  disabled={!onPick || win.status !== "open"}
+                  onClick={() => onPick?.(win.id)}
+                  className={`${cols} w-full items-center gap-px rounded-lg py-1 text-left transition enabled:hover:bg-paper`}
+                  aria-pressed={on}
+                  title={win.status === "open" ? "Short-list this window" : pill.label}
+                >
+                  <RowLabel
+                    title={win.market}
+                    sub={
+                      <span>
+                        <Pill tone={pill.tone}>{pill.label}</Pill>
+                      </span>
+                    }
+                  />
+                  {MONTHS.map((m, i) => {
+                    const month = i + 1;
+                    const open = win.months.includes(month);
+                    const inHarvest = harvest.includes(month);
+                    const bg = win.status === "policy" ? HATCH_POLICY : open && inHarvest ? "bg-forest" : open ? "bg-forest/35" : inHarvest ? "bg-ochre-soft" : "bg-sunken/60";
+                    return (
+                      <span
+                        key={m}
+                        className={`relative h-8 ${bg} ${inHarvest ? "shadow-[inset_0_-3px_0_var(--ochre)]" : ""} ${cell(i)}`}
+                        aria-label={`${m}: ${open ? "open" : "not open"}${inHarvest ? ", our harvest" : ""}${contested.has(month) ? ", competing supply" : ""}`}
+                      >
+                        {contested.has(month) && <span className="absolute inset-x-1 top-1 h-1.5 rounded-full bg-clay" />}
+                      </span>
+                    );
+                  })}
+                  <span className="col-span-12 col-start-2 pt-0.5 text-[11px] text-muted">
+                    {win.status === "open"
+                      ? ov.length
+                        ? `Open ${monthsLabel(win.months)} · overlaps our harvest in ${monthsLabel(ov)}${contested.size ? ` · competition in ${monthsLabel([...contested])}` : " · no competing supply in those months"}`
+                        : `Open ${monthsLabel(win.months)} · no overlap with our harvest; needs storage${contested.size ? ` · competition in ${monthsLabel([...contested])}` : ""}`
+                      : win.status === "closed"
+                        ? "Closed: border closures"
+                        : win.status === "policy"
+                          ? "Opens when a big exporter restricts supply; no fixed months"
+                          : "Not assessed yet"}
+                  </span>
+                </button>
+                {comp.length > 0 && (
+                  <div className="mb-1 space-y-1 pb-1">
+                    {comp.map((c) => {
+                      const hits = c.months.filter((m) => selling.includes(m));
+                      return (
+                        <div key={c.id} className={`${cols} items-start gap-px`}>
+                          <RowLabel
+                            indent
+                            title={c.origin}
+                            sub={
+                              <span className={`text-[10px] leading-tight ${hits.length ? "font-semibold text-clay" : "text-muted"}`}>
+                                {win.status !== "open" ? `supplies ${monthsLabel(c.months)}` : hits.length ? `competes ${monthsLabel(hits)}` : "no overlap with us"}
+                              </span>
+                            }
+                            edit={lastEdit(c.id)}
+                            onEdit={edit(c.id)}
+                          />
+                          {MONTHS.map((m, i) => (
+                            <span key={m} className={`mt-0.5 h-4 ${c.months.includes(i + 1) ? `${HATCH_COMP} border border-clay/40` : "bg-sunken/40"} ${cell(i)}`} />
+                          ))}
+                          <span className="col-span-12 col-start-2 pl-2 text-[11px] leading-snug text-muted">
+                            {c.note}
+                            {c.sources.map((s) => (
+                              <a key={s.url} href={s.url} target="_blank" rel="noreferrer" className="ml-1 underline decoration-dotted underline-offset-2 hover:text-forest">
+                                {s.label}
+                              </a>
+                            ))}
+                          </span>
+                          {editing === c.id && onEdit && (
+                            <RowEditor
+                              months={c.months}
+                              note={c.note}
+                              noteLabel={`How ${c.origin} competes with Afghan ${crop.toLowerCase()} in ${win.market}`}
+                              onCancel={() => setEditing(null)}
+                              onSave={(months, source, note) => {
+                                onEdit({ rowId: c.id, months, source, note });
+                                setEditing(null);
+                              }}
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
 
         <div className="mt-3 flex flex-wrap gap-4 border-t border-line pt-3 text-[11px] text-muted">
@@ -426,7 +472,7 @@ export function Calendar({
             ["bg-forest", "Open and in our harvest"],
             ["bg-forest/35", "Open, outside our harvest"],
             ["bg-ochre", "Our harvest"],
-            [`${HATCH_COMP} border border-clay/40`, "Competing origin in season"],
+            [`${HATCH_COMP} border border-clay/40`, "Competing origin supplying that market"],
             ["bg-clay", "Competition during our window"],
             [`${HATCH_POLICY} border border-plum/30`, "Policy window"],
           ].map(([c, l]) => (

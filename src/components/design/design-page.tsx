@@ -14,7 +14,7 @@ import {
   areaFor,
   areasFor,
   competition,
-  competitorsFor,
+  provincesFor,
   seedCalendar,
   WINDOWS,
   fitLabel,
@@ -52,7 +52,7 @@ type Props = {
   setCal: (fn: (c: CalendarData) => CalendarData) => void;
 };
 
-export const CALENDAR_KEY = "rop-market-calendar-v1";
+export const CALENDAR_KEY = "rop-market-calendar-v2";
 /** The production area in use for a window's crop. */
 const areaOf = (state: ProjectState, cal: CalendarData, crop: Crop): Area => areaFor(cal, crop, designArea(state, crop));
 
@@ -172,20 +172,23 @@ function Explore({ u, state, setState, locked, cal, setCal, crop, setCrop }: Pro
       <Calendar
         crop={crop}
         area={area}
-        competitors={competitorsFor(cal, crop)}
+        provinces={provincesFor(cal, crop)}
+        competitors={cal.competitors.filter((c) => c.crop === crop)}
         edits={cal.edits}
         highlight={design.shortlist}
         onPick={editable ? toggle : undefined}
         onEdit={
           editable
-            ? (rowId, months, note) => {
-                const row = cal.areas.find((a) => a.id === rowId)?.name ?? cal.competitors.find((x) => x.id === rowId)?.origin ?? rowId;
+            ? ({ rowId, months, source, note }) => {
+                const comp = cal.competitors.find((x) => x.id === rowId);
+                const row = cal.areas.find((a) => a.id === rowId)?.name ?? (comp ? `${comp.origin} in ${comp.market}` : rowId);
                 setCal((c) => ({
-                  areas: c.areas.map((a) => (a.id === rowId ? { ...a, months, note: `Edited: ${note}` } : a)),
-                  competitors: c.competitors.map((x) => (x.id === rowId ? { ...x, months, note: `Edited: ${note}` } : x)),
-                  edits: [...c.edits, { rowId, by: u.id, date: TODAY, note }],
+                  areas: c.areas.map((a) => (a.id === rowId ? { ...a, months, note: `Edited: ${source}` } : a)),
+                  // A competitor keeps its own note on how it competes; the source goes in the edit record.
+                  competitors: c.competitors.map((x) => (x.id === rowId ? { ...x, months, note: note || x.note, sources: [] } : x)),
+                  edits: [...c.edits, { rowId, by: u.id, date: TODAY, note: source }],
                 }));
-                setState((s) => ({ ...s, audit: [...s.audit, { date: TODAY, who: u.id, what: `Edited ${crop.toLowerCase()} calendar for ${row}: ${monthsLabel(months)} (${note})`, kind: "change" }] }));
+                setState((s) => ({ ...s, audit: [...s.audit, { date: TODAY, who: u.id, what: `Edited ${crop.toLowerCase()} calendar for ${row}: ${monthsLabel(months)} (source: ${source})`, kind: "change" }] }));
               }
             : undefined
         }
