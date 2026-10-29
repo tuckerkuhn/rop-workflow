@@ -6,7 +6,7 @@
 
 import { TODAY } from "@/components/workspace/ui";
 import { ORG_ID, PROJECT, userById, type Stage } from "@/lib/demo";
-import { VALIDATION_ITEMS, windowById } from "@/lib/market-windows";
+import { ALL_AREA, VALIDATION_ITEMS, windowById, type Crop } from "@/lib/market-windows";
 import { seedField, type Farmer, type FieldItem } from "@/lib/field";
 import { DONE, budgetLines, seedProcurements, stepById, type Procurement } from "@/lib/procurement";
 
@@ -290,12 +290,23 @@ export type AuditEvent = { date: string; who: string; what: string; kind: "creat
 export type ProposedChange = { id: string; text: string; status: "proposed" | "approved" | "declined"; by?: string };
 
 /** The market window a project commits to in Design (market windows brief). */
-export type MarketTarget = { windowId: string; reason: string; by: string; date: string };
+export type MarketTarget = {
+  windowId: string;
+  reason: string;
+  by: string;
+  date: string;
+  /** Production area and its harvest months as recorded when the target was chosen. */
+  area?: { id: string; name: string; months: number[] };
+  /** Competing origins in season during our supply months, as recorded when chosen. */
+  competition?: { origin: string; months: number[] }[];
+};
 
 /** One validation item done: who confirmed it, when, and the evidence they gave. */
-export type ValidationCheck = { by: string; date: string; evidence: string };
+export type ValidationCheck = { by: string; date: string; evidence: string; /** Production area the check applies to (harvest item). */ area?: string };
 /** Working state of Project design: candidates being validated and ones dropped. */
 export type DesignState = {
+  /** Production area being designed for, per crop. Defaults to all Afghanistan. */
+  areaByCrop?: Partial<Record<Crop, string>>;
   shortlist: string[];
   checks: Record<string, Record<string, ValidationCheck>>;
   dropped: { windowId: string; reason: string; by: string; date: string }[];
@@ -355,10 +366,11 @@ export function seedGrapesProject(): ProjectState {
     varianceThreshold: 10,
     changes: [],
     design: {
+      areaByCrop: { Grapes: "GRA-kabul" },
       shortlist: ["GRA-IND", "POM-UAE"],
       checks: {
         "GRA-IND": {
-          harvest: { by: "nadia", date: "2027-02-25", evidence: "Demo note: two grape traders confirm main picking mid-August to October (fictional interviews)." },
+          harvest: { by: "nadia", date: "2027-02-25", area: "GRA-kabul", evidence: "Demo note: two Shomali grape traders confirm main picking mid-August to October (fictional interviews)." },
           quality: { by: "nadia", date: "2027-02-27", evidence: "Demo note: last season's packhouse sorted 60% to export grade (fictional record)." },
         },
       },
@@ -375,10 +387,22 @@ export function seedGrapesProject(): ProjectState {
 
 /** Gated demo projects keep their own stored state so each can be reset on its own. */
 export const GATED_KEYS: Record<string, { key: string; seed: () => ProjectState }> = {
-  "AG-2027": { key: "rop-project-ag-2027-v2", seed: seedGrapesProject },
+  "AG-2027": { key: "rop-project-ag-2027-v3", seed: seedGrapesProject },
 };
 
-export const isValidated = (state: ProjectState, windowId: string) => VALIDATION_ITEMS.every((i) => state.design?.checks[windowId]?.[i.id]);
+/** Production area currently chosen for a crop in Project design. */
+export const designArea = (state: ProjectState, crop: Crop) => state.design?.areaByCrop?.[crop] ?? ALL_AREA;
+
+/** A check counts if it exists; the harvest check must also be for the area now chosen. */
+export function checkDone(state: ProjectState, windowId: string, itemId: string) {
+  const c = state.design?.checks[windowId]?.[itemId];
+  if (!c) return undefined;
+  const win = windowById(windowId);
+  if (itemId === "harvest" && win && (c.area ?? ALL_AREA) !== designArea(state, win.crop)) return undefined;
+  return c;
+}
+
+export const isValidated = (state: ProjectState, windowId: string) => VALIDATION_ITEMS.every((i) => checkDone(state, windowId, i.id));
 
 /** What still blocks Design sign-off on a gated project. */
 export function designGateMissing(state: ProjectState) {

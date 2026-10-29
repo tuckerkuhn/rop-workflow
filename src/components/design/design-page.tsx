@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRequireUser } from "@/components/app/session";
-import { Calendar, SampleTag, Sources, TargetPanel } from "@/components/project/market-windows";
+import { Calendar, SampleTag, Sources, TargetPanel, targetText } from "@/components/project/market-windows";
 import { Pill, SectionLabel, TODAY, TopBar, primaryBtn, quietBtn, usePersistentState } from "@/components/workspace/ui";
 import { canValidate, daysFrom, projects, type AppUser } from "@/lib/demo";
 import {
@@ -11,6 +11,11 @@ import {
   DATA_AS_OF,
   HARVEST,
   VALIDATION_ITEMS,
+  areaFor,
+  areasFor,
+  competition,
+  competitorsFor,
+  seedCalendar,
   WINDOWS,
   fitLabel,
   fitRank,
@@ -19,10 +24,12 @@ import {
   targetLabel,
   windowById,
   windowsFor,
+  type Area,
+  type CalendarData,
   type Crop,
   type MarketWindow,
 } from "@/lib/market-windows";
-import { GATED_KEYS, isValidated, personName, type DesignState, type ProjectState } from "@/lib/project";
+import { GATED_KEYS, checkDone, designArea, isValidated, personName, type DesignState, type ProjectState } from "@/lib/project";
 
 /**
  * Project design: the process of finding the trade window with the best validated opportunity,
@@ -36,16 +43,36 @@ const STEPS = [
   { id: "choose", label: "Choose" },
 ] as const;
 
-type Props = { u: AppUser; state: ProjectState; setState: (fn: (s: ProjectState) => ProjectState) => void; locked: boolean };
+type Props = {
+  u: AppUser;
+  state: ProjectState;
+  setState: (fn: (s: ProjectState) => ProjectState) => void;
+  locked: boolean;
+  cal: CalendarData;
+  setCal: (fn: (c: CalendarData) => CalendarData) => void;
+};
+
+export const CALENDAR_KEY = "rop-market-calendar-v1";
+/** The production area in use for a window's crop. */
+const areaOf = (state: ProjectState, cal: CalendarData, crop: Crop): Area => areaFor(cal, crop, designArea(state, crop));
 
 const withDesign = (s: ProjectState, fn: (d: DesignState) => DesignState): ProjectState => ({ ...s, design: fn(s.design ?? emptyDesign) });
 
 /* ---------- 1. Explore ---------- */
 
-function Explore({ u, state, setState, locked, crop, setCrop }: Props & { crop: Crop; setCrop: (c: Crop) => void }) {
+function Explore({ u, state, setState, locked, cal, setCal, crop, setCrop }: Props & { crop: Crop; setCrop: (c: Crop) => void }) {
   const design = state.design ?? emptyDesign;
   const editable = canValidate(u) && !locked;
-  const ranked = [...WINDOWS].filter((w) => fitRank(w) <= 1).sort((a, b) => fitRank(a) - fitRank(b) || overlap(b).length - overlap(a).length);
+  const hv = (w: MarketWindow) => areaOf(state, cal, w.crop).months;
+  const ranked = [...WINDOWS]
+    .filter((w) => fitRank(w, hv(w)) <= 1)
+    .sort((a, b) => fitRank(a, hv(a)) - fitRank(b, hv(b)) || competition(a, hv(a), cal).length - competition(b, hv(b), cal).length || overlap(b, hv(b)).length - overlap(a, hv(a)).length);
+  const area = areaOf(state, cal, crop);
+  const setArea = (id: string) =>
+    setState((s) => ({
+      ...withDesign(s, (d) => ({ ...d, areaByCrop: { ...d.areaByCrop, [crop]: id } })),
+      audit: [...s.audit, { date: TODAY, who: u.id, what: `Set production area for ${crop.toLowerCase()} to ${areaFor(cal, crop, id).name}`, kind: "change" }],
+    }));
   const age = Math.round(daysFrom(DATA_AS_OF, TODAY) / 30);
   const rows = windowsFor(crop);
   const toggle = (id: string) =>
@@ -71,7 +98,7 @@ function Explore({ u, state, setState, locked, crop, setCrop }: Props & { crop: 
       <div className="grid gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-3">
         {[
           { k: "Windows tracked", v: String(WINDOWS.length), s: `${CROPS.length} crops × 5 markets · Afghanistan` },
-          { k: "Best fits", v: String(ranked.filter((w) => fitRank(w) === 0).length), s: "Open and overlapping the Afghan harvest" },
+          { k: "Best fits", v: String(ranked.filter((w) => fitRank(w, hv(w)) === 0).length), s: "Open and overlapping our harvest, by chosen area" },
           { k: "Data freshness", v: `${age} months`, s: `Latest source ${DATA_AS_OF} · entered by hand` },
         ].map((c) => (
           <div key={c.k} className="bg-surface px-5 py-4">
@@ -92,8 +119,13 @@ function Explore({ u, state, setState, locked, crop, setCrop }: Props & { crop: 
                 <div className="min-w-0 flex-1">
                   <p className="font-medium">{targetLabel(w)}</p>
                   <p className="text-xs text-muted">
-                    {fitLabel[fitRank(w)]}
-                    {overlap(w).length ? ` (${monthsLabel(overlap(w))})` : ""} · {w.sources.length} sources
+                    {areaOf(state, cal, w.crop).name} · {fitLabel[fitRank(w, hv(w))]}
+                    {overlap(w, hv(w)).length ? ` (${monthsLabel(overlap(w, hv(w)))})` : ""} ·{" "}
+                    {competition(w, hv(w), cal).length ? (
+                      <span className="text-clay">competition from {competition(w, hv(w), cal).map((c) => c.origin).join(", ")}</span>
+                    ) : (
+                      "no competing supply recorded"
+                    )}
                   </p>
                 </div>
                 {editable ? (
@@ -117,11 +149,47 @@ function Explore({ u, state, setState, locked, crop, setCrop }: Props & { crop: 
             </button>
           ))}
         </div>
-        <p className="text-xs text-muted">
-          Afghan harvest {monthsLabel(HARVEST[crop].months)} · {HARVEST[crop].note}
-        </p>
       </div>
-      <Calendar crop={crop} highlight={design.shortlist} onPick={editable ? toggle : undefined} />
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm font-medium">Production area</span>
+        <div role="radiogroup" aria-label="Production area" className="flex flex-wrap gap-1">
+          {areasFor(cal, crop).map((a) => (
+            <button
+              key={a.id}
+              type="button"
+              role="radio"
+              aria-checked={area.id === a.id}
+              disabled={!editable}
+              onClick={() => setArea(a.id)}
+              className={`rounded-full border px-3 py-1 text-sm transition ${area.id === a.id ? "border-forest bg-forest text-forest-ink" : "border-line bg-surface enabled:hover:border-forest/40"} disabled:cursor-default`}
+            >
+              {a.name}
+            </button>
+          ))}
+        </div>
+        {!editable && <span className="text-xs text-muted">Set by Nadia, Tucker or Daniel.</span>}
+      </div>
+      <Calendar
+        crop={crop}
+        area={area}
+        competitors={competitorsFor(cal, crop)}
+        edits={cal.edits}
+        highlight={design.shortlist}
+        onPick={editable ? toggle : undefined}
+        onEdit={
+          editable
+            ? (rowId, months, note) => {
+                const row = cal.areas.find((a) => a.id === rowId)?.name ?? cal.competitors.find((x) => x.id === rowId)?.origin ?? rowId;
+                setCal((c) => ({
+                  areas: c.areas.map((a) => (a.id === rowId ? { ...a, months, note: `Edited: ${note}` } : a)),
+                  competitors: c.competitors.map((x) => (x.id === rowId ? { ...x, months, note: `Edited: ${note}` } : x)),
+                  edits: [...c.edits, { rowId, by: u.id, date: TODAY, note }],
+                }));
+                setState((s) => ({ ...s, audit: [...s.audit, { date: TODAY, who: u.id, what: `Edited ${crop.toLowerCase()} calendar for ${row}: ${monthsLabel(months)} (${note})`, kind: "change" }] }));
+              }
+            : undefined
+        }
+      />
       <Sources sources={[...new Map([...HARVEST[crop].sources, ...rows.flatMap((x) => x.sources)].map((s) => [s.url, s])).values()]} />
     </section>
   );
@@ -129,22 +197,25 @@ function Explore({ u, state, setState, locked, crop, setCrop }: Props & { crop: 
 
 /* ---------- 2. Validate ---------- */
 
-function CheckItem({ win, item, u, state, setState, editable }: { win: MarketWindow; item: (typeof VALIDATION_ITEMS)[number] } & Omit<Props, "locked"> & { editable: boolean }) {
-  const done = state.design?.checks[win.id]?.[item.id];
+function CheckItem({ win, item, u, state, setState, editable, cal }: { win: MarketWindow; item: (typeof VALIDATION_ITEMS)[number] } & Omit<Props, "locked" | "setCal"> & { editable: boolean }) {
+  const area = areaOf(state, cal, win.crop);
+  const done = checkDone(state, win.id, item.id);
+  const stale = !done && state.design?.checks[win.id]?.[item.id];
   const [evidence, setEvidence] = useState("");
   return (
     <li className="py-3">
       <div className="flex items-start gap-3">
         <span className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full text-[11px] font-bold text-white ${done ? "bg-leaf" : "bg-line"}`}>{done ? "✓" : ""}</span>
         <div className="min-w-0 flex-1">
-          <p className="leading-snug">{item.label}</p>
+          <p className="leading-snug">{item.label(area.name)}</p>
           {done ? (
             <p className="mt-0.5 text-sm text-muted">
               {personName(done.by)}, {done.date}: {done.evidence}
             </p>
           ) : (
             <>
-              <p className="mt-1 text-xs text-plum">AI suggestion: {item.hint(win)}</p>
+              {stale && <p className="mt-0.5 text-xs text-clay">Confirmed earlier for {areaFor(cal, win.crop, stale.area).name}, not for {area.name}.</p>}
+              <p className="mt-1 text-xs text-plum">AI suggestion: {item.hint(win, area)}</p>
               {editable && (
                 <form
                   className="mt-2 flex flex-wrap gap-2"
@@ -152,8 +223,8 @@ function CheckItem({ win, item, u, state, setState, editable }: { win: MarketWin
                     e.preventDefault();
                     if (!evidence.trim()) return;
                     setState((s) => ({
-                      ...withDesign(s, (d) => ({ ...d, checks: { ...d.checks, [win.id]: { ...d.checks[win.id], [item.id]: { by: u.id, date: TODAY, evidence: evidence.trim() } } } })),
-                      audit: [...s.audit, { date: TODAY, who: u.id, what: `Validated "${item.label.toLowerCase()}" for ${targetLabel(win)}`, kind: "approval" }],
+                      ...withDesign(s, (d) => ({ ...d, checks: { ...d.checks, [win.id]: { ...d.checks[win.id], [item.id]: { by: u.id, date: TODAY, evidence: evidence.trim(), area: item.id === "harvest" ? area.id : undefined } } } })),
+                      audit: [...s.audit, { date: TODAY, who: u.id, what: `Validated "${item.label(area.name).toLowerCase()}" for ${targetLabel(win)}`, kind: "approval" }],
                     }));
                   }}
                 >
@@ -177,7 +248,7 @@ function CheckItem({ win, item, u, state, setState, editable }: { win: MarketWin
   );
 }
 
-function Validate({ u, state, setState, locked }: Props) {
+function Validate({ u, state, setState, locked, cal }: Props) {
   const design = state.design ?? emptyDesign;
   const editable = canValidate(u) && !locked;
   const [dropping, setDropping] = useState<string | null>(null);
@@ -193,8 +264,7 @@ function Validate({ u, state, setState, locked }: Props) {
       {design.shortlist.length === 0 && <p className="rounded-2xl border border-line bg-surface p-5 text-sm text-muted">Nothing short-listed yet. Pick windows in step 1.</p>}
       {design.shortlist.map((id) => {
         const win = windowById(id)!;
-        const checks = design.checks[id] ?? {};
-        const n = VALIDATION_ITEMS.filter((i) => checks[i.id]).length;
+        const n = VALIDATION_ITEMS.filter((i) => checkDone(state, id, i.id)).length;
         const ok = isValidated(state, id);
         return (
           <article key={id} className={`rounded-2xl border-2 bg-surface ${ok ? "border-forest/50" : "border-line"}`}>
@@ -202,7 +272,7 @@ function Validate({ u, state, setState, locked }: Props) {
               <div>
                 <p className="font-display text-xl">{targetLabel(win)}</p>
                 <p className="text-xs text-muted">
-                  {fitLabel[fitRank(win)]} · {n} of {VALIDATION_ITEMS.length} items confirmed
+                  {areaOf(state, cal, win.crop).name} · {fitLabel[fitRank(win, areaOf(state, cal, win.crop).months)]} · {n} of {VALIDATION_ITEMS.length} items confirmed
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -246,7 +316,7 @@ function Validate({ u, state, setState, locked }: Props) {
             )}
             <ul className="divide-y divide-line px-5">
               {VALIDATION_ITEMS.map((item) => (
-                <CheckItem key={item.id} win={win} item={item} u={u} state={state} setState={setState} editable={editable} />
+                <CheckItem key={item.id} win={win} item={item} u={u} state={state} setState={setState} editable={editable} cal={cal} />
               ))}
             </ul>
             <div className="border-t border-line px-5 py-3">
@@ -273,7 +343,7 @@ function Validate({ u, state, setState, locked }: Props) {
 
 /* ---------- 3. Choose ---------- */
 
-function Choose({ u, state, setState, locked, projectId, openTarget }: Props & { projectId: string; openTarget: () => void }) {
+function Choose({ u, state, setState, locked, cal, projectId, openTarget }: Props & { projectId: string; openTarget: () => void }) {
   const design = state.design ?? emptyDesign;
   const editable = canValidate(u) && !locked;
   const saved = state.marketTarget;
@@ -282,6 +352,7 @@ function Choose({ u, state, setState, locked, projectId, openTarget }: Props & {
   const [pick, setPick] = useState<string | undefined>(saved?.windowId);
   const [reason, setReason] = useState(saved?.reason ?? "");
   const pickWin = pick ? windowById(pick) : undefined;
+  const pickArea = areaOf(state, cal, pickWin?.crop ?? "Grapes");
   const ready = !!pickWin && isValidated(state, pickWin.id) && !!reason.trim();
 
   return (
@@ -295,7 +366,7 @@ function Choose({ u, state, setState, locked, projectId, openTarget }: Props & {
         {!editing && savedWin ? (
           <div className="mt-2">
             <button type="button" onClick={openTarget} className="font-display text-xl text-forest underline decoration-dotted underline-offset-4">
-              {targetLabel(savedWin)}
+              {targetText(saved!)}
             </button>
             <p className="mt-1 text-sm leading-relaxed">{saved!.reason}</p>
             <p className="mt-2 text-xs font-semibold text-leaf">
@@ -315,16 +386,21 @@ function Choose({ u, state, setState, locked, projectId, openTarget }: Props & {
               {design.shortlist.map((id) => {
                 const w = windowById(id)!;
                 const ok = isValidated(state, id);
-                const n = VALIDATION_ITEMS.filter((i) => design.checks[id]?.[i.id]).length;
+                const n = VALIDATION_ITEMS.filter((i) => checkDone(state, id, i.id)).length;
+                const hv = areaOf(state, cal, w.crop);
+                const comp = competition(w, hv.months, cal);
                 return (
                   <li key={id}>
                     <label className={`flex items-start gap-3 rounded-xl border p-3 text-sm ${!ok ? "cursor-not-allowed opacity-60" : "cursor-pointer"} ${pick === id ? "border-forest bg-mist" : "border-line"}`}>
                       <input type="radio" name="target-window" id={`tw-${id}`} disabled={!ok} checked={pick === id} onChange={() => setPick(id)} className="mt-0.5 h-4 w-4 accent-[var(--forest)]" />
                       <span>
-                        <span className="font-medium">{targetLabel(w)}</span>
+                        <span className="font-medium">
+                          {w.crop}, {hv.name} → {w.market}, {monthsLabel(w.months)}
+                        </span>
                         <span className="block text-xs text-muted">
                           {ok ? "Validated" : `Not validated yet: ${n} of ${VALIDATION_ITEMS.length} items`} ·{" "}
-                          {overlap(w).length ? `overlaps the harvest in ${monthsLabel(overlap(w))}` : "needs storage"}
+                          {overlap(w, hv.months).length ? `overlaps our harvest in ${monthsLabel(overlap(w, hv.months))}` : "needs storage"} ·{" "}
+                          {comp.length ? `competition from ${comp.map((c) => c.origin).join(", ")}` : "no competing supply recorded"}
                         </span>
                       </span>
                     </label>
@@ -349,8 +425,15 @@ function Choose({ u, state, setState, locked, projectId, openTarget }: Props & {
                 onClick={() => {
                   setState((s) => ({
                     ...s,
-                    marketTarget: { windowId: pickWin!.id, reason: reason.trim(), by: u.id, date: TODAY },
-                    audit: [...s.audit, { date: TODAY, who: u.id, what: `Chose target market window ${targetLabel(pickWin!)}`, kind: "approval" }],
+                    marketTarget: {
+                      windowId: pickWin!.id,
+                      reason: reason.trim(),
+                      by: u.id,
+                      date: TODAY,
+                      area: { id: pickArea.id, name: pickArea.name, months: pickArea.months },
+                      competition: competition(pickWin!, pickArea.months, cal),
+                    },
+                    audit: [...s.audit, { date: TODAY, who: u.id, what: `Chose target market window ${pickWin!.crop}, ${pickArea.name} → ${pickWin!.market}`, kind: "approval" }],
                   }));
                   setEditing(false);
                 }}
@@ -393,6 +476,7 @@ export function DesignPage() {
   }, []);
   const store = GATED_KEYS[projectId] ?? GATED_KEYS["AG-2027"];
   const [state, setState] = usePersistentState<ProjectState>(store.key, store.seed);
+  const [cal, setCal] = usePersistentState<CalendarData>(CALENDAR_KEY, seedCalendar);
   const project = projects.find((p) => p.id === projectId)!;
   const [crop, setCrop] = useState<Crop>(("crop" in project && project.crop) || "Grapes");
   const [targetOpen, setTargetOpen] = useState(false);
@@ -415,7 +499,7 @@ export function DesignPage() {
     validate: `${validatedCount} of ${design.shortlist.length} validated`,
     choose: state.marketTarget ? "Target chosen" : "Not chosen",
   };
-  const props: Props = { u: user, state, setState, locked };
+  const props: Props = { u: user, state, setState, locked, cal, setCal };
 
   return (
     <div className="min-h-screen">
@@ -456,6 +540,10 @@ export function DesignPage() {
         <p className="mt-10 text-xs text-muted">
           Reset this project&rsquo;s demo data:{" "}
           <button type="button" onClick={() => setState(store.seed())} className="font-semibold underline-offset-2 hover:underline">
+            reset
+          </button>
+          . Reset the harvest and competitor calendar:{" "}
+          <button type="button" onClick={() => setCal(seedCalendar())} className="font-semibold underline-offset-2 hover:underline">
             reset
           </button>
           .

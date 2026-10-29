@@ -128,7 +128,8 @@ export const WINDOWS: MarketWindow[] = [
 
 export const windowById = (id: string) => WINDOWS.find((x) => x.id === id);
 export const windowsFor = (crop: Crop) => MARKETS.map((m) => WINDOWS.find((x) => x.crop === crop && x.market === m)!).filter(Boolean);
-export const overlap = (win: MarketWindow) => win.months.filter((m) => HARVEST[win.crop].months.includes(m));
+/** Months where the window is open and the given harvest (default: all Afghanistan) is in. */
+export const overlap = (win: MarketWindow, harvest: number[] = HARVEST[win.crop].months) => win.months.filter((m) => harvest.includes(m));
 
 /** "Jun–Nov", "Feb–Mar, Jul–Aug", "Dec–Mar". */
 export function monthsLabel(months: number[]) {
@@ -158,32 +159,101 @@ export const targetLabel = (win: MarketWindow) => `${win.crop}, ${win.market}, $
  * What must be confirmed before a window counts as validated. Drawn from the brief's next steps.
  * Each item needs a named person and evidence; AI may only suggest where to look.
  */
-export const VALIDATION_ITEMS: { id: string; label: string; hint: (w: MarketWindow) => string }[] = [
+export const VALIDATION_ITEMS: { id: string; label: (area: string) => string; hint: (w: MarketWindow, area: Area) => string }[] = [
   {
     id: "harvest",
-    label: "Harvest months confirmed for the production area",
-    hint: (w) => `Seed says ${monthsLabel(HARVEST[w.crop].months)}: ${HARVEST[w.crop].note} Confirm with traders or partner records for the project's provinces.`,
+    label: (area) => `Harvest months confirmed for ${area}`,
+    hint: (_w, a) => `Calendar says ${monthsLabel(a.months)} for ${a.name}: ${a.note} Confirm with traders or partner records from that area.`,
   },
   {
     id: "route",
-    label: "Export route priced, avoiding closed borders",
+    label: () => "Export route priced, avoiding closed borders",
     hint: (w) => `Price the route to ${w.market} that avoids the Pakistan border (air, or overland via Iran or Central Asia) for the open months.`,
   },
   {
     id: "buyer",
-    label: "Buyer interest confirmed",
+    label: () => "Buyer interest confirmed",
     hint: (w) => `At least one named importer in ${w.market} willing to buy in ${monthsLabel(w.months)}. ROP buyer contacts or trade show leads.`,
   },
   {
     id: "quality",
-    label: "Required quality grade achievable",
+    label: () => "Required quality grade achievable",
     hint: (w) => `Check the grade the market expects against what producers delivered last season. Quality note: ${w.quality}`,
   },
 ];
 
 /** Fit order for exploring: open and in harvest first, then open needing storage, policy, closed, not assessed. */
-export function fitRank(w: MarketWindow) {
-  if (w.status === "open") return overlap(w).length ? 0 : 1;
+export function fitRank(w: MarketWindow, harvest?: number[]) {
+  if (w.status === "open") return overlap(w, harvest).length ? 0 : 1;
   return { policy: 2, closed: 3, unknown: 4, open: 0 }[w.status];
 }
 export const fitLabel = ["Open, overlaps harvest", "Open, needs storage", "Policy window", "Closed", "Not assessed"];
+
+/* ---------- production areas and competing supply ---------- */
+
+/**
+ * ROP's own layer: when production comes to market from each Afghan area, and from competing origins.
+ * Only India's seasons come from the brief. Every other month range is an ASSUMPTION TO VERIFY,
+ * seeded from general knowledge so the team can correct it in the app.
+ */
+const ASSUMED = "Assumption, to verify (not from the brief).";
+export const ALL_AREA = "all";
+
+export type Area = { id: string; crop: Crop; name: string; months: number[]; note: string; sources: Source[] };
+export type Competitor = { id: string; crop: Crop; origin: string; months: number[]; competesIn: Market[]; note: string; sources: Source[] };
+export type CalendarEdit = { rowId: string; by: string; date: string; note: string };
+export type CalendarData = { areas: Area[]; competitors: Competitor[]; edits: CalendarEdit[] };
+
+export function seedCalendar(): CalendarData {
+  const a = (crop: Crop, id: string, name: string, months: number[]): Area => ({ id: `${crop.slice(0, 3).toUpperCase()}-${id}`, crop, name, months, note: ASSUMED, sources: [] });
+  const c = (crop: Crop, id: string, origin: string, months: number[], competesIn: Market[], note = ASSUMED, sources: Source[] = []): Competitor => ({
+    id: `${crop.slice(0, 3).toUpperCase()}-C-${id}`,
+    crop,
+    origin,
+    months,
+    competesIn,
+    note,
+    sources,
+  });
+  return {
+    areas: [
+      a("Grapes", "kandahar", "Kandahar", [6, 7, 8]),
+      a("Grapes", "kabul", "Kabul (Shomali plain)", [8, 9, 10]),
+      a("Grapes", "herat", "Herat", [7, 8, 9]),
+      a("Pomegranates", "kandahar", "Kandahar", [9, 10, 11]),
+      a("Pomegranates", "balkh", "Balkh", [9, 10]),
+      a("Onions", "kandahar", "Kandahar", [4, 5, 6]),
+      a("Onions", "herat", "Herat", [6, 7, 8]),
+      a("Onions", "balkh", "Balkh", [7, 8, 9]),
+    ],
+    competitors: [
+      c("Grapes", "india", "India (domestic crop)", [12, 1, 2, 3, 4], ["India"], "India's own harvest runs December to April (brief).", [S.tradologie]),
+      c("Grapes", "turkiye", "Türkiye", [7, 8, 9, 10], ["Türkiye", "Central Asia", "UAE"]),
+      c("Grapes", "iran", "Iran", [7, 8, 9, 10], ["UAE", "Central Asia", "India"]),
+      c("Grapes", "uzbekistan", "Uzbekistan", [8, 9, 10], ["Central Asia", "India"]),
+      c("Grapes", "south", "Southern Hemisphere (Chile, South Africa)", [1, 2, 3, 4], ["India", "UAE"]),
+      c("Pomegranates", "india", "India (export season)", [10, 11, 12, 1, 2], ["UAE", "India"], "India's peak export season runs October to February (brief).", [S.vgf]),
+      c("Pomegranates", "iran", "Iran", [10, 11, 12], ["UAE", "Central Asia"]),
+      c("Pomegranates", "turkiye", "Türkiye", [9, 10, 11, 12], ["UAE", "Türkiye"]),
+      c("Onions", "india", "India (rabi and kharif crops)", [3, 4, 5, 10, 11, 12], ["UAE", "Pakistan"]),
+      c("Onions", "pakistan", "Pakistan", [1, 2, 3, 4], ["Pakistan", "Central Asia"]),
+      c("Onions", "iran", "Iran", [6, 7, 8, 9], ["UAE", "Central Asia"]),
+    ],
+    edits: [],
+  };
+}
+
+/** The brief-level national band, as an "area" so it can be chosen like the others. */
+export const nationalArea = (crop: Crop): Area => ({ id: ALL_AREA, crop, name: "All Afghanistan", months: HARVEST[crop].months, note: HARVEST[crop].note, sources: HARVEST[crop].sources });
+export const areasFor = (cal: CalendarData, crop: Crop) => [nationalArea(crop), ...cal.areas.filter((a) => a.crop === crop)];
+export const areaFor = (cal: CalendarData, crop: Crop, id?: string) => areasFor(cal, crop).find((a) => a.id === id) ?? nationalArea(crop);
+export const competitorsFor = (cal: CalendarData, crop: Crop) => cal.competitors.filter((c) => c.crop === crop);
+
+/** Competing origins in season in this market during the months our area can supply it. */
+export function competition(win: MarketWindow, harvest: number[], cal: CalendarData) {
+  const ours = overlap(win, harvest);
+  return competitorsFor(cal, win.crop)
+    .filter((c) => c.competesIn.includes(win.market))
+    .map((c) => ({ origin: c.origin, months: c.months.filter((m) => ours.includes(m)) }))
+    .filter((c) => c.months.length > 0);
+}
