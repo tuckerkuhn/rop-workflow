@@ -425,11 +425,12 @@ export const quietBtn =
 export type RoleTab = { id: string; short: string };
 
 /** Top bar used on every signed-in page: home, workflows you can open, currency, and who you are. */
-export function TopBar({ active, children }: { active?: "project" | "field" | "procurement"; children?: React.ReactNode }) {
+export function TopBar({ active, children }: { active?: "design" | "project" | "field" | "procurement"; children?: React.ReactNode }) {
   const { user, signOut } = useSession();
   const router = useRouter();
   const [menu, setMenu] = useState(false);
   const spaces = [
+    { id: "design", label: "Project design", href: "/design", access: user?.kind === "employee" ? "view" : "none" },
     { id: "project", label: "Project", href: "/projects/A-2027", access: user ? "view" : "none" },
     { id: "field", label: "Field activities", href: "/field", access: user?.fieldAccess },
     { id: "procurement", label: "Procurement", href: "/procurement", access: user?.procurementAccess },
