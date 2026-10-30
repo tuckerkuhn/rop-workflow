@@ -15,6 +15,13 @@
       "when": 1793323364458,
       "tag": "0001_kobo_readiness",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793383997599,
+      "tag": "0002_lock_tables",
+      "breakpoints": true
     }
   ]
 }
