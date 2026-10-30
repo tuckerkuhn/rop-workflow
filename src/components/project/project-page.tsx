@@ -7,6 +7,8 @@ import { PROCUREMENT_ITEMS_KEY } from "@/components/procurement/workspace";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { Pill, SectionLabel, TODAY, TopBar, dangerBtn, primaryBtn, quietBtn, usePersistentState } from "@/components/workspace/ui";
 import { STAGES, holderOf, projectRoleHolders, projects, userById, type AppUser } from "@/lib/demo";
+import { GatedSections, MoveToExecute } from "@/components/project/gated-project";
+import { TargetPanel } from "@/components/project/market-windows";
 import { maskName, type Farmer, type FieldItem } from "@/lib/field";
 import { seedProcurements, type Procurement } from "@/lib/procurement";
 import {
@@ -24,6 +26,7 @@ import {
   personName,
   planLines,
   results,
+  GATED_KEYS,
   seedProject,
   suggestLine,
   type Indicator,
@@ -34,6 +37,7 @@ import {
 } from "@/lib/project";
 
 export const PROJECT_KEY = "rop-project-v3";
+
 const TABS = ["Overview", "Plan", "Execute", "Verify", "Budget", "Report", "Audit"] as const;
 type Tab = (typeof TABS)[number];
 const PERIOD = "January to March 2027 (to 4 March)";
@@ -273,15 +277,17 @@ function traceable(state: ProjectState) {
 function Plan({ state, field, procs, openEvidence }: SectionProps & { openEvidence: (i: Indicator) => void }) {
   return (
     <div className="space-y-8">
-      <section className="flex flex-wrap items-center gap-4 rounded-2xl border border-forest/30 bg-mist p-5">
-        <span className="grid h-10 w-10 place-items-center rounded-full bg-forest text-forest-ink">✓</span>
-        <div className="min-w-0 flex-1">
-          <p className="font-semibold">Project plan and budget approved</p>
-          <p className="text-sm text-muted">
-            Signed by {name(state.planApproval.by)} on {state.planApproval.date}. {state.planApproval.note} This sign-off opened Execute.
-          </p>
-        </div>
-      </section>
+      {state.planApproval && (
+        <section className="flex flex-wrap items-center gap-4 rounded-2xl border border-forest/30 bg-mist p-5">
+          <span className="grid h-10 w-10 place-items-center rounded-full bg-forest text-forest-ink">✓</span>
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold">Project plan and budget approved</p>
+            <p className="text-sm text-muted">
+              Signed by {name(state.planApproval.by)} on {state.planApproval.date}. {state.planApproval.note} This sign-off opened Execute.
+            </p>
+          </div>
+        </section>
+      )}
 
       <section>
         <SectionLabel>Results framework</SectionLabel>
@@ -1081,11 +1087,14 @@ type SectionProps = {
 
 export function ProjectPage({ id }: { id: string }) {
   const { user } = useRequireUser();
-  const [local, setStateRaw] = usePersistentState<ProjectState>(PROJECT_KEY, seedProject);
+  const gatedStore = GATED_KEYS[id];
+  const [local, setStateRaw] = usePersistentState<ProjectState>(gatedStore?.key ?? PROJECT_KEY, gatedStore?.seed ?? seedProject);
+  const [targetOpen, setTargetOpen] = useState(false);
   const { items: field, reload: reloadField } = useFieldData();
   const kobo = useSubmissions();
-  // The review queue comes from the database; the rest of the project page stays in this browser for now.
-  const state: ProjectState = { ...local, submissions: kobo.submissions };
+  // A-2027's review queue comes from the database. Gated demo projects (in Design) have no field data
+  // yet and keep their whole state in this browser.
+  const state: ProjectState = gatedStore ? local : { ...local, submissions: kobo.submissions };
   const [procs] = usePersistentState<Procurement[]>(PROCUREMENT_ITEMS_KEY, seedProcurements);
   const [tab, setTab] = useState<Tab>("Overview");
   const [evidence, setEvidence] = useState<Indicator | null>(null);
@@ -1130,6 +1139,8 @@ export function ProjectPage({ id }: { id: string }) {
     roster: kobo.roster,
     kobo: { ...kobo, decide: decideAndRefresh },
   };
+  const gated = "designGate" in project && project.designGate;
+  const stage = (gated && state.stage) || project.stage;
 
   return (
     <div className="min-h-screen">
@@ -1149,7 +1160,7 @@ export function ProjectPage({ id }: { id: string }) {
           <p className="mt-1 max-w-2xl text-sm text-muted">{project.note}</p>
           <ol className="mt-5 flex flex-wrap gap-1 text-sm" aria-label="Stage">
             {STAGES.map((s) => {
-              const idx = STAGES.indexOf(project.stage);
+              const idx = STAGES.indexOf(stage);
               const k = STAGES.indexOf(s);
               return (
                 <li
@@ -1164,9 +1175,41 @@ export function ProjectPage({ id }: { id: string }) {
               );
             })}
           </ol>
+          {gated && stage === "Design" && !donor && <MoveToExecute u={user} state={state} setState={setState} />}
         </header>
 
-        {id !== "A-2027" ? (
+        {gated && !donor ? (
+          <>
+            <nav aria-label="Project sections" className="sticky top-[57px] z-30 -mx-4 mt-6 overflow-x-auto border-b border-line bg-paper/95 px-4 backdrop-blur sm:mx-0 sm:px-0">
+              <div className="flex w-max gap-1">
+                {TABS.map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => go(t)}
+                    aria-current={tab === t ? "page" : undefined}
+                    className={`relative px-3 py-3 text-sm transition ${tab === t ? "font-semibold text-ink" : "text-muted hover:text-ink"}`}
+                  >
+                    {t}
+                    {tab === t && <span className="absolute inset-x-2 bottom-0 h-0.5 rounded bg-forest" />}
+                  </button>
+                ))}
+              </div>
+            </nav>
+            <div className="mt-6">
+              <GatedSections tab={tab} state={state} stage={stage} openTarget={() => setTargetOpen(true)} />
+            </div>
+            <p className="mt-10 text-xs text-muted">
+              Reset this project&rsquo;s demo data:{" "}
+              <button type="button" onClick={() => setStateRaw(gatedStore!.seed())} className="font-semibold underline-offset-2 hover:underline">
+                reset
+              </button>
+              . Signed in as {userById(user.id)?.name}.
+            </p>
+          </>
+        ) : gated ? (
+          <p className="mt-8 rounded-2xl border border-line bg-surface p-6 text-sm text-muted">This project is still in design and is not shared with donors yet.</p>
+        ) : id !== "A-2027" ? (
           <section className="mt-8 rounded-2xl border border-line bg-surface p-6">
             <p className="font-display text-2xl">Plan not loaded yet</p>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted">
@@ -1229,6 +1272,7 @@ export function ProjectPage({ id }: { id: string }) {
         )}
       </div>
       {evidence && <EvidencePanel ind={evidence} state={state} onClose={() => setEvidence(null)} />}
+      {targetOpen && state.marketTarget && <TargetPanel state={state} onClose={() => setTargetOpen(false)} />}
     </div>
   );
 }

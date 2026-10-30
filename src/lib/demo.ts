@@ -10,6 +10,9 @@ export type ProjectRole = "plan-approver" | "monthly-review" | "report-release" 
 export type Access = "edit" | "view" | "none";
 export type Lang = "en" | "es" | "fa" | "ps";
 
+/** People who may validate market windows and choose a project's target: the project manager and plan approvers. */
+export const canValidate = (u: { project: string[]; field: string[] } | null | undefined) => !!u && (u.project.includes("plan-approver") || u.field.includes("manager"));
+
 /** Fixed demo date the sample data is built around. Real Kobo submissions keep their real dates. */
 export const TODAY = "2027-03-04";
 
@@ -79,6 +82,21 @@ export const projects = [
     stage: "Execute" as Stage,
     note: "Fictional demo project. Runs the full thin path: design, approve, implement, measure, report.",
     workflows: ["field", "procurement"] as const,
+  },
+  {
+    id: "AG-2027",
+    name: "Afghan Table Grapes",
+    country: "Afghanistan",
+    season: "2027",
+    award: "Award AG-2027 (fictional)",
+    orgId: ORG_ID,
+    status: "Active",
+    stage: "Design" as Stage,
+    note: "Fictional demo project. Design can only be signed off once a validated market window is chosen in Project design.",
+    workflows: [] as const,
+    /** Design cannot be signed off until a target market window and reason are saved. */
+    designGate: true,
+    crop: "Grapes" as const,
   },
   {
     id: "WH",

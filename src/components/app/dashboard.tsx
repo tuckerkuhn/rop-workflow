@@ -8,14 +8,14 @@ import { PROCUREMENT_ITEMS_KEY, procurementComingTo } from "@/components/procure
 import { PROJECT_KEY } from "@/components/project/project-page";
 import { Initials, useRequireUser, useSession } from "@/components/app/session";
 import { Pill, SectionLabel, TODAY, TopBar, usePersistentState } from "@/components/workspace/ui";
-import { PROJECT, daysFrom, directReports, projectPath, projects, stepHistory, userById, type AppUser } from "@/lib/demo";
+import { PROJECT, daysFrom, directReports, projectPath, projects, stepHistory, userById, type AppUser, type Stage } from "@/lib/demo";
 import { PACKAGE, PACKAGE_USD, farmerLabel, farmerName, farmerStages, fieldRoleLabel, fieldSteps, maskName, ownerOfItem, projectItem, type Farmer, type FieldItem } from "@/lib/field";
 import { DONE, ownerOf, roleLabel, seedProcurements, stepById, stepsFor, valueOf, type Procurement } from "@/lib/procurement";
-import { indicators, actualFor, seedProject, type ProjectState } from "@/lib/project";
+import { GATED_KEYS, indicators, actualFor, seedProject, type ProjectState } from "@/lib/project";
 
 type Space = "Project" | "Field" | "Procurement";
 type WorkCard = { key: string; title: string; step: string; date: string; href: string; space: Space; now: boolean; late: boolean; note: string };
-type Data = { field: FieldItem[]; procs: Procurement[]; project: ProjectState };
+type Data = { field: FieldItem[]; procs: Procurement[]; project: ProjectState; stages: Record<string, Stage | undefined> };
 
 function weekday(d: string) {
   return new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
@@ -269,7 +269,7 @@ function EmployeeHome({ u, data, viewer, readOnly, onView }: { u: AppUser; data:
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="font-mono text-xs text-muted">
-                      {pr.id} · {pr.country} · stage: {pr.stage}
+                      {pr.id} · {pr.country} · stage: {data.stages[pr.id] ?? pr.stage}
                     </p>
                     <h3 className="mt-1 font-display text-2xl tracking-tight">{pr.name}</h3>
                   </div>
@@ -440,6 +440,7 @@ export function Dashboard() {
   const [local] = usePersistentState<ProjectState>(PROJECT_KEY, seedProject);
   // Review-queue records live in the database; the rest of the project state is still in this browser.
   const project: ProjectState = { ...local, submissions };
+  const [grapes] = usePersistentState<ProjectState>(GATED_KEYS["AG-2027"].key, GATED_KEYS["AG-2027"].seed);
   const [viewing, setViewing] = useState<string | null>(null);
 
   // /home?view=farida shows a direct report's work, read-only.
@@ -454,7 +455,7 @@ export function Dashboard() {
   };
 
   if (!user) return null;
-  const data: Data = { field, procs, project };
+  const data: Data = { field, procs, project, stages: { "AG-2027": grapes.stage } };
   // Managers may view anyone in their reporting line, not just direct reports, when they drill down.
   const inLine = (id: string): boolean => {
     let m = userById(id);

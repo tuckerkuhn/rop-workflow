@@ -4,7 +4,8 @@
  * Everything here is fictional demo data for project A-2027.
  */
 
-import { ORG_ID, PROJECT, TODAY, userById } from "@/lib/demo";
+import { ORG_ID, PROJECT, TODAY, userById, type Stage } from "@/lib/demo";
+import { ALL_AREA, VALIDATION_ITEMS, windowById, type Crop } from "@/lib/market-windows";
 import { seedField, type Farmer, type FieldItem } from "@/lib/field";
 import { DONE, budgetLines, seedProcurements, stepById, type Procurement } from "@/lib/procurement";
 
@@ -308,9 +309,36 @@ export type Approval = { what: string; by: string; date: string; note?: string }
 export type AuditEvent = { date: string; who: string; what: string; kind: "create" | "change" | "approval" | "agent" | "import" };
 export type ProposedChange = { id: string; text: string; status: "proposed" | "approved" | "declined"; by?: string };
 
+/** The market window a project commits to in Design (market windows brief). */
+export type MarketTarget = {
+  windowId: string;
+  reason: string;
+  by: string;
+  date: string;
+  /** Production area and its harvest months as recorded when the target was chosen. */
+  area?: { id: string; name: string; months: number[] };
+  /** Competing origins in season during our supply months, as recorded when chosen. */
+  competition?: { origin: string; months: number[] }[];
+};
+
+/** One validation item done: who confirmed it, when, and the evidence they gave. */
+export type ValidationCheck = { by: string; date: string; evidence: string; /** Production area the check applies to (harvest item). */ area?: string };
+/** Working state of Project design: candidates being validated and ones dropped. */
+export type DesignState = {
+  /** Production area being designed for, per crop. Defaults to all Afghanistan. */
+  areaByCrop?: Partial<Record<Crop, string>>;
+  shortlist: string[];
+  checks: Record<string, Record<string, ValidationCheck>>;
+  dropped: { windowId: string; reason: string; by: string; date: string }[];
+};
+
 export type ProjectState = {
   orgId: string;
   projectId: string;
+  /** Live stage for projects whose stage moves in the app; otherwise the project's fixed stage applies. */
+  stage?: Stage;
+  marketTarget?: MarketTarget;
+  design?: DesignState;
   submissions: Submission[];
   /** Indicator id → MEL approval of the current period's Actual. */
   actualApprovals: Record<string, Approval>;
@@ -319,7 +347,7 @@ export type ProjectState = {
   varianceThreshold: number;
   changes: ProposedChange[];
   reportRelease?: Approval;
-  planApproval: Approval;
+  planApproval?: Approval;
   audit: AuditEvent[];
 };
 
@@ -347,6 +375,66 @@ export function seedProject(): ProjectState {
       ...submissions.filter((s) => s.status === "accepted").map((s) => ({ date: s.decidedOn!, who: "omar", what: `Accepted ${s.id} (${formLabel[s.form]}, ${s.farmerId})`, kind: "approval" as const })),
     ],
   };
+}
+
+/** A new project in Design: no plan, results or field data yet. Two candidates short-listed; Nadia has started validating one. */
+export function seedGrapesProject(): ProjectState {
+  return {
+    orgId: ORG_ID,
+    projectId: "AG-2027",
+    stage: "Design",
+    submissions: [],
+    actualApprovals: {},
+    spend: [],
+    varianceThreshold: 10,
+    changes: [],
+    design: {
+      areaByCrop: { Grapes: "GRA-kabul" },
+      shortlist: ["GRA-IND", "POM-UAE"],
+      checks: {
+        "GRA-IND": {
+          harvest: { by: "nadia", date: "2027-02-25", area: "GRA-kabul", evidence: "Demo note: two Shomali grape traders confirm main picking mid-August to October (fictional interviews)." },
+          quality: { by: "nadia", date: "2027-02-27", evidence: "Demo note: last season's packhouse sorted 60% to export grade (fictional record)." },
+        },
+      },
+      dropped: [],
+    },
+    audit: [
+      { date: "2027-02-20", who: "tucker", what: "Created project AG-2027 in Design", kind: "create" },
+      { date: "2027-02-22", who: "nadia", what: "Short-listed Grapes, India and Pomegranates, UAE in Project design", kind: "change" },
+      { date: "2027-02-25", who: "nadia", what: "Validated harvest months for Grapes, India", kind: "approval" },
+      { date: "2027-02-27", who: "nadia", what: "Validated quality grade for Grapes, India", kind: "approval" },
+    ],
+  };
+}
+
+/** Gated demo projects keep their own stored state so each can be reset on its own. */
+export const GATED_KEYS: Record<string, { key: string; seed: () => ProjectState }> = {
+  "AG-2027": { key: "rop-project-ag-2027-v3", seed: seedGrapesProject },
+};
+
+/** Production area currently chosen for a crop in Project design. */
+export const designArea = (state: ProjectState, crop: Crop) => state.design?.areaByCrop?.[crop] ?? ALL_AREA;
+
+/** A check counts if it exists; the harvest check must also be for the area now chosen. */
+export function checkDone(state: ProjectState, windowId: string, itemId: string) {
+  const c = state.design?.checks[windowId]?.[itemId];
+  if (!c) return undefined;
+  const win = windowById(windowId);
+  if (itemId === "harvest" && win && (c.area ?? ALL_AREA) !== designArea(state, win.crop)) return undefined;
+  return c;
+}
+
+export const isValidated = (state: ProjectState, windowId: string) => VALIDATION_ITEMS.every((i) => checkDone(state, windowId, i.id));
+
+/** What still blocks Design sign-off on a gated project. */
+export function designGateMissing(state: ProjectState) {
+  const missing: string[] = [];
+  const t = state.marketTarget;
+  if (!t?.windowId || !windowById(t.windowId)) missing.push("Choose the target market window in Project design.");
+  else if (!isValidated(state, t.windowId)) missing.push("Finish validating the target window (every checklist item, with evidence).");
+  if (!t?.reason.trim()) missing.push("Write why the producers can hit that window.");
+  return missing;
 }
 
 export const personName = (id: string) => (id.startsWith("agent:") ? `${id.slice(6)} (AI)` : (userById(id)?.name ?? id));
