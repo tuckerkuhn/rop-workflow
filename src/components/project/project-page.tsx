@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { FIELD_ITEMS_KEY } from "@/components/field/workspace";
+import { useFieldData, useSubmissions, type SyncResult } from "@/components/app/use-project-data";
 import { PROCUREMENT_ITEMS_KEY } from "@/components/procurement/workspace";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { Pill, SectionLabel, TODAY, TopBar, dangerBtn, primaryBtn, quietBtn, usePersistentState } from "@/components/workspace/ui";
 import { STAGES, holderOf, projectRoleHolders, projects, userById, type AppUser } from "@/lib/demo";
-import { maskName, seedField, type Farmer, type FieldItem } from "@/lib/field";
+import { maskName, type Farmer, type FieldItem } from "@/lib/field";
 import { seedProcurements, type Procurement } from "@/lib/procurement";
 import {
   CROSS_CUTTING,
@@ -28,6 +28,7 @@ import {
   suggestLine,
   type Indicator,
   type ProjectState,
+  type Roster,
   type SpendRow,
   type Submission,
 } from "@/lib/project";
@@ -108,7 +109,7 @@ function EvidencePanel({ ind, state, onClose }: { ind: Indicator; state: Project
                 {s.fields.result ? ` · result ${s.fields.result}` : ""}
               </p>
               <p className="text-xs text-muted">
-                Collected by {name(s.enumerator)} · GPS {s.gps[0].toFixed(3)}, {s.gps[1].toFixed(3)} · {s.photo ? "photo attached" : "no photo"} · accepted by {name(s.decidedBy ?? "")} {s.decidedOn}
+                {s.source === "kobo" ? "Kobo submission" : "Sample record"} · collected by {name(s.enumerator)} · {s.gps ? `GPS ${s.gps[0].toFixed(3)}, ${s.gps[1].toFixed(3)}` : "no GPS"} · {s.photo ? "photo attached" : "no photo"} · accepted by {name(s.decidedBy ?? "")} {s.decidedOn}
               </p>
             </li>
           ))}
@@ -121,11 +122,11 @@ function EvidencePanel({ ind, state, onClose }: { ind: Indicator; state: Project
 
 /* ---------- sections ---------- */
 
-function Overview({ u, state, setState, field, procs, go }: SectionProps & { go: (t: Tab) => void }) {
+function Overview({ u, state, setState, field, procs, roster, go }: SectionProps & { go: (t: Tab) => void }) {
   const { money } = useSession();
   const canReview = u.project.includes("monthly-review");
   const pending = state.submissions.filter((s) => s.status === "pending");
-  const flagged = pending.filter((s) => dataFlags(s, state.submissions).length);
+  const flagged = pending.filter((s) => dataFlags(s, state.submissions, roster).length);
   const late = activities.filter((a) => activityStatus(a, field, procs).status === "Late");
   const unapproved = indicators.filter((i) => i.source !== "survey" && !state.actualApprovals[i.id]);
   const spend = state.spend.reduce((s, r) => s + r.amount, 0);
@@ -409,22 +410,78 @@ function Execute({ field, procs }: SectionProps) {
   );
 }
 
-function Verify({ u, state, setState, openEvidence }: SectionProps & { openEvidence: (i: Indicator) => void }) {
+function KoboBar({ kobo }: { kobo: SectionProps["kobo"] }) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const run = async (what: string, fn: () => Promise<string>) => {
+    setBusy(what);
+    setMsg(null);
+    try {
+      setMsg({ ok: true, text: await fn() });
+    } catch (e) {
+      setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+    }
+    setBusy(null);
+  };
+  const synced = (r: SyncResult) =>
+    `Synced ${new Date().toLocaleTimeString()}: ${r.fetched} on Kobo · ${r.new} new · ${r.duplicate} already in${r.skipped ? ` · ${r.skipped} skipped (${[...new Set(r.reasons)].join(", ")})` : ""}`;
+  return (
+    <div className="rounded-2xl border border-line bg-surface p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="mr-auto text-sm">
+          <span className="font-semibold">KoboToolbox</span> <span className="text-muted">· readiness check form</span>
+        </p>
+        <button type="button" disabled={!!busy} onClick={() => run("sync", async () => synced(await kobo.sync()))} className={`${primaryBtn} py-2`}>
+          {busy === "sync" ? "Syncing…" : "Sync from Kobo"}
+        </button>
+        <button
+          type="button"
+          disabled={!!busy}
+          onClick={() => run("push", async () => {
+            const r = await kobo.pushFarmers();
+            return `Farmer list uploaded (${r.farmers} farmers)${r.redeployed ? " and the form redeployed." : ". Redeploy the form in Kobo so it picks up the new list."}`;
+          })}
+          className={`${quietBtn} py-2`}
+        >
+          {busy === "push" ? "Uploading…" : "Push farmer list to Kobo"}
+        </button>
+        <a href="/api/kobo/farmers?project=A-2027" className="px-2 text-sm text-forest hover:underline">
+          Download farmers.csv
+        </a>
+      </div>
+      {msg && <p className={`mt-2 text-sm ${msg.ok ? "text-leaf" : "text-clay"}`}>{msg.text}</p>}
+      <p className="mt-2 text-xs text-muted">The farmer list carries ID, village and household-head initials only. Submissions are matched to a farmer by ID and stored once per Kobo record.</p>
+    </div>
+  );
+}
+
+function Verify({ u, state, setState, roster, kobo, openEvidence }: SectionProps & { openEvidence: (i: Indicator) => void }) {
   const isMel = u.project.includes("mel-owner");
   const [querying, setQuerying] = useState<string | null>(null);
   const [note, setNote] = useState("");
+  const [outcome, setOutcome] = useState<{ ok: boolean; text: string } | null>(null);
   const pending = state.submissions.filter((s) => s.status === "pending");
   const queried = state.submissions.filter((s) => s.status === "queried");
-  const decide = (ids: string[], status: Submission["status"], why?: string) =>
-    setState((s) => ({
-      ...s,
-      submissions: s.submissions.map((x) => (ids.includes(x.id) ? { ...x, status, decidedBy: u.id, decidedOn: TODAY, note: why } : x)),
-      audit: [...s.audit, ...ids.map((id) => ({ date: TODAY, who: u.id, what: `${status === "accepted" ? "Accepted" : "Queried"} ${id}${why ? `: ${why}` : ""}`, kind: "approval" as const }))],
-    }));
-  const clean = pending.filter((s) => dataFlags(s, state.submissions).length === 0);
+  const decide = async (subs: Submission[], status: "accepted" | "queried", why?: string) => {
+    setOutcome(null);
+    try {
+      const applied = await kobo.decide(subs.map((x) => x.dbId!).filter(Boolean), status, why);
+      setOutcome({ ok: true, text: applied.length ? `Field activities updated: ${applied.join(" ")}` : `${subs.length} record${subs.length === 1 ? "" : "s"} ${status}.` });
+    } catch (e) {
+      setOutcome({ ok: false, text: e instanceof Error ? e.message : String(e) });
+    }
+  };
+  const clean = pending.filter((s) => dataFlags(s, state.submissions, roster).length === 0);
 
   return (
     <div className="space-y-8">
+      {kobo.error && (
+        <p role="alert" className="rounded-xl border border-clay/40 bg-clay-soft px-4 py-3 text-sm text-clay">
+          {kobo.error}
+        </p>
+      )}
+      {u.kind === "employee" && <KoboBar kobo={kobo} />}
+      {outcome && <p className={`rounded-xl border px-4 py-3 text-sm ${outcome.ok ? "border-forest/30 bg-mist text-leaf" : "border-clay/40 bg-clay-soft text-clay"}`}>{outcome.text}</p>}
       <section>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
@@ -432,20 +489,21 @@ function Verify({ u, state, setState, openEvidence }: SectionProps & { openEvide
             <p className="mt-1 text-sm text-muted">The data checker flags problems. {isMel ? "You" : name(projectRoleHolders("mel-owner")[0]?.id ?? "")} accept or query each record; accepted data becomes part of an Actual.</p>
           </div>
           {isMel && clean.length > 0 && (
-            <button type="button" onClick={() => decide(clean.map((s) => s.id), "accepted")} className={quietBtn}>
+            <button type="button" onClick={() => decide(clean, "accepted")} className={quietBtn}>
               Accept {clean.length} without flags
             </button>
           )}
         </div>
         <ul className="mt-3 space-y-2">
           {pending.map((s) => {
-            const flags = dataFlags(s, state.submissions);
+            const flags = dataFlags(s, state.submissions, roster);
             return (
               <li key={s.id} className={`rounded-2xl border bg-surface p-4 ${flags.length ? "border-clay/40" : "border-line"}`}>
                 <div className="flex flex-wrap items-start gap-3">
                   <div className="min-w-0 flex-1">
                     <p className="text-sm">
-                      <span className="font-mono text-xs text-muted">{s.id}</span> · <span className="font-medium">{formLabel[s.form]}</span> · Farmer {s.farmerId}
+                      <span className="font-mono text-xs text-muted">{s.id}</span> · <span className="font-medium">{formLabel[s.form]}</span> · Farmer {s.farmerId}{" "}
+                      <Pill tone={s.source === "kobo" ? "sky" : "muted"}>{s.source === "kobo" ? "Kobo" : "Sample"}</Pill>
                     </p>
                     <p className="mt-0.5 text-xs text-muted">
                       {s.date} · {name(s.enumerator)} · {Object.entries(s.fields).map(([k, v]) => `${k}: ${v || "—"}`).join(" · ")}
@@ -463,7 +521,7 @@ function Verify({ u, state, setState, openEvidence }: SectionProps & { openEvide
                   </div>
                   {isMel && querying !== s.id && (
                     <div className="flex gap-2">
-                      <button type="button" onClick={() => decide([s.id], "accepted")} className="rounded-full bg-forest px-4 py-1.5 text-sm font-medium text-forest-ink">
+                      <button type="button" onClick={() => decide([s], "accepted")} className="rounded-full bg-forest px-4 py-1.5 text-sm font-medium text-forest-ink">
                         Accept
                       </button>
                       <button type="button" onClick={() => setQuerying(s.id)} className="rounded-full border border-line px-4 py-1.5 text-sm">
@@ -478,7 +536,7 @@ function Verify({ u, state, setState, openEvidence }: SectionProps & { openEvide
                     onSubmit={(e) => {
                       e.preventDefault();
                       if (!note.trim()) return;
-                      decide([s.id], "queried", note.trim());
+                      void decide([s], "queried", note.trim());
                       setQuerying(null);
                       setNote("");
                     }}
@@ -499,7 +557,7 @@ function Verify({ u, state, setState, openEvidence }: SectionProps & { openEvide
               </li>
             );
           })}
-          {pending.length === 0 && <li className="rounded-2xl border border-line bg-surface p-4 text-sm text-muted">Queue is clear.</li>}
+          {pending.length === 0 && <li className="rounded-2xl border border-line bg-surface p-4 text-sm text-muted">{kobo.status === "loading" ? "Loading the review queue…" : "Queue is clear."}</li>}
         </ul>
         {queried.length > 0 && <p className="mt-2 text-xs text-muted">{queried.length} queried and back with the enumerator: {queried.map((s) => s.id).join(", ")}</p>}
       </section>
@@ -928,18 +986,26 @@ function Report({ u, state, setState, field, openEvidence }: SectionProps & { op
   );
 }
 
-function Audit({ state, field, procs }: SectionProps) {
+function Audit({ state, field, procs, roster }: SectionProps) {
   const [kind, setKind] = useState<string>("all");
   const events = useMemo(() => {
     const own = state.audit.map((e) => ({ ...e, where: "Project" }));
+    const kb = state.submissions
+      .filter((s) => s.source === "kobo")
+      .flatMap((s) => [
+        { date: s.date, who: s.enumerator, what: `Kobo submission ${s.id} (${formLabel[s.form]}, ${s.farmerId}) received`, kind: "import" as const, where: "Verify" },
+        ...(s.status !== "pending" && s.decidedOn
+          ? [{ date: s.decidedOn, who: s.decidedBy ?? "", what: `${s.status === "accepted" ? "Accepted" : "Queried"} ${s.id}${s.note ? `: ${s.note}` : ""}`, kind: "approval" as const, where: "Verify" }]
+          : []),
+      ]);
     const fe = field.flatMap((i) => i.timeline.map((e) => ({ date: e.date, who: holderOf("field", e.who)?.id ?? e.who, what: `${i.id}: ${e.what}`, kind: "change" as const, where: "Field activities" })));
     const pe = procs.flatMap((p) => p.timeline.map((e) => ({ date: e.date, who: holderOf("procurement", e.who)?.id ?? e.who, what: `${p.id}: ${e.what}`, kind: "change" as const, where: "Procurement" })));
     const ag = [
-      { date: TODAY, who: "agent:Data checker", what: `Checked ${state.submissions.filter((s) => s.status === "pending").length} new submissions; ${state.submissions.filter((s) => s.status === "pending" && dataFlags(s, state.submissions).length).length} flagged`, kind: "agent" as const, where: "Project" },
+      { date: TODAY, who: "agent:Data checker", what: `Checked ${state.submissions.filter((s) => s.status === "pending").length} new submissions; ${state.submissions.filter((s) => s.status === "pending" && dataFlags(s, state.submissions, roster).length).length} flagged`, kind: "agent" as const, where: "Project" },
       { date: TODAY, who: "agent:Monthly reviewer", what: "Drafted the March monthly review with 3 proposed changes", kind: "agent" as const, where: "Project" },
     ];
-    return [...own, ...fe, ...pe, ...ag].sort((a, b) => b.date.localeCompare(a.date));
-  }, [state, field, procs]);
+    return [...own, ...kb, ...fe, ...pe, ...ag].sort((a, b) => b.date.localeCompare(a.date));
+  }, [state, field, procs, roster]);
   const shown = kind === "all" ? events : events.filter((e) => e.kind === kind);
   const exportCsv = () => {
     const rows = [["date", "who", "kind", "where", "what"], ...shown.map((e) => [e.date, name(e.who), e.kind, e.where, e.what])];
@@ -1006,14 +1072,20 @@ type SectionProps = {
   setState: (fn: (s: ProjectState) => ProjectState) => void;
   field: FieldItem[];
   procs: Procurement[];
+  /** Farmer code to current step, for the data checker. */
+  roster: Roster;
+  kobo: ReturnType<typeof useSubmissions>;
 };
 
 /* ---------- page ---------- */
 
 export function ProjectPage({ id }: { id: string }) {
   const { user } = useRequireUser();
-  const [state, setStateRaw] = usePersistentState<ProjectState>(PROJECT_KEY, seedProject);
-  const [field] = usePersistentState<FieldItem[]>(FIELD_ITEMS_KEY, seedField);
+  const [local, setStateRaw] = usePersistentState<ProjectState>(PROJECT_KEY, seedProject);
+  const { items: field, reload: reloadField } = useFieldData();
+  const kobo = useSubmissions();
+  // The review queue comes from the database; the rest of the project page stays in this browser for now.
+  const state: ProjectState = { ...local, submissions: kobo.submissions };
   const [procs] = usePersistentState<Procurement[]>(PROCUREMENT_ITEMS_KEY, seedProcurements);
   const [tab, setTab] = useState<Tab>("Overview");
   const [evidence, setEvidence] = useState<Indicator | null>(null);
@@ -1043,7 +1115,21 @@ export function ProjectPage({ id }: { id: string }) {
   const tabs: Tab[] = donor ? ["Report"] : [...TABS];
   const shownTab: Tab = donor ? "Report" : tab;
   const pendingCount = state.submissions.filter((s) => s.status === "pending").length;
-  const props: SectionProps = { u: user, state, setState, field, procs };
+  // Accepting a readiness check changes Field activities, so refresh it after each decision.
+  const decideAndRefresh: typeof kobo.decide = async (...args) => {
+    const applied = await kobo.decide(...args);
+    void reloadField();
+    return applied;
+  };
+  const props: SectionProps = {
+    u: user,
+    state,
+    setState,
+    field,
+    procs,
+    roster: kobo.roster,
+    kobo: { ...kobo, decide: decideAndRefresh },
+  };
 
   return (
     <div className="min-h-screen">
@@ -1124,7 +1210,17 @@ export function ProjectPage({ id }: { id: string }) {
             </div>
             <p className="mt-10 text-xs text-muted">
               Reset this project&rsquo;s demo data:{" "}
-              <button type="button" onClick={() => setStateRaw(seedProject())} className="font-semibold underline-offset-2 hover:underline">
+              <button
+                type="button"
+                onClick={() => {
+                  setStateRaw(seedProject());
+                  void fetch("/api/projects/A-2027/reset", { method: "POST" }).then(() => {
+                    void kobo.reload();
+                    void reloadField();
+                  });
+                }}
+                className="font-semibold underline-offset-2 hover:underline"
+              >
                 reset
               </button>
               . Signed in as {userById(user.id)?.name}.
