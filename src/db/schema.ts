@@ -72,6 +72,9 @@ export const findingStatusEnum = pgEnum("finding_status", [
   "validated", // MEL has validated evidence and interpretation
   "reviewed", // management has reviewed
 ]);
+/** MEL decision on an incoming record in the review queue. */
+export const reviewStatusEnum = pgEnum("review_status", ["pending", "accepted", "queried"]);
+
 export const actionStatusEnum = pgEnum("action_status", [
   "open",
   "in_progress",
@@ -102,6 +105,8 @@ export const staff = pgTable("staff", {
 export const projects = pgTable("projects", {
   id: id(),
   organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  /** Short code used in the app and in every Kobo form's hidden project_code, e.g. "A-2027". */
+  code: text("code").unique(),
   name: text("name").notNull(),
   country: text("country").notNull(), // ISO 3166-1 alpha-2
   donor: text("donor"),
@@ -152,12 +157,17 @@ export const budgetLines = pgTable("budget_lines", {
 
 export const farmers = pgTable("farmers", {
   id: id(),
+  organizationId: uuid("organization_id").references(() => organizations.id),
   projectId: uuid("project_id").notNull().references(() => projects.id),
   /** Short human-readable code used in Kobo forms, e.g. "F-0001". */
   code: text("code").notNull().unique(),
-  fullName: text("full_name").notNull(),
+  /** Deprecated: names live in farmer_pii. Kept nullable so older rows still load. */
+  fullName: text("full_name"),
+  /** Deprecated: phones live in farmer_pii. */
   phone: text("phone"),
   village: text("village"),
+  /** Shown on devices instead of a name, e.g. "M.S." */
+  householdHeadInitials: text("household_head_initials"),
   status: farmerStatusEnum("status").notNull().default("applicant"),
   contributionPaid: boolean("contribution_paid").notNull().default(false),
   contributionPaidOn: date("contribution_paid_on"),
@@ -165,6 +175,19 @@ export const farmers = pgTable("farmers", {
   baselineCompletedOn: date("baseline_completed_on"),
   removedOn: date("removed_on"),
   removalReason: text("removal_reason"),
+  ...timestamps,
+});
+
+/**
+ * Participant personal data, kept apart from everything else (build spec: pseudonymized).
+ * Only field-staff roles may read it through the server; AI agents, reports and devices never get it.
+ */
+export const farmerPii = pgTable("farmer_pii", {
+  farmerId: uuid("farmer_id")
+    .primaryKey()
+    .references(() => farmers.id, { onDelete: "cascade" }),
+  fullName: text("full_name").notNull(),
+  phone: text("phone"),
   ...timestamps,
 });
 
@@ -199,8 +222,19 @@ export const plots = pgTable("plots", {
  */
 export const evidence = pgTable("evidence", {
   id: id(),
+  organizationId: uuid("organization_id").references(() => organizations.id),
   projectId: uuid("project_id").notNull().references(() => projects.id),
   source: evidenceSourceEnum("source").notNull(),
+  /** Which form this record is: "readiness", "training", "distribution", "visit". */
+  form: text("form"),
+  /** Farmer the record is about, by code (never by name). */
+  farmerCode: text("farmer_code"),
+  /** Review queue state: MEL accepts or queries each incoming record. */
+  reviewStatus: reviewStatusEnum("review_status").notNull().default("pending"),
+  /** Demo user id until real sign-in exists. */
+  reviewedBy: text("reviewed_by"),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  queryNote: text("query_note"),
   koboAssetUid: text("kobo_asset_uid"),
   koboSubmissionUuid: text("kobo_submission_uuid").unique(),
   completedBy: text("completed_by"),
@@ -211,6 +245,40 @@ export const evidence = pgTable("evidence", {
   payload: jsonb("payload"), // raw submission for audit
   ...timestamps,
 });
+
+// ---------- Field activities workflow state ----------
+
+/**
+ * Current workflow state of each farmer and MEL finding in Field activities
+ * (step, checks, timeline, issues, surveys, photos, stories). Never holds names.
+ */
+export const fieldItems = pgTable(
+  "field_items",
+  {
+    id: id(),
+    organizationId: uuid("organization_id").references(() => organizations.id),
+    projectId: uuid("project_id").notNull().references(() => projects.id),
+    /** "F-0009" for a farmer, "MF-01" for a finding. */
+    itemKey: text("item_key").notNull(),
+    kind: text("kind").notNull(),
+    data: jsonb("data").notNull(),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex("field_items_project_key").on(t.projectId, t.itemKey)],
+);
+
+/** Small per-project state documents, e.g. store stock. */
+export const projectState = pgTable(
+  "project_state",
+  {
+    id: id(),
+    projectId: uuid("project_id").notNull().references(() => projects.id),
+    key: text("key").notNull(),
+    data: jsonb("data").notNull(),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex("project_state_project_key").on(t.projectId, t.key)],
+);
 
 // ---------- Seasonal plan & activities ----------
 

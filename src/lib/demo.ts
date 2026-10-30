@@ -10,6 +10,9 @@ export type ProjectRole = "plan-approver" | "monthly-review" | "report-release" 
 export type Access = "edit" | "view" | "none";
 export type Lang = "en" | "es" | "fa" | "ps";
 
+/** Fixed demo date the sample data is built around. Real Kobo submissions keep their real dates. */
+export const TODAY = "2027-03-04";
+
 /** Every record carries an organization ID from day one (build spec). ROP only in the pilot. */
 export const ORG_ID = "rop";
 

@@ -2,14 +2,14 @@
  * Receives KoboToolbox REST Service submissions (Project > Settings > REST Services).
  * Configure the service with Basic auth using KOBO_WEBHOOK_USER / KOBO_WEBHOOK_PASSWORD.
  *
- * Phase 1 behaviour: authenticate, validate the envelope, and store the raw
- * submission as an evidence record (idempotent on Kobo's _uuid). Mapping each
- * form to domain tables (readiness checks, distributions, ...) comes in Phase 2.
+ * Uses the same intake as the manual sync: the submission is stored once (keyed on Kobo's
+ * _uuid) against the project named in its hidden project_code, and waits in the review queue.
  */
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { db, schema } from "@/db";
+import { handle } from "@/server/guard";
+import { ingest } from "@/server/kobo";
 
 const submissionSchema = z
   .object({
@@ -17,7 +17,7 @@ const submissionSchema = z
     _xform_id_string: z.string().optional(),
     _submitted_by: z.string().nullable().optional(),
     _submission_time: z.string().optional(),
-    project_code: z.string().optional(), // hidden field in every ROP form
+    project_code: z.string().min(1), // hidden field in every ROP form
   })
   .passthrough();
 
@@ -39,25 +39,5 @@ export async function POST(req: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: "invalid submission", issues: parsed.error.issues }, { status: 400 });
   }
-  const sub = parsed.data;
-
-  const projectId = process.env.DEFAULT_PROJECT_ID;
-  if (!projectId) {
-    return NextResponse.json({ error: "DEFAULT_PROJECT_ID not configured" }, { status: 500 });
-  }
-
-  await db
-    .insert(schema.evidence)
-    .values({
-      projectId,
-      source: "kobo",
-      koboAssetUid: sub._xform_id_string,
-      koboSubmissionUuid: sub._uuid,
-      completedBy: sub._submitted_by ?? null,
-      completedAt: sub._submission_time ? new Date(sub._submission_time) : null,
-      payload: sub,
-    })
-    .onConflictDoNothing({ target: schema.evidence.koboSubmissionUuid });
-
-  return NextResponse.json({ ok: true });
+  return handle(async () => NextResponse.json({ ok: true, result: await ingest(parsed.data) }));
 }

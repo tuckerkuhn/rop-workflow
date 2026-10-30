@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { FIELD_ITEMS_KEY, stageOf } from "@/components/field/workspace";
+import { stageOf } from "@/components/field/workspace";
+import { useFieldData } from "@/components/app/use-project-data";
 import { Initials, useRequireUser, useSession } from "@/components/app/session";
-import { Pill, SectionLabel, TODAY, TopBar, primaryBtn, quietBtn, usePersistentState } from "@/components/workspace/ui";
+import { Pill, SectionLabel, TODAY, TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { holderOf } from "@/lib/demo";
 import {
   PACKAGE_USD,
@@ -17,9 +18,7 @@ import {
   fieldSteps,
   maskName,
   photoLabels,
-  seedField,
   type Farmer,
-  type FieldItem,
   type Finding,
   type PhotoKind,
 } from "@/lib/field";
@@ -102,7 +101,7 @@ function SatisfactionChart({ surveys }: { surveys: Farmer["surveys"] }) {
 export function FarmerProfile({ id }: { id: string }) {
   const { user } = useRequireUser();
   const { money } = useSession();
-  const [items, setItems] = usePersistentState<FieldItem[]>(FIELD_ITEMS_KEY, seedField);
+  const { items, setItems, status, error } = useFieldData();
   const [score, setScore] = useState(0);
   const [comment, setComment] = useState("");
   const [addingPhoto, setAddingPhoto] = useState(false);
@@ -118,7 +117,7 @@ export function FarmerProfile({ id }: { id: string }) {
     return (
       <div className="min-h-screen">
         <TopBar active="field" />
-        <p className="px-6 py-24 text-center text-muted">No farmer with ID {id}.</p>
+        <p className={`px-6 py-24 text-center ${error ? "text-clay" : "text-muted"}`}>{status === "loading" ? "Loading…" : error || `No farmer with ID ${id}.`}</p>
       </div>
     );
 
@@ -290,7 +289,7 @@ export function FarmerProfile({ id }: { id: string }) {
                             ...f,
                             photos: [
                               ...f.photos,
-                              { id: `${f.id}-${Date.now()}`, activity: photoKind, date: TODAY, caption: photoCaption.trim() || `${photoLabels[photoKind]} · ${f.name}`, src: String(reader.result) },
+                              { id: `${f.id}-${Date.now()}`, activity: photoKind, date: TODAY, caption: photoCaption.trim() || `${photoLabels[photoKind]} · ${f.id}`, src: String(reader.result) },
                             ],
                           }));
                           setAddingPhoto(false);
