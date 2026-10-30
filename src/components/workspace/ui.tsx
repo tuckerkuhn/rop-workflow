@@ -10,7 +10,7 @@ import { Tagged } from "@/components/status-tag";
 
 /** Shared building blocks for the Field activities and Procurement workspaces. */
 
-export const TODAY = "2027-03-04";
+export { TODAY } from "@/lib/demo";
 
 /* ---------- state ---------- */
 
@@ -648,10 +648,10 @@ export function QueueItem({ active, onClick, children }: { active: boolean; onCl
   );
 }
 
-export function QueueFooter({ onReset }: { onReset: () => void }) {
+export function QueueFooter({ onReset, note = "Fictional records, saved in this browser only." }: { onReset: () => void; note?: string }) {
   return (
     <div className="border-t border-line px-4 py-4 text-xs text-muted sm:px-6">
-      Fictional records, saved in this browser only.{" "}
+      {note}{" "}
       <button type="button" onClick={onReset} className="font-semibold underline-offset-2 hover:underline">
         Reset sample data
       </button>

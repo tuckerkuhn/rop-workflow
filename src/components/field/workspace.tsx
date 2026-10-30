@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRequireUser, useSession } from "@/components/app/session";
+import { useFieldData } from "@/components/app/use-project-data";
 import {
   AppShell,
   BackLink,
@@ -22,7 +23,6 @@ import {
   dangerBtn,
   primaryBtn,
   quietBtn,
-  usePersistentState,
 } from "@/components/workspace/ui";
 import { holderOf, type AppUser } from "@/lib/demo";
 import { NoAccess } from "@/components/workspace/ui";
@@ -48,8 +48,6 @@ import {
   openBlocking,
   ownerOfItem,
   projectItem,
-  seedField,
-  seedStock,
   type Ctx,
   type Farmer,
   type FieldItem,
@@ -59,8 +57,17 @@ import {
   type Stock,
 } from "@/lib/field";
 
-export const FIELD_ITEMS_KEY = "rop-field-v3-items";
-export const FIELD_STOCK_KEY = "rop-field-v1-stock";
+
+/** Shown when Field activities cannot reach the database. */
+export function DataBanner({ status, error }: { status: string; error: string }) {
+  if (status === "loading") return <p className="mx-3 mt-4 rounded-xl border border-line bg-surface px-3 py-2 text-sm text-muted sm:mx-4">Loading field records…</p>;
+  if (!error) return null;
+  return (
+    <p role="alert" className="mx-3 mt-4 rounded-xl border border-clay/40 bg-clay-soft px-3 py-2 text-sm text-clay sm:mx-4">
+      {error}
+    </p>
+  );
+}
 
 const ENDS: Record<string, { title: string; body: string; tone: "forest" | "clay" }> = {
   complete: { title: "Season record complete", body: "Trained, verified, supplied and planted. Follow-up visits continue through harvest.", tone: "forest" },
@@ -449,8 +456,7 @@ function Detail({
 export function FieldWorkspace() {
   const { user } = useRequireUser();
   const myRoles = (user?.field ?? []) as FieldRole[];
-  const [items, setItems] = usePersistentState<FieldItem[]>(FIELD_ITEMS_KEY, seedField);
-  const [stock, setStock] = usePersistentState<Stock>(FIELD_STOCK_KEY, seedStock);
+  const { items, setItems, stock, setStock, status, error, reset } = useFieldData();
   const [pickedRole, setPickedRole] = useState<FieldRole | null>(null);
   const role = pickedRole && myRoles.includes(pickedRole) ? pickedRole : (myRoles[0] ?? null);
   const [selected, setSelected] = useState<string | null>(null);
@@ -522,6 +528,7 @@ export function FieldWorkspace() {
       mobileDetail={mobileDetail}
       queue={
         <>
+          <DataBanner status={status} error={error} />
           <div className="mx-3 mt-4 rounded-xl border border-line bg-surface px-3 py-3 sm:mx-4">
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
               {SEASON.name} · {SEASON.village} · {farmers.length} farmers
@@ -591,9 +598,9 @@ export function FieldWorkspace() {
             }}
           />
           <QueueFooter
+            note="Fictional records, saved in the project database. Resetting keeps real Kobo submissions."
             onReset={() => {
-              setItems(seedField());
-              setStock(seedStock());
+              void reset();
               setSelected(null);
             }}
           />

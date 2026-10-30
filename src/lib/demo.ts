@@ -13,6 +13,9 @@ export type Lang = "en" | "es" | "fa" | "ps";
 /** People who may validate market windows and choose a project's target: the project manager and plan approvers. */
 export const canValidate = (u: { project: string[]; field: string[] } | null | undefined) => !!u && (u.project.includes("plan-approver") || u.field.includes("manager"));
 
+/** Fixed demo date the sample data is built around. Real Kobo submissions keep their real dates. */
+export const TODAY = "2027-03-04";
+
 /** Every record carries an organization ID from day one (build spec). ROP only in the pilot. */
 export const ORG_ID = "rop";
 

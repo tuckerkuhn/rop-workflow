@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { FIELD_ITEMS_KEY, FIELD_STOCK_KEY, comingTo, stageOf } from "@/components/field/workspace";
+import { comingTo, stageOf } from "@/components/field/workspace";
+import { useFieldData, useSubmissions } from "@/components/app/use-project-data";
 import { PROCUREMENT_ITEMS_KEY, procurementComingTo } from "@/components/procurement/workspace";
 import { PROJECT_KEY } from "@/components/project/project-page";
 import { Initials, useRequireUser, useSession } from "@/components/app/session";
 import { Pill, SectionLabel, TODAY, TopBar, usePersistentState } from "@/components/workspace/ui";
 import { PROJECT, daysFrom, directReports, projectPath, projects, stepHistory, userById, type AppUser, type Stage } from "@/lib/demo";
-import { PACKAGE, PACKAGE_USD, farmerLabel, farmerName, farmerStages, fieldRoleLabel, fieldSteps, maskName, ownerOfItem, projectItem, seedField, seedStock, type Farmer, type FieldItem } from "@/lib/field";
+import { PACKAGE, PACKAGE_USD, farmerLabel, farmerName, farmerStages, fieldRoleLabel, fieldSteps, maskName, ownerOfItem, projectItem, type Farmer, type FieldItem } from "@/lib/field";
 import { DONE, ownerOf, roleLabel, seedProcurements, stepById, stepsFor, valueOf, type Procurement } from "@/lib/procurement";
 import { GATED_KEYS, indicators, actualFor, seedProject, type ProjectState } from "@/lib/project";
 
@@ -433,10 +434,12 @@ function DonorHome({ field, project }: { field: FieldItem[]; project: ProjectSta
 
 export function Dashboard() {
   const { user, money } = useRequireUser();
-  const [field] = usePersistentState<FieldItem[]>(FIELD_ITEMS_KEY, seedField);
-  usePersistentState(FIELD_STOCK_KEY, seedStock);
+  const { items: field } = useFieldData();
+  const { submissions } = useSubmissions();
   const [procs] = usePersistentState<Procurement[]>(PROCUREMENT_ITEMS_KEY, seedProcurements);
-  const [project] = usePersistentState<ProjectState>(PROJECT_KEY, seedProject);
+  const [local] = usePersistentState<ProjectState>(PROJECT_KEY, seedProject);
+  // Review-queue records live in the database; the rest of the project state is still in this browser.
+  const project: ProjectState = { ...local, submissions };
   const [grapes] = usePersistentState<ProjectState>(GATED_KEYS["AG-2027"].key, GATED_KEYS["AG-2027"].seed);
   const [viewing, setViewing] = useState<string | null>(null);
 

@@ -4,8 +4,7 @@
  * Everything here is fictional demo data for project A-2027.
  */
 
-import { TODAY } from "@/components/workspace/ui";
-import { ORG_ID, PROJECT, userById, type Stage } from "@/lib/demo";
+import { ORG_ID, PROJECT, TODAY, userById, type Stage } from "@/lib/demo";
 import { ALL_AREA, VALIDATION_ITEMS, windowById, type Crop } from "@/lib/market-windows";
 import { seedField, type Farmer, type FieldItem } from "@/lib/field";
 import { DONE, budgetLines, seedProcurements, stepById, type Procurement } from "@/lib/procurement";
@@ -130,12 +129,17 @@ export const formLabel: Record<SubmissionForm, string> = {
 
 export type Submission = {
   id: string;
+  /** Database row id, for decisions sent to the server. */
+  dbId?: string;
+  /** "kobo" for real submissions, "sample" for the seeded demo records. */
+  source?: "kobo" | "sample";
   orgId: string;
   form: SubmissionForm;
   farmerId: string;
   date: string;
   enumerator: string;
-  gps: [number, number];
+  /** Missing when the form was submitted without a GPS point. */
+  gps: [number, number] | null;
   fields: Record<string, string>;
   photo: boolean;
   status: "pending" | "accepted" | "queried";
@@ -148,12 +152,28 @@ export type Submission = {
 export const AREA = { lat: [34.5, 34.6], lng: [69.1, 69.25] } as const;
 
 /** Data checker agent: quality flags on one submission. */
-export function dataFlags(s: Submission, all: Submission[]): string[] {
+/** Farmer roster the data checker compares against: farmer code to current Field activities step. */
+export type Roster = Record<string, string>;
+
+export function dataFlags(s: Submission, all: Submission[], roster?: Roster): string[] {
   const f: string[] = [];
-  const dup = all.find((o) => o.id !== s.id && o.form === s.form && o.farmerId === s.farmerId && o.id < s.id && s.form !== "visit");
+  const dup = all.find(
+    (o) => o.id !== s.id && o.form === s.form && o.farmerId === s.farmerId && o.status !== "queried" && (o.date < s.date || (o.date === s.date && o.id < s.id)) && s.form !== "visit",
+  );
   if (dup) f.push(`Possible duplicate of ${dup.id} (same farmer, same form)`);
-  const [lat, lng] = s.gps;
-  if (lat < AREA.lat[0] || lat > AREA.lat[1] || lng < AREA.lng[0] || lng > AREA.lng[1]) f.push(`GPS ${lat.toFixed(3)}, ${lng.toFixed(3)} is outside the project area`);
+  if (!s.gps) f.push("No GPS point recorded");
+  else {
+    const [lat, lng] = s.gps;
+    if (lat < AREA.lat[0] || lat > AREA.lat[1] || lng < AREA.lng[0] || lng > AREA.lng[1]) f.push(`GPS ${lat.toFixed(3)}, ${lng.toFixed(3)} is outside the project area`);
+  }
+  // Intake checks apply to real Kobo submissions; the sample records are past history.
+  if (roster && s.source === "kobo") {
+    const step = roster[s.farmerId];
+    if (step === undefined) f.push(`Farmer ${s.farmerId || "(blank)"} is not on the project roster`);
+    else if (s.form === "readiness" && !["verify", "correct"].includes(step)) f.push(`Farmer ${s.farmerId} is not at a readiness step (now: ${step}); the result will be recorded but the step will not move`);
+  }
+  if (s.source === "kobo" && s.form === "readiness" && s.fields.result === "No" && !s.fields.issue) f.push("Result is No but nothing is recorded under what needs fixing");
+  if (s.source === "kobo" && s.date > new Date().toISOString().slice(0, 10)) f.push(`Visit date ${s.date} is in the future`);
   const missing = Object.entries(s.fields)
     .filter(([, v]) => !v)
     .map(([k]) => k);
@@ -330,6 +350,9 @@ export type ProjectState = {
   planApproval?: Approval;
   audit: AuditEvent[];
 };
+
+/** Readiness check as filled in on the Kobo form. */
+export const READINESS_FORM_ID = "rop_readiness_check";
 
 export function seedProject(): ProjectState {
   const submissions = seedSubmissions();

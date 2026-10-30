@@ -4,8 +4,7 @@
  */
 
 import type { Issue, TimelineEvent } from "@/components/workspace/ui";
-import { TODAY } from "@/components/workspace/ui";
-import { ORG_ID, PROJECT, holderOf, projectPath, stepHistory, type AppUser, type FieldRole } from "@/lib/demo";
+import { ORG_ID, PROJECT, TODAY, holderOf, projectPath, stepHistory, type AppUser, type FieldRole } from "@/lib/demo";
 
 export type { FieldRole };
 
@@ -398,11 +397,11 @@ export const photoLabels: Record<PhotoKind, string> = {
 /* ---------- participant privacy ---------- */
 
 /** Farmer IDs everywhere; the name only for people with participant-data access. */
-export const farmerLabel = (f: { id: string; name: string }, u: AppUser | null | undefined) => (u?.pii ? `${f.name} · ${f.id}` : `Farmer ${f.id}`);
-export const farmerName = (f: { id: string; name: string }, u: AppUser | null | undefined) => (u?.pii ? f.name : `Farmer ${f.id}`);
+export const farmerLabel = (f: { id: string; name: string }, u: AppUser | null | undefined) => (u?.pii && f.name ? `${f.name} · ${f.id}` : `Farmer ${f.id}`);
+export const farmerName = (f: { id: string; name: string }, u: AppUser | null | undefined) => (u?.pii && f.name ? f.name : `Farmer ${f.id}`);
 /** Replaces a farmer's name in free text (e.g. a story) for people without access. */
 export const maskName = (text: string, f: { id: string; name: string }, u: AppUser | null | undefined) =>
-  u?.pii ? text : text.split(f.name).join(`Farmer ${f.id}`);
+  u?.pii || !f.name ? text : text.split(f.name).join(`Farmer ${f.id}`);
 
 /* ---------- synthetic records ---------- */
 
@@ -443,7 +442,7 @@ function farmer(
     const outcome = s === "verify" && (step === "correct" || step === "removal") ? "Readiness: No" : fieldSteps[s].outcomes[0].done;
     const date = addDays(TODAY, -(reached - k) * 5);
     timeline.push({ date, who: owners[s], what: outcome });
-    if (s !== "verify" || k % 2 === 0) photos.push({ id: `${id}-${s}`, activity: photoFor[s], date, caption: `${fieldSteps[s].title} · ${name}` });
+    if (s !== "verify" || k % 2 === 0) photos.push({ id: `${id}-${s}`, activity: photoFor[s], date, caption: `${fieldSteps[s].title} · ${id}` });
   });
   if (step === "removal") timeline.push({ date: addDays(TODAY, -2), who: "extension", what: "Recheck: No, sent for decision" });
   doneChecks.forEach((c) => (checks[`${step}.${c}`] = true));
@@ -515,7 +514,7 @@ export function seedField(): FieldItem[] {
             id: "S-1",
             status: "completed",
             title: "From one field to two",
-            text: "After last season's demo plot, Abdul Rahim prepared a second field on his own and trained two neighbors in ridge spacing.",
+            text: "After last season's demo plot, farmer F-0001 prepared a second field on his own and trained two neighbors in ridge spacing.",
             date: "2027-02-10",
             by: "mel",
           },
