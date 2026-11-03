@@ -30,7 +30,7 @@ through MEL (monitoring, evaluation & learning) and management follow-up.
 | ORM / validation | Drizzle ORM, Zod |
 
 ```
-KoboCollect / Enketo ──webhook──▶ /api/kobo/webhook ──▶ Supabase Postgres ◀──▶ Next.js UI
+KoboCollect / Enketo ──REST Service (per project)──▶ /api/projects/<code>/kobo/hook ──sync──▶ Supabase Postgres ◀──▶ Next.js UI
 ```
 
 ## Getting started

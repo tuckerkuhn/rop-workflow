@@ -107,14 +107,14 @@ export async function formSubmissions(server: string, token: string, uid: string
   return pages<KoboSubmission>(server, token, dataPath(uid, { limit: 1000, sort: { _id: 1 }, ...(query ? { query } : {}) }));
 }
 
-export type SubmissionRef = { _id: number; _uuid?: string; _validation_status?: { uid?: string } | Record<string, never> };
+export type SubmissionRef = { _id: number; _uuid?: string; _validation_status?: { uid?: string } | Record<string, never>; project_code?: unknown };
 
 /**
- * Every submission's number, ID and approval status, without the answers. Small enough to read
+ * Every submission's number, ID, approval status and project code, without the answers. Small enough to read
  * in full on each sync, so edits, approvals and deletions made in KoboToolbox are all seen.
  */
 export async function submissionRefs(server: string, token: string, uid: string) {
-  return pages<SubmissionRef>(server, token, dataPath(uid, { limit: 5000, sort: { _id: 1 }, fields: ["_id", "_uuid", "_validation_status"] }));
+  return pages<SubmissionRef>(server, token, dataPath(uid, { limit: 5000, sort: { _id: 1 }, fields: ["_id", "_uuid", "_validation_status", "project_code"] }));
 }
 
 async function pages<T>(server: string, token: string, first: string) {

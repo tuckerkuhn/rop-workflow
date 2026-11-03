@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "@/components/app/session";
 import { seedStock, type FieldItem, type Stock } from "@/lib/field";
-import type { AutoSyncSecret, KoboFormInfo, KoboMapping, KoboQuestion, KoboState, SyncCounts } from "@/lib/kobo-setup";
+import type { AutoSyncSecret, FormPurpose, KoboFormInfo, KoboMapping, KoboQuestion, KoboState, SyncCounts } from "@/lib/kobo-setup";
 import type { DonorInfo, DonorInput, ProgressData } from "@/lib/progress";
 import type { Roster, Submission } from "@/lib/project";
 import type { NewWorkItem, WorkItem } from "@/lib/work-items";
@@ -89,7 +89,6 @@ export function useFieldData(code = "A-2027") {
   return { items, setItems, stock, setStock, status, error, reload, reset };
 }
 
-export type SyncResult = { fetched: number; new: number; duplicate: number; skipped: number; reasons: string[] };
 
 export function useSubmissions(code = "A-2027") {
   const { user, ready } = useSession();
@@ -133,13 +132,14 @@ export function useSubmissions(code = "A-2027") {
   );
 
   const sync = useCallback(async () => {
-    const r = await call<SyncResult>("/api/kobo/sync", user?.id, { method: "POST" });
+    // The project's own Kobo link: readiness forms land in this queue, data forms count on Progress.
+    const r = await call<SyncCounts>(`/api/projects/${code}/kobo/sync`, user?.id, { method: "POST" });
     await reload();
     return r;
-  }, [user?.id, reload]);
+  }, [code, user?.id, reload]);
 
   const pushFarmers = useCallback(
-    () => call<{ farmers: number; redeployed: boolean }>(`/api/kobo/push-farmers?project=${code}`, user?.id, { method: "POST" }),
+    () => call<{ farmers: number; forms: number; redeployed: boolean }>(`/api/kobo/push-farmers?project=${code}`, user?.id, { method: "POST" }),
     [code, user?.id],
   );
 
@@ -303,7 +303,7 @@ export function useKobo(code: string) {
       },
       liveForms: () => send<{ forms: KoboFormInfo[] }>("/forms", "GET").then((r) => r.forms),
       questions: (uid: string) => send<{ questions: KoboQuestion[] }>(`/forms/${encodeURIComponent(uid)}`, "GET").then((r) => r.questions),
-      saveForms: async (forms: { uid: string; name: string }[]) => {
+      saveForms: async (forms: { uid: string; name: string; purpose: FormPurpose }[]) => {
         await send("/forms", "PUT", { forms });
         await reload();
       },

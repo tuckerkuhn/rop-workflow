@@ -18,7 +18,13 @@ export type KoboConnectionInfo = {
 /** What KoboToolbox needs to call this link. The password is shown once and never again. */
 export type AutoSyncSecret = { path: string; username: string; password: string };
 
-export type KoboFormInfo = { uid: string; name: string; submissions?: number; deployed?: boolean };
+/** What a linked form's submissions are for; see kobo_forms.purpose. */
+export const FORM_PURPOSES = ["readiness", "data"] as const;
+export type FormPurpose = (typeof FORM_PURPOSES)[number];
+/** Setup's first guess for a form, from its name. People can change it. */
+export const guessPurpose = (name: string): FormPurpose => (/readiness/i.test(name) ? "readiness" : "data");
+
+export type KoboFormInfo = { uid: string; name: string; submissions?: number; deployed?: boolean; purpose?: FormPurpose };
 
 export type KoboQuestion = { path: string; label: string; type: string; choices: { name: string; label: string }[] };
 
@@ -33,7 +39,7 @@ export const connectSchema = z.object({
   countOnly: z.enum(["all", "approved"]),
 });
 
-export const formsSchema = z.object({ forms: z.array(z.object({ uid: z.string().min(1).max(100), name: z.string().min(1).max(300) })).max(50) });
+export const formsSchema = z.object({ forms: z.array(z.object({ uid: z.string().min(1).max(100), name: z.string().min(1).max(300), purpose: z.enum(FORM_PURPOSES).default("data") })).max(50) });
 
 export const mappingsSchema = z.object({
   mappings: z
