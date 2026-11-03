@@ -44,4 +44,5 @@ export const mappingsSchema = z.object({
     .max(200),
 });
 
-export type SyncCounts = { fetched: number; added: number; already: number; forms: number };
+/** fetched: submissions on the forms in KoboToolbox. updated: edited or approval changed. removed: deleted in KoboToolbox. */
+export type SyncCounts = { fetched: number; added: number; already: number; updated: number; removed: number; forms: number };

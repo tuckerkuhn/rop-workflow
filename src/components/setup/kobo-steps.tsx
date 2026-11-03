@@ -346,7 +346,8 @@ export function KoboDone({ code, name }: { code: string; name: string }) {
           {busy ? t("kobo.syncing") : t("kobo.syncNow")}
         </button>
       )}
-      {result && <p className="mt-3 text-sm text-forest">{t("kobo.synced", { added: result.added, fetched: result.fetched, forms: result.forms })}</p>}
+      {result && <p className="mt-3 text-sm text-forest">{t("kobo.synced", { added: result.added, fetched: result.fetched, forms: result.forms })}
+          {(result.updated > 0 || result.removed > 0) && ` ${t("kobo.syncedChanges", { updated: result.updated, removed: result.removed })}`}</p>}
       <Alert text={error} />
       <div className="mt-8 flex flex-wrap gap-3">
         <Link href="/home" className={quietBtn}>

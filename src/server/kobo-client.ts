@@ -97,12 +97,31 @@ export async function formQuestions(server: string, token: string, uid: string):
 
 export type KoboSubmission = Record<string, unknown> & { _uuid?: string; _submission_time?: string; _validation_status?: { uid?: string } };
 
-/** Every submission on a form, page by page. */
-export async function formSubmissions(server: string, token: string, uid: string) {
-  const out: KoboSubmission[] = [];
-  let path: string | null = `/api/v2/assets/${encodeURIComponent(uid)}/data/?format=json&limit=1000`;
+const dataPath = (uid: string, params: Record<string, unknown>) =>
+  `/api/v2/assets/${encodeURIComponent(uid)}/data/?format=json&${Object.entries(params)
+    .map(([k, v]) => `${k}=${encodeURIComponent(typeof v === "string" || typeof v === "number" ? String(v) : JSON.stringify(v))}`)
+    .join("&")}`;
+
+/** Submissions on a form, page by page. `query` is Kobo's filter, e.g. {"_id": {"$gt": 120}}. */
+export async function formSubmissions(server: string, token: string, uid: string, query?: Record<string, unknown>) {
+  return pages<KoboSubmission>(server, token, dataPath(uid, { limit: 1000, sort: { _id: 1 }, ...(query ? { query } : {}) }));
+}
+
+export type SubmissionRef = { _id: number; _uuid?: string; _validation_status?: { uid?: string } | Record<string, never> };
+
+/**
+ * Every submission's number, ID and approval status, without the answers. Small enough to read
+ * in full on each sync, so edits, approvals and deletions made in KoboToolbox are all seen.
+ */
+export async function submissionRefs(server: string, token: string, uid: string) {
+  return pages<SubmissionRef>(server, token, dataPath(uid, { limit: 5000, sort: { _id: 1 }, fields: ["_id", "_uuid", "_validation_status"] }));
+}
+
+async function pages<T>(server: string, token: string, first: string) {
+  const out: T[] = [];
+  let path: string | null = first;
   while (path) {
-    const page: { results: KoboSubmission[]; next: string | null } = await get(server, token, path);
+    const page: { results: T[]; next: string | null } = await get(server, token, path);
     out.push(...page.results);
     path = page.next ? pathOf(server, page.next) : null;
   }
