@@ -451,9 +451,17 @@ function KoboBar({ kobo }: { kobo: SectionProps["kobo"] }) {
         >
           {busy === "push" ? "Uploading…" : "Push farmer list to Kobo"}
         </button>
-        <a href="/api/kobo/farmers?project=A-2027" className="px-2 text-sm text-forest hover:underline">
+        <button
+          type="button"
+          disabled={!!busy}
+          onClick={() => run("download", async () => {
+            await kobo.downloadFarmers();
+            return "farmers.csv downloaded.";
+          })}
+          className="px-2 text-sm text-forest hover:underline"
+        >
           Download farmers.csv
-        </a>
+        </button>
       </div>
       {msg && <p className={`mt-2 text-sm ${msg.ok ? "text-leaf" : "text-clay"}`}>{msg.text}</p>}
       <p className="mt-2 text-xs text-muted">The farmer list carries ID, village and household-head initials only. Submissions are matched to a farmer by ID and stored once per Kobo record.</p>
@@ -1090,7 +1098,8 @@ export function ProjectPage({ id }: { id: string }) {
   const gatedStore = GATED_KEYS[id];
   const [local, setStateRaw] = usePersistentState<ProjectState>(gatedStore?.key ?? PROJECT_KEY, gatedStore?.seed ?? seedProject);
   const [targetOpen, setTargetOpen] = useState(false);
-  const { items: field, reload: reloadField } = useFieldData();
+  const { items: field, reload: reloadField, reset: resetField } = useFieldData();
+  const { mode } = useSession();
   const kobo = useSubmissions();
   // A-2027's review queue comes from the database. Gated demo projects (in Design) have no field data
   // yet and keep their whole state in this browser.
@@ -1252,21 +1261,23 @@ export function ProjectPage({ id }: { id: string }) {
               {shownTab === "Audit" && <Audit {...props} />}
             </div>
             <p className="mt-10 text-xs text-muted">
-              Reset this project&rsquo;s demo data:{" "}
-              <button
-                type="button"
-                onClick={() => {
-                  setStateRaw(seedProject());
-                  void fetch("/api/projects/A-2027/reset", { method: "POST" }).then(() => {
-                    void kobo.reload();
-                    void reloadField();
-                  });
-                }}
-                className="font-semibold underline-offset-2 hover:underline"
-              >
-                reset
-              </button>
-              . Signed in as {userById(user.id)?.name}.
+              {mode === "demo" && (
+                <>
+                  Reset this project&rsquo;s demo data:{" "}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStateRaw(seedProject());
+                      void resetField().then(() => kobo.reload());
+                    }}
+                    className="font-semibold underline-offset-2 hover:underline"
+                  >
+                    reset
+                  </button>
+                  .{" "}
+                </>
+              )}
+              Signed in as {userById(user.id)?.name}.
             </p>
           </>
         )}

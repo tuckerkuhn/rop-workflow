@@ -220,7 +220,7 @@ function Detail({
   onBack: () => void;
   onOpen: (id: string) => void;
 }) {
-  const { signIn, money, user } = useSession();
+  const { signIn, money, user, mode } = useSession();
   const [raising, setRaising] = useState<string | null>(null);
   const [pending, setPending] = useState<Outcome | null>(null);
   const [note, setNote] = useState("");
@@ -327,7 +327,7 @@ function Detail({
           eyebrow={item.step === "verify" ? "Yes / No gate" : undefined}
           title={step.title}
           note={step.note?.(item)}
-          onViewAs={ownerUser ? () => signIn(ownerUser.id) : undefined}
+          onViewAs={ownerUser && mode === "demo" ? () => signIn(ownerUser.id) : undefined}
           switchLabel={ownerUser ? `Sign in as ${ownerUser.name.split(" ")[0]} (demo)` : undefined}
           footer={
             <>
@@ -454,7 +454,7 @@ function Detail({
 /* ---------- workspace ---------- */
 
 export function FieldWorkspace() {
-  const { user } = useRequireUser();
+  const { user, mode } = useRequireUser();
   const myRoles = (user?.field ?? []) as FieldRole[];
   const { items, setItems, stock, setStock, status, error, reset } = useFieldData();
   const [pickedRole, setPickedRole] = useState<FieldRole | null>(null);
@@ -598,11 +598,15 @@ export function FieldWorkspace() {
             }}
           />
           <QueueFooter
-            note="Fictional records, saved in the project database. Resetting keeps real Kobo submissions."
-            onReset={() => {
-              void reset();
-              setSelected(null);
-            }}
+            note={mode === "demo" ? "Fictional records, saved in the project database. Resetting keeps real Kobo submissions." : "Saved in the project database."}
+            onReset={
+              mode === "demo"
+                ? () => {
+                    void reset();
+                    setSelected(null);
+                  }
+                : undefined
+            }
           />
         </>
       }

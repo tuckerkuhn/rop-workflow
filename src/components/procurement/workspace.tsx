@@ -326,7 +326,7 @@ function Detail({
   update: (fn: (p: Procurement) => Procurement) => void;
   onBack: () => void;
 }) {
-  const { user, money, signIn } = useSession();
+  const { user, money, signIn, mode } = useSession();
   const [raising, setRaising] = useState<string | null>(null);
   const [returning, setReturning] = useState(false);
   const [returnNote, setReturnNote] = useState("");
@@ -400,7 +400,7 @@ function Detail({
           eyebrow={step.gate && `Gate ${step.gate}`}
           title={step.title}
           note={step.note}
-          onViewAs={ownerUser ? () => signIn(ownerUser.id) : undefined}
+          onViewAs={ownerUser && mode === "demo" ? () => signIn(ownerUser.id) : undefined}
           switchLabel={ownerUser ? `Sign in as ${ownerUser.name.split(" ")[0]} (demo)` : undefined}
           footer={
             <>

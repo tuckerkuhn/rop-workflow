@@ -37,12 +37,14 @@ export type AppUser = {
   lang: Lang;
   /** Average of farmer feedback about this person, where collected. */
   feedback?: { score: number; n: number };
+  /** May use "View as" to see the app as another person sees it (read-only). */
+  admin?: boolean;
 };
 
 const ROP = "Roots of Peace";
 export const users: AppUser[] = [
-  { id: "tucker", name: "Tucker Kuhn", title: "Pilot lead", kind: "employee", org: ROP, field: [], procurement: [], project: ["plan-approver", "monthly-review", "report-release"], fieldAccess: "view", procurementAccess: "view", pii: false, lang: "en" },
-  { id: "daniel", name: "Daniel Sandoval", title: "Director of Global Operations", kind: "employee", org: ROP, reportsTo: "tucker", field: [], procurement: [], project: ["plan-approver", "monthly-review", "finance-import"], fieldAccess: "view", procurementAccess: "view", pii: false, lang: "en" },
+  { id: "tucker", name: "Tucker Kuhn", title: "Pilot lead", kind: "employee", org: ROP, field: [], procurement: [], project: ["plan-approver", "monthly-review", "report-release"], fieldAccess: "view", procurementAccess: "view", pii: false, lang: "en", admin: true },
+  { id: "daniel", name: "Daniel Sandoval", title: "Director of Global Operations", kind: "employee", org: ROP, reportsTo: "tucker", field: [], procurement: [], project: ["plan-approver", "monthly-review", "finance-import"], fieldAccess: "view", procurementAccess: "view", pii: false, lang: "en", admin: true },
   { id: "karim", name: "Karim Ahmadi", title: "Country director", kind: "employee", org: ROP, reportsTo: "daniel", field: [], procurement: ["approver"], project: [], fieldAccess: "view", procurementAccess: "edit", pii: false, lang: "fa" },
   { id: "sarah", name: "Sarah Lee", title: "Compliance reviewer, Home Office", kind: "employee", org: ROP, reportsTo: "daniel", field: [], procurement: ["ho"], project: [], fieldAccess: "view", procurementAccess: "edit", pii: false, lang: "en" },
   { id: "nadia", name: "Nadia Rahimi", title: "Project manager", kind: "employee", org: ROP, reportsTo: "karim", field: ["manager"], procurement: ["holder"], project: [], fieldAccess: "edit", procurementAccess: "edit", pii: true, lang: "fa", feedback: { score: 4.6, n: 12 } },
@@ -57,6 +59,14 @@ export const users: AppUser[] = [
 export const langLabel: Record<Lang, string> = { en: "English", es: "Español", fa: "دری · Dari", ps: "پښتو · Pashto" };
 
 export const userById = (id: string) => users.find((u) => u.id === id);
+
+/**
+ * With real sign-in, the people directory comes from the database. Replacing the list in place
+ * keeps every userById and users lookup in the app working unchanged.
+ */
+export function registerPeople(people: AppUser[]) {
+  users.splice(0, users.length, ...people);
+}
 export const holderOf = (workspace: "field" | "procurement", role: string) =>
   users.find((u) => (workspace === "field" ? (u.field as string[]) : (u.procurement as string[])).includes(role));
 export const projectRoleHolders = (r: ProjectRole) => users.filter((u) => u.project.includes(r));

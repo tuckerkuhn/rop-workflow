@@ -3,15 +3,19 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Initials, useSession } from "@/components/app/session";
+import {
+  Initials,
+  supabaseBrowser,
+  useSession,
+} from "@/components/app/session";
 import { LogoMark } from "@/components/logo";
 import { users } from "@/lib/demo";
 import { fieldRoleLabel } from "@/lib/field";
 import { roleLabel } from "@/lib/procurement";
 
-/** Landing page: pick who you are. No credentials in this prototype. */
+/** Landing page. Live mode: email and a one-time code. Demo mode: pick who you are. */
 export function SignIn() {
-  const { user, signIn } = useSession();
+  const { user, signIn, mode, configured } = useSession();
   const router = useRouter();
   const [tab, setTab] = useState<"employee" | "donor">("employee");
   const people = users.filter((u) => u.kind === tab);
@@ -24,97 +28,318 @@ export function SignIn() {
   return (
     <div className="grid min-h-screen lg:grid-cols-[1fr_1.1fr]">
       <section className="relative flex flex-col justify-between overflow-hidden bg-deep px-6 py-10 text-deep-ink sm:px-12">
-        <svg aria-hidden viewBox="0 0 600 600" className="pointer-events-none absolute -bottom-24 -right-24 h-[120%] w-auto text-ochre opacity-15">
+        <svg
+          aria-hidden
+          viewBox="0 0 600 600"
+          className="pointer-events-none absolute -bottom-24 -right-24 h-[120%] w-auto text-ochre opacity-15"
+        >
           {Array.from({ length: 14 }, (_, i) => (
-            <path key={i} d={`M 0 ${80 + i * 34} C 180 ${40 + i * 34}, 380 ${130 + i * 34}, 600 ${60 + i * 34}`} fill="none" stroke="currentColor" />
+            <path
+              key={i}
+              d={`M 0 ${80 + i * 34} C 180 ${40 + i * 34}, 380 ${130 + i * 34}, 600 ${60 + i * 34}`}
+              fill="none"
+              stroke="currentColor"
+            />
           ))}
         </svg>
         <div className="relative flex items-center gap-3">
           <LogoMark className="h-9 w-9" />
-          <span className="font-display text-lg">Roots of Peace · Workflow</span>
+          <span className="font-display text-lg">
+            Roots of Peace · Workflow
+          </span>
         </div>
         <div className="relative my-16 max-w-md">
-          <h1 className="font-display text-5xl leading-[1.02] tracking-tight text-balance">One place for the work, from field to file.</h1>
+          <h1 className="font-display text-5xl leading-[1.02] tracking-tight text-balance">
+            One place for the work, from field to file.
+          </h1>
           <p className="mt-5 leading-relaxed opacity-75">
-            Field activities, procurement, documents and approvals in one record. Sign in to see what is waiting on you and what is coming next.
+            Field activities, procurement, documents and approvals in one
+            record. Sign in to see what is waiting on you and what is coming
+            next.
           </p>
         </div>
         <p className="relative text-xs opacity-60">
-          Prototype with fictional people and records. <Link href="/about" className="underline underline-offset-2">About this project</Link>
+          {mode === "demo"
+            ? "Demo mode with fictional people and records."
+            : "Prototype: project records are still fictional."}{" "}
+          <Link href="/about" className="underline underline-offset-2">
+            About this project
+          </Link>
         </p>
       </section>
 
       <section className="flex flex-col justify-center px-6 py-10 sm:px-12">
         <div className="mx-auto w-full max-w-lg">
           <h2 className="font-display text-3xl tracking-tight">Sign in</h2>
-          <p className="mt-1 text-sm text-muted">Demo mode: choose a person. No password is needed yet.</p>
+          {mode === "live" ? (
+            <>
+              <p className="mt-1 text-sm text-muted">
+                We email you a one-time code. No password.
+              </p>
+              {!configured ? (
+                <p role="alert" className="mt-6 rounded-2xl border border-line bg-surface p-4 text-sm">
+                  Sign-in is not set up on this server yet: the Supabase keys are missing. An administrator needs to add them, or set DEMO_SIGN_IN=1 to use the demo people.
+                </p>
+              ) : user ? (
+                <ContinueAs />
+              ) : (
+                <EmailCode />
+              )}
+            </>
+          ) : mode === "loading" ? (
+            <p className="mt-6 text-sm text-muted">Loading…</p>
+          ) : (
+            <>
+              <p className="mt-1 text-sm text-muted">
+                Demo mode: choose a person. No password is needed.
+              </p>
 
-          {user && (
-            <button
-              type="button"
-              onClick={() => router.push("/home")}
-              className="mt-6 flex w-full items-center gap-3 rounded-2xl border-2 border-forest bg-surface px-4 py-3 text-left"
-            >
-              <Initials name={user.name} />
-              <span className="min-w-0 flex-1">
-                <span className="block font-medium">Continue as {user.name}</span>
-                <span className="block text-xs text-muted">{user.title}</span>
-              </span>
-              <span className="text-forest">→</span>
-            </button>
-          )}
+              {user && (
+                <button
+                  type="button"
+                  onClick={() => router.push("/home")}
+                  className="mt-6 flex w-full items-center gap-3 rounded-2xl border-2 border-forest bg-surface px-4 py-3 text-left"
+                >
+                  <Initials name={user.name} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-medium">
+                      Continue as {user.name}
+                    </span>
+                    <span className="block text-xs text-muted">
+                      {user.title}
+                    </span>
+                  </span>
+                  <span className="text-forest">→</span>
+                </button>
+              )}
 
-          <div role="tablist" className="mt-6 grid grid-cols-2 rounded-full bg-sunken p-1 text-sm">
-            {(
-              [
-                ["employee", "Staff"],
-                ["donor", "Donor"],
-              ] as const
-            ).map(([k, label]) => (
-              <button
-                key={k}
-                role="tab"
-                type="button"
-                aria-selected={tab === k}
-                onClick={() => setTab(k)}
-                className={`rounded-full py-2 transition ${tab === k ? "bg-surface font-semibold shadow-sm" : "text-muted"}`}
+              <div
+                role="tablist"
+                className="mt-6 grid grid-cols-2 rounded-full bg-sunken p-1 text-sm"
               >
-                {label}
-              </button>
-            ))}
-          </div>
-
-          <ul className="mt-4 space-y-2">
-            {people.map((u) => {
-              const does = [...u.field.map(fieldRoleLabel), ...u.procurement.map(roleLabel)].filter((r) => r.toLowerCase() !== u.title.toLowerCase());
-              return (
-                <li key={u.id}>
+                {(
+                  [
+                    ["employee", "Staff"],
+                    ["donor", "Donor"],
+                  ] as const
+                ).map(([k, label]) => (
                   <button
+                    key={k}
+                    role="tab"
                     type="button"
-                    onClick={() => go(u.id)}
-                    className="flex w-full items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-3 text-left transition hover:-translate-y-0.5 hover:border-forest"
+                    aria-selected={tab === k}
+                    onClick={() => setTab(k)}
+                    className={`rounded-full py-2 transition ${tab === k ? "bg-surface font-semibold shadow-sm" : "text-muted"}`}
                   >
-                    <Initials name={u.name} />
-                    <span className="min-w-0 flex-1">
-                      <span className="block font-medium">{u.name}</span>
-                      <span className="block truncate text-xs text-muted">
-                        {u.title}
-                        {u.kind === "donor" ? ` · ${u.org}` : does.length ? ` · ${does.join(", ")}` : ""}
-                      </span>
-                    </span>
-                    <span aria-hidden className="text-muted">
-                      →
-                    </span>
+                    {label}
                   </button>
-                </li>
-              );
-            })}
-          </ul>
-          <p className="mt-6 text-xs leading-relaxed text-muted">
-            In production this would use your organization account. Donors see project progress, photos and success stories, not procurement files.
-          </p>
+                ))}
+              </div>
+
+              <ul className="mt-4 space-y-2">
+                {people.map((u) => {
+                  const does = [
+                    ...u.field.map(fieldRoleLabel),
+                    ...u.procurement.map(roleLabel),
+                  ].filter((r) => r.toLowerCase() !== u.title.toLowerCase());
+                  return (
+                    <li key={u.id}>
+                      <button
+                        type="button"
+                        onClick={() => go(u.id)}
+                        className="flex w-full items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-3 text-left transition hover:-translate-y-0.5 hover:border-forest"
+                      >
+                        <Initials name={u.name} />
+                        <span className="min-w-0 flex-1">
+                          <span className="block font-medium">{u.name}</span>
+                          <span className="block truncate text-xs text-muted">
+                            {u.title}
+                            {u.kind === "donor"
+                              ? ` · ${u.org}`
+                              : does.length
+                                ? ` · ${does.join(", ")}`
+                                : ""}
+                          </span>
+                        </span>
+                        <span aria-hidden className="text-muted">
+                          →
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+              <p className="mt-6 text-xs leading-relaxed text-muted">
+                Donors see project progress, photos and success stories, not
+                procurement files.
+              </p>
+            </>
+          )}
         </div>
       </section>
     </div>
+  );
+}
+
+function ContinueAs() {
+  const { user, signOut } = useSession();
+  const router = useRouter();
+  if (!user) return null;
+  return (
+    <div className="mt-6 space-y-3">
+      <button
+        type="button"
+        onClick={() => router.push("/home")}
+        className="flex w-full items-center gap-3 rounded-2xl border-2 border-forest bg-surface px-4 py-3 text-left"
+      >
+        <Initials name={user.name} />
+        <span className="min-w-0 flex-1">
+          <span className="block font-medium">Continue as {user.name}</span>
+          <span className="block text-xs text-muted">{user.title}</span>
+        </span>
+        <span className="text-forest">→</span>
+      </button>
+      <button
+        type="button"
+        onClick={() => void signOut()}
+        className="text-sm text-muted underline-offset-2 hover:underline"
+      >
+        Not you? Sign out
+      </button>
+    </div>
+  );
+}
+
+/** Email, then the 6-digit code from the email. Only people already on the staff or donor list can sign in. */
+function EmailCode() {
+  const { refresh } = useSession();
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
+  const [sent, setSent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const send = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    const { error } = await supabaseBrowser().auth.signInWithOtp({
+      email: email.trim(),
+      options: { shouldCreateUser: false, emailRedirectTo: `${window.location.origin}/auth/callback` },
+    });
+    setBusy(false);
+    if (error)
+      setError(
+        /signups? not allowed|not found/i.test(error.message)
+          ? "That email is not on the access list. Ask your Roots of Peace contact to add you."
+          : error.message,
+      );
+    else setSent(true);
+  };
+
+  const verify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    const { error } = await supabaseBrowser().auth.verifyOtp({
+      email: email.trim(),
+      token: code.trim(),
+      type: "email",
+    });
+    if (error) {
+      setBusy(false);
+      setError(
+        /expired|invalid/i.test(error.message)
+          ? "That code is wrong or has expired. Check the latest email, or send a new code."
+          : error.message,
+      );
+      return;
+    }
+    await refresh();
+    router.push("/home");
+  };
+
+  const field =
+    "mt-1 w-full rounded-xl border border-line bg-surface px-4 py-3 text-base outline-none focus:border-forest";
+  const button =
+    "mt-4 w-full rounded-full bg-forest px-4 py-3 font-semibold text-paper transition disabled:opacity-50";
+
+  return sent ? (
+    <form onSubmit={verify} className="mt-6">
+      <p className="text-sm">
+        We sent an email to <strong>{email.trim()}</strong>. Click the link
+        in it, or enter the code if it has one. It works for one hour.
+      </p>
+      <label className="mt-4 block text-sm font-medium" htmlFor="code">
+        Code from the email
+      </label>
+      <input
+        id="code"
+        inputMode="numeric"
+        autoComplete="one-time-code"
+        autoFocus
+        value={code}
+        onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+        className={`${field} font-mono tracking-[0.4em]`}
+        maxLength={10}
+        required
+      />
+      {error && (
+        <p role="alert" className="mt-3 text-sm text-clay">
+          {error}
+        </p>
+      )}
+      <button
+        type="submit"
+        disabled={busy || code.length < 6}
+        className={button}
+      >
+        {busy ? "Checking…" : "Sign in"}
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          setSent(false);
+          setCode("");
+          setError("");
+        }}
+        className="mt-3 text-sm text-muted underline-offset-2 hover:underline"
+      >
+        Use a different email or send a new code
+      </button>
+    </form>
+  ) : (
+    <form onSubmit={send} className="mt-6">
+      <label className="block text-sm font-medium" htmlFor="email">
+        Email
+      </label>
+      <input
+        id="email"
+        type="email"
+        autoComplete="email"
+        autoFocus
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        className={field}
+        required
+      />
+      {error && (
+        <p role="alert" className="mt-3 text-sm text-clay">
+          {error}
+        </p>
+      )}
+      <button
+        type="submit"
+        disabled={busy || !email.includes("@")}
+        className={button}
+      >
+        {busy ? "Sending…" : "Email me a code"}
+      </button>
+      <p className="mt-4 text-xs leading-relaxed text-muted">
+        Staff and donors use the same sign-in. Any email address works if it is
+        on the access list.
+      </p>
+    </form>
   );
 }

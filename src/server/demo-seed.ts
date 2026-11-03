@@ -3,6 +3,7 @@ import { db, schema as s } from "@/db";
 import { ORG_ID, PROJECT } from "@/lib/demo";
 import { SEASON, seedField, seedStock, type Farmer } from "@/lib/field";
 import { seedSubmissions } from "@/lib/project";
+import { seedStaff } from "@/server/staff";
 
 /**
  * Demo project A-2027 in the database: the same fictional farmers, findings, stock and sample
@@ -55,6 +56,7 @@ export async function seedDatabase() {
   }
 
   await loadDemoState(project.id, org.id);
+  await seedStaff();
   return { project: project.code, farmers: farmers.length };
 }
 

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { CurrencyToggle, Initials, useSession } from "@/components/app/session";
 import { LogoMark } from "@/components/logo";
-import { langLabel } from "@/lib/demo";
+import { langLabel, users } from "@/lib/demo";
 import { Tagged } from "@/components/status-tag";
 
 /** Shared building blocks for the Field activities and Procurement workspaces. */
@@ -426,9 +426,19 @@ export type RoleTab = { id: string; short: string };
 
 /** Top bar used on every signed-in page: home, workflows you can open, currency, and who you are. */
 export function TopBar({ active, children }: { active?: "design" | "project" | "field" | "procurement"; children?: React.ReactNode }) {
-  const { user, signOut } = useSession();
+  const { user, actor, viewingAs, viewAs, mode, signOut } = useSession();
   const router = useRouter();
   const [menu, setMenu] = useState(false);
+  const [switchError, setSwitchError] = useState("");
+  const switchTo = (id: string | null) => {
+    setSwitchError("");
+    viewAs(id)
+      .then(() => {
+        setMenu(false);
+        router.push("/home");
+      })
+      .catch((e: Error) => setSwitchError(e.message));
+  };
   const spaces = [
     { id: "design", label: "Project design", href: "/design", access: user?.kind === "employee" ? "view" : "none" },
     { id: "project", label: "Project", href: "/projects/A-2027", access: user ? "view" : "none" },
@@ -437,6 +447,16 @@ export function TopBar({ active, children }: { active?: "design" | "project" | "
   ].filter((w) => w.access && w.access !== "none");
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-paper/90 backdrop-blur-xl">
+      {viewingAs && user && actor && (
+        <div role="status" className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-ochre-soft px-4 py-2 text-center text-sm">
+          <span>
+            Viewing as <strong>{user.name}</strong>, read-only. Farmer names follow your own access, {actor.name.split(" ")[0]}.
+          </span>
+          <button type="button" onClick={() => switchTo(null)} className="font-semibold underline underline-offset-2">
+            Back to my view
+          </button>
+        </div>
+      )}
       <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-x-5 gap-y-3 px-4 py-3 sm:px-6">
         <div className="flex items-center gap-3">
           <Link href="/home" aria-label="Your dashboard" className="flex items-center gap-2">
@@ -484,11 +504,30 @@ export function TopBar({ active, children }: { active?: "design" | "project" | "
                     <Link href="/about" className="block rounded-lg px-2 py-1.5 text-sm hover:bg-sunken">
                       About this prototype
                     </Link>
+                    {mode === "live" && actor?.admin && (
+                      <label className="block px-2 py-1.5 text-sm">
+                        <span className="text-xs text-muted">View as (read-only)</span>
+                        <select
+                          value={viewingAs ? user.id : ""}
+                          onChange={(e) => switchTo(e.target.value || null)}
+                          className="mt-1 w-full rounded-lg border border-line bg-surface px-2 py-1.5 text-sm"
+                        >
+                          <option value="">Myself ({actor.name})</option>
+                          {users
+                            .filter((p) => p.id !== actor.id)
+                            .map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.name} · {p.title}
+                              </option>
+                            ))}
+                        </select>
+                        {switchError && <span className="mt-1 block text-xs text-clay">{switchError}</span>}
+                      </label>
+                    )}
                     <button
                       type="button"
                       onClick={() => {
-                        signOut();
-                        router.push("/");
+                        void signOut().then(() => router.push("/"));
                       }}
                       className="block w-full rounded-lg px-2 py-1.5 text-left text-sm hover:bg-sunken"
                     >
@@ -648,13 +687,15 @@ export function QueueItem({ active, onClick, children }: { active: boolean; onCl
   );
 }
 
-export function QueueFooter({ onReset, note = "Fictional records, saved in this browser only." }: { onReset: () => void; note?: string }) {
+export function QueueFooter({ onReset, note = "Fictional records, saved in this browser only." }: { onReset?: () => void; note?: string }) {
   return (
     <div className="border-t border-line px-4 py-4 text-xs text-muted sm:px-6">
       {note}{" "}
-      <button type="button" onClick={onReset} className="font-semibold underline-offset-2 hover:underline">
-        Reset sample data
-      </button>
+      {onReset && (
+        <button type="button" onClick={onReset} className="font-semibold underline-offset-2 hover:underline">
+          Reset sample data
+        </button>
+      )}
     </div>
   );
 }

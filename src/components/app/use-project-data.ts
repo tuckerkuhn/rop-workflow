@@ -140,5 +140,15 @@ export function useSubmissions(code = "A-2027") {
     [code, user?.id],
   );
 
-  return { submissions, roster, status, error, reload, decide, sync, pushFarmers };
+  /** Saves farmers.csv. Fetched rather than linked so demo mode can send who is asking. */
+  const downloadFarmers = useCallback(async () => {
+    const res = await fetch(`/api/kobo/farmers?project=${code}`, { headers: { "x-demo-user": user?.id ?? "" } });
+    if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? `Download failed (${res.status})`);
+    const url = URL.createObjectURL(await res.blob());
+    const a = Object.assign(document.createElement("a"), { href: url, download: "farmers.csv" });
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [code, user?.id]);
+
+  return { submissions, roster, status, error, reload, decide, sync, pushFarmers, downloadFarmers };
 }

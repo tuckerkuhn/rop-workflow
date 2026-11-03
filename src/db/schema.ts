@@ -91,12 +91,20 @@ export const organizations = pgTable("organizations", {
 });
 
 /** App users (staff). `authUserId` links to Supabase Auth. */
+/**
+ * People who can sign in. `personId` is the id the app uses everywhere (e.g. "omar"); `profile`
+ * holds their roles, access, manager and language (the AppUser fields other than id and name).
+ * `email` links a Supabase Auth account on first sign-in; `authUserId` is filled in then.
+ */
 export const staff = pgTable("staff", {
   id: id(),
   organizationId: uuid("organization_id").notNull().references(() => organizations.id),
   authUserId: uuid("auth_user_id").unique(),
+  personId: text("person_id").unique(),
   fullName: text("full_name").notNull(),
-  email: text("email"),
+  email: text("email").unique(),
+  profile: jsonb("profile"),
+  active: boolean("active").notNull().default(true),
   ...timestamps,
 });
 

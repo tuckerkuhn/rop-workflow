@@ -1,6 +1,7 @@
 /**
  * Loads the fictional demo project A-2027 into the database: farmers (names in the locked
  * farmer_pii table), plots, Field activities state and sample review-queue records.
+ * Also adds the demo people as staff profiles (no emails; give access with npm run staff -- add).
  * Wipes the database first, so use it on development databases only. Run with `npm run db:seed`.
  */
 import { seedDatabase } from "@/server/demo-seed";
