@@ -11,7 +11,12 @@ export type KoboConnectionInfo = {
   tokenHint: string;
   countOnly: "all" | "approved";
   lastSyncedAt: string | null;
+  /** When automatic sync was turned on (or its password last replaced); null when off. */
+  autoSyncSince: string | null;
 };
+
+/** What KoboToolbox needs to call this link. The password is shown once and never again. */
+export type AutoSyncSecret = { path: string; username: string; password: string };
 
 export type KoboFormInfo = { uid: string; name: string; submissions?: number; deployed?: boolean };
 

@@ -1,6 +1,7 @@
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { and, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
-import type { KoboMapping, KoboState, MappingMethod, SyncCounts } from "@/lib/kobo-setup";
+import type { AutoSyncSecret, KoboMapping, KoboState, MappingMethod, SyncCounts } from "@/lib/kobo-setup";
 import { KoboError, checkServerUrl, formQuestions, formSubmissions, listForms, submissionRefs, type KoboSubmission } from "@/server/kobo-client";
 import { MissingKeyError, decryptSecret, encryptSecret } from "@/server/secrets";
 
@@ -39,7 +40,7 @@ export async function koboState(code: string): Promise<KoboState> {
     .innerJoin(s.indicators, eq(s.indicators.id, s.koboMappings.indicatorId))
     .where(eq(s.indicators.projectId, project.id));
   return {
-    connection: c && { serverUrl: c.serverUrl, tokenHint: c.tokenHint, countOnly: c.countOnly === "approved" ? "approved" : "all", lastSyncedAt: c.lastSyncedAt?.toISOString() ?? null },
+    connection: c && { serverUrl: c.serverUrl, tokenHint: c.tokenHint, countOnly: c.countOnly === "approved" ? "approved" : "all", lastSyncedAt: c.lastSyncedAt?.toISOString() ?? null, autoSyncSince: c.hookSecretHash ? (c.hookEnabledAt?.toISOString() ?? null) : null },
     forms: forms.map((f) => ({ uid: f.assetUid, name: f.name })),
     mappings: mappings.map(({ code, m }) => ({ indicatorCode: code, assetUid: m.assetUid, question: m.question, method: m.method as MappingMethod, value: m.value })),
   };
@@ -65,6 +66,54 @@ export async function disconnect(code: string) {
   if (ids.length) await db.delete(s.koboMappings).where(inArray(s.koboMappings.indicatorId, ids));
   await db.delete(s.koboForms).where(eq(s.koboForms.projectId, project.id));
   await db.delete(s.koboConnections).where(eq(s.koboConnections.projectId, project.id));
+}
+
+/* ---------- automatic sync ---------- */
+
+const sha256 = (v: string) => createHash("sha256").update(v, "utf8").digest();
+
+/**
+ * Turns on automatic sync, or replaces its password. Each link gets its own random password;
+ * only its hash is kept, so the old one stops working at once and this one is never shown again.
+ */
+export async function enableAutoSync(code: string): Promise<AutoSyncSecret> {
+  const { connection } = await credentials(code);
+  const password = randomBytes(32).toString("base64url");
+  await db.update(s.koboConnections).set({ hookSecretHash: sha256(password).toString("hex"), hookEnabledAt: new Date(), updatedAt: new Date() }).where(eq(s.koboConnections.id, connection.id));
+  return { path: `/api/projects/${encodeURIComponent(code)}/kobo/hook`, username: code, password };
+}
+
+export async function disableAutoSync(code: string) {
+  const project = await projectRow(code);
+  await db.update(s.koboConnections).set({ hookSecretHash: null, hookEnabledAt: null, updatedAt: new Date() }).where(eq(s.koboConnections.projectId, project.id));
+}
+
+/**
+ * Checks a KoboToolbox REST Service call against this project's own password (HTTP Basic auth;
+ * the username is not checked). False for unknown projects, links without automatic sync and
+ * wrong passwords alike, so callers cannot tell which.
+ */
+export async function hookAllowed(code: string, authorization: string | null) {
+  const m = /^Basic\s+(.+)$/i.exec(authorization ?? "");
+  const decoded = m ? Buffer.from(m[1], "base64").toString("utf8") : "";
+  const password = decoded.includes(":") ? decoded.slice(decoded.indexOf(":") + 1) : "";
+  const [row] = await db
+    .select({ hash: s.koboConnections.hookSecretHash })
+    .from(s.koboConnections)
+    .innerJoin(s.projects, eq(s.projects.id, s.koboConnections.projectId))
+    .where(eq(s.projects.code, code))
+    .limit(1);
+  // Always hash and compare, so a missing link takes as long as a wrong password.
+  const expected = row?.hash ? Buffer.from(row.hash, "hex") : sha256("no automatic sync");
+  return timingSafeEqual(sha256(password), expected) && !!row?.hash && password.length > 0;
+}
+
+/** True when the submission is on one of the project's forms, or does not say which form it is on. */
+export async function isProjectForm(code: string, assetUid: string | undefined) {
+  if (!assetUid) return true;
+  const project = await projectRow(code);
+  const [f] = await db.select({ id: s.koboForms.id }).from(s.koboForms).where(and(eq(s.koboForms.projectId, project.id), eq(s.koboForms.assetUid, assetUid))).limit(1);
+  return !!f;
 }
 
 export async function liveForms(code: string) {

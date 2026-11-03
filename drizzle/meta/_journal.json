@@ -71,6 +71,13 @@
       "when": 1793729985876,
       "tag": "0009_kobo_submission_id",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793732974766,
+      "tag": "0010_kobo_auto_sync",
+      "breakpoints": true
     }
   ]
 }
