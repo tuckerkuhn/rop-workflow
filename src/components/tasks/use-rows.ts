@@ -30,7 +30,7 @@ export function useTaskRows(user: AppUser, project: (typeof projects)[number]) {
       .filter((i) => i.type === "milestone" || !i.assignee || i.assignee === user.id || i.createdBy === user.id)
       .map((i): Row =>
         i.type === "milestone"
-          ? { key: i.id, kind: "milestone", id: i.id, title: i.title, date: i.date!, end: i.endDate, milestoneKind: i.milestoneKind!, automatic: i.automatic }
+          ? { key: i.id, kind: "milestone", id: i.id, title: i.title, date: i.date!, end: i.endDate, milestoneKind: i.milestoneKind!, automatic: i.automatic, donorId: i.donorId }
           : { key: i.id, kind: "task", id: i.id, title: i.title, date: i.date, done: !!i.doneAt, late: false, source: "manual", assignee: i.assignee },
       );
     if (!hasWorkflows) return stored;

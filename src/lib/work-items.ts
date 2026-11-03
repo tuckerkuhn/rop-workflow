@@ -23,6 +23,8 @@ export type WorkItem = {
   createdBy: string | null;
   /** Made by the app from another record (e.g. a donor's reporting deadline); change it there. */
   automatic: boolean;
+  /** Report deadlines: the donor they are for. */
+  donorId: string | null;
 };
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -60,7 +62,7 @@ export type Row =
       assignee?: string | null;
       id?: string;
     }
-  | { key: string; kind: "milestone"; title: string; date: string; end: string | null; milestoneKind: MilestoneKind; id: string; automatic: boolean };
+  | { key: string; kind: "milestone"; title: string; date: string; end: string | null; milestoneKind: MilestoneKind; id: string; automatic: boolean; donorId: string | null; donorName?: string };
 
 export const rowEnd = (r: Row) => (r.kind === "milestone" ? (r.end ?? r.date) : r.date);
 

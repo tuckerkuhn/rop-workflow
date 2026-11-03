@@ -294,6 +294,58 @@ export const projectState = pgTable(
   (t) => [uniqueIndex("project_state_project_key").on(t.projectId, t.key)],
 );
 
+// ---------- Indicators & donors ----------
+
+/** Where an indicator sits in the results chain. Goal and outcome indicators are the project's impact. */
+export const indicatorLevelEnum = pgEnum("indicator_level", ["goal", "outcome", "output"]);
+/** How often an indicator is reported; sets the period in which it should have new data. */
+export const indicatorFrequencyEnum = pgEnum("indicator_frequency", ["monthly", "quarterly", "end_of_season"]);
+
+/**
+ * What the project measures. `source` is the form whose accepted records count toward it
+ * ("survey" for values entered from a survey); `filter` narrows it to one answer.
+ */
+export const indicators = pgTable(
+  "indicators",
+  {
+    id: id(),
+    projectId: uuid("project_id").notNull().references(() => projects.id),
+    /** Short code shown everywhere and used in donor mappings, e.g. "IND-1". */
+    code: text("code").notNull(),
+    name: text("name").notNull(),
+    unit: text("unit").notNull(),
+    target: numeric("target", { precision: 14, scale: 2 }).notNull(),
+    level: indicatorLevelEnum("level").notNull(),
+    /** The result statement it measures, e.g. "Farmers trained in improved land preparation". */
+    result: text("result"),
+    source: text("source").notNull(),
+    /** e.g. { field: "result", equals: "Yes" }: count only records with that answer. */
+    filter: jsonb("filter").$type<{ field: string; equals: string }>(),
+    frequency: indicatorFrequencyEnum("frequency").notNull(),
+    /** Indicator library theme, e.g. "Net income". */
+    theme: text("theme"),
+    position: integer("position").notNull().default(0),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex("indicators_project_code").on(t.projectId, t.code)],
+);
+
+/**
+ * A donor funding the project. Its reporting deadlines are report_deadline milestones in
+ * work_items (linked by donor_id), so they show in Tasks without being stored twice.
+ */
+export const donors = pgTable("donors", {
+  id: id(),
+  organizationId: uuid("organization_id").references(() => organizations.id),
+  projectId: uuid("project_id").notNull().references(() => projects.id),
+  name: text("name").notNull(),
+  /** Report layout id from src/lib/report-formats.ts. */
+  reportFormat: text("report_format").notNull().default("baseline"),
+  /** The donor's own code for each indicator it tracks, keyed by indicator code. Indicators left out are not in its report. */
+  indicatorRefs: jsonb("indicator_refs").$type<Record<string, string>>().notNull().default({}),
+  ...timestamps,
+});
+
 // ---------- Tasks & milestones ----------
 
 /**
@@ -319,6 +371,8 @@ export const workItems = pgTable(
     doneAt: timestamp("done_at", { withTimezone: true }),
     doneBy: text("done_by"),
     createdBy: text("created_by"),
+    /** The donor a report deadline belongs to; deleting the donor removes its deadlines. */
+    donorId: uuid("donor_id").references(() => donors.id, { onDelete: "cascade" }),
     /** Set on items the app makes itself (demo data, donor deadlines) so they update instead of duplicating. */
     sourceKey: text("source_key"),
     ...timestamps,

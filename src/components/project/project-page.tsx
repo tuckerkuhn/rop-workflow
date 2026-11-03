@@ -1228,7 +1228,7 @@ export function ProjectPage({ id }: { id: string }) {
               <li>Where does the Western Highlands data live today, and is there field data or only the plan?</li>
               <li>Which donor template is the mapping target for the pilot?</li>
             </ul>
-            <Link href="/progress?project=A-2027" className={`${quietBtn} mt-5 inline-block`}>
+            <Link href="/progress/records?project=A-2027" className={`${quietBtn} mt-5 inline-block`}>
               See the thin path on the demo project
             </Link>
           </section>

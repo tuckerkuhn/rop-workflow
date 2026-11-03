@@ -6,24 +6,16 @@ import { stageOf } from "@/components/field/workspace";
 import { useFieldData, useSubmissions } from "@/components/app/use-project-data";
 import { PROCUREMENT_ITEMS_KEY } from "@/components/procurement/workspace";
 import { PROJECT_KEY } from "@/components/project/project-page";
+import { useCurrentProject } from "@/components/app/current-project";
+import { useT } from "@/components/app/i18n";
 import { Initials, useRequireUser, useSession } from "@/components/app/session";
+import { HomePanels } from "@/components/home/panels";
 import { Pill, SectionLabel, TODAY, TopBar, usePersistentState } from "@/components/workspace/ui";
 import { workFor, type Data, type WorkCard } from "@/components/tasks/work";
-import { PROJECT, daysFrom, directReports, projects, userById, type AppUser } from "@/lib/demo";
+import { PROJECT, daysFrom, directReports, userById, type AppUser } from "@/lib/demo";
 import { PACKAGE, PACKAGE_USD, farmerName, farmerStages, fieldRoleLabel, maskName, type Farmer, type FieldItem } from "@/lib/field";
 import { DONE, roleLabel, seedProcurements, valueOf, type Procurement } from "@/lib/procurement";
 import { GATED_KEYS, seedProject, type ProjectState } from "@/lib/project";
-
-function weekday(d: string) {
-  return new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
-}
-
-function permissions(u: AppUser) {
-  return {
-    field: { view: u.fieldAccess !== "none", edit: u.field.length > 0, create: u.field.includes("mel") ? "New MEL finding" : null },
-    procurement: { view: u.procurementAccess !== "none", edit: u.procurement.length > 0, create: u.procurement.includes("holder") ? "New purchase request" : null },
-  };
-}
 
 const buckets = [
   { label: "This week", max: 6 },
@@ -149,7 +141,6 @@ function EmployeeHome({ u, data, viewer, readOnly, onView }: { u: AppUser; data:
   const now = cards.filter((c) => c.now);
   const late = now.filter((c) => c.late);
   const soon = cards.filter((c) => !c.now && daysFrom(TODAY, c.date) <= 13);
-  const perm = permissions(viewer);
   const roleNames = rolesOf(u);
   const who = readOnly ? u.name.split(" ")[0] : "you";
 
@@ -180,68 +171,6 @@ function EmployeeHome({ u, data, viewer, readOnly, onView }: { u: AppUser; data:
 
       <Team u={u} data={data} viewer={viewer} onView={onView} />
 
-      {!readOnly && (
-        <section>
-          <SectionLabel>Projects and workflows you can use</SectionLabel>
-          <div className="mt-3 grid gap-4 lg:grid-cols-2">
-            {projects.map((pr) => (
-              <article key={pr.id} className="rounded-2xl border border-line bg-surface p-5">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-mono text-xs text-muted">
-                      {pr.id} · {pr.country} · stage: {data.stages[pr.id] ?? pr.stage}
-                    </p>
-                    <h3 className="mt-1 font-display text-2xl tracking-tight">{pr.name}</h3>
-                  </div>
-                  <Pill tone={pr.status === "Active" ? "forest" : "muted"}>{pr.status}</Pill>
-                </div>
-                <p className="mt-2 text-sm text-muted">{pr.note}</p>
-                <Link href={`/progress?project=${pr.id}`} className="mt-3 inline-block text-sm font-semibold text-forest hover:underline">
-                  Open project →
-                </Link>
-                {pr.workflows.length > 0 && (
-                  <ul className="mt-4 divide-y divide-line border-y border-line">
-                    {(
-                      [
-                        { id: "field", label: "Field activities", href: "/tasks?source=field", p: perm.field },
-                        { id: "procurement", label: "Procurement", href: "/tasks?source=procurement", p: perm.procurement },
-                      ] as const
-                    ).map((w) => (
-                      <li key={w.id} className="flex flex-wrap items-center gap-3 py-3">
-                        <div className="min-w-0 flex-1">
-                          <p className="font-medium">{w.label}</p>
-                          <div className="mt-1 flex flex-wrap gap-1">
-                            {(["view", "edit"] as const).map((k) => (
-                              <span key={k} className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${w.p[k] ? "bg-mist text-leaf" : "bg-sunken text-muted line-through"}`}>
-                                {k}
-                              </span>
-                            ))}
-                            <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${w.p.create ? "bg-mist text-leaf" : "bg-sunken text-muted line-through"}`}>create</span>
-                          </div>
-                        </div>
-                        {w.p.view ? (
-                          <>
-                            {w.p.create && (
-                              <Link href={`${w.href}&new=1`} className="rounded-full border border-line px-3 py-1.5 text-sm hover:border-forest hover:text-forest">
-                                + {w.p.create}
-                              </Link>
-                            )}
-                            <Link href={w.href} className="rounded-full bg-forest px-4 py-1.5 text-sm font-medium text-forest-ink">
-                              Open
-                            </Link>
-                          </>
-                        ) : (
-                          <span className="text-xs text-muted">Not available to your role</span>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </article>
-            ))}
-          </div>
-        </section>
-      )}
     </>
   );
 }
@@ -283,7 +212,7 @@ function DonorHome({ field, project }: { field: FieldItem[]; project: ProjectSta
           </p>
         </div>
         {project.reportRelease && (
-          <Link href={`/progress?project=${PROJECT.id}#report`} className="rounded-full bg-forest px-5 py-2.5 text-sm font-medium text-forest-ink">
+          <Link href="/progress" className="rounded-full bg-forest px-5 py-2.5 text-sm font-medium text-forest-ink">
             Read the report
           </Link>
         )}
@@ -354,6 +283,8 @@ function DonorHome({ field, project }: { field: FieldItem[]; project: ProjectSta
 
 export function Dashboard() {
   const { user, money } = useRequireUser();
+  const { project: current } = useCurrentProject();
+  const { t, date } = useT();
   const { items: field } = useFieldData();
   const { submissions } = useSubmissions();
   const [procs] = usePersistentState<Procurement[]>(PROCUREMENT_ITEMS_KEY, seedProcurements);
@@ -406,20 +337,29 @@ export function Dashboard() {
         <header className="flex flex-wrap items-center gap-4">
           <Initials name={subject.name} className="h-14 w-14 text-xl" />
           <div className="min-w-0 flex-1">
-            <p className="text-sm text-muted">{weekday(TODAY)} · demo date</p>
-            <h1 className="font-display text-4xl tracking-tight">{readOnly ? subject.name : `Salaam, ${user.name.split(" ")[0]}`}</h1>
+            <p className="text-sm text-muted">{date(TODAY, { weekday: "long", day: "numeric", month: "long", year: "numeric" })} · demo date</p>
+            <h1 className="font-display text-4xl tracking-tight">{readOnly ? subject.name : t("home.greeting", { name: user.name.split(" ")[0] })}</h1>
             <p className="text-sm text-muted">
               {subject.title} · {subject.org}
               {subject.reportsTo && !readOnly ? ` · reports to ${userById(subject.reportsTo)?.name}` : ""}
             </p>
           </div>
           {!readOnly && user.kind === "employee" && user.procurementAccess !== "none" && (
-            <p className="text-sm text-muted">
+            <p className="basis-full text-sm text-muted sm:basis-auto">
               {open.length} open procurements · <span className="tabular-nums">{money(open.reduce((s, p) => s + valueOf(p), 0))}</span>
             </p>
           )}
         </header>
-        {user.kind === "donor" ? <DonorHome field={field} project={project} /> : <EmployeeHome u={subject} data={data} viewer={user} readOnly={readOnly} onView={(id) => view(id)} />}
+        {user.kind === "donor" ? (
+          <DonorHome field={field} project={project} />
+        ) : readOnly ? (
+          <EmployeeHome u={subject} data={data} viewer={user} readOnly={readOnly} onView={(id) => view(id)} />
+        ) : (
+          <>
+            <HomePanels user={user} project={current} stage={(current.id === "A-2027" ? local.stage : current.id === "AG-2027" ? grapes.stage : undefined) ?? current.stage} />
+            <Team u={user} data={data} viewer={user} onView={(id) => view(id)} />
+          </>
+        )}
       </main>
     </div>
   );

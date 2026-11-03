@@ -19,6 +19,7 @@ const toWorkItem = (r: Row): WorkItem => ({
   doneBy: r.doneBy,
   createdBy: r.createdBy,
   automatic: !!r.sourceKey && !r.sourceKey.startsWith("demo:"),
+  donorId: r.donorId,
 });
 
 /** Demo projects that live only in the browser have no row; they get an empty list. */
@@ -74,10 +75,8 @@ export async function deleteWorkItem(code: string, id: string) {
   return "deleted" as const;
 }
 
-/** Fictional tasks and milestones for demo project A-2027, around the demo date 2027-03-04. */
+/** Fictional tasks and milestones for demo project A-2027, around the demo date 2027-03-04. Report deadlines come with the demo donors. */
 const DEMO: (Omit<typeof s.workItems.$inferInsert, "projectId" | "organizationId" | "sourceKey"> & { key: string })[] = [
-  { key: "report-march", type: "milestone", milestoneKind: "report_deadline", title: "Monthly report: February", date: "2027-03-08" },
-  { key: "report-q1", type: "milestone", milestoneKind: "report_deadline", title: "Quarterly progress report to the donor", date: "2027-04-15" },
   { key: "distribution-day", type: "milestone", milestoneKind: "field_activity", title: "Input distribution day, Village B", date: "2027-03-10" },
   { key: "planting-window", type: "milestone", milestoneKind: "field_activity", title: "Planting window closes", date: "2027-03-20" },
   { key: "donor-visit", type: "milestone", milestoneKind: "other", title: "Donor field visit", date: "2027-05-12" },

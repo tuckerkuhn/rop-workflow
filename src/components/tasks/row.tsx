@@ -44,7 +44,7 @@ export function RowItem({ row, actions }: { row: Row; actions: RowActions }) {
           <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
             <Pill tone={kindTone[row.milestoneKind]}>{t(`milestone.kind.${row.milestoneKind}`)}</Pill>
             <span>{when}</span>
-            {row.automatic && <span>· {t("tasks.fromSettings")}</span>}
+            {row.automatic && <span>· {row.donorName ?? t("tasks.fromSettings")}</span>}
           </p>
         </div>
         {actions.canEdit && !row.automatic && <DeleteButton title={row.title} onClick={() => actions.onDelete(row.id)} />}

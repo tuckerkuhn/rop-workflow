@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSession } from "@/components/app/session";
 import { seedStock, type FieldItem, type Stock } from "@/lib/field";
+import type { DonorInfo, DonorInput, ProgressData } from "@/lib/progress";
 import type { Roster, Submission } from "@/lib/project";
 import type { NewWorkItem, WorkItem } from "@/lib/work-items";
 
 /**
- * Field activities, the review queue, and tasks and milestones, read from and saved to the database through the API.
+ * Field activities, the review queue, tasks and milestones, and progress, read from and saved to the database through the API.
  * Replaces the browser storage these screens used before.
  */
 
@@ -212,4 +213,59 @@ export function useWorkItems(code: string) {
   );
 
   return { items, saved, status, error, reload, add, setDone, remove };
+}
+
+/** Indicators with values worked out on the server, and the donors this person may see. */
+export function useProgress(code: string) {
+  const { user, ready } = useSession();
+  const [data, setData] = useState<ProgressData | null>(null);
+  const [status, setStatus] = useState<Load>("loading");
+  const [error, setError] = useState("");
+
+  const reload = useCallback(async () => {
+    try {
+      setData(await call<ProgressData>(`/api/projects/${code}/progress`, user?.id));
+      setStatus("ready");
+      setError("");
+    } catch (e) {
+      setStatus("error");
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }, [code, user?.id]);
+
+  useEffect(() => {
+    if (ready && user) void reload();
+  }, [ready, user, reload]);
+
+  /** Throws with the server's message so the form can show it. */
+  const saveDonor = useCallback(
+    async (id: string | null, input: DonorInput) => {
+      await call(id ? `/api/projects/${code}/donors/${id}` : `/api/projects/${code}/donors`, user?.id, { method: id ? "PUT" : "POST", body: JSON.stringify(input) });
+      await reload();
+    },
+    [code, user?.id, reload],
+  );
+
+  const deleteDonor = useCallback(
+    async (id: string) => {
+      await call(`/api/projects/${code}/donors/${id}`, user?.id, { method: "DELETE" });
+      await reload();
+    },
+    [code, user?.id, reload],
+  );
+
+  return { data, status, error, reload, saveDonor, deleteDonor };
+}
+
+/** Just the donors, for screens that filter by donor without needing indicator values. */
+export function useDonors(code: string) {
+  const { user, ready } = useSession();
+  const [donors, setDonors] = useState<DonorInfo[]>([]);
+  useEffect(() => {
+    if (!ready || !user) return;
+    call<{ donors: DonorInfo[] }>(`/api/projects/${code}/donors`, user.id)
+      .then((r) => setDonors(r.donors))
+      .catch(() => setDonors([]));
+  }, [code, ready, user]);
+  return donors;
 }

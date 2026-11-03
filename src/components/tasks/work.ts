@@ -77,7 +77,7 @@ export function workFor(u: AppUser, { field, procs, project }: Data, viewer: App
     return !a || a.note !== String(actualFor(i, project.submissions).value);
   }).length;
   const proj = (key: string, title: string, step: string, tab: string, days: number) =>
-    cards.push({ key, title, step, date: new Date(Date.parse(TODAY) + days * 86400000).toISOString().slice(0, 10), href: `/progress?project=${PROJECT.id}#${tab}`, space: "Project", now: true, late: false, note: "" });
+    cards.push({ key, title, step, date: new Date(Date.parse(TODAY) + days * 86400000).toISOString().slice(0, 10), href: `/progress/records?project=${PROJECT.id}#${tab}`, space: "Project", now: true, late: false, note: "" });
   if (u.project.includes("mel-owner")) {
     if (pending) proj("pj-queue", `${pending} Kobo submissions to review`, "Accept or query in the review queue", "verify", 1);
     if (unapproved) proj("pj-actuals", `${unapproved} actuals to approve`, "Approve this period's actuals", "verify", 3);

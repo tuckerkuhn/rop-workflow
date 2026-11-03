@@ -3,8 +3,8 @@
 import { useCurrentProject } from "@/components/app/current-project";
 import { ProjectPage } from "@/components/project/project-page";
 
-/** Progress for the current project. Phase 3 replaces the project tabs with indicators and the donor report. */
-export function ProgressPage() {
+/** The project's working records: plan, review queue, budget, report sign-off and audit trail. */
+export function RecordsPage() {
   const { project } = useCurrentProject();
   return <ProjectPage key={project.id} id={project.id} />;
 }

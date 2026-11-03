@@ -3,8 +3,11 @@
 import { useSearchParams } from "next/navigation";
 import { useCallback, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
+import { DonorFilter, useDonorChoice } from "@/components/app/donor-filter";
 import { useT } from "@/components/app/i18n";
+import { LockIcon, LockedFeature } from "@/components/app/locked-feature";
 import { useFeature, useRequireUser } from "@/components/app/session";
+import { useDonors } from "@/components/app/use-project-data";
 import { FieldWorkspace } from "@/components/field/workspace";
 import { ProcurementWorkspace } from "@/components/procurement/workspace";
 import { AddSheet } from "@/components/tasks/add-sheet";
@@ -14,7 +17,7 @@ import type { RowActions } from "@/components/tasks/row";
 import { taskSources } from "@/components/tasks/sources";
 import { TimelineView } from "@/components/tasks/timeline-view";
 import { useTaskRows } from "@/components/tasks/use-rows";
-import { Pill, TopBar, primaryBtn, quietBtn, usePersistentState } from "@/components/workspace/ui";
+import { TopBar, primaryBtn, usePersistentState } from "@/components/workspace/ui";
 import type { AppUser } from "@/lib/demo";
 import type { MessageKey } from "@/lib/i18n";
 
@@ -52,19 +55,16 @@ const VIEWS: { id: View; label: MessageKey }[] = [
   { id: "timeline", label: "tasks.view.timeline" },
 ];
 
-function Lock() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" className="h-3.5 w-3.5" aria-hidden>
-      <rect x="5" y="11" width="14" height="10" rx="2" />
-      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
-    </svg>
-  );
-}
-
 function AllTasks({ user }: { user: AppUser }) {
   const { t } = useT();
   const { project } = useCurrentProject();
-  const { rows, work } = useTaskRows(user, project);
+  const { rows: allRows, work } = useTaskRows(user, project);
+  const donors = useDonors(project.id);
+  const { donor, setDonor } = useDonorChoice(project.id, donors);
+  // Picking a donor hides other donors' report deadlines; everything else stays.
+  const rows = (donor ? allRows.filter((r) => r.kind !== "milestone" || !r.donorId || r.donorId === donor.id) : allRows).map((r) =>
+    r.kind === "milestone" && r.donorId ? { ...r, donorName: donors.find((d) => d.id === r.donorId)?.name } : r,
+  );
   const timeline = useFeature("timeline");
   const [saved, setSaved] = usePersistentState<View>("rop-tasks-view", () => "list");
   // Picking the locked timeline shows the upgrade prompt without remembering it as the choice.
@@ -94,6 +94,10 @@ function AllTasks({ user }: { user: AppUser }) {
           )}
         </div>
 
+        <div className="mt-3">
+          <DonorFilter donors={donors} donor={donor} onChange={setDonor} />
+        </div>
+
         <div role="radiogroup" aria-label={t("tasks.views")} className="mt-4 grid grid-cols-3 rounded-full bg-sunken p-1 text-sm sm:inline-grid">
           {VIEWS.map((v) => {
             const locked = v.id === "timeline" && !timeline;
@@ -111,7 +115,7 @@ function AllTasks({ user }: { user: AppUser }) {
                 className={`flex items-center justify-center gap-1.5 rounded-full px-4 py-2 ${on ? "bg-surface font-semibold shadow-sm" : "text-muted hover:text-ink"}`}
               >
                 {t(v.label)}
-                {locked && <Lock />}
+                {locked && <LockIcon />}
               </button>
             );
           })}
@@ -128,17 +132,7 @@ function AllTasks({ user }: { user: AppUser }) {
           {work.status === "loading" ? (
             <p className="py-16 text-center text-sm text-muted">{t("tasks.loading")}</p>
           ) : shown === "locked" ? (
-            <section className="mx-auto max-w-md rounded-2xl border border-line bg-surface p-6 text-center">
-              <Pill tone="ochre">
-                <Lock /> {t("plan.paid")}
-              </Pill>
-              <h2 className="mt-3 font-display text-2xl">{t("plan.locked", { feature: t("tasks.view.timeline") })}</h2>
-              <p className="mt-2 text-sm text-muted">{t("plan.timelineWhy")}</p>
-              <p className="mt-2 text-sm text-muted">{t("plan.ask")}</p>
-              <button type="button" onClick={() => setPrompt(false)} className={`${quietBtn} mt-5`}>
-                {t("plan.back")}
-              </button>
-            </section>
+            <LockedFeature feature={t("tasks.view.timeline")} why={t("plan.timelineWhy")} onBack={() => setPrompt(false)} />
           ) : shown === "calendar" ? (
             <CalendarView rows={rows} actions={actions} />
           ) : shown === "timeline" ? (

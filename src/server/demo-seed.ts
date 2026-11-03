@@ -4,6 +4,7 @@ import { ORG_ID, PROJECT } from "@/lib/demo";
 import { SEASON, seedField, seedStock, type Farmer } from "@/lib/field";
 import { seedSubmissions } from "@/lib/project";
 import { seedStaff } from "@/server/staff";
+import { seedDonors, seedIndicators } from "@/server/progress-store";
 import { seedWorkItems } from "@/server/work-store";
 
 /**
@@ -22,7 +23,7 @@ const initials = (name: string) =>
 /** Wipes the whole database and loads the demo project. Development databases only. */
 export async function seedDatabase() {
   await db.execute(sql`
-    truncate table audit_log, work_items, management_actions, finding_sources, mel_findings,
+    truncate table audit_log, work_items, donors, indicators, management_actions, finding_sources, mel_findings,
       field_visits, input_distributions, expenditures, corrections, readiness_checks,
       training_attendance, activities, evidence, field_items, project_state, farmer_pii, plots,
       seasons, farmers, budget_lines, crops, dev_logic_nodes, project_members, projects, staff, organizations
@@ -80,6 +81,8 @@ export async function resetDemo(code: string) {
   }
   await db.delete(s.fieldItems).where(eq(s.fieldItems.projectId, project.id));
   await db.delete(s.workItems).where(eq(s.workItems.projectId, project.id));
+  await db.delete(s.donors).where(eq(s.donors.projectId, project.id));
+  await db.delete(s.indicators).where(eq(s.indicators.projectId, project.id));
   await db.delete(s.projectState).where(eq(s.projectState.projectId, project.id));
   await db.delete(s.evidence).where(and(eq(s.evidence.projectId, project.id), ne(s.evidence.source, "kobo")));
   await db
@@ -104,6 +107,8 @@ async function loadDemoState(projectId: string, organizationId: string) {
   );
   await db.insert(s.projectState).values({ projectId, key: "stock", data: seedStock() });
   await seedWorkItems(projectId, organizationId);
+  await seedIndicators(projectId);
+  await seedDonors(projectId, organizationId);
   const subs = seedSubmissions(field);
   await db.insert(s.evidence).values(
     subs.map((sub) => ({

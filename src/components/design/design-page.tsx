@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useT } from "@/components/app/i18n";
-import { useRequireUser } from "@/components/app/session";
+import { LockedFeature } from "@/components/app/locked-feature";
+import { useFeature, useRequireUser } from "@/components/app/session";
 import { Calendar, SampleTag, Sources, TargetPanel, targetText } from "@/components/project/market-windows";
 import { Pill, SectionLabel, TODAY, TopBar, primaryBtn, quietBtn, usePersistentState } from "@/components/workspace/ui";
 import { canValidate, daysFrom, projects, type AppUser } from "@/lib/demo";
@@ -459,7 +460,7 @@ function Choose({ u, state, setState, locked, cal, projectId, openTarget }: Prop
       </div>
       <p className="text-sm text-muted">
         Next: Tucker or Daniel signs off Design on the{" "}
-        <Link href={`/progress?project=${projectId}`} className="font-semibold text-forest hover:underline">
+        <Link href={`/progress/records?project=${projectId}`} className="font-semibold text-forest hover:underline">
           project page
         </Link>
         , which moves the project to Execute.
@@ -473,6 +474,7 @@ function Choose({ u, state, setState, locked, cal, projectId, openTarget }: Prop
 export function DesignPage() {
   const { user } = useRequireUser();
   const { t } = useT();
+  const market = useFeature("market_intelligence");
   const gatedProjects = projects.filter((p) => "designGate" in p && p.designGate);
   const [projectId, setProjectId] = useState(gatedProjects[0]?.id ?? "AG-2027");
   useEffect(() => {
@@ -492,6 +494,17 @@ export function DesignPage() {
       <div className="min-h-screen">
         <TopBar />
         <p className="px-6 py-24 text-center text-muted">{t("design.staffOnly")}</p>
+      </div>
+    );
+
+  // Market Intelligence (finding and validating market windows) is a paid-plan feature.
+  if (!market)
+    return (
+      <div className="min-h-screen">
+        <TopBar active="design" />
+        <div className="px-4 py-16 sm:px-6">
+          <LockedFeature feature={t("plan.marketIntelligence")} why={t("plan.marketWhy")} />
+        </div>
       </div>
     );
 
@@ -516,7 +529,7 @@ export function DesignPage() {
           <p className="mt-1 max-w-2xl text-sm text-muted">Start from demand: explore where buyers have unmet demand and when, validate the strongest windows with evidence, then commit the project to one.</p>
           <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
             <span className="text-muted">Designing</span>
-            <Link href={`/progress?project=${project.id}`} className="rounded-full border border-line bg-surface px-3 py-1 font-medium hover:border-forest">
+            <Link href={`/progress/records?project=${project.id}`} className="rounded-full border border-line bg-surface px-3 py-1 font-medium hover:border-forest">
               {project.id} · {project.name}
             </Link>
             <Pill tone={locked ? "forest" : "ochre"}>{locked ? `${stage}: design locked` : "In Design"}</Pill>
