@@ -1,14 +1,17 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { and, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
-import type { AutoSyncSecret, KoboMapping, KoboState, MappingMethod, SyncCounts } from "@/lib/kobo-setup";
+import type { AutoSyncSecret, FormPurpose, KoboMapping, KoboState, MappingMethod, SyncCounts } from "@/lib/kobo-setup";
 import { KoboError, checkServerUrl, formQuestions, formSubmissions, listForms, submissionRefs, type KoboSubmission } from "@/server/kobo-client";
 import { MissingKeyError, decryptSecret, encryptSecret } from "@/server/secrets";
 
 /**
  * A project's own KoboToolbox link: the account, the forms that belong to the project, and how
- * each indicator is counted from a form question. Synced submissions go into `evidence` with no
- * `form`, so they stay out of the readiness review queue and count only through mappings.
+ * each indicator is counted from a form question. This is the only way Kobo data comes in.
+ *
+ * Each linked form has a purpose. Readiness forms: each submission is stored with form
+ * "readiness" and waits in the review queue; it counts only once accepted. Data forms: stored
+ * with no `form`, so they stay out of the review queue and count through mappings.
  */
 
 async function projectRow(code: string) {
@@ -22,11 +25,21 @@ async function connectionOf(projectId: string) {
   return c ?? null;
 }
 
-async function credentials(code: string) {
+export async function credentials(code: string) {
   const project = await projectRow(code);
   const c = await connectionOf(project.id);
-  if (!c) throw new KoboError("Connect KoboToolbox first.");
+  if (!c) throw new KoboError("Connect KoboToolbox for this project first (Setup).");
   return { project, connection: c, server: c.serverUrl, token: decryptSecret(c.tokenEncrypted) };
+}
+
+const purposeOf = (v: string): FormPurpose => (v === "readiness" ? "readiness" : "data");
+
+/** The project's linked readiness forms, with the account to reach them. */
+export async function readinessForms(code: string) {
+  const c = await credentials(code);
+  const forms = await db.select().from(s.koboForms).where(and(eq(s.koboForms.projectId, c.project.id), eq(s.koboForms.purpose, "readiness")));
+  if (!forms.length) throw new KoboError("No readiness form is linked to this project. In Setup, choose the form and mark it as the readiness check.");
+  return { ...c, forms };
 }
 
 export async function koboState(code: string): Promise<KoboState> {
@@ -41,7 +54,7 @@ export async function koboState(code: string): Promise<KoboState> {
     .where(eq(s.indicators.projectId, project.id));
   return {
     connection: c && { serverUrl: c.serverUrl, tokenHint: c.tokenHint, countOnly: c.countOnly === "approved" ? "approved" : "all", lastSyncedAt: c.lastSyncedAt?.toISOString() ?? null, autoSyncSince: c.hookSecretHash ? (c.hookEnabledAt?.toISOString() ?? null) : null },
-    forms: forms.map((f) => ({ uid: f.assetUid, name: f.name })),
+    forms: forms.map((f) => ({ uid: f.assetUid, name: f.name, purpose: purposeOf(f.purpose) })),
     mappings: mappings.map(({ code, m }) => ({ indicatorCode: code, assetUid: m.assetUid, question: m.question, method: m.method as MappingMethod, value: m.value })),
   };
 }
@@ -126,8 +139,11 @@ export async function liveQuestions(code: string, uid: string) {
   return formQuestions(c.server, c.token, uid);
 }
 
-/** Replaces the project's forms. Mappings to forms no longer chosen are removed. */
-export async function saveForms(code: string, forms: { uid: string; name: string }[]) {
+/**
+ * Replaces the project's forms. Mappings to forms no longer chosen are removed. Run a sync after:
+ * submissions already stored from a form now marked readiness are moved to the review queue then.
+ */
+export async function saveForms(code: string, forms: { uid: string; name: string; purpose: FormPurpose }[]) {
   const { project } = await credentials(code);
   const uids = forms.map((f) => f.uid);
   await db.transaction(async (tx) => {
@@ -136,8 +152,8 @@ export async function saveForms(code: string, forms: { uid: string; name: string
     for (const f of forms)
       await tx
         .insert(s.koboForms)
-        .values({ projectId: project.id, assetUid: f.uid, name: f.name })
-        .onConflictDoUpdate({ target: [s.koboForms.projectId, s.koboForms.assetUid], set: { name: f.name, updatedAt: new Date() } });
+        .values({ projectId: project.id, assetUid: f.uid, name: f.name, purpose: f.purpose })
+        .onConflictDoUpdate({ target: [s.koboForms.projectId, s.koboForms.assetUid], set: { name: f.name, purpose: f.purpose, updatedAt: new Date() } });
     const ids = (await tx.select({ id: s.indicators.id }).from(s.indicators).where(eq(s.indicators.projectId, project.id))).map((r) => r.id);
     if (ids.length) {
       const inProject = inArray(s.koboMappings.indicatorId, ids);
@@ -175,17 +191,27 @@ const statusOf = (v: unknown) => ((v as { uid?: string } | null | undefined)?.ui
  * Full submissions are downloaded only when new or edited. Every sync also reads a short list of
  * all submissions (number, ID, approval status), so approvals, edits and deletions made in
  * KoboToolbox are never missed. Every answer of every submission is still stored, unchanged.
+ *
+ * Submissions whose hidden project_code names another project are left out, so a form reused by
+ * several projects gives each only its own. Readiness submissions go to the review queue; once a
+ * reviewer has decided one, later edits in KoboToolbox are written to the audit log instead of
+ * changing what was decided.
  */
 export async function sync(code: string): Promise<SyncCounts> {
   const c = await credentials(code);
   const forms = await db.select().from(s.koboForms).where(eq(s.koboForms.projectId, c.project.id));
   const counts: SyncCounts = { fetched: 0, added: 0, already: 0, updated: 0, removed: 0, forms: forms.length };
   for (const f of forms) {
-    const refs = (await submissionRefs(c.server, c.token, f.assetUid)).filter((r) => Number.isInteger(r._id) && typeof r._uuid === "string");
+    const readiness = f.purpose === "readiness";
+    const ours = (x: object) => {
+      const pc = (x as { project_code?: unknown }).project_code;
+      return pc === undefined || pc === null || pc === "" || pc === code;
+    };
+    const refs = (await submissionRefs(c.server, c.token, f.assetUid)).filter((r) => Number.isInteger(r._id) && typeof r._uuid === "string" && ours(r));
     counts.fetched += refs.length;
     const mine = and(eq(s.evidence.projectId, c.project.id), eq(s.evidence.koboAssetUid, f.assetUid), eq(s.evidence.source, "kobo"));
     const local = await db
-      .select({ id: s.evidence.id, num: s.evidence.koboSubmissionId, uuid: s.evidence.koboSubmissionUuid, removedAt: s.evidence.koboRemovedAt, status: sql<string | null>`${s.evidence.payload} -> '_validation_status' ->> 'uid'` })
+      .select({ id: s.evidence.id, num: s.evidence.koboSubmissionId, uuid: s.evidence.koboSubmissionUuid, removedAt: s.evidence.koboRemovedAt, review: s.evidence.reviewStatus, status: sql<string | null>`${s.evidence.payload} -> '_validation_status' ->> 'uid'` })
       .from(s.evidence)
       .where(mine);
     const byNum = new Map(local.filter((l) => l.num !== null).map((l) => [l.num!, l]));
@@ -219,15 +245,25 @@ export async function sync(code: string): Promise<SyncCounts> {
     const subs = [
       ...(above.length ? await formSubmissions(c.server, c.token, f.assetUid, { _id: { $gt: lastNum } }) : []),
       ...(await Promise.all(chunks(byNumber).map((ids) => formSubmissions(c.server, c.token, f.assetUid, { _id: { $in: ids } })))).flat(),
-    ].filter((x) => Number.isInteger(x._id) && typeof x._uuid === "string");
+    ].filter((x) => Number.isInteger(x._id) && typeof x._uuid === "string" && ours(x));
     const full = new Map(subs.map((x) => [x._id as number, x]));
     const completedAt = (x: KoboSubmission) => (typeof x._submission_time === "string" ? new Date(x._submission_time) : null);
     const now = new Date();
 
+    const str = (v: unknown) => (typeof v === "string" && v ? v : null);
+    // Readiness checks carry who, which farmer and where, as the review queue shows them.
+    const kind = (x: KoboSubmission) =>
+      readiness
+        ? { form: "readiness", reviewStatus: "pending" as const, farmerCode: str(x.farmer), completedBy: str(x._submitted_by), location: str(x.location) }
+        : { form: null, reviewStatus: "accepted" as const };
+
     await db.transaction(async (tx) => {
+      // Stored before this form was marked readiness: never reviewed, so they go to the queue.
+      if (readiness) await tx.update(s.evidence).set({ form: "readiness", reviewStatus: "pending", updatedAt: now }).where(and(mine, isNull(s.evidence.form)));
+
       const rows = fresh.flatMap((n) => {
         const x = full.get(n);
-        return x ? [{ organizationId: c.project.organizationId, projectId: c.project.id, source: "kobo" as const, koboAssetUid: f.assetUid, koboSubmissionId: n, koboSubmissionUuid: x._uuid!, completedAt: completedAt(x), payload: x, reviewStatus: "accepted" as const }] : [];
+        return x ? [{ organizationId: c.project.organizationId, projectId: c.project.id, source: "kobo" as const, koboAssetUid: f.assetUid, koboSubmissionId: n, koboSubmissionUuid: x._uuid!, completedAt: completedAt(x), payload: x, ...kind(x) }] : [];
       });
       for (const part of chunks(rows, 500))
         await tx
@@ -239,7 +275,14 @@ export async function sync(code: string): Promise<SyncCounts> {
       for (const e of edited) {
         const x = full.get(e.num);
         if (!x) continue;
-        await tx.update(s.evidence).set({ koboSubmissionId: e.num, koboSubmissionUuid: x._uuid!, completedAt: completedAt(x), payload: x, koboRemovedAt: null, updatedAt: now }).where(eq(s.evidence.id, e.row.id));
+        if (readiness && e.row.review !== "pending") {
+          // Already decided (and, if accepted, applied to the farmer): keep what was decided and
+          // record the edit for the audit trail.
+          await tx.update(s.evidence).set({ koboSubmissionId: e.num, koboSubmissionUuid: x._uuid!, koboRemovedAt: null, updatedAt: now }).where(eq(s.evidence.id, e.row.id));
+          await tx.insert(s.auditLog).values({ projectId: c.project.id, entity: "evidence", entityId: e.row.id, action: "edited_in_kobo_after_review", detail: { review: e.row.review, payload: x } });
+        } else {
+          await tx.update(s.evidence).set({ koboSubmissionId: e.num, koboSubmissionUuid: x._uuid!, completedAt: completedAt(x), payload: x, ...(readiness ? { farmerCode: str(x.farmer), completedBy: str(x._submitted_by), location: str(x.location) } : {}), koboRemovedAt: null, updatedAt: now }).where(eq(s.evidence.id, e.row.id));
+        }
         counts.updated += 1;
       }
 
@@ -306,10 +349,11 @@ export async function mappedInputs(projectId: string) {
     await Promise.all(
       rows.map(async ({ code, m }) => {
         const mine = await db
-          .select({ at: s.evidence.completedAt, answer: sql<unknown>`${s.evidence.payload} -> ${m.question}`, status: sql<string | null>`${s.evidence.payload} -> '_validation_status' ->> 'uid'` })
+          .select({ at: s.evidence.completedAt, answer: sql<unknown>`${s.evidence.payload} -> ${m.question}`, status: sql<string | null>`${s.evidence.payload} -> '_validation_status' ->> 'uid'`, form: s.evidence.form, review: s.evidence.reviewStatus })
           .from(s.evidence)
           .where(and(eq(s.evidence.projectId, projectId), eq(s.evidence.koboAssetUid, m.assetUid), isNull(s.evidence.koboRemovedAt)));
-        const counted = mine.filter((e) => !approvedOnly || e.status === "validation_status_approved");
+        // Readiness records count only once accepted in the review queue; until then they wait.
+        const counted = mine.filter((e) => (e.form === null || e.review === "accepted") && (!approvedOnly || e.status === "validation_status_approved"));
         return [
           code,
           {

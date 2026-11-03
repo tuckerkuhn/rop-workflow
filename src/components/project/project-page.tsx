@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useFieldData, useSubmissions, type SyncResult } from "@/components/app/use-project-data";
+import { useFieldData, useSubmissions } from "@/components/app/use-project-data";
+import type { SyncCounts } from "@/lib/kobo-setup";
 import { PROCUREMENT_ITEMS_KEY } from "@/components/procurement/workspace";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { Pill, SectionLabel, TODAY, TopBar, dangerBtn, primaryBtn, quietBtn, usePersistentState } from "@/components/workspace/ui";
@@ -430,13 +431,13 @@ function KoboBar({ kobo }: { kobo: SectionProps["kobo"] }) {
     }
     setBusy(null);
   };
-  const synced = (r: SyncResult) =>
-    `Synced ${new Date().toLocaleTimeString()}: ${r.fetched} on Kobo · ${r.new} new · ${r.duplicate} already in${r.skipped ? ` · ${r.skipped} skipped (${[...new Set(r.reasons)].join(", ")})` : ""}`;
+  const synced = (r: SyncCounts) =>
+    `Synced ${new Date().toLocaleTimeString()}: ${r.fetched} on Kobo · ${r.added} new · ${r.already} already in${r.updated ? ` · ${r.updated} changed` : ""}${r.removed ? ` · ${r.removed} deleted in Kobo` : ""}`;
   return (
     <div className="rounded-2xl border border-line bg-surface p-4">
       <div className="flex flex-wrap items-center gap-2">
         <p className="mr-auto text-sm">
-          <span className="font-semibold">KoboToolbox</span> <span className="text-muted">· readiness check form</span>
+          <span className="font-semibold">KoboToolbox</span> <span className="text-muted">· this project&apos;s readiness form</span>
         </p>
         <button type="button" disabled={!!busy} onClick={() => run("sync", async () => synced(await kobo.sync()))} className={`${primaryBtn} py-2`}>
           {busy === "sync" ? "Syncing…" : "Sync from Kobo"}
@@ -446,7 +447,7 @@ function KoboBar({ kobo }: { kobo: SectionProps["kobo"] }) {
           disabled={!!busy}
           onClick={() => run("push", async () => {
             const r = await kobo.pushFarmers();
-            return `Farmer list uploaded (${r.farmers} farmers)${r.redeployed ? " and the form redeployed." : ". Redeploy the form in Kobo so it picks up the new list."}`;
+            return `Farmer list uploaded (${r.farmers} farmers)${r.redeployed ? ` and ${r.forms > 1 ? "the forms" : "the form"} redeployed.` : ". Redeploy the form in Kobo so it picks up the new list."}`;
           })}
           className={`${quietBtn} py-2`}
         >

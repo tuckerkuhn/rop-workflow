@@ -22,16 +22,19 @@ Conventions:
 
 ## Setting up the readiness check
 
-1. Rebuild the form if you change it: `python3 kobo/build_readiness_form.py`.
+Each project links its own KoboToolbox account and forms in the app; nothing about Kobo goes in
+`.env.local` except `KOBO_TOKEN_KEY` (which encrypts the saved tokens).
+
+1. Rebuild the form if you change it: `python3 kobo/build_readiness_form.py`. Its hidden
+   `project_code` is fixed to the project (`A-2027`); give each project its own copy with its code.
 2. In Kobo: **New → Upload an XLSForm** → `kobo/readiness_check.xlsx` → **Deploy**.
-3. Copy the form's asset UID from its URL (`.../#/forms/<UID>/...`) into `.env.local` as
-   `KOBO_READINESS_ASSET_UID`, with `KOBO_API_TOKEN` from Kobo → Account settings → Security.
-4. In the app, sign in as Omar (MEL owner), open Project → Verify and click
-   **Push farmer list to Kobo**. This uploads `farmers.csv` and redeploys the form.
-5. Fill in the form (Kobo → the form → **Open** the web form), then click **Sync from Kobo**.
+3. In the app: **Setup → Connect KoboToolbox** with the API token (Kobo → Account settings →
+   Security), choose the form and mark it **Readiness check**.
+4. On the last Setup step, **Turn on automatic sync** and enter the address, username and password it
+   shows in Kobo: the form → **Settings → REST Services → Register a new service** (JSON, Basic
+   authentication). Each project has its own password.
+5. Project → Verify → **Push farmer list to Kobo** uploads `farmers.csv` and redeploys the form.
 
-Submissions reach the app in two ways, both safe to repeat:
-
-- **Sync from Kobo** (manual, works on localhost): pulls every submission on the form.
-- **Webhook** (once the app is reachable from the internet): a Kobo REST Service pointing at
-  `https://<your-app>/api/kobo/webhook` with Basic auth (`KOBO_WEBHOOK_USER` / `KOBO_WEBHOOK_PASSWORD`).
+Readiness submissions land in the review queue (Project → Verify) as pending, by automatic sync or
+**Sync from Kobo**; both are safe to repeat. A check that has been accepted or queried is not
+changed by later edits in Kobo; the edit is written to the audit log instead.

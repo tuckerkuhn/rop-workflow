@@ -403,6 +403,11 @@ export const koboForms = pgTable(
       .references(() => projects.id, { onDelete: "cascade" }),
     assetUid: text("asset_uid").notNull(),
     name: text("name").notNull(),
+    /**
+     * What the form's submissions are for. "readiness": the joint readiness visit; each one waits
+     * in the review queue and counts only once accepted. "data": counted straight toward indicators.
+     */
+    purpose: text("purpose").notNull().default("data"),
     ...timestamps,
   },
   (t) => [uniqueIndex("kobo_forms_project_asset").on(t.projectId, t.assetUid)],

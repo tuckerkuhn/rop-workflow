@@ -6,7 +6,7 @@ import { useT } from "@/components/app/i18n";
 import { useKobo, useProgress } from "@/components/app/use-project-data";
 import { Question, field } from "@/components/setup/question";
 import { primaryBtn, quietBtn } from "@/components/workspace/ui";
-import { MAPPING_METHODS, type KoboFormInfo, type KoboMapping, type KoboQuestion, type MappingMethod, type AutoSyncSecret, type SyncCounts } from "@/lib/kobo-setup";
+import { FORM_PURPOSES, MAPPING_METHODS, guessPurpose, type FormPurpose, type KoboFormInfo, type KoboMapping, type KoboQuestion, type MappingMethod, type AutoSyncSecret, type SyncCounts } from "@/lib/kobo-setup";
 import type { MessageKey } from "@/lib/i18n";
 
 /**
@@ -124,6 +124,7 @@ export function KoboForms({ code, onDone }: { code: string; onDone: () => void }
   const kobo = useKobo(code);
   const [forms, setForms] = useState<KoboFormInfo[] | null>(null);
   const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [purpose, setPurpose] = useState<Record<string, FormPurpose>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const { liveForms } = kobo;
@@ -133,7 +134,11 @@ export function KoboForms({ code, onDone }: { code: string; onDone: () => void }
     if (forms || !chosen) return;
     setPicked(new Set(chosen.map((f) => f.uid)));
     liveForms()
-      .then(setForms)
+      .then((live) => {
+        // Saved choice first; otherwise a guess from the form's name.
+        setPurpose(Object.fromEntries(live.map((f) => [f.uid, chosen.find((c) => c.uid === f.uid)?.purpose ?? guessPurpose(f.name)])));
+        setForms(live);
+      })
       .catch((e: Error) => setError(e.message));
   }, [forms, chosen, liveForms]);
 
@@ -142,7 +147,7 @@ export function KoboForms({ code, onDone }: { code: string; onDone: () => void }
     setBusy(true);
     setError("");
     try {
-      await kobo.saveForms((forms ?? []).filter((f) => picked.has(f.uid)).map((f) => ({ uid: f.uid, name: f.name })));
+      await kobo.saveForms((forms ?? []).filter((f) => picked.has(f.uid)).map((f) => ({ uid: f.uid, name: f.name, purpose: purpose[f.uid] ?? guessPurpose(f.name) })));
       onDone();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -167,6 +172,17 @@ export function KoboForms({ code, onDone }: { code: string; onDone: () => void }
                 </span>
               </span>
             </label>
+            {picked.has(f.uid) && (
+              <fieldset className="mt-2 ms-7 space-y-1 text-sm">
+                <legend className="text-xs font-medium text-muted">{t("kobo.purpose")}</legend>
+                {FORM_PURPOSES.map((p) => (
+                  <label key={p} className="flex items-start gap-2">
+                    <input type="radio" name={`purpose-${f.uid}`} checked={(purpose[f.uid] ?? guessPurpose(f.name)) === p} onChange={() => setPurpose((x) => ({ ...x, [f.uid]: p }))} className="mt-1 accent-[var(--forest)]" />
+                    <span>{t(p === "readiness" ? "kobo.purpose.readiness" : "kobo.purpose.data")}</span>
+                  </label>
+                ))}
+              </fieldset>
+            )}
           </li>
         ))}
       </ul>
