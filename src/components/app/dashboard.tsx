@@ -44,7 +44,7 @@ function workFor(u: AppUser, { field, procs, project }: Data, viewer: AppUser): 
           title: i.kind === "farmer" ? farmerLabel(i, viewer) : i.title,
           step: fieldSteps[i.step].title,
           date: projectItem(i)[0]?.end ?? TODAY,
-          href: `/field?open=${i.id}`,
+          href: `/tasks?source=field&open=${i.id}`,
           space: "Field",
           now: true,
           late: isLate(i.step, since),
@@ -52,7 +52,7 @@ function workFor(u: AppUser, { field, procs, project }: Data, viewer: AppUser): 
         });
       });
     comingTo(field, r, viewer).forEach((c) =>
-      cards.push({ key: `fc-${c.id}-${c.step}`, title: c.title, step: c.step, date: c.eta, href: `/field?open=${c.id}`, space: "Field", now: false, late: false, note: `Now ${c.via}` }),
+      cards.push({ key: `fc-${c.id}-${c.step}`, title: c.title, step: c.step, date: c.eta, href: `/tasks?source=field&open=${c.id}`, space: "Field", now: false, late: false, note: `Now ${c.via}` }),
     );
   }
   for (const r of u.procurement) {
@@ -72,7 +72,7 @@ function workFor(u: AppUser, { field, procs, project }: Data, viewer: AppUser): 
           title: `${p.title} · ${p.id}`,
           step: stepById[p.step].title,
           date: path[0]?.end ?? TODAY,
-          href: `/procurement?open=${p.id}`,
+          href: `/tasks?source=procurement&open=${p.id}`,
           space: "Procurement",
           now: true,
           late: isLate(p.step, since),
@@ -80,7 +80,7 @@ function workFor(u: AppUser, { field, procs, project }: Data, viewer: AppUser): 
         });
       });
     procurementComingTo(procs, r).forEach((c) =>
-      cards.push({ key: `pc-${c.id}-${c.step}`, title: c.title, step: c.step, date: c.eta, href: `/procurement?open=${c.id}`, space: "Procurement", now: false, late: false, note: `Now ${c.via}` }),
+      cards.push({ key: `pc-${c.id}-${c.step}`, title: c.title, step: c.step, date: c.eta, href: `/tasks?source=procurement&open=${c.id}`, space: "Procurement", now: false, late: false, note: `Now ${c.via}` }),
     );
   }
   // Project sign-offs from the build spec.
@@ -91,7 +91,7 @@ function workFor(u: AppUser, { field, procs, project }: Data, viewer: AppUser): 
     return !a || a.note !== String(actualFor(i, project.submissions).value);
   }).length;
   const proj = (key: string, title: string, step: string, tab: string, days: number) =>
-    cards.push({ key, title, step, date: new Date(Date.parse(TODAY) + days * 86400000).toISOString().slice(0, 10), href: `/projects/${PROJECT.id}#${tab}`, space: "Project", now: true, late: false, note: "" });
+    cards.push({ key, title, step, date: new Date(Date.parse(TODAY) + days * 86400000).toISOString().slice(0, 10), href: `/progress?project=${PROJECT.id}#${tab}`, space: "Project", now: true, late: false, note: "" });
   if (u.project.includes("mel-owner")) {
     if (pending) proj("pj-queue", `${pending} Kobo submissions to review`, "Accept or query in the review queue", "verify", 1);
     if (unapproved) proj("pj-actuals", `${unapproved} actuals to approve`, "Approve this period's actuals", "verify", 3);
@@ -276,15 +276,15 @@ function EmployeeHome({ u, data, viewer, readOnly, onView }: { u: AppUser; data:
                   <Pill tone={pr.status === "Active" ? "forest" : "muted"}>{pr.status}</Pill>
                 </div>
                 <p className="mt-2 text-sm text-muted">{pr.note}</p>
-                <Link href={`/projects/${pr.id}`} className="mt-3 inline-block text-sm font-semibold text-forest hover:underline">
+                <Link href={`/progress?project=${pr.id}`} className="mt-3 inline-block text-sm font-semibold text-forest hover:underline">
                   Open project →
                 </Link>
                 {pr.workflows.length > 0 && (
                   <ul className="mt-4 divide-y divide-line border-y border-line">
                     {(
                       [
-                        { id: "field", label: "Field activities", href: "/field", p: perm.field },
-                        { id: "procurement", label: "Procurement", href: "/procurement", p: perm.procurement },
+                        { id: "field", label: "Field activities", href: "/tasks?source=field", p: perm.field },
+                        { id: "procurement", label: "Procurement", href: "/tasks?source=procurement", p: perm.procurement },
                       ] as const
                     ).map((w) => (
                       <li key={w.id} className="flex flex-wrap items-center gap-3 py-3">
@@ -302,7 +302,7 @@ function EmployeeHome({ u, data, viewer, readOnly, onView }: { u: AppUser; data:
                         {w.p.view ? (
                           <>
                             {w.p.create && (
-                              <Link href={`${w.href}?new=1`} className="rounded-full border border-line px-3 py-1.5 text-sm hover:border-forest hover:text-forest">
+                              <Link href={`${w.href}&new=1`} className="rounded-full border border-line px-3 py-1.5 text-sm hover:border-forest hover:text-forest">
                                 + {w.p.create}
                               </Link>
                             )}
@@ -363,7 +363,7 @@ function DonorHome({ field, project }: { field: FieldItem[]; project: ProjectSta
           </p>
         </div>
         {project.reportRelease && (
-          <Link href={`/projects/${PROJECT.id}#report`} className="rounded-full bg-forest px-5 py-2.5 text-sm font-medium text-forest-ink">
+          <Link href={`/progress?project=${PROJECT.id}#report`} className="rounded-full bg-forest px-5 py-2.5 text-sm font-medium text-forest-ink">
             Read the report
           </Link>
         )}
@@ -374,7 +374,7 @@ function DonorHome({ field, project }: { field: FieldItem[]; project: ProjectSta
           <SectionLabel>
             {PROJECT.name} · {PROJECT.season}
           </SectionLabel>
-          <Link href="/field" className="text-sm font-semibold text-forest hover:underline">
+          <Link href="/tasks?source=field" className="text-sm font-semibold text-forest hover:underline">
             View field activities →
           </Link>
         </div>

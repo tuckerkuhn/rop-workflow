@@ -84,6 +84,12 @@ body {
   font-feature-settings: "ss01", "cv11";
 }
 
+/* Dari and Pashto: one Arabic-script face for body and display text. */
+html:lang(fa) :is(.font-sans, .font-display),
+html:lang(ps) :is(.font-sans, .font-display) {
+  font-family: var(--font-vazirmatn), var(--font-inter), sans-serif;
+}
+
 ::selection {
   background: var(--ochre-soft);
   color: var(--ink);

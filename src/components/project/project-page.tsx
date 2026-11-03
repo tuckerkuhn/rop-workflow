@@ -378,7 +378,7 @@ function Execute({ field, procs }: SectionProps) {
       <ol className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
         {activities.map((a) => {
           const st = activityStatus(a, field, procs);
-          const link = [4, 6, 7].includes(a.n) ? "/field" : a.n === 5 ? "/procurement" : null;
+          const link = [4, 6, 7].includes(a.n) ? "/tasks?source=field" : a.n === 5 ? "/tasks?source=procurement" : null;
           return (
             <li key={a.n} className="grid grid-cols-[2rem_1fr] gap-3 px-4 py-3 sm:grid-cols-[2rem_1fr_10rem_7rem]">
               <span className="font-display text-xl text-muted">{a.n}</span>
@@ -1228,7 +1228,7 @@ export function ProjectPage({ id }: { id: string }) {
               <li>Where does the Western Highlands data live today, and is there field data or only the plan?</li>
               <li>Which donor template is the mapping target for the pilot?</li>
             </ul>
-            <Link href="/projects/A-2027" className={`${quietBtn} mt-5 inline-block`}>
+            <Link href="/progress?project=A-2027" className={`${quietBtn} mt-5 inline-block`}>
               See the thin path on the demo project
             </Link>
           </section>

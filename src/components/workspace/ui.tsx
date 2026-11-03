@@ -3,9 +3,13 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { useCurrentProject } from "@/components/app/current-project";
+import { useT } from "@/components/app/i18n";
 import { CurrencyToggle, Initials, useSession } from "@/components/app/session";
+import { TaskSourceSwitch } from "@/components/tasks/sources";
 import { LogoMark } from "@/components/logo";
-import { langLabel, users } from "@/lib/demo";
+import { langLabel, projects, users } from "@/lib/demo";
+import { LANGS, isLang } from "@/lib/i18n";
 import { Tagged } from "@/components/status-tag";
 
 /** Shared building blocks for the Field activities and Procurement workspaces. */
@@ -424,9 +428,49 @@ export const quietBtn =
 
 export type RoleTab = { id: string; short: string };
 
-/** Top bar used on every signed-in page: home, workflows you can open, currency, and who you are. */
+/** Which project Home, Tasks and Progress show. */
+function ProjectSwitcher() {
+  const { project, setProject } = useCurrentProject();
+  const { t } = useT();
+  return (
+    <label className="min-w-0">
+      <span className="sr-only">{t("project.label")}</span>
+      <select
+        value={project.id}
+        onChange={(e) => setProject(e.target.value)}
+        className="max-w-[11rem] truncate rounded-full sm:max-w-[14rem] border border-line bg-surface py-1.5 ps-3 pe-8 font-display text-sm"
+      >
+        {projects.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.name}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function LanguagePicker() {
+  const { lang, setLang, t } = useT();
+  return (
+    <label className="block px-2 py-1.5 text-sm">
+      <span className="text-xs text-muted">{t("menu.language")}</span>
+      <select value={lang} onChange={(e) => isLang(e.target.value) && setLang(e.target.value)} className="mt-1 w-full rounded-lg border border-line bg-surface px-2 py-1.5 text-sm">
+        {LANGS.map((l) => (
+          <option key={l} value={l}>
+            {langLabel[l]}
+          </option>
+        ))}
+      </select>
+      {lang !== "en" && <span className="mt-1 block text-xs text-muted">{t("menu.untranslated")}</span>}
+    </label>
+  );
+}
+
+/** Top bar used on every signed-in page: current project, the page's own controls, currency, and who you are. */
 export function TopBar({ active, children }: { active?: "design" | "project" | "field" | "procurement"; children?: React.ReactNode }) {
   const { user, actor, viewingAs, viewAs, mode, signOut } = useSession();
+  const { t } = useT();
   const router = useRouter();
   const [menu, setMenu] = useState(false);
   const [switchError, setSwitchError] = useState("");
@@ -439,80 +483,53 @@ export function TopBar({ active, children }: { active?: "design" | "project" | "
       })
       .catch((e: Error) => setSwitchError(e.message));
   };
-  const spaces = [
-    { id: "design", label: "Project design", href: "/design", access: user?.kind === "employee" ? "view" : "none" },
-    { id: "project", label: "Project", href: "/projects/A-2027", access: user ? "view" : "none" },
-    { id: "field", label: "Field activities", href: "/field", access: user?.fieldAccess },
-    { id: "procurement", label: "Procurement", href: "/procurement", access: user?.procurementAccess },
-  ].filter((w) => w.access && w.access !== "none");
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-paper/90 backdrop-blur-xl">
       {viewingAs && user && actor && (
         <div role="status" className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-ochre-soft px-4 py-2 text-center text-sm">
-          <span>
-            Viewing as <strong>{user.name}</strong>, read-only. Farmer names follow your own access, {actor.name.split(" ")[0]}.
-          </span>
+          <span>{t("banner.viewingAs", { name: user.name, actor: actor.name.split(" ")[0] })}</span>
           <button type="button" onClick={() => switchTo(null)} className="font-semibold underline underline-offset-2">
-            Back to my view
+            {t("banner.back")}
           </button>
         </div>
       )}
       <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-x-5 gap-y-3 px-4 py-3 sm:px-6">
-        <div className="flex items-center gap-3">
-          <Link href="/home" aria-label="Your dashboard" className="flex items-center gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
+          <Link href="/home" aria-label={t("nav.home")} className="lg:hidden">
             <LogoMark className="h-7 w-7" />
-            <span className={`font-display text-sm ${active ? "hidden xl:inline" : ""}`}>Home</span>
           </Link>
-          {spaces.length > 0 && (
-            <nav aria-label="Workflows" className="flex rounded-full bg-sunken p-0.5 text-sm">
-              {spaces.map((w) => (
-                <Link
-                  key={w.id}
-                  href={w.href}
-                  aria-current={active === w.id ? "page" : undefined}
-                  className={`whitespace-nowrap rounded-full px-3 py-1 font-display transition ${active === w.id ? "bg-surface text-ink shadow-sm" : "text-muted hover:text-ink"}`}
-                >
-                  {w.label}
-                </Link>
-              ))}
-            </nav>
-          )}
+          {active !== "design" && <ProjectSwitcher />}
+          {(active === "field" || active === "procurement") && <TaskSourceSwitch active={active} />}
         </div>
         {children}
-        <div className="ml-auto flex items-center gap-3">
+        <div className="ms-auto flex items-center gap-3">
           <CurrencyToggle />
           {user && (
             <div className="relative">
-              <button type="button" onClick={() => setMenu(!menu)} aria-expanded={menu} className="flex items-center gap-2 rounded-full border border-line bg-surface py-1 pl-1 pr-3 text-sm">
+              <button type="button" onClick={() => setMenu(!menu)} aria-expanded={menu} className="flex items-center gap-2 rounded-full border border-line bg-surface py-1 ps-1 pe-3 text-sm">
                 <Initials name={user.name} className="h-7 w-7 text-xs" />
                 <span className="hidden sm:inline">{user.name.split(" ")[0]}</span>
               </button>
               {menu && (
-                <div className="absolute right-0 top-11 z-50 w-60 rounded-xl border border-line bg-surface p-2 shadow-[0_20px_40px_-20px_rgb(19_32_26/0.5)]">
+                <div className="absolute end-0 top-11 z-50 w-60 rounded-xl border border-line bg-surface p-2 shadow-[0_20px_40px_-20px_rgb(19_32_26/0.5)]">
                   <p className="px-2 pt-1 text-sm font-semibold">{user.name}</p>
                   <p className="px-2 text-xs text-muted">
                     {user.title} · {user.org}
                   </p>
-                  <p className="px-2 pt-1 text-xs text-muted">
-                    Language: {langLabel[user.lang]}
-                    {user.lang !== "en" && " · pilot screens are in English"}
-                  </p>
                   <div className="mt-2 border-t border-line pt-2">
-                    <Link href="/home" className="block rounded-lg px-2 py-1.5 text-sm hover:bg-sunken">
-                      Your dashboard
-                    </Link>
+                    <LanguagePicker />
                     <Link href="/about" className="block rounded-lg px-2 py-1.5 text-sm hover:bg-sunken">
-                      About this prototype
+                      {t("menu.about")}
                     </Link>
                     {mode === "live" && actor?.admin && (
                       <label className="block px-2 py-1.5 text-sm">
-                        <span className="text-xs text-muted">View as (read-only)</span>
+                        <span className="text-xs text-muted">{t("menu.viewAs")}</span>
                         <select
                           value={viewingAs ? user.id : ""}
                           onChange={(e) => switchTo(e.target.value || null)}
                           className="mt-1 w-full rounded-lg border border-line bg-surface px-2 py-1.5 text-sm"
                         >
-                          <option value="">Myself ({actor.name})</option>
+                          <option value="">{t("menu.myself", { name: actor.name })}</option>
                           {users
                             .filter((p) => p.id !== actor.id)
                             .map((p) => (
@@ -529,9 +546,9 @@ export function TopBar({ active, children }: { active?: "design" | "project" | "
                       onClick={() => {
                         void signOut().then(() => router.push("/"));
                       }}
-                      className="block w-full rounded-lg px-2 py-1.5 text-left text-sm hover:bg-sunken"
+                      className="block w-full rounded-lg px-2 py-1.5 text-start text-sm hover:bg-sunken"
                     >
-                      Sign out
+                      {t("menu.signOut")}
                     </button>
                   </div>
                 </div>
@@ -603,7 +620,7 @@ export function AppShell({
           )}
         </div>
       </TopBar>
-      <div className="mx-auto grid w-full max-w-[1400px] flex-1 lg:grid-cols-[360px_minmax(0,1fr)]">
+      <div className="mx-auto grid w-full max-w-[1400px] flex-1 grid-cols-1 lg:grid-cols-[360px_minmax(0,1fr)]">
         <aside className={`border-line lg:border-r ${mobileDetail ? "hidden lg:block" : ""}`}>{queue}</aside>
         <main className={`min-w-0 px-4 py-6 sm:px-8 lg:py-8 ${mobileDetail ? "" : "hidden lg:block"}`}>{detail}</main>
       </div>
