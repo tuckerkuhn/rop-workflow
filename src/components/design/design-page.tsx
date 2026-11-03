@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useT } from "@/components/app/i18n";
-import { useRequireUser } from "@/components/app/session";
+import { LockIcon } from "@/components/app/locked-feature";
+import { useFeature, useRequireUser } from "@/components/app/session";
 import { Calendar, SampleTag, Sources, TargetPanel, targetText } from "@/components/project/market-windows";
 import { Pill, SectionLabel, TODAY, TopBar, primaryBtn, quietBtn, usePersistentState } from "@/components/workspace/ui";
 import { canValidate, daysFrom, projects, type AppUser } from "@/lib/demo";
@@ -61,7 +62,8 @@ const withDesign = (s: ProjectState, fn: (d: DesignState) => DesignState): Proje
 
 /* ---------- 1. Explore ---------- */
 
-function Explore({ u, state, setState, locked, cal, setCal, crop, setCrop }: Props & { crop: Crop; setCrop: (c: Crop) => void }) {
+function Explore({ u, state, setState, locked, cal, setCal, crop, setCrop, intel }: Props & { crop: Crop; setCrop: (c: Crop) => void; intel: boolean }) {
+  const { t } = useT();
   const design = state.design ?? emptyDesign;
   const editable = canValidate(u) && !locked;
   const hv = (w: MarketWindow) => areaOf(state, cal, w.crop).months;
@@ -121,11 +123,16 @@ function Explore({ u, state, setState, locked, cal, setCal, crop, setCrop }: Pro
                   <p className="font-medium">{targetLabel(w)}</p>
                   <p className="text-xs text-muted">
                     {areaOf(state, cal, w.crop).name} · {fitLabel[fitRank(w, hv(w))]}
-                    {overlap(w, hv(w)).length ? ` (${monthsLabel(overlap(w, hv(w)))})` : ""} ·{" "}
-                    {competition(w, hv(w), cal).length ? (
-                      <span className="text-clay">competition from {competition(w, hv(w), cal).map((c) => c.origin).join(", ")}</span>
-                    ) : (
-                      "no competing supply recorded"
+                    {overlap(w, hv(w)).length ? ` (${monthsLabel(overlap(w, hv(w)))})` : ""}
+                    {intel && (
+                      <>
+                        {" · "}
+                        {competition(w, hv(w), cal).length ? (
+                          <span className="text-clay">competition from {competition(w, hv(w), cal).map((c) => c.origin).join(", ")}</span>
+                        ) : (
+                          "no competing supply recorded"
+                        )}
+                      </>
                     )}
                   </p>
                 </div>
@@ -151,7 +158,13 @@ function Explore({ u, state, setState, locked, cal, setCal, crop, setCrop }: Pro
           ))}
         </div>
       </div>
-      <div className="flex flex-wrap items-center gap-2">
+      {!intel && (
+        <p className="flex items-center gap-2 rounded-xl bg-ochre-soft px-4 py-3 text-sm">
+          <LockIcon />
+          <span>{t("plan.marketTeaser")}</span>
+        </p>
+      )}
+      <div className={intel ? "flex flex-wrap items-center gap-2" : "hidden"}>
         <span className="text-sm font-medium">Production area</span>
         <div role="radiogroup" aria-label="Production area" className="flex flex-wrap gap-1">
           {areasFor(cal, crop).map((a) => (
@@ -175,6 +188,7 @@ function Explore({ u, state, setState, locked, cal, setCal, crop, setCrop }: Pro
         area={area}
         provinces={provincesFor(cal, crop)}
         competitors={cal.competitors.filter((c) => c.crop === crop)}
+        showCompetition={intel}
         edits={cal.edits}
         highlight={design.shortlist}
         onPick={editable ? toggle : undefined}
@@ -347,7 +361,7 @@ function Validate({ u, state, setState, locked, cal }: Props) {
 
 /* ---------- 3. Choose ---------- */
 
-function Choose({ u, state, setState, locked, cal, projectId, openTarget }: Props & { projectId: string; openTarget: () => void }) {
+function Choose({ u, state, setState, locked, cal, projectId, openTarget, intel }: Props & { projectId: string; openTarget: () => void; intel: boolean }) {
   const design = state.design ?? emptyDesign;
   const editable = canValidate(u) && !locked;
   const saved = state.marketTarget;
@@ -403,8 +417,8 @@ function Choose({ u, state, setState, locked, cal, projectId, openTarget }: Prop
                         </span>
                         <span className="block text-xs text-muted">
                           {ok ? "Validated" : `Not validated yet: ${n} of ${VALIDATION_ITEMS.length} items`} ·{" "}
-                          {overlap(w, hv.months).length ? `overlaps our harvest in ${monthsLabel(overlap(w, hv.months))}` : "needs storage"} ·{" "}
-                          {comp.length ? `competition from ${comp.map((c) => c.origin).join(", ")}` : "no competing supply recorded"}
+                          {overlap(w, hv.months).length ? `overlaps our harvest in ${monthsLabel(overlap(w, hv.months))}` : "needs storage"}
+                          {intel && ` · ${comp.length ? `competition from ${comp.map((c) => c.origin).join(", ")}` : "no competing supply recorded"}`}
                         </span>
                       </span>
                     </label>
@@ -435,7 +449,8 @@ function Choose({ u, state, setState, locked, cal, projectId, openTarget }: Prop
                       by: u.id,
                       date: TODAY,
                       area: { id: pickArea.id, name: pickArea.name, months: pickArea.months },
-                      competition: competition(pickWin!, pickArea.months, cal),
+                      // Left out on the free plan: competing supply was not assessed, which is not the same as none.
+                      competition: intel ? competition(pickWin!, pickArea.months, cal) : undefined,
                     },
                     audit: [...s.audit, { date: TODAY, who: u.id, what: `Chose target market window ${pickWin!.crop}, ${pickArea.name} → ${pickWin!.market}`, kind: "approval" }],
                   }));
@@ -481,7 +496,10 @@ export function DesignPage() {
   }, []);
   const store = GATED_KEYS[projectId] ?? GATED_KEYS["AG-2027"];
   const [state, setState] = usePersistentState<ProjectState>(store.key, store.seed);
-  const [cal, setCal] = usePersistentState<CalendarData>(CALENDAR_KEY, seedCalendar);
+  const [fullCal, setCal] = usePersistentState<CalendarData>(CALENDAR_KEY, seedCalendar);
+  // Free plan: windows against the national harvest only. Production areas and competing supply are Market Intelligence.
+  const intel = useFeature("market_intelligence");
+  const cal: CalendarData = intel ? fullCal : { ...fullCal, areas: [], competitors: [] };
   const project = projects.find((p) => p.id === projectId)!;
   const [crop, setCrop] = useState<Crop>(("crop" in project && project.crop) || "Grapes");
   const [targetOpen, setTargetOpen] = useState(false);
@@ -538,20 +556,26 @@ export function DesignPage() {
         </nav>
 
         <div className="mt-6 space-y-12">
-          <Explore {...props} crop={crop} setCrop={setCrop} />
+          <Explore {...props} crop={crop} setCrop={setCrop} intel={intel} />
           <Validate {...props} />
-          <Choose {...props} projectId={project.id} openTarget={() => setTargetOpen(true)} />
+          <Choose {...props} projectId={project.id} openTarget={() => setTargetOpen(true)} intel={intel} />
         </div>
         <p className="mt-10 text-xs text-muted">
           Reset this project&rsquo;s demo data:{" "}
           <button type="button" onClick={() => setState(store.seed())} className="font-semibold underline-offset-2 hover:underline">
             reset
           </button>
-          . Reset the harvest and competitor calendar:{" "}
-          <button type="button" onClick={() => setCal(seedCalendar())} className="font-semibold underline-offset-2 hover:underline">
-            reset
-          </button>
           .
+          {intel && (
+            <>
+              {" "}
+              Reset the harvest and competitor calendar:{" "}
+              <button type="button" onClick={() => setCal(seedCalendar())} className="font-semibold underline-offset-2 hover:underline">
+                reset
+              </button>
+              .
+            </>
+          )}
         </p>
       </div>
       {targetOpen && state.marketTarget && <TargetPanel state={state} onClose={() => setTargetOpen(false)} />}

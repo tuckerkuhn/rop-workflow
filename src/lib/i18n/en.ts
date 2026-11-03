@@ -191,6 +191,7 @@ export const en = {
   "settings.confirmDelete": "Delete {name}? Its {n} reporting deadlines will be removed from Tasks too.",
   "settings.cancel": "Cancel",
   "settings.notSaved": "This demo project is kept in this browser only, so donors cannot be added to it yet.",
+  "plan.marketTeaser": "Production areas, competing supply and verified price data are part of Market Intelligence on the paid plan.",
 } as const;
 
 export type MessageKey = keyof typeof en;

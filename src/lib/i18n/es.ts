@@ -185,4 +185,5 @@ export const es: Messages = {
   "settings.confirmDelete": "¿Eliminar {name}? Sus {n} plazos de informe también se quitarán de Tareas.",
   "settings.cancel": "Cancelar",
   "settings.notSaved": "Este proyecto de demostración se guarda solo en este navegador, así que aún no se le pueden agregar donantes.",
+  "plan.marketTeaser": "Las zonas de producción, la oferta competidora y los precios verificados son parte de Inteligencia de mercado, en el plan de pago.",
 };
