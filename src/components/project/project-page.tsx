@@ -6,7 +6,8 @@ import { useFieldData, useSubmissions, type SyncResult } from "@/components/app/
 import { PROCUREMENT_ITEMS_KEY } from "@/components/procurement/workspace";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { Pill, SectionLabel, TODAY, TopBar, dangerBtn, primaryBtn, quietBtn, usePersistentState } from "@/components/workspace/ui";
-import { STAGES, holderOf, projectRoleHolders, projects, userById, type AppUser } from "@/lib/demo";
+import { STAGES, holderOf, projectRoleHolders, userById, type AppUser } from "@/lib/demo";
+import { useCurrentProject } from "@/components/app/current-project";
 import { GatedSections, MoveToExecute } from "@/components/project/gated-project";
 import { TargetPanel } from "@/components/project/market-windows";
 import { maskName, type Farmer, type FieldItem } from "@/lib/field";
@@ -1107,7 +1108,7 @@ export function ProjectPage({ id }: { id: string }) {
   const [procs] = usePersistentState<Procurement[]>(PROCUREMENT_ITEMS_KEY, seedProcurements);
   const [tab, setTab] = useState<Tab>("Overview");
   const [evidence, setEvidence] = useState<Indicator | null>(null);
-  const project = projects.find((p) => p.id === id);
+  const project = useCurrentProject().projects.find((p) => p.id === id);
 
   useEffect(() => {
     const h = window.location.hash.slice(1);

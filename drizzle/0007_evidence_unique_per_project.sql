@@ -1,0 +1,2 @@
+ALTER TABLE "evidence" DROP CONSTRAINT "evidence_kobo_submission_uuid_unique";--> statement-breakpoint
+CREATE UNIQUE INDEX "evidence_project_submission" ON "evidence" USING btree ("project_id","kobo_submission_uuid");

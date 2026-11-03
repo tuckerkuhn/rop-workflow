@@ -86,7 +86,27 @@ export const PROJECT = {
 export type Stage = "Develop" | "Design" | "Execute" | "Verify" | "Report";
 export const STAGES: Stage[] = ["Develop", "Design", "Execute", "Verify", "Report"];
 
-export const projects = [
+/** A project as the app shows it: the demo projects below, plus projects created in setup (from the database). */
+export type ProjectInfo = {
+  id: string;
+  name: string;
+  country: string;
+  season: string;
+  award?: string;
+  orgId: string;
+  status: string;
+  stage: Stage;
+  note: string;
+  /** Workflows with data on this project; they show in Tasks. */
+  workflows: readonly ("field" | "procurement")[];
+  /** Design cannot be signed off until a target market window and reason are saved. */
+  designGate?: boolean;
+  crop?: string;
+  /** Stored in the database, so it can be edited in setup and connected to KoboToolbox. */
+  saved?: boolean;
+};
+
+export const projects: ProjectInfo[] = [
   {
     ...PROJECT,
     orgId: ORG_ID,

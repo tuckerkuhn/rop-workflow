@@ -1,12 +1,14 @@
 "use client";
 
+import { Arrow } from "@/components/app/arrow";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { DonorFilter, useDonorChoice } from "@/components/app/donor-filter";
 import { useT } from "@/components/app/i18n";
 import { useRequireUser } from "@/components/app/session";
-import { useProgress, useWorkItems } from "@/components/app/use-project-data";
+import { useKobo, useProgress, useWorkItems } from "@/components/app/use-project-data";
+import { canEditProject } from "@/lib/demo";
 import { ReportView } from "@/components/progress/report-view";
 import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { isImpact, missingData, reportPeriod, type DonorInfo, type IndicatorProgress, type ProgressData } from "@/lib/progress";
@@ -25,6 +27,9 @@ export function ProgressPage() {
   const work = useWorkItems(project.id);
   const donors = progress.data?.donors ?? [];
   const { donor, setDonor } = useDonorChoice(project.id, donors);
+  const kobo = useKobo(project.id);
+  const [syncing, setSyncing] = useState(false);
+  const [syncNote, setSyncNote] = useState("");
   const [exporting, setExporting] = useState(false);
   const closeExport = useCallback(() => setExporting(false), []);
 
@@ -34,6 +39,21 @@ export function ProgressPage() {
   const tracked = (data?.indicators ?? []).filter((i) => !donor || !Object.keys(donor.indicatorRefs).length || i.code in donor.indicatorRefs);
   // Donors see the numbers; the report itself reaches them only once Roots of Peace releases it.
   const staff = user.kind === "employee";
+  const editor = canEditProject(user);
+  const canSync = !!kobo.state?.connection && (editor || user.project.includes("mel-owner"));
+  const sync = async () => {
+    setSyncing(true);
+    setSyncNote("");
+    try {
+      const r = await kobo.sync();
+      setSyncNote(t("kobo.synced", { added: r.added, fetched: r.fetched, forms: r.forms }));
+      await progress.reload();
+    } catch (e) {
+      setSyncNote(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSyncing(false);
+    }
+  };
   const doc = staff && data && tracked.length ? buildReport(data, donor, tracked, work.items, t, (iso) => date(iso, { day: "numeric", month: "short", year: "numeric" })) : null;
 
   return (
@@ -48,9 +68,22 @@ export function ProgressPage() {
             </button>
           )}
         </div>
-        <div className="mt-3">
+        <div className="mt-3 flex flex-wrap items-center gap-3">
           <DonorFilter donors={donors} donor={donor} onChange={setDonor} />
+          {canSync && (
+            <span className="flex flex-wrap items-center gap-2 text-sm">
+              <button type="button" onClick={() => void sync()} disabled={syncing} className={`${quietBtn} py-2`}>
+                {syncing ? t("kobo.syncing") : t("progress.sync")}
+              </button>
+              {kobo.state?.connection?.lastSyncedAt && <span className="text-xs text-muted">{t("progress.lastSync", { date: date(kobo.state.connection.lastSyncedAt.slice(0, 10)) })}</span>}
+            </span>
+          )}
         </div>
+        {syncNote && (
+          <p role="status" className="mt-2 text-sm text-forest">
+            {syncNote}
+          </p>
+        )}
 
         {progress.status === "loading" && <p className="py-16 text-center text-sm text-muted">{t("progress.loading")}</p>}
         {progress.error && (
@@ -75,7 +108,7 @@ export function ProgressPage() {
                   </span>
                   <ul className="mt-3 grid gap-3 sm:grid-cols-2">
                     {g.list.map((i) => (
-                      <IndicatorCard key={i.code} i={i} donorCode={donor?.indicatorRefs[i.code]} />
+                      <IndicatorCard key={i.code} i={i} donorCode={donor?.indicatorRefs[i.code]} canMap={editor} />
                     ))}
                   </ul>
                 </section>
@@ -98,7 +131,7 @@ export function ProgressPage() {
         {staff && (
           <p className="mt-10 border-t border-line pt-4 text-sm">
             <Link href="/progress/records" className="font-semibold text-forest hover:underline">
-              {t("progress.records")} →
+              {t("progress.records")} <Arrow />
             </Link>
           </p>
         )}
@@ -108,7 +141,7 @@ export function ProgressPage() {
   );
 }
 
-function IndicatorCard({ i, donorCode }: { i: IndicatorProgress; donorCode?: string }) {
+function IndicatorCard({ i, donorCode, canMap }: { i: IndicatorProgress; donorCode?: string; canMap: boolean }) {
   const { t, date } = useT();
   const pct = i.total === null || !i.target ? 0 : Math.min(100, Math.round((i.total / i.target) * 100));
   const missing = missingData(i);
@@ -126,7 +159,19 @@ function IndicatorCard({ i, donorCode }: { i: IndicatorProgress; donorCode?: str
         <div className={`h-full rounded-full ${pct >= 100 ? "bg-leaf" : "bg-forest"}`} style={{ width: `${pct}%` }} />
       </div>
       <p className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs">
-        {i.frequency === "end_of_season" ? (
+        {i.dataSource === "none" ? (
+          <span className="text-muted">
+            {t("progress.notConnected")}
+            {canMap && (
+              <>
+                {" · "}
+                <Link href="/setup?step=kobo-map" className="font-semibold text-forest hover:underline">
+                  {t("progress.mapIt")}
+                </Link>
+              </>
+            )}
+          </span>
+        ) : i.frequency === "end_of_season" ? (
           <span className="text-muted">{t("progress.endOfSeason")}</span>
         ) : missing ? (
           <span className="font-semibold text-clay">{t("progress.noData")}</span>

@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "@/components/app/session";
 import { seedStock, type FieldItem, type Stock } from "@/lib/field";
+import type { KoboFormInfo, KoboMapping, KoboQuestion, KoboState, SyncCounts } from "@/lib/kobo-setup";
 import type { DonorInfo, DonorInput, ProgressData } from "@/lib/progress";
 import type { Roster, Submission } from "@/lib/project";
 import type { NewWorkItem, WorkItem } from "@/lib/work-items";
@@ -268,4 +269,53 @@ export function useDonors(code: string) {
       .catch(() => setDonors([]));
   }, [code, ready, user]);
   return donors;
+}
+
+/** The project's KoboToolbox link. Every action throws with the server's message so screens can show it. */
+export function useKobo(code: string) {
+  const { user, ready } = useSession();
+  const [state, setState] = useState<KoboState | null>(null);
+  const [error, setError] = useState("");
+  const base = `/api/projects/${code}/kobo`;
+
+  const reload = useCallback(async () => {
+    try {
+      setState(await call<KoboState>(base, user?.id));
+      setError("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }, [base, user?.id]);
+
+  useEffect(() => {
+    if (ready && user) void reload();
+  }, [ready, user, reload]);
+
+  const send = useCallback(<T,>(path: string, method: string, body?: unknown) => call<T>(`${base}${path}`, user?.id, { method, body: body === undefined ? undefined : JSON.stringify(body) }), [base, user?.id]);
+
+  // Stable between renders, so screens can load in effects without looping.
+  const actions = useMemo(
+    () => ({
+      connect: async (input: { serverUrl: string; token?: string; countOnly: "all" | "approved" }) => setState(await send<KoboState>("", "PUT", input)),
+      disconnect: async () => {
+        await send("", "DELETE");
+        await reload();
+      },
+      liveForms: () => send<{ forms: KoboFormInfo[] }>("/forms", "GET").then((r) => r.forms),
+      questions: (uid: string) => send<{ questions: KoboQuestion[] }>(`/forms/${encodeURIComponent(uid)}`, "GET").then((r) => r.questions),
+      saveForms: async (forms: { uid: string; name: string }[]) => {
+        await send("/forms", "PUT", { forms });
+        await reload();
+      },
+      saveMappings: async (mappings: KoboMapping[]) => setState(await send<KoboState>("/mappings", "PUT", { mappings })),
+      sync: async () => {
+        const r = await send<SyncCounts>("/sync", "POST");
+        await reload();
+        return r;
+      },
+    }),
+    [send, reload],
+  );
+
+  return { state, error, reload, ...actions };
 }

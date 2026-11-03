@@ -55,7 +55,7 @@ export async function ingest(payload: KoboPayload): Promise<"new" | "duplicate" 
       payload,
       reviewStatus: "pending",
     })
-    .onConflictDoNothing({ target: s.evidence.koboSubmissionUuid })
+    .onConflictDoNothing({ target: [s.evidence.projectId, s.evidence.koboSubmissionUuid] })
     .returning({ id: s.evidence.id });
   return inserted.length ? "new" : "duplicate";
 }

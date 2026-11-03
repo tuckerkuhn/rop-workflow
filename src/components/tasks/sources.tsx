@@ -4,14 +4,14 @@ import Link from "next/link";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useT } from "@/components/app/i18n";
 import { useSession } from "@/components/app/session";
-import type { AppUser, projects } from "@/lib/demo";
+import type { AppUser, ProjectInfo } from "@/lib/demo";
 
 /** The workflows Tasks can open in full, next to the list of all tasks. */
 
 export type TaskSource = "field" | "procurement";
 
 /** Sources this person may open on this project. */
-export function taskSources(u: AppUser, project: (typeof projects)[number]): TaskSource[] {
+export function taskSources(u: AppUser, project: ProjectInfo): TaskSource[] {
   const has = (w: TaskSource) => (project.workflows as readonly string[]).includes(w);
   return [
     has("field") && u.fieldAccess !== "none" ? ("field" as const) : null,

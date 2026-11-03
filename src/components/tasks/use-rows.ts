@@ -6,7 +6,7 @@ import { PROCUREMENT_ITEMS_KEY } from "@/components/procurement/workspace";
 import { PROJECT_KEY } from "@/components/project/project-page";
 import { workFor } from "@/components/tasks/work";
 import { usePersistentState } from "@/components/workspace/ui";
-import type { AppUser, projects } from "@/lib/demo";
+import type { AppUser, ProjectInfo } from "@/lib/demo";
 import { seedProcurements, type Procurement } from "@/lib/procurement";
 import { seedProject, type ProjectState } from "@/lib/project";
 import type { Row } from "@/lib/work-items";
@@ -15,7 +15,7 @@ import type { Row } from "@/lib/work-items";
  * Everything Tasks shows for one person on one project, as rows: tasks and milestones added in
  * Tasks, plus the workflow steps that are theirs now. Projected future steps are left out.
  */
-export function useTaskRows(user: AppUser, project: (typeof projects)[number]) {
+export function useTaskRows(user: AppUser, project: ProjectInfo) {
   const work = useWorkItems(project.id);
   // The workflows only run on the demo project with field and procurement data.
   const hasWorkflows = project.workflows.length > 0;

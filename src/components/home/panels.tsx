@@ -1,17 +1,18 @@
 "use client";
 
+import { Arrow } from "@/components/app/arrow";
 import Link from "next/link";
 import { useT } from "@/components/app/i18n";
 import { useProgress } from "@/components/app/use-project-data";
 import { RowItem, type RowActions } from "@/components/tasks/row";
 import { useTaskRows } from "@/components/tasks/use-rows";
 import { SectionLabel, TODAY, quietBtn } from "@/components/workspace/ui";
-import { canEditProject, daysFrom, type AppUser, type Stage, type projects } from "@/lib/demo";
+import { canEditProject, daysFrom, type AppUser, type Stage, type ProjectInfo } from "@/lib/demo";
 import { isImpact, missingData } from "@/lib/progress";
 import { bucketOf, type Row } from "@/lib/work-items";
 
 /** Home for staff: what needs attention this week, and the current project in one card. */
-export function HomePanels({ user, project, stage }: { user: AppUser; project: (typeof projects)[number]; stage: Stage }) {
+export function HomePanels({ user, project, stage }: { user: AppUser; project: ProjectInfo; stage: Stage }) {
   const { rows, work } = useTaskRows(user, project);
   const progress = useProgress(project.id);
   const actions: RowActions = { canEdit: work.saved, onToggle: (id, done) => void work.setDone(id, done), onDelete: (id) => void work.remove(id).catch(() => work.reload()) };
@@ -46,7 +47,7 @@ function ThisWeek({ rows, progress, actions }: { rows: Row[]; progress: ReturnTy
           {t("home.thisWeek")}
         </h2>
         <Link href="/tasks" className="text-sm font-semibold text-forest hover:underline">
-          {t("home.seeTasks")} →
+          {t("home.seeTasks")} <Arrow />
         </Link>
       </div>
       {empty && <p className="mt-4 text-sm text-muted">{t("home.allClear")}</p>}
@@ -100,7 +101,7 @@ function ThisWeek({ rows, progress, actions }: { rows: Row[]; progress: ReturnTy
   );
 }
 
-function Glance({ user, project, stage, progress }: { user: AppUser; project: (typeof projects)[number]; stage: Stage; progress: ReturnType<typeof useProgress>["data"] }) {
+function Glance({ user, project, stage, progress }: { user: AppUser; project: ProjectInfo; stage: Stage; progress: ReturnType<typeof useProgress>["data"] }) {
   const { t } = useT();
   // Impact first, then outputs; three is enough for a glance.
   const key = [...(progress?.indicators ?? [])].sort((a, b) => Number(isImpact(b) && b.total !== null) - Number(isImpact(a) && a.total !== null)).slice(0, 3);
@@ -140,7 +141,8 @@ function Glance({ user, project, stage, progress }: { user: AppUser; project: (t
         </div>
       )}
       <div className="mt-5 flex flex-wrap gap-2">
-        <Link href={`/design?project=${project.id}`} className={`${quietBtn} py-2`}>
+        {/* Projects in the database open in setup; the browser-only demo projects keep Project design. */}
+        <Link href={project.saved ? "/setup" : `/design?project=${project.id}`} className={`${quietBtn} py-2`}>
           {t("home.editDesign")}
         </Link>
         {canEditProject(user) && (

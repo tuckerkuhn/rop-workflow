@@ -55,7 +55,7 @@ const baseline: ReportFormat = {
       periodValues[i.code] ?? "—",
       i.total ?? t("report.notDue"),
       pct(i.total, i.target),
-      i.unit === "farmers" && i.total !== null ? `${i.byGender.Female} / ${i.byGender.Male}` : "—",
+      i.byGender && i.unit === "farmers" && i.total !== null ? `${i.byGender.Female} / ${i.byGender.Male}` : "—",
     ];
     const impact = tracked.filter(isImpact);
     const outputs = tracked.filter((i) => !isImpact(i));

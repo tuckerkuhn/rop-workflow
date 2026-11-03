@@ -25,7 +25,10 @@ export type IndicatorProgress = {
   period: number | null;
   /** Records waiting for MEL review, not counted yet. */
   pending: number;
-  byGender: { Female: number; Male: number };
+  /** Only where the records say; null for counts from mapped KoboToolbox questions. */
+  byGender: { Female: number; Male: number } | null;
+  /** Where the value comes from: a mapped KoboToolbox question, the built-in forms, a survey, or nothing yet. */
+  dataSource: "kobo" | "records" | "survey" | "none";
   /** Date of the latest record counted. */
   lastDate: string | null;
 };
@@ -73,6 +76,9 @@ export function periodOf(frequency: Frequency, today: string): Period | null {
 
 /** True when the indicator is due for data this period and has none yet. */
 export const missingData = (i: IndicatorProgress) => i.frequency !== "end_of_season" && !i.period;
+
+/** Sources the built-in forms count from; any other source needs a KoboToolbox mapping. */
+export const BUILT_IN_SOURCES = ["training", "readiness", "distribution", "visit", "survey"];
 
 /**
  * The period a donor report covers: from the day after the donor's last deadline (or the

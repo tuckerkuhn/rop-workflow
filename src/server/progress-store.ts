@@ -2,9 +2,10 @@ import { and, asc, eq, inArray, isNotNull, notInArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { TODAY, projects as demoProjects, type AppUser } from "@/lib/demo";
 import { actualFor, indicators as demoIndicators, results as demoResults, type Indicator, type Submission } from "@/lib/project";
-import { periodOf, reportPeriod, type DonorInfo, type DonorInput, type IndicatorProgress, type Level, type ProgressData, type ReportValues } from "@/lib/progress";
+import { BUILT_IN_SOURCES, periodOf, reportPeriod, type DonorInfo, type DonorInput, type IndicatorProgress, type Level, type ProgressData, type ReportValues } from "@/lib/progress";
 import { FORMATS } from "@/lib/report-formats";
 import { listSubmissions } from "@/server/kobo";
+import { mappedInputs, mappedValue } from "@/server/kobo-link";
 
 /** Indicators with their values, and donors with their report deadlines, in Postgres. */
 
@@ -28,28 +29,38 @@ const asIndicator = (r: IndicatorRow): Indicator => ({
   donorRef: "",
 });
 
-function withValues(r: IndicatorRow, subs: Submission[]): IndicatorProgress {
+type Mapped = Awaited<ReturnType<typeof mappedInputs>> extends Map<string, infer V> ? V : never;
+
+const base = (r: IndicatorRow) => ({
+  code: r.code,
+  name: r.name,
+  unit: r.unit,
+  target: Number(r.target),
+  level: r.level,
+  result: r.result,
+  source: r.source,
+  frequency: r.frequency,
+  theme: r.theme,
+});
+
+/** Counted from a mapped KoboToolbox question. */
+function fromMapping(r: IndicatorRow, m: Mapped): IndicatorProgress {
+  const all = mappedValue(m.mapping, m.counted);
+  const p = periodOf(r.frequency, TODAY);
+  const inPeriod = p ? mappedValue(m.mapping, m.counted.filter((x) => x.date >= p.from && x.date <= p.to)) : null;
+  return { ...base(r), total: all.value, period: inPeriod?.value ?? null, pending: m.waiting, byGender: null, lastDate: all.dates.sort().at(-1) ?? null, dataSource: "kobo" };
+}
+
+function withValues(r: IndicatorRow, subs: Submission[], mapped?: Mapped): IndicatorProgress {
+  if (mapped) return fromMapping(r, mapped);
+  // Added in setup and not mapped to a question yet: nothing to count.
+  if (!BUILT_IN_SOURCES.includes(r.source)) return { ...base(r), total: null, period: null, pending: 0, byGender: null, lastDate: null, dataSource: "none" };
   const ind = asIndicator(r);
   const all = actualFor(ind, subs);
   const p = periodOf(r.frequency, TODAY);
   const inPeriod = p ? actualFor(ind, subs.filter((x) => x.date >= p.from && x.date <= p.to)).value : null;
   const dates = all.evidence.map((e) => e.date).sort();
-  return {
-    code: r.code,
-    name: r.name,
-    unit: r.unit,
-    target: Number(r.target),
-    level: r.level,
-    result: r.result,
-    source: r.source,
-    frequency: r.frequency,
-    theme: r.theme,
-    total: all.value,
-    period: inPeriod,
-    pending: all.pending,
-    byGender: all.byGender,
-    lastDate: dates.at(-1) ?? null,
-  };
+  return { ...base(r), total: all.value, period: inPeriod, pending: all.pending, byGender: r.source === "survey" ? null : all.byGender, lastDate: dates.at(-1) ?? null, dataSource: r.source === "survey" ? "survey" : "records" };
 }
 
 async function donorsOf(projectId: string): Promise<DonorInfo[]> {
@@ -82,19 +93,25 @@ export async function loadProgress(code: string, user: AppUser): Promise<Progres
   const demo = demoProjects.find((p) => p.id === code);
   if (!project) return { saved: false, project: { code, name: demo?.name ?? code, startDate: null, endDate: null }, today: TODAY, indicators: [], donors: [], reports: [] };
   const rows = await db.select().from(s.indicators).where(eq(s.indicators.projectId, project.id)).orderBy(asc(s.indicators.position));
-  const subs = rows.length ? (await listSubmissions(code)).submissions : [];
+  const subs = rows.some((r) => BUILT_IN_SOURCES.includes(r.source)) ? (await listSubmissions(code)).submissions : [];
+  const mapped = rows.length ? await mappedInputs(project.id) : new Map<string, Mapped>();
   const donors = visibleDonors(await donorsOf(project.id), user);
   // Each donor's report covers the time since its last deadline, so its counts differ from the cards'.
   const reports: ReportValues[] = [null, ...donors].map((d) => {
     const { from, to } = reportPeriod(d, TODAY, project.startDate);
     const within = subs.filter((x) => x.date >= from && x.date <= to);
-    return { donorId: d?.id ?? null, from, to, values: Object.fromEntries(rows.map((r) => [r.code, r.source === "survey" ? null : actualFor(asIndicator(r), within).value])) };
+    const value = (r: IndicatorRow) => {
+      const m = mapped.get(r.code);
+      if (m) return mappedValue(m.mapping, m.counted.filter((x) => x.date >= from && x.date <= to)).value;
+      return r.source === "survey" || !BUILT_IN_SOURCES.includes(r.source) ? null : actualFor(asIndicator(r), within).value;
+    };
+    return { donorId: d?.id ?? null, from, to, values: Object.fromEntries(rows.map((r) => [r.code, value(r)])) };
   });
   return {
     saved: true,
     project: { code, name: project.name, startDate: project.startDate, endDate: project.endDate },
     today: TODAY,
-    indicators: rows.map((r) => withValues(r, subs)),
+    indicators: rows.map((r) => withValues(r, subs, mapped.get(r.code))),
     donors,
     reports,
   };

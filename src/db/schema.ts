@@ -126,6 +126,10 @@ export const projects = pgTable("projects", {
   donor: text("donor"),
   startDate: date("start_date"),
   endDate: date("end_date"),
+  /** Main crop or value chain, e.g. "Maize". Set in project setup. */
+  crop: text("crop"),
+  /** What changes for people if the project succeeds (top of the results chain). */
+  goal: text("goal"),
   ...timestamps,
 });
 
@@ -234,31 +238,36 @@ export const plots = pgTable("plots", {
  * Any source record: Kobo submission, paper form, upload, or manual entry.
  * Paper is valid evidence: record who, when, where the original is stored.
  */
-export const evidence = pgTable("evidence", {
-  id: id(),
-  organizationId: uuid("organization_id").references(() => organizations.id),
-  projectId: uuid("project_id").notNull().references(() => projects.id),
-  source: evidenceSourceEnum("source").notNull(),
-  /** Which form this record is: "readiness", "training", "distribution", "visit". */
-  form: text("form"),
-  /** Farmer the record is about, by code (never by name). */
-  farmerCode: text("farmer_code"),
-  /** Review queue state: MEL accepts or queries each incoming record. */
-  reviewStatus: reviewStatusEnum("review_status").notNull().default("pending"),
-  /** Demo user id until real sign-in exists. */
-  reviewedBy: text("reviewed_by"),
-  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
-  queryNote: text("query_note"),
-  koboAssetUid: text("kobo_asset_uid"),
-  koboSubmissionUuid: text("kobo_submission_uuid").unique(),
-  completedBy: text("completed_by"),
-  completedAt: timestamp("completed_at", { withTimezone: true }),
-  location: text("location"),
-  originalStoredAt: text("original_stored_at"), // where paper original lives
-  fileUrl: text("file_url"), // Supabase Storage path
-  payload: jsonb("payload"), // raw submission for audit
-  ...timestamps,
-});
+export const evidence = pgTable(
+  "evidence",
+  {
+    id: id(),
+    organizationId: uuid("organization_id").references(() => organizations.id),
+    projectId: uuid("project_id").notNull().references(() => projects.id),
+    source: evidenceSourceEnum("source").notNull(),
+    /** Which form this record is: "readiness", "training", "distribution", "visit". */
+    form: text("form"),
+    /** Farmer the record is about, by code (never by name). */
+    farmerCode: text("farmer_code"),
+    /** Review queue state: MEL accepts or queries each incoming record. */
+    reviewStatus: reviewStatusEnum("review_status").notNull().default("pending"),
+    /** Demo user id until real sign-in exists. */
+    reviewedBy: text("reviewed_by"),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    queryNote: text("query_note"),
+    koboAssetUid: text("kobo_asset_uid"),
+    /** Kobo's _uuid. Unique per project: a form shared by two projects gives each its own copy. */
+    koboSubmissionUuid: text("kobo_submission_uuid"),
+    completedBy: text("completed_by"),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    location: text("location"),
+    originalStoredAt: text("original_stored_at"), // where paper original lives
+    fileUrl: text("file_url"), // Supabase Storage path
+    payload: jsonb("payload"), // raw submission for audit
+    ...timestamps,
+  },
+  (t) => [uniqueIndex("evidence_project_submission").on(t.projectId, t.koboSubmissionUuid)],
+);
 
 // ---------- Field activities workflow state ----------
 
@@ -343,6 +352,62 @@ export const donors = pgTable("donors", {
   reportFormat: text("report_format").notNull().default("baseline"),
   /** The donor's own code for each indicator it tracks, keyed by indicator code. Indicators left out are not in its report. */
   indicatorRefs: jsonb("indicator_refs").$type<Record<string, string>>().notNull().default({}),
+  ...timestamps,
+});
+
+// ---------- KoboToolbox link (per project) ----------
+
+/**
+ * A project's KoboToolbox account. The API token is encrypted with KOBO_TOKEN_KEY
+ * (AES-256-GCM) and only ever decrypted on the server; the browser sees the last 4 characters.
+ */
+export const koboConnections = pgTable("kobo_connections", {
+  id: id(),
+  projectId: uuid("project_id")
+    .notNull()
+    .unique()
+    .references(() => projects.id, { onDelete: "cascade" }),
+  serverUrl: text("server_url").notNull(),
+  tokenEncrypted: text("token_encrypted").notNull(),
+  tokenHint: text("token_hint").notNull(),
+  /** "all": every submission counts. "approved": only those marked Approved in KoboToolbox. */
+  countOnly: text("count_only").notNull().default("all"),
+  lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
+  connectedBy: text("connected_by"),
+  ...timestamps,
+});
+
+/** Forms (Kobo assets) whose submissions belong to the project. */
+export const koboForms = pgTable(
+  "kobo_forms",
+  {
+    id: id(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    assetUid: text("asset_uid").notNull(),
+    name: text("name").notNull(),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex("kobo_forms_project_asset").on(t.projectId, t.assetUid)],
+);
+
+/**
+ * How one indicator is counted from one form question. Methods: count_answered (submissions
+ * that answered it), count_answer (answered `value`), count_unique (distinct answers, e.g. farmer
+ * IDs), sum (total of a number question).
+ */
+export const koboMappings = pgTable("kobo_mappings", {
+  id: id(),
+  indicatorId: uuid("indicator_id")
+    .notNull()
+    .unique()
+    .references(() => indicators.id, { onDelete: "cascade" }),
+  assetUid: text("asset_uid").notNull(),
+  /** The question's path in submissions ($xpath), e.g. "training/farmer_id". */
+  question: text("question").notNull(),
+  method: text("method").notNull(),
+  value: text("value"),
   ...timestamps,
 });
 

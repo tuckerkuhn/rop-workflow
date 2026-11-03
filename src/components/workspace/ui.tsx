@@ -8,7 +8,7 @@ import { useT } from "@/components/app/i18n";
 import { CurrencyToggle, Initials, useSession } from "@/components/app/session";
 import { TaskSourceSwitch } from "@/components/tasks/sources";
 import { LogoMark } from "@/components/logo";
-import { langLabel, projects, users } from "@/lib/demo";
+import { canEditProject, langLabel, users } from "@/lib/demo";
 import { LANGS, isLang } from "@/lib/i18n";
 import { Tagged } from "@/components/status-tag";
 
@@ -428,16 +428,20 @@ export const quietBtn =
 
 export type RoleTab = { id: string; short: string };
 
-/** Which project Home, Tasks and Progress show. */
+const NEW = "__new__";
+
+/** Which project Home, Tasks and Progress show; managers can also start a new one. */
 function ProjectSwitcher() {
-  const { project, setProject } = useCurrentProject();
+  const { project, setProject, projects } = useCurrentProject();
+  const { user } = useSession();
   const { t } = useT();
+  const router = useRouter();
   return (
     <label className="min-w-0">
       <span className="sr-only">{t("project.label")}</span>
       <select
         value={project.id}
-        onChange={(e) => setProject(e.target.value)}
+        onChange={(e) => (e.target.value === NEW ? router.push("/setup?new=1") : setProject(e.target.value))}
         className="max-w-[11rem] truncate rounded-full sm:max-w-[14rem] border border-line bg-surface py-1.5 ps-3 pe-8 font-display text-sm"
       >
         {projects.map((p) => (
@@ -445,6 +449,7 @@ function ProjectSwitcher() {
             {p.name}
           </option>
         ))}
+        {canEditProject(user) && <option value={NEW}>+ {t("setup.newProject")}</option>}
       </select>
     </label>
   );

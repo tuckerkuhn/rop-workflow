@@ -501,7 +501,7 @@ export function DesignPage() {
   const intel = useFeature("market_intelligence");
   const cal: CalendarData = intel ? fullCal : { ...fullCal, areas: [], competitors: [] };
   const project = projects.find((p) => p.id === projectId)!;
-  const [crop, setCrop] = useState<Crop>(("crop" in project && project.crop) || "Grapes");
+  const [crop, setCrop] = useState<Crop>(CROPS.find((c) => c === project.crop) ?? "Grapes");
   const [targetOpen, setTargetOpen] = useState(false);
 
   if (!user) return null;
