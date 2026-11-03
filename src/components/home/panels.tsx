@@ -17,7 +17,7 @@ export function HomePanels({ user, project, stage }: { user: AppUser; project: P
   const progress = useProgress(project.id);
   const actions: RowActions = { canEdit: work.saved, onToggle: (id, done) => void work.setDone(id, done), onDelete: (id) => void work.remove(id).catch(() => work.reload()) };
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
       <ThisWeek rows={rows} progress={progress.data} actions={actions} />
       <Glance user={user} project={project} stage={stage} progress={progress.data} />
     </div>

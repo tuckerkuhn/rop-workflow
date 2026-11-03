@@ -297,6 +297,20 @@ export const en = {
   "progress.mapIt": "Map it to a question",
   "progress.sync": "Sync KoboToolbox",
   "progress.lastSync": "Last synced {date}",
+  "assistant.name": "AI assistant",
+  "assistant.open": "Open the AI assistant",
+  "assistant.close": "Close the assistant",
+  "assistant.for": "For {project}",
+  "assistant.intro": "Ask about this project: what is running late, how an indicator is counted, or what to write in the next donor report.",
+  "assistant.examples": "You will be able to ask",
+  "assistant.ex.late": "What is running late this week?",
+  "assistant.ex.noData": "Which indicators have no data this month?",
+  "assistant.ex.report": "Draft the achievements for the next donor report",
+  "assistant.soon": "The assistant is being built. Typed questions come first; voice and WhatsApp follow.",
+  "assistant.placeholder": "Ask about this project",
+  "assistant.send": "Send",
+  "assistant.voice": "Voice (coming later)",
+  "plan.assistantWhy": "Ask questions about your project, get drafts for donor reports, and later send updates by voice or WhatsApp.",
 } as const;
 
 export type MessageKey = keyof typeof en;

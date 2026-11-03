@@ -1,0 +1,2 @@
+ALTER TABLE "organizations" ADD COLUMN "plan" text DEFAULT 'free' NOT NULL;--> statement-breakpoint
+ALTER TABLE "organizations" ADD CONSTRAINT "organizations_plan" CHECK ("organizations"."plan" IN ('free', 'paid'));

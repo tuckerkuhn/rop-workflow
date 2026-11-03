@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "@/components/app/session";
 import { useT } from "@/components/app/i18n";
+import { Assistant } from "@/components/app/assistant";
 import { LogoMark } from "@/components/logo";
 import type { MessageKey } from "@/lib/i18n";
 
@@ -65,7 +66,8 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
         </nav>
       </aside>
 
-      <div className="pb-[calc(4rem+env(safe-area-inset-bottom))] lg:ps-56 lg:pb-0">{children}</div>
+      {/* Room at the bottom for the tab bar and, for staff, the assistant button, so they never cover the last row. */}
+      <div className={user.kind === "employee" ? "pb-[calc(9rem+env(safe-area-inset-bottom))] lg:ps-56 lg:pb-24" : "pb-[calc(4rem+env(safe-area-inset-bottom))] lg:ps-56 lg:pb-0"}>{children}</div>
 
       <nav
         aria-label={t("nav.label")}
@@ -89,6 +91,9 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
           })}
         </ul>
       </nav>
+
+      {/* The assistant works on project data, so it is for staff, not donors. */}
+      {user.kind === "employee" && <Assistant />}
     </>
   );
 }

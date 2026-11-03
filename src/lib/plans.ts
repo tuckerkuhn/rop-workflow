@@ -15,9 +15,3 @@ export const PAID_FEATURES = ["timeline", "ai_assistant", "market_intelligence",
 export type Feature = (typeof PAID_FEATURES)[number];
 
 export const hasFeature = (plan: Plan, feature: Feature) => plan === "paid" || !(PAID_FEATURES as readonly string[]).includes(feature);
-
-/**
- * The organization's plan. For now set by hand with ORG_PLAN on the server (default free);
- * it moves to the organizations table with billing.
- */
-export const serverPlan = (): Plan => (isPlan(process.env.ORG_PLAN) ? process.env.ORG_PLAN : "free");

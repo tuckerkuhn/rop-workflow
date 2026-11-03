@@ -90,11 +90,17 @@ export const actionStatusEnum = pgEnum("action_status", [
 
 // ---------- Organization & people ----------
 
-export const organizations = pgTable("organizations", {
-  id: id(),
-  name: text("name").notNull(),
-  ...timestamps,
-});
+export const organizations = pgTable(
+  "organizations",
+  {
+    id: id(),
+    name: text("name").notNull(),
+    /** "free" or "paid". Paid unlocks the features in src/lib/plans.ts. Set with npm run plan until billing exists. */
+    plan: text("plan").notNull().default("free"),
+    ...timestamps,
+  },
+  (t) => [check("organizations_plan", sql`${t.plan} IN ('free', 'paid')`)],
+);
 
 /** App users (staff). `authUserId` links to Supabase Auth. */
 /**

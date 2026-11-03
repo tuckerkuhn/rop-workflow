@@ -335,7 +335,7 @@ function Plan({ state, field, procs, openEvidence }: SectionProps & { openEviden
         </div>
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-2">
+      <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div>
           <SectionLabel>Impact indicator library</SectionLabel>
           <ul className="mt-3 grid gap-2 sm:grid-cols-2">
