@@ -4,9 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useSession } from "@/components/app/session";
 import { seedStock, type FieldItem, type Stock } from "@/lib/field";
 import type { Roster, Submission } from "@/lib/project";
+import type { NewWorkItem, WorkItem } from "@/lib/work-items";
 
 /**
- * Field activities and the review queue, read from and saved to the database through the API.
+ * Field activities, the review queue, and tasks and milestones, read from and saved to the database through the API.
  * Replaces the browser storage these screens used before.
  */
 
@@ -151,4 +152,64 @@ export function useSubmissions(code = "A-2027") {
   }, [code, user?.id]);
 
   return { submissions, roster, status, error, reload, decide, sync, pushFarmers, downloadFarmers };
+}
+
+/** Tasks and milestones on a project. `saved` is false for demo projects kept only in this browser. */
+export function useWorkItems(code: string) {
+  const { user, ready } = useSession();
+  const [items, setItems] = useState<WorkItem[]>([]);
+  const [saved, setSaved] = useState(true);
+  const [status, setStatus] = useState<Load>("loading");
+  const [error, setError] = useState("");
+
+  const reload = useCallback(async () => {
+    try {
+      const r = await call<{ saved: boolean; items: WorkItem[] }>(`/api/projects/${code}/work-items`, user?.id);
+      setItems(r.items);
+      setSaved(r.saved);
+      setStatus("ready");
+      setError("");
+    } catch (e) {
+      setStatus("error");
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }, [code, user?.id]);
+
+  useEffect(() => {
+    if (ready && user) void reload();
+  }, [ready, user, reload]);
+
+  /** Throws with the server's message so the form can show it. */
+  const add = useCallback(
+    async (item: NewWorkItem) => {
+      const r = await call<{ item: WorkItem }>(`/api/projects/${code}/work-items`, user?.id, { method: "POST", body: JSON.stringify(item) });
+      setItems((all) => [...all, r.item]);
+    },
+    [code, user?.id],
+  );
+
+  /** Ticks a task off at once and puts it back if the server refuses. */
+  const setDone = useCallback(
+    async (id: string, done: boolean) => {
+      const flip = (d: boolean) => setItems((all) => all.map((i) => (i.id === id ? { ...i, doneAt: d ? new Date().toISOString() : null, doneBy: d ? (user?.id ?? null) : null } : i)));
+      flip(done);
+      try {
+        await call(`/api/projects/${code}/work-items/${id}`, user?.id, { method: "PATCH", body: JSON.stringify({ done }) });
+      } catch (e) {
+        flip(!done);
+        setError(`Not saved: ${e instanceof Error ? e.message : e}`);
+      }
+    },
+    [code, user?.id],
+  );
+
+  const remove = useCallback(
+    async (id: string) => {
+      await call(`/api/projects/${code}/work-items/${id}`, user?.id, { method: "DELETE" });
+      setItems((all) => all.filter((i) => i.id !== id));
+    },
+    [code, user?.id],
+  );
+
+  return { items, saved, status, error, reload, add, setDone, remove };
 }

@@ -468,7 +468,7 @@ function LanguagePicker() {
 }
 
 /** Top bar used on every signed-in page: current project, the page's own controls, currency, and who you are. */
-export function TopBar({ active, children }: { active?: "design" | "project" | "field" | "procurement"; children?: React.ReactNode }) {
+export function TopBar({ active, children }: { active?: "design" | "project" | "tasks" | "field" | "procurement"; children?: React.ReactNode }) {
   const { user, actor, viewingAs, viewAs, mode, signOut } = useSession();
   const { t } = useT();
   const router = useRouter();
@@ -499,7 +499,7 @@ export function TopBar({ active, children }: { active?: "design" | "project" | "
             <LogoMark className="h-7 w-7" />
           </Link>
           {active !== "design" && <ProjectSwitcher />}
-          {(active === "field" || active === "procurement") && <TaskSourceSwitch active={active} />}
+          {(active === "tasks" || active === "field" || active === "procurement") && <TaskSourceSwitch active={active === "tasks" ? "all" : active} />}
         </div>
         {children}
         <div className="ms-auto flex items-center gap-3">

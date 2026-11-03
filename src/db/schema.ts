@@ -5,8 +5,10 @@
  * Rule: shared references (project, farmer, plot, crop, season, activity,
  * budget line, evidence) are stored once and linked, never copied.
  */
+import { sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   date,
   integer,
   jsonb,
@@ -74,6 +76,10 @@ export const findingStatusEnum = pgEnum("finding_status", [
 ]);
 /** MEL decision on an incoming record in the review queue. */
 export const reviewStatusEnum = pgEnum("review_status", ["pending", "accepted", "queried"]);
+
+/** Tasks can be ticked off; milestones are dates to plan around. */
+export const workItemTypeEnum = pgEnum("work_item_type", ["task", "milestone"]);
+export const milestoneKindEnum = pgEnum("milestone_kind", ["report_deadline", "harvest_window", "field_activity", "other"]);
 
 export const actionStatusEnum = pgEnum("action_status", [
   "open",
@@ -286,6 +292,46 @@ export const projectState = pgTable(
     ...timestamps,
   },
   (t) => [uniqueIndex("project_state_project_key").on(t.projectId, t.key)],
+);
+
+// ---------- Tasks & milestones ----------
+
+/**
+ * Work added in Tasks: to-dos people tick off, and milestones (report deadlines, harvest
+ * windows, field activities). Field and procurement steps are not copied here; Tasks reads
+ * them from their own workflows.
+ */
+export const workItems = pgTable(
+  "work_items",
+  {
+    id: id(),
+    organizationId: uuid("organization_id").references(() => organizations.id),
+    projectId: uuid("project_id").notNull().references(() => projects.id),
+    type: workItemTypeEnum("type").notNull(),
+    title: text("title").notNull(),
+    /** Task: due date, optional. Milestone: its date, or the first day of a range. */
+    date: date("date"),
+    /** Milestones only: last day of a range, e.g. a harvest window. */
+    endDate: date("end_date"),
+    milestoneKind: milestoneKindEnum("milestone_kind"),
+    /** Tasks only: the person id the app uses, e.g. "omar". Empty means anyone on the project. */
+    assignee: text("assignee"),
+    doneAt: timestamp("done_at", { withTimezone: true }),
+    doneBy: text("done_by"),
+    createdBy: text("created_by"),
+    /** Set on items the app makes itself (demo data, donor deadlines) so they update instead of duplicating. */
+    sourceKey: text("source_key"),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("work_items_project_source").on(t.projectId, t.sourceKey),
+    check(
+      "work_items_shape",
+      sql`(${t.type} = 'task' AND ${t.milestoneKind} IS NULL AND ${t.endDate} IS NULL)
+        OR (${t.type} = 'milestone' AND ${t.milestoneKind} IS NOT NULL AND ${t.date} IS NOT NULL AND ${t.doneAt} IS NULL
+            AND (${t.endDate} IS NULL OR ${t.endDate} >= ${t.date}))`,
+    ),
+  ],
 );
 
 // ---------- Seasonal plan & activities ----------

@@ -1,0 +1,54 @@
+"use client";
+
+import { useMemo } from "react";
+import { useFieldData, useSubmissions, useWorkItems } from "@/components/app/use-project-data";
+import { PROCUREMENT_ITEMS_KEY } from "@/components/procurement/workspace";
+import { PROJECT_KEY } from "@/components/project/project-page";
+import { workFor } from "@/components/tasks/work";
+import { usePersistentState } from "@/components/workspace/ui";
+import type { AppUser, projects } from "@/lib/demo";
+import { seedProcurements, type Procurement } from "@/lib/procurement";
+import { seedProject, type ProjectState } from "@/lib/project";
+import type { Row } from "@/lib/work-items";
+
+/**
+ * Everything Tasks shows for one person on one project, as rows: tasks and milestones added in
+ * Tasks, plus the workflow steps that are theirs now. Projected future steps are left out.
+ */
+export function useTaskRows(user: AppUser, project: (typeof projects)[number]) {
+  const work = useWorkItems(project.id);
+  // The workflows only run on the demo project with field and procurement data.
+  const hasWorkflows = project.workflows.length > 0;
+  const { items: field } = useFieldData();
+  const { submissions } = useSubmissions();
+  const [procs] = usePersistentState<Procurement[]>(PROCUREMENT_ITEMS_KEY, seedProcurements);
+  const [local] = usePersistentState<ProjectState>(PROJECT_KEY, seedProject);
+
+  const rows = useMemo<Row[]>(() => {
+    const stored: Row[] = work.items
+      // Tasks for this person, for anyone, or that they asked someone else to do.
+      .filter((i) => i.type === "milestone" || !i.assignee || i.assignee === user.id || i.createdBy === user.id)
+      .map((i): Row =>
+        i.type === "milestone"
+          ? { key: i.id, kind: "milestone", id: i.id, title: i.title, date: i.date!, end: i.endDate, milestoneKind: i.milestoneKind!, automatic: i.automatic }
+          : { key: i.id, kind: "task", id: i.id, title: i.title, date: i.date, done: !!i.doneAt, late: false, source: "manual", assignee: i.assignee },
+      );
+    if (!hasWorkflows) return stored;
+    const steps: Row[] = workFor(user, { field, procs, project: { ...local, submissions }, stages: {} }, user)
+      .filter((c) => c.now)
+      .map((c) => ({
+        key: c.key,
+        kind: "task",
+        title: c.title,
+        step: c.step,
+        date: c.date,
+        done: false,
+        late: c.late,
+        source: c.space === "Field" ? "field" : c.space === "Procurement" ? "procurement" : "project",
+        href: c.href,
+      }));
+    return [...stored, ...steps].sort((a, b) => (a.date ?? "9999").localeCompare(b.date ?? "9999"));
+  }, [work.items, hasWorkflows, user, field, procs, local, submissions]);
+
+  return { rows, work };
+}

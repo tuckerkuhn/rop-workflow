@@ -6,7 +6,7 @@ import { useT } from "@/components/app/i18n";
 import { useSession } from "@/components/app/session";
 import type { AppUser, projects } from "@/lib/demo";
 
-/** Where Tasks gets its work from. Phase 2 merges these into one list. */
+/** The workflows Tasks can open in full, next to the list of all tasks. */
 
 export type TaskSource = "field" | "procurement";
 
@@ -21,24 +21,25 @@ export function taskSources(u: AppUser, project: (typeof projects)[number]): Tas
 
 export const taskHref = (source: TaskSource, query = "") => `/tasks?source=${source}${query ? `&${query}` : ""}`;
 
-/** Switch between the work types in the top bar. Hidden when there is only one. */
-export function TaskSourceSwitch({ active }: { active: TaskSource }) {
+/** Switch in the top bar between all tasks and the full workflows. Hidden when there is no workflow to open. */
+export function TaskSourceSwitch({ active }: { active: TaskSource | "all" }) {
   const { user } = useSession();
   const { project } = useCurrentProject();
   const { t } = useT();
   if (!user) return null;
   const sources = taskSources(user, project);
-  if (sources.length < 2) return null;
+  if (sources.length === 0) return null;
+  const tabs = [{ id: "all" as const, href: "/tasks", label: t("tasks.all") }, ...sources.map((s) => ({ id: s, href: taskHref(s), label: t(s === "field" ? "tasks.field" : "tasks.procurement") }))];
   return (
     <nav aria-label={t("tasks.source")} className="flex rounded-full bg-sunken p-0.5 text-sm">
-      {sources.map((s) => (
+      {tabs.map((tab) => (
         <Link
-          key={s}
-          href={taskHref(s)}
-          aria-current={active === s ? "page" : undefined}
-          className={`whitespace-nowrap rounded-full px-3 py-1 font-display transition ${active === s ? "bg-surface text-ink shadow-sm" : "text-muted hover:text-ink"}`}
+          key={tab.id}
+          href={tab.href}
+          aria-current={active === tab.id ? "page" : undefined}
+          className={`whitespace-nowrap rounded-full px-3 py-1 font-display transition ${active === tab.id ? "bg-surface text-ink shadow-sm" : "text-muted hover:text-ink"}`}
         >
-          {t(s === "field" ? "tasks.field" : "tasks.procurement")}
+          {tab.label}
         </Link>
       ))}
     </nav>

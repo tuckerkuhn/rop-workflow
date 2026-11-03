@@ -2,20 +2,17 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { comingTo, stageOf } from "@/components/field/workspace";
+import { stageOf } from "@/components/field/workspace";
 import { useFieldData, useSubmissions } from "@/components/app/use-project-data";
-import { PROCUREMENT_ITEMS_KEY, procurementComingTo } from "@/components/procurement/workspace";
+import { PROCUREMENT_ITEMS_KEY } from "@/components/procurement/workspace";
 import { PROJECT_KEY } from "@/components/project/project-page";
 import { Initials, useRequireUser, useSession } from "@/components/app/session";
 import { Pill, SectionLabel, TODAY, TopBar, usePersistentState } from "@/components/workspace/ui";
-import { PROJECT, daysFrom, directReports, projectPath, projects, stepHistory, userById, type AppUser, type Stage } from "@/lib/demo";
-import { PACKAGE, PACKAGE_USD, farmerLabel, farmerName, farmerStages, fieldRoleLabel, fieldSteps, maskName, ownerOfItem, projectItem, type Farmer, type FieldItem } from "@/lib/field";
-import { DONE, ownerOf, roleLabel, seedProcurements, stepById, stepsFor, valueOf, type Procurement } from "@/lib/procurement";
-import { GATED_KEYS, indicators, actualFor, seedProject, type ProjectState } from "@/lib/project";
-
-type Space = "Project" | "Field" | "Procurement";
-type WorkCard = { key: string; title: string; step: string; date: string; href: string; space: Space; now: boolean; late: boolean; note: string };
-type Data = { field: FieldItem[]; procs: Procurement[]; project: ProjectState; stages: Record<string, Stage | undefined> };
+import { workFor, type Data, type WorkCard } from "@/components/tasks/work";
+import { PROJECT, daysFrom, directReports, projects, userById, type AppUser } from "@/lib/demo";
+import { PACKAGE, PACKAGE_USD, farmerName, farmerStages, fieldRoleLabel, maskName, type Farmer, type FieldItem } from "@/lib/field";
+import { DONE, roleLabel, seedProcurements, valueOf, type Procurement } from "@/lib/procurement";
+import { GATED_KEYS, seedProject, type ProjectState } from "@/lib/project";
 
 function weekday(d: string) {
   return new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
@@ -26,83 +23,6 @@ function permissions(u: AppUser) {
     field: { view: u.fieldAccess !== "none", edit: u.field.length > 0, create: u.field.includes("mel") ? "New MEL finding" : null },
     procurement: { view: u.procurementAccess !== "none", edit: u.procurement.length > 0, create: u.procurement.includes("holder") ? "New purchase request" : null },
   };
-}
-
-const lastDate = (t: { date: string }[]) => (t.length ? t[t.length - 1].date : TODAY);
-const isLate = (step: string, since: string) => daysFrom(since, TODAY) > (stepHistory[step]?.median ?? 3);
-
-/** Everything on one person's plate: workflow steps they hold, project sign-offs, and what is projected to reach them. */
-function workFor(u: AppUser, { field, procs, project }: Data, viewer: AppUser): WorkCard[] {
-  const cards: WorkCard[] = [];
-  for (const r of u.field) {
-    field
-      .filter((i) => ownerOfItem(i) === r)
-      .forEach((i) => {
-        const since = lastDate(i.timeline);
-        cards.push({
-          key: `f-${i.id}`,
-          title: i.kind === "farmer" ? farmerLabel(i, viewer) : i.title,
-          step: fieldSteps[i.step].title,
-          date: projectItem(i)[0]?.end ?? TODAY,
-          href: `/tasks?source=field&open=${i.id}`,
-          space: "Field",
-          now: true,
-          late: isLate(i.step, since),
-          note: "",
-        });
-      });
-    comingTo(field, r, viewer).forEach((c) =>
-      cards.push({ key: `fc-${c.id}-${c.step}`, title: c.title, step: c.step, date: c.eta, href: `/tasks?source=field&open=${c.id}`, space: "Field", now: false, late: false, note: `Now ${c.via}` }),
-    );
-  }
-  for (const r of u.procurement) {
-    procs
-      .filter((p) => ownerOf(p) === r)
-      .forEach((p) => {
-        const list = stepsFor(p);
-        const i = list.findIndex((s) => s.id === p.step);
-        const since = lastDate(p.timeline);
-        const path = projectPath(
-          list.slice(i).map((s) => ({ step: s.id, owner: s.owner })),
-          since,
-          TODAY,
-        );
-        cards.push({
-          key: `p-${p.id}`,
-          title: `${p.title} · ${p.id}`,
-          step: stepById[p.step].title,
-          date: path[0]?.end ?? TODAY,
-          href: `/tasks?source=procurement&open=${p.id}`,
-          space: "Procurement",
-          now: true,
-          late: isLate(p.step, since),
-          note: "",
-        });
-      });
-    procurementComingTo(procs, r).forEach((c) =>
-      cards.push({ key: `pc-${c.id}-${c.step}`, title: c.title, step: c.step, date: c.eta, href: `/tasks?source=procurement&open=${c.id}`, space: "Procurement", now: false, late: false, note: `Now ${c.via}` }),
-    );
-  }
-  // Project sign-offs from the build spec.
-  const pending = project.submissions.filter((s) => s.status === "pending").length;
-  const unapproved = indicators.filter((i) => {
-    if (i.source === "survey") return false;
-    const a = project.actualApprovals[i.id];
-    return !a || a.note !== String(actualFor(i, project.submissions).value);
-  }).length;
-  const proj = (key: string, title: string, step: string, tab: string, days: number) =>
-    cards.push({ key, title, step, date: new Date(Date.parse(TODAY) + days * 86400000).toISOString().slice(0, 10), href: `/progress?project=${PROJECT.id}#${tab}`, space: "Project", now: true, late: false, note: "" });
-  if (u.project.includes("mel-owner")) {
-    if (pending) proj("pj-queue", `${pending} Kobo submissions to review`, "Accept or query in the review queue", "verify", 1);
-    if (unapproved) proj("pj-actuals", `${unapproved} actuals to approve`, "Approve this period's actuals", "verify", 3);
-  }
-  if (u.project.includes("finance-import") && !project.importedOn) proj("pj-import", "March NetSuite export", "Import and map spend to budget lines", "budget", 2);
-  if (u.project.includes("monthly-review")) {
-    const open = project.changes.filter((c) => c.status === "proposed").length;
-    if (open) proj("pj-review", `${open} proposed changes`, "Decide in the monthly review", "overview", 4);
-  }
-  if (u.project.includes("report-release") && !project.reportRelease) proj("pj-report", "March progress report", "Review and release", "report", 7);
-  return cards.sort((a, b) => a.date.localeCompare(b.date));
 }
 
 const buckets = [
