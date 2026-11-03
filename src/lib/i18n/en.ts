@@ -293,6 +293,7 @@ export const en = {
   "kobo.syncNow": "Sync submissions now",
   "kobo.syncing": "Syncing…",
   "kobo.synced": "{added} new of {fetched} submissions on {forms} forms.",
+  "kobo.syncedChanges": "{updated} changed in KoboToolbox (edited or approval changed), {removed} deleted there and no longer counted.",
   "progress.notConnected": "Not counted from any data yet",
   "progress.mapIt": "Map it to a question",
   "progress.sync": "Sync KoboToolbox",

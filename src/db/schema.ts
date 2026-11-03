@@ -264,6 +264,10 @@ export const evidence = pgTable(
     koboAssetUid: text("kobo_asset_uid"),
     /** Kobo's _uuid. Unique per project: a form shared by two projects gives each its own copy. */
     koboSubmissionUuid: text("kobo_submission_uuid"),
+    /** Kobo's _id: the submission number, which stays the same when a submission is edited (its _uuid changes). */
+    koboSubmissionId: integer("kobo_submission_id"),
+    /** Set when the submission is no longer in KoboToolbox. The record is kept for audit but no longer counts. */
+    koboRemovedAt: timestamp("kobo_removed_at", { withTimezone: true }),
     completedBy: text("completed_by"),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     location: text("location"),

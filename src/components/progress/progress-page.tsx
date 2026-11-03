@@ -46,7 +46,7 @@ export function ProgressPage() {
     setSyncNote("");
     try {
       const r = await kobo.sync();
-      setSyncNote(t("kobo.synced", { added: r.added, fetched: r.fetched, forms: r.forms }));
+      setSyncNote(t("kobo.synced", { added: r.added, fetched: r.fetched, forms: r.forms }) + (r.updated || r.removed ? ` ${t("kobo.syncedChanges", { updated: r.updated, removed: r.removed })}` : ""));
       await progress.reload();
     } catch (e) {
       setSyncNote(e instanceof Error ? e.message : String(e));

@@ -1,7 +1,7 @@
-import { and, eq, inArray, notInArray } from "drizzle-orm";
+import { and, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import type { KoboMapping, KoboState, MappingMethod, SyncCounts } from "@/lib/kobo-setup";
-import { KoboError, checkServerUrl, formQuestions, formSubmissions, listForms } from "@/server/kobo-client";
+import { KoboError, checkServerUrl, formQuestions, formSubmissions, listForms, submissionRefs, type KoboSubmission } from "@/server/kobo-client";
 import { MissingKeyError, decryptSecret, encryptSecret } from "@/server/secrets";
 
 /**
@@ -116,34 +116,101 @@ export async function saveMappings(code: string, mappings: KoboMapping[]) {
   });
 }
 
-/** Pulls every submission on the chosen forms. Safe to repeat: known submissions are refreshed, not added twice. */
+const CHUNK = 200;
+const chunks = <T,>(xs: T[], n = CHUNK) => Array.from({ length: Math.ceil(xs.length / n) }, (_, i) => xs.slice(i * n, i * n + n));
+const statusOf = (v: unknown) => ((v as { uid?: string } | null | undefined)?.uid ?? null) || null;
+
+/**
+ * Brings the project's copy of each chosen form up to date with KoboToolbox. Safe to repeat.
+ *
+ * Full submissions are downloaded only when new or edited. Every sync also reads a short list of
+ * all submissions (number, ID, approval status), so approvals, edits and deletions made in
+ * KoboToolbox are never missed. Every answer of every submission is still stored, unchanged.
+ */
 export async function sync(code: string): Promise<SyncCounts> {
   const c = await credentials(code);
   const forms = await db.select().from(s.koboForms).where(eq(s.koboForms.projectId, c.project.id));
-  const counts: SyncCounts = { fetched: 0, added: 0, already: 0, forms: forms.length };
+  const counts: SyncCounts = { fetched: 0, added: 0, already: 0, updated: 0, removed: 0, forms: forms.length };
   for (const f of forms) {
-    const subs = (await formSubmissions(c.server, c.token, f.assetUid)).filter((x) => typeof x._uuid === "string");
-    counts.fetched += subs.length;
-    const known = new Set(
-      subs.length
-        ? (await db.select({ uuid: s.evidence.koboSubmissionUuid }).from(s.evidence).where(and(eq(s.evidence.projectId, c.project.id), inArray(s.evidence.koboSubmissionUuid, subs.map((x) => x._uuid as string))))).map((r) => r.uuid)
-        : [],
-    );
-    for (const sub of subs) {
-      const uuid = sub._uuid as string;
-      const completedAt = typeof sub._submission_time === "string" ? new Date(sub._submission_time) : null;
-      if (known.has(uuid)) {
-        // Refresh, so approvals made in KoboToolbox since the last sync count.
-        await db.update(s.evidence).set({ payload: sub, updatedAt: new Date() }).where(and(eq(s.evidence.koboSubmissionUuid, uuid), eq(s.evidence.projectId, c.project.id)));
-        counts.already += 1;
-      } else {
-        await db
-          .insert(s.evidence)
-          .values({ organizationId: c.project.organizationId, projectId: c.project.id, source: "kobo", koboAssetUid: f.assetUid, koboSubmissionUuid: uuid, completedAt, payload: sub, reviewStatus: "accepted" })
-          .onConflictDoNothing({ target: [s.evidence.projectId, s.evidence.koboSubmissionUuid] });
-        counts.added += 1;
+    const refs = (await submissionRefs(c.server, c.token, f.assetUid)).filter((r) => Number.isInteger(r._id) && typeof r._uuid === "string");
+    counts.fetched += refs.length;
+    const mine = and(eq(s.evidence.projectId, c.project.id), eq(s.evidence.koboAssetUid, f.assetUid), eq(s.evidence.source, "kobo"));
+    const local = await db
+      .select({ id: s.evidence.id, num: s.evidence.koboSubmissionId, uuid: s.evidence.koboSubmissionUuid, removedAt: s.evidence.koboRemovedAt, status: sql<string | null>`${s.evidence.payload} -> '_validation_status' ->> 'uid'` })
+      .from(s.evidence)
+      .where(mine);
+    const byNum = new Map(local.filter((l) => l.num !== null).map((l) => [l.num!, l]));
+    const byUuid = new Map(local.map((l) => [l.uuid, l]));
+    const lastNum = Math.max(0, ...byNum.keys());
+
+    const fresh: number[] = []; // not stored yet
+    const edited: { row: (typeof local)[number]; num: number }[] = []; // same number, new _uuid
+    // Same submission, only the approval status changed, or a record synced before submission
+    // numbers were kept (the number is filled in; not reported as a change).
+    const touch: { id: string; num: number; status: unknown; changed: boolean }[] = [];
+    const back: string[] = []; // deleted earlier, present again
+    for (const r of refs) {
+      const row = byNum.get(r._id) ?? byUuid.get(r._uuid!);
+      if (!row) fresh.push(r._id);
+      else if (row.uuid !== r._uuid) edited.push({ row, num: r._id });
+      else {
+        const changed = statusOf(r._validation_status) !== row.status;
+        if (changed || row.num === null) touch.push({ id: row.id, num: r._id, status: r._validation_status ?? {}, changed });
+        if (row.removedAt) back.push(row.id);
       }
     }
+    const seen = new Set(refs.map((r) => r._id));
+    const seenUuid = new Set(refs.map((r) => r._uuid));
+    const gone = local.filter((l) => !l.removedAt && !(l.num !== null ? seen.has(l.num) : seenUuid.has(l.uuid ?? undefined))).map((l) => l.id);
+
+    // Download whole submissions only where needed: new ones past the last stored number in one
+    // paged request, anything else (edits, gaps) by number.
+    const above = fresh.filter((n) => n > lastNum);
+    const byNumber = [...fresh.filter((n) => n <= lastNum), ...edited.map((e) => e.num)];
+    const subs = [
+      ...(above.length ? await formSubmissions(c.server, c.token, f.assetUid, { _id: { $gt: lastNum } }) : []),
+      ...(await Promise.all(chunks(byNumber).map((ids) => formSubmissions(c.server, c.token, f.assetUid, { _id: { $in: ids } })))).flat(),
+    ].filter((x) => Number.isInteger(x._id) && typeof x._uuid === "string");
+    const full = new Map(subs.map((x) => [x._id as number, x]));
+    const completedAt = (x: KoboSubmission) => (typeof x._submission_time === "string" ? new Date(x._submission_time) : null);
+    const now = new Date();
+
+    await db.transaction(async (tx) => {
+      const rows = fresh.flatMap((n) => {
+        const x = full.get(n);
+        return x ? [{ organizationId: c.project.organizationId, projectId: c.project.id, source: "kobo" as const, koboAssetUid: f.assetUid, koboSubmissionId: n, koboSubmissionUuid: x._uuid!, completedAt: completedAt(x), payload: x, reviewStatus: "accepted" as const }] : [];
+      });
+      for (const part of chunks(rows, 500))
+        await tx
+          .insert(s.evidence)
+          .values(part)
+          .onConflictDoUpdate({ target: [s.evidence.projectId, s.evidence.koboSubmissionUuid], set: { payload: sql`excluded.payload`, koboSubmissionId: sql`excluded.kobo_submission_id`, koboRemovedAt: null, updatedAt: now } });
+      counts.added += rows.length;
+
+      for (const e of edited) {
+        const x = full.get(e.num);
+        if (!x) continue;
+        await tx.update(s.evidence).set({ koboSubmissionId: e.num, koboSubmissionUuid: x._uuid!, completedAt: completedAt(x), payload: x, koboRemovedAt: null, updatedAt: now }).where(eq(s.evidence.id, e.row.id));
+        counts.updated += 1;
+      }
+
+      // Only the status inside the stored submission changes; everything else stays as received.
+      for (const part of chunks(touch, 500)) {
+        const values = sql.join(part.map((r) => sql`(${r.id}::uuid, ${JSON.stringify(r.status)}::jsonb, ${r.num}::integer)`), sql`, `);
+        await tx.execute(sql`
+          update ${s.evidence} as e
+          set payload = jsonb_set(coalesce(e.payload, '{}'::jsonb), '{_validation_status}', v.status),
+              kobo_submission_id = v.num, updated_at = ${now.toISOString()}::timestamptz
+          from (values ${values}) as v(id, status, num)
+          where e.id = v.id`);
+      }
+      counts.updated += touch.filter((r) => r.changed).length;
+
+      for (const ids of chunks(back)) await tx.update(s.evidence).set({ koboRemovedAt: null, updatedAt: now }).where(inArray(s.evidence.id, ids));
+      for (const ids of chunks(gone)) await tx.update(s.evidence).set({ koboRemovedAt: now, updatedAt: now }).where(inArray(s.evidence.id, ids));
+      counts.removed += gone.length;
+    });
+    counts.already += refs.length - fresh.length - edited.length;
   }
   await db.update(s.koboConnections).set({ lastSyncedAt: new Date() }).where(eq(s.koboConnections.id, c.connection.id));
   return counts;
@@ -184,24 +251,26 @@ export async function mappedInputs(projectId: string) {
   if (!rows.length) return new Map<string, { mapping: Mapped; counted: Row[]; waiting: number }>();
   const c = await connectionOf(projectId);
   const approvedOnly = c?.countOnly === "approved";
-  const evidence = await db
-    .select({ asset: s.evidence.koboAssetUid, at: s.evidence.completedAt, payload: s.evidence.payload })
-    .from(s.evidence)
-    .where(and(eq(s.evidence.projectId, projectId), inArray(s.evidence.koboAssetUid, [...new Set(rows.map((r) => r.m.assetUid))])));
+  // One query per mapping, reading just that question's answer (as stored JSON, so the counting
+  // rules see exactly what they would in the whole submission) and the approval status.
   return new Map(
-    rows.map(({ code, m }) => {
-      const mine = evidence.filter((e) => e.asset === m.assetUid);
-      const approved = (p: Record<string, unknown>) => (p._validation_status as { uid?: string } | undefined)?.uid === "validation_status_approved";
-      const counted = mine.filter((e) => !approvedOnly || approved(e.payload as Record<string, unknown>));
-      return [
-        code,
-        {
-          mapping: { method: m.method as MappingMethod, question: m.question, value: m.value },
-          counted: counted.map((e) => ({ date: (e.at?.toISOString() ?? "").slice(0, 10), payload: (e.payload ?? {}) as Record<string, unknown> })),
-          waiting: mine.length - counted.length,
-        },
-      ];
-    }),
+    await Promise.all(
+      rows.map(async ({ code, m }) => {
+        const mine = await db
+          .select({ at: s.evidence.completedAt, answer: sql<unknown>`${s.evidence.payload} -> ${m.question}`, status: sql<string | null>`${s.evidence.payload} -> '_validation_status' ->> 'uid'` })
+          .from(s.evidence)
+          .where(and(eq(s.evidence.projectId, projectId), eq(s.evidence.koboAssetUid, m.assetUid), isNull(s.evidence.koboRemovedAt)));
+        const counted = mine.filter((e) => !approvedOnly || e.status === "validation_status_approved");
+        return [
+          code,
+          {
+            mapping: { method: m.method as MappingMethod, question: m.question, value: m.value },
+            counted: counted.map((e) => ({ date: (e.at?.toISOString() ?? "").slice(0, 10), payload: { [m.question]: e.answer } as Record<string, unknown> })),
+            waiting: mine.length - counted.length,
+          },
+        ] as const;
+      }),
+    ),
   );
 }
 
