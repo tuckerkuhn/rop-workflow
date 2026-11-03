@@ -6,7 +6,7 @@ import { useT } from "@/components/app/i18n";
 import { useKobo, useProgress } from "@/components/app/use-project-data";
 import { Question, field } from "@/components/setup/question";
 import { primaryBtn, quietBtn } from "@/components/workspace/ui";
-import { MAPPING_METHODS, type KoboFormInfo, type KoboMapping, type KoboQuestion, type MappingMethod, type SyncCounts } from "@/lib/kobo-setup";
+import { MAPPING_METHODS, type KoboFormInfo, type KoboMapping, type KoboQuestion, type MappingMethod, type AutoSyncSecret, type SyncCounts } from "@/lib/kobo-setup";
 import type { MessageKey } from "@/lib/i18n";
 
 /**
@@ -349,6 +349,7 @@ export function KoboDone({ code, name }: { code: string; name: string }) {
       {result && <p className="mt-3 text-sm text-forest">{t("kobo.synced", { added: result.added, fetched: result.fetched, forms: result.forms })}
           {(result.updated > 0 || result.removed > 0) && ` ${t("kobo.syncedChanges", { updated: result.updated, removed: result.removed })}`}</p>}
       <Alert text={error} />
+      {connected && <KoboAutoSync code={code} />}
       <div className="mt-8 flex flex-wrap gap-3">
         <Link href="/home" className={quietBtn}>
           {t("nav.home")}
@@ -358,5 +359,75 @@ export function KoboDone({ code, name }: { code: string; name: string }) {
         </Link>
       </div>
     </Question>
+  );
+}
+
+/** Automatic sync: this link's own KoboToolbox REST Service password, shown once when made. */
+function KoboAutoSync({ code }: { code: string }) {
+  const { t, date } = useT();
+  const kobo = useKobo(code);
+  const since = kobo.state?.connection?.autoSyncSince ?? null;
+  const [secret, setSecret] = useState<AutoSyncSecret | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const act = async (fn: () => Promise<void>) => {
+    setBusy(true);
+    setError("");
+    try {
+      await fn();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const turnOn = () => act(async () => setSecret(await kobo.enableAutoSync()));
+  const turnOff = () => act(async () => {
+    await kobo.disableAutoSync();
+    setSecret(null);
+  });
+  const rows = secret
+    ? [
+        { label: t("kobo.auto.url"), value: `${window.location.origin}${secret.path}` },
+        { label: t("kobo.auto.username"), value: secret.username },
+        { label: t("kobo.auto.password"), value: secret.password },
+      ]
+    : [];
+  return (
+    <section className="mt-8 rounded-2xl border border-line p-4">
+      <h3 className="font-semibold">{t("kobo.auto.title")}</h3>
+      <p className="mt-1 text-sm text-muted">{since ? t("kobo.auto.on", { date: date(since) }) : t("kobo.auto.off")}</p>
+      {secret && (
+        <div className="mt-4 text-sm">
+          <p>{t("kobo.auto.steps")}</p>
+          <dl className="mt-3 space-y-2">
+            {rows.map((r) => (
+              <div key={r.label}>
+                <dt className="text-muted">{r.label}</dt>
+                <dd className="flex items-center gap-2">
+                  <code className="min-w-0 flex-1 break-all rounded-lg bg-black/5 px-2 py-1">{r.value}</code>
+                  <button type="button" className={quietBtn} onClick={() => void navigator.clipboard?.writeText(r.value)}>
+                    {t("kobo.auto.copy")}
+                  </button>
+                </dd>
+              </div>
+            ))}
+          </dl>
+          <p className="mt-3">{t("kobo.auto.format")}</p>
+          <p className="mt-2 font-medium text-clay">{t("kobo.auto.once")}</p>
+        </div>
+      )}
+      <Alert text={error} />
+      <div className="mt-4 flex flex-wrap gap-3">
+        <button type="button" disabled={busy} onClick={() => void turnOn()} className={since ? quietBtn : primaryBtn}>
+          {since ? t("kobo.auto.newPassword") : t("kobo.auto.turnOn")}
+        </button>
+        {since && (
+          <button type="button" disabled={busy} onClick={() => void turnOff()} className={quietBtn}>
+            {t("kobo.auto.turnOff")}
+          </button>
+        )}
+      </div>
+    </section>
   );
 }

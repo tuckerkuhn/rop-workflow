@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "@/components/app/session";
 import { seedStock, type FieldItem, type Stock } from "@/lib/field";
-import type { KoboFormInfo, KoboMapping, KoboQuestion, KoboState, SyncCounts } from "@/lib/kobo-setup";
+import type { AutoSyncSecret, KoboFormInfo, KoboMapping, KoboQuestion, KoboState, SyncCounts } from "@/lib/kobo-setup";
 import type { DonorInfo, DonorInput, ProgressData } from "@/lib/progress";
 import type { Roster, Submission } from "@/lib/project";
 import type { NewWorkItem, WorkItem } from "@/lib/work-items";
@@ -312,6 +312,15 @@ export function useKobo(code: string) {
         const r = await send<SyncCounts>("/sync", "POST");
         await reload();
         return r;
+      },
+      enableAutoSync: async () => {
+        const r = await send<AutoSyncSecret>("/auto", "POST");
+        await reload();
+        return r;
+      },
+      disableAutoSync: async () => {
+        await send("/auto", "DELETE");
+        await reload();
       },
     }),
     [send, reload],

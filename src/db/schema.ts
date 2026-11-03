@@ -383,6 +383,12 @@ export const koboConnections = pgTable("kobo_connections", {
   /** "all": every submission counts. "approved": only those marked Approved in KoboToolbox. */
   countOnly: text("count_only").notNull().default("all"),
   lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
+  /**
+   * Automatic sync: SHA-256 (hex) of this link's own webhook password. The password is random,
+   * shown once when made, and never stored. Null when automatic sync is off.
+   */
+  hookSecretHash: text("hook_secret_hash"),
+  hookEnabledAt: timestamp("hook_enabled_at", { withTimezone: true }),
   connectedBy: text("connected_by"),
   ...timestamps,
 });
