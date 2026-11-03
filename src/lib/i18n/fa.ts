@@ -95,8 +95,6 @@ export const fa: Messages = {
   "add.saving": "در حال افزودن…",
   "add.cancel": "لغو",
 
-  "plan.marketIntelligence": "هوشمندی بازار",
-  "plan.marketWhy": "دریابید خریداران کجا و چه زمانی تقاضای برآورده‌نشده دارند، قوی‌ترین فرصت‌های بازار را با شواهد تأیید کنید و پروژه را به یکی متعهد کنید.",
   "stage.Develop": "توسعه",
   "stage.Design": "طراحی",
   "stage.Execute": "اجرا",

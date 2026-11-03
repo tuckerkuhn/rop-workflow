@@ -95,8 +95,6 @@ export const es: Messages = {
   "add.saving": "Agregando…",
   "add.cancel": "Cancelar",
 
-  "plan.marketIntelligence": "Inteligencia de mercado",
-  "plan.marketWhy": "Descubre dónde y cuándo los compradores tienen demanda sin cubrir, valida con evidencia las mejores ventanas de mercado y compromete el proyecto con una.",
   "stage.Develop": "Desarrollo",
   "stage.Design": "Diseño",
   "stage.Execute": "Ejecución",

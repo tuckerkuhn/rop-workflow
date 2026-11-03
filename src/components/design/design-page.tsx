@@ -3,8 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useT } from "@/components/app/i18n";
-import { LockedFeature } from "@/components/app/locked-feature";
-import { useFeature, useRequireUser } from "@/components/app/session";
+import { useRequireUser } from "@/components/app/session";
 import { Calendar, SampleTag, Sources, TargetPanel, targetText } from "@/components/project/market-windows";
 import { Pill, SectionLabel, TODAY, TopBar, primaryBtn, quietBtn, usePersistentState } from "@/components/workspace/ui";
 import { canValidate, daysFrom, projects, type AppUser } from "@/lib/demo";
@@ -474,7 +473,6 @@ function Choose({ u, state, setState, locked, cal, projectId, openTarget }: Prop
 export function DesignPage() {
   const { user } = useRequireUser();
   const { t } = useT();
-  const market = useFeature("market_intelligence");
   const gatedProjects = projects.filter((p) => "designGate" in p && p.designGate);
   const [projectId, setProjectId] = useState(gatedProjects[0]?.id ?? "AG-2027");
   useEffect(() => {
@@ -494,17 +492,6 @@ export function DesignPage() {
       <div className="min-h-screen">
         <TopBar />
         <p className="px-6 py-24 text-center text-muted">{t("design.staffOnly")}</p>
-      </div>
-    );
-
-  // Market Intelligence (finding and validating market windows) is a paid-plan feature.
-  if (!market)
-    return (
-      <div className="min-h-screen">
-        <TopBar active="design" />
-        <div className="px-4 py-16 sm:px-6">
-          <LockedFeature feature={t("plan.marketIntelligence")} why={t("plan.marketWhy")} />
-        </div>
       </div>
     );
 

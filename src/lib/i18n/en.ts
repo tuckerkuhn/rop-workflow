@@ -95,8 +95,6 @@ export const en = {
   "resources.dirtyDozen": "The Dirty Dozen",
 
   "design.staffOnly": "Project design is for Roots of Peace staff.",
-  "plan.marketIntelligence": "Market Intelligence",
-  "plan.marketWhy": "Find where buyers have unmet demand and when, validate the strongest market windows with evidence, and commit the project to one.",
 
   "stage.Develop": "Develop",
   "stage.Design": "Design",

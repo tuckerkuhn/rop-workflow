@@ -95,8 +95,6 @@ export const ps: Messages = {
   "add.saving": "زیاتېږي…",
   "add.cancel": "لغوه",
 
-  "plan.marketIntelligence": "د بازار پوهه",
-  "plan.marketWhy": "ومومئ چې پیرودونکي چېرته او کله نه پوره شوې غوښتنه لري، تر ټولو قوي بازاري فرصتونه په شواهدو تایید کړئ، او پروژه یو ته وسپارئ.",
   "stage.Develop": "پراختیا",
   "stage.Design": "طرحه",
   "stage.Execute": "پلي کول",
