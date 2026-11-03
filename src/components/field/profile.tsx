@@ -148,7 +148,7 @@ export function FarmerProfile({ id }: { id: string }) {
     <div className="min-h-screen">
       <TopBar active="field" />
       <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6 lg:py-8">
-        <Link href={`/field?open=${farmer.id}`} className="text-sm text-muted hover:text-ink">
+        <Link href={`/tasks?source=field&open=${farmer.id}`} className="text-sm text-muted hover:text-ink">
           ← Field activities
         </Link>
 
@@ -175,7 +175,7 @@ export function FarmerProfile({ id }: { id: string }) {
                   {farmer.gender} · {farmer.ageBand} · household of {farmer.householdSize}
                 </p>
               </div>
-              <Link href={`/field?open=${farmer.id}`} className={quietBtn}>
+              <Link href={`/tasks?source=field&open=${farmer.id}`} className={quietBtn}>
                 Open current step
               </Link>
             </section>

@@ -117,7 +117,7 @@ export function TargetPanel({ state, onClose }: { state: ProjectState; onClose: 
             ["Overlap", ov.length ? monthsLabel(ov) : "None: produce would need storage to reach this window"],
             [
               "Competing supply in those months",
-              target.competition?.length ? target.competition.map((c) => `${c.origin} (${monthsLabel(c.months)})`).join(", ") : "None recorded",
+              !target.competition ? "Not assessed (Market Intelligence)" : target.competition.length ? target.competition.map((c) => `${c.origin} (${monthsLabel(c.months)})`).join(", ") : "None recorded",
             ],
             ["Why the producers can hit it", target.reason],
             ["Chosen", `${personName(target.by)} on ${target.date}`],
@@ -191,8 +191,7 @@ export function MarketTargetCard({ state, onOpen }: { state: ProjectState; onOpe
             <p className="mt-2 text-xs text-muted">
               {done.length === VALIDATION_ITEMS.length ? `Validated by ${validators.join(", ")}` : `${done.length} of ${VALIDATION_ITEMS.length} validation items done`}
               {" · "}harvest overlap {ov.length ? monthsLabel(ov) : "none"}
-              {" · "}
-              {t?.competition?.length ? `competition from ${t.competition.map((c) => c.origin).join(", ")}` : "no competing supply recorded"}
+              {t?.competition && ` · ${t.competition.length ? `competition from ${t.competition.map((c) => c.origin).join(", ")}` : "no competing supply recorded"}`}
             </p>
           )}
         </div>
@@ -304,6 +303,7 @@ export function Calendar({
   highlight,
   onPick,
   onEdit,
+  showCompetition = true,
 }: {
   crop: Crop;
   /** The production area in use; "All Afghanistan" combines every province. */
@@ -316,6 +316,8 @@ export function Calendar({
   onPick?: (id: string) => void;
   /** Present for people who may correct the calendar. */
   onEdit?: (e: CalendarEditInput) => void;
+  /** Off on the free plan, where competing supply (Market Intelligence) is not assessed. */
+  showCompetition?: boolean;
 }) {
   const [editing, setEditing] = useState<string | null>(null);
   const harvest = area.months;
@@ -363,7 +365,7 @@ export function Calendar({
         <p className="mt-1 pl-[11rem] text-[11px] text-muted">{area.note}</p>
 
         {/* Markets, each with the origins competing there */}
-        <p className="mt-4 text-[11px] font-semibold uppercase tracking-wide text-muted">Import markets and competing supply</p>
+        <p className="mt-4 text-[11px] font-semibold uppercase tracking-wide text-muted">{showCompetition ? "Import markets and competing supply" : "Import markets"}</p>
         <div className="mt-1 space-y-3">
           {windowsFor(crop).map((win) => {
             const pill = statusPill[win.status];
@@ -408,7 +410,7 @@ export function Calendar({
                   <span className="col-span-12 col-start-2 pt-0.5 text-[11px] text-muted">
                     {win.status === "open"
                       ? ov.length
-                        ? `Open ${monthsLabel(win.months)} · overlaps our harvest in ${monthsLabel(ov)}${contested.size ? ` · competition in ${monthsLabel([...contested])}` : " · no competing supply in those months"}`
+                        ? `Open ${monthsLabel(win.months)} · overlaps our harvest in ${monthsLabel(ov)}${contested.size ? ` · competition in ${monthsLabel([...contested])}` : showCompetition ? " · no competing supply in those months" : ""}`
                         : `Open ${monthsLabel(win.months)} · no overlap with our harvest; needs storage${contested.size ? ` · competition in ${monthsLabel([...contested])}` : ""}`
                       : win.status === "closed"
                         ? "Closed: border closures"
@@ -472,8 +474,12 @@ export function Calendar({
             ["bg-forest", "Open and in our harvest"],
             ["bg-forest/35", "Open, outside our harvest"],
             ["bg-ochre", "Our harvest"],
-            [`${HATCH_COMP} border border-clay/40`, "Competing origin supplying that market"],
-            ["bg-clay", "Competition during our window"],
+            ...(showCompetition
+              ? [
+                  [`${HATCH_COMP} border border-clay/40`, "Competing origin supplying that market"],
+                  ["bg-clay", "Competition during our window"],
+                ]
+              : []),
             [`${HATCH_POLICY} border border-plum/30`, "Policy window"],
           ].map(([c, l]) => (
             <span key={l} className="flex items-center gap-1.5">

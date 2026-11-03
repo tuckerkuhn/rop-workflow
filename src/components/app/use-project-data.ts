@@ -1,12 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "@/components/app/session";
 import { seedStock, type FieldItem, type Stock } from "@/lib/field";
+import type { KoboFormInfo, KoboMapping, KoboQuestion, KoboState, SyncCounts } from "@/lib/kobo-setup";
+import type { DonorInfo, DonorInput, ProgressData } from "@/lib/progress";
 import type { Roster, Submission } from "@/lib/project";
+import type { NewWorkItem, WorkItem } from "@/lib/work-items";
 
 /**
- * Field activities and the review queue, read from and saved to the database through the API.
+ * Field activities, the review queue, tasks and milestones, and progress, read from and saved to the database through the API.
  * Replaces the browser storage these screens used before.
  */
 
@@ -151,4 +154,168 @@ export function useSubmissions(code = "A-2027") {
   }, [code, user?.id]);
 
   return { submissions, roster, status, error, reload, decide, sync, pushFarmers, downloadFarmers };
+}
+
+/** Tasks and milestones on a project. `saved` is false for demo projects kept only in this browser. */
+export function useWorkItems(code: string) {
+  const { user, ready } = useSession();
+  const [items, setItems] = useState<WorkItem[]>([]);
+  const [saved, setSaved] = useState(true);
+  const [status, setStatus] = useState<Load>("loading");
+  const [error, setError] = useState("");
+
+  const reload = useCallback(async () => {
+    try {
+      const r = await call<{ saved: boolean; items: WorkItem[] }>(`/api/projects/${code}/work-items`, user?.id);
+      setItems(r.items);
+      setSaved(r.saved);
+      setStatus("ready");
+      setError("");
+    } catch (e) {
+      setStatus("error");
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }, [code, user?.id]);
+
+  useEffect(() => {
+    if (ready && user) void reload();
+  }, [ready, user, reload]);
+
+  /** Throws with the server's message so the form can show it. */
+  const add = useCallback(
+    async (item: NewWorkItem) => {
+      const r = await call<{ item: WorkItem }>(`/api/projects/${code}/work-items`, user?.id, { method: "POST", body: JSON.stringify(item) });
+      setItems((all) => [...all, r.item]);
+    },
+    [code, user?.id],
+  );
+
+  /** Ticks a task off at once and puts it back if the server refuses. */
+  const setDone = useCallback(
+    async (id: string, done: boolean) => {
+      const flip = (d: boolean) => setItems((all) => all.map((i) => (i.id === id ? { ...i, doneAt: d ? new Date().toISOString() : null, doneBy: d ? (user?.id ?? null) : null } : i)));
+      flip(done);
+      try {
+        await call(`/api/projects/${code}/work-items/${id}`, user?.id, { method: "PATCH", body: JSON.stringify({ done }) });
+      } catch (e) {
+        flip(!done);
+        setError(`Not saved: ${e instanceof Error ? e.message : e}`);
+      }
+    },
+    [code, user?.id],
+  );
+
+  const remove = useCallback(
+    async (id: string) => {
+      await call(`/api/projects/${code}/work-items/${id}`, user?.id, { method: "DELETE" });
+      setItems((all) => all.filter((i) => i.id !== id));
+    },
+    [code, user?.id],
+  );
+
+  return { items, saved, status, error, reload, add, setDone, remove };
+}
+
+/** Indicators with values worked out on the server, and the donors this person may see. */
+export function useProgress(code: string) {
+  const { user, ready } = useSession();
+  const [data, setData] = useState<ProgressData | null>(null);
+  const [status, setStatus] = useState<Load>("loading");
+  const [error, setError] = useState("");
+
+  const reload = useCallback(async () => {
+    try {
+      setData(await call<ProgressData>(`/api/projects/${code}/progress`, user?.id));
+      setStatus("ready");
+      setError("");
+    } catch (e) {
+      setStatus("error");
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }, [code, user?.id]);
+
+  useEffect(() => {
+    if (ready && user) void reload();
+  }, [ready, user, reload]);
+
+  /** Throws with the server's message so the form can show it. */
+  const saveDonor = useCallback(
+    async (id: string | null, input: DonorInput) => {
+      await call(id ? `/api/projects/${code}/donors/${id}` : `/api/projects/${code}/donors`, user?.id, { method: id ? "PUT" : "POST", body: JSON.stringify(input) });
+      await reload();
+    },
+    [code, user?.id, reload],
+  );
+
+  const deleteDonor = useCallback(
+    async (id: string) => {
+      await call(`/api/projects/${code}/donors/${id}`, user?.id, { method: "DELETE" });
+      await reload();
+    },
+    [code, user?.id, reload],
+  );
+
+  return { data, status, error, reload, saveDonor, deleteDonor };
+}
+
+/** Just the donors, for screens that filter by donor without needing indicator values. */
+export function useDonors(code: string) {
+  const { user, ready } = useSession();
+  const [donors, setDonors] = useState<DonorInfo[]>([]);
+  useEffect(() => {
+    if (!ready || !user) return;
+    call<{ donors: DonorInfo[] }>(`/api/projects/${code}/donors`, user.id)
+      .then((r) => setDonors(r.donors))
+      .catch(() => setDonors([]));
+  }, [code, ready, user]);
+  return donors;
+}
+
+/** The project's KoboToolbox link. Every action throws with the server's message so screens can show it. */
+export function useKobo(code: string) {
+  const { user, ready } = useSession();
+  const [state, setState] = useState<KoboState | null>(null);
+  const [error, setError] = useState("");
+  const base = `/api/projects/${code}/kobo`;
+
+  const reload = useCallback(async () => {
+    try {
+      setState(await call<KoboState>(base, user?.id));
+      setError("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }, [base, user?.id]);
+
+  useEffect(() => {
+    if (ready && user) void reload();
+  }, [ready, user, reload]);
+
+  const send = useCallback(<T,>(path: string, method: string, body?: unknown) => call<T>(`${base}${path}`, user?.id, { method, body: body === undefined ? undefined : JSON.stringify(body) }), [base, user?.id]);
+
+  // Stable between renders, so screens can load in effects without looping.
+  const actions = useMemo(
+    () => ({
+      connect: async (input: { serverUrl: string; token?: string; countOnly: "all" | "approved" }) => setState(await send<KoboState>("", "PUT", input)),
+      disconnect: async () => {
+        await send("", "DELETE");
+        await reload();
+      },
+      liveForms: () => send<{ forms: KoboFormInfo[] }>("/forms", "GET").then((r) => r.forms),
+      questions: (uid: string) => send<{ questions: KoboQuestion[] }>(`/forms/${encodeURIComponent(uid)}`, "GET").then((r) => r.questions),
+      saveForms: async (forms: { uid: string; name: string }[]) => {
+        await send("/forms", "PUT", { forms });
+        await reload();
+      },
+      saveMappings: async (mappings: KoboMapping[]) => setState(await send<KoboState>("/mappings", "PUT", { mappings })),
+      sync: async () => {
+        const r = await send<SyncCounts>("/sync", "POST");
+        await reload();
+        return r;
+      },
+    }),
+    [send, reload],
+  );
+
+  return { state, error, reload, ...actions };
 }

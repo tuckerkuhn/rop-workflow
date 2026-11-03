@@ -2,108 +2,20 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { comingTo, stageOf } from "@/components/field/workspace";
+import { stageOf } from "@/components/field/workspace";
 import { useFieldData, useSubmissions } from "@/components/app/use-project-data";
-import { PROCUREMENT_ITEMS_KEY, procurementComingTo } from "@/components/procurement/workspace";
+import { PROCUREMENT_ITEMS_KEY } from "@/components/procurement/workspace";
 import { PROJECT_KEY } from "@/components/project/project-page";
+import { useCurrentProject } from "@/components/app/current-project";
+import { useT } from "@/components/app/i18n";
 import { Initials, useRequireUser, useSession } from "@/components/app/session";
+import { HomePanels } from "@/components/home/panels";
 import { Pill, SectionLabel, TODAY, TopBar, usePersistentState } from "@/components/workspace/ui";
-import { PROJECT, daysFrom, directReports, projectPath, projects, stepHistory, userById, type AppUser, type Stage } from "@/lib/demo";
-import { PACKAGE, PACKAGE_USD, farmerLabel, farmerName, farmerStages, fieldRoleLabel, fieldSteps, maskName, ownerOfItem, projectItem, type Farmer, type FieldItem } from "@/lib/field";
-import { DONE, ownerOf, roleLabel, seedProcurements, stepById, stepsFor, valueOf, type Procurement } from "@/lib/procurement";
-import { GATED_KEYS, indicators, actualFor, seedProject, type ProjectState } from "@/lib/project";
-
-type Space = "Project" | "Field" | "Procurement";
-type WorkCard = { key: string; title: string; step: string; date: string; href: string; space: Space; now: boolean; late: boolean; note: string };
-type Data = { field: FieldItem[]; procs: Procurement[]; project: ProjectState; stages: Record<string, Stage | undefined> };
-
-function weekday(d: string) {
-  return new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
-}
-
-function permissions(u: AppUser) {
-  return {
-    field: { view: u.fieldAccess !== "none", edit: u.field.length > 0, create: u.field.includes("mel") ? "New MEL finding" : null },
-    procurement: { view: u.procurementAccess !== "none", edit: u.procurement.length > 0, create: u.procurement.includes("holder") ? "New purchase request" : null },
-  };
-}
-
-const lastDate = (t: { date: string }[]) => (t.length ? t[t.length - 1].date : TODAY);
-const isLate = (step: string, since: string) => daysFrom(since, TODAY) > (stepHistory[step]?.median ?? 3);
-
-/** Everything on one person's plate: workflow steps they hold, project sign-offs, and what is projected to reach them. */
-function workFor(u: AppUser, { field, procs, project }: Data, viewer: AppUser): WorkCard[] {
-  const cards: WorkCard[] = [];
-  for (const r of u.field) {
-    field
-      .filter((i) => ownerOfItem(i) === r)
-      .forEach((i) => {
-        const since = lastDate(i.timeline);
-        cards.push({
-          key: `f-${i.id}`,
-          title: i.kind === "farmer" ? farmerLabel(i, viewer) : i.title,
-          step: fieldSteps[i.step].title,
-          date: projectItem(i)[0]?.end ?? TODAY,
-          href: `/field?open=${i.id}`,
-          space: "Field",
-          now: true,
-          late: isLate(i.step, since),
-          note: "",
-        });
-      });
-    comingTo(field, r, viewer).forEach((c) =>
-      cards.push({ key: `fc-${c.id}-${c.step}`, title: c.title, step: c.step, date: c.eta, href: `/field?open=${c.id}`, space: "Field", now: false, late: false, note: `Now ${c.via}` }),
-    );
-  }
-  for (const r of u.procurement) {
-    procs
-      .filter((p) => ownerOf(p) === r)
-      .forEach((p) => {
-        const list = stepsFor(p);
-        const i = list.findIndex((s) => s.id === p.step);
-        const since = lastDate(p.timeline);
-        const path = projectPath(
-          list.slice(i).map((s) => ({ step: s.id, owner: s.owner })),
-          since,
-          TODAY,
-        );
-        cards.push({
-          key: `p-${p.id}`,
-          title: `${p.title} · ${p.id}`,
-          step: stepById[p.step].title,
-          date: path[0]?.end ?? TODAY,
-          href: `/procurement?open=${p.id}`,
-          space: "Procurement",
-          now: true,
-          late: isLate(p.step, since),
-          note: "",
-        });
-      });
-    procurementComingTo(procs, r).forEach((c) =>
-      cards.push({ key: `pc-${c.id}-${c.step}`, title: c.title, step: c.step, date: c.eta, href: `/procurement?open=${c.id}`, space: "Procurement", now: false, late: false, note: `Now ${c.via}` }),
-    );
-  }
-  // Project sign-offs from the build spec.
-  const pending = project.submissions.filter((s) => s.status === "pending").length;
-  const unapproved = indicators.filter((i) => {
-    if (i.source === "survey") return false;
-    const a = project.actualApprovals[i.id];
-    return !a || a.note !== String(actualFor(i, project.submissions).value);
-  }).length;
-  const proj = (key: string, title: string, step: string, tab: string, days: number) =>
-    cards.push({ key, title, step, date: new Date(Date.parse(TODAY) + days * 86400000).toISOString().slice(0, 10), href: `/projects/${PROJECT.id}#${tab}`, space: "Project", now: true, late: false, note: "" });
-  if (u.project.includes("mel-owner")) {
-    if (pending) proj("pj-queue", `${pending} Kobo submissions to review`, "Accept or query in the review queue", "verify", 1);
-    if (unapproved) proj("pj-actuals", `${unapproved} actuals to approve`, "Approve this period's actuals", "verify", 3);
-  }
-  if (u.project.includes("finance-import") && !project.importedOn) proj("pj-import", "March NetSuite export", "Import and map spend to budget lines", "budget", 2);
-  if (u.project.includes("monthly-review")) {
-    const open = project.changes.filter((c) => c.status === "proposed").length;
-    if (open) proj("pj-review", `${open} proposed changes`, "Decide in the monthly review", "overview", 4);
-  }
-  if (u.project.includes("report-release") && !project.reportRelease) proj("pj-report", "March progress report", "Review and release", "report", 7);
-  return cards.sort((a, b) => a.date.localeCompare(b.date));
-}
+import { workFor, type Data, type WorkCard } from "@/components/tasks/work";
+import { PROJECT, daysFrom, directReports, userById, type AppUser } from "@/lib/demo";
+import { PACKAGE, PACKAGE_USD, farmerName, farmerStages, fieldRoleLabel, maskName, type Farmer, type FieldItem } from "@/lib/field";
+import { DONE, roleLabel, seedProcurements, valueOf, type Procurement } from "@/lib/procurement";
+import { GATED_KEYS, seedProject, type ProjectState } from "@/lib/project";
 
 const buckets = [
   { label: "This week", max: 6 },
@@ -229,7 +141,6 @@ function EmployeeHome({ u, data, viewer, readOnly, onView }: { u: AppUser; data:
   const now = cards.filter((c) => c.now);
   const late = now.filter((c) => c.late);
   const soon = cards.filter((c) => !c.now && daysFrom(TODAY, c.date) <= 13);
-  const perm = permissions(viewer);
   const roleNames = rolesOf(u);
   const who = readOnly ? u.name.split(" ")[0] : "you";
 
@@ -260,68 +171,6 @@ function EmployeeHome({ u, data, viewer, readOnly, onView }: { u: AppUser; data:
 
       <Team u={u} data={data} viewer={viewer} onView={onView} />
 
-      {!readOnly && (
-        <section>
-          <SectionLabel>Projects and workflows you can use</SectionLabel>
-          <div className="mt-3 grid gap-4 lg:grid-cols-2">
-            {projects.map((pr) => (
-              <article key={pr.id} className="rounded-2xl border border-line bg-surface p-5">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-mono text-xs text-muted">
-                      {pr.id} · {pr.country} · stage: {data.stages[pr.id] ?? pr.stage}
-                    </p>
-                    <h3 className="mt-1 font-display text-2xl tracking-tight">{pr.name}</h3>
-                  </div>
-                  <Pill tone={pr.status === "Active" ? "forest" : "muted"}>{pr.status}</Pill>
-                </div>
-                <p className="mt-2 text-sm text-muted">{pr.note}</p>
-                <Link href={`/projects/${pr.id}`} className="mt-3 inline-block text-sm font-semibold text-forest hover:underline">
-                  Open project →
-                </Link>
-                {pr.workflows.length > 0 && (
-                  <ul className="mt-4 divide-y divide-line border-y border-line">
-                    {(
-                      [
-                        { id: "field", label: "Field activities", href: "/field", p: perm.field },
-                        { id: "procurement", label: "Procurement", href: "/procurement", p: perm.procurement },
-                      ] as const
-                    ).map((w) => (
-                      <li key={w.id} className="flex flex-wrap items-center gap-3 py-3">
-                        <div className="min-w-0 flex-1">
-                          <p className="font-medium">{w.label}</p>
-                          <div className="mt-1 flex flex-wrap gap-1">
-                            {(["view", "edit"] as const).map((k) => (
-                              <span key={k} className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${w.p[k] ? "bg-mist text-leaf" : "bg-sunken text-muted line-through"}`}>
-                                {k}
-                              </span>
-                            ))}
-                            <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${w.p.create ? "bg-mist text-leaf" : "bg-sunken text-muted line-through"}`}>create</span>
-                          </div>
-                        </div>
-                        {w.p.view ? (
-                          <>
-                            {w.p.create && (
-                              <Link href={`${w.href}?new=1`} className="rounded-full border border-line px-3 py-1.5 text-sm hover:border-forest hover:text-forest">
-                                + {w.p.create}
-                              </Link>
-                            )}
-                            <Link href={w.href} className="rounded-full bg-forest px-4 py-1.5 text-sm font-medium text-forest-ink">
-                              Open
-                            </Link>
-                          </>
-                        ) : (
-                          <span className="text-xs text-muted">Not available to your role</span>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </article>
-            ))}
-          </div>
-        </section>
-      )}
     </>
   );
 }
@@ -363,7 +212,7 @@ function DonorHome({ field, project }: { field: FieldItem[]; project: ProjectSta
           </p>
         </div>
         {project.reportRelease && (
-          <Link href={`/projects/${PROJECT.id}#report`} className="rounded-full bg-forest px-5 py-2.5 text-sm font-medium text-forest-ink">
+          <Link href="/progress" className="rounded-full bg-forest px-5 py-2.5 text-sm font-medium text-forest-ink">
             Read the report
           </Link>
         )}
@@ -374,7 +223,7 @@ function DonorHome({ field, project }: { field: FieldItem[]; project: ProjectSta
           <SectionLabel>
             {PROJECT.name} · {PROJECT.season}
           </SectionLabel>
-          <Link href="/field" className="text-sm font-semibold text-forest hover:underline">
+          <Link href="/tasks?source=field" className="text-sm font-semibold text-forest hover:underline">
             View field activities →
           </Link>
         </div>
@@ -434,6 +283,8 @@ function DonorHome({ field, project }: { field: FieldItem[]; project: ProjectSta
 
 export function Dashboard() {
   const { user, money } = useRequireUser();
+  const { project: current } = useCurrentProject();
+  const { t, date } = useT();
   const { items: field } = useFieldData();
   const { submissions } = useSubmissions();
   const [procs] = usePersistentState<Procurement[]>(PROCUREMENT_ITEMS_KEY, seedProcurements);
@@ -486,20 +337,29 @@ export function Dashboard() {
         <header className="flex flex-wrap items-center gap-4">
           <Initials name={subject.name} className="h-14 w-14 text-xl" />
           <div className="min-w-0 flex-1">
-            <p className="text-sm text-muted">{weekday(TODAY)} · demo date</p>
-            <h1 className="font-display text-4xl tracking-tight">{readOnly ? subject.name : `Salaam, ${user.name.split(" ")[0]}`}</h1>
+            <p className="text-sm text-muted">{date(TODAY, { weekday: "long", day: "numeric", month: "long", year: "numeric" })} · demo date</p>
+            <h1 className="font-display text-4xl tracking-tight">{readOnly ? subject.name : t("home.greeting", { name: user.name.split(" ")[0] })}</h1>
             <p className="text-sm text-muted">
               {subject.title} · {subject.org}
               {subject.reportsTo && !readOnly ? ` · reports to ${userById(subject.reportsTo)?.name}` : ""}
             </p>
           </div>
           {!readOnly && user.kind === "employee" && user.procurementAccess !== "none" && (
-            <p className="text-sm text-muted">
+            <p className="basis-full text-sm text-muted sm:basis-auto">
               {open.length} open procurements · <span className="tabular-nums">{money(open.reduce((s, p) => s + valueOf(p), 0))}</span>
             </p>
           )}
         </header>
-        {user.kind === "donor" ? <DonorHome field={field} project={project} /> : <EmployeeHome u={subject} data={data} viewer={user} readOnly={readOnly} onView={(id) => view(id)} />}
+        {user.kind === "donor" ? (
+          <DonorHome field={field} project={project} />
+        ) : readOnly ? (
+          <EmployeeHome u={subject} data={data} viewer={user} readOnly={readOnly} onView={(id) => view(id)} />
+        ) : (
+          <>
+            <HomePanels user={user} project={current} stage={(current.id === "A-2027" ? local.stage : current.id === "AG-2027" ? grapes.stage : undefined) ?? current.stage} />
+            <Team u={user} data={data} viewer={user} onView={(id) => view(id)} />
+          </>
+        )}
       </main>
     </div>
   );

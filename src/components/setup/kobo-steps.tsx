@@ -1,0 +1,361 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { useT } from "@/components/app/i18n";
+import { useKobo, useProgress } from "@/components/app/use-project-data";
+import { Question, field } from "@/components/setup/question";
+import { primaryBtn, quietBtn } from "@/components/workspace/ui";
+import { MAPPING_METHODS, type KoboFormInfo, type KoboMapping, type KoboQuestion, type MappingMethod, type SyncCounts } from "@/lib/kobo-setup";
+import type { MessageKey } from "@/lib/i18n";
+
+/**
+ * Setup steps for KoboToolbox: connect the account, choose the project's forms, and say which
+ * question counts toward each indicator. Field data collection stays in KoboToolbox.
+ */
+
+const SERVERS = ["https://kf.kobotoolbox.org", "https://eu.kobotoolbox.org"];
+
+function Actions({ busy, label, onClick, disabled, extra }: { busy: boolean; label: string; onClick: () => void; disabled?: boolean; extra?: React.ReactNode }) {
+  const { t } = useT();
+  return (
+    <div className="mt-8 flex flex-wrap gap-3">
+      {extra}
+      <button type="button" onClick={onClick} disabled={busy || disabled} className={`${primaryBtn} flex-1`}>
+        {busy ? t("settings.saving") : label}
+      </button>
+    </div>
+  );
+}
+
+function Alert({ text }: { text: string }) {
+  return text ? (
+    <p role="alert" className="mt-4 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">
+      {text}
+    </p>
+  ) : null;
+}
+
+export function KoboConnect({ code, onDone, onSkip }: { code: string; onDone: () => void; onSkip: () => void }) {
+  const { t } = useT();
+  const kobo = useKobo(code);
+  const saved = kobo.state?.connection;
+  const [server, setServer] = useState(SERVERS[0]);
+  const [token, setToken] = useState("");
+  const [countOnly, setCountOnly] = useState<"all" | "approved">("all");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!saved) return;
+    setServer(saved.serverUrl);
+    setCountOnly(saved.countOnly);
+  }, [saved]);
+
+  const submit = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      await kobo.connect({ serverUrl: server, token: token.trim() || undefined, countOnly });
+      setToken("");
+      onDone();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Question title={t("kobo.q.connect")} help={t("kobo.h.connect")}>
+      <label className="block text-sm font-medium">
+        {t("kobo.server")}
+        <input value={server} onChange={(e) => setServer(e.target.value)} list="kobo-servers" inputMode="url" autoComplete="off" className={field} />
+        <datalist id="kobo-servers">
+          {SERVERS.map((s) => (
+            <option key={s} value={s} />
+          ))}
+        </datalist>
+      </label>
+      <label className="mt-4 block text-sm font-medium">
+        {t("kobo.token")}
+        {/* A password field keeps the token off screen and out of autofill history. */}
+        <input type="password" value={token} onChange={(e) => setToken(e.target.value)} autoComplete="off" spellCheck={false} placeholder={saved ? t("kobo.tokenSaved", { hint: saved.tokenHint }) : ""} className={field} />
+        <span className="mt-1 block text-xs font-normal text-muted">{t("kobo.tokenHelp")}</span>
+      </label>
+      <fieldset className="mt-5">
+        <legend className="text-sm font-medium">{t("kobo.countOnly")}</legend>
+        {(["all", "approved"] as const).map((k) => (
+          <label key={k} className="mt-2 flex items-start gap-3 rounded-xl border border-line bg-surface p-3 text-sm">
+            <input type="radio" name="count-only" checked={countOnly === k} onChange={() => setCountOnly(k)} className="mt-0.5 h-4 w-4 accent-[var(--forest)]" />
+            <span>{t(k === "all" ? "kobo.countAll" : "kobo.countApproved")}</span>
+          </label>
+        ))}
+      </fieldset>
+      <Alert text={error || kobo.error} />
+      <Actions
+        busy={busy}
+        label={t(saved ? "kobo.saveConnection" : "kobo.connect")}
+        disabled={!server.trim() || (!saved && !token.trim())}
+        onClick={() => void submit()}
+        extra={
+          <button type="button" onClick={saved ? onDone : onSkip} className={quietBtn}>
+            {t(saved ? "setup.next" : "kobo.skip")}
+          </button>
+        }
+      />
+      {saved && (
+        <p className="mt-4 text-sm">
+          <button
+            type="button"
+            onClick={() => void kobo.disconnect().catch((e: Error) => setError(e.message))}
+            className="font-semibold text-clay hover:underline"
+          >
+            {t("kobo.disconnect")}
+          </button>
+        </p>
+      )}
+    </Question>
+  );
+}
+
+export function KoboForms({ code, onDone }: { code: string; onDone: () => void }) {
+  const { t } = useT();
+  const kobo = useKobo(code);
+  const [forms, setForms] = useState<KoboFormInfo[] | null>(null);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const { liveForms } = kobo;
+  const chosen = kobo.state?.forms;
+
+  useEffect(() => {
+    if (forms || !chosen) return;
+    setPicked(new Set(chosen.map((f) => f.uid)));
+    liveForms()
+      .then(setForms)
+      .catch((e: Error) => setError(e.message));
+  }, [forms, chosen, liveForms]);
+
+  const toggle = (uid: string) => setPicked((p) => (p.has(uid) ? new Set([...p].filter((x) => x !== uid)) : new Set([...p, uid])));
+  const submit = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      await kobo.saveForms((forms ?? []).filter((f) => picked.has(f.uid)).map((f) => ({ uid: f.uid, name: f.name })));
+      onDone();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Question title={t("kobo.q.forms")} help={t("kobo.h.forms")}>
+      {!forms && !error && <p className="text-sm text-muted">{t("kobo.loadingForms")}</p>}
+      {forms?.length === 0 && <p className="text-sm text-muted">{t("kobo.noForms")}</p>}
+      <ul className="space-y-2">
+        {forms?.map((f) => (
+          <li key={f.uid}>
+            <label className={`flex items-start gap-3 rounded-xl border p-3 text-sm ${picked.has(f.uid) ? "border-forest bg-mist" : "border-line bg-surface"}`}>
+              <input type="checkbox" checked={picked.has(f.uid)} onChange={() => toggle(f.uid)} className="mt-0.5 h-4 w-4 accent-[var(--forest)]" />
+              <span className="min-w-0">
+                <span className="font-medium">{f.name}</span>
+                <span className="block text-xs text-muted">
+                  {t(f.deployed ? "kobo.deployed" : "kobo.notDeployed")} · {t("kobo.submissions", { n: f.submissions ?? 0 })}
+                </span>
+              </span>
+            </label>
+          </li>
+        ))}
+      </ul>
+      <Alert text={error} />
+      {forms && <Actions busy={busy} label={t("setup.next")} disabled={!picked.size} onClick={() => void submit()} />}
+    </Question>
+  );
+}
+
+const METHOD_LABEL: Record<MappingMethod, MessageKey> = {
+  count_answered: "kobo.method.count_answered",
+  count_answer: "kobo.method.count_answer",
+  count_unique: "kobo.method.count_unique",
+  sum: "kobo.method.sum",
+};
+
+type Draft = Record<string, KoboMapping | undefined>;
+
+export function KoboMap({ code, onDone }: { code: string; onDone: () => void }) {
+  const { t } = useT();
+  const kobo = useKobo(code);
+  const progress = useProgress(code);
+  const [draft, setDraft] = useState<Draft | null>(null);
+  const [questions, setQuestions] = useState<Record<string, KoboQuestion[] | "loading">>({});
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const forms = kobo.state?.forms ?? [];
+  const indicators = progress.data?.indicators ?? [];
+  const { questions: loadQuestions } = kobo;
+
+  useEffect(() => {
+    if (draft || !kobo.state) return;
+    setDraft(Object.fromEntries(kobo.state.mappings.map((m) => [m.indicatorCode, m])));
+  }, [draft, kobo.state]);
+
+  // Load each form's questions once, when a mapping needs them.
+  useEffect(() => {
+    for (const uid of new Set(Object.values(draft ?? {}).flatMap((m) => (m ? [m.assetUid] : [])))) {
+      if (questions[uid]) continue;
+      setQuestions((q) => ({ ...q, [uid]: "loading" }));
+      loadQuestions(uid)
+        .then((list) => setQuestions((q) => ({ ...q, [uid]: list })))
+        .catch((e: Error) => setError(e.message));
+    }
+  }, [draft, questions, loadQuestions]);
+
+  const set = (code: string, m: KoboMapping | undefined) => setDraft((d) => ({ ...d, [code]: m }));
+  const ready = Object.values(draft ?? {}).every((m) => !m || (m.question && (m.method !== "count_answer" || m.value)));
+  const submit = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      await kobo.saveMappings(Object.values(draft ?? {}).filter((m): m is KoboMapping => !!m && !!m.question));
+      onDone();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!forms.length)
+    return (
+      <Question title={t("kobo.q.map")}>
+        <p className="text-sm text-muted">{t("kobo.noFormsChosen")}</p>
+        <Actions busy={false} label={t("setup.next")} onClick={onDone} />
+      </Question>
+    );
+
+  return (
+    <Question title={t("kobo.q.map")} help={t("kobo.h.map")}>
+      <ul className="space-y-3">
+        {indicators.map((i) => {
+          const m = draft?.[i.code];
+          const qs = m ? questions[m.assetUid] : undefined;
+          const q = Array.isArray(qs) ? qs.find((x) => x.path === m?.question) : undefined;
+          // Built-in demo indicators already count from the readiness, training and distribution forms.
+          const builtIn = i.dataSource === "records" && !m;
+          return (
+            <li key={i.code} className="rounded-2xl border border-line bg-surface p-4">
+              <p className="font-medium">{i.name}</p>
+              <p className="text-xs text-muted">
+                {i.code} · {i.target} {i.unit}
+                {builtIn && ` · ${t("kobo.builtIn")}`}
+              </p>
+              <label className="mt-3 block text-xs text-muted">
+                {t("kobo.form")}
+                <select
+                  value={m?.assetUid ?? ""}
+                  onChange={(e) => set(i.code, e.target.value ? { indicatorCode: i.code, assetUid: e.target.value, question: "", method: "count_answered", value: null } : undefined)}
+                  className={field}
+                >
+                  <option value="">{t("kobo.notMapped")}</option>
+                  {forms.map((f) => (
+                    <option key={f.uid} value={f.uid}>
+                      {f.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {m && (
+                <>
+                  <label className="mt-2 block text-xs text-muted">
+                    {t("kobo.question")}
+                    <select value={m.question} onChange={(e) => set(i.code, { ...m, question: e.target.value, value: null })} disabled={!Array.isArray(qs)} className={field}>
+                      <option value="">{qs === "loading" ? t("kobo.loadingQuestions") : t("kobo.pickQuestion")}</option>
+                      {Array.isArray(qs) &&
+                        qs.map((x) => (
+                          <option key={x.path} value={x.path}>
+                            {x.label} ({x.path})
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                  <label className="mt-2 block text-xs text-muted">
+                    {t("kobo.how")}
+                    <select value={m.method} onChange={(e) => set(i.code, { ...m, method: e.target.value as MappingMethod, value: null })} className={field}>
+                      {MAPPING_METHODS.map((k) => (
+                        <option key={k} value={k}>
+                          {t(METHOD_LABEL[k])}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {m.method === "count_answer" && (
+                    <label className="mt-2 block text-xs text-muted">
+                      {t("kobo.answer")}
+                      {q?.choices.length ? (
+                        <select value={m.value ?? ""} onChange={(e) => set(i.code, { ...m, value: e.target.value || null })} className={field}>
+                          <option value="" />
+                          {q.choices.map((c) => (
+                            <option key={c.name} value={c.name}>
+                              {c.label}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input value={m.value ?? ""} onChange={(e) => set(i.code, { ...m, value: e.target.value || null })} className={field} />
+                      )}
+                    </label>
+                  )}
+                </>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {indicators.length === 0 && <p className="text-sm text-muted">{t("progress.empty")}</p>}
+      <Alert text={error} />
+      <Actions busy={busy} label={t("kobo.saveMappings")} disabled={!ready} onClick={() => void submit()} />
+    </Question>
+  );
+}
+
+export function KoboDone({ code, name }: { code: string; name: string }) {
+  const { t } = useT();
+  const kobo = useKobo(code);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<SyncCounts | null>(null);
+  const [error, setError] = useState("");
+  const connected = !!kobo.state?.connection && !!kobo.state.forms.length;
+  const run = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      setResult(await kobo.sync());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Question title={t("setup.q.done", { name })} help={t(connected ? "setup.h.doneConnected" : "setup.h.done")}>
+      {connected && (
+        <button type="button" onClick={() => void run()} disabled={busy} className={`${quietBtn} w-full`}>
+          {busy ? t("kobo.syncing") : t("kobo.syncNow")}
+        </button>
+      )}
+      {result && <p className="mt-3 text-sm text-forest">{t("kobo.synced", { added: result.added, fetched: result.fetched, forms: result.forms })}</p>}
+      <Alert text={error} />
+      <div className="mt-8 flex flex-wrap gap-3">
+        <Link href="/home" className={quietBtn}>
+          {t("nav.home")}
+        </Link>
+        <Link href="/progress" className={`${primaryBtn} flex-1 text-center`}>
+          {t("progress.title")}
+        </Link>
+      </div>
+    </Question>
+  );
+}

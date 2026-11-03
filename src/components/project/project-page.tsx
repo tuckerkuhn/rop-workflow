@@ -6,7 +6,8 @@ import { useFieldData, useSubmissions, type SyncResult } from "@/components/app/
 import { PROCUREMENT_ITEMS_KEY } from "@/components/procurement/workspace";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { Pill, SectionLabel, TODAY, TopBar, dangerBtn, primaryBtn, quietBtn, usePersistentState } from "@/components/workspace/ui";
-import { STAGES, holderOf, projectRoleHolders, projects, userById, type AppUser } from "@/lib/demo";
+import { STAGES, holderOf, projectRoleHolders, userById, type AppUser } from "@/lib/demo";
+import { useCurrentProject } from "@/components/app/current-project";
 import { GatedSections, MoveToExecute } from "@/components/project/gated-project";
 import { TargetPanel } from "@/components/project/market-windows";
 import { maskName, type Farmer, type FieldItem } from "@/lib/field";
@@ -334,7 +335,7 @@ function Plan({ state, field, procs, openEvidence }: SectionProps & { openEviden
         </div>
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-2">
+      <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div>
           <SectionLabel>Impact indicator library</SectionLabel>
           <ul className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -378,7 +379,7 @@ function Execute({ field, procs }: SectionProps) {
       <ol className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
         {activities.map((a) => {
           const st = activityStatus(a, field, procs);
-          const link = [4, 6, 7].includes(a.n) ? "/field" : a.n === 5 ? "/procurement" : null;
+          const link = [4, 6, 7].includes(a.n) ? "/tasks?source=field" : a.n === 5 ? "/tasks?source=procurement" : null;
           return (
             <li key={a.n} className="grid grid-cols-[2rem_1fr] gap-3 px-4 py-3 sm:grid-cols-[2rem_1fr_10rem_7rem]">
               <span className="font-display text-xl text-muted">{a.n}</span>
@@ -1107,7 +1108,7 @@ export function ProjectPage({ id }: { id: string }) {
   const [procs] = usePersistentState<Procurement[]>(PROCUREMENT_ITEMS_KEY, seedProcurements);
   const [tab, setTab] = useState<Tab>("Overview");
   const [evidence, setEvidence] = useState<Indicator | null>(null);
-  const project = projects.find((p) => p.id === id);
+  const project = useCurrentProject().projects.find((p) => p.id === id);
 
   useEffect(() => {
     const h = window.location.hash.slice(1);
@@ -1228,7 +1229,7 @@ export function ProjectPage({ id }: { id: string }) {
               <li>Where does the Western Highlands data live today, and is there field data or only the plan?</li>
               <li>Which donor template is the mapping target for the pilot?</li>
             </ul>
-            <Link href="/projects/A-2027" className={`${quietBtn} mt-5 inline-block`}>
+            <Link href="/progress/records?project=A-2027" className={`${quietBtn} mt-5 inline-block`}>
               See the thin path on the demo project
             </Link>
           </section>

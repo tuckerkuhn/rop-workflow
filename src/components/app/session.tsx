@@ -4,6 +4,7 @@ import { createBrowserClient } from "@supabase/ssr";
 import { useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { formatMoney, registerPeople, userById, type AppUser, type Currency } from "@/lib/demo";
+import { hasFeature, type Feature, type Plan } from "@/lib/plans";
 
 /**
  * Who is using the app.
@@ -33,6 +34,8 @@ type Session = {
   currency: Currency;
   setCurrency: (c: Currency) => void;
   money: (usd: number) => string;
+  /** The organization's plan; check features with `useFeature`. */
+  plan: Plan;
 };
 
 const SessionContext = createContext<Session | null>(null);
@@ -43,7 +46,7 @@ export function supabaseBrowser() {
   return createBrowserClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 }
 
-type ServerSession = { mode: "demo" | "live"; configured: boolean; user: AppUser | null; actor: AppUser | null; viewingAs: boolean; people: AppUser[] };
+type ServerSession = { mode: "demo" | "live"; configured: boolean; user: AppUser | null; actor: AppUser | null; viewingAs: boolean; people: AppUser[]; plan: Plan };
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [mode, setMode] = useState<Mode>("loading");
@@ -52,6 +55,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [live, setLive] = useState<{ user: AppUser | null; actor: AppUser | null; viewingAs: boolean }>({ user: null, actor: null, viewingAs: false });
   const [currency, setCurrencyState] = useState<Currency>("USD");
   const [stored, setStored] = useState(false);
+  const [plan, setPlan] = useState<Plan>("free");
 
   const refresh = useCallback(async () => {
     try {
@@ -61,6 +65,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         setLive({ user: s.user, actor: s.actor, viewingAs: s.viewingAs });
       }
       setConfigured(s.configured);
+      setPlan(s.plan ?? "free");
       setMode(s.mode);
     } catch {
       // Without the server we cannot tell who is signed in; fall back to the demo picker.
@@ -120,8 +125,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       currency,
       setCurrency: setCurrencyState,
       money,
+      plan,
     }),
-    [mode, configured, live, demoUser, stored, signOut, refresh, viewAs, currency, money],
+    [mode, configured, live, demoUser, stored, signOut, refresh, viewAs, currency, money, plan],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
@@ -131,6 +137,11 @@ export function useSession() {
   const s = useContext(SessionContext);
   if (!s) throw new Error("useSession must be used inside SessionProvider");
   return s;
+}
+
+/** Whether the organization's plan includes a paid feature. */
+export function useFeature(feature: Feature) {
+  return hasFeature(useSession().plan, feature);
 }
 
 /** Sends anyone who is not signed in back to the sign-in page. */

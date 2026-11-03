@@ -14,7 +14,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx --env-file=.env.local src/db/seed.ts",
-    "staff": "tsx --env-file=.env.local src/db/staff-cli.ts"
+    "staff": "tsx --env-file=.env.local src/db/staff-cli.ts",
+    "plan": "tsx --env-file=.env.local src/db/plan-cli.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

@@ -12,6 +12,8 @@ export type Lang = "en" | "es" | "fa" | "ps";
 
 /** People who may validate market windows and choose a project's target: the project manager and plan approvers. */
 export const canValidate = (u: { project: string[]; field: string[] } | null | undefined) => !!u && (u.project.includes("plan-approver") || u.field.includes("manager"));
+/** People who may change project settings such as donors: the same project manager and plan approvers. */
+export const canEditProject = canValidate;
 
 /** Fixed demo date the sample data is built around. Real Kobo submissions keep their real dates. */
 export const TODAY = "2027-03-04";
@@ -84,7 +86,27 @@ export const PROJECT = {
 export type Stage = "Develop" | "Design" | "Execute" | "Verify" | "Report";
 export const STAGES: Stage[] = ["Develop", "Design", "Execute", "Verify", "Report"];
 
-export const projects = [
+/** A project as the app shows it: the demo projects below, plus projects created in setup (from the database). */
+export type ProjectInfo = {
+  id: string;
+  name: string;
+  country: string;
+  season: string;
+  award?: string;
+  orgId: string;
+  status: string;
+  stage: Stage;
+  note: string;
+  /** Workflows with data on this project; they show in Tasks. */
+  workflows: readonly ("field" | "procurement")[];
+  /** Design cannot be signed off until a target market window and reason are saved. */
+  designGate?: boolean;
+  crop?: string;
+  /** Stored in the database, so it can be edited in setup and connected to KoboToolbox. */
+  saved?: boolean;
+};
+
+export const projects: ProjectInfo[] = [
   {
     ...PROJECT,
     orgId: ORG_ID,
