@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Initials,
   supabaseBrowser,
@@ -13,12 +13,17 @@ import { users } from "@/lib/demo";
 import { fieldRoleLabel } from "@/lib/field";
 import { roleLabel } from "@/lib/procurement";
 
-/** Landing page. Live mode: email and a one-time code. Demo mode: pick who you are. */
+/** Landing page. Live mode: email and password, or an emailed one-time code. Demo mode: pick who you are. */
 export function SignIn() {
   const { user, signIn, mode, configured } = useSession();
   const router = useRouter();
   const [tab, setTab] = useState<"employee" | "donor">("employee");
   const people = users.filter((u) => u.kind === tab);
+
+  // Signed in already (live mode): skip this page.
+  useEffect(() => {
+    if (mode === "live" && user) router.replace("/home");
+  }, [mode, user, router]);
 
   const go = (id: string) => {
     signIn(id);
@@ -74,7 +79,7 @@ export function SignIn() {
           {mode === "live" ? (
             <>
               <p className="mt-1 text-sm text-muted">
-                We email you a one-time code. No password.
+                Your email and password, or a one-time code by email.
               </p>
               {!configured ? (
                 <p role="alert" className="mt-6 rounded-2xl border border-line bg-surface p-4 text-sm">
@@ -210,18 +215,41 @@ function ContinueAs() {
   );
 }
 
-/** Email, then the 6-digit code from the email. Only people already on the staff or donor list can sign in. */
+/**
+ * Email and password; or email, then the 6-digit code from the email (for a first sign-in, before
+ * a password is set in Settings). Only people already on the staff or donor list can sign in.
+ */
 function EmailCode() {
   const { refresh } = useSession();
   const router = useRouter();
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  const send = async (e: React.FormEvent) => {
+  const withPassword = async (e: React.FormEvent) => {
     e.preventDefault();
+    setBusy(true);
+    setError("");
+    const { error } = await supabaseBrowser().auth.signInWithPassword({ email: email.trim(), password });
+    if (error) {
+      setBusy(false);
+      setError(
+        /invalid login credentials/i.test(error.message)
+          ? "That email and password do not match. If you have not set a password yet, email yourself a code and set one in Settings."
+          : error.message,
+      );
+      return;
+    }
+    await refresh();
+    router.push("/home");
+  };
+
+  const send = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!email.includes("@")) return setError("Enter your email first.");
     setBusy(true);
     setError("");
     const { error } = await supabaseBrowser().auth.signInWithOtp({
@@ -310,7 +338,7 @@ function EmailCode() {
       </button>
     </form>
   ) : (
-    <form onSubmit={send} className="mt-6">
+    <form onSubmit={withPassword} className="mt-6">
       <label className="block text-sm font-medium" htmlFor="email">
         Email
       </label>
@@ -324,6 +352,17 @@ function EmailCode() {
         className={field}
         required
       />
+      <label className="mt-4 block text-sm font-medium" htmlFor="password">
+        Password
+      </label>
+      <input
+        id="password"
+        type="password"
+        autoComplete="current-password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        className={field}
+      />
       {error && (
         <p role="alert" className="mt-3 text-sm text-clay">
           {error}
@@ -331,10 +370,18 @@ function EmailCode() {
       )}
       <button
         type="submit"
-        disabled={busy || !email.includes("@")}
+        disabled={busy || !email.includes("@") || !password}
         className={button}
       >
-        {busy ? "Sending…" : "Email me a code"}
+        {busy ? "Signing in…" : "Sign in"}
+      </button>
+      <button
+        type="button"
+        onClick={() => void send()}
+        disabled={busy}
+        className="mt-3 w-full rounded-full border border-line px-4 py-3 text-sm font-medium transition disabled:opacity-50"
+      >
+        No password yet? Email me a code
       </button>
       <p className="mt-4 text-xs leading-relaxed text-muted">
         Staff and donors use the same sign-in. Any email address works if it is

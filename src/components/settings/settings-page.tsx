@@ -5,6 +5,7 @@ import { useCurrentProject } from "@/components/app/current-project";
 import { useT } from "@/components/app/i18n";
 import { useRequireUser } from "@/components/app/session";
 import { useProgress } from "@/components/app/use-project-data";
+import { PasswordSection } from "@/components/settings/password-section";
 import { SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { TODAY, canEditProject } from "@/lib/demo";
 import type { DonorInfo, DonorInput, IndicatorProgress } from "@/lib/progress";
@@ -29,6 +30,8 @@ export function SettingsPage() {
       <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
         <h1 className="font-display text-4xl tracking-tight">{t("settings.title")}</h1>
         <p className="mt-1 text-sm text-muted">{project.name}</p>
+
+        <PasswordSection />
 
         <section className="mt-8" aria-labelledby="donors-heading">
           <div className="flex items-center justify-between gap-3">
