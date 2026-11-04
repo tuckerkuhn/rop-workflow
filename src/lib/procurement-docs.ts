@@ -21,12 +21,12 @@ export function documentFor(p: Procurement, doc: string, money: Money, other: Mo
   const value = valueOf(p);
   const line = lineOf(p);
   const both = (usd: number) => `${money(usd)} (${other(usd)})`;
-  const holder = holderOf("procurement", "holder")?.name ?? roleLabel("holder");
+  const holder = p.plan?.requestedBy ?? holderOf("procurement", "holder")?.name ?? roleLabel("holder");
   const level = levelFor(value);
   const method = level === "Micro" ? "Market pricing" : level === "Small" ? "Three written quotations" : "Request for quotation · lowest priced technically acceptable";
   const base: [string, string][] = [
     ["Procurement ID", p.id],
-    ["Project", `${PROJECT.name} · ${PROJECT.award}`],
+    ["Project", p.plan ? p.plan.project : `${PROJECT.name} · ${PROJECT.award}`],
     ["Item", p.title],
   ];
   const number = `${p.id}-${slug(doc)}`;

@@ -152,6 +152,8 @@ export const planActionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("approve"), as: z.enum(["manager", "lead"]) }),
   z.object({ action: z.literal("return"), note: z.string().trim().min(3).max(1000) }),
   z.object({ action: z.literal("reopen") }),
+  /** The technical lead made the procurement request. */
+  z.object({ action: z.literal("start"), procurementKey: z.string().regex(/^[A-Z0-9-]{3,40}$/) }),
   z.object({
     action: z.literal("edit"),
     title: z.string().trim().min(1).max(500).optional(),
@@ -188,6 +190,10 @@ export function applyAction(item: PlanItem, a: PlanAction, u: AppUser, people: A
     case "return":
       if (!isManager(u) && u.id !== item.techLead && !u.admin) return "Only the procurement manager or the technical lead can send it back.";
       return { ...item, status: "returned", approvals: {}, returnNote: `${a.note} (${u.name}, ${today})` };
+    case "start":
+      if (u.id !== item.techLead && !u.admin) return "Only this line's technical lead starts the request.";
+      if (item.status !== "approved") return "It needs both approvals before the request starts.";
+      return { ...item, status: "started", procurementKey: a.procurementKey };
     case "reopen":
       if (!isManager(u) && !u.admin) return "Only the procurement manager can reopen an approved item.";
       return { ...item, status: "draft", approvals: {} };

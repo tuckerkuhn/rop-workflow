@@ -4,9 +4,9 @@ import { useEffect } from "react";
 import { useSession } from "@/components/app/session";
 import { LogoMark } from "@/components/logo";
 import { primaryBtn } from "@/components/workspace/ui";
-import { formatMoney, holderOf } from "@/lib/demo";
+import { formatMoney } from "@/lib/demo";
 import { documentFor } from "@/lib/procurement-docs";
-import { signatureLines, type Procurement } from "@/lib/procurement";
+import { holderFor, signatureLines, type Procurement } from "@/lib/procurement";
 
 /** A generated document, shown as a sheet with its signature lines. */
 export function DocumentViewer({
@@ -84,7 +84,7 @@ export function DocumentViewer({
           {lines.length > 0 && (
             <section className="mt-8 grid gap-6 sm:grid-cols-2">
               {lines.map((l) => {
-                const who = holderOf("procurement", l.role)?.name;
+                const who = holderFor(p, l.role)?.name;
                 const isPending = pendingAs === l.as && !l.signed;
                 return (
                   <div key={l.as}>
