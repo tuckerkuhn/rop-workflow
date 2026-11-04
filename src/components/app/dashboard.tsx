@@ -282,25 +282,38 @@ function DonorHome({ field, project }: { field: FieldItem[]; project: ProjectSta
   );
 }
 
-/** The HR record on Home: what is waiting for this person's signature, or a link to their own record. */
+/** The HR record on Home: changes waiting for this person's signature, their timesheet, and timesheets to approve. */
 function PeopleCard() {
   const { user } = useSession();
+  const { date } = useT();
   const [s, setS] = useState<{ waiting: number; hrRole: boolean; hasRecord: boolean; intact: boolean } | null>(null);
+  const [ts, setTs] = useState<{ hasRecord: boolean; month: string; status: string; waiting: number } | null>(null);
   useEffect(() => {
     if (!user) return;
-    fetch("/api/hr?summary=1", { cache: "no-store", headers: { "x-demo-user": user.id } })
-      .then((r) => (r.ok ? r.json() : null))
-      .then(setS)
-      .catch(() => setS(null));
+    const get = (url: string) => fetch(url, { cache: "no-store", headers: { "x-demo-user": user.id } }).then((r) => (r.ok ? r.json() : null));
+    get("/api/hr?summary=1").then(setS).catch(() => setS(null));
+    get("/api/timesheets?summary=1").then(setTs).catch(() => setTs(null));
   }, [user]);
   if (!s || (!s.hrRole && !s.hasRecord)) return null;
+  const tsText: Record<string, string> = { missing: "not submitted yet", pending: "waiting for approval", approved: "approved", returned: "sent back: open it to see why" };
   return (
-    <Link href="/people" className={`flex flex-wrap items-center gap-x-4 gap-y-1 rounded-2xl border px-5 py-3 text-sm transition hover:border-forest ${!s.intact ? "border-clay bg-clay-soft" : s.waiting ? "border-forest/40 bg-mist/60" : "border-line bg-surface"}`}>
-      <span className="font-semibold">People</span>
-      <span className="text-muted">
-        {!s.intact ? "The HR record shows signs of tampering. Open it now." : s.waiting ? `${s.waiting} HR ${s.waiting === 1 ? "change is" : "changes are"} waiting for your signature` : s.hrRole ? "The HR record" : "Your HR record"}
-      </span>
-    </Link>
+    <div className="grid gap-3 sm:grid-cols-2">
+      <Link href="/people" className={`flex flex-wrap items-center gap-x-4 gap-y-1 rounded-2xl border px-5 py-3 text-sm transition hover:border-forest ${!s.intact ? "border-clay bg-clay-soft" : s.waiting ? "border-forest/40 bg-mist/60" : "border-line bg-surface"}`}>
+        <span className="font-semibold">People</span>
+        <span className="text-muted">
+          {!s.intact ? "The HR record shows signs of tampering. Open it now." : s.waiting ? `${s.waiting} HR ${s.waiting === 1 ? "change is" : "changes are"} waiting for your signature` : s.hrRole ? "The HR record" : "Your HR record"}
+        </span>
+      </Link>
+      {ts && (ts.hasRecord || ts.waiting > 0) && (
+        <Link href="/timesheets" className={`flex flex-wrap items-center gap-x-4 gap-y-1 rounded-2xl border px-5 py-3 text-sm transition hover:border-forest ${ts.waiting || ts.status === "returned" ? "border-forest/40 bg-mist/60" : "border-line bg-surface"}`}>
+          <span className="font-semibold">Timesheet</span>
+          <span className="text-muted">
+            {ts.hasRecord ? `${date(`${ts.month}-01`, { month: "long" })}: ${tsText[ts.status] ?? ts.status}` : ""}
+            {ts.waiting > 0 ? `${ts.hasRecord ? " · " : ""}${ts.waiting} to approve` : ""}
+          </span>
+        </Link>
+      )}
+    </div>
   );
 }
 
