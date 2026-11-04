@@ -3,7 +3,8 @@
 import { useProcurements } from "@/components/app/use-project-data";
 
 import { useMemo } from "react";
-import { useFieldData, usePlan, useSubmissions, useWorkItems } from "@/components/app/use-project-data";
+import { useCloseouts, useFieldData, usePlan, useSubmissions, useWorkItems } from "@/components/app/use-project-data";
+import { blockers, monthsOf } from "@/lib/closeout";
 import { PROJECT_KEY } from "@/components/project/project-page";
 import { workFor } from "@/components/tasks/work";
 import { usePersistentState } from "@/components/workspace/ui";
@@ -24,6 +25,7 @@ export function useTaskRows(user: AppUser, project: ProjectInfo) {
   const { submissions } = useSubmissions(project.id);
   const { items: procs } = useProcurements(project.id);
   const plan = usePlan(project.saved ? project.id : null);
+  const closeouts = useCloseouts(project.saved && user.procurement.includes("finance") ? project.id : null);
   const [local] = usePersistentState<ProjectState>(PROJECT_KEY, seedProject);
 
   const rows = useMemo<Row[]>(() => {
@@ -79,8 +81,23 @@ export function useTaskRows(user: AppUser, project: ProjectInfo) {
         // Opens the request already filled in from the plan, with its supporting information.
         href: `/tasks?source=procurement&new=1&plan=${i.key}`,
       });
+    // Monthly closeout: ended months with vouchers that Finance has not closed.
+    if (user.procurement.includes("finance"))
+      for (const [m, list] of monthsOf(procs))
+        if (m < TODAY.slice(0, 7) && !closeouts.months[m])
+          steps.push({
+            key: `close-${m}`,
+            kind: "task",
+            title: `Close ${m}: ${list.length} expense ${list.length === 1 ? "voucher" : "vouchers"}`,
+            step: blockers(list).length ? `${blockers(list).length} not yet filed or posted` : "All filed and posted",
+            date: TODAY,
+            done: false,
+            late: false,
+            source: "procurement",
+            href: "/tasks/closeout",
+          });
     return [...stored, ...steps].sort((a, b) => (a.date ?? "9999").localeCompare(b.date ?? "9999"));
-  }, [work.items, hasWorkflows, user, field, procs, local, submissions, plan.items, project.workflows]);
+  }, [work.items, hasWorkflows, user, field, procs, local, submissions, plan.items, project.workflows, closeouts.months]);
 
   return { rows, work };
 }

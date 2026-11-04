@@ -103,7 +103,19 @@ export type Procurement = {
   sole?: { supplier: string; reason: string };
   /** AI drafts of generated documents, by document name. A person reads and corrects each one. */
   drafts?: Record<string, Draft>;
+  /** Expense voucher prepared by Finance, filed in SharePoint and posted in NetSuite. */
+  voucher?: Voucher;
 };
+
+export type Voucher = {
+  number: string;
+  /** Month it belongs to for monthly closeout, "2027-03". */
+  month: string;
+  sharepointUrl: string;
+  netsuiteRef: string;
+};
+
+export const isSharePointUrl = (u: string) => /^https:\/\/[a-z0-9-]+\.sharepoint\.com\/\S+$/i.test(u.trim());
 
 export type Route = "direct" | "rfq" | "sole";
 export const ROUTES: { id: Route; title: string; detail: string }[] = [
@@ -592,6 +604,29 @@ export const steps: Step[] = [
     ],
   },
   {
+    id: "package",
+    stage: 6,
+    title: "Assemble the procurement package",
+    owner: "procurement",
+    levels: ALL,
+    action: "Send to Finance",
+    done: "Procurement package sent to Finance",
+    produces: ["Procurement package"],
+    signs: { doc: "Procurement package", as: "Prepared by (procurement)" },
+    note: "One file for Finance: every document, approval and check, with a cover memo.",
+    checks: [
+      {
+        id: "memo",
+        label: "Cover memo drafted and corrected",
+        why: "Summarises what was bought, how, from whom, for how much, and anything outstanding.",
+        tag: "TS",
+        auto: (p) => ({ ok: !!p.drafts?.["Procurement package"]?.edited, detail: !p.drafts?.["Procurement package"] ? "Draft it above" : p.drafts["Procurement package"].edited ? "Corrected" : "Drafted: read and correct it" }),
+      },
+      { id: "aiPackage", label: "AI completeness check reviewed", why: "Missing documents, approvals out of order and figures that do not match. AI flags; procurement decides.", tag: "D1 §4.17; TS", ai: true },
+      { id: "filed", label: "Every document filed under the procurement ID", why: "Finance and auditors find the whole record in one place.", tag: "D1 §4.16" },
+    ],
+  },
+  {
     id: "payReady",
     stage: 6,
     title: "Make it payment-ready",
@@ -630,6 +665,36 @@ export const steps: Step[] = [
       },
       { id: "payee", label: "Bank account verified against the contract and the supplier's own evidence", why: "A changed account is confirmed through a different channel from the one that asked for it.", tag: "D1 §4.13" },
       { id: "pass2", label: "Checklist pass 2 complete (file, receipt, screening, tax)", why: "No payment without a complete file, a certified receipt and screening evidence.", tag: "D1 §4.13, §4.17" },
+      { id: "aiFinance", label: "AI finance review read", why: "Order, received note, invoice, budget line, approvals and screening compared. AI flags; Finance decides.", tag: "TS", ai: true },
+    ],
+  },
+  {
+    id: "voucher",
+    stage: 6,
+    title: "Prepare the expense voucher and file it",
+    owner: "finance",
+    levels: ALL,
+    action: "Record as filed",
+    done: "Expense voucher filed in SharePoint and posted in NetSuite",
+    produces: ["Expense voucher"],
+    signs: { doc: "Expense voucher", as: "Prepared by (finance)" },
+    note: "The voucher is generated from the record. File it in SharePoint, then post it in NetSuite.",
+    checks: [
+      { id: "matches", label: "Payee, amount and budget line match the package", why: "The voucher is the accounting record of this purchase.", tag: "Finance Manual" },
+      {
+        id: "sharepoint",
+        label: "Filed in SharePoint",
+        why: "The voucher and the package are kept together where auditors look.",
+        tag: "CUR",
+        auto: (p) => ({ ok: !!p.voucher && isSharePointUrl(p.voucher.sharepointUrl), detail: p.voucher?.sharepointUrl ? (isSharePointUrl(p.voucher.sharepointUrl) ? "Link recorded" : "That is not a SharePoint link") : "Paste the SharePoint link above" }),
+      },
+      {
+        id: "netsuite",
+        label: "Posted in NetSuite",
+        why: "NetSuite is the ledger; the reference ties this record to it.",
+        tag: "CUR",
+        auto: (p) => ({ ok: !!p.voucher?.netsuiteRef.trim(), detail: p.voucher?.netsuiteRef.trim() ? `NetSuite ${p.voucher.netsuiteRef.trim()}` : "Add the NetSuite reference above" }),
+      },
     ],
   },
   {
