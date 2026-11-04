@@ -2,7 +2,7 @@ import { and, asc, eq, inArray, isNotNull, notInArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { TODAY, projects as demoProjects, type AppUser } from "@/lib/demo";
 import { actualFor, indicators as demoIndicators, results as demoResults, type Indicator, type Submission } from "@/lib/project";
-import { BUILT_IN_SOURCES, periodOf, reportPeriod, type DonorInfo, type DonorInput, type IndicatorProgress, type Level, type ProgressData, type ReportValues } from "@/lib/progress";
+import { BUILT_IN_SOURCES, forecastFor, periodOf, projectYears, reportPeriod, trackFor, type DonorInfo, type ForecastYear, type DonorInput, type IndicatorProgress, type Level, type ProgressData, type ReportValues } from "@/lib/progress";
 import { FORMATS } from "@/lib/report-formats";
 import { listSubmissions } from "@/server/kobo";
 import { mappedInputs, mappedValue } from "@/server/kobo-link";
@@ -43,24 +43,50 @@ const base = (r: IndicatorRow) => ({
   theme: r.theme,
 });
 
+type Dates = { start: string | null; end: string | null };
+
+/**
+ * Forecast against actual for each project year, and where the indicator stands today.
+ * `asOf(date)` is the indicator's value from everything dated up to that day.
+ */
+function forecastOf(r: IndicatorRow, dates: Dates, total: number | null, asOf: (date: string) => number | null): { forecast: ForecastYear[]; track: IndicatorProgress["track"] } {
+  const years = projectYears(dates.start, dates.end);
+  const plan = forecastFor(r.forecast, Number(r.target), years);
+  const now = Number(TODAY.slice(0, 4));
+  const forecast = years.map((year) => ({ year, forecast: plan.get(year) ?? null, actual: year < now ? asOf(`${year}-12-31`) : year === now ? total : null }));
+  const track = dates.start ? trackFor({ forecast: plan, actual: total, today: TODAY, start: dates.start, once: r.frequency === "end_of_season" }) : null;
+  return { forecast, track };
+}
+
 /** Counted from a mapped KoboToolbox question. */
-function fromMapping(r: IndicatorRow, m: Mapped): IndicatorProgress {
+function fromMapping(r: IndicatorRow, m: Mapped, dates: Dates): IndicatorProgress {
   const all = mappedValue(m.mapping, m.counted);
   const p = periodOf(r.frequency, TODAY);
   const inPeriod = p ? mappedValue(m.mapping, m.counted.filter((x) => x.date >= p.from && x.date <= p.to)) : null;
-  return { ...base(r), total: all.value, period: inPeriod?.value ?? null, pending: m.waiting, byGender: null, lastDate: all.dates.sort().at(-1) ?? null, dataSource: "kobo" };
+  const asOf = (d: string) => mappedValue(m.mapping, m.counted.filter((x) => x.date <= d)).value;
+  return { ...base(r), total: all.value, period: inPeriod?.value ?? null, pending: m.waiting, byGender: null, lastDate: all.dates.sort().at(-1) ?? null, dataSource: "kobo", ...forecastOf(r, dates, all.value, asOf) };
 }
 
-function withValues(r: IndicatorRow, subs: Submission[], mapped?: Mapped): IndicatorProgress {
-  if (mapped) return fromMapping(r, mapped);
+function withValues(r: IndicatorRow, subs: Submission[], span: Dates, mapped?: Mapped): IndicatorProgress {
+  if (mapped) return fromMapping(r, mapped, span);
   // Added in setup and not mapped to a question yet: nothing to count.
-  if (!BUILT_IN_SOURCES.includes(r.source)) return { ...base(r), total: null, period: null, pending: 0, byGender: null, lastDate: null, dataSource: "none" };
+  if (!BUILT_IN_SOURCES.includes(r.source)) return { ...base(r), total: null, period: null, pending: 0, byGender: null, lastDate: null, dataSource: "none", ...forecastOf(r, span, null, () => null) };
   const ind = asIndicator(r);
   const all = actualFor(ind, subs);
   const p = periodOf(r.frequency, TODAY);
   const inPeriod = p ? actualFor(ind, subs.filter((x) => x.date >= p.from && x.date <= p.to)).value : null;
   const dates = all.evidence.map((e) => e.date).sort();
-  return { ...base(r), total: all.value, period: inPeriod, pending: all.pending, byGender: r.source === "survey" ? null : all.byGender, lastDate: dates.at(-1) ?? null, dataSource: r.source === "survey" ? "survey" : "records" };
+  const asOf = (d: string) => actualFor(ind, subs.filter((x) => x.date <= d)).value;
+  return {
+    ...base(r),
+    total: all.value,
+    period: inPeriod,
+    pending: all.pending,
+    byGender: r.source === "survey" ? null : all.byGender,
+    lastDate: dates.at(-1) ?? null,
+    dataSource: r.source === "survey" ? "survey" : "records",
+    ...forecastOf(r, span, all.value, asOf),
+  };
 }
 
 async function donorsOf(projectId: string): Promise<DonorInfo[]> {
@@ -111,7 +137,7 @@ export async function loadProgress(code: string, user: AppUser): Promise<Progres
     saved: true,
     project: { code, name: project.name, startDate: project.startDate, endDate: project.endDate },
     today: TODAY,
-    indicators: rows.map((r) => withValues(r, subs, mapped.get(r.code))),
+    indicators: rows.map((r) => withValues(r, subs, { start: project.startDate, end: project.endDate }, mapped.get(r.code))),
     donors,
     reports,
   };
@@ -173,6 +199,18 @@ export async function deleteDonor(code: string, id: string) {
 
 const levelOf = (resultId: string): Level => (resultId === "G" ? "goal" : resultId.includes(".") ? "output" : "outcome");
 
+/**
+ * The demo project's plan to the end of 2028: end targets and the total expected by 31 December
+ * of each earlier year. The 2028 figure is the target itself.
+ */
+export const DEMO_PLAN: Record<string, { target: number; forecast: Record<string, number> }> = {
+  "IND-1": { target: 250, forecast: { "2026": 20, "2027": 100 } },
+  "IND-2": { target: 250, forecast: { "2026": 0, "2027": 100 } },
+  "IND-3": { target: 200, forecast: { "2026": 0, "2027": 80 } },
+  "IND-4": { target: 500, forecast: { "2026": 0, "2027": 200 } },
+  "IND-5": { target: 25, forecast: { "2027": 10 } },
+};
+
 /** The demo project's indicators, from the plan the app showed before they moved here. */
 export async function seedIndicators(projectId: string) {
   await db
@@ -183,7 +221,8 @@ export async function seedIndicators(projectId: string) {
         code: i.id,
         name: i.name,
         unit: i.unit,
-        target: String(i.target),
+        target: String(DEMO_PLAN[i.id]?.target ?? i.target),
+        forecast: DEMO_PLAN[i.id]?.forecast ?? {},
         level: levelOf(i.result),
         result: demoResults.find((r) => r.id === i.result)?.statement ?? null,
         source: i.source,

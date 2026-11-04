@@ -46,6 +46,7 @@ export function ReportView({ doc }: { doc: ReportDoc }) {
               </tbody>
             </table>
           </div>
+          {tbl.note && <p className="mt-2 text-xs text-muted">{tbl.note}</p>}
         </section>
       ))}
       {doc.narrative.map((h) => (

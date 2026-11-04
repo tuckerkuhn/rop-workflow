@@ -24,7 +24,7 @@ export async function projectDesign(code: string) {
   const inds = await db.select().from(s.indicators).where(eq(s.indicators.projectId, p.id)).orderBy(asc(s.indicators.position));
   return {
     ...summary(p),
-    indicators: inds.map((i) => ({ code: i.code, name: i.name, unit: i.unit, target: Number(i.target), level: i.level, frequency: i.frequency })),
+    indicators: inds.map((i) => ({ code: i.code, name: i.name, unit: i.unit, target: Number(i.target), level: i.level, frequency: i.frequency, forecast: i.forecast })),
   };
 }
 
@@ -50,7 +50,7 @@ async function syncIndicators(tx: Parameters<Parameters<typeof db.transaction>[0
   await tx.delete(s.indicators).where(keep.length ? and(mine, notInArray(s.indicators.code, keep)) : mine);
   let next = Math.max(0, ...existing.map((e) => Number(e.code.replace(/^IND-/, "")) || 0)) + 1;
   for (const [position, i] of list.entries()) {
-    const fields = { name: i.name, unit: i.unit, target: String(i.target), level: i.level, frequency: i.frequency, position, updatedAt: new Date() };
+    const fields = { name: i.name, unit: i.unit, target: String(i.target), forecast: i.forecast ?? {}, level: i.level, frequency: i.frequency, position, updatedAt: new Date() };
     if (i.code && keep.includes(i.code)) await tx.update(s.indicators).set(fields).where(and(mine, eq(s.indicators.code, i.code)));
     // New indicators count from a KoboToolbox question once one is mapped.
     else await tx.insert(s.indicators).values({ ...fields, projectId, code: `IND-${next++}`, source: "kobo" });

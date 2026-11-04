@@ -1,4 +1,4 @@
-import type { DonorInfo, IndicatorProgress, Period } from "@/lib/progress";
+import type { DonorInfo, IndicatorProgress, Period, TrackStatus } from "@/lib/progress";
 import { isImpact } from "@/lib/progress";
 import type { MessageKey } from "@/lib/i18n";
 import type { MilestoneKind } from "@/lib/work-items";
@@ -57,6 +57,22 @@ const baseline: ReportFormat = {
       pct(i.total, i.target),
       i.byGender && i.unit === "farmers" && i.total !== null ? `${i.byGender.Female} / ${i.byGender.Male}` : "—",
     ];
+    // Forecast against actual: one row per indicator and year; this year's row says whether it is on track.
+    const now = Number(preparedOn.slice(0, 4));
+    const STATUS: Record<TrackStatus, MessageKey> = { on_track: "track.on_track", slightly_behind: "track.slightly_behind", behind: "track.behind", not_measured: "track.not_measured" };
+    const forecastRows = tracked.flatMap((i) =>
+      i.forecast
+        .filter((y) => y.forecast !== null)
+        .map((y) => {
+          const status =
+            y.year < now
+              ? y.actual !== null && y.actual >= y.forecast! ? t("report.met") : t("report.notMet")
+              : y.year === now && i.track
+                ? i.track.status === "not_measured" ? t(STATUS.not_measured) : t("report.expectedNow", { status: t(STATUS[i.track.status]), expected: i.track.expected })
+                : "—";
+          return [code(i), i.name, i.unit, y.year, y.forecast!, y.actual ?? "—", y.year <= now ? pct(y.actual, y.forecast!) : "—", status];
+        }),
+    );
     const impact = tracked.filter(isImpact);
     const outputs = tracked.filter((i) => !isImpact(i));
     const withData = tracked.filter((i) => periodValues[i.code]).length;
@@ -76,6 +92,16 @@ const baseline: ReportFormat = {
       tables: [
         ...(impact.length ? [{ heading: t("report.impact"), columns, rows: impact.map(row) }] : []),
         ...(outputs.length ? [{ heading: t("report.outputs"), columns, rows: outputs.map(row) }] : []),
+        ...(forecastRows.length
+          ? [
+              {
+                heading: t("report.forecast"),
+                columns: [t("report.col.code"), t("report.col.indicator"), t("report.col.unit"), t("report.col.year"), t("report.col.forecast"), t("report.col.actual"), t("report.col.pctForecast"), t("report.col.status")],
+                rows: forecastRows,
+                note: t("report.forecastNote"),
+              },
+            ]
+          : []),
         ...(milestones.length
           ? [{ heading: t("report.milestones"), columns: [t("report.col.date"), t("report.col.milestone"), t("report.col.kind")], rows: milestones.map((m) => [when(m), m.title, t(`milestone.kind.${m.kind}`)]) }]
           : []),
@@ -98,7 +124,7 @@ const csvCell = (v: string | number) => {
 /** One sheet: the details, then each table under its heading. */
 export function reportCsv(doc: ReportDoc) {
   const lines: (string | number)[][] = [[doc.title, doc.subtitle], ...doc.meta, [], [doc.summary]];
-  for (const tbl of doc.tables) lines.push([], [tbl.heading], tbl.columns, ...tbl.rows);
+  for (const tbl of doc.tables) lines.push([], [tbl.heading], tbl.columns, ...tbl.rows, ...(tbl.note ? [[tbl.note]] : []));
   return lines.map((l) => l.map(csvCell).join(",")).join("\n") + "\n";
 }
 
@@ -110,7 +136,7 @@ export function reportHtml(doc: ReportDoc, lang: string, dir: string) {
     .map(
       (tbl) => `<h2>${esc(tbl.heading)}</h2><table><thead><tr>${tbl.columns.map((c) => `<th>${esc(c)}</th>`).join("")}</tr></thead><tbody>${tbl.rows
         .map((r) => `<tr>${r.map((c) => `<td>${esc(c)}</td>`).join("")}</tr>`)
-        .join("")}</tbody></table>`,
+        .join("")}</tbody></table>${tbl.note ? `<p class="note">${esc(tbl.note)}</p>` : ""}`,
     )
     .join("");
   return `<!doctype html><html lang="${lang}" dir="${dir}"><head><meta charset="utf-8"><title>${esc(doc.title)} · ${esc(doc.subtitle)}</title>
@@ -118,7 +144,7 @@ export function reportHtml(doc: ReportDoc, lang: string, dir: string) {
 h1{font-size:26px;margin:0}h2{font-size:17px;margin:28px 0 8px;border-bottom:1px solid #ccc;padding-bottom:4px}
 dl{display:grid;grid-template-columns:max-content 1fr;gap:4px 16px;margin:16px 0}dt{color:#5a6a60}dd{margin:0}
 table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid #ddd;padding:6px 8px;text-align:start;vertical-align:top}th{background:#f3f0e8}
-.write{min-height:90px;border:1px dashed #bbb;border-radius:6px}@media print{body{margin:0}}</style></head>
+.note{font-size:12px;color:#5a6a60}.write{min-height:90px;border:1px dashed #bbb;border-radius:6px}@media print{body{margin:0}}</style></head>
 <body><h1>${esc(doc.title)}</h1><p>${esc(doc.subtitle)}</p><dl>${doc.meta.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>
 <p>${esc(doc.summary)}</p>${tables}${doc.narrative.map((h) => `<h2>${esc(h)}</h2><div class="write"></div>`).join("")}</body></html>`;
 }

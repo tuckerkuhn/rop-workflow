@@ -33,7 +33,7 @@ export async function seedDatabase() {
   const [org] = await db.insert(s.organizations).values({ name: "Roots of Peace (demo)" }).returning();
   const [project] = await db
     .insert(s.projects)
-    .values({ organizationId: org.id, code: PROJECT.id, name: PROJECT.name, country: "AF", donor: PROJECT.award, startDate: "2026-10-01", endDate: "2027-11-30" })
+    .values({ organizationId: org.id, code: PROJECT.id, name: PROJECT.name, country: "AF", donor: PROJECT.award, startDate: "2026-10-01", endDate: "2028-12-31" })
     .returning();
   const [season] = await db.insert(s.seasons).values({ projectId: project.id, name: SEASON.name, startDate: "2027-01-01", endDate: "2027-10-31" }).returning();
   const [crop] = await db.insert(s.crops).values({ name: SEASON.crop }).returning();

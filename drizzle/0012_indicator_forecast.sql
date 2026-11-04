@@ -1,0 +1,1 @@
+ALTER TABLE "indicators" ADD COLUMN "forecast" jsonb DEFAULT '{}'::jsonb NOT NULL;
