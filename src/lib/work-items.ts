@@ -25,6 +25,8 @@ export type WorkItem = {
   automatic: boolean;
   /** Report deadlines: the donor they are for. */
   donorId: string | null;
+  /** What the person doing it needs to know: context, links, where the files are. */
+  notes: string | null;
 };
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -38,8 +40,10 @@ export const newWorkItemSchema = z.discriminatedUnion("type", [
 ]);
 export type NewWorkItem = z.infer<typeof newWorkItemSchema>;
 
-/** Changes a person may make later. Only tasks can be ticked off. */
-export const workItemPatchSchema = z.object({ done: z.boolean() });
+/** Changes a person may make later: tick a task off, or change the notes on any item. */
+export const workItemPatchSchema = z
+  .object({ done: z.boolean().optional(), notes: z.string().max(4000).nullable().optional() })
+  .refine((p) => p.done !== undefined || p.notes !== undefined, { message: "Nothing to change." });
 
 /**
  * One row in Tasks, whatever its source. Tasks from a workflow open that workflow instead of
@@ -61,8 +65,26 @@ export type Row =
       href?: string;
       assignee?: string | null;
       id?: string;
+      /** Tasks added in Tasks: who asked, who finished it, and notes. */
+      createdBy?: string | null;
+      doneBy?: string | null;
+      doneAt?: string | null;
+      notes?: string | null;
     }
-  | { key: string; kind: "milestone"; title: string; date: string; end: string | null; milestoneKind: MilestoneKind; id: string; automatic: boolean; donorId: string | null; donorName?: string };
+  | {
+      key: string;
+      kind: "milestone";
+      title: string;
+      date: string;
+      end: string | null;
+      milestoneKind: MilestoneKind;
+      id: string;
+      automatic: boolean;
+      donorId: string | null;
+      donorName?: string;
+      createdBy?: string | null;
+      notes?: string | null;
+    };
 
 export const rowEnd = (r: Row) => (r.kind === "milestone" ? (r.end ?? r.date) : r.date);
 

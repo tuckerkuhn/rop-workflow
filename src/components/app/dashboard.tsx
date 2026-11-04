@@ -1,6 +1,6 @@
 "use client";
 
-import { useProcurements } from "@/components/app/use-project-data";
+import { useCloseouts, usePlan, useProcurements } from "@/components/app/use-project-data";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -286,9 +286,11 @@ export function Dashboard() {
   const { user, money } = useRequireUser();
   const { project: current } = useCurrentProject();
   const { t, date } = useT();
-  const { items: field } = useFieldData();
-  const { submissions } = useSubmissions();
-  const { items: procs } = useProcurements();
+  const { items: field } = useFieldData(current.id);
+  const { submissions } = useSubmissions(current.id);
+  const { items: procs } = useProcurements(current.id);
+  const plan = usePlan(current.saved ? current.id : null);
+  const closeouts = useCloseouts(current.saved && user?.procurement.includes("finance") ? current.id : null);
   const [local] = usePersistentState<ProjectState>(PROJECT_KEY, seedProject);
   // Review-queue records live in the database; the rest of the project state is still in this browser.
   const project: ProjectState = { ...local, submissions };
@@ -307,7 +309,9 @@ export function Dashboard() {
   };
 
   if (!user) return null;
-  const data: Data = { field, procs, project, stages: { "AG-2027": grapes.stage } };
+  // Field work and the sample sign-offs belong to the demo project; the calendar to projects with a budget.
+  const demo = current.workflows.includes("field");
+  const data: Data = { field: demo ? field : [], procs, project, stages: { "AG-2027": grapes.stage }, plan: plan.items, closeouts: closeouts.months, sampleSignOffs: demo };
   // Managers may view anyone in their reporting line, not just direct reports, when they drill down.
   const inLine = (id: string): boolean => {
     let m = userById(id);

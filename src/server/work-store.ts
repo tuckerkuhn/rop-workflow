@@ -20,6 +20,7 @@ const toWorkItem = (r: Row): WorkItem => ({
   createdBy: r.createdBy,
   automatic: !!r.sourceKey && !r.sourceKey.startsWith("demo:"),
   donorId: r.donorId,
+  notes: r.notes,
 });
 
 /** Demo projects that live only in the browser have no row; they get an empty list. */
@@ -61,6 +62,17 @@ export async function setTaskDone(code: string, id: string, done: boolean, by: s
     .update(s.workItems)
     .set({ doneAt: done ? new Date() : null, doneBy: done ? by : null, updatedAt: new Date() })
     .where(and(eq(s.workItems.id, id), eq(s.workItems.projectId, project.id), eq(s.workItems.type, "task")))
+    .returning();
+  return row ? toWorkItem(row) : null;
+}
+
+/** Changes the notes on a task or milestone. Returns null when there is no such item on the project. */
+export async function setNotes(code: string, id: string, notes: string | null) {
+  const project = await projectByCode(code);
+  const [row] = await db
+    .update(s.workItems)
+    .set({ notes: notes?.trim() || null, updatedAt: new Date() })
+    .where(and(eq(s.workItems.id, id), eq(s.workItems.projectId, project.id)))
     .returning();
   return row ? toWorkItem(row) : null;
 }

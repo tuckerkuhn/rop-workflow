@@ -553,6 +553,8 @@ export const workItems = pgTable(
     donorId: uuid("donor_id").references(() => donors.id, { onDelete: "cascade" }),
     /** Set on items the app makes itself (demo data, donor deadlines) so they update instead of duplicating. */
     sourceKey: text("source_key"),
+    /** What the person doing it needs to know: context, links, where the files are. */
+    notes: text("notes"),
     ...timestamps,
   },
   (t) => [
