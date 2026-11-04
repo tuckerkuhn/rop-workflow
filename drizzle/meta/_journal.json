@@ -120,6 +120,13 @@
       "when": 1793824803316,
       "tag": "0016_work_item_notes",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793834196853,
+      "tag": "0017_hr_ledger",
+      "breakpoints": true
     }
   ]
 }

@@ -282,6 +282,28 @@ function DonorHome({ field, project }: { field: FieldItem[]; project: ProjectSta
   );
 }
 
+/** The HR record on Home: what is waiting for this person's signature, or a link to their own record. */
+function PeopleCard() {
+  const { user } = useSession();
+  const [s, setS] = useState<{ waiting: number; hrRole: boolean; hasRecord: boolean; intact: boolean } | null>(null);
+  useEffect(() => {
+    if (!user) return;
+    fetch("/api/hr?summary=1", { cache: "no-store", headers: { "x-demo-user": user.id } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then(setS)
+      .catch(() => setS(null));
+  }, [user]);
+  if (!s || (!s.hrRole && !s.hasRecord)) return null;
+  return (
+    <Link href="/people" className={`flex flex-wrap items-center gap-x-4 gap-y-1 rounded-2xl border px-5 py-3 text-sm transition hover:border-forest ${!s.intact ? "border-clay bg-clay-soft" : s.waiting ? "border-forest/40 bg-mist/60" : "border-line bg-surface"}`}>
+      <span className="font-semibold">People</span>
+      <span className="text-muted">
+        {!s.intact ? "The HR record shows signs of tampering. Open it now." : s.waiting ? `${s.waiting} HR ${s.waiting === 1 ? "change is" : "changes are"} waiting for your signature` : s.hrRole ? "The HR record" : "Your HR record"}
+      </span>
+    </Link>
+  );
+}
+
 export function Dashboard() {
   const { user, money } = useRequireUser();
   const { project: current } = useCurrentProject();
@@ -355,6 +377,7 @@ export function Dashboard() {
             </p>
           )}
         </header>
+        {!readOnly && user.kind === "employee" && <PeopleCard />}
         {user.kind === "donor" ? (
           <DonorHome field={field} project={project} />
         ) : readOnly ? (

@@ -66,6 +66,12 @@ export const users: AppUser[] = [
   { id: "laila", name: "Laila Haidari", title: "Agribusiness Technical Specialist", kind: "employee", org: ROP, reportsTo: "karim", field: [], procurement: ["holder"], project: [], fieldAccess: "none", procurementAccess: "edit", pii: false, lang: "fa", leads: ["1.2"] },
   { id: "javed", name: "Javed Mansoor", title: "Sr. Civil Engineer", kind: "employee", org: ROP, reportsTo: "karim", field: [], procurement: ["holder"], project: [], fieldAccess: "none", procurementAccess: "edit", pii: false, lang: "ps", leads: ["2.", "3."] },
   { id: "shabnam", name: "Shabnam Qaderi", title: "Logistics Officer", kind: "employee", org: ROP, reportsTo: "karim", field: [], procurement: ["holder"], project: [], fieldAccess: "none", procurementAccess: "edit", pii: false, lang: "fa", leads: ["operations"] },
+  // HR record placeholders (fictional). Their HR roles are set in the HR ledger, not here.
+  { id: "grace", name: "Grace Moreno", title: "Chief Executive Officer", kind: "employee", org: ROP, field: [], procurement: [], project: [], fieldAccess: "none", procurementAccess: "none", pii: false, lang: "en" },
+  { id: "peter", name: "Peter Hale", title: "Chief Financial Officer", kind: "employee", org: ROP, reportsTo: "grace", field: [], procurement: [], project: [], fieldAccess: "none", procurementAccess: "view", pii: false, lang: "en" },
+  { id: "sima", name: "Sima Rezai", title: "HR Manager", kind: "employee", org: ROP, reportsTo: "peter", field: [], procurement: [], project: [], fieldAccess: "none", procurementAccess: "none", pii: false, lang: "en" },
+  { id: "mina", name: "Mina Sharifi", title: "HR Officer", kind: "employee", org: ROP, reportsTo: "sima", field: [], procurement: [], project: [], fieldAccess: "none", procurementAccess: "none", pii: false, lang: "fa" },
+  { id: "arthur", name: "Arthur Lindqvist", title: "Board Treasurer", kind: "employee", org: ROP, field: [], procurement: [], project: [], fieldAccess: "none", procurementAccess: "none", pii: false, lang: "en" },
   { id: "elena", name: "Elena Marsh", title: "Program officer", kind: "donor", org: "Demo Foundation (fictional)", field: [], procurement: [], project: [], fieldAccess: "view", procurementAccess: "none", pii: false, lang: "en" },
 ];
 
