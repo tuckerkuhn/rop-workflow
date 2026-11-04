@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { useProcurements } from "@/components/app/use-project-data";
 import { DocumentViewer } from "@/components/procurement/document";
@@ -578,7 +580,8 @@ function Detail({
 export function ProcurementWorkspace() {
   const { user } = useRequireUser();
   const myRoles = (user?.procurement ?? []) as Role[];
-  const { items, setItems, error, reset } = useProcurements();
+  const { project } = useCurrentProject();
+  const { items, setItems, error, reset } = useProcurements(project.id);
   const [pickedRole, setPickedRole] = useState<Role | null>(null);
   const role = pickedRole && myRoles.includes(pickedRole) ? pickedRole : (myRoles[0] ?? null);
   const [selected, setSelected] = useState<string | null>(null);
@@ -644,6 +647,12 @@ export function ProcurementWorkspace() {
       mobileDetail={mobileDetail}
       queue={
         <>
+          {project.saved && (
+            <Link href="/tasks/plan" className="mx-4 mt-3 flex items-center justify-between rounded-xl bg-mist px-3 py-2 text-sm font-semibold text-forest hover:bg-sunken sm:mx-6">
+              Procurement calendar
+              <span aria-hidden>→</span>
+            </Link>
+          )}
           <QueueHeader
             title={readOnly || showAll ? "All procurements" : mineList.length ? `${mineList.length} waiting on you` : "Nothing waiting on you"}
             toggleLabel={readOnly ? "" : showAll ? "Mine" : "Show all"}

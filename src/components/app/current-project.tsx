@@ -61,7 +61,8 @@ export function CurrentProjectProvider({ children }: { children: React.ReactNode
           status: "Active",
           stage: "Design",
           note: p.goal ?? "",
-          workflows: [],
+          // Procurement runs from the budget and calendar saved in setup.
+          workflows: ["procurement"],
           crop: p.crop ?? undefined,
           saved: true,
         }),

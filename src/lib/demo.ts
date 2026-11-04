@@ -41,6 +41,11 @@ export type AppUser = {
   feedback?: { score: number; n: number };
   /** May use "View as" to see the app as another person sees it (read-only). */
   admin?: boolean;
+  /**
+   * Technical lead for these workplan activity numbers (prefixes such as "1.1"), or "operations"
+   * for office running costs. Their budget lines come to them on the procurement calendar.
+   */
+  leads?: string[];
 };
 
 const ROP = "Roots of Peace";
@@ -55,6 +60,12 @@ export const users: AppUser[] = [
   { id: "farida", name: "Farida Noori", title: "Extension agent", kind: "employee", org: ROP, reportsTo: "nadia", field: ["extension"], procurement: [], project: [], fieldAccess: "edit", procurementAccess: "none", pii: true, lang: "fa", feedback: { score: 4.7, n: 38 } },
   { id: "omar", name: "Omar Sadiq", title: "MEL officer", kind: "employee", org: ROP, reportsTo: "nadia", field: ["mel"], procurement: [], project: ["mel-owner"], fieldAccess: "edit", procurementAccess: "none", pii: true, lang: "ps", feedback: { score: 4.4, n: 26 } },
   { id: "bilal", name: "Bilal Haidari", title: "Storekeeper", kind: "employee", org: ROP, reportsTo: "nadia", field: ["store"], procurement: ["committee"], project: [], fieldAccess: "edit", procurementAccess: "edit", pii: true, lang: "fa", feedback: { score: 4.2, n: 31 } },
+  // ACRP placeholders (fictional names, real titles from the ACRP budget). No sign-in.
+  { id: "hamid", name: "Hamid Wardak", title: "Procurement manager", kind: "employee", org: ROP, reportsTo: "karim", field: [], procurement: ["procurement"], project: [], fieldAccess: "none", procurementAccess: "edit", pii: false, lang: "fa" },
+  { id: "farid", name: "Farid Sultani", title: "Horticulture Specialist", kind: "employee", org: ROP, reportsTo: "karim", field: [], procurement: ["holder"], project: [], fieldAccess: "none", procurementAccess: "edit", pii: false, lang: "fa", leads: ["1.1"] },
+  { id: "laila", name: "Laila Haidari", title: "Agribusiness Technical Specialist", kind: "employee", org: ROP, reportsTo: "karim", field: [], procurement: ["holder"], project: [], fieldAccess: "none", procurementAccess: "edit", pii: false, lang: "fa", leads: ["1.2"] },
+  { id: "javed", name: "Javed Mansoor", title: "Sr. Civil Engineer", kind: "employee", org: ROP, reportsTo: "karim", field: [], procurement: ["holder"], project: [], fieldAccess: "none", procurementAccess: "edit", pii: false, lang: "ps", leads: ["2.", "3."] },
+  { id: "shabnam", name: "Shabnam Qaderi", title: "Logistics Officer", kind: "employee", org: ROP, reportsTo: "karim", field: [], procurement: ["holder"], project: [], fieldAccess: "none", procurementAccess: "edit", pii: false, lang: "fa", leads: ["operations"] },
   { id: "elena", name: "Elena Marsh", title: "Program officer", kind: "donor", org: "Demo Foundation (fictional)", field: [], procurement: [], project: [], fieldAccess: "view", procurementAccess: "none", pii: false, lang: "en" },
 ];
 

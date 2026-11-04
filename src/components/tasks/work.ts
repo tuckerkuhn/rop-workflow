@@ -18,7 +18,7 @@ const lastDate = (t: { date: string }[]) => (t.length ? t[t.length - 1].date : T
 const isLate = (step: string, since: string) => daysFrom(since, TODAY) > (stepHistory[step]?.median ?? 3);
 
 /** Everything on one person's plate: workflow steps they hold, project sign-offs, and what is projected to reach them. */
-export function workFor(u: AppUser, { field, procs, project }: Data, viewer: AppUser): WorkCard[] {
+export function workFor(u: AppUser, { field, procs, project }: Data, viewer: AppUser, opts: { projectCards?: boolean } = {}): WorkCard[] {
   const cards: WorkCard[] = [];
   for (const r of u.field) {
     field
@@ -69,6 +69,7 @@ export function workFor(u: AppUser, { field, procs, project }: Data, viewer: App
       cards.push({ key: `pc-${c.id}-${c.step}`, title: c.title, step: c.step, date: c.eta, href: `/tasks?source=procurement&open=${c.id}`, space: "Procurement", now: false, late: false, note: `Now ${c.via}` }),
     );
   }
+  if (opts.projectCards === false) return cards.sort((a, b) => a.date.localeCompare(b.date));
   // Project sign-offs from the build spec.
   const pending = project.submissions.filter((s) => s.status === "pending").length;
   const unapproved = indicators.filter((i) => {
