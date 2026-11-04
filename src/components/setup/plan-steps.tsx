@@ -309,7 +309,7 @@ export function BudgetStep({ code, onDone }: { code: string; onDone: () => void 
                       <textarea value={l.description} rows={2} onChange={(e) => setLine(i, { description: e.target.value })} className={`${cellInput} min-w-[16rem] resize-y`} aria-label={t("budget.col.description")} />
                     </td>
                     <td className="px-1 py-1">
-                      <select value={l.kind} onChange={(e) => setLine(i, { kind: e.target.value as BudgetKind })} className={cellInput} aria-label={t("budget.kind")}>
+                      <select value={l.kind} onChange={(e) => setLine(i, { kind: e.target.value as BudgetKind })} className="w-32 rounded-lg border border-line bg-surface px-2 py-1 text-sm" aria-label={t("budget.kind")}>
                         {BUDGET_KINDS.map((k) => (
                           <option key={k} value={k}>
                             {t(`budget.filter.${k}`)}
