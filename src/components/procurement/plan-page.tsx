@@ -211,7 +211,7 @@ export function ProcurementPlanPage() {
                 </section>
               ))}
             </div>
-            <div className="lg:sticky lg:top-4 lg:self-start">
+            <div className="lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:self-start lg:overflow-y-auto lg:rounded-2xl">
               {current ? (
                 <Detail
                   key={current.key}
