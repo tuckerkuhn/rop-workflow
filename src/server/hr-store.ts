@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
+import { prefill, type Sheet } from "@/lib/timesheet";
 import { DEFAULT_STEPS, fold, type Entry, type Fields, type Integrity, type ProposalInput, type Rules } from "@/lib/hr";
 
 /**
@@ -161,4 +162,30 @@ export async function seedSample(write: typeof append = append) {
   // Sent back by the CEO.
   const title = await propose("sima", { type: "update", subject: "hamid", effective: today, fields: { title: "Head of Procurement" }, reason: "Recognise wider responsibilities." });
   await write("grace", "reject", "hamid", { proposal: title, note: "Not in the approved staffing plan. Bring it to the next budget revision." });
+
+  // Last month's timesheets.
+  const [y, m] = today.split("-").map(Number);
+  const last = m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`;
+  const sheet = (office: string, shares: Record<string, number>, edit?: (s: Sheet) => void) => {
+    const s0 = prefill(last, office, shares);
+    edit?.(s0);
+    return s0;
+  };
+  const workdays = (s0: Sheet) => Object.keys(s0.days).filter((d) => s0.days[d].hours);
+  const nadia = await write("nadia", "timesheet", "nadia", sheet("Afghanistan", { "ACRP-2026": 3, "A-2027": 1 }, (s0) => {
+    for (const d of workdays(s0).slice(8, 10)) s0.days[d] = { leave: { type: "vacation", hours: 8 } };
+  }));
+  await write("karim", "ts-approve", "nadia", { timesheet: nadia });
+  const sima = await write("sima", "timesheet", "sima", sheet("Home Office", { "non-contract": 7, "ACRP-2026": 3 }));
+  await write("peter", "ts-approve", "sima", { timesheet: sima });
+  await write("farid", "timesheet", "farid", sheet("Afghanistan", { "ACRP-2026": 1 }, (s0) => {
+    for (const d of workdays(s0).slice(3, 8)) s0.days[d] = { ...s0.days[d], allowances: ["dangerPay"], note: "Field work, Kandahar" };
+  }));
+  // Bilal has no phone: HR enters his timesheet from the paper form.
+  await write("mina", "timesheet", "bilal", sheet("Afghanistan", { "A-2027": 1 }, (s0) => {
+    const d = workdays(s0)[12];
+    if (d) s0.days[d] = { leave: { type: "sick", hours: 8 } };
+  }));
+  const javed = await write("javed", "timesheet", "javed", sheet("Afghanistan", { "ACRP-2026": 1 }));
+  await write("karim", "ts-return", "javed", { timesheet: javed, note: "The two days in Herat need the field-trip note and danger pay marked." });
 }

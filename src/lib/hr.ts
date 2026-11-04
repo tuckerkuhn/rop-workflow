@@ -388,6 +388,11 @@ export function fold(entries: Entry[], today: string): HrState {
         else state.seals.push({ n: e.n, at: e.at, ...d.data });
         break;
       }
+      case "timesheet":
+      case "ts-approve":
+      case "ts-return":
+        // Read by foldTimesheets (lib/timesheet.ts).
+        break;
       default:
         ignore(e, "unknown kind of entry");
     }
