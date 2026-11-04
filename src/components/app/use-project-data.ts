@@ -134,13 +134,24 @@ export function useProcurements(code = "A-2027") {
     [code, user?.id],
   );
 
+  /** Drafts a document with AI on the server; the saved record comes back with the draft on it. */
+  const draft = useCallback(
+    async (id: string, kind: "rfq" | "solicitation" | "sole") => {
+      const r = await call<{ item: Procurement }>(`/api/projects/${code}/procurements/${id}/draft`, user?.id, { method: "POST", body: JSON.stringify({ kind }) });
+      current.current = current.current.map((p) => (p.id === id ? r.item : p));
+      setItemsState(current.current);
+      return r.item;
+    },
+    [code, user?.id],
+  );
+
   /** Demo mode only: restores all the project's sample records, procurements included. */
   const reset = useCallback(async () => {
     await call(`/api/projects/${code}/reset`, user?.id, { method: "POST" }).catch((e) => setError(e instanceof Error ? e.message : String(e)));
     await reload();
   }, [code, user?.id, reload]);
 
-  return { items, setItems, status, error, reload, reset };
+  return { items, setItems, status, error, reload, reset, draft };
 }
 
 /** The procurement calendar of a project, with the budget and workplan behind it. */

@@ -8,6 +8,7 @@ import { useT } from "@/components/app/i18n";
 import { useDonors, usePlan, useProcurements } from "@/components/app/use-project-data";
 import type { BudgetLine as ProjectBudgetLine, WorkplanItem } from "@/lib/budget";
 import { METHOD, toUsd, type PlanItem } from "@/lib/procurement-plan";
+import { DraftPanel, RoutePicker, SoleFacts, type DraftKind } from "@/components/procurement/route-panels";
 import { DocumentViewer } from "@/components/procurement/document";
 import {
   AppShell,
@@ -421,11 +422,13 @@ function Detail({
   role,
   update,
   onBack,
+  onDraft,
 }: {
   p: Procurement;
   role: Role | null;
   update: (fn: (p: Procurement) => Procurement) => void;
   onBack: () => void;
+  onDraft: (kind: DraftKind) => Promise<unknown>;
 }) {
   const { user, money, signIn, mode } = useSession();
   const [raising, setRaising] = useState<string | null>(null);
@@ -581,6 +584,14 @@ function Detail({
           }
         >
           {p.step === "requisition" && <RequisitionForm p={p} editable={mine} update={update} />}
+          {p.step === "route" && <RoutePicker p={p} editable={mine} update={update} />}
+          {p.step === "soleSource" && <SoleFacts p={p} editable={mine} update={update} />}
+          {(p.step === "rfq" || p.step === "solicitation" || p.step === "soleSource") && (
+            <DraftPanel p={p} kind={p.step === "soleSource" ? "sole" : p.step === "rfq" ? "rfq" : "solicitation"} editable={mine} update={update} onDraft={onDraft} />
+          )}
+          {p.step === "approveSole" && p.drafts?.["Sole source justification"] && (
+            <DraftPanel p={p} kind="sole" editable={false} update={update} onDraft={onDraft} />
+          )}
           <ul className="divide-y divide-line px-5">
             {step.checks.map((c) => {
               const s = checkState(p, c, money);
@@ -682,7 +693,7 @@ export function ProcurementWorkspace() {
   const { user } = useRequireUser();
   const myRoles = (user?.procurement ?? []) as Role[];
   const { project } = useCurrentProject();
-  const { items, setItems, error, reset } = useProcurements(project.id);
+  const { items, setItems, error, reset, draft: draftDoc } = useProcurements(project.id);
   const plan = usePlan(project.saved ? project.id : null);
   const donors = useDonors(project.id);
   const [planKey, setPlanKey] = useState<string | null>(null);
@@ -880,7 +891,7 @@ export function ProcurementWorkspace() {
           )
         ) : current ? (
           <div className="mx-auto max-w-3xl">
-            <Detail key={current.id} p={current} role={role} update={update(current.id)} onBack={() => setMobileDetail(false)} />
+            <Detail key={current.id} p={current} role={role} update={update(current.id)} onBack={() => setMobileDetail(false)} onDraft={(kind) => draftDoc(current.id, kind)} />
           </div>
         ) : (
           <div className="grid h-full place-items-center py-24 text-center">

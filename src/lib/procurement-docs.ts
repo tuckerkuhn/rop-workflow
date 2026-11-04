@@ -31,6 +31,19 @@ export function documentFor(p: Procurement, doc: string, money: Money, other: Mo
   ];
   const number = `${p.id}-${slug(doc)}`;
 
+  // AI-drafted documents (corrected by procurement) are shown as drafted, section by section.
+  const drafted = p.drafts?.[doc];
+  if (drafted)
+    return {
+      title: doc,
+      number,
+      rows: [...base, ...drafted.sections.map((s): [string, string] => [s.heading, s.body])],
+      notes: [
+        `Drafted with AI (${drafted.model}) on ${drafted.at} at ${drafted.by}'s request${drafted.edited ? ", then corrected by procurement" : ""}. Procurement is responsible for every statement in it.`,
+        ...drafted.questions.map((q) => `Still to confirm: ${q}`),
+      ],
+    };
+
   switch (doc) {
     case "Purchase requisition":
       return {
