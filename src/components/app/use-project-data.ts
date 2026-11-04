@@ -357,7 +357,16 @@ export function useWorkItems(code: string) {
     [code, user?.id],
   );
 
-  return { items, saved, status, error, reload, add, setDone, remove };
+  /** Saves the notes on a task or milestone; throws with the server's message. */
+  const setNotes = useCallback(
+    async (id: string, notes: string) => {
+      const r = await call<{ item: WorkItem }>(`/api/projects/${code}/work-items/${id}`, user?.id, { method: "PATCH", body: JSON.stringify({ notes }) });
+      setItems((all) => all.map((i) => (i.id === id ? r.item : i)));
+    },
+    [code, user?.id],
+  );
+
+  return { items, saved, status, error, reload, add, setDone, remove, setNotes };
 }
 
 /** Indicators with values worked out on the server, and the donors this person may see. */

@@ -7,18 +7,31 @@ import { PROJECT, daysFrom, projectPath, stepHistory, type AppUser, type Stage }
 import { farmerLabel, fieldSteps, ownerOfItem, projectItem, type FieldItem } from "@/lib/field";
 import { ownerOf, stepById, stepsFor, type Procurement } from "@/lib/procurement";
 import { actualFor, indicators, type ProjectState } from "@/lib/project";
+import { blockers, monthsOf, type Closeouts } from "@/lib/closeout";
+import { awaiting, type PlanItem } from "@/lib/procurement-plan";
 
 /** One person's work across the workflows, shared by Home and Tasks. */
 
 export type Space = "Project" | "Field" | "Procurement";
 export type WorkCard = { key: string; title: string; step: string; date: string; href: string; space: Space; now: boolean; late: boolean; note: string };
-export type Data = { field: FieldItem[]; procs: Procurement[]; project: ProjectState; stages: Record<string, Stage | undefined> };
+export type Data = {
+  field: FieldItem[];
+  procs: Procurement[];
+  project: ProjectState;
+  stages: Record<string, Stage | undefined>;
+  /** The project's procurement calendar and Finance's closed months, where it has them. */
+  plan?: PlanItem[];
+  closeouts?: Closeouts;
+  /** False on projects other than the demo, whose sample sign-offs belong to it alone. */
+  sampleSignOffs?: boolean;
+};
 
 const lastDate = (t: { date: string }[]) => (t.length ? t[t.length - 1].date : TODAY);
 const isLate = (step: string, since: string) => daysFrom(since, TODAY) > (stepHistory[step]?.median ?? 3);
 
 /** Everything on one person's plate: workflow steps they hold, project sign-offs, and what is projected to reach them. */
-export function workFor(u: AppUser, { field, procs, project }: Data, viewer: AppUser, opts: { projectCards?: boolean } = {}): WorkCard[] {
+export function workFor(u: AppUser, data: Data, viewer: AppUser, opts: { projectCards?: boolean } = {}): WorkCard[] {
+  const { field, procs, project } = data;
   const cards: WorkCard[] = [];
   for (const r of u.field) {
     field
@@ -69,7 +82,53 @@ export function workFor(u: AppUser, { field, procs, project }: Data, viewer: App
       cards.push({ key: `pc-${c.id}-${c.step}`, title: c.title, step: c.step, date: c.eta, href: `/tasks?source=procurement&open=${c.id}`, space: "Procurement", now: false, late: false, note: `Now ${c.via}` }),
     );
   }
-  if (opts.projectCards === false) return cards.sort((a, b) => a.date.localeCompare(b.date));
+  // Procurement calendar: approvals waiting on this person, then approved purchases they start.
+  const plan = data.plan ?? [];
+  const wait = awaiting(plan, u);
+  const approve = (n: number, as: "manager" | "lead") =>
+    cards.push({
+      key: `pp-approve-${as}`,
+      title: `Approve ${n} planned ${n === 1 ? "purchase" : "purchases"}`,
+      step: as === "manager" ? "Procurement calendar · as procurement manager" : "Procurement calendar · as technical lead",
+      date: TODAY,
+      href: "/tasks/plan?filter=mine",
+      space: "Procurement",
+      now: true,
+      late: false,
+      note: "",
+    });
+  if (wait.asManager.length) approve(wait.asManager.length, "manager");
+  if (wait.asLead.length) approve(wait.asLead.length, "lead");
+  for (const i of plan.filter((x) => x.status === "approved" && x.techLead === u.id))
+    cards.push({
+      key: `pp-start-${i.key}`,
+      title: `Start procurement: ${i.title}`,
+      step: `${i.key} · ${i.level} · needed by ${i.neededBy}`,
+      date: i.startBy,
+      // Opens the request already filled in from the plan, with its supporting information.
+      href: `/tasks?source=procurement&new=1&plan=${i.key}`,
+      space: "Procurement",
+      now: true,
+      late: i.startBy < TODAY,
+      note: "",
+    });
+  // Monthly closeout: ended months with vouchers that Finance has not closed.
+  if (u.procurement.includes("finance") && data.closeouts)
+    for (const [m, list] of monthsOf(procs))
+      if (m < TODAY.slice(0, 7) && !data.closeouts[m])
+        cards.push({
+          key: `close-${m}`,
+          title: `Close ${m}: ${list.length} expense ${list.length === 1 ? "voucher" : "vouchers"}`,
+          step: blockers(list).length ? `${blockers(list).length} not yet filed or posted` : "All filed and posted",
+          date: TODAY,
+          href: "/tasks/closeout",
+          space: "Procurement",
+          now: true,
+          late: false,
+          note: "",
+        });
+
+  if (opts.projectCards === false || data.sampleSignOffs === false) return cards.sort((a, b) => a.date.localeCompare(b.date));
   // Project sign-offs from the build spec.
   const pending = project.submissions.filter((s) => s.status === "pending").length;
   const unapproved = indicators.filter((i) => {

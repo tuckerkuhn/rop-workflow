@@ -15,6 +15,8 @@ const kindText: Record<MilestoneKind, string> = { report_deadline: "text-clay", 
 
 export type RowActions = {
   canEdit: boolean;
+  /** Opens the task or milestone with what is needed to do it. */
+  onOpen?: (row: Row) => void;
   onToggle: (id: string, done: boolean) => void;
   onDelete: (id: string) => void;
 };
@@ -39,14 +41,15 @@ export function RowItem({ row, actions }: { row: Row; actions: RowActions }) {
     return (
       <li className="flex items-center gap-2 py-2">
         <Flag kind={row.milestoneKind} />
-        <div className="min-w-0 flex-1">
+        <button type="button" onClick={() => actions.onOpen?.(row)} className="-my-1 min-w-0 flex-1 rounded-lg py-1 text-start hover:bg-sunken">
           <p className="font-medium">{row.title}</p>
           <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
             <Pill tone={kindTone[row.milestoneKind]}>{t(`milestone.kind.${row.milestoneKind}`)}</Pill>
             <span>{when}</span>
             {row.automatic && <span>· {row.donorName ?? t("tasks.fromSettings")}</span>}
+            {row.notes && <span aria-label={t("tasks.hasNotes")}>· ✎</span>}
           </p>
-        </div>
+        </button>
         {actions.canEdit && !row.automatic && <DeleteButton title={row.title} onClick={() => actions.onDelete(row.id)} />}
       </li>
     );
@@ -97,10 +100,15 @@ export function RowItem({ row, actions }: { row: Row; actions: RowActions }) {
           {row.done && "✓"}
         </span>
       </button>
-      <div className="min-w-0 flex-1">
+      <button type="button" onClick={() => actions.onOpen?.(row)} className="-my-1 min-w-0 flex-1 rounded-lg py-1 text-start hover:bg-sunken">
         <p className={`font-medium ${row.done ? "text-muted line-through" : ""}`}>{row.title}</p>
-        {meta.length > 0 && <p className={`mt-0.5 text-xs ${overdue ? "font-semibold text-clay" : "text-muted"}`}>{meta.join(" · ")}</p>}
-      </div>
+        {(meta.length > 0 || row.notes) && (
+          <p className={`mt-0.5 text-xs ${overdue ? "font-semibold text-clay" : "text-muted"}`}>
+            {meta.join(" · ")}
+            {row.notes && <span aria-label={t("tasks.hasNotes")}> · ✎</span>}
+          </p>
+        )}
+      </button>
       {actions.canEdit && <DeleteButton title={row.title} onClick={() => actions.onDelete(row.id!)} />}
     </li>
   );

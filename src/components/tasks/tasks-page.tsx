@@ -12,6 +12,7 @@ import { FieldWorkspace } from "@/components/field/workspace";
 import { ProcurementWorkspace } from "@/components/procurement/workspace";
 import { AddSheet } from "@/components/tasks/add-sheet";
 import { CalendarView } from "@/components/tasks/calendar-view";
+import { TaskDetail } from "@/components/tasks/detail";
 import { ListView } from "@/components/tasks/list-view";
 import type { RowActions } from "@/components/tasks/row";
 import { taskSources } from "@/components/tasks/sources";
@@ -70,6 +71,8 @@ function AllTasks({ user }: { user: AppUser }) {
   // Picking the locked timeline shows the upgrade prompt without remembering it as the choice.
   const [prompt, setPrompt] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [openKey, setOpenKey] = useState<string | null>(null);
+  const closeDetail = useCallback(() => setOpenKey(null), []);
   const closeAdd = useCallback(() => setAdding(false), []);
   const view: View = saved === "timeline" && !timeline ? "list" : saved;
   const shown: View | "locked" = prompt ? "locked" : view;
@@ -79,7 +82,9 @@ function AllTasks({ user }: { user: AppUser }) {
     canEdit,
     onToggle: (id, done) => void work.setDone(id, done),
     onDelete: (id) => void work.remove(id).catch(() => work.reload()),
+    onOpen: (r) => r.id && setOpenKey(r.key),
   };
+  const opened = openKey ? rows.find((r) => r.key === openKey && r.id) : undefined;
 
   return (
     <div className="min-h-screen">
@@ -143,6 +148,18 @@ function AllTasks({ user }: { user: AppUser }) {
         </div>
       </main>
       {adding && <AddSheet user={user} onAdd={work.add} onClose={closeAdd} />}
+      {opened && (
+        <TaskDetail
+          row={opened}
+          canEdit={canEdit}
+          donor={opened.kind === "milestone" && opened.donorId ? (donors.find((d) => d.id === opened.donorId) ?? null) : null}
+          projectCode={project.id}
+          hasField={project.workflows.includes("field")}
+          onToggle={actions.onToggle}
+          onSaveNotes={work.setNotes}
+          onClose={closeDetail}
+        />
+      )}
     </div>
   );
 }
