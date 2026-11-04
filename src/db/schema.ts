@@ -300,6 +300,25 @@ export const fieldItems = pgTable(
   (t) => [uniqueIndex("field_items_project_key").on(t.projectId, t.itemKey)],
 );
 
+/**
+ * One procurement per row: its request, current step, checks, signatures, issues and timeline.
+ * Shared by everyone on the project, so a sign-off by one person is seen by the next.
+ */
+export const procurements = pgTable(
+  "procurements",
+  {
+    id: id(),
+    organizationId: uuid("organization_id").references(() => organizations.id),
+    projectId: uuid("project_id").notNull().references(() => projects.id),
+    /** "PR-2027-014". */
+    procKey: text("proc_key").notNull(),
+    step: text("step").notNull(),
+    data: jsonb("data").notNull(),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex("procurements_project_key").on(t.projectId, t.procKey)],
+);
+
 /** Small per-project state documents, e.g. store stock. */
 export const projectState = pgTable(
   "project_state",

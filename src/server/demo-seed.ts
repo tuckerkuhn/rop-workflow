@@ -2,6 +2,7 @@ import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { ORG_ID, PROJECT } from "@/lib/demo";
 import { SEASON, seedField, seedStock, type Farmer } from "@/lib/field";
+import { seedProcurements } from "@/lib/procurement";
 import { seedSubmissions } from "@/lib/project";
 import { seedStaff } from "@/server/staff";
 import { seedDonors, seedIndicators } from "@/server/progress-store";
@@ -84,6 +85,7 @@ export async function resetDemo(code: string) {
   await db.delete(s.donors).where(eq(s.donors.projectId, project.id));
   await db.delete(s.indicators).where(eq(s.indicators.projectId, project.id));
   await db.delete(s.projectState).where(eq(s.projectState.projectId, project.id));
+  await db.delete(s.procurements).where(eq(s.procurements.projectId, project.id));
   await db.delete(s.evidence).where(and(eq(s.evidence.projectId, project.id), ne(s.evidence.source, "kobo")));
   await db
     .update(s.evidence)
@@ -106,6 +108,7 @@ async function loadDemoState(projectId: string, organizationId: string) {
     })),
   );
   await db.insert(s.projectState).values({ projectId, key: "stock", data: seedStock() });
+  await seedProcurementRows(projectId, organizationId);
   await seedWorkItems(projectId, organizationId);
   await seedIndicators(projectId);
   await seedDonors(projectId, organizationId);
@@ -125,4 +128,12 @@ async function loadDemoState(projectId: string, organizationId: string) {
       reviewedAt: sub.decidedOn ? new Date(`${sub.decidedOn}T12:00:00Z`) : null,
     })),
   );
+}
+
+/** The demo procurements. Also used once to fill a project that had them only in browsers. */
+export async function seedProcurementRows(projectId: string, organizationId: string | null) {
+  await db
+    .insert(s.procurements)
+    .values(seedProcurements().map((p) => ({ organizationId, projectId, procKey: p.id, step: p.step, data: p })))
+    .onConflictDoNothing();
 }

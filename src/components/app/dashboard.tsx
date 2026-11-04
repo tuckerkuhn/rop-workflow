@@ -1,10 +1,11 @@
 "use client";
 
+import { useProcurements } from "@/components/app/use-project-data";
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { stageOf } from "@/components/field/workspace";
 import { useFieldData, useSubmissions } from "@/components/app/use-project-data";
-import { PROCUREMENT_ITEMS_KEY } from "@/components/procurement/workspace";
 import { PROJECT_KEY } from "@/components/project/project-page";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useT } from "@/components/app/i18n";
@@ -14,7 +15,7 @@ import { Pill, SectionLabel, TODAY, TopBar, usePersistentState } from "@/compone
 import { workFor, type Data, type WorkCard } from "@/components/tasks/work";
 import { PROJECT, daysFrom, directReports, userById, type AppUser } from "@/lib/demo";
 import { PACKAGE, PACKAGE_USD, farmerName, farmerStages, fieldRoleLabel, maskName, type Farmer, type FieldItem } from "@/lib/field";
-import { DONE, roleLabel, seedProcurements, valueOf, type Procurement } from "@/lib/procurement";
+import { DONE, roleLabel, valueOf } from "@/lib/procurement";
 import { GATED_KEYS, seedProject, type ProjectState } from "@/lib/project";
 
 const buckets = [
@@ -287,7 +288,7 @@ export function Dashboard() {
   const { t, date } = useT();
   const { items: field } = useFieldData();
   const { submissions } = useSubmissions();
-  const [procs] = usePersistentState<Procurement[]>(PROCUREMENT_ITEMS_KEY, seedProcurements);
+  const { items: procs } = useProcurements();
   const [local] = usePersistentState<ProjectState>(PROJECT_KEY, seedProject);
   // Review-queue records live in the database; the rest of the project state is still in this browser.
   const project: ProjectState = { ...local, submissions };

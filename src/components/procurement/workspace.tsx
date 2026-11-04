@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRequireUser, useSession } from "@/components/app/session";
+import { useProcurements } from "@/components/app/use-project-data";
 import { DocumentViewer } from "@/components/procurement/document";
 import {
   AppShell,
@@ -21,7 +22,6 @@ import {
   StepCard,
   Tracker,
   primaryBtn,
-  usePersistentState,
 } from "@/components/workspace/ui";
 import { AFN_PER_USD, holderOf, projectPath, stepHistory } from "@/lib/demo";
 import {
@@ -43,7 +43,6 @@ import {
   roleLabel,
   rolePerson,
   roles,
-  seedProcurements,
   stages,
   stepById,
   stepsFor,
@@ -53,7 +52,6 @@ import {
   type Role,
 } from "@/lib/procurement";
 
-export const PROCUREMENT_ITEMS_KEY = "rop-procurement-v2-items";
 
 const person = (r: string) => rolePerson(r as Role);
 const fieldCls = "w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm focus:border-forest focus:outline-none disabled:bg-paper disabled:text-muted";
@@ -580,14 +578,14 @@ function Detail({
 export function ProcurementWorkspace() {
   const { user } = useRequireUser();
   const myRoles = (user?.procurement ?? []) as Role[];
-  const [items, setItems] = usePersistentState<Procurement[]>(PROCUREMENT_ITEMS_KEY, seedProcurements);
+  const { items, setItems, error, reset } = useProcurements();
   const [pickedRole, setPickedRole] = useState<Role | null>(null);
   const role = pickedRole && myRoles.includes(pickedRole) ? pickedRole : (myRoles[0] ?? null);
   const [selected, setSelected] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [creating, setCreating] = useState(false);
   const [mobileDetail, setMobileDetail] = useState(false);
-  const { money } = useSession();
+  const { money, mode } = useSession();
 
   const counts = useMemo(() => Object.fromEntries(roles.map((r) => [r.id, items.filter((p) => ownerOf(p) === r.id).length])), [items]);
   const readOnly = !role;
@@ -700,11 +698,21 @@ export function ProcurementWorkspace() {
               setMobileDetail(true);
             }}
           />
+          {error && (
+            <p role="alert" className="px-4 pt-3 text-sm text-clay sm:px-6">
+              {error}
+            </p>
+          )}
           <QueueFooter
-            onReset={() => {
-              setItems(seedProcurements());
-              setSelected(null);
-            }}
+            note={mode === "demo" ? "Fictional records, saved in the project database. Resetting restores all sample records." : "Saved in the project database."}
+            onReset={
+              mode === "demo"
+                ? () => {
+                    void reset();
+                    setSelected(null);
+                  }
+                : undefined
+            }
           />
         </>
       }
@@ -715,7 +723,11 @@ export function ProcurementWorkspace() {
               setCreating(false);
               setMobileDetail(false);
             }}
-            onCreate={(p) => {
+            onCreate={(draft) => {
+              // Next free number this year, so two people never get the same ID.
+              const year = TODAY.slice(0, 4);
+              const used = items.map((x) => x.id.match(new RegExp(`^PR-${year}-(\\d+)$`))?.[1]).filter(Boolean).map(Number);
+              const p = { ...draft, id: `PR-${year}-${String(Math.max(0, ...used) + 1).padStart(3, "0")}` };
               setItems((all) => [p, ...all]);
               setSelected(p.id);
               setCreating(false);
