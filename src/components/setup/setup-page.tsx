@@ -8,6 +8,7 @@ import { useCurrentProject } from "@/components/app/current-project";
 import { useT } from "@/components/app/i18n";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { KoboConnect, KoboDone, KoboForms, KoboMap } from "@/components/setup/kobo-steps";
+import { BudgetStep, WorkplanStep } from "@/components/setup/plan-steps";
 import { Question, field } from "@/components/setup/question";
 import { TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { TODAY, canEditProject } from "@/lib/demo";
@@ -22,8 +23,9 @@ import { projectYears } from "@/lib/progress";
  */
 
 const DESIGN_STEPS = ["name", "country", "crop", "dates", "goal", "indicators", "donors", "review"] as const;
+const PLAN_STEPS = ["budget", "workplan"] as const;
 const KOBO_STEPS = ["kobo-connect", "kobo-forms", "kobo-map", "done"] as const;
-type Step = (typeof DESIGN_STEPS)[number] | (typeof KOBO_STEPS)[number];
+type Step = (typeof DESIGN_STEPS)[number] | (typeof PLAN_STEPS)[number] | (typeof KOBO_STEPS)[number];
 
 const empty: ProjectDesign = { name: "", country: "AF", crop: "", startDate: TODAY, endDate: TODAY, goal: "", indicators: [], donors: [] };
 
@@ -55,11 +57,11 @@ export function SetupPage() {
   return <Wizard key={creating ? "new" : project.id} code={creating ? null : project.id} first={(q.get("step") as Step | null) ?? (creating ? "name" : "review")} />;
 }
 
-function Frame({ children }: { children: React.ReactNode }) {
+function Frame({ children, wide = false }: { children: React.ReactNode; wide?: boolean }) {
   return (
     <div className="min-h-screen">
       <TopBar active="design" />
-      <main className="mx-auto max-w-xl px-4 py-8 sm:px-6">{children}</main>
+      <main className={`mx-auto px-4 py-8 sm:px-6 ${wide ? "max-w-6xl" : "max-w-xl"}`}>{children}</main>
     </div>
   );
 }
@@ -90,7 +92,8 @@ function Wizard({ code: initialCode, first }: { code: string | null; first: Step
   }, [initialCode, user]);
 
   // New projects skip the donor question once created; existing ones manage donors in settings.
-  const steps: Step[] = [...DESIGN_STEPS.filter((s) => s !== "donors" || !code), ...KOBO_STEPS];
+  // Budget and workplan need the saved project, so they come after it is created.
+  const steps: Step[] = [...DESIGN_STEPS.filter((s) => s !== "donors" || !code), ...(code ? PLAN_STEPS : []), ...KOBO_STEPS];
   const designSteps = steps.filter((s) => (DESIGN_STEPS as readonly string[]).includes(s));
   const index = steps.indexOf(step);
   const go = (s: Step) => {
@@ -117,12 +120,12 @@ function Wizard({ code: initialCode, first }: { code: string | null; first: Step
       if (!res.ok) throw new Error(body.error ?? `${res.status}`);
       await reloadProjects();
       if (!code && body.code) {
-        // Now an existing project: reopen setup on it, at the KoboToolbox step.
+        // Now an existing project: reopen setup on it, at the budget.
         setProject(body.code);
-        router.replace("/setup?step=kobo-connect");
+        router.replace("/setup?step=budget");
         return;
       }
-      go("kobo-connect");
+      go("budget");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -145,7 +148,7 @@ function Wizard({ code: initialCode, first }: { code: string | null; first: Step
   };
 
   return (
-    <Frame>
+    <Frame wide={step === "budget" || step === "workplan"}>
       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ochre">{t(code ? "setup.editTitle" : "setup.newTitle")}</p>
       <div className="mt-2 h-1 overflow-hidden rounded-full bg-sunken" aria-hidden>
         <div className="h-full rounded-full bg-forest transition-all" style={{ width: `${((index + 1) / steps.length) * 100}%` }} />
@@ -191,6 +194,8 @@ function Wizard({ code: initialCode, first }: { code: string | null; first: Step
         {step === "indicators" && <IndicatorsQuestion list={draft.indicators} years={projectYears(draft.startDate, draft.endDate)} onChange={(indicators) => set({ indicators })} />}
         {step === "donors" && <DonorsQuestion list={draft.donors ?? []} onChange={(donors) => set({ donors })} />}
         {step === "review" && <Review draft={draft} editing={!!code} onEdit={go} />}
+        {step === "budget" && code && <BudgetStep code={code} onDone={next} />}
+        {step === "workplan" && code && <WorkplanStep code={code} projectStart={draft.startDate} onDone={next} />}
         {step === "kobo-connect" && code && <KoboConnect code={code} onDone={next} onSkip={() => go("done")} />}
         {step === "kobo-forms" && code && <KoboForms code={code} onDone={next} />}
         {step === "kobo-map" && code && <KoboMap code={code} onDone={next} />}

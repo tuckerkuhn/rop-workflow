@@ -168,14 +168,64 @@ export const crops = pgTable("crops", {
   variety: text("variety"),
 });
 
-export const budgetLines = pgTable("budget_lines", {
-  id: id(),
-  projectId: uuid("project_id").notNull().references(() => projects.id),
-  code: text("code").notNull(),
-  description: text("description").notNull(),
-  amount: numeric("amount", { precision: 14, scale: 2 }),
-  currency: text("currency").notNull().default("USD"),
-});
+/**
+ * The project budget, one row per line, read from the donor's budget spreadsheet or typed in.
+ * Lines marked `procure` feed the procurement calendar.
+ */
+export const budgetLines = pgTable(
+  "budget_lines",
+  {
+    id: id(),
+    projectId: uuid("project_id").notNull().references(() => projects.id),
+    code: text("code").notNull(),
+    description: text("description").notNull(),
+    /** Total for the line (the revised budget when the file has one). */
+    amount: numeric("amount", { precision: 16, scale: 2 }),
+    currency: text("currency").notNull().default("USD"),
+    /** Workplan activity number, e.g. "1.2.1", and its title. */
+    activityCode: text("activity_code"),
+    activity: text("activity"),
+    unit: text("unit"),
+    quantity: numeric("quantity", { precision: 14, scale: 3 }),
+    unitCost: numeric("unit_cost", { precision: 16, scale: 2 }),
+    spent: numeric("spent", { precision: 16, scale: 2 }),
+    /** Planned spending by quarter: { "2027-01-01": 13666848 }. */
+    schedule: jsonb("schedule").notNull().default({}),
+    /** program | personnel | operations */
+    kind: text("kind").notNull().default("program"),
+    procure: boolean("procure").notNull().default(false),
+    sort: integer("sort").notNull().default(0),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex("budget_lines_project_code").on(t.projectId, t.code)],
+);
+
+/** The workplan: sub-activities with who delivers them and their quarterly targets. */
+export const workplanItems = pgTable(
+  "workplan_items",
+  {
+    id: id(),
+    projectId: uuid("project_id").notNull().references(() => projects.id),
+    code: text("code").notNull(),
+    activityCode: text("activity_code"),
+    activity: text("activity"),
+    title: text("title").notNull(),
+    indicator: text("indicator"),
+    unit: text("unit"),
+    /** Who delivers it ("ROP", "FAO"); consortium workplans list every partner. */
+    org: text("org").notNull().default(""),
+    /** Targets by quarter: { "2026-07-01": 20 }. */
+    targets: jsonb("targets").notNull().default({}),
+    /** First days of the quarters with work planned. */
+    active: jsonb("active").notNull().default([]),
+    startDate: date("start_date"),
+    endDate: date("end_date"),
+    remark: text("remark"),
+    sort: integer("sort").notNull().default(0),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex("workplan_items_project_code_org").on(t.projectId, t.code, t.org)],
+);
 
 // ---------- Farmers & plots ----------
 
