@@ -97,6 +97,32 @@ export type Procurement = {
    * from, as they stood when the request was made.
    */
   plan?: PlanLink;
+  /** How it is bought, chosen by procurement after the request is approved. */
+  route?: Route;
+  /** Sole source: the supplier and why only they can supply it. */
+  sole?: { supplier: string; reason: string };
+  /** AI drafts of generated documents, by document name. A person reads and corrects each one. */
+  drafts?: Record<string, Draft>;
+};
+
+export type Route = "direct" | "rfq" | "sole";
+export const ROUTES: { id: Route; title: string; detail: string }[] = [
+  { id: "direct", title: "Buy directly", detail: "Micro purchases (up to $500): buy at a fair price after checking prices from three suppliers." },
+  { id: "rfq", title: "Request for quotation", detail: "The app drafts the RFQ from the request; procurement checks it before it goes to suppliers." },
+  { id: "sole", title: "Sole source", detail: "One supplier is uniquely placed. The app drafts the justification; the approving authority approves it before any supplier is engaged." },
+];
+/** Routes allowed at a level: direct purchase only for Micro, competition otherwise; sole source at any level. */
+export const routesFor = (level: Level): Route[] => (level === "Micro" ? ["direct", "sole"] : ["rfq", "sole"]);
+
+export type Draft = {
+  sections: { heading: string; body: string }[];
+  /** Points the drafter could not settle from the record; a person answers them. */
+  questions: string[];
+  model: string;
+  at: string;
+  by: string;
+  /** Changed by a person after drafting. */
+  edited: boolean;
 };
 
 export type PlanLink = {
@@ -171,11 +197,15 @@ export type Step = {
   signs?: { doc: string; as: string };
   note?: string;
   checks: Check[];
+  /** Included only when this holds, e.g. competitive steps only when not sole source. */
+  when?: (p: Procurement) => boolean;
 };
 
 const ALL: Level[] = ["Micro", "Small", "Medium", "Large"];
 const SMALL_UP: Level[] = ["Small", "Medium", "Large"];
 const OPEN_COMP: Level[] = ["Medium", "Large"];
+/** Competitive steps are skipped on the sole-source route. */
+const competitive = (p: Procurement) => p.route !== "sole";
 const fmt = (n: number) => n.toLocaleString("en-US");
 
 export const steps: Step[] = [
@@ -266,7 +296,84 @@ export const steps: Step[] = [
     ],
   },
   {
+    id: "route",
+    stage: 3,
+    title: "Choose how to buy",
+    owner: "procurement",
+    levels: ALL,
+    action: "Confirm the route",
+    done: "Route chosen",
+    produces: [],
+    note: "Direct purchase is for Micro only. Sole source needs a written justification approved before any supplier is engaged.",
+    checks: [
+      {
+        id: "chosen",
+        label: "Route chosen and allowed at this level",
+        why: "Micro: direct purchase after market pricing. Small and above: competition by request for quotation. Sole source at any level with an approved justification.",
+        tag: "D1 §5.1–5.5",
+        auto: (p) =>
+          !p.route
+            ? { ok: false, detail: "Choose a route above" }
+            : { ok: routesFor(levelFor(valueOf(p))).includes(p.route), detail: `${ROUTES.find((r) => r.id === p.route)!.title} · ${levelFor(valueOf(p))} level` },
+      },
+    ],
+  },
+  {
+    id: "rfq",
+    stage: 3,
+    title: "Prepare the request for quotation",
+    owner: "procurement",
+    levels: ["Small"],
+    when: (p) => p.route === "rfq",
+    action: "Issue to suppliers",
+    done: "Request for quotation ready",
+    produces: ["Request for quotation"],
+    signs: { doc: "Request for quotation", as: "Prepared by (procurement)" },
+    checks: [
+      { id: "draft", label: "Request for quotation drafted", why: "Drafted from the approved request so nothing is typed twice.", tag: "TS", auto: (p) => ({ ok: !!p.drafts?.["Request for quotation"], detail: p.drafts?.["Request for quotation"] ? `Drafted ${p.drafts["Request for quotation"].at}` : "Draft it above" }) },
+      { id: "read", label: "Draft read and corrected by a person", why: "AI drafts; procurement decides what goes to suppliers.", tag: "TS" },
+      { id: "terms", label: "Deadline, validity and lowest-compliant-price basis stated once", why: "A quotation is only rejected on grounds the request stated.", tag: "D1 §4.4, §5.2" },
+    ],
+  },
+  {
+    id: "soleSource",
+    stage: 3,
+    title: "Justify the sole source",
+    owner: "procurement",
+    levels: ALL,
+    when: (p) => p.route === "sole",
+    action: "Send for approval",
+    done: "Sole source justification prepared",
+    produces: ["Sole source justification"],
+    signs: { doc: "Sole source justification", as: "Prepared by (procurement)" },
+    checks: [
+      { id: "facts", label: "Supplier named and the reason only they can supply it recorded", why: "The justification rests on facts procurement can show.", tag: "D1 §5.5", auto: (p) => ({ ok: !!p.sole?.supplier.trim() && (p.sole?.reason.trim().length ?? 0) > 20, detail: p.sole?.supplier ? `${p.sole.supplier}` : "Add them above" }) },
+      { id: "draft", label: "Justification drafted", why: "Drafted from the request and the facts above.", tag: "TS", auto: (p) => ({ ok: !!p.drafts?.["Sole source justification"], detail: p.drafts?.["Sole source justification"] ? `Drafted ${p.drafts["Sole source justification"].at}` : "Draft it above" }) },
+      { id: "read", label: "Draft read and corrected by a person", why: "AI drafts; procurement stands behind every statement in it.", tag: "TS" },
+      { id: "price", label: "Price shown to be reasonable without competition", why: "Past prices, market data or a cost breakdown. Without competition, this is the only price check.", tag: "D1 §4.2, §5.5" },
+    ],
+  },
+  {
+    id: "approveSole",
+    stage: 3,
+    title: "Approve the sole source",
+    owner: "approver",
+    levels: ALL,
+    when: (p) => p.route === "sole",
+    action: "Approve sole source",
+    done: "Sole source approved",
+    produces: [],
+    signs: { doc: "Sole source justification", as: "Approved by" },
+    canReturn: true,
+    note: "Approved before the supplier is engaged, at any value.",
+    checks: [
+      { id: "before", label: "No order placed with the supplier yet", why: "Sole source approval comes before the procurement begins. Otherwise it is a post-facto action.", tag: "D1 §3.2, §5.5" },
+      { id: "grounds", label: "The grounds hold up", why: "Read the justification: is this supplier really the only one, and is the price reasonable?", tag: "D1 §5.5" },
+    ],
+  },
+  {
     id: "quotes",
+    when: competitive,
     stage: 3,
     title: "Get quotations and pick the supplier",
     owner: "procurement",
@@ -283,6 +390,7 @@ export const steps: Step[] = [
   },
   {
     id: "solicitation",
+    when: competitive,
     stage: 2,
     title: "Prepare the solicitation",
     owner: "procurement",
@@ -299,6 +407,7 @@ export const steps: Step[] = [
   },
   {
     id: "hoReview",
+    when: competitive,
     stage: 2,
     title: "Home Office compliance review",
     owner: "ho",
@@ -316,6 +425,7 @@ export const steps: Step[] = [
   },
   {
     id: "approveSol",
+    when: competitive,
     stage: 2,
     title: "Approve the solicitation",
     owner: "approver",
@@ -333,6 +443,7 @@ export const steps: Step[] = [
   },
   {
     id: "bids",
+    when: competitive,
     stage: 3,
     title: "Advertise and open bids",
     owner: "procurement",
@@ -364,6 +475,7 @@ export const steps: Step[] = [
   },
   {
     id: "evaluate",
+    when: competitive,
     stage: 3,
     title: "Evaluate the bids",
     owner: "committee",
@@ -383,7 +495,8 @@ export const steps: Step[] = [
     stage: 3,
     title: "Screen the chosen supplier",
     owner: "procurement",
-    levels: OPEN_COMP,
+    levels: ALL,
+    when: (p) => OPEN_COMP.includes(levelFor(valueOf(p))) || p.route === "sole",
     action: "Send for award",
     done: "Supplier screened",
     produces: ["Screening record", "Due diligence"],
@@ -537,7 +650,7 @@ export const steps: Step[] = [
 ];
 
 export const stepById = Object.fromEntries(steps.map((s) => [s.id, s])) as Record<string, Step>;
-export const stepsFor = (p: Procurement) => steps.filter((s) => s.levels.includes(levelFor(valueOf(p))));
+export const stepsFor = (p: Procurement) => steps.filter((s) => s.levels.includes(levelFor(valueOf(p))) && (!s.when || s.when(p)));
 export const DONE = "done";
 
 export function nextStep(p: Procurement): string {
