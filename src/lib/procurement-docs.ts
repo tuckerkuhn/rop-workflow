@@ -45,6 +45,29 @@ export function documentFor(p: Procurement, doc: string, money: Money, other: Mo
     };
 
   switch (doc) {
+    case "Expense voucher": {
+      const signed = Object.entries(p.signatures).flatMap(([d, list]) => list.map((x) => `${x.as}: ${x.name}, ${x.date} (${d})`));
+      return {
+        title: "Expense voucher",
+        number: p.voucher?.number ?? `EV-${p.id}`,
+        rows: [
+          ...base,
+          ["Payee", p.supplier?.name ?? "[supplier]"],
+          ["Amount", p.invoice ? both(p.invoice.amount) : `${both(value)} (order value; no invoice recorded)`],
+          ["Budget line", line ? `${line.code} ${line.name}` : p.budgetLine],
+          ["Funding source", p.funding],
+          ["Activity", p.activity],
+          ["Order", `${p.id} · ${p.qty} ${p.unit}`],
+          ["Goods received", p.grn ? `${p.grn.qty} ${p.unit} at ${p.grn.place}` : "[goods received note]"],
+          ["Invoice", p.invoice ? `${both(p.invoice.amount)} for ${p.invoice.qty} ${p.unit}` : "[invoice]"],
+          ["Approvals", signed.join("; ") || "—"],
+          ["Filed in SharePoint", p.voucher?.sharepointUrl || "—"],
+          ["NetSuite reference", p.voucher?.netsuiteRef || "—"],
+          ["Closeout month", p.voucher?.month || "—"],
+        ],
+        notes: ["Generated from the procurement record. File it in SharePoint, then post it in NetSuite, and record both above."],
+      };
+    }
     case "Purchase requisition":
       return {
         title: "Purchase requisition",

@@ -8,7 +8,7 @@ import { useT } from "@/components/app/i18n";
 import { useDonors, usePlan, useProcurements } from "@/components/app/use-project-data";
 import type { BudgetLine as ProjectBudgetLine, WorkplanItem } from "@/lib/budget";
 import { METHOD, toUsd, type PlanItem } from "@/lib/procurement-plan";
-import { DraftPanel, RoutePicker, SoleFacts, type DraftKind } from "@/components/procurement/route-panels";
+import { AiCheck, DraftPanel, RoutePicker, SoleFacts, VoucherPanel, type DraftKind } from "@/components/procurement/route-panels";
 import { DocumentViewer } from "@/components/procurement/document";
 import {
   AppShell,
@@ -423,12 +423,14 @@ function Detail({
   update,
   onBack,
   onDraft,
+  onCheck,
 }: {
   p: Procurement;
   role: Role | null;
   update: (fn: (p: Procurement) => Procurement) => void;
   onBack: () => void;
   onDraft: (kind: DraftKind) => Promise<unknown>;
+  onCheck: () => Promise<unknown>;
 }) {
   const { user, money, signIn, mode } = useSession();
   const [raising, setRaising] = useState<string | null>(null);
@@ -592,6 +594,9 @@ function Detail({
           {p.step === "approveSole" && p.drafts?.["Sole source justification"] && (
             <DraftPanel p={p} kind="sole" editable={false} update={update} onDraft={onDraft} />
           )}
+          {p.step === "package" && <DraftPanel p={p} kind="package" editable={mine} update={update} onDraft={onDraft} />}
+          {p.step === "voucher" && <VoucherPanel p={p} editable={mine} update={update} />}
+          {step.checks.some((c) => c.ai) && <AiCheck p={p} editable={mine} onCheck={onCheck} />}
           <ul className="divide-y divide-line px-5">
             {step.checks.map((c) => {
               const s = checkState(p, c, money);
@@ -693,7 +698,7 @@ export function ProcurementWorkspace() {
   const { user } = useRequireUser();
   const myRoles = (user?.procurement ?? []) as Role[];
   const { project } = useCurrentProject();
-  const { items, setItems, error, reset, draft: draftDoc } = useProcurements(project.id);
+  const { items, setItems, error, reset, draft: draftDoc, check: runCheck } = useProcurements(project.id);
   const plan = usePlan(project.saved ? project.id : null);
   const donors = useDonors(project.id);
   const [planKey, setPlanKey] = useState<string | null>(null);
@@ -775,10 +780,18 @@ export function ProcurementWorkspace() {
       queue={
         <>
           {project.saved && (
-            <Link href="/tasks/plan" className="mx-4 mt-3 flex items-center justify-between rounded-xl bg-mist px-3 py-2 text-sm font-semibold text-forest hover:bg-sunken sm:mx-6">
-              Procurement calendar
-              <span aria-hidden>→</span>
-            </Link>
+            <div className="mx-4 mt-3 grid gap-2 sm:mx-6">
+              <Link href="/tasks/plan" className="flex items-center justify-between rounded-xl bg-mist px-3 py-2 text-sm font-semibold text-forest hover:bg-sunken">
+                Procurement calendar
+                <span aria-hidden>→</span>
+              </Link>
+              {(myRoles.includes("finance") || user.admin) && (
+                <Link href="/tasks/closeout" className="flex items-center justify-between rounded-xl bg-mist px-3 py-2 text-sm font-semibold text-forest hover:bg-sunken">
+                  Monthly closeout
+                  <span aria-hidden>→</span>
+                </Link>
+              )}
+            </div>
           )}
           <QueueHeader
             title={readOnly || showAll ? "All procurements" : mineList.length ? `${mineList.length} waiting on you` : "Nothing waiting on you"}
@@ -891,7 +904,7 @@ export function ProcurementWorkspace() {
           )
         ) : current ? (
           <div className="mx-auto max-w-3xl">
-            <Detail key={current.id} p={current} role={role} update={update(current.id)} onBack={() => setMobileDetail(false)} onDraft={(kind) => draftDoc(current.id, kind)} />
+            <Detail key={current.id} p={current} role={role} update={update(current.id)} onBack={() => setMobileDetail(false)} onDraft={(kind) => draftDoc(current.id, kind)} onCheck={() => runCheck(current.id, current.step)} />
           </div>
         ) : (
           <div className="grid h-full place-items-center py-24 text-center">

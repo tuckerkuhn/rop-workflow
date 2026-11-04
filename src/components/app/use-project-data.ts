@@ -5,6 +5,7 @@ import { useSession } from "@/components/app/session";
 import { seedStock, type FieldItem, type Stock } from "@/lib/field";
 import type { AutoSyncSecret, FormPurpose, KoboFormInfo, KoboMapping, KoboQuestion, KoboState, SyncCounts } from "@/lib/kobo-setup";
 import type { Procurement } from "@/lib/procurement";
+import type { Closeouts } from "@/lib/closeout";
 import type { PlanAction, PlanItem } from "@/lib/procurement-plan";
 import type { Budget, WorkplanItem } from "@/lib/budget";
 import type { DonorInfo, DonorInput, ProgressData } from "@/lib/progress";
@@ -136,8 +137,19 @@ export function useProcurements(code = "A-2027") {
 
   /** Drafts a document with AI on the server; the saved record comes back with the draft on it. */
   const draft = useCallback(
-    async (id: string, kind: "rfq" | "solicitation" | "sole") => {
+    async (id: string, kind: "rfq" | "solicitation" | "sole" | "package") => {
       const r = await call<{ item: Procurement }>(`/api/projects/${code}/procurements/${id}/draft`, user?.id, { method: "POST", body: JSON.stringify({ kind }) });
+      current.current = current.current.map((p) => (p.id === id ? r.item : p));
+      setItemsState(current.current);
+      return r.item;
+    },
+    [code, user?.id],
+  );
+
+  /** Runs the AI check for the procurement's current step; the findings come back saved on the record. */
+  const check = useCallback(
+    async (id: string, step: string) => {
+      const r = await call<{ item: Procurement }>(`/api/projects/${code}/procurements/${id}/check`, user?.id, { method: "POST", body: JSON.stringify({ step }) });
       current.current = current.current.map((p) => (p.id === id ? r.item : p));
       setItemsState(current.current);
       return r.item;
@@ -151,7 +163,7 @@ export function useProcurements(code = "A-2027") {
     await reload();
   }, [code, user?.id, reload]);
 
-  return { items, setItems, status, error, reload, reset, draft };
+  return { items, setItems, status, error, reload, reset, draft, check };
 }
 
 /** The procurement calendar of a project, with the budget and workplan behind it. */
@@ -195,6 +207,31 @@ export function usePlan(code: string | null) {
   );
 
   return { items: data?.items ?? [], budget: data?.budget ?? null, workplan: data?.workplan ?? [], status, error, reload, rebuild, act };
+}
+
+/** Months closed by Finance, and closing one. */
+export function useCloseouts(code: string | null) {
+  const { user, ready } = useSession();
+  const [months, setMonths] = useState<Closeouts>({});
+  const [error, setError] = useState("");
+  const reload = useCallback(async () => {
+    if (!code) return;
+    try {
+      setMonths((await call<{ months: Closeouts }>(`/api/projects/${code}/closeout`, user?.id)).months);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }, [code, user?.id]);
+  useEffect(() => {
+    if (ready && user && user.kind === "employee" && user.procurementAccess !== "none") void reload();
+  }, [ready, user, reload]);
+  const close = useCallback(
+    async (month: string) => {
+      setMonths((await call<{ months: Closeouts }>(`/api/projects/${code}/closeout`, user?.id, { method: "POST", body: JSON.stringify({ month }) })).months);
+    },
+    [code, user?.id],
+  );
+  return { months, error, close, reload };
 }
 
 export function useSubmissions(code = "A-2027") {

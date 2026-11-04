@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { primaryBtn } from "@/components/workspace/ui";
-import { ROUTES, levelFor, reviewKey, routesFor, valueOf, type Draft, type Procurement } from "@/lib/procurement";
+import { TODAY } from "@/lib/demo";
+import { ROUTES, isSharePointUrl, levelFor, reviewKey, routesFor, valueOf, type Draft, type Procurement } from "@/lib/procurement";
 
 /**
  * Step panels for choosing how to buy: the route, the sole-source facts, and AI drafts of the
@@ -10,8 +11,13 @@ import { ROUTES, levelFor, reviewKey, routesFor, valueOf, type Draft, type Procu
  */
 
 type Update = (fn: (p: Procurement) => Procurement) => void;
-export type DraftKind = "rfq" | "solicitation" | "sole";
-export const DRAFT_DOC: Record<DraftKind, string> = { rfq: "Request for quotation", solicitation: "Solicitation (RFQ/RFP)", sole: "Sole source justification" };
+export type DraftKind = "rfq" | "solicitation" | "sole" | "package";
+export const DRAFT_DOC: Record<DraftKind, string> = {
+  rfq: "Request for quotation",
+  solicitation: "Solicitation (RFQ/RFP)",
+  sole: "Sole source justification",
+  package: "Procurement package",
+};
 
 const box = "border-b border-line bg-paper/60 px-5 py-5";
 const field = "w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm focus:border-forest focus:outline-none disabled:bg-paper disabled:text-muted";
@@ -169,6 +175,76 @@ export function DraftPanel({
           {missingFacts && <span className="text-xs text-muted">Add the supplier and the reason first.</span>}
         </div>
       )}
+    </div>
+  );
+}
+
+/** Runs the step's AI check; the findings show in the check list for the person to read. */
+export function AiCheck({ p, editable, onCheck }: { p: Procurement; editable: boolean; onCheck: () => Promise<unknown> }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const done = !!p.ai?.[p.step];
+  if (!editable) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-3 border-b border-line bg-plum-soft/40 px-5 py-3 text-sm">
+      <span className="min-w-0 flex-1">{done ? "AI check run. Its findings are listed below: read each one before you confirm." : "Have AI check the record before you continue. It flags problems; you decide."}</span>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          setError("");
+          try {
+            await onCheck();
+          } catch (e) {
+            setError(e instanceof Error ? e.message : String(e));
+          } finally {
+            setBusy(false);
+          }
+        }}
+        className="rounded-full border border-line bg-surface px-4 py-2 font-medium"
+      >
+        {busy ? "Checking… under a minute" : done ? "Run the AI check again" : "Run AI check"}
+      </button>
+      {error && (
+        <p role="alert" className="w-full text-clay">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** Finance records where the voucher was filed (SharePoint) and posted (NetSuite). */
+export function VoucherPanel({ p, editable, update }: { p: Procurement; editable: boolean; update: Update }) {
+  const v = p.voucher ?? { number: `EV-${p.id}`, month: "", sharepointUrl: "", netsuiteRef: "" };
+  const set = (patch: Partial<typeof v>) => update((q) => ({ ...q, voucher: { ...v, month: v.month || TODAY.slice(0, 7), ...patch } }));
+  const badLink = !!v.sharepointUrl && !isSharePointUrl(v.sharepointUrl);
+  return (
+    <div className={box}>
+      <p className="text-sm font-semibold">Expense voucher {v.number}</p>
+      <p className="mt-1 text-xs text-muted">Generated from the record: review it below. Then file it in SharePoint and post it in NetSuite, in that order.</p>
+      <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_12rem_10rem]">
+        <label>
+          <span className="text-xs font-medium text-muted">1. SharePoint link to the filed voucher</span>
+          <input
+            disabled={!editable}
+            value={v.sharepointUrl}
+            onChange={(e) => set({ sharepointUrl: e.target.value.trim() })}
+            placeholder="https://rootsofpeace.sharepoint.com/…"
+            className={`mt-1 ${field} ${badLink ? "border-clay" : ""}`}
+          />
+          {badLink && <span className="mt-1 block text-xs text-clay">Paste the link from SharePoint (…sharepoint.com/…).</span>}
+        </label>
+        <label>
+          <span className="text-xs font-medium text-muted">2. NetSuite reference</span>
+          <input disabled={!editable || !isSharePointUrl(v.sharepointUrl)} value={v.netsuiteRef} onChange={(e) => set({ netsuiteRef: e.target.value })} placeholder="e.g. VB-10482" className={`mt-1 ${field}`} />
+        </label>
+        <label>
+          <span className="text-xs font-medium text-muted">Closeout month</span>
+          <input disabled={!editable} type="month" value={v.month} onChange={(e) => e.target.value && set({ month: e.target.value })} className={`mt-1 ${field}`} />
+        </label>
+      </div>
     </div>
   );
 }

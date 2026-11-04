@@ -5,7 +5,7 @@ import { DRAFT_KINDS, DraftingUnavailable, draftDocument } from "@/server/ai-dra
 import { handle } from "@/server/guard";
 import { loadProcurements, saveProcurements } from "@/server/procurement-store";
 
-const bodySchema = z.object({ kind: z.enum(["rfq", "solicitation", "sole"]) });
+const bodySchema = z.object({ kind: z.enum(["rfq", "solicitation", "sole", "package"]) });
 
 /** Drafts a procurement document with Claude and saves it on the record for procurement to correct. */
 export async function POST(req: Request, { params }: { params: Promise<{ code: string; id: string }> }) {
