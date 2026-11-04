@@ -5,6 +5,8 @@ import { useSession } from "@/components/app/session";
 import { seedStock, type FieldItem, type Stock } from "@/lib/field";
 import type { AutoSyncSecret, FormPurpose, KoboFormInfo, KoboMapping, KoboQuestion, KoboState, SyncCounts } from "@/lib/kobo-setup";
 import type { Procurement } from "@/lib/procurement";
+import type { PlanAction, PlanItem } from "@/lib/procurement-plan";
+import type { Budget, WorkplanItem } from "@/lib/budget";
 import type { DonorInfo, DonorInput, ProgressData } from "@/lib/progress";
 import type { Roster, Submission } from "@/lib/project";
 import type { NewWorkItem, WorkItem } from "@/lib/work-items";
@@ -139,6 +141,49 @@ export function useProcurements(code = "A-2027") {
   }, [code, user?.id, reload]);
 
   return { items, setItems, status, error, reload, reset };
+}
+
+/** The procurement calendar of a project, with the budget and workplan behind it. */
+export function usePlan(code: string | null) {
+  const { user, ready } = useSession();
+  const [data, setData] = useState<{ items: PlanItem[]; budget: Budget; workplan: WorkplanItem[] } | null>(null);
+  const [status, setStatus] = useState<Load>("loading");
+  const [error, setError] = useState("");
+
+  const reload = useCallback(async () => {
+    if (!code) return;
+    try {
+      setData(await call(`/api/projects/${code}/procurement-plan`, user?.id));
+      setStatus("ready");
+      setError("");
+    } catch (e) {
+      setStatus("error");
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }, [code, user?.id]);
+
+  useEffect(() => {
+    if (ready && user && user.kind === "employee" && user.procurementAccess !== "none") void reload();
+  }, [ready, user, reload]);
+
+  /** Builds or refreshes the calendar from the budget. */
+  const rebuild = useCallback(async () => {
+    const r = await call<{ added: number; removed: number; total: number }>(`/api/projects/${code}/procurement-plan`, user?.id, { method: "POST" });
+    await reload();
+    return r;
+  }, [code, user?.id, reload]);
+
+  /** Approve, send back, reopen or change one item. Throws the server's reason when refused. */
+  const act = useCallback(
+    async (key: string, action: PlanAction) => {
+      const r = await call<{ item: PlanItem }>(`/api/projects/${code}/procurement-plan/${key}`, user?.id, { method: "POST", body: JSON.stringify(action) });
+      setData((d) => d && { ...d, items: d.items.map((i) => (i.key === key ? r.item : i)).sort((a, b) => a.startBy.localeCompare(b.startBy) || a.key.localeCompare(b.key)) });
+      return r.item;
+    },
+    [code, user?.id],
+  );
+
+  return { items: data?.items ?? [], budget: data?.budget ?? null, workplan: data?.workplan ?? [], status, error, reload, rebuild, act };
 }
 
 export function useSubmissions(code = "A-2027") {

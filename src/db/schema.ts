@@ -369,6 +369,27 @@ export const procurements = pgTable(
   (t) => [uniqueIndex("procurements_project_key").on(t.projectId, t.procKey)],
 );
 
+/**
+ * The procurement calendar: one planned purchase per budget line to procure. `data` holds the
+ * item (dates, value, method level, approvals); the columns are for lookups.
+ */
+export const procurementPlan = pgTable(
+  "procurement_plan",
+  {
+    id: id(),
+    projectId: uuid("project_id").notNull().references(() => projects.id),
+    /** "PP-001". */
+    planKey: text("plan_key").notNull(),
+    budgetLineId: uuid("budget_line_id").references(() => budgetLines.id, { onDelete: "set null" }),
+    status: text("status").notNull().default("draft"),
+    startBy: date("start_by").notNull(),
+    techLead: text("tech_lead"),
+    data: jsonb("data").notNull(),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex("procurement_plan_project_key").on(t.projectId, t.planKey)],
+);
+
 /** Small per-project state documents, e.g. store stock. */
 export const projectState = pgTable(
   "project_state",
