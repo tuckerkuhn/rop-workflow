@@ -7,6 +7,7 @@ import { Pill, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { kindTone } from "@/components/tasks/row";
 import { userById } from "@/lib/demo";
 import type { DonorInfo } from "@/lib/progress";
+import { formatById } from "@/lib/report-formats";
 import { isOverdue, type Row } from "@/lib/work-items";
 
 /**
@@ -86,11 +87,11 @@ export function TaskDetail({
   if (row.kind === "milestone") {
     facts.push([t("detail.when"), row.end ? `${date(row.date, long)} – ${date(row.end, long)}` : date(row.date, long)]);
     if (row.automatic) facts.push([t("detail.from"), row.donorName ? t("detail.fromDonor", { donor: row.donorName }) : t("tasks.fromSettings")]);
-    else if (row.createdBy) facts.push([t("detail.addedBy"), person(row.createdBy)]);
+    else if (row.createdBy && userById(row.createdBy)) facts.push([t("detail.addedBy"), person(row.createdBy)]);
   } else {
     facts.push([t("detail.due"), row.date ? date(row.date, long) : t("detail.noDate")]);
     facts.push([t("detail.who"), person(row.assignee) ?? t("tasks.anyone")]);
-    if (row.createdBy && row.createdBy !== row.assignee) facts.push([t("detail.askedBy"), person(row.createdBy)]);
+    if (row.createdBy && row.createdBy !== row.assignee && userById(row.createdBy)) facts.push([t("detail.askedBy"), person(row.createdBy)]);
     if (row.done && row.doneAt) facts.push([t("detail.doneBy"), `${person(row.doneBy) ?? "?"}, ${date(row.doneAt.slice(0, 10), long)}`]);
   }
 
@@ -147,7 +148,7 @@ export function TaskDetail({
         {donor && row.kind === "milestone" && row.milestoneKind === "report_deadline" && (
           <section className="mt-4 rounded-2xl bg-sunken p-4 text-sm">
             <p className="font-medium">{t("detail.reportFor", { donor: donor.name })}</p>
-            <p className="mt-1 text-muted">{t("detail.reportFormat", { format: donor.reportFormat })}</p>
+            <p className="mt-1 text-muted">{t("detail.reportFormat", { format: t(formatById(donor.reportFormat).label) })}</p>
             {Object.keys(donor.indicatorRefs).length > 0 && <p className="mt-1 text-muted">{t("detail.reportIndicators", { n: Object.keys(donor.indicatorRefs).length })}</p>}
           </section>
         )}
