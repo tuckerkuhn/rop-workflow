@@ -1,0 +1,1039 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { useT } from "@/components/app/i18n";
+import { useRequireUser, useSession } from "@/components/app/session";
+import { Pill, SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn } from "@/components/workspace/ui";
+import {
+  CHANGE_KINDS,
+  FIELDS,
+  GROUP_LABEL,
+  HIRE_REQUIRED,
+  HR_ROLES,
+  KIND_LABEL,
+  ROLE_LABEL,
+  fieldsIn,
+  type FieldKey,
+  type Fields,
+  type Group,
+  type HrAction,
+  type HrRole,
+  type ProposalInput,
+  type Rules,
+  type Value,
+} from "@/lib/hr";
+import type { HrView, PersonView, ProposalView } from "@/server/hr-view";
+
+/**
+ * People: the HR record. Every change is proposed, signed by the people the rules name, and
+ * written as a new ledger entry; nothing is ever edited or deleted.
+ */
+
+async function call<T>(url: string, user: string | undefined, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, { cache: "no-store", ...init, headers: { "Content-Type": "application/json", "x-demo-user": user ?? "", ...(init?.headers ?? {}) } });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((body as { error?: string }).error ?? `Request failed (${res.status})`);
+  return body as T;
+}
+
+function useHr() {
+  const { user, ready } = useSession();
+  const [view, setView] = useState<HrView | null>(null);
+  const [error, setError] = useState("");
+  const reload = useCallback(async () => {
+    try {
+      setView(await call<HrView>("/api/hr", user?.id));
+      setError("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }, [user?.id]);
+  useEffect(() => {
+    if (ready && user) void reload();
+  }, [ready, user, reload]);
+  const act = useCallback(
+    async (a: HrAction) => {
+      const r = await call<{ view: HrView }>("/api/hr", user?.id, { method: "POST", body: JSON.stringify(a) });
+      setView(r.view);
+    },
+    [user?.id],
+  );
+  const seal = useCallback(async () => {
+    const r = await call<{ sealed: boolean; why?: string }>("/api/hr/seal", user?.id, { method: "POST" });
+    await reload();
+    return r;
+  }, [user?.id, reload]);
+  const reset = useCallback(async () => {
+    await call("/api/hr/reset", user?.id, { method: "POST" });
+    await reload();
+  }, [user?.id, reload]);
+  return { view, error, act, seal, reset, reload };
+}
+
+const today = () => new Date().toISOString().slice(0, 10);
+
+function show(k: FieldKey, v: Value | undefined, names: Record<string, string>, currency?: Value) {
+  if (v == null || v === "") return "—";
+  const f = FIELDS[k];
+  if (f.type === "person") return names[String(v)] ?? String(v);
+  if (f.type === "money") return `${typeof v === "number" ? v.toLocaleString("en-US") : v}${currency ? ` ${currency}` : ""}`;
+  if (k === "dangerPay" || k === "postDiff" || k === "retirementPct") return `${v}%`;
+  return String(v);
+}
+
+type Tab = "waiting" | "people" | "changes" | "rules" | "ledger";
+
+export function PeoplePage() {
+  const { user } = useRequireUser();
+  const hr = useHr();
+  const { date } = useT();
+  const [tab, setTab] = useState<Tab>("waiting");
+  const [open, setOpen] = useState<string | null>(null);
+  const [form, setForm] = useState<FormState | null>(null);
+  const [declare, setDeclare] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [rulesOpen, setRulesOpen] = useState(false);
+
+  const v = hr.view;
+  if (!user) return null;
+  const waiting = v?.proposals.filter((p) => p.canSign) ?? [];
+  const mine = v?.people.find((p) => p.id === v.me);
+  const isHr = !!v?.roles.includes("hr");
+  const tabs: { id: Tab; label: string }[] = v?.seesAll
+    ? [
+        { id: "waiting", label: `Waiting for you (${waiting.length})` },
+        { id: "people", label: "People" },
+        { id: "changes", label: "All changes" },
+        { id: "rules", label: "Rules" },
+        { id: "ledger", label: "Ledger" },
+      ]
+    : [
+        { id: "waiting", label: "My record" },
+        { id: "changes", label: "My changes" },
+      ];
+  const person = open ? v?.people.find((p) => p.id === open) : null;
+  const fmt = (iso: string) => date(iso.slice(0, 10), { day: "numeric", month: "short", year: "numeric" });
+
+  return (
+    <div className="min-h-screen">
+      <TopBar />
+      <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
+        <h1 className="font-display text-3xl tracking-tight">People</h1>
+        <p className="mt-1 max-w-2xl text-sm text-muted">
+          The HR record. Nothing in it can be edited or deleted: every change is a new entry, signed by the people the rules name, and sealed so any later tampering shows.
+        </p>
+        {v?.sample && (
+          <p className="mt-3 rounded-xl bg-sunken px-4 py-2 text-xs text-muted">
+            Sample records: fictional people and pay. Real records go in a separate book that can never be reset.
+          </p>
+        )}
+        {hr.error && (
+          <p role="alert" className="mt-4 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">
+            {hr.error}
+          </p>
+        )}
+        {notice && (
+          <p role="status" className="mt-4 rounded-xl bg-mist px-4 py-3 text-sm text-leaf">
+            {notice}
+          </p>
+        )}
+        {!v ? (
+          !hr.error && <p className="mt-10 text-sm text-muted">Loading…</p>
+        ) : (
+          <>
+            <IntegrityBar view={v} fmt={fmt} />
+
+            <div role="tablist" className="mt-6 flex gap-1 overflow-x-auto border-b border-line">
+              {tabs.map((t) => (
+                <button
+                  key={t.id}
+                  role="tab"
+                  aria-selected={tab === t.id}
+                  onClick={() => setTab(t.id)}
+                  className={`shrink-0 border-b-2 px-3 py-2.5 text-sm ${tab === t.id ? "border-forest font-semibold text-forest" : "border-transparent text-muted hover:text-ink"}`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            {tab === "waiting" && (
+              <section className="mt-6 space-y-4">
+                {v.seesAll ? (
+                  waiting.length ? (
+                    waiting.map((p) => <ProposalCard key={p.id} p={p} view={v} fmt={fmt} act={hr.act} onDone={setNotice} />)
+                  ) : (
+                    <Empty>Nothing is waiting for your signature.</Empty>
+                  )
+                ) : mine ? (
+                  <PersonRecord p={mine} view={v} fmt={fmt} onChange={() => setForm({ type: "update", subject: mine.id, own: true })} />
+                ) : (
+                  <Empty>You have no HR record yet. HR adds it when your contract starts.</Empty>
+                )}
+                {!v.seesAll && v.people.some((p) => p.id !== v.me) && (
+                  <section>
+                    <SectionLabel>My team</SectionLabel>
+                    <ul className="mt-2 divide-y divide-line rounded-2xl border border-line bg-surface">
+                      {v.people
+                        .filter((p) => p.id !== v.me)
+                        .map((p) => (
+                          <li key={p.id} className="px-4 py-3 text-sm">
+                            <span className="block font-medium">{p.name}</span>
+                            <span className="block text-muted">
+                              {p.title} · since {p.fields.startDate ? fmt(String(p.fields.startDate)) : "—"}
+                              {p.fields.contractEnd ? ` · contract ends ${fmt(String(p.fields.contractEnd))}` : ""}
+                            </span>
+                          </li>
+                        ))}
+                    </ul>
+                  </section>
+                )}
+                {!v.seesAll && <Relations view={v} onDeclare={() => setDeclare(true)} fmt={fmt} />}
+              </section>
+            )}
+
+            {tab === "people" && v.seesAll && (
+              <section className="mt-6">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <SectionLabel>{v.people.length} people</SectionLabel>
+                  {isHr && (
+                    <button type="button" className={primaryBtn} onClick={() => setForm({ type: "hire" })}>
+                      Add a person
+                    </button>
+                  )}
+                </div>
+                <ul className="mt-3 divide-y divide-line rounded-2xl border border-line bg-surface">
+                  {v.people.map((p) => (
+                    <li key={p.id}>
+                      <button type="button" onClick={() => setOpen(p.id)} className="flex w-full items-center gap-3 px-4 py-3 text-start hover:bg-sunken">
+                        <span className="min-w-0 flex-1">
+                          <span className="block font-medium">{p.name}</span>
+                          <span className="block truncate text-sm text-muted">
+                            {p.title} · {p.office}
+                          </span>
+                        </span>
+                        {p.separated && <Pill tone="muted">Left {fmt(p.separated.effective)}</Pill>}
+                        {v.proposals.some((x) => x.subject === p.id && x.status === "pending") && <Pill tone="ochre">Change pending</Pill>}
+                        {v.relations.some((r) => r.a === p.id || r.b === p.id) && <Pill tone="plum">Related party</Pill>}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-6">
+                  <Relations view={v} onDeclare={() => setDeclare(true)} fmt={fmt} />
+                </div>
+              </section>
+            )}
+
+            {tab === "changes" && (
+              <section className="mt-6 space-y-4">
+                {v.proposals.length ? v.proposals.map((p) => <ProposalCard key={p.id} p={p} view={v} fmt={fmt} act={hr.act} onDone={setNotice} />) : <Empty>No changes yet.</Empty>}
+              </section>
+            )}
+
+            {tab === "rules" && v.seesAll && v.rules && (
+              <RulesView rules={v.rules} names={v.names} onPropose={() => setRulesOpen(true)} />
+            )}
+
+            {tab === "ledger" && v.seesAll && (
+              <Ledger view={v} fmt={fmt} seal={hr.seal} reset={user.admin && v.sample ? hr.reset : null} onDone={setNotice} />
+            )}
+          </>
+        )}
+      </main>
+
+      {person && v && (
+        <Modal title={person.name} onClose={() => setOpen(null)}>
+          <PersonRecord
+            p={person}
+            view={v}
+            fmt={fmt}
+            onChange={isHr && person.id !== v.me ? () => setForm({ type: "update", subject: person.id }) : undefined}
+            onLeave={isHr && person.id !== v.me && !person.separated ? () => setForm({ type: "separate", subject: person.id }) : undefined}
+            onCorrect={isHr && person.id !== v.me ? (id) => setForm({ type: "update", subject: person.id, corrects: id }) : undefined}
+          />
+        </Modal>
+      )}
+      {form && v && (
+        <ChangeForm
+          state={form}
+          view={v}
+          onClose={() => setForm(null)}
+          submit={async (proposal) => {
+            await hr.act({ action: "propose", proposal });
+            setForm(null);
+            setOpen(null);
+            setNotice("Proposed. It takes effect once every step is signed.");
+          }}
+        />
+      )}
+      {declare && v && (
+        <DeclareForm
+          view={v}
+          onClose={() => setDeclare(false)}
+          submit={async (a, b, relation) => {
+            await hr.act({ action: "declare", a, b, relation });
+            setDeclare(false);
+            setNotice("Recorded. Neither person can now sign changes to the other's record.");
+          }}
+        />
+      )}
+      {rulesOpen && v?.rules && (
+        <RulesForm
+          rules={v.rules}
+          view={v}
+          onClose={() => setRulesOpen(false)}
+          submit={async (rules, reason) => {
+            await hr.act({ action: "propose", proposal: { type: "rules", subject: null, effective: today(), rules, reason } });
+            setRulesOpen(false);
+            setNotice("New rules proposed. They apply once the CEO and the Board sign.");
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function Empty({ children }: { children: React.ReactNode }) {
+  return <p className="rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">{children}</p>;
+}
+
+/* ---------------- Integrity ---------------- */
+
+function IntegrityBar({ view, fmt }: { view: HrView; fmt: (iso: string) => string }) {
+  const i = view.integrity;
+  if (!i.ok)
+    return (
+      <div role="alert" className="mt-5 rounded-2xl border border-clay bg-clay-soft p-4 text-sm text-clay">
+        <p className="font-semibold">The HR record has been tampered with.</p>
+        <p className="mt-1">{i.problem} Do not approve anything until this is explained. Compare the seal emails with the Ledger tab.</p>
+      </div>
+    );
+  return (
+    <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-2xl border border-line bg-surface px-4 py-3 text-sm">
+      <span className="font-semibold text-leaf">✓ Record intact</span>
+      <span className="text-muted">
+        {i.entries} entries, each sealed to the one before
+        {i.lastSeal ? ` · last daily seal ${fmt(i.lastSeal.at)}${i.lastSeal.sentTo ? " (emailed)" : ""}` : " · not sealed yet"}
+        {i.unsealed > 0 && i.lastSeal ? ` · ${i.unsealed} since` : ""}
+      </span>
+    </div>
+  );
+}
+
+/* ---------------- A person's record ---------------- */
+
+function PersonRecord({
+  p,
+  view,
+  fmt,
+  onChange,
+  onLeave,
+  onCorrect,
+}: {
+  p: PersonView;
+  view: HrView;
+  fmt: (iso: string) => string;
+  onChange?: () => void;
+  onLeave?: () => void;
+  onCorrect?: (proposal: number) => void;
+}) {
+  const own = p.id === view.me;
+  const history = view.proposals.filter((x) => x.subject === p.id).sort((a, b) => b.id - a.id);
+  const related = view.relations.filter((r) => r.a === p.id || r.b === p.id);
+  return (
+    <div className="space-y-5">
+      {p.separated && (
+        <p className="rounded-xl bg-sunken px-4 py-3 text-sm">
+          Left ROP on {fmt(p.separated.effective)}: {p.separated.reason}
+        </p>
+      )}
+      {(["job", "pay", "details"] as Group[])
+        .filter((g) => p.groups.includes(g))
+        .map((g) => (
+          <section key={g}>
+            <SectionLabel>{GROUP_LABEL[g]}</SectionLabel>
+            <dl className="mt-2 divide-y divide-line rounded-2xl border border-line bg-surface px-4">
+              {fieldsIn(g).map((k) => (
+                <div key={k} className="grid grid-cols-[10rem_1fr] gap-3 py-2 text-sm">
+                  <dt className="text-muted">{FIELDS[k].label}</dt>
+                  <dd className="min-w-0 tabular-nums">{show(k, p.fields[k], view.names, FIELDS[k].type === "money" ? p.fields.currency : undefined)}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+        ))}
+      {p.upcoming.length > 0 && (
+        <section>
+          <SectionLabel>Approved, starting later</SectionLabel>
+          <ul className="mt-2 space-y-1 text-sm">
+            {p.upcoming.map((u) => (
+              <li key={u.proposal}>
+                From {fmt(u.effective)}: {Object.entries(u.fields).map(([k, val]) => `${FIELDS[k as FieldKey].label} ${show(k as FieldKey, val, view.names, p.fields.currency)}`).join(", ")}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {related.length > 0 && view.seesAll && (
+        <section>
+          <SectionLabel>Related parties</SectionLabel>
+          <ul className="mt-2 text-sm">
+            {related.map((r) => (
+              <li key={r.n}>
+                {view.names[r.a === p.id ? r.b : r.a] ?? (r.a === p.id ? r.b : r.a)} ({r.relation}), declared by {view.names[r.by] ?? r.by}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      <div className="flex flex-wrap gap-2">
+        {onChange && (
+          <button type="button" className={primaryBtn} onClick={onChange}>
+            {own ? "Update my contact details" : "Propose a change"}
+          </button>
+        )}
+        {onLeave && (
+          <button type="button" className={quietBtn} onClick={onLeave}>
+            Record leaving ROP
+          </button>
+        )}
+      </div>
+      {history.length > 0 && (
+        <section>
+          <SectionLabel>History</SectionLabel>
+          <ul className="mt-2 space-y-2">
+            {history.map((h) => (
+              <li key={h.id} className="rounded-xl border border-line bg-surface px-3 py-2 text-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium">
+                    #{h.id} {KIND_LABEL[h.kind]}
+                  </span>
+                  <StatusPill p={h} />
+                  <span className="text-muted">from {fmt(h.effective)}</span>
+                  {onCorrect && h.status === "approved" && (h.type === "update" || h.type === "hire") && (
+                    <button type="button" onClick={() => onCorrect(h.id)} className="ms-auto text-sm font-semibold text-forest hover:underline">
+                      Correct
+                    </button>
+                  )}
+                </div>
+                <Diff p={h} names={view.names} currency={p.fields.currency} />
+                <p className="mt-1 text-muted">
+                  {h.reason} · proposed by {view.names[h.by] ?? h.by}
+                  {h.signatures.length > 0 && `, signed by ${h.signatures.map((s) => `${view.names[s.by] ?? s.by} (${ROLE_LABEL[s.as]})`).join(", ")}`}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </div>
+  );
+}
+
+function StatusPill({ p }: { p: ProposalView }) {
+  if (p.status === "approved") return <Pill tone="forest">Approved</Pill>;
+  if (p.status === "rejected") return <Pill tone="clay">Sent back</Pill>;
+  if (p.status === "withdrawn") return <Pill tone="muted">Withdrawn</Pill>;
+  return <Pill tone="ochre">Waiting</Pill>;
+}
+
+function Diff({ p, names, currency }: { p: ProposalView; names: Record<string, string>; currency?: Value }) {
+  if (!p.fields) return null;
+  const keys = Object.keys(p.fields) as FieldKey[];
+  if (!keys.length) return <p className="mt-1 text-xs text-muted">Details you may not see.</p>;
+  const cur = p.fields.currency ?? p.before?.currency ?? currency;
+  return (
+    <table className="mt-2 w-full text-sm">
+      <tbody>
+        {keys.map((k) => (
+          <tr key={k} className="align-top">
+            <td className="w-44 py-0.5 pe-3 text-muted">{FIELDS[k].label}</td>
+            <td className="py-0.5 tabular-nums">
+              {p.type === "update" && <span className="text-muted line-through decoration-1">{show(k, p.before?.[k], names, cur)}</span>}
+              {p.type === "update" && " → "}
+              <span className="font-medium">{show(k, p.fields?.[k], names, cur)}</span>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+/* ---------------- A proposed change ---------------- */
+
+function ProposalCard({ p, view, fmt, act, onDone }: { p: ProposalView; view: HrView; fmt: (iso: string) => string; act: (a: HrAction) => Promise<void>; onDone: (s: string) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [back, setBack] = useState<string | null>(null);
+  const run = async (a: HrAction, msg: string) => {
+    setBusy(true);
+    setError("");
+    try {
+      await act(a);
+      onDone(msg);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const who = p.subject ? (view.names[p.subject] ?? p.subject) : "Everyone";
+  // Fields that only some kinds of change carry.
+  const extra = p as ProposalView & { other?: string; rules?: Rules };
+  return (
+    <article className="rounded-2xl border border-line bg-surface p-4 sm:p-5">
+      <div className="flex flex-wrap items-center gap-2">
+        <StatusPill p={p} />
+        <span className="text-xs text-muted">
+          #{p.id} · proposed by {view.names[p.by] ?? p.by}, {fmt(p.at)}
+        </span>
+      </div>
+      <h3 className="mt-2 text-lg font-semibold">
+        {KIND_LABEL[p.kind]}: {who}
+      </h3>
+      <p className="text-sm text-muted">Takes effect {fmt(p.effective)}</p>
+      {p.type === "separate" && <p className="mt-2 text-sm">Leaving ROP.</p>}
+      {extra.other && <p className="mt-2 text-sm">Remove the link between {who} and {view.names[extra.other] ?? extra.other}.</p>}
+      {extra.rules && <RulesView rules={extra.rules} names={view.names} compact />}
+      <Diff p={p} names={view.names} currency={view.people.find((x) => x.id === p.subject)?.fields.currency} />
+      <p className="mt-3 text-sm">
+        <span className="text-muted">Reason: </span>
+        {p.reason}
+      </p>
+      {p.warnings.length > 0 && (
+        <ul className="mt-3 space-y-1 rounded-xl bg-ochre-soft px-3 py-2 text-sm text-ochre">
+          {p.warnings.map((w) => (
+            <li key={w}>⚠ {w}</li>
+          ))}
+        </ul>
+      )}
+      <ol className="mt-3 flex flex-wrap gap-2 text-xs">
+        {p.roles.map((r, i) => {
+          const s = p.signatures[i];
+          const isNext = p.status === "pending" && i === p.signatures.length;
+          return (
+            <li key={i} className={`rounded-full border px-3 py-1 ${s ? "border-forest text-leaf" : isNext ? "border-ochre text-ochre" : "border-line text-muted"}`}>
+              {i + 1}. {ROLE_LABEL[r]}
+              {s ? `: ${view.names[s.by] ?? s.by}${s.as !== r ? ` for the ${ROLE_LABEL[s.as]}` : ""}, ${fmt(s.at)}` : isNext && p.next?.fellBack ? ": falls to the Board (conflict)" : isNext ? ": waiting" : ""}
+            </li>
+          );
+        })}
+      </ol>
+      {p.status === "pending" && p.next && view.seesAll && (
+        <p className="mt-2 text-xs text-muted">
+          Can sign now: {p.next.people.length ? p.next.people.map((x) => view.names[x] ?? x).join(", ") : "nobody: everyone holding this role has a conflict. Change the rules to add someone."}
+          {p.next.blocked.length > 0 && ` · Cannot: ${p.next.blocked.map((b) => `${view.names[b.id] ?? b.id} (${b.why})`).join(", ")}`}
+        </p>
+      )}
+      {p.closedBy?.note && (
+        <p className="mt-2 text-sm text-clay">
+          Sent back by {view.names[p.closedBy.by] ?? p.closedBy.by}: {p.closedBy.note}
+        </p>
+      )}
+      {p.cannotSign && <p className="mt-2 text-sm text-muted">You hold this role but cannot sign: {p.cannotSign}.</p>}
+      {error && (
+        <p role="alert" className="mt-2 text-sm text-clay">
+          {error}
+        </p>
+      )}
+      {(p.canSign || p.canWithdraw) && back === null && (
+        <div className="mt-4 flex flex-wrap gap-2">
+          {p.canSign && (
+            <>
+              <button type="button" disabled={busy} className={primaryBtn} onClick={() => run({ action: "approve", proposal: p.id }, `Signed #${p.id}.`)}>
+                Approve as {ROLE_LABEL[p.next?.fellBack ? "board" : p.next!.role]}
+              </button>
+              <button type="button" disabled={busy} className={quietBtn} onClick={() => setBack("")}>
+                Send back
+              </button>
+            </>
+          )}
+          {p.canWithdraw && (
+            <button type="button" disabled={busy} className={quietBtn} onClick={() => run({ action: "withdraw", proposal: p.id }, `Withdrew #${p.id}.`)}>
+              Withdraw
+            </button>
+          )}
+        </div>
+      )}
+      {back !== null && (
+        <div className="mt-4">
+          <label className="text-sm font-medium" htmlFor={`back-${p.id}`}>
+            Why are you sending it back?
+          </label>
+          <textarea id={`back-${p.id}`} value={back} onChange={(e) => setBack(e.target.value)} rows={3} className="mt-1 w-full rounded-xl border border-line bg-paper px-3 py-2 text-base" />
+          <div className="mt-2 flex gap-2">
+            <button type="button" disabled={busy || back.trim().length < 3} className={dangerBtn} onClick={() => run({ action: "reject", proposal: p.id, note: back }, `Sent back #${p.id}.`).then(() => setBack(null))}>
+              Send back
+            </button>
+            <button type="button" className={quietBtn} onClick={() => setBack(null)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+    </article>
+  );
+}
+
+/* ---------------- Proposing a change ---------------- */
+
+type FormState = { type: "hire" } | { type: "update"; subject: string; own?: boolean; corrects?: number } | { type: "separate"; subject: string };
+
+function ChangeForm({ state, view, onClose, submit }: { state: FormState; view: HrView; onClose: () => void; submit: (p: ProposalInput) => Promise<void> }) {
+  const person = "subject" in state ? view.people.find((p) => p.id === state.subject) : undefined;
+  const corrected = state.type === "update" && state.corrects ? view.proposals.find((p) => p.id === state.corrects) : undefined;
+  const [values, setValues] = useState<Fields>(() => (corrected?.fields ? { ...corrected.fields } : {}));
+  const [effective, setEffective] = useState(corrected?.effective ?? today());
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const own = state.type === "update" && !!state.own;
+  const groups: Group[] = own ? ["details"] : ["job", "pay", "details"];
+  const changed = (Object.keys(values) as FieldKey[]).filter((k) => state.type === "hire" ? values[k] !== "" && values[k] != null : values[k] !== (person?.fields[k] ?? null) || corrected);
+  const title = state.type === "hire" ? "Add a person" : state.type === "separate" ? `${person?.name}: leaving ROP` : corrected ? `${person?.name}: correct change #${corrected.id}` : own ? "Update my contact details" : `${person?.name}: propose a change`;
+
+  const send = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const fields = Object.fromEntries(changed.map((k) => [k, values[k] ?? null])) as Fields;
+      if (state.type === "hire") await submit({ type: "hire", subject: "new", effective: String(fields.startDate ?? effective), fields, reason });
+      else if (state.type === "separate") await submit({ type: "separate", subject: state.subject, effective, reason });
+      else await submit({ type: "update", subject: state.subject, effective, fields, reason, ...(state.corrects ? { corrects: state.corrects } : {}) });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const missing = state.type === "hire" ? HIRE_REQUIRED.filter((k) => values[k] == null || values[k] === "") : [];
+
+  return (
+    <Modal title={title} onClose={onClose}>
+      <div className="space-y-5">
+        {corrected && <p className="rounded-xl bg-sunken px-3 py-2 text-sm">A correction is a new entry. Change #{corrected.id} stays in the history, marked as corrected.</p>}
+        {state.type !== "separate" &&
+          groups.map((g) => (
+            <fieldset key={g}>
+              <legend className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">{GROUP_LABEL[g]}</legend>
+              <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                {fieldsIn(g).map((k) => (
+                  <FieldInput key={k} k={k} value={k in values ? values[k] : (person?.fields[k] ?? null)} directory={view.directory} required={state.type === "hire" && HIRE_REQUIRED.includes(k)} onChange={(val) => setValues((s) => ({ ...s, [k]: val }))} />
+                ))}
+              </div>
+            </fieldset>
+          ))}
+        {state.type !== "hire" && (
+          <label className="block text-sm">
+            <span className="font-medium">{state.type === "separate" ? "Last day" : "Takes effect"}</span>
+            <input type="date" value={effective} onChange={(e) => setEffective(e.target.value)} className="mt-1 block w-full rounded-xl border border-line bg-paper px-3 py-2.5 text-base sm:w-56" />
+            {effective < today() && <span className="mt-1 block text-ochre">Backdated: the approvers will see this.</span>}
+          </label>
+        )}
+        <label className="block text-sm">
+          <span className="font-medium">Reason (required, kept forever)</span>
+          <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} className="mt-1 w-full rounded-xl border border-line bg-paper px-3 py-2 text-base" />
+        </label>
+        {error && (
+          <p role="alert" className="text-sm text-clay">
+            {error}
+          </p>
+        )}
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className={primaryBtn} disabled={busy || reason.trim().length < 3 || (state.type === "update" && !changed.length) || missing.length > 0} onClick={() => void send()}>
+            {busy ? "Sending…" : "Propose"}
+          </button>
+          <button type="button" className={quietBtn} onClick={onClose}>
+            Cancel
+          </button>
+        </div>
+        {missing.length > 0 && <p className="text-xs text-muted">Still needed: {missing.map((k) => FIELDS[k].label).join(", ")}.</p>}
+      </div>
+    </Modal>
+  );
+}
+
+function FieldInput({ k, value, onChange, directory, required }: { k: FieldKey; value: Value | undefined; onChange: (v: Value) => void; directory: { id: string; name: string }[]; required?: boolean }) {
+  const f = FIELDS[k];
+  const cls = "mt-1 block w-full rounded-xl border border-line bg-paper px-3 py-2.5 text-base";
+  const label = (
+    <span className="font-medium">
+      {f.label}
+      {required && <span className="text-clay"> *</span>}
+    </span>
+  );
+  const str = value == null ? "" : String(value);
+  return (
+    <label className="block text-sm">
+      {label}
+      {f.type === "select" ? (
+        <select value={str} onChange={(e) => onChange(e.target.value || null)} className={cls}>
+          <option value="">—</option>
+          {f.options.map((o) => (
+            <option key={o}>{o}</option>
+          ))}
+        </select>
+      ) : f.type === "person" ? (
+        <select value={str} onChange={(e) => onChange(e.target.value || null)} className={cls}>
+          <option value="">—</option>
+          {directory.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.name}
+            </option>
+          ))}
+        </select>
+      ) : f.type === "money" || f.type === "number" ? (
+        <input type="number" inputMode="decimal" min={0} step="any" value={str} onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))} className={cls} />
+      ) : (
+        <input type={f.type === "date" ? "date" : "text"} value={str} onChange={(e) => onChange(e.target.value || null)} className={cls} />
+      )}
+    </label>
+  );
+}
+
+/* ---------------- Related parties ---------------- */
+
+function Relations({ view, onDeclare, fmt }: { view: HrView; onDeclare: () => void; fmt: (iso: string) => string }) {
+  return (
+    <section className="rounded-2xl border border-line bg-surface p-4">
+      <SectionLabel>Related parties</SectionLabel>
+      <p className="mt-1 text-sm text-muted">Family members and other close relations. Nobody can sign a change to the record of someone they are related to. Declaring takes effect at once; removing a link needs approval.</p>
+      {view.relations.length > 0 && (
+        <ul className="mt-3 space-y-1 text-sm">
+          {view.relations.map((r) => (
+            <li key={r.n}>
+              {view.names[r.a] ?? r.a} and {view.names[r.b] ?? r.b}: {r.relation} <span className="text-muted">(declared by {view.names[r.by] ?? r.by}, {fmt(r.at)})</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <button type="button" className={`${quietBtn} mt-3`} onClick={onDeclare}>
+        Declare a related person
+      </button>
+    </section>
+  );
+}
+
+function DeclareForm({ view, onClose, submit }: { view: HrView; onClose: () => void; submit: (a: string, b: string, relation: string) => Promise<void> }) {
+  const isHr = view.roles.includes("hr");
+  const [a, setA] = useState(view.me);
+  const [b, setB] = useState("");
+  const [relation, setRelation] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const cls = "mt-1 block w-full rounded-xl border border-line bg-paper px-3 py-2.5 text-base";
+  return (
+    <Modal title="Declare a related person" onClose={onClose}>
+      <div className="space-y-4">
+        {isHr && (
+          <label className="block text-sm">
+            <span className="font-medium">Person</span>
+            <select value={a} onChange={(e) => setA(e.target.value)} className={cls}>
+              {view.directory.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        <label className="block text-sm">
+          <span className="font-medium">{isHr ? "Is related to" : "I am related to"}</span>
+          <select value={b} onChange={(e) => setB(e.target.value)} className={cls}>
+            <option value="">—</option>
+            {view.directory
+              .filter((d) => d.id !== a)
+              .map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+          </select>
+        </label>
+        <label className="block text-sm">
+          <span className="font-medium">How</span>
+          <input value={relation} onChange={(e) => setRelation(e.target.value)} placeholder="For example: brother, cousin, spouse" className={cls} />
+        </label>
+        {error && (
+          <p role="alert" className="text-sm text-clay">
+            {error}
+          </p>
+        )}
+        <button
+          type="button"
+          className={primaryBtn}
+          disabled={busy || !b || relation.trim().length < 2}
+          onClick={async () => {
+            setBusy(true);
+            setError("");
+            try {
+              await submit(a, b, relation);
+            } catch (e) {
+              setError(e instanceof Error ? e.message : String(e));
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          Declare
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+/* ---------------- Rules ---------------- */
+
+function RulesView({ rules, names, onPropose, compact }: { rules: Rules; names: Record<string, string>; onPropose?: () => void; compact?: boolean }) {
+  return (
+    <section className={compact ? "mt-3" : "mt-6 space-y-6"}>
+      {!compact && (
+        <p className="max-w-2xl text-sm text-muted">
+          Who signs each kind of change, in order. Whatever these say, nobody signs a change to their own record, a related person&apos;s or their supervisor&apos;s, or one they proposed; a step whose role holders all have a conflict falls to the Board. Changing
+          these rules needs the CEO and the Board.
+        </p>
+      )}
+      <table className="w-full text-sm">
+        <tbody className="divide-y divide-line">
+          {CHANGE_KINDS.map((k) => (
+            <tr key={k}>
+              <td className="py-1.5 pe-3 text-muted">{KIND_LABEL[k]}</td>
+              <td className="py-1.5">HR proposes → {rules.steps[k].map((r) => ROLE_LABEL[r]).join(" → ")}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <table className="w-full text-sm">
+        <tbody className="divide-y divide-line">
+          {HR_ROLES.map((r) => (
+            <tr key={r}>
+              <td className="w-32 py-1.5 pe-3 text-muted">{ROLE_LABEL[r]}</td>
+              <td className="py-1.5">{rules.holders[r].map((x) => names[x] ?? x).join(", ") || "—"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {onPropose && (
+        <button type="button" className={quietBtn} onClick={onPropose}>
+          Propose new rules
+        </button>
+      )}
+    </section>
+  );
+}
+
+function RulesForm({ rules, view, onClose, submit }: { rules: Rules; view: HrView; onClose: () => void; submit: (r: Rules, reason: string) => Promise<void> }) {
+  const [draft, setDraft] = useState<Rules>(() => JSON.parse(JSON.stringify(rules)));
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const setStep = (k: (typeof CHANGE_KINDS)[number], i: number, r: HrRole | "") =>
+    setDraft((d) => {
+      const steps = [...d.steps[k]];
+      if (r) steps[i] = r;
+      else steps.splice(i, 1);
+      return { ...d, steps: { ...d.steps, [k]: steps.length ? steps : d.steps[k] } };
+    });
+  const toggle = (r: HrRole, id: string) => setDraft((d) => ({ ...d, holders: { ...d.holders, [r]: d.holders[r].includes(id) ? d.holders[r].filter((x) => x !== id) : [...d.holders[r], id] } }));
+  const sel = "rounded-lg border border-line bg-paper px-2 py-1.5 text-sm";
+  return (
+    <Modal title="Propose new rules" onClose={onClose}>
+      <div className="space-y-5">
+        <section>
+          <SectionLabel>Steps</SectionLabel>
+          <div className="mt-2 space-y-2">
+            {CHANGE_KINDS.map((k) => (
+              <div key={k} className="flex flex-wrap items-center gap-2 text-sm">
+                <span className="w-56 text-muted">{KIND_LABEL[k]}</span>
+                {[...draft.steps[k], ""].slice(0, 4).map((r, i) => (
+                  <select key={i} value={r} onChange={(e) => setStep(k, i, e.target.value as HrRole | "")} className={sel} aria-label={`${KIND_LABEL[k]} step ${i + 1}`}>
+                    <option value="">{i < draft.steps[k].length ? "Remove" : "Add a step"}</option>
+                    {HR_ROLES.map((x) => (
+                      <option key={x} value={x}>
+                        {ROLE_LABEL[x]}
+                      </option>
+                    ))}
+                  </select>
+                ))}
+              </div>
+            ))}
+          </div>
+        </section>
+        <section>
+          <SectionLabel>Role holders</SectionLabel>
+          <div className="mt-2 space-y-3">
+            {HR_ROLES.map((r) => (
+              <fieldset key={r}>
+                <legend className="text-sm font-medium">{ROLE_LABEL[r]}</legend>
+                <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+                  {view.directory.map((d) => (
+                    <label key={d.id} className="flex items-center gap-1.5 text-sm">
+                      <input type="checkbox" checked={draft.holders[r].includes(d.id)} onChange={() => toggle(r, d.id)} />
+                      {d.name}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            ))}
+          </div>
+        </section>
+        <label className="block text-sm">
+          <span className="font-medium">Reason (required, kept forever)</span>
+          <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={2} className="mt-1 w-full rounded-xl border border-line bg-paper px-3 py-2 text-base" />
+        </label>
+        {error && (
+          <p role="alert" className="text-sm text-clay">
+            {error}
+          </p>
+        )}
+        <button
+          type="button"
+          className={primaryBtn}
+          disabled={busy || reason.trim().length < 3}
+          onClick={async () => {
+            setBusy(true);
+            setError("");
+            try {
+              await submit(draft, reason);
+            } catch (e) {
+              setError(e instanceof Error ? e.message : String(e));
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          Propose
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+/* ---------------- Ledger ---------------- */
+
+const KIND_TEXT: Record<string, string> = { start: "Rules set up", propose: "Proposed", approve: "Signed", reject: "Sent back", withdraw: "Withdrawn", declare: "Related party declared", seal: "Sealed" };
+
+function Ledger({ view, fmt, seal, reset, onDone }: { view: HrView; fmt: (iso: string) => string; seal: () => Promise<{ sealed: boolean; why?: string }>; reset: (() => Promise<void>) | null; onDone: (s: string) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const ignored = new Map(view.ignored.map((i) => [i.n, i.why]));
+  const run = async (fn: () => Promise<string>) => {
+    setBusy(true);
+    setError("");
+    try {
+      onDone(await fn());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="mt-6 space-y-6">
+      <p className="max-w-2xl text-sm text-muted">
+        Every entry, newest first. Each fingerprint is worked out from the entry and the fingerprint before it, so changing any entry changes every fingerprint after it. Once a day the latest fingerprint is
+        sealed and emailed outside the app; if it ever differs from the email, the record was changed.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" disabled={busy} className={quietBtn} onClick={() => run(async () => { const r = await seal(); return r.sealed ? "Sealed." : (r.why ?? "Not sealed."); })}>
+          Seal now
+        </button>
+        {reset && (
+          <button type="button" disabled={busy} className={quietBtn} onClick={() => run(async () => { await reset(); return "Sample records restored."; })}>
+            Reset sample records
+          </button>
+        )}
+      </div>
+      {error && (
+        <p role="alert" className="text-sm text-clay">
+          {error}
+        </p>
+      )}
+      {view.ignored.length > 0 && (
+        <div className="rounded-2xl border border-clay bg-clay-soft p-4 text-sm text-clay">
+          <p className="font-semibold">Entries that do not count</p>
+          <p className="mt-1">Written to the record but not allowed by the rules, so they have no effect. Ask who wrote them and why.</p>
+          <ul className="mt-2 list-disc ps-5">
+            {view.ignored.map((i) => (
+              <li key={i.n}>
+                Entry {i.n} ({KIND_TEXT[i.kind] ?? i.kind}) by {view.names[i.actor] ?? i.actor}: {i.why}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <div className="overflow-x-auto rounded-2xl border border-line bg-surface">
+        <table className="w-full min-w-[36rem] text-sm">
+          <thead className="text-start text-xs text-muted">
+            <tr>
+              <th className="px-3 py-2 text-start font-medium">#</th>
+              <th className="px-3 py-2 text-start font-medium">When</th>
+              <th className="px-3 py-2 text-start font-medium">Who</th>
+              <th className="px-3 py-2 text-start font-medium">What</th>
+              <th className="px-3 py-2 text-start font-medium">Fingerprint</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-line">
+            {view.entries.map((e) => (
+              <tr key={e.n} className={ignored.has(e.n) ? "bg-clay-soft" : e.kind === "seal" ? "bg-mist" : ""}>
+                <td className="px-3 py-1.5 tabular-nums">{e.n}</td>
+                <td className="px-3 py-1.5 whitespace-nowrap">{new Date(e.at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}</td>
+                <td className="px-3 py-1.5">{view.names[e.actor] ?? e.actor}</td>
+                <td className="px-3 py-1.5">
+                  {KIND_TEXT[e.kind] ?? e.kind}
+                  {e.subject ? `: ${view.names[e.subject] ?? e.subject}` : ""}
+                </td>
+                <td className="px-3 py-1.5 font-mono text-xs text-muted" title={e.hash}>
+                  {e.hash.slice(0, 12)}…
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {view.seals.length > 0 && (
+        <section>
+          <SectionLabel>Seals</SectionLabel>
+          <ul className="mt-2 space-y-1 text-sm">
+            {view.seals.map((s) => (
+              <li key={s.n}>
+                {fmt(s.at)}: entries 1 to {s.upTo}, <span className="font-mono text-xs">{s.hash}</span> {s.sentTo ? `· emailed to ${s.sentTo}` : "· not emailed (HR_SEAL_TO not set)"}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </section>
+  );
+}
+
+/* ---------------- Modal ---------------- */
+
+function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", esc);
+    return () => window.removeEventListener("keydown", esc);
+  }, [onClose]);
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 sm:items-center sm:p-4" onClick={onClose}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        onClick={(e) => e.stopPropagation()}
+        className="max-h-[92vh] w-full overflow-y-auto bg-paper p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:max-w-2xl sm:rounded-2xl sm:border sm:border-line"
+      >
+        <div className="flex items-start gap-3">
+          <h2 className="min-w-0 flex-1 font-display text-2xl leading-snug">{title}</h2>
+          <button type="button" onClick={onClose} aria-label="Close" className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-xl text-muted hover:bg-sunken">
+            ×
+          </button>
+        </div>
+        <div className="mt-4">{children}</div>
+      </div>
+    </div>
+  );
+}

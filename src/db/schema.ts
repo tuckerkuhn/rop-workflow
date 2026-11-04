@@ -716,3 +716,33 @@ export const auditLog = pgTable("audit_log", {
   at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
   sequence: integer("sequence").generatedAlwaysAsIdentity(),
 });
+
+// ---------- HR record ----------
+
+/**
+ * The HR record: an append-only ledger. Every proposal, approval, declaration and seal is one
+ * entry; nothing is ever updated or deleted (database triggers refuse it, see migration 0017).
+ * The database numbers each entry within its book, stamps the time and seals it with a SHA-256
+ * hash that includes the previous entry's hash, so any later change breaks the chain.
+ * Books starting with "demo" hold sample data and may be cleared; any other book never can.
+ */
+export const hrLedger = pgTable(
+  "hr_ledger",
+  {
+    id: id(),
+    book: text("book").notNull(),
+    /** Position in the book, set by the database: 1, 2, 3... */
+    n: integer("n").notNull(),
+    /** Set by the database, never by the app. */
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+    /** Person id of who wrote it. */
+    actor: text("actor").notNull(),
+    kind: text("kind").notNull(),
+    /** Person id of whose record it concerns, if any. */
+    subject: text("subject"),
+    data: jsonb("data").notNull(),
+    prevHash: text("prev_hash").notNull(),
+    hash: text("hash").notNull(),
+  },
+  (t) => [uniqueIndex("hr_ledger_book_n").on(t.book, t.n)],
+);
