@@ -76,8 +76,10 @@ const ASK: Record<DraftKind, string> = {
 /** Drafts one document from the procurement record. Throws DraftingUnavailable when no API key is set. */
 export async function draftDocument(p: Procurement, kind: DraftKind, by: string): Promise<Draft> {
   if (!process.env.ANTHROPIC_API_KEY) throw new DraftingUnavailable("AI drafting is not set up on this server: add ANTHROPIC_API_KEY.");
-  const client = new Anthropic();
-  const response = await client.beta.messages.parse({
+  // Streamed, so the connection never sits idle while the model thinks; stopped at 100 s to stay
+  // within the server's 2-minute limit, with a clear message to try again.
+  const client = new Anthropic({ maxRetries: 1 });
+  const stream = client.beta.messages.stream({
     model: DRAFT_MODEL,
     max_tokens: 16000,
     betas: ["server-side-fallback-2026-07-01"],
@@ -86,6 +88,23 @@ export async function draftDocument(p: Procurement, kind: DraftKind, by: string)
     system: POLICY,
     messages: [{ role: "user", content: `${ASK[kind]}\n\nThe procurement record (JSON):\n${JSON.stringify(recordOf(p), null, 2)}` }],
   });
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    stream.abort();
+  }, 100_000);
+  let response;
+  try {
+    response = await stream.finalMessage();
+  } catch (e) {
+    if (timedOut || e instanceof Anthropic.APIConnectionTimeoutError) throw new Error("Drafting took too long. Try again.");
+    if (e instanceof Anthropic.RateLimitError) throw new Error("Too many drafts at once. Wait a minute and try again.");
+    if (e instanceof Anthropic.AuthenticationError) throw new Error("The AI key on this server was not accepted. An administrator needs to replace ANTHROPIC_API_KEY.");
+    if (e instanceof Anthropic.APIConnectionError) throw new Error("Could not reach the AI service. Try again.");
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
   if (response.stop_reason === "refusal") throw new Error("The drafting model declined this request. Write this document by hand.");
   if (response.stop_reason === "max_tokens") throw new Error("The draft was cut off. Try again.");
   const out = response.parsed_output;
