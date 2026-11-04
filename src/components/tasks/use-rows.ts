@@ -1,13 +1,13 @@
 "use client";
 
+import { useProcurements } from "@/components/app/use-project-data";
+
 import { useMemo } from "react";
 import { useFieldData, useSubmissions, useWorkItems } from "@/components/app/use-project-data";
-import { PROCUREMENT_ITEMS_KEY } from "@/components/procurement/workspace";
 import { PROJECT_KEY } from "@/components/project/project-page";
 import { workFor } from "@/components/tasks/work";
 import { usePersistentState } from "@/components/workspace/ui";
 import type { AppUser, ProjectInfo } from "@/lib/demo";
-import { seedProcurements, type Procurement } from "@/lib/procurement";
 import { seedProject, type ProjectState } from "@/lib/project";
 import type { Row } from "@/lib/work-items";
 
@@ -21,7 +21,7 @@ export function useTaskRows(user: AppUser, project: ProjectInfo) {
   const hasWorkflows = project.workflows.length > 0;
   const { items: field } = useFieldData();
   const { submissions } = useSubmissions();
-  const [procs] = usePersistentState<Procurement[]>(PROCUREMENT_ITEMS_KEY, seedProcurements);
+  const { items: procs } = useProcurements();
   const [local] = usePersistentState<ProjectState>(PROJECT_KEY, seedProject);
 
   const rows = useMemo<Row[]>(() => {

@@ -1,10 +1,11 @@
 "use client";
 
+import { useProcurements } from "@/components/app/use-project-data";
+
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useFieldData, useSubmissions } from "@/components/app/use-project-data";
 import type { SyncCounts } from "@/lib/kobo-setup";
-import { PROCUREMENT_ITEMS_KEY } from "@/components/procurement/workspace";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { Pill, SectionLabel, TODAY, TopBar, dangerBtn, primaryBtn, quietBtn, usePersistentState } from "@/components/workspace/ui";
 import { STAGES, holderOf, projectRoleHolders, userById, type AppUser } from "@/lib/demo";
@@ -12,7 +13,7 @@ import { useCurrentProject } from "@/components/app/current-project";
 import { GatedSections, MoveToExecute } from "@/components/project/gated-project";
 import { TargetPanel } from "@/components/project/market-windows";
 import { maskName, type Farmer, type FieldItem } from "@/lib/field";
-import { seedProcurements, type Procurement } from "@/lib/procurement";
+import { type Procurement } from "@/lib/procurement";
 import {
   CROSS_CUTTING,
   SAMPLE_EXPORT,
@@ -1106,7 +1107,7 @@ export function ProjectPage({ id }: { id: string }) {
   // A-2027's review queue comes from the database. Gated demo projects (in Design) have no field data
   // yet and keep their whole state in this browser.
   const state: ProjectState = gatedStore ? local : { ...local, submissions: kobo.submissions };
-  const [procs] = usePersistentState<Procurement[]>(PROCUREMENT_ITEMS_KEY, seedProcurements);
+  const { items: procs } = useProcurements();
   const [tab, setTab] = useState<Tab>("Overview");
   const [evidence, setEvidence] = useState<Indicator | null>(null);
   const project = useCurrentProject().projects.find((p) => p.id === id);

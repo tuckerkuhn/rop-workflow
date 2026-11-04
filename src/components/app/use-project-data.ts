@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "@/components/app/session";
 import { seedStock, type FieldItem, type Stock } from "@/lib/field";
 import type { AutoSyncSecret, FormPurpose, KoboFormInfo, KoboMapping, KoboQuestion, KoboState, SyncCounts } from "@/lib/kobo-setup";
+import type { Procurement } from "@/lib/procurement";
 import type { DonorInfo, DonorInput, ProgressData } from "@/lib/progress";
 import type { Roster, Submission } from "@/lib/project";
 import type { NewWorkItem, WorkItem } from "@/lib/work-items";
@@ -89,6 +90,56 @@ export function useFieldData(code = "A-2027") {
   return { items, setItems, stock, setStock, status, error, reload, reset };
 }
 
+
+/** The project's procurements, shared through the database. Same shape as a state setter; only changed records are sent. */
+export function useProcurements(code = "A-2027") {
+  const { user, ready } = useSession();
+  const [items, setItemsState] = useState<Procurement[]>([]);
+  const [status, setStatus] = useState<Load>("loading");
+  const [error, setError] = useState("");
+  const current = useRef<Procurement[]>([]);
+
+  const reload = useCallback(async () => {
+    try {
+      const r = await call<{ items: Procurement[] }>(`/api/projects/${code}/procurements`, user?.id);
+      current.current = r.items;
+      setItemsState(r.items);
+      setStatus("ready");
+      setError("");
+    } catch (e) {
+      setStatus("error");
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }, [code, user?.id]);
+
+  // People without Procurement access (donors) never load it.
+  useEffect(() => {
+    if (ready && user && user.procurementAccess !== "none") void reload();
+  }, [ready, user, reload]);
+
+  const setItems = useCallback(
+    (next: Procurement[] | ((all: Procurement[]) => Procurement[])) => {
+      const before = new Map(current.current.map((p) => [p.id, JSON.stringify(p)]));
+      const value = typeof next === "function" ? next(current.current) : next;
+      current.current = value;
+      setItemsState(value);
+      const changed = value.filter((p) => before.get(p.id) !== JSON.stringify(p));
+      if (changed.length)
+        void call(`/api/projects/${code}/procurements`, user?.id, { method: "PUT", body: JSON.stringify({ items: changed }) }).catch((e) =>
+          setError(`Not saved: ${e instanceof Error ? e.message : e}`),
+        );
+    },
+    [code, user?.id],
+  );
+
+  /** Demo mode only: restores all the project's sample records, procurements included. */
+  const reset = useCallback(async () => {
+    await call(`/api/projects/${code}/reset`, user?.id, { method: "POST" }).catch((e) => setError(e instanceof Error ? e.message : String(e)));
+    await reload();
+  }, [code, user?.id, reload]);
+
+  return { items, setItems, status, error, reload, reset };
+}
 
 export function useSubmissions(code = "A-2027") {
   const { user, ready } = useSession();
