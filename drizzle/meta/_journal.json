@@ -85,6 +85,13 @@
       "when": 1793742088060,
       "tag": "0011_kobo_form_purpose",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793808772153,
+      "tag": "0012_indicator_forecast",
+      "breakpoints": true
     }
   ]
 }

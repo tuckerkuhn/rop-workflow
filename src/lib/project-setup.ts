@@ -15,6 +15,8 @@ export const indicatorInputSchema = z.object({
   target: z.number().positive().max(1e12),
   level: z.enum(["goal", "outcome", "output"]),
   frequency: z.enum(["monthly", "quarterly", "end_of_season"]),
+  /** Expected total by 31 December of each calendar year ("2027": 100). The last project year is always the target. */
+  forecast: z.record(z.string().regex(/^\d{4}$/), z.number().min(0).max(1e12)).optional(),
 });
 export type IndicatorInput = z.infer<typeof indicatorInputSchema>;
 

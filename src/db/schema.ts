@@ -334,6 +334,8 @@ export const indicators = pgTable(
     name: text("name").notNull(),
     unit: text("unit").notNull(),
     target: numeric("target", { precision: 14, scale: 2 }).notNull(),
+    /** Expected total by 31 December of each calendar year, e.g. { "2027": 100 }. The project's last year is always `target`. */
+    forecast: jsonb("forecast").$type<Record<string, number>>().notNull().default({}),
     level: indicatorLevelEnum("level").notNull(),
     /** The result statement it measures, e.g. "Farmers trained in improved land preparation". */
     result: text("result"),

@@ -11,7 +11,7 @@ import { useKobo, useProgress, useWorkItems } from "@/components/app/use-project
 import { canEditProject } from "@/lib/demo";
 import { ReportView } from "@/components/progress/report-view";
 import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
-import { isImpact, missingData, reportPeriod, type DonorInfo, type IndicatorProgress, type ProgressData } from "@/lib/progress";
+import { isImpact, missingData, reportPeriod, type DonorInfo, type IndicatorProgress, type ProgressData, type TrackStatus } from "@/lib/progress";
 import { formatById, reportCsv, reportHtml, type ReportDoc } from "@/lib/report-formats";
 import type { WorkItem } from "@/lib/work-items";
 
@@ -141,10 +141,13 @@ export function ProgressPage() {
   );
 }
 
+const TRACK_TONE: Record<TrackStatus, string> = { on_track: "text-leaf", slightly_behind: "text-ochre", behind: "text-clay", not_measured: "text-muted" };
+
 function IndicatorCard({ i, donorCode, canMap }: { i: IndicatorProgress; donorCode?: string; canMap: boolean }) {
   const { t, date } = useT();
   const pct = i.total === null || !i.target ? 0 : Math.min(100, Math.round((i.total / i.target) * 100));
   const missing = missingData(i);
+  const expectedPct = i.track && i.track.status !== "not_measured" && i.frequency !== "end_of_season" && i.target ? Math.min(100, (i.track.expected / i.target) * 100) : null;
   return (
     <li className="rounded-2xl border border-line bg-surface p-5">
       <div className="flex items-start justify-between gap-3">
@@ -155,9 +158,21 @@ function IndicatorCard({ i, donorCode, canMap }: { i: IndicatorProgress; donorCo
         <span className="font-display text-4xl tabular-nums">{i.total ?? "—"}</span>
         <span className="text-sm text-muted">{t("progress.ofTarget", { target: i.target, unit: i.unit })}</span>
       </p>
-      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-sunken" aria-hidden>
+      <div className="relative mt-2 h-1.5 overflow-hidden rounded-full bg-sunken" aria-hidden>
         <div className={`h-full rounded-full ${pct >= 100 ? "bg-leaf" : "bg-forest"}`} style={{ width: `${pct}%` }} />
+        {/* Where the forecast says it should be by now. */}
+        {expectedPct !== null && <div className="absolute inset-y-0 w-0.5 bg-ink" style={{ insetInlineStart: `${expectedPct}%` }} />}
       </div>
+      {i.track && (
+        <p className="mt-2 flex flex-wrap items-baseline gap-x-2 text-xs">
+          <span className={`font-semibold ${TRACK_TONE[i.track.status]}`}>{t(`track.${i.track.status}`)}</span>
+          <span className="text-muted">
+            {i.track.status === "not_measured" || i.frequency === "end_of_season"
+              ? t("progress.forecastOnce", { year: i.track.year, forecast: i.track.forecast })
+              : t("progress.forecastLine", { year: i.track.year, forecast: i.track.forecast, expected: i.track.expected })}
+          </span>
+        </p>
+      )}
       <p className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs">
         {i.dataSource === "none" ? (
           <span className="text-muted">

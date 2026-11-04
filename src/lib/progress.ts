@@ -31,7 +31,66 @@ export type IndicatorProgress = {
   dataSource: "kobo" | "records" | "survey" | "none";
   /** Date of the latest record counted. */
   lastDate: string | null;
+  /** Each calendar year of the project: the forecast total by 31 December and the actual total by then (to date for this year; null for later years). */
+  forecast: ForecastYear[];
+  /** Against this year's forecast, as of today. null when the indicator has no forecast for this year. */
+  track: Track | null;
 };
+
+export type ForecastYear = { year: number; forecast: number | null; actual: number | null };
+
+export type TrackStatus = "on_track" | "slightly_behind" | "behind" | "not_measured";
+export type Track = { year: number; forecast: number; expected: number; actual: number | null; status: TrackStatus };
+
+/** Calendar years the project runs in, start to end. */
+export function projectYears(start: string | null, end: string | null): number[] {
+  if (!start || !end) return [];
+  const from = Number(start.slice(0, 4));
+  const to = Number(end.slice(0, 4));
+  return to >= from && to - from < 30 ? Array.from({ length: to - from + 1 }, (_, k) => from + k) : [];
+}
+
+/**
+ * The forecast as stored on the indicator: expected totals by year end, with the last project year
+ * always equal to the indicator's target, so the forecast and the target can never disagree.
+ */
+export function forecastFor(forecast: Record<string, number> | null | undefined, target: number, years: number[]): Map<number, number> {
+  const out = new Map<number, number>();
+  for (const y of years) {
+    const v = forecast?.[String(y)];
+    if (typeof v === "number" && Number.isFinite(v)) out.set(y, v);
+  }
+  if (years.length) out.set(years.at(-1)!, target);
+  return out;
+}
+
+const dayOf = (iso: string) => Date.UTC(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, Number(iso.slice(8, 10)));
+
+/**
+ * Where an indicator should be today, and whether it is there. The expected total rises steadily
+ * through the year, from last year's forecast (zero before the first year) to this year's, starting
+ * on the project start date in its first year. Values measured once (end of season) are compared
+ * with the year's forecast only once measured. Within 10% of expected is on track; within 25%,
+ * slightly behind.
+ */
+export function trackFor(opts: { forecast: Map<number, number>; actual: number | null; today: string; start: string; once: boolean }): Track | null {
+  const year = Number(opts.today.slice(0, 4));
+  const goal = opts.forecast.get(year);
+  if (goal === undefined) return null;
+  if (opts.once) {
+    if (opts.actual === null) return { year, forecast: goal, expected: goal, actual: null, status: "not_measured" };
+    return { year, forecast: goal, expected: goal, actual: opts.actual, status: statusOf(opts.actual, goal) };
+  }
+  const prior = opts.forecast.get(year - 1) ?? 0;
+  const from = Math.max(dayOf(`${year}-01-01`), dayOf(opts.start));
+  const to = dayOf(`${year}-12-31`);
+  const share = to > from ? Math.min(1, Math.max(0, (dayOf(opts.today) - from) / (to - from))) : 1;
+  const expected = Math.round((prior + (goal - prior) * share) * 10) / 10;
+  const actual = opts.actual ?? 0;
+  return { year, forecast: goal, expected, actual, status: statusOf(actual, expected) };
+}
+
+const statusOf = (actual: number, expected: number): TrackStatus => (expected <= 0 || actual >= expected * 0.9 ? "on_track" : actual >= expected * 0.75 ? "slightly_behind" : "behind");
 
 export type Deadline = { id: string; title: string; date: string };
 

@@ -13,6 +13,7 @@ import { TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { TODAY, canEditProject } from "@/lib/demo";
 import { localeOf, type MessageKey } from "@/lib/i18n";
 import { COUNTRIES, projectDesignSchema, type IndicatorInput, type ProjectDesign } from "@/lib/project-setup";
+import { projectYears } from "@/lib/progress";
 
 /**
  * Project setup: one question per screen. New projects answer the design questions, are
@@ -187,7 +188,7 @@ function Wizard({ code: initialCode, first }: { code: string | null; first: Step
             <textarea value={draft.goal} onChange={(e) => set({ goal: e.target.value })} maxLength={500} rows={4} autoFocus className={field} aria-label={t("setup.q.goal")} />
           </Question>
         )}
-        {step === "indicators" && <IndicatorsQuestion list={draft.indicators} onChange={(indicators) => set({ indicators })} />}
+        {step === "indicators" && <IndicatorsQuestion list={draft.indicators} years={projectYears(draft.startDate, draft.endDate)} onChange={(indicators) => set({ indicators })} />}
         {step === "donors" && <DonorsQuestion list={draft.donors ?? []} onChange={(donors) => set({ donors })} />}
         {step === "review" && <Review draft={draft} editing={!!code} onEdit={go} />}
         {step === "kobo-connect" && code && <KoboConnect code={code} onDone={next} onSkip={() => go("done")} />}
@@ -269,7 +270,7 @@ const SUGGESTIONS: { name: MessageKey; unit: MessageKey; level: IndicatorInput["
   { name: "setup.sug.income", unit: "setup.unit.pct", level: "goal", frequency: "end_of_season" },
 ];
 
-function IndicatorsQuestion({ list, onChange }: { list: IndicatorInput[]; onChange: (l: IndicatorInput[]) => void }) {
+function IndicatorsQuestion({ list, years, onChange }: { list: IndicatorInput[]; years: number[]; onChange: (l: IndicatorInput[]) => void }) {
   const { t } = useT();
   const update = (k: number, patch: Partial<IndicatorInput>) => onChange(list.map((i, j) => (j === k ? { ...i, ...patch } : i)));
   const add = (i: IndicatorInput) => onChange([...list, i]);
@@ -337,6 +338,40 @@ function IndicatorsQuestion({ list, onChange }: { list: IndicatorInput[]; onChan
                 </select>
               </label>
             </div>
+            {years.length > 1 && (
+              <fieldset className="mt-3">
+                <legend className="text-xs text-muted">{t("setup.forecast")}</legend>
+                <div className="mt-1 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {years.map((y, n) =>
+                    n === years.length - 1 ? (
+                      <p key={y} className="text-xs text-muted">
+                        {y}
+                        <span className="mt-2 block rounded-xl bg-sunken px-3 py-3 text-base text-ink">
+                          {Number.isFinite(i.target) ? i.target : "—"} <span className="text-xs text-muted">{t("setup.forecastIsTarget")}</span>
+                        </span>
+                      </p>
+                    ) : (
+                      <label key={y} className="text-xs text-muted">
+                        {y}
+                        <input
+                          type="number"
+                          min={0}
+                          step="any"
+                          value={i.forecast?.[String(y)] ?? ""}
+                          onChange={(e) => {
+                            const next = { ...(i.forecast ?? {}) };
+                            if (e.target.value === "") delete next[String(y)];
+                            else next[String(y)] = Number(e.target.value);
+                            update(k, { forecast: next });
+                          }}
+                          className={field}
+                        />
+                      </label>
+                    ),
+                  )}
+                </div>
+              </fieldset>
+            )}
           </li>
         ))}
       </ul>
