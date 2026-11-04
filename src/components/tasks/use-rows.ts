@@ -76,7 +76,8 @@ export function useTaskRows(user: AppUser, project: ProjectInfo) {
         done: false,
         late: i.startBy < TODAY,
         source: "procurement",
-        href: `/tasks/plan?open=${i.key}`,
+        // Opens the request already filled in from the plan, with its supporting information.
+        href: `/tasks?source=procurement&new=1&plan=${i.key}`,
       });
     return [...stored, ...steps].sort((a, b) => (a.date ?? "9999").localeCompare(b.date ?? "9999"));
   }, [work.items, hasWorkflows, user, field, procs, local, submissions, plan.items, project.workflows]);

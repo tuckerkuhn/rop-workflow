@@ -471,6 +471,19 @@ function Detail({
           </Row>
         </dl>
         {item.status === "approved" && <p className="mt-2 text-sm text-forest">On the Tasks calendar for {lead?.name ?? "the technical lead"} to start on {date(item.startBy)}.</p>}
+        {item.status === "approved" && (user.id === item.techLead || !!user.admin) && (
+          <Link href={`/tasks?source=procurement&new=1&plan=${item.key}`} className={`${primaryBtn} mt-3 inline-block`}>
+            {user.id === item.techLead ? "Start the procurement request" : `Start the request for ${lead?.name ?? "the lead"}`}
+          </Link>
+        )}
+        {item.status === "started" && item.procurementKey && (
+          <p className="mt-2 text-sm">
+            Request made:{" "}
+            <Link href={`/tasks?source=procurement&open=${item.procurementKey}`} className="font-semibold text-forest hover:underline">
+              {item.procurementKey}
+            </Link>
+          </p>
+        )}
       </section>
 
       {error && (

@@ -4,7 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser, useSession } from "@/components/app/session";
-import { useProcurements } from "@/components/app/use-project-data";
+import { useT } from "@/components/app/i18n";
+import { useDonors, usePlan, useProcurements } from "@/components/app/use-project-data";
+import type { BudgetLine as ProjectBudgetLine, WorkplanItem } from "@/lib/budget";
+import { METHOD, toUsd, type PlanItem } from "@/lib/procurement-plan";
 import { DocumentViewer } from "@/components/procurement/document";
 import {
   AppShell,
@@ -25,7 +28,7 @@ import {
   Tracker,
   primaryBtn,
 } from "@/components/workspace/ui";
-import { AFN_PER_USD, holderOf, projectPath, stepHistory } from "@/lib/demo";
+import { AFN_PER_USD, projectPath, stepHistory } from "@/lib/demo";
 import {
   DONE,
   TODAY,
@@ -43,7 +46,8 @@ import {
   ready,
   reviewKey,
   roleLabel,
-  rolePerson,
+  rolePersonFor,
+  holderFor,
   roles,
   stages,
   stepById,
@@ -55,7 +59,6 @@ import {
 } from "@/lib/procurement";
 
 
-const person = (r: string) => rolePerson(r as Role);
 const fieldCls = "w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm focus:border-forest focus:outline-none disabled:bg-paper disabled:text-muted";
 const lowerFirst = (s: string) => s[0].toLowerCase() + s.slice(1);
 
@@ -83,7 +86,7 @@ export function procurementComingTo(items: Procurement[], role: string) {
           title: `${p.title} · ${p.id}`,
           step: stepById[hit.step].title,
           eta: hit.start,
-          via: `${lowerFirst(stepById[path[0].step].title)} with ${holderOf("procurement", path[0].owner)?.name ?? roleLabel(path[0].owner as Role)}`,
+          via: `${lowerFirst(stepById[path[0].step].title)} with ${holderFor(p, path[0].owner as Role)?.name ?? roleLabel(path[0].owner as Role)}`,
           basis: path
             .slice(0, path.indexOf(hit))
             .map((x) => `${stepById[x.step].title}: median ${stepHistory[x.step]?.median} days (${stepHistory[x.step]?.n} cases)`)
@@ -143,13 +146,19 @@ function RequisitionForm({ p, editable, update }: { p: Procurement; editable: bo
         </label>
         <label>
           <span className="text-xs font-medium text-muted">Budget line</span>
-          <select id="rq-line" disabled={!editable} value={p.budgetLine} onChange={(e) => set({ budgetLine: e.target.value })} className={`mt-1 ${fieldCls}`}>
-            {budgetLines.map((b) => (
-              <option key={b.code} value={b.code}>
-                {b.code} {b.name}
-              </option>
-            ))}
-          </select>
+          {p.plan ? (
+            <p className={`mt-1 ${fieldCls} bg-sunken`}>
+              {p.plan.budgetCode} {p.plan.budgetName.slice(0, 80)}
+            </p>
+          ) : (
+            <select id="rq-line" disabled={!editable} value={p.budgetLine} onChange={(e) => set({ budgetLine: e.target.value })} className={`mt-1 ${fieldCls}`}>
+              {budgetLines.map((b) => (
+                <option key={b.code} value={b.code}>
+                  {b.code} {b.name}
+                </option>
+              ))}
+            </select>
+          )}
         </label>
         <label>
           <span className="text-xs font-medium text-muted">Needed by</span>
@@ -161,7 +170,7 @@ function RequisitionForm({ p, editable, update }: { p: Procurement; editable: bo
         </label>
         <label className="flex items-end gap-2 pb-2 text-sm">
           <input id="rq-urgent" type="checkbox" disabled={!editable} checked={p.urgent} onChange={(e) => set({ urgent: e.target.checked })} className="h-4 w-4 accent-[var(--forest)]" />
-          Urgent (not in the procurement plan)
+          {p.plan ? `From procurement calendar ${p.plan.key}` : "Urgent (not in the procurement plan)"}
         </label>
         <label className="sm:col-span-2">
           <span className="text-xs font-medium text-muted">Environmental or social risk</span>
@@ -201,20 +210,30 @@ function RequisitionForm({ p, editable, update }: { p: Procurement; editable: bo
 
 /* ---------- new request ---------- */
 
-function NewRequest({ onCancel, onCreate }: { onCancel: () => void; onCreate: (p: Procurement) => void }) {
-  const { money, currency } = useSession();
-  const [title, setTitle] = useState("");
+/** What a request started from the procurement calendar brings with it. */
+export type FromPlan = { item: PlanItem; line: ProjectBudgetLine | null; wp: WorkplanItem | null; projectName: string; funding: string };
+
+function NewRequest({ onCancel, onCreate, from }: { onCancel: () => void; onCreate: (p: Procurement) => void; from?: FromPlan }) {
+  const { money, currency, user } = useSession();
+  const { date } = useT();
+  const item = from?.item;
+  const startQty = item ? (item.quantity && item.quantity > 0 ? item.quantity : 1) : 0;
+  // From the exact amount in the budget currency, not the rounded USD figure.
+  const startUnitUsd = item ? toUsd(item.value, item.currency) / startQty : 0;
+  const shown = (usd: number) => (currency === "AFN" ? Math.round(usd * AFN_PER_USD) : Math.round(usd * 100) / 100);
+  const [title, setTitle] = useState(item?.title ?? "");
   const [spec, setSpec] = useState("");
-  const [qty, setQty] = useState("");
-  const [unit, setUnit] = useState("units");
-  const [price, setPrice] = useState("");
+  const [qty, setQty] = useState(item ? String(startQty) : "");
+  const [unit, setUnit] = useState(item ? (item.quantity ? (item.unit ?? "units") : "lot") : "units");
+  const [price, setPrice] = useState(item ? String(shown(startUnitUsd)) : "");
   const [line, setLine] = useState(budgetLines[0].code);
-  const [neededBy, setNeededBy] = useState("2027-04-30");
+  const [neededBy, setNeededBy] = useState(item?.neededBy ?? "2027-04-30");
+  const [place, setPlace] = useState("");
   const [urgent, setUrgent] = useState(false);
   const unitUsd = (Number(price) || 0) / (currency === "AFN" ? AFN_PER_USD : 1);
   const value = (Number(qty) || 0) * unitUsd;
-  const bl = budgetLines.find((b) => b.code === line)!;
-  const valid = title.trim() && Number(qty) > 0 && Number(price) > 0;
+  const bl = item ? { code: item.budgetCode ?? "", name: item.title, remainingValue: toUsd(item.value, item.currency) } : budgetLines.find((b) => b.code === line)!;
+  const valid = title.trim() && Number(qty) > 0 && Number(price) > 0 && (!item || (spec.trim() && place.trim()));
 
   return (
     <form
@@ -231,33 +250,105 @@ function NewRequest({ onCancel, onCreate }: { onCancel: () => void; onCreate: (p
           qty: Number(qty),
           unit,
           unitPrice: unitUsd,
-          budgetLine: line,
-          activity: "1.2 Maize demonstration plots, 2027 Spring",
-          funding: "Award A-2027 (fictional) · body rules apply",
+          budgetLine: item ? (item.budgetCode ?? "") : line,
+          activity: item ? [from?.line?.activityCode, from?.line?.activity ?? from?.wp?.title].filter(Boolean).join(" ") || item.title : "1.2 Maize demonstration plots, 2027 Spring",
+          funding: from ? from.funding : "Award A-2027 (fictional) · body rules apply",
           neededBy,
-          place: "Village B collection point",
-          urgent,
+          place: item ? place.trim() : "Village B collection point",
+          urgent: item ? false : urgent,
           step: "need",
           checks: {},
           issues: [],
-          timeline: [{ date: TODAY, who: "holder", what: "Request created" }],
+          timeline: [{ date: TODAY, who: "holder", what: item ? `Request created from procurement calendar ${item.key}` : "Request created" }],
+          ...(item
+            ? {
+                plan: {
+                  key: item.key,
+                  project: from!.projectName,
+                  budgetCode: item.budgetCode ?? "",
+                  budgetName: from?.line?.description ?? item.title,
+                  leftUsd: toUsd(item.value, item.currency),
+                  left: item.value,
+                  currency: item.currency,
+                  requestedBy: user?.name ?? "Technical lead",
+                  requestedById: user?.id,
+                  approvedBy: [item.approvals.manager, item.approvals.lead].filter((a): a is NonNullable<typeof a> => !!a).map((a) => (a.for ? `${a.name} for ${a.for}` : a.name)),
+                },
+              }
+            : {}),
         });
       }}
       className="mx-auto max-w-2xl space-y-6"
     >
       <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ochre">New request</p>
-        <h2 className="mt-2 font-display text-3xl tracking-tight">What do you need?</h2>
-        <p className="mt-1 text-sm text-muted">This starts the purchase requisition. You will finish it, review the generated document and sign it in the next steps.</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ochre">{item ? `Procurement request · ${item.key}` : "New request"}</p>
+        <h2 className="mt-2 font-display text-3xl tracking-tight">{item ? "Check and complete the request" : "What do you need?"}</h2>
+        <p className="mt-1 text-sm text-muted">
+          {item
+            ? "Filled in from the approved procurement calendar. Check every field, add the specification and where it is delivered, then create it. You will review the generated document and sign it in the next steps."
+            : "This starts the purchase requisition. You will finish it, review the generated document and sign it in the next steps."}
+        </p>
       </div>
+      {item && from && (
+        <section className="rounded-2xl border border-line bg-surface p-4 text-sm">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">From the plan</p>
+          <dl className="mt-2 grid gap-x-4 gap-y-1.5 sm:grid-cols-[9rem_1fr]">
+            <dt className="text-muted">Budget line</dt>
+            <dd>
+              <span className="font-mono text-xs">{item.budgetCode}</span> {from.line?.description ?? item.title}
+              {from.line && (
+                <span className="block text-xs text-muted">
+                  {from.line.quantity !== null ? `${from.line.quantity} ${from.line.unit ?? ""} · ` : ""}
+                  {from.line.spent ? "partly spent · " : ""}
+                  {item.value.toLocaleString("en-US")} {item.currency} left
+                </span>
+              )}
+            </dd>
+            {from.line?.activity && (
+              <>
+                <dt className="text-muted">Activity</dt>
+                <dd>
+                  {from.line.activityCode} {from.line.activity}
+                </dd>
+              </>
+            )}
+            {from.wp && (
+              <>
+                <dt className="text-muted">Workplan</dt>
+                <dd>
+                  <span className="font-mono text-xs">{from.wp.code}</span> {from.wp.title}
+                  {from.wp.indicator && <span className="block text-xs text-muted">{from.wp.indicator}</span>}
+                </dd>
+              </>
+            )}
+            <dt className="text-muted">How it is bought</dt>
+            <dd>
+              {METHOD[item.level].title} <span className="text-xs text-muted">({item.level})</span>
+            </dd>
+            <dt className="text-muted">Needed by</dt>
+            <dd>
+              {date(item.neededBy, { day: "numeric", month: "short", year: "numeric" })} <span className="text-xs text-muted">{item.neededWhy}</span>
+            </dd>
+            <dt className="text-muted">Approved by</dt>
+            <dd>{[item.approvals.manager, item.approvals.lead].filter(Boolean).map((a) => a!.name + (a!.for ? ` for ${a!.for}` : "")).join(" and ")}</dd>
+          </dl>
+        </section>
+      )}
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="sm:col-span-2">
           <span className="text-sm font-medium">Item</span>
           <input id="nr-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Hybrid maize seed" className={`mt-1 ${fieldCls}`} />
         </label>
         <label className="sm:col-span-2">
-          <span className="text-sm font-medium">Specification</span>
-          <textarea id="nr-spec" rows={2} value={spec} onChange={(e) => setSpec(e.target.value)} className={`mt-1 ${fieldCls}`} />
+          <span className="text-sm font-medium">Specification{item ? " (required)" : ""}</span>
+          <textarea
+            id="nr-spec"
+            rows={3}
+            value={spec}
+            onChange={(e) => setSpec(e.target.value)}
+            placeholder={item ? "What exactly is needed: type, size, quality standard, delivery and any installation or training. Describe the need without naming a brand." : undefined}
+            className={`mt-1 ${fieldCls}`}
+          />
         </label>
         <label>
           <span className="text-sm font-medium">Quantity</span>
@@ -270,24 +361,33 @@ function NewRequest({ onCancel, onCreate }: { onCancel: () => void; onCreate: (p
           <span className="text-sm font-medium">Estimated unit price ({currency === "AFN" ? "Afs" : "USD"})</span>
           <input id="nr-price" inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="0" className={`mt-1 ${fieldCls}`} />
         </label>
-        <label>
-          <span className="text-sm font-medium">Budget line</span>
-          <select id="nr-line" value={line} onChange={(e) => setLine(e.target.value)} className={`mt-1 ${fieldCls}`}>
-            {budgetLines.map((b) => (
-              <option key={b.code} value={b.code}>
-                {b.code} {b.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        {item ? (
+          <label>
+            <span className="text-sm font-medium">Delivery place (required)</span>
+            <input id="nr-place" value={place} onChange={(e) => setPlace(e.target.value)} placeholder="e.g. ROP Kabul office, or district and village" className={`mt-1 ${fieldCls}`} />
+          </label>
+        ) : (
+          <label>
+            <span className="text-sm font-medium">Budget line</span>
+            <select id="nr-line" value={line} onChange={(e) => setLine(e.target.value)} className={`mt-1 ${fieldCls}`}>
+              {budgetLines.map((b) => (
+                <option key={b.code} value={b.code}>
+                  {b.code} {b.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <label>
           <span className="text-sm font-medium">Needed by</span>
           <input id="nr-date" type="date" value={neededBy} onChange={(e) => setNeededBy(e.target.value)} className={`mt-1 ${fieldCls}`} />
         </label>
-        <label className="flex items-center gap-2 text-sm sm:col-span-2">
-          <input id="nr-urgent" type="checkbox" checked={urgent} onChange={(e) => setUrgent(e.target.checked)} className="h-4 w-4 accent-[var(--forest)]" />
-          Urgent (not in the procurement plan)
-        </label>
+        {!item && (
+          <label className="flex items-center gap-2 text-sm sm:col-span-2">
+            <input id="nr-urgent" type="checkbox" checked={urgent} onChange={(e) => setUrgent(e.target.checked)} className="h-4 w-4 accent-[var(--forest)]" />
+            Urgent (not in the procurement plan)
+          </label>
+        )}
       </div>
       <div className="grid gap-px overflow-hidden rounded-xl border border-line bg-line sm:grid-cols-3">
         {[
@@ -305,6 +405,7 @@ function NewRequest({ onCancel, onCreate }: { onCancel: () => void; onCreate: (p
         <button type="submit" disabled={!valid} className={primaryBtn}>
           Create request
         </button>
+        {item && !valid && <span className="self-center text-xs text-muted">Add the specification and delivery place to continue.</span>}
         <button type="button" onClick={onCancel} className="rounded-full px-4 py-3 text-sm text-muted hover:text-ink">
           Cancel
         </button>
@@ -333,7 +434,7 @@ function Detail({
   const [viewing, setViewing] = useState<{ doc: string; confirm: boolean } | null>(null);
   const step = stepById[p.step];
   const owner = ownerOf(p);
-  const ownerUser = owner ? holderOf("procurement", owner) : undefined;
+  const ownerUser = owner ? holderFor(p, owner) : undefined;
   const mine = !!role && owner === role;
   const value = valueOf(p);
   const line = lineOf(p);
@@ -396,7 +497,7 @@ function Detail({
       ) : (
         <StepCard
           mine={mine}
-          ownerLabel={person(owner!)}
+          ownerLabel={rolePersonFor(p, owner!)}
           eyebrow={step.gate && `Gate ${step.gate}`}
           title={step.title}
           note={step.note}
@@ -527,7 +628,7 @@ function Detail({
 
       <IssueList
         issues={p.issues}
-        roleLabel={person}
+        roleLabel={(r) => rolePersonFor(p, r as Role)}
         canResolve={(i) => mine || i.by === role}
         onResolve={(id, note) =>
           update((q) => log({ ...q, issues: q.issues.map((x) => (x.id === id ? { ...x, status: "resolved", resolution: note } : x)) }, "Issue resolved"))
@@ -559,7 +660,7 @@ function Detail({
           )}
           <p className="mt-3 text-xs text-muted">Every document is generated from this record and filed under {p.id}.</p>
         </section>
-        <History events={p.timeline} roleLabel={person} />
+        <History events={p.timeline} roleLabel={(r) => rolePersonFor(p, r as Role)} />
       </div>
 
       {viewing && (
@@ -582,6 +683,20 @@ export function ProcurementWorkspace() {
   const myRoles = (user?.procurement ?? []) as Role[];
   const { project } = useCurrentProject();
   const { items, setItems, error, reset } = useProcurements(project.id);
+  const plan = usePlan(project.saved ? project.id : null);
+  const donors = useDonors(project.id);
+  const [planKey, setPlanKey] = useState<string | null>(null);
+  const [planError, setPlanError] = useState("");
+  const planItem = planKey ? plan.items.find((i) => i.key === planKey) : undefined;
+  const fromPlan: FromPlan | undefined = planItem
+    ? {
+        item: planItem,
+        line: plan.budget?.lines.find((l) => l.code === planItem.budgetCode) ?? null,
+        wp: plan.workplan.find((w) => w.code === planItem.workplanCode && /rop|roots/i.test(w.org ?? "")) ?? plan.workplan.find((w) => w.code === planItem.workplanCode) ?? null,
+        projectName: project.name,
+        funding: [donors.map((d) => d.name).join(", "), project.name].filter(Boolean).join(" · "),
+      }
+    : undefined;
   const [pickedRole, setPickedRole] = useState<Role | null>(null);
   const role = pickedRole && myRoles.includes(pickedRole) ? pickedRole : (myRoles[0] ?? null);
   const [selected, setSelected] = useState<string | null>(null);
@@ -614,6 +729,7 @@ export function ProcurementWorkspace() {
     if (q.get("new")) {
       setCreating(true);
       setMobileDetail(true);
+      if (q.get("plan")) setPlanKey(q.get("plan"));
     }
   }, []);
 
@@ -692,7 +808,7 @@ export function ProcurementWorkspace() {
                       )}
                       {blockingIssues(p).length > 0 && <Pill tone="clay">Issue</Pill>}
                       {late && <Pill tone="ochre">Past needed-by</Pill>}
-                      {(showAll || readOnly) && o && o !== role && <span className="text-[11px] text-muted">{holderOf("procurement", o)?.name}</span>}
+                      {(showAll || readOnly) && o && o !== role && <span className="text-[11px] text-muted">{holderFor(p, o)?.name}</span>}
                     </div>
                   </QueueItem>
                 );
@@ -707,9 +823,9 @@ export function ProcurementWorkspace() {
               setMobileDetail(true);
             }}
           />
-          {error && (
+          {(error || planError) && (
             <p role="alert" className="px-4 pt-3 text-sm text-clay sm:px-6">
-              {error}
+              {error || planError}
             </p>
           )}
           <QueueFooter
@@ -727,9 +843,24 @@ export function ProcurementWorkspace() {
       }
       detail={
         creating ? (
+          planKey && !fromPlan ? (
+            <div className="mx-auto max-w-xl py-16 text-center text-sm text-muted">
+              {plan.status === "loading" ? "Loading the plan…" : `${planKey} is not on this project's procurement calendar.`}
+            </div>
+          ) : planItem && planItem.status !== "approved" ? (
+            <div className="mx-auto max-w-xl py-16 text-center text-sm text-muted">
+              {planItem.status === "started" ? `The request for ${planItem.key} is already made: ${planItem.procurementKey}.` : `${planItem.key} needs both approvals on the procurement calendar first.`}{" "}
+              <Link href={`/tasks/plan?open=${planItem.key}`} className="font-semibold text-forest hover:underline">
+                Open it
+              </Link>
+            </div>
+          ) : (
           <NewRequest
+            key={planKey ?? "new"}
+            from={fromPlan}
             onCancel={() => {
               setCreating(false);
+              setPlanKey(null);
               setMobileDetail(false);
             }}
             onCreate={(draft) => {
@@ -740,8 +871,13 @@ export function ProcurementWorkspace() {
               setItems((all) => [p, ...all]);
               setSelected(p.id);
               setCreating(false);
+              // The calendar item is now started, linked to this request.
+              if (p.plan)
+                plan.act(p.plan.key, { action: "start", procurementKey: p.id }).catch((e) => setPlanError(`${p.id} was created, but the calendar was not updated: ${e instanceof Error ? e.message : e}`));
+              setPlanKey(null);
             }}
           />
+          )
         ) : current ? (
           <div className="mx-auto max-w-3xl">
             <Detail key={current.id} p={current} role={role} update={update(current.id)} onBack={() => setMobileDetail(false)} />

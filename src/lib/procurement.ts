@@ -6,7 +6,7 @@
 
 export type StatusKind = "CUR" | "D1" | "D1*" | "TS" | "OPEN" | "PA";
 
-import { formatMoney, holderOf, type ProcRole } from "@/lib/demo";
+import { formatMoney, holderOf, users, type ProcRole } from "@/lib/demo";
 
 export type Role = ProcRole;
 export type Money = (usd: number) => string;
@@ -92,10 +92,48 @@ export type Procurement = {
   ai?: Record<string, string[]>;
   issues: Issue[];
   timeline: TimelineEvent[];
+  /**
+   * Started from the procurement calendar: the plan item and the project budget line it buys
+   * from, as they stood when the request was made.
+   */
+  plan?: PlanLink;
+};
+
+export type PlanLink = {
+  key: string;
+  project: string;
+  budgetCode: string;
+  budgetName: string;
+  /** Left on the line when the request was made, in USD and in the budget currency. */
+  leftUsd: number;
+  left: number;
+  currency: string;
+  approvedBy: string[];
+  /** The technical lead who made the request: name, and person id. */
+  requestedBy: string;
+  requestedById?: string;
+};
+
+/**
+ * The person holding a role on this procurement. Requests started from the procurement calendar
+ * belong to their technical lead, and their procurement steps to the procurement manager;
+ * otherwise the role's holder in the demo team.
+ */
+export function holderFor(p: Procurement, role: Role) {
+  if (p.plan && role === "holder") return users.find((u) => u.id === p.plan!.requestedById) ?? users.find((u) => u.name === p.plan!.requestedBy);
+  if (p.plan && role === "procurement") return users.find((u) => u.procurement.includes("procurement") && /manager/i.test(u.title)) ?? holderOf("procurement", role);
+  return holderOf("procurement", role);
+}
+/** "Farid Sultani (Budget holder)" for a role on this procurement. */
+export const rolePersonFor = (p: Procurement, r: Role) => {
+  const u = holderFor(p, r);
+  return u ? `${u.name} (${roleLabel(r)})` : roleLabel(r);
 };
 
 export const valueOf = (p: Procurement) => p.qty * p.unitPrice;
-export const lineOf = (p: Procurement) => budgetLines.find((b) => b.code === p.budgetLine);
+/** The budget line a procurement buys from: the project budget when started from the calendar, else the demo budget. */
+export const lineOf = (p: Procurement): BudgetLine | undefined =>
+  p.plan ? { code: p.plan.budgetCode, name: p.plan.budgetName, remainingValue: p.plan.leftUsd } : budgetLines.find((b) => b.code === p.budgetLine);
 
 /** Fixed "today" so the synthetic dates stay meaningful. */
 export const TODAY = "2027-03-04";
