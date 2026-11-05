@@ -44,9 +44,10 @@ export const PROFILES: Profile[] = [
   own(
     "small",
     "Small staff",
-    "For an office with few people, where one person often holds several roles: fewer separate sign-offs. Our procedures always apply, so this only shows where they already ask for more than a small office would.",
-    "Small-staff profile",
+    "For an office with few people, where one person often holds several roles. Fewer separate sign-offs are possible, so the documents carry more of the control: vendor licence, ID and bank details on file at every level, Micro included. Our procedures always apply, so where they already ask for more, they stay.",
+    "Small-staff profile: with fewer people to separate duties, vendor documents at every level",
     {
+      dueDiligenceAllLevels: true,
       committeeAboveUsd: 25000,
       vendorEvaluationAboveUsd: 25000,
       paymentVerifyAboveUsd: null,
