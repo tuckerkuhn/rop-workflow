@@ -22,7 +22,7 @@ const icon = (d: string) => (
 );
 
 const SECTIONS: Section[] = [
-  { id: "home", href: "/home", label: "nav.home", also: ["/design", "/settings", "/setup", "/people", "/timesheets"], icon: icon("M3 10.5 12 3l9 7.5M5 9v11h5v-6h4v6h5V9") },
+  { id: "home", href: "/home", label: "nav.home", also: ["/design", "/settings", "/setup", "/people", "/timesheets", "/payroll"], icon: icon("M3 10.5 12 3l9 7.5M5 9v11h5v-6h4v6h5V9") },
   { id: "tasks", href: "/tasks", label: "nav.tasks", also: ["/field"], icon: icon("M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"), staffOnly: true },
   { id: "progress", href: "/progress", label: "nav.progress", also: [], icon: icon("M4 20V10M10 20V4M16 20v-7M22 20H2") },
   { id: "resources", href: "/resources", label: "nav.resources", also: [], icon: icon("M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2V5Zm0 16a2 2 0 0 1 2-2h13v2"), staffOnly: true },

@@ -13,6 +13,7 @@ import {
   KIND_LABEL,
   ROLE_LABEL,
   fieldsIn,
+  fullRules,
   type FieldKey,
   type Fields,
   type Group,
@@ -20,6 +21,7 @@ import {
   type HrRole,
   type ProposalInput,
   type Rules,
+  type RulesInput,
   type Value,
 } from "@/lib/hr";
 import type { HrView, PersonView, ProposalView } from "@/server/hr-view";
@@ -118,7 +120,19 @@ export function PeoplePage() {
     <div className="min-h-screen">
       <TopBar />
       <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
-        <h1 className="font-display text-3xl tracking-tight">People</h1>
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <h1 className="font-display text-3xl tracking-tight">People</h1>
+          <span className="flex gap-4 text-sm">
+            <a href="/timesheets" className="font-semibold text-forest hover:underline">
+              Timesheets
+            </a>
+            {v?.seesAll && (
+              <a href="/payroll" className="font-semibold text-forest hover:underline">
+                Payroll
+              </a>
+            )}
+          </span>
+        </div>
         <p className="mt-1 max-w-2xl text-sm text-muted">
           The HR record. Nothing in it can be edited or deleted: every change is a new entry, signed by the people the rules name, and sealed so any later tampering shows.
         </p>
@@ -481,7 +495,7 @@ function ProposalCard({ p, view, fmt, act, onDone }: { p: ProposalView; view: Hr
   };
   const who = p.subject ? (view.names[p.subject] ?? p.subject) : "Everyone";
   // Fields that only some kinds of change carry.
-  const extra = p as ProposalView & { other?: string; rules?: Rules };
+  const extra = p as ProposalView & { other?: string; rules?: RulesInput; month?: string; group?: string; lines?: unknown[] };
   return (
     <article className="rounded-2xl border border-line bg-surface p-4 sm:p-5">
       <div className="flex flex-wrap items-center gap-2">
@@ -496,7 +510,16 @@ function ProposalCard({ p, view, fmt, act, onDone }: { p: ProposalView; view: Hr
       <p className="text-sm text-muted">Takes effect {fmt(p.effective)}</p>
       {p.type === "separate" && <p className="mt-2 text-sm">Leaving ROP.</p>}
       {extra.other && <p className="mt-2 text-sm">Remove the link between {who} and {view.names[extra.other] ?? extra.other}.</p>}
-      {extra.rules && <RulesView rules={extra.rules} names={view.names} compact />}
+      {extra.rules && <RulesView rules={fullRules(extra.rules)} names={view.names} compact />}
+      {extra.month && extra.group && (
+        <p className="mt-2 text-sm">
+          {extra.group} payroll for {extra.month}
+          {extra.lines ? `, ${extra.lines.length} people` : ""}.{" "}
+          <a href={`/payroll?month=${extra.month}&group=${encodeURIComponent(extra.group)}`} className="font-semibold text-forest hover:underline">
+            Open the register
+          </a>
+        </p>
+      )}
       <Diff p={p} names={view.names} currency={view.people.find((x) => x.id === p.subject)?.fields.currency} />
       <p className="mt-3 text-sm">
         <span className="text-muted">Reason: </span>

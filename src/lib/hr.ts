@@ -12,12 +12,12 @@ import { z } from "zod";
 
 /* ---------------- Roles and rules ---------------- */
 
-export const HR_ROLES = ["hr", "cfo", "ceo", "board"] as const;
+export const HR_ROLES = ["hr", "payroll", "cfo", "ceo", "board"] as const;
 export type HrRole = (typeof HR_ROLES)[number];
-export const ROLE_LABEL: Record<HrRole, string> = { hr: "HR", cfo: "CFO", ceo: "CEO", board: "Board" };
+export const ROLE_LABEL: Record<HrRole, string> = { hr: "HR", payroll: "Payroll", cfo: "CFO", ceo: "CEO", board: "Board" };
 
 /** What kind of change a proposal is; each kind has its own approval steps. */
-export const CHANGE_KINDS = ["hire", "pay", "job", "details", "separate", "unrelate", "rules"] as const;
+export const CHANGE_KINDS = ["hire", "pay", "job", "details", "separate", "unrelate", "payroll", "rules"] as const;
 export type ChangeKind = (typeof CHANGE_KINDS)[number];
 export const KIND_LABEL: Record<ChangeKind, string> = {
   hire: "New person",
@@ -26,6 +26,7 @@ export const KIND_LABEL: Record<ChangeKind, string> = {
   details: "Contact details",
   separate: "Leaving ROP",
   unrelate: "Remove a related-party link",
+  payroll: "Monthly payroll",
   rules: "Approval rules and role holders",
 };
 
@@ -44,6 +45,7 @@ export const DEFAULT_STEPS: Rules["steps"] = {
   details: ["hr"],
   separate: ["ceo"],
   unrelate: ["ceo"],
+  payroll: ["cfo", "ceo"],
   rules: ["ceo", "board"],
 };
 
@@ -68,6 +70,8 @@ export const FIELDS = {
   commsAllowance: { label: "Communications allowance per month", group: "pay", type: "money" },
   livingAllowance: { label: "Living allowance per month", group: "pay", type: "money" },
   retirementPct: { label: "403(b) employee contribution (%)", group: "pay", type: "number" },
+  adpId: { label: "ADP employee ID", group: "pay", type: "text" },
+  bankAccount: { label: "Bank account for salary", group: "pay", type: "text" },
   phone: { label: "Phone", group: "details", type: "text" },
   emergencyContact: { label: "Emergency contact", group: "details", type: "text" },
 } as const;
@@ -90,9 +94,17 @@ const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const personId = z.string().regex(/^[a-z0-9-]{2,40}$/);
 const value = z.union([z.string().trim().max(300), z.number().finite().min(0).max(1e9), z.null()]);
 const fields = z.partialRecord(z.enum(FIELD_KEYS as [FieldKey, ...FieldKey[]]), value);
+const money = z.number().finite().min(-1e9).max(1e9);
+/** The parts of a payroll line the rules need; the rest of the line is kept as written. */
+const payLine = z.looseObject({ person: personId, gross: money, bonus: money, retro: money, vacationPayout: money, medicalReimb: money, expenses: money, advance: money });
+export type PayLineCore = z.infer<typeof payLine>;
+/** Discretionary amounts: a person whose line has one of these may not sign the run. */
+export const adjustedIn = (lines: PayLineCore[]) => lines.filter((l) => l.bonus || l.retro || l.vacationPayout || l.medicalReimb || l.expenses || l.advance).map((l) => l.person);
+
 const rulesSchema = z.object({
-  steps: z.record(z.enum(CHANGE_KINDS), z.array(z.enum(HR_ROLES)).min(1).max(4)),
-  holders: z.record(z.enum(HR_ROLES), z.array(personId).max(20)),
+  // Partial, so rules written before a kind or role existed still read; missing ones take the defaults.
+  steps: z.partialRecord(z.enum(CHANGE_KINDS), z.array(z.enum(HR_ROLES)).min(1).max(4)),
+  holders: z.partialRecord(z.enum(HR_ROLES), z.array(personId).max(20)),
 });
 
 /** A proposed change, as written in the ledger. Its id is the entry number. */
@@ -102,6 +114,17 @@ export const proposalSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("separate"), subject: personId, effective: isoDate, reason: z.string().trim().min(3).max(2000) }),
   z.object({ type: z.literal("unrelate"), subject: personId, other: personId, effective: isoDate, reason: z.string().trim().min(3).max(2000) }),
   z.object({ type: z.literal("rules"), subject: z.null(), effective: isoDate, rules: rulesSchema, reason: z.string().trim().min(3).max(2000) }),
+  /** A month's payroll for one pay group, as calculated by the server (lib/payroll.ts). The effective date is the pay date. */
+  z.object({
+    type: z.literal("payroll"),
+    subject: z.null(),
+    effective: isoDate,
+    month: z.string().regex(/^\d{4}-\d{2}$/),
+    group: z.enum(["Home Office", "Afghanistan"]),
+    supplemental: z.boolean(),
+    lines: z.array(payLine).max(500),
+    reason: z.string().trim().min(3).max(2000),
+  }),
 ]);
 export type ProposalInput = z.infer<typeof proposalSchema>;
 
@@ -167,9 +190,11 @@ export type HrState = {
 
 const dayOf = (iso: string) => iso.slice(0, 10);
 /** Copy of the rules with every kind present, so a missing kind never means "no approval". */
-const fullRules = (r: Rules): Rules => {
+/** Rules as written in the ledger: kinds or roles added later may be missing. */
+export type RulesInput = { steps: Partial<Rules["steps"]>; holders: Partial<Rules["holders"]> };
+export const fullRules = (r: RulesInput): Rules => {
   const holders: Partial<Rules["holders"]> = r.holders;
-  return { steps: { ...DEFAULT_STEPS, ...r.steps }, holders: { hr: holders.hr ?? [], cfo: holders.cfo ?? [], ceo: holders.ceo ?? [], board: holders.board ?? [] } };
+  return { steps: { ...DEFAULT_STEPS, ...r.steps } as Rules["steps"], holders: { hr: holders.hr ?? [], payroll: holders.payroll ?? [], cfo: holders.cfo ?? [], ceo: holders.ceo ?? [], board: holders.board ?? [] } };
 };
 
 export const kindOf = (p: ProposalInput): ChangeKind => {
@@ -186,8 +211,17 @@ export const relatedTo = (relations: Relation[], id: string) => relations.flatMa
  * nobody signs a change to their own record, a related person's, their supervisor's (they report to
  * them), or one they proposed, and nobody signs two steps of the same change.
  */
-export function conflictOf(u: string, p: Pick<Proposal, "subject" | "by" | "signatures"> & { type: string; other?: string }, state: Pick<HrState, "people" | "relations">): string | null {
+export function conflictOf(
+  u: string,
+  p: Pick<Proposal, "subject" | "by" | "signatures"> & { type: string; other?: string; lines?: PayLineCore[] },
+  state: Pick<HrState, "people" | "relations">,
+): string | null {
   if (u === p.by) return "proposed it";
+  if (p.type === "payroll" && p.lines) {
+    const adjusted = adjustedIn(p.lines);
+    if (adjusted.includes(u)) return "has a bonus or adjustment in this payroll";
+    if (adjusted.some((x) => relatedTo(state.relations, u).includes(x))) return "is related to someone with a bonus or adjustment in this payroll";
+  }
   if (p.signatures.some((s) => s.by === u)) return "already signed a step";
   const subjects = [p.subject, p.type === "unrelate" ? p.other : null].filter((x): x is string => !!x);
   for (const s of subjects) {
@@ -206,6 +240,8 @@ export const toYou = (why: string) =>
     "it is their own record": "it is your own record",
     "related to the person": "you are related to the person",
     "reports to the person": "you report to the person",
+    "has a bonus or adjustment in this payroll": "you have a bonus or adjustment in this payroll",
+    "is related to someone with a bonus or adjustment in this payroll": "you are related to someone with a bonus or adjustment in this payroll",
   })[why] ?? why;
 
 /** The people who may sign the next step now, and which role they sign as. */
@@ -236,6 +272,14 @@ export function mayPropose(u: string, p: ProposalInput, state: HrState): string 
   if (!rules) return "The approval rules have not been set up yet.";
   const has = (r: HrRole) => rules.holders[r].includes(u);
   if (p.type === "rules") return HR_ROLES.some(has) ? null : "Only people holding an HR role can propose new rules.";
+  if (p.type === "payroll") {
+    if (!has("payroll")) return "Only the payroll role prepares a payroll.";
+    const same = state.proposals.filter((x) => x.type === "payroll" && x.month === p.month && x.group === p.group);
+    if (same.some((x) => x.status === "pending")) return "A payroll for this month and group is already waiting for approval.";
+    const paid = same.some((x) => x.status === "approved");
+    if (paid !== p.supplemental) return paid ? "This month is already paid: prepare a supplemental payroll for the differences." : "A supplemental payroll needs an approved payroll for the month first.";
+    return null;
+  }
   const own = p.subject === u;
   // Anyone may correct their own contact details; HR approves.
   if (p.type === "update" && own && kindOf(p) === "details") return null;
@@ -410,7 +454,7 @@ const days = (a: string, b: string) => Math.round((Date.parse(`${a}T00:00:00Z`) 
 export function warningsFor(p: Proposal, state: HrState): string[] {
   const out: string[] = [];
   const back = days(dayOf(p.at), p.effective);
-  if (back > 0 && p.type !== "rules") out.push(`Backdated: takes effect ${back} day${back === 1 ? "" : "s"} before it was proposed.`);
+  if (back > 0 && p.type !== "rules" && p.type !== "payroll") out.push(`Backdated: takes effect ${back} day${back === 1 ? "" : "s"} before it was proposed.`);
   if (p.type === "update" || p.type === "hire") {
     const f = p.fields;
     const was = p.before.pay;
@@ -423,6 +467,14 @@ export function warningsFor(p: Proposal, state: HrState): string[] {
     if (p.type === "update" && p.corrects) out.push(`Corrects change #${p.corrects}.`);
     if (f.startDate !== undefined && p.before.startDate && f.startDate !== p.before.startDate) out.push("Changes the start date, which changes length of service on employment letters.");
     if (f.title !== undefined && p.before.title && back > 0) out.push("A backdated title change shows on employment letters for the past.");
+  }
+  if (p.type === "payroll") {
+    const lines = p.lines as (PayLineCore & { name?: string; problems?: string[] })[];
+    const withProblems = lines.filter((l) => l.problems?.length);
+    if (withProblems.length) out.push(`${withProblems.length} of ${lines.length} lines have something to check: ${withProblems.map((l) => l.name ?? l.person).join(", ")}.`);
+    const adjusted = adjustedIn(lines);
+    if (adjusted.length) out.push(`Bonuses or adjustments for ${adjusted.map((x) => lines.find((l) => l.person === x)?.name ?? x).join(", ")}.`);
+    if (p.supplemental) out.push("A supplemental payroll: paid on top of the month's approved payroll.");
   }
   if (p.type === "rules") {
     const cur = state.rules;

@@ -115,24 +115,25 @@ const firstOfNextMonth = (d: string) => {
 /** Writes the sample records through `write` (the ledger by default). */
 export async function seedSample(write: typeof append = append) {
   const today = todayIso();
-  const rules: Rules = { steps: DEFAULT_STEPS, holders: { hr: ["sima", "mina"], cfo: ["peter"], ceo: ["grace"], board: ["arthur"] } };
+  const rules: Rules = { steps: DEFAULT_STEPS, holders: { hr: ["sima", "mina"], payroll: ["omid"], cfo: ["peter"], ceo: ["grace"], board: ["arthur"] } };
   await write("sima", "start", null, { rules });
 
   const usd = (pay: number): Fields => ({ payBasis: "Month", pay, currency: "USD" });
   const afn = (pay: number): Fields => ({ payBasis: "Month", pay, currency: "AFN" });
   const hires: [string, Fields][] = [
-    ["grace", { name: "Grace Moreno", title: "Chief Executive Officer", office: "Home Office", employment: "Employee", startDate: "2019-03-01", ...usd(15000), retirementPct: 5 }],
-    ["peter", { name: "Peter Hale", title: "Chief Financial Officer", office: "Home Office", employment: "Employee", supervisor: "grace", startDate: "2021-06-01", ...usd(11000), retirementPct: 4 }],
-    ["sima", { name: "Sima Rezai", title: "HR Manager", office: "Home Office", employment: "Employee", supervisor: "peter", startDate: "2022-01-10", ...usd(6500), retirementPct: 3 }],
-    ["mina", { name: "Mina Sharifi", title: "HR Officer", office: "Afghanistan", employment: "National staff", supervisor: "sima", startDate: "2023-11-01", ...afn(56000) }],
-    ["karim", { name: "Karim Ahmadi", title: "Country Director", office: "Afghanistan", employment: "National staff", supervisor: "grace", startDate: "2020-04-01", ...afn(245000), dangerPay: 0, commsAllowance: 3500 }],
-    ["nadia", { name: "Nadia Rahimi", title: "Project Manager", office: "Afghanistan", employment: "National staff", supervisor: "karim", startDate: "2023-02-15", ...afn(98000), commsAllowance: 2000, phone: "+93 70 000 0101" }],
-    ["yusuf", { name: "Yusuf Mohammadi", title: "Finance Officer", office: "Afghanistan", employment: "National staff", supervisor: "karim", startDate: "2023-05-01", ...afn(70000) }],
-    ["zahra", { name: "Zahra Karimi", title: "Procurement Officer", office: "Afghanistan", employment: "National staff", supervisor: "hamid", startDate: "2024-03-01", ...afn(63000) }],
-    ["hamid", { name: "Hamid Wardak", title: "Procurement Manager", office: "Afghanistan", employment: "National staff", supervisor: "karim", startDate: "2022-09-01", ...afn(84000) }],
-    ["farid", { name: "Farid Sultani", title: "Horticulture Specialist", office: "Afghanistan", employment: "National staff", supervisor: "karim", startDate: "2024-01-15", contractEnd: "2027-12-31", ...afn(77000) }],
-    ["javed", { name: "Javed Mansoor", title: "Sr. Civil Engineer", office: "Afghanistan", employment: "National staff", supervisor: "karim", startDate: "2023-08-01", contractEnd: "2027-12-31", ...afn(91000) }],
-    ["bilal", { name: "Bilal Haidari", title: "Storekeeper", office: "Afghanistan", employment: "National staff", supervisor: "nadia", startDate: "2024-06-01", ...afn(35000) }],
+    ["grace", { name: "Grace Moreno", title: "Chief Executive Officer", office: "Home Office", employment: "Employee", startDate: "2019-03-01", ...usd(15000), retirementPct: 5, adpId: "ROP-1001" }],
+    ["peter", { name: "Peter Hale", title: "Chief Financial Officer", office: "Home Office", employment: "Employee", supervisor: "grace", startDate: "2021-06-01", ...usd(11000), retirementPct: 4, adpId: "ROP-1002" }],
+    ["sima", { name: "Sima Rezai", title: "HR Manager", office: "Home Office", employment: "Employee", supervisor: "peter", startDate: "2022-01-10", ...usd(6500), retirementPct: 3, adpId: "ROP-1003" }],
+    ["omid", { name: "Omid Rahmani", title: "Accounting Manager", office: "Home Office", employment: "Employee", supervisor: "peter", startDate: "2022-07-05", ...usd(7200), retirementPct: 3, adpId: "ROP-1004" }],
+    ["mina", { name: "Mina Sharifi", title: "HR Officer", office: "Afghanistan", employment: "National staff", supervisor: "sima", startDate: "2023-11-01", ...afn(56000), bankAccount: "AIB 0000-4101 (sample)" }],
+    ["karim", { name: "Karim Ahmadi", title: "Country Director", office: "Afghanistan", employment: "National staff", supervisor: "grace", startDate: "2020-04-01", ...afn(245000), dangerPay: 0, commsAllowance: 3500, bankAccount: "AIB 0000-4102 (sample)" }],
+    ["nadia", { name: "Nadia Rahimi", title: "Project Manager", office: "Afghanistan", employment: "National staff", supervisor: "karim", startDate: "2023-02-15", ...afn(98000), commsAllowance: 2000, phone: "+93 70 000 0101", bankAccount: "AIB 0000-4103 (sample)" }],
+    ["yusuf", { name: "Yusuf Mohammadi", title: "Finance Officer", office: "Afghanistan", employment: "National staff", supervisor: "karim", startDate: "2023-05-01", ...afn(70000), bankAccount: "AIB 0000-4104 (sample)" }],
+    ["zahra", { name: "Zahra Karimi", title: "Procurement Officer", office: "Afghanistan", employment: "National staff", supervisor: "hamid", startDate: "2024-03-01", ...afn(63000), bankAccount: "AIB 0000-4105 (sample)" }],
+    ["hamid", { name: "Hamid Wardak", title: "Procurement Manager", office: "Afghanistan", employment: "National staff", supervisor: "karim", startDate: "2022-09-01", ...afn(84000), bankAccount: "AIB 0000-4106 (sample)" }],
+    ["farid", { name: "Farid Sultani", title: "Horticulture Specialist", office: "Afghanistan", employment: "National staff", supervisor: "karim", startDate: "2024-01-15", contractEnd: "2027-12-31", ...afn(77000), bankAccount: "AIB 0000-4107 (sample)", dangerPay: 35 }],
+    ["javed", { name: "Javed Mansoor", title: "Sr. Civil Engineer", office: "Afghanistan", employment: "National staff", supervisor: "karim", startDate: "2023-08-01", contractEnd: "2027-12-31", ...afn(91000), bankAccount: "AIB 0000-4108 (sample)", dangerPay: 35 }],
+    ["bilal", { name: "Bilal Haidari", title: "Storekeeper", office: "Afghanistan", employment: "National staff", supervisor: "nadia", startDate: "2024-06-01", ...afn(35000), bankAccount: "AIB 0000-4109 (sample)" }],
   ];
   const propose = (by: string, p: ProposalInput) => write(by, "propose", p.subject, p);
   const approve = (by: string, proposal: number, step: number, as: string, subject: string | null) => write(by, "approve", subject, { proposal, step, as });
@@ -186,6 +187,21 @@ export async function seedSample(write: typeof append = append) {
     const d = workdays(s0)[12];
     if (d) s0.days[d] = { leave: { type: "sick", hours: 8 } };
   }));
+  // Everyone else's October, approved by their supervisor (HR for the CEO, who has none).
+  const approvedSheets: [string, string, string, Record<string, number>][] = [
+    ["grace", "sima", "Home Office", { "non-contract": 8, "ACRP-2026": 2 }],
+    ["peter", "grace", "Home Office", { "non-contract": 9, "ACRP-2026": 1 }],
+    ["omid", "peter", "Home Office", { "non-contract": 1 }],
+    ["mina", "sima", "Afghanistan", { "non-contract": 1, "ACRP-2026": 1 }],
+    ["karim", "grace", "Afghanistan", { "ACRP-2026": 3, "A-2027": 1, "non-contract": 1 }],
+    ["yusuf", "karim", "Afghanistan", { "ACRP-2026": 1, "non-contract": 1 }],
+    ["hamid", "karim", "Afghanistan", { "ACRP-2026": 1 }],
+    ["zahra", "hamid", "Afghanistan", { "ACRP-2026": 2, "A-2027": 1 }],
+  ];
+  for (const [who, approver, office, shares] of approvedSheets) {
+    const t = await write(who, "timesheet", who, sheet(office, shares));
+    await write(approver, "ts-approve", who, { timesheet: t });
+  }
   const javed = await write("javed", "timesheet", "javed", sheet("Afghanistan", { "ACRP-2026": 1 }));
   await write("karim", "ts-return", "javed", { timesheet: javed, note: "The two days in Herat need the field-trip note and danger pay marked." });
 }
