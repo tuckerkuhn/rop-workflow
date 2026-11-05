@@ -47,7 +47,7 @@ function ThisWeek({ rows, progress, actions }: { rows: Row[]; progress: ReturnTy
         <h2 id="this-week" className="font-display text-2xl">
           {t("home.thisWeek")}
         </h2>
-        <Link href="/tasks" className="text-sm font-semibold text-forest hover:underline">
+        <Link href="/work" className="text-sm font-semibold text-forest hover:underline">
           {t("home.seeTasks")} <Arrow />
         </Link>
       </div>

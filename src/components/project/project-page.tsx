@@ -381,7 +381,7 @@ function Execute({ field, procs }: SectionProps) {
       <ol className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
         {activities.map((a) => {
           const st = activityStatus(a, field, procs);
-          const link = [4, 6, 7].includes(a.n) ? "/tasks?source=field" : a.n === 5 ? "/tasks?source=procurement" : null;
+          const link = [4, 6, 7].includes(a.n) ? "/work?source=field" : a.n === 5 ? "/work?source=procurement" : null;
           return (
             <li key={a.n} className="grid grid-cols-[2rem_1fr] gap-3 px-4 py-3 sm:grid-cols-[2rem_1fr_10rem_7rem]">
               <span className="font-display text-xl text-muted">{a.n}</span>

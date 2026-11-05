@@ -809,16 +809,16 @@ export function ProcurementWorkspace() {
         <>
           {project.saved && (
             <div className="mx-4 mt-3 grid gap-2 sm:mx-6">
-              <Link href="/tasks/plan" className="flex items-center justify-between rounded-xl bg-mist px-3 py-2 text-sm font-semibold text-forest hover:bg-sunken">
+              <Link href="/work/plan" className="flex items-center justify-between rounded-xl bg-mist px-3 py-2 text-sm font-semibold text-forest hover:bg-sunken">
                 Procurement calendar
                 <span aria-hidden>→</span>
               </Link>
-              <Link href="/tasks/bills" className="flex items-center justify-between rounded-xl bg-mist px-3 py-2 text-sm font-semibold text-forest hover:bg-sunken">
+              <Link href="/work/bills" className="flex items-center justify-between rounded-xl bg-mist px-3 py-2 text-sm font-semibold text-forest hover:bg-sunken">
                 Bills paid directly (rent, utilities, insurance)
                 <span aria-hidden>→</span>
               </Link>
               {(myRoles.includes("finance") || user.admin) && (
-                <Link href="/tasks/closeout" className="flex items-center justify-between rounded-xl bg-mist px-3 py-2 text-sm font-semibold text-forest hover:bg-sunken">
+                <Link href="/work/closeout" className="flex items-center justify-between rounded-xl bg-mist px-3 py-2 text-sm font-semibold text-forest hover:bg-sunken">
                   Monthly closeout
                   <span aria-hidden>→</span>
                 </Link>
@@ -906,7 +906,7 @@ export function ProcurementWorkspace() {
           ) : planItem && planItem.status !== "approved" ? (
             <div className="mx-auto max-w-xl py-16 text-center text-sm text-muted">
               {planItem.status === "started" ? `The request for ${planItem.key} is already made: ${planItem.procurementKey}.` : `${planItem.key} needs both approvals on the procurement calendar first.`}{" "}
-              <Link href={`/tasks/plan?open=${planItem.key}`} className="font-semibold text-forest hover:underline">
+              <Link href={`/work/plan?open=${planItem.key}`} className="font-semibold text-forest hover:underline">
                 Open it
               </Link>
             </div>

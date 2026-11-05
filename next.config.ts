@@ -5,8 +5,11 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       { source: "/projects/:id", destination: "/progress/records?project=:id", permanent: false },
-      { source: "/field", destination: "/tasks?source=field", permanent: false },
-      { source: "/procurement", destination: "/tasks?source=procurement", permanent: false },
+      { source: "/field", destination: "/work?source=field", permanent: false },
+      { source: "/procurement", destination: "/work?source=procurement", permanent: false },
+      // Tasks was renamed Work.
+      { source: "/tasks", destination: "/work", permanent: false },
+      { source: "/tasks/:path*", destination: "/work/:path*", permanent: false },
     ];
   },
 };

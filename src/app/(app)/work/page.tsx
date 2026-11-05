@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { TasksPage } from "@/components/tasks/tasks-page";
 
 export const metadata: Metadata = {
-  title: "Tasks · ROP Workflow",
-  description: "Field activities and procurement steps for the current project.",
+  title: "Work · ROP Workflow",
+  description: "Start, continue and review work on the current project: tasks, field activities and procurement.",
 };
 
 export default function Page() {

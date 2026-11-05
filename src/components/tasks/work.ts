@@ -43,7 +43,7 @@ export function workFor(u: AppUser, data: Data, viewer: AppUser, opts: { project
           title: i.kind === "farmer" ? farmerLabel(i, viewer) : i.title,
           step: fieldSteps[i.step].title,
           date: projectItem(i)[0]?.end ?? today(),
-          href: `/tasks?source=field&open=${i.id}`,
+          href: `/work?source=field&open=${i.id}`,
           space: "Field",
           now: true,
           late: isLate(i.step, since),
@@ -51,7 +51,7 @@ export function workFor(u: AppUser, data: Data, viewer: AppUser, opts: { project
         });
       });
     comingTo(field, r, viewer).forEach((c) =>
-      cards.push({ key: `fc-${c.id}-${c.step}`, title: c.title, step: c.step, date: c.eta, href: `/tasks?source=field&open=${c.id}`, space: "Field", now: false, late: false, note: `Now ${c.via}` }),
+      cards.push({ key: `fc-${c.id}-${c.step}`, title: c.title, step: c.step, date: c.eta, href: `/work?source=field&open=${c.id}`, space: "Field", now: false, late: false, note: `Now ${c.via}` }),
     );
   }
   for (const r of u.procurement) {
@@ -71,7 +71,7 @@ export function workFor(u: AppUser, data: Data, viewer: AppUser, opts: { project
           title: `${p.title} · ${p.id}`,
           step: stepById[p.step].title,
           date: path[0]?.end ?? today(),
-          href: `/tasks?source=procurement&open=${p.id}`,
+          href: `/work?source=procurement&open=${p.id}`,
           space: "Procurement",
           now: true,
           late: isLate(p.step, since),
@@ -79,7 +79,7 @@ export function workFor(u: AppUser, data: Data, viewer: AppUser, opts: { project
         });
       });
     procurementComingTo(procs, r).forEach((c) =>
-      cards.push({ key: `pc-${c.id}-${c.step}`, title: c.title, step: c.step, date: c.eta, href: `/tasks?source=procurement&open=${c.id}`, space: "Procurement", now: false, late: false, note: `Now ${c.via}` }),
+      cards.push({ key: `pc-${c.id}-${c.step}`, title: c.title, step: c.step, date: c.eta, href: `/work?source=procurement&open=${c.id}`, space: "Procurement", now: false, late: false, note: `Now ${c.via}` }),
     );
   }
   // Procurement calendar: approvals waiting on this person, then approved purchases they start.
@@ -91,7 +91,7 @@ export function workFor(u: AppUser, data: Data, viewer: AppUser, opts: { project
       title: `Approve ${n} planned ${n === 1 ? "purchase" : "purchases"}`,
       step: as === "manager" ? "Procurement calendar · as procurement manager" : "Procurement calendar · as technical lead",
       date: today(),
-      href: "/tasks/plan?filter=mine",
+      href: "/work/plan?filter=mine",
       space: "Procurement",
       now: true,
       late: false,
@@ -106,7 +106,7 @@ export function workFor(u: AppUser, data: Data, viewer: AppUser, opts: { project
       step: `${i.key} · ${i.level} · needed by ${i.neededBy}`,
       date: i.startBy,
       // Opens the request already filled in from the plan, with its supporting information.
-      href: `/tasks?source=procurement&new=1&plan=${i.key}`,
+      href: `/work?source=procurement&new=1&plan=${i.key}`,
       space: "Procurement",
       now: true,
       late: i.startBy < today(),
@@ -121,7 +121,7 @@ export function workFor(u: AppUser, data: Data, viewer: AppUser, opts: { project
           title: `Close ${m}: ${list.length} expense ${list.length === 1 ? "voucher" : "vouchers"}`,
           step: blockers(list).length ? `${blockers(list).length} not yet filed or posted` : "All filed and posted",
           date: today(),
-          href: "/tasks/closeout",
+          href: "/work/closeout",
           space: "Procurement",
           now: true,
           late: false,

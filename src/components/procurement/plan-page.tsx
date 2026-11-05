@@ -38,7 +38,7 @@ export function ProcurementPlanPage() {
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
 
-  // Links such as /tasks/plan?open=PP-003 or ?filter=mine.
+  // Links such as /work/plan?open=PP-003 or ?filter=mine.
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     if (q.get("open")) setOpen(q.get("open"));
@@ -102,7 +102,7 @@ export function ProcurementPlanPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Link href="/tasks?source=procurement" className={quietBtn}>
+          <Link href="/work?source=procurement" className={quietBtn}>
             Procurements in progress
           </Link>
           {canBuild && (
@@ -473,14 +473,14 @@ function Detail({
         </dl>
         {item.status === "approved" && <p className="mt-2 text-sm text-forest">On the Tasks calendar for {lead?.name ?? "the technical lead"} to start on {date(item.startBy)}.</p>}
         {item.status === "approved" && (user.id === item.techLead || !!user.admin) && (
-          <Link href={`/tasks?source=procurement&new=1&plan=${item.key}`} className={`${primaryBtn} mt-3 inline-block`}>
+          <Link href={`/work?source=procurement&new=1&plan=${item.key}`} className={`${primaryBtn} mt-3 inline-block`}>
             {user.id === item.techLead ? "Start the procurement request" : `Start the request for ${lead?.name ?? "the lead"}`}
           </Link>
         )}
         {item.status === "started" && item.procurementKey && (
           <p className="mt-2 text-sm">
             Request made:{" "}
-            <Link href={`/tasks?source=procurement&open=${item.procurementKey}`} className="font-semibold text-forest hover:underline">
+            <Link href={`/work?source=procurement&open=${item.procurementKey}`} className="font-semibold text-forest hover:underline">
               {item.procurementKey}
             </Link>
           </p>

@@ -225,7 +225,7 @@ function DonorHome({ field, project }: { field: FieldItem[]; project: ProjectSta
           <SectionLabel>
             {PROJECT.name} · {PROJECT.season}
           </SectionLabel>
-          <Link href="/tasks?source=field" className="text-sm font-semibold text-forest hover:underline">
+          <Link href="/work?source=field" className="text-sm font-semibold text-forest hover:underline">
             View field activities →
           </Link>
         </div>

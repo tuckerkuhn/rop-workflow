@@ -19,7 +19,7 @@ export function taskSources(u: AppUser, project: ProjectInfo): TaskSource[] {
   ].filter((s): s is TaskSource => s !== null);
 }
 
-export const taskHref = (source: TaskSource, query = "") => `/tasks?source=${source}${query ? `&${query}` : ""}`;
+export const taskHref = (source: TaskSource, query = "") => `/work?source=${source}${query ? `&${query}` : ""}`;
 
 /** Switch in the top bar between all tasks and the full workflows. Hidden when there is no workflow to open. */
 export function TaskSourceSwitch({ active }: { active: TaskSource | "all" }) {
@@ -29,7 +29,7 @@ export function TaskSourceSwitch({ active }: { active: TaskSource | "all" }) {
   if (!user) return null;
   const sources = taskSources(user, project);
   if (sources.length === 0) return null;
-  const tabs = [{ id: "all" as const, href: "/tasks", label: t("tasks.all") }, ...sources.map((s) => ({ id: s, href: taskHref(s), label: t(s === "field" ? "tasks.field" : "tasks.procurement") }))];
+  const tabs = [{ id: "all" as const, href: "/work", label: t("tasks.all") }, ...sources.map((s) => ({ id: s, href: taskHref(s), label: t(s === "field" ? "tasks.field" : "tasks.procurement") }))];
   return (
     <nav aria-label={t("tasks.source")} className="flex rounded-full bg-sunken p-0.5 text-sm">
       {tabs.map((tab) => (

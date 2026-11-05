@@ -71,10 +71,10 @@ export function BillsPage() {
           Rent, utilities, internet and phones, insurance, and services under an agreement. Record the bill with its document; programme management approves; Finance prepares the voucher. A one-off purchase of goods or services goes through procurement instead.
         </p>
         <p className="mt-2 flex gap-4 text-sm">
-          <Link href="/tasks/closeout" className="font-semibold text-forest hover:underline">
+          <Link href="/work/closeout" className="font-semibold text-forest hover:underline">
             Monthly closeout
           </Link>
-          <Link href="/tasks?source=procurement" className="font-semibold text-forest hover:underline">
+          <Link href="/work?source=procurement" className="font-semibold text-forest hover:underline">
             Procurement
           </Link>
         </p>

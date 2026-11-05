@@ -109,7 +109,7 @@ export function TaskDetail({
       },
     });
   if (row.kind === "milestone" && (row.milestoneKind === "harvest_window" || row.milestoneKind === "field_activity") && hasField)
-    links.push({ href: "/tasks?source=field", label: t("detail.openField") });
+    links.push({ href: "/work?source=field", label: t("detail.openField") });
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 sm:items-center sm:p-4" onClick={onClose}>

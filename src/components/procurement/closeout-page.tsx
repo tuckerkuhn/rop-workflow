@@ -50,11 +50,11 @@ export function CloseoutPage() {
           Expense vouchers by month, from procurements and from bills paid directly, with where each is filed in SharePoint and posted in NetSuite. Finance closes a month once every voucher in it is filed and posted.
         </p>
         <p className="mt-2 text-sm">
-          <Link href="/tasks?source=procurement" className="font-semibold text-forest hover:underline">
+          <Link href="/work?source=procurement" className="font-semibold text-forest hover:underline">
             Procurements in progress
           </Link>{" "}
           ·{" "}
-          <Link href="/tasks/bills" className="font-semibold text-forest hover:underline">
+          <Link href="/work/bills" className="font-semibold text-forest hover:underline">
             Bills paid directly
           </Link>
         </p>
@@ -122,7 +122,7 @@ export function CloseoutPage() {
                     {list.map((p) => (
                       <tr key={p.id} className="border-t border-line align-top">
                         <td className="px-3 py-2 font-mono text-xs">
-                          <Link href={p.kind === "bill" ? "/tasks/bills" : `/tasks?source=procurement&open=${p.id.replace(/-P\d+$/, "")}`} className="text-forest hover:underline">
+                          <Link href={p.kind === "bill" ? "/work/bills" : `/work?source=procurement&open=${p.id.replace(/-P\d+$/, "")}`} className="text-forest hover:underline">
                             {p.voucher!.number}
                           </Link>
                         </td>
