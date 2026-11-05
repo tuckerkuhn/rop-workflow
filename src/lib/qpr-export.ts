@@ -1,4 +1,4 @@
-import { SECTIONS, STATUS_LABEL, type Qpr, type Row } from "@/lib/qpr";
+import { SECTIONS, STATUS_LABEL, quarterSpendOf, type Qpr, type Row, type Spend } from "@/lib/qpr";
 import { quarterRange } from "@/lib/results";
 
 /**
@@ -11,7 +11,7 @@ export type ExportInput = {
   quarter: string;
   saved: Qpr;
   rows: Row[];
-  spend: { currency: string; budget: number; cumulative: number; asOf: string | null };
+  spend: Spend;
   activities: { code: string; name: string }[];
   /** e.g. https://rop-workflow.vercel.app, for the links to evidence. */
   origin: string;
@@ -38,6 +38,8 @@ export function qprHtml(d: ExportInput) {
   const sec = (key: string) => d.saved.sections[key]?.text;
   const heading = (key: string) => SECTIONS.find((s) => s.key === key)!.heading;
   const i = d.saved.info;
+  const src = d.spend.source;
+  const spendNote = src.kind === "import" ? ` <span class="note">(Finance's budget against actual: ${esc(src.file)}, imported ${esc(src.at)}; excluding overhead)</span>` : src.at ? ` <span class="note">(from the budget file imported on ${esc(src.at)})</span>` : "";
   const money = (v: number | null) => (v === null ? "[to be entered]" : `${n(v)} ${d.spend.currency}`);
 
   // Indicator table, grouped by output then activity, as in ROP's report.
@@ -89,9 +91,9 @@ a{color:#1f4e3d}
 <tr><th>Project title</th><td>${esc(i.title || d.project.name)}</td></tr>
 <tr><th>Agreement number</th><td>${esc(i.agreement || "[to be entered]")}</td></tr>
 <tr><th>Project duration</th><td>${d.project.start && d.project.end ? `${esc(long(d.project.start))} – ${esc(long(d.project.end))}` : "[to be entered]"}</td></tr>
-<tr><th>Total budget</th><td>${money(d.spend.budget)}</td></tr>
-<tr><th>Expenditure this quarter</th><td>${money(d.saved.quarterSpend)}</td></tr>
-<tr><th>Cumulative expenditure</th><td>${money(d.spend.cumulative)}${d.spend.asOf ? ` <span class="note">(from the budget file imported on ${esc(d.spend.asOf)})</span>` : ""}</td></tr>
+<tr><th>Total budget</th><td>${money(d.spend.budget)}${d.spend.overhead ? ` plus overhead (GMS 8%) of ${n(d.spend.overhead.budget)} ${esc(d.spend.overhead.currency)}` : ""}</td></tr>
+<tr><th>Expenditure this quarter</th><td>${money(quarterSpendOf(d.saved, d.spend))}</td></tr>
+<tr><th>Cumulative expenditure</th><td>${money(d.spend.cumulative)} to ${esc(long(to))}${spendNote}</td></tr>
 <tr><th>Project locations</th><td>${esc(i.locations || "[to be entered]")}</td></tr>
 <tr><th>Responsible party</th><td>${esc(i.partner)}</td></tr>
 <tr><th>Country director</th><td>${esc(i.director || "[to be entered]")}</td></tr>

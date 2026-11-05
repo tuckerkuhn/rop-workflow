@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
-import { SECTIONS, STATUSES, STATUS_LABEL, type QprPatch, type Row, type Status } from "@/lib/qpr";
+import { SECTIONS, STATUSES, STATUS_LABEL, quarterSpendOf, type QprPatch, type Row, type Status } from "@/lib/qpr";
 import { qprHtml } from "@/lib/qpr-export";
 import { quarterOf, quarterRange } from "@/lib/results";
 import type { QprView } from "@/app/api/projects/[code]/qpr/route";
@@ -206,7 +206,7 @@ export function QprPage() {
               </details>
             )}
 
-            <InfoBox v={v} act={act} />
+            <InfoBox v={v} act={act} onImported={() => void load()} />
             <Section v={v} k="summary" act={act} busy={busy} />
             <Section v={v} k="background" act={act} busy={busy} />
 
@@ -246,7 +246,8 @@ export function QprPage() {
 
 type Act = (a: QprPatch, msg: string) => Promise<void>;
 
-function InfoBox({ v, act }: { v: QprView; act: Act }) {
+function InfoBox({ v, act, onImported }: { v: QprView; act: Act; onImported: () => void }) {
+  const to = quarterRange(v.quarter).to;
   const [f, setF] = useState(v.saved.info);
   const [spend, setSpend] = useState(v.saved.quarterSpend === null ? "" : String(v.saved.quarterSpend));
   useEffect(() => {
@@ -270,19 +271,49 @@ function InfoBox({ v, act }: { v: QprView; act: Act }) {
           <dd className="font-semibold tabular-nums">
             {num(v.spend.budget)} {c}
           </dd>
+          {v.spend.overhead && (
+            <dd className="text-xs text-muted">
+              plus overhead {num(v.spend.overhead.budget)} {v.spend.overhead.currency}
+            </dd>
+          )}
         </div>
         <div>
-          <dt className="text-muted">Cumulative expenditure</dt>
+          <dt className="text-muted">Cumulative to {to}</dt>
           <dd className="font-semibold tabular-nums">
             {num(v.spend.cumulative)} {c}
           </dd>
-          <dd className="text-xs text-muted">From the budget import{v.spend.asOf ? ` of ${v.spend.asOf}` : ""}</dd>
         </div>
-        <label className="text-sm">
-          <span className="text-muted">Spent this quarter ({c})</span>
-          <input inputMode="decimal" className={input} value={spend} disabled={!v.mayEdit} onChange={(e) => setSpend(e.target.value)} />
-        </label>
+        <div>
+          <dt className="text-muted">Spent this quarter</dt>
+          <dd className="font-semibold tabular-nums">{quarterSpendOf(v.saved, v.spend) === null ? "—" : `${num(quarterSpendOf(v.saved, v.spend)!)} ${c}`}</dd>
+          {v.saved.quarterSpend !== null && v.spend.quarter !== null && <dd className="text-xs text-ochre">Typed in; the import says {num(v.spend.quarter)}</dd>}
+        </div>
       </dl>
+      <p className="mt-2 text-xs text-muted">
+        {v.spend.source.kind === "import" ? (
+          <>
+            From Finance&rsquo;s budget against actual: {v.spend.source.file}, imported by {v.spend.source.by} on {v.spend.source.at}
+            {v.spend.source.sharepointUrl && (
+              <>
+                {" · "}
+                <a href={v.spend.source.sharepointUrl} target="_blank" rel="noreferrer" className="font-semibold text-forest hover:underline">
+                  Open in SharePoint
+                </a>
+              </>
+            )}
+            . Overhead (GMS 8%) is not included.
+          </>
+        ) : (
+          <>From the budget file{v.spend.source.at ? ` imported on ${v.spend.source.at}` : ""}. Import Finance&rsquo;s monthly workbook to fill this quarter&rsquo;s spending.</>
+        )}{" "}
+        <SpendImport v={v} onDone={onImported} />
+      </p>
+      {v.mayEdit && (
+        <label className="mt-3 block max-w-xs text-sm">
+          <span className="text-muted">Type this quarter&rsquo;s spending instead ({c})</span>
+          <input inputMode="decimal" className={input} value={spend} placeholder={v.spend.quarter === null ? "" : `${num(v.spend.quarter)} from the import`} onChange={(e) => setSpend(e.target.value)} />
+        </label>
+      )}
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         {field("title", "Project title", true)}
         {field("agreement", "Agreement number")}
@@ -409,6 +440,12 @@ function IndicatorRow({ r, v, act }: { r: Row; v: QprView; act: Act }) {
     <tr className="align-top">
       <td className="py-2 pe-3">
         <span className="font-mono text-xs text-muted">{r.donorCode}</span> {r.name} <span className="text-muted">({r.unit})</span>
+        {r.budgetRef && v.spend.byLine[r.budgetRef] && (
+          <span className="mt-1 block text-xs text-muted" title="The budget line that pays for this indicator">
+            {r.budgetRef}: {num(v.spend.byLine[r.budgetRef].quarter)} spent this quarter · {num(v.spend.byLine[r.budgetRef].actual)} of {num(v.spend.byLine[r.budgetRef].budget)} {v.spend.currency} to date
+            {v.spend.byLine[r.budgetRef].budget > 0 && ` (${Math.round((v.spend.byLine[r.budgetRef].actual / v.spend.byLine[r.budgetRef].budget) * 100)}%)`}
+          </span>
+        )}
       </td>
       <td className="py-2 pe-3 text-end tabular-nums">{num(r.yearTarget)}</td>
       <td className="py-2 pe-3 text-end">{evidence(from, num(r.quarter), r.records.quarter)}</td>
@@ -546,5 +583,68 @@ function Risks({ v, act }: { v: QprView; act: Act }) {
         </div>
       )}
     </section>
+  );
+}
+
+/** Finance's monthly budget-against-actual workbook: checked first, then imported. */
+function SpendImport({ v, onDone }: { v: QprView; onDone: () => void }) {
+  const { user } = useSession();
+  const [file, setFile] = useState<File | null>(null);
+  const [link, setLink] = useState("");
+  const [preview, setPreview] = useState<{ months: string[]; monthLabels: Record<string, string>; lines: { code: string }[]; totals: { costs: { actual: number } | null }; problems: string[]; notes: string[]; sheet: string } | null>(null);
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+  if (!v.mayImport) return null;
+  const send = async (check: boolean) => {
+    if (!file) return;
+    setErr("");
+    setBusy(true);
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      if (link.trim()) body.append("sharepointUrl", link.trim());
+      const res = await fetch(`/api/projects/${v.project.code}/actuals${check ? "?check=1" : ""}`, { method: "POST", body, headers: { "x-demo-user": user?.id ?? "" } });
+      const out = await res.json().catch(() => ({}));
+      if (out.preview) setPreview(out.preview);
+      if (!res.ok) throw new Error(out.error ?? (out.preview?.problems?.length ? "The workbook has problems: see below." : `Import failed (${res.status})`));
+      if (!check) {
+        setFile(null);
+        setPreview(null);
+        onDone();
+      }
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <span className="mt-3 block rounded-xl bg-sunken p-3 text-sm text-ink">
+      <span className="block font-semibold">Import Finance&rsquo;s budget against actual</span>
+      <span className="block text-xs text-muted">The FACE workbook sent to UNDP (.xlsx). Only its ICE Report sheet is read; the ledger sheets, which name staff, are not kept.</span>
+      <input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="mt-2 block text-sm" onChange={(e) => { setFile(e.target.files?.[0] ?? null); setPreview(null); }} />
+      <input className={input} placeholder="Link to the workbook in SharePoint (optional)" value={link} onChange={(e) => setLink(e.target.value)} />
+      {preview && (
+        <span className="mt-2 block text-xs">
+          Sheet &ldquo;{preview.sheet}&rdquo;: {preview.lines.length} budget lines, {preview.months.map((m) => preview.monthLabels[m] ?? m).join(", ")}
+          {preview.totals.costs && `; ${num(preview.totals.costs.actual)} ${v.spend.currency} spent in all`}.
+          {preview.problems.map((p) => (
+            <span key={p} className="block text-clay">{p}</span>
+          ))}
+          {preview.notes.map((p) => (
+            <span key={p} className="block text-ochre">{p}</span>
+          ))}
+        </span>
+      )}
+      {err && <span role="alert" className="mt-1 block text-xs text-clay">{err}</span>}
+      <span className="mt-2 flex gap-2">
+        <button type="button" className={quietBtn} disabled={!file || busy} onClick={() => void send(true)}>
+          Check it
+        </button>
+        <button type="button" className={primaryBtn} disabled={!file || busy || !preview || preview.problems.length > 0} onClick={() => void send(false)}>
+          Import
+        </button>
+      </span>
+    </span>
   );
 }

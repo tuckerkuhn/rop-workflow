@@ -4,6 +4,7 @@ import { qprPatchSchema, SECTIONS, type Qpr } from "@/lib/qpr";
 import { requireViewer } from "@/server/auth";
 import { DraftingUnavailable } from "@/server/ai-drafts";
 import { handle } from "@/server/guard";
+import { holdsRole } from "@/server/hr-store";
 import { draftQpr } from "@/server/qpr-drafts";
 import { qprData, saveQpr } from "@/server/qpr-store";
 
@@ -24,7 +25,7 @@ const quarterOf = (req: Request) => {
 
 async function view(code: string, quarter: string, u: AppUser) {
   const d = await qprData(code, quarter);
-  return { ...d, mayEdit: mayEdit(u) && !d.saved.released, mayRelease: mayRelease(u) && !d.saved.released, aiReady: !!process.env.ANTHROPIC_API_KEY };
+  return { ...d, mayEdit: mayEdit(u) && !d.saved.released, mayRelease: mayRelease(u) && !d.saved.released, aiReady: !!process.env.ANTHROPIC_API_KEY, mayImport: u.kind === "employee" && (u.project.includes("finance-import") || (await holdsRole(u.id, "finance"))) };
 }
 export type QprView = Awaited<ReturnType<typeof view>>;
 

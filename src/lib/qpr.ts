@@ -87,6 +87,26 @@ export const qprPatchSchema = z.discriminatedUnion("action", [
 ]);
 export type QprPatch = z.infer<typeof qprPatchSchema>;
 
+/** Spending for the report: from the imported budget against actual when there is one, else the budget file. */
+export type Spend = {
+  currency: string;
+  budget: number;
+  /** Spent from the start to the end of the quarter. */
+  cumulative: number;
+  /** Spent in the quarter, from the import; null without one. */
+  quarter: number | null;
+  /** The workbook's 8% overhead (GMS) row, reported apart. */
+  overhead: { budget: number; actual: number; currency: string } | null;
+  source: { kind: "import"; file: string; sharepointUrl: string | null; by: string; at: string } | { kind: "budget"; at: string | null };
+  /** Months of the quarter the import does not cover yet. */
+  missingMonths: string[];
+  /** Per budget line: budget, spent to the quarter's end, spent in the quarter. */
+  byLine: Record<string, { budget: number; actual: number; quarter: number }>;
+};
+
+/** What the report says was spent this quarter: what the team typed, or the import. */
+export const quarterSpendOf = (saved: Qpr, spend: Spend) => saved.quarterSpend ?? spend.quarter;
+
 export type IndicatorInfo = { code: string; donorCode: string | null; name: string; unit: string; target: number; yearTargets: Record<string, number>; result: string | null; disaggregation: string[] | null; budgetRef: string | null };
 
 export type Row = {
@@ -96,6 +116,8 @@ export type Row = {
   output: string;
   name: string;
   unit: string;
+  /** The budget line that pays for it, e.g. "PRG-1.1.1.C". */
+  budgetRef: string | null;
   yearTarget: number;
   quarter: number;
   year: number;
@@ -155,6 +177,7 @@ export function buildRows(indicators: IndicatorInfo[], results: ResultRecord[], 
       output: i.result ?? "",
       name: i.name,
       unit: i.unit,
+      budgetRef: i.budgetRef,
       yearTarget: i.yearTargets[y] ?? i.target,
       quarter: q.value,
       year: yr.value,
@@ -173,7 +196,7 @@ export function buildRows(indicators: IndicatorInfo[], results: ResultRecord[], 
 }
 
 /** Things to fix before the report goes out. Each one names the indicator or section. */
-export function checksFor(rows: Row[], results: ResultRecord[], quarter: string, saved: Qpr, spend: { budget: number; cumulative: number }, activities: string[]) {
+export function checksFor(rows: Row[], results: ResultRecord[], quarter: string, saved: Qpr, spend: Spend, activities: string[]) {
   const { from, to } = quarterRange(quarter);
   const inQ = results.filter((r) => r.date >= from && r.date <= to);
   const code = (ind: string) => rows.find((r) => r.code === ind)?.donorCode ?? ind;
@@ -198,8 +221,13 @@ export function checksFor(rows: Row[], results: ResultRecord[], quarter: string,
     }
   }
   if (spend.cumulative > spend.budget && spend.budget > 0) out.push({ level: "stop", text: `Cumulative spending (${n(spend.cumulative)}) is more than the budget (${n(spend.budget)}).` });
-  if (saved.quarterSpend !== null && saved.quarterSpend > spend.cumulative) out.push({ level: "stop", text: "This quarter's spending is more than cumulative spending." });
-  if (saved.quarterSpend === null) out.push({ level: "check", text: "This quarter's spending is not entered (Project information)." });
+  const qs = quarterSpendOf(saved, spend);
+  if (qs !== null && qs > spend.cumulative) out.push({ level: "stop", text: "This quarter's spending is more than cumulative spending." });
+  if (qs === null) out.push({ level: "check", text: "This quarter's spending is not entered: import Finance's budget-against-actual workbook, or type it in (Project information)." });
+  const over = Object.entries(spend.byLine).filter(([, l]) => l.budget > 0 && l.actual > l.budget + 1);
+  for (const [code, l] of over) out.push({ level: "check", text: `Budget line ${code} has spent ${n(l.actual)} of ${n(l.budget)} ${spend.currency} (${Math.round((l.actual / l.budget) * 100)}%): explain the overspend or the budget revision.` });
+  if (spend.source.kind === "import" && spend.missingMonths.length) out.push({ level: "stop", text: `The spending import does not include ${spend.missingMonths.join(", ")}: import the latest workbook from Finance.` });
+  if (saved.quarterSpend !== null && spend.quarter !== null && Math.abs(saved.quarterSpend - spend.quarter) > 1) out.push({ level: "check", text: `This quarter's spending is typed in as ${n(saved.quarterSpend)}, but the import says ${n(spend.quarter)}.` });
   for (const s of SECTIONS) if (s.key !== "story" && !saved.sections[s.key]?.text.trim()) out.push({ level: "check", text: `${s.heading} is empty.` });
   for (const s of SECTIONS) if (saved.sections[s.key]?.from) out.push({ level: "check", text: `${s.heading} is copied from ${saved.sections[s.key]!.from}: review it for this quarter.` });
   for (const a of activities) {
