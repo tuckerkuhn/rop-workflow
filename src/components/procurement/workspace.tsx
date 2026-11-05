@@ -804,6 +804,10 @@ export function ProcurementWorkspace() {
                 Procurement calendar
                 <span aria-hidden>→</span>
               </Link>
+              <Link href="/tasks/bills" className="flex items-center justify-between rounded-xl bg-mist px-3 py-2 text-sm font-semibold text-forest hover:bg-sunken">
+                Bills paid directly (rent, utilities, insurance)
+                <span aria-hidden>→</span>
+              </Link>
               {(myRoles.includes("finance") || user.admin) && (
                 <Link href="/tasks/closeout" className="flex items-center justify-between rounded-xl bg-mist px-3 py-2 text-sm font-semibold text-forest hover:bg-sunken">
                   Monthly closeout

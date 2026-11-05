@@ -1,4 +1,6 @@
+import { and, eq, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { db, schema as s } from "@/db";
 import { seesAll } from "@/lib/hr";
 import { foldExpenses, nextFor } from "@/lib/expense";
 import { foldOnboarding } from "@/lib/onboarding";
@@ -37,9 +39,18 @@ export async function GET(req: Request, { params }: { params: Promise<{ hash: st
         if (mine && (mine.contract.hash === hash || Object.values(mine.done).some((d) => d.value.kind === "upload" && d.value.file.hash === hash))) ok = true;
         ok ||= reports.some(
           (r) =>
-            r.report.lines.some((l) => l.receipts.some((x) => x.hash === hash)) &&
+            (r.report.lines.some((l) => l.receipts.some((x) => x.hash === hash)) || r.report.paperClaim?.hash === hash) &&
             (r.person === me || hr.people[r.person]?.current.supervisor === me || r.signatures.some((s) => s.by === me) || !!nextFor(r, hr)?.people.includes(me)),
         );
+        // A bill paid directly: programme management, finance and the executive head, who approve and pay it.
+        if (!ok && (["management", "finance", "ceo", "cfo"] as const).some((t) => hr.rules?.holders[t]?.includes(me))) {
+          const [row] = await db
+            .select({ key: s.projectState.key })
+            .from(s.projectState)
+            .where(and(eq(s.projectState.key, "bills"), sql`${s.projectState.data}::text like ${`%${hash}%`}`))
+            .limit(1);
+          ok = !!row;
+        }
       }
     }
     if (!ok) return NextResponse.json({ error: "You cannot open this file." }, { status: 403 });

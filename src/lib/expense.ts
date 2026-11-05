@@ -64,11 +64,14 @@ export const reportSchema = z.object({
   month: z.string().regex(/^\d{4}-\d{2}$/),
   currency: z.enum(["USD", "AFN"]),
   lines: z.array(lineSchema).min(1).max(100),
+  /** Entered by Finance from a paper claim: the scan of the claim the person signed. */
+  paperClaim: receiptSchema.optional(),
 }).refine((r) => r.currency === "USD" || !r.lines.some((l) => l.category === "mileage"), "Mileage is paid at the US rate; claim fuel as a receipt instead.");
 export type Report = z.infer<typeof reportSchema>;
 
 export const exActionSchema = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("submit"), report: reportSchema, certify: z.literal(true) }),
+  /** `person` is set when Finance enters a paper claim for someone else. */
+  z.object({ action: z.literal("submit"), report: reportSchema, certify: z.literal(true), person: z.string().regex(/^[a-z0-9-]{2,40}$/).optional() }),
   z.object({ action: z.literal("approve"), report: z.number().int().positive() }),
   z.object({ action: z.literal("return"), report: z.number().int().positive(), note: z.string().trim().min(3).max(1000) }),
   z.object({ action: z.literal("withdraw"), report: z.number().int().positive() }),
@@ -177,8 +180,10 @@ export function foldExpenses(entries: Entry[], hr: HrState): { reports: ExpenseR
         ignored.push({ n: e.n, kind: e.kind, actor: e.actor, why: "unreadable" });
         continue;
       }
-      if (e.actor !== e.subject) {
-        ignored.push({ n: e.n, kind: e.kind, actor: e.actor, why: "only the person submits their expense report" });
+      // The person submits their own; Finance may enter one for them only from the signed paper claim, attached.
+      const fromPaper = !!d.data.paperClaim && !!hr.rules?.holders.finance?.includes(e.actor) && e.actor !== e.subject;
+      if (e.actor !== e.subject && !fromPaper) {
+        ignored.push({ n: e.n, kind: e.kind, actor: e.actor, why: "only the person submits their expense report, or Finance from their signed paper claim" });
         continue;
       }
       const key = `${e.subject}|${d.data.month}`;

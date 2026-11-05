@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useT } from "@/components/app/i18n";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { useCloseouts, useProcurements } from "@/components/app/use-project-data";
 import { Pill, SectionLabel, TODAY, TopBar, primaryBtn } from "@/components/workspace/ui";
-import { amountOf, blockers, filed, monthsOf } from "@/lib/closeout";
+import { blockers, fromBill, fromProcurement, monthsOf, total } from "@/lib/closeout";
+import type { Bill } from "@/lib/bills";
 import { procRolesFor, stepById } from "@/lib/procurement";
 
 /**
@@ -23,10 +24,19 @@ export function CloseoutPage() {
   const closeouts = useCloseouts(project.saved ? project.id : null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
+  const [bills, setBills] = useState<Bill[]>([]);
+  useEffect(() => {
+    if (!user || !project.saved) return;
+    fetch(`/api/projects/${project.id}/bills`, { cache: "no-store", headers: { "x-demo-user": user.id } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((v: { items: Bill[] } | null) => setBills(v?.items ?? []))
+      .catch(() => setBills([]));
+  }, [user, project.id, project.saved]);
 
   if (!user) return null;
   const canClose = procRolesFor(user).includes("finance") || !!user.admin;
-  const months = monthsOf(procs.items);
+  // Vouchers from procurements and from bills paid directly.
+  const months = monthsOf([...procs.items.map((p) => fromProcurement(p, stepById[p.step]?.title ?? p.step)), ...bills.map(fromBill)]);
   const monthName = (m: string) => date(`${m}-01`, { month: "long", year: "numeric" });
 
   return (
@@ -36,11 +46,15 @@ export function CloseoutPage() {
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ochre">{project.name}</p>
         <h1 className="mt-1 font-display text-3xl tracking-tight">Monthly closeout</h1>
         <p className="mt-1 max-w-2xl text-sm text-muted">
-          Expense vouchers by month, with where each is filed in SharePoint and posted in NetSuite. Finance closes a month once every voucher in it is filed and posted.
+          Expense vouchers by month, from procurements and from bills paid directly, with where each is filed in SharePoint and posted in NetSuite. Finance closes a month once every voucher in it is filed and posted.
         </p>
         <p className="mt-2 text-sm">
           <Link href="/tasks?source=procurement" className="font-semibold text-forest hover:underline">
             Procurements in progress
+          </Link>{" "}
+          ·{" "}
+          <Link href="/tasks/bills" className="font-semibold text-forest hover:underline">
+            Bills paid directly
           </Link>
         </p>
         {(error || closeouts.error) && (
@@ -59,7 +73,7 @@ export function CloseoutPage() {
                 <div>
                   <SectionLabel>{monthName(m)}</SectionLabel>
                   <p className="mt-1 text-sm text-muted">
-                    {list.length} {list.length === 1 ? "voucher" : "vouchers"} · <span className="tabular-nums">{money(list.reduce((s, p) => s + amountOf(p), 0))}</span>
+                    {list.length} {list.length === 1 ? "voucher" : "vouchers"} · <span className="tabular-nums">{money(total(list))}</span>
                   </p>
                 </div>
                 {closed ? (
@@ -107,16 +121,16 @@ export function CloseoutPage() {
                     {list.map((p) => (
                       <tr key={p.id} className="border-t border-line align-top">
                         <td className="px-3 py-2 font-mono text-xs">
-                          <Link href={`/tasks?source=procurement&open=${p.id}`} className="text-forest hover:underline">
+                          <Link href={p.kind === "bill" ? "/tasks/bills" : `/tasks?source=procurement&open=${p.id}`} className="text-forest hover:underline">
                             {p.voucher!.number}
                           </Link>
                         </td>
                         <td className="px-3 py-2">
                           {p.title}
-                          <span className="block text-xs text-muted">{p.plan ? `${p.plan.budgetCode}` : p.budgetLine}</span>
+                          <span className="block text-xs text-muted">{p.kind === "bill" ? `Bill ${p.id}` : p.id}</span>
                         </td>
-                        <td className="px-3 py-2">{p.supplier?.name ?? "—"}</td>
-                        <td className="px-3 py-2 tabular-nums">{money(amountOf(p))}</td>
+                        <td className="px-3 py-2">{p.payee ?? "—"}</td>
+                        <td className="px-3 py-2 tabular-nums">{money(p.amountUsd)}</td>
                         <td className="px-3 py-2">
                           {p.voucher!.sharepointUrl ? (
                             <a href={p.voucher!.sharepointUrl} target="_blank" rel="noreferrer" className="text-forest hover:underline">
@@ -127,7 +141,7 @@ export function CloseoutPage() {
                           )}
                         </td>
                         <td className="px-3 py-2">{p.voucher!.netsuiteRef || <span className="text-clay">Missing</span>}</td>
-                        <td className="px-3 py-2 text-xs">{filed(p) ? <Pill tone="forest">Filed</Pill> : <span className="text-muted">{stepById[p.step]?.title ?? p.step}</span>}</td>
+                        <td className="px-3 py-2 text-xs">{p.filed ? <Pill tone="forest">Filed</Pill> : <span className="text-muted">{p.stage}</span>}</td>
                       </tr>
                     ))}
                   </tbody>
