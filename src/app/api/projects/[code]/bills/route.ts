@@ -24,8 +24,10 @@ type Ctx = { params: Promise<{ code: string }> };
 
 async function rolesOf(u: AppUser) {
   const holders = (await loadHr()).state.rules?.holders;
-  const has = (t: "management" | "ceo" | "finance") => !!holders?.[t]?.includes(u.id);
+  const has = (t: "management" | "ceo" | "finance" | "bills") => !!holders?.[t]?.includes(u.id);
   return {
+    // Recording bills is given, not assumed: Finance, and the people named for bill entry.
+    record: has("finance") || has("bills") || u.procurement.includes("finance"),
     approve: has("management") || has("ceo") || u.procurement.includes("approver"),
     voucher: has("finance") || u.procurement.includes("finance"),
   };
@@ -71,6 +73,7 @@ export async function POST(req: Request, { params }: Ctx) {
     const book = await loadBills(code);
     const fail = (error: string, status = 403) => NextResponse.json({ error }, { status });
     if (a.action === "raise") {
+      if (!(await rolesOf(u)).record) return fail("Only Finance, and people named for bill entry in the authority table, record bills.");
       const [f] = await db.select({ hash: s.hrFiles.hash }).from(s.hrFiles).where(and(eq(s.hrFiles.book, hrBook()), eq(s.hrFiles.hash, a.file.hash))).limit(1);
       if (!f) return fail("The bill did not finish uploading. Attach it again.", 400);
       const id = `BL-${String(book.next).padStart(3, "0")}`;

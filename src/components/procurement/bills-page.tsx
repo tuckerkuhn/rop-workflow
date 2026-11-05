@@ -91,7 +91,9 @@ export function BillsPage() {
         )}
         {v && (
           <>
-            {adding ? (
+            {!v.record ? (
+              <p className="mt-6 rounded-xl bg-sunken px-4 py-3 text-sm text-muted">Bills are recorded by Finance and by people named for bill entry. Give the bill to Finance.</p>
+            ) : adding ? (
               <AddBill v={v} onClose={() => setAdding(false)} add={(a) => act(a, "Recorded. It goes to programme management for approval.").then(() => setAdding(false))} />
             ) : (
               <button type="button" className={`${primaryBtn} mt-6`} onClick={() => setAdding(true)}>

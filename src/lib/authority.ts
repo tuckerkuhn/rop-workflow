@@ -34,6 +34,7 @@ export const SIGNATURES: Signature[] = [
   { area: "Procurement", what: "Approve a large award, a sole source or an exception", by: ["ceo"] },
   { area: "Procurement", what: "Check a purchase is ready to pay, prepare the voucher, close the month", by: ["finance"] },
   { area: "Procurement", what: "Approve the procurement calendar", by: ["procurement", "technical"] },
+  { area: "Bills", what: "Record a bill paid directly, with its document", by: ["finance", "bills"], note: "Only Finance, and the people named for bill entry." },
   { area: "Bills", what: "Approve a bill paid directly (rent, utilities, insurance)", by: ["management"], note: "Not the person who recorded it." },
   { area: "Bills", what: "Prepare the voucher for a bill, file it in SharePoint, post it in NetSuite", by: ["finance"] },
   { area: "Payroll", what: "Prepare the monthly payroll", by: ["payroll"] },

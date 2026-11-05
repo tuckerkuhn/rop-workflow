@@ -17,7 +17,7 @@ import { z } from "zod";
  * holds each type (the authority table, kept in "rules" entries and changed only with approval).
  * The keys are stable; the labels describe the type, not any one organization's titles.
  */
-export const HR_ROLES = ["ceo", "management", "cfo", "finance", "procurement", "hr", "payroll", "technical", "compliance", "board"] as const;
+export const HR_ROLES = ["ceo", "management", "cfo", "finance", "procurement", "hr", "payroll", "technical", "compliance", "bills", "board"] as const;
 export type HrRole = (typeof HR_ROLES)[number];
 /** Role types that open the HR record (everyone's pay and personal details). The others do not. */
 export const HR_ACCESS_ROLES: HrRole[] = ["hr", "payroll", "cfo", "ceo", "board"];
@@ -32,6 +32,7 @@ export const ROLE_HELP: Record<HrRole, string> = {
   payroll: "Payroll: whoever prepares the monthly payroll, often the accounting manager.",
   technical: "Technical leads: specialists who plan and request purchases for their activities.",
   compliance: "Compliance review: the Home Office reviewer who checks large procurements before award.",
+  bills: "Bill entry: staff outside Finance named to record bills paid directly (rent, utilities, insurance), such as an operations or logistics officer. Finance can always record bills.",
   board: "The board, or its treasurer: the final check when the executive head has a conflict.",
 };
 export const ROLE_LABEL: Record<HrRole, string> = {
@@ -44,6 +45,7 @@ export const ROLE_LABEL: Record<HrRole, string> = {
   payroll: "Payroll",
   technical: "Technical lead",
   compliance: "Compliance review",
+  bills: "Bill entry",
   board: "Board",
 };
 
