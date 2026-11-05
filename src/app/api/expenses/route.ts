@@ -27,7 +27,7 @@ async function view(me: string, open: number | null) {
   const { state: hr, entries } = await loadHr();
   const { reports } = foldExpenses(entries, hr);
   const all = seesAll(me, hr);
-  const visible = reports.filter((r) => all || r.person === me || hr.people[r.person]?.current.supervisor === me || !!nextFor(r, hr)?.people.includes(me) || r.signatures.some((x) => x.by === me));
+  const visible = reports.filter((r) => all || r.person === me || r.by === me || hr.people[r.person]?.current.supervisor === me || !!nextFor(r, hr)?.people.includes(me) || r.signatures.some((x) => x.by === me));
   const projects = await db.select({ code: s.projects.code, name: s.projects.name }).from(s.projects);
   const sources = [{ id: NON_CONTRACT, label: "General and admin (non-contract)" }, ...projects.filter((p) => p.code).map((p) => ({ id: p.code!, label: p.name }))];
   const names = Object.fromEntries((await people()).map((u) => [u.id, u.name]));
@@ -55,6 +55,13 @@ async function view(me: string, open: number | null) {
     others: visible.filter((r) => r.person !== me && !nextFor(r, hr)?.people.includes(me)).sort((a, b) => b.n - a.n).slice(0, 100).map(brief),
     owed: all ? visible.filter((r) => r.status === "accepted" && !paid.has(r.n)).map(brief) : [],
     open: selected ? detail(selected) : null,
+    // Finance can enter a paper claim for anyone with an HR record, in their pay currency.
+    paperPeople: hr.rules?.holders.finance?.includes(me)
+      ? Object.values(hr.people)
+          .filter((p) => p.id !== me && !p.separated)
+          .map((p) => ({ id: p.id, name: names[p.id] ?? p.id, currency: String(p.current.currency ?? "USD") }))
+          .sort((x, y) => x.name.localeCompare(y.name))
+      : [],
   };
 }
 export type ExpenseView = Awaited<ReturnType<typeof view>>;
@@ -86,18 +93,24 @@ export async function POST(req: Request) {
     const fail = (error: string, status = 403) => NextResponse.json({ error }, { status });
     let n: number;
     if (a.action === "submit") {
-      if (!hr.people[me]) return fail("You have no HR record yet, so expenses cannot be paid to you.");
-      const currency = String(hr.people[me].current.currency ?? "USD");
-      if (a.report.currency !== currency) return fail(`Your pay is in ${currency}; enter the report in ${currency}.`, 400);
+      // Finance may enter a claim for someone else, only from the paper claim they signed, scanned and attached.
+      const person = a.person ?? me;
+      if (person !== me) {
+        if (!hr.rules?.holders.finance?.includes(me)) return fail("Only Finance enters a paper claim for someone else.");
+        if (!a.report.paperClaim) return fail("Attach the scan of the signed paper claim.", 400);
+      } else if (a.report.paperClaim) return fail("A paper claim is entered by Finance for someone else.", 400);
+      if (!hr.people[person]) return fail(person === me ? "You have no HR record yet, so expenses cannot be paid to you." : "This person has no HR record.");
+      const currency = String(hr.people[person].current.currency ?? "USD");
+      if (a.report.currency !== currency) return fail(`Pay is in ${currency}; enter the report in ${currency}.`, 400);
       if (a.report.month > todayIso().slice(0, 7)) return fail("A report can be submitted once its month has started.", 400);
-      const current = reports.find((r) => r.person === me && r.report.month === a.report.month);
+      const current = reports.find((r) => r.person === person && r.report.month === a.report.month);
       if (current && (current.status === "approved" || current.status === "accepted")) return fail("This month's report is already approved. Put anything more in next month's report.", 409);
-      const hashes = [...new Set(a.report.lines.flatMap((l) => l.receipts.map((r) => r.hash)))];
+      const hashes = [...new Set([...a.report.lines.flatMap((l) => l.receipts.map((r) => r.hash)), ...(a.report.paperClaim ? [a.report.paperClaim.hash] : [])])];
       if (hashes.length) {
         const found = await db.select({ hash: s.hrFiles.hash }).from(s.hrFiles).where(and(eq(s.hrFiles.book, hrBook()), inArray(s.hrFiles.hash, hashes)));
         if (found.length !== hashes.length) return fail("A receipt did not finish uploading. Attach it again.", 400);
       }
-      n = await append(me, "expense", me, a.report);
+      n = await append(me, "expense", person, a.report);
     } else {
       const r = reports.find((x) => x.n === a.report);
       if (!r) return fail("No such report.", 404);

@@ -7,7 +7,7 @@ import { PROJECT, daysFrom, projectPath, stepHistory, type AppUser, type Stage }
 import { farmerLabel, fieldSteps, ownerOfItem, projectItem, type FieldItem } from "@/lib/field";
 import { ownerOf, procRolesFor, stepById, stepsFor, type Procurement } from "@/lib/procurement";
 import { actualFor, indicators, type ProjectState } from "@/lib/project";
-import { blockers, monthsOf, type Closeouts } from "@/lib/closeout";
+import { blockers, fromProcurement, monthsOf, type Closeouts } from "@/lib/closeout";
 import { awaiting, type PlanItem } from "@/lib/procurement-plan";
 
 /** One person's work across the workflows, shared by Home and Tasks. */
@@ -114,7 +114,7 @@ export function workFor(u: AppUser, data: Data, viewer: AppUser, opts: { project
     });
   // Monthly closeout: ended months with vouchers that Finance has not closed.
   if (procRolesFor(u).includes("finance") && data.closeouts)
-    for (const [m, list] of monthsOf(procs))
+    for (const [m, list] of monthsOf(procs.map((p) => fromProcurement(p, stepById[p.step]?.title ?? p.step))))
       if (m < TODAY.slice(0, 7) && !data.closeouts[m])
         cards.push({
           key: `close-${m}`,

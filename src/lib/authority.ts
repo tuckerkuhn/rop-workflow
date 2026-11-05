@@ -34,6 +34,8 @@ export const SIGNATURES: Signature[] = [
   { area: "Procurement", what: "Approve a large award, a sole source or an exception", by: ["ceo"] },
   { area: "Procurement", what: "Check a purchase is ready to pay, prepare the voucher, close the month", by: ["finance"] },
   { area: "Procurement", what: "Approve the procurement calendar", by: ["procurement", "technical"] },
+  { area: "Bills", what: "Approve a bill paid directly (rent, utilities, insurance)", by: ["management"], note: "Not the person who recorded it." },
+  { area: "Bills", what: "Prepare the voucher for a bill, file it in SharePoint, post it in NetSuite", by: ["finance"] },
   { area: "Payroll", what: "Prepare the monthly payroll", by: ["payroll"] },
   { area: "Payroll", what: "Check and approve the payroll", by: ["cfo", "ceo"], note: "Anyone with a bonus or adjustment in the run, or related to someone who has one, cannot sign; the Board signs instead." },
   { area: "HR record", what: "Propose a change to someone's record", by: ["hr"] },
@@ -45,6 +47,7 @@ export const SIGNATURES: Signature[] = [
   { area: "Time and leave", what: "Approve a timesheet, leave or an expense report", by: ["supervisor"], note: "HR when the line manager has a conflict." },
   { area: "Time and leave", what: "Approve unpaid, parental or Hajj leave", by: ["supervisor", "hr"] },
   { area: "Time and leave", what: "Accept an expense report for payment", by: ["payroll"], note: "The finance head when payroll has a conflict." },
+  { area: "Time and leave", what: "Enter an expense claim from a signed paper claim, with the scan attached", by: ["finance"], note: "Someone else in Finance then accepts it for payment." },
   { area: "Onboarding", what: "Start onboarding, confirm IT set-up, propose the new hire's details", by: ["hr"] },
   { area: "Onboarding", what: "Confirm the security briefing and the induction", by: ["supervisor"] },
 ];

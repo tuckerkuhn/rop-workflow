@@ -80,6 +80,9 @@ export function ExpensePage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [init, setInit] = useState(false);
+  // Finance entering a paper claim for someone else.
+  const [onBehalf, setOnBehalf] = useState<{ id: string; name: string; currency: string } | null>(null);
+  const [paperFor, setPaperFor] = useState("");
 
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
@@ -99,8 +102,8 @@ export function ExpensePage() {
     if (init && ready && user) void load();
   }, [init, ready, user, load]);
   useEffect(() => {
-    if (editing && user) writeDraft(draftKey(user.id, editing.month), editing);
-  }, [editing, user]);
+    if (editing && user) writeDraft(draftKey(onBehalf?.id ?? user.id, editing.month), editing);
+  }, [editing, user, onBehalf]);
 
   if (!user) return null;
   const monthName = (m: string) => date(`${m}-01`, { month: "long", year: "numeric" });
@@ -109,8 +112,9 @@ export function ExpensePage() {
     try {
       const r = await call<{ n: number; view: ExpenseView }>("/api/expenses", user.id, { method: "POST", body: JSON.stringify(a) });
       if (a.action === "submit") {
-        writeDraft(draftKey(user.id, a.report.month), null);
+        writeDraft(draftKey(a.person ?? user.id, a.report.month), null);
         setEditing(null);
+        setOnBehalf(null);
         setOpen(r.n);
       }
       setV(r.view);
@@ -119,10 +123,12 @@ export function ExpensePage() {
       setError(e instanceof Error ? e.message : String(e));
     }
   };
-  const startReport = (month: string, from?: Report) => {
+  const startReport = (month: string, from?: Report, forPerson?: { id: string; name: string; currency: string }) => {
     setOpen(null);
     setNotice("");
-    setEditing(readDraft(draftKey(user.id, month)) ?? from ?? { month, currency: (v?.currency as "USD" | "AFN") ?? "USD", lines: [] });
+    setOnBehalf(forPerson ?? null);
+    const currency = (forPerson?.currency ?? v?.currency ?? "USD") as "USD" | "AFN";
+    setEditing(readDraft(draftKey(forPerson?.id ?? user.id, month)) ?? from ?? { month, currency, lines: [] });
   };
   const show = (n: number) => {
     setEditing(null);
@@ -159,7 +165,20 @@ export function ExpensePage() {
         {!v ? (
           !error && <p className="mt-10 text-sm text-muted">Loading…</p>
         ) : editing ? (
-          <Editor v={v} report={editing} setReport={setEditing} monthName={monthName} onCancel={() => setEditing(null)} onSubmit={() => act({ action: "submit", report: editing, certify: true }, "Sent to your supervisor.")} />
+          <Editor
+            v={v}
+            report={editing}
+            setReport={setEditing}
+            monthName={monthName}
+            forName={onBehalf?.name}
+            onCancel={() => {
+              setEditing(null);
+              setOnBehalf(null);
+            }}
+            onSubmit={() =>
+              act({ action: "submit", report: editing, certify: true, ...(onBehalf ? { person: onBehalf.id } : {}) }, onBehalf ? `Entered for ${onBehalf.name}; it goes to their supervisor.` : "Sent to your supervisor.")
+            }
+          />
         ) : v.open ? (
           <Detail
             v={v}
@@ -174,6 +193,27 @@ export function ExpensePage() {
         ) : (
           <>
             {v.waiting.length > 0 && <List title="Waiting for your signature" items={v.waiting} v={v} monthName={monthName} onOpen={show} highlight />}
+            {v.paperPeople.length > 0 && (
+              <section className="mt-6 rounded-2xl border border-line bg-surface p-4">
+                <SectionLabel>Enter a paper claim</SectionLabel>
+                <p className="mt-1 text-sm text-muted">For someone who filled in a paper claim and signed it. Scan the signed claim; it is attached to the report. Another finance officer accepts it for payment, not you.</p>
+                <div className="mt-2 flex flex-wrap items-end gap-2">
+                  <select value={paperFor} onChange={(e) => setPaperFor(e.target.value)} className="rounded-xl border border-line bg-paper px-3 py-2.5 text-sm" aria-label="Whose claim">
+                    <option value="">Whose claim…</option>
+                    {v.paperPeople.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                  {[thisMonth, lastMonth].map((m) => (
+                    <button key={m} type="button" disabled={!paperFor} className={quietBtn} onClick={() => startReport(m, undefined, v.paperPeople.find((p) => p.id === paperFor))}>
+                      {monthName(m)}
+                    </button>
+                  ))}
+                </div>
+              </section>
+            )}
             {v.hasRecord && (
               <section className="mt-6 flex flex-wrap gap-2">
                 {[thisMonth, lastMonth]
@@ -254,6 +294,16 @@ function Detail({ v, monthName, back, act, revise }: { v: ExpenseView; monthName
         {r.signatures.map((s) => ` · ${s.step === "supervisor" ? "approved" : "accepted by Finance"}: ${name(s.by)}`).join("")}
         {r.next && ` · next: ${r.next.people.map(name).join(" or ") || "nobody (check the HR rules)"}${r.next.via !== "supervisor" && r.next.via !== "Finance" ? ` (${r.next.via})` : ""}`}
       </p>
+      {r.by !== r.person && (
+        <p className="rounded-xl bg-sunken px-4 py-3 text-sm">
+          Entered by {name(r.by)} (Finance) from {name(r.person)}&apos;s signed paper claim.{" "}
+          {r.report.paperClaim && (
+            <button type="button" onClick={() => void openReceipt(r.report.paperClaim!.hash, user?.id)} className="font-semibold text-forest hover:underline">
+              📎 {r.report.paperClaim.name}
+            </button>
+          )}
+        </p>
+      )}
       {r.returned && <p className="rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">Sent back by {name(r.returned.by)}: “{r.returned.note}”</p>}
       {(r.canSign || v.seesAll) && r.flags.length > 0 && (
         <ul className="space-y-1 rounded-xl bg-ochre-soft px-3 py-2 text-sm text-ochre">
@@ -374,7 +424,25 @@ function Totals({ report, v }: { report: Report; v: ExpenseView }) {
 
 const blank = (month: string, source: string): ExpenseLine => ({ date: `${month}-01`, category: "taxi", description: "", source, amount: undefined, receipts: [] });
 
-function Editor({ v, report, setReport, monthName, onCancel, onSubmit }: { v: ExpenseView; report: Report; setReport: (r: Report) => void; monthName: (m: string) => string; onCancel: () => void; onSubmit: () => Promise<void> }) {
+function Editor({
+  v,
+  report,
+  setReport,
+  monthName,
+  forName,
+  onCancel,
+  onSubmit,
+}: {
+  v: ExpenseView;
+  report: Report;
+  setReport: (r: Report) => void;
+  monthName: (m: string) => string;
+  forName?: string;
+  onCancel: () => void;
+  onSubmit: () => Promise<void>;
+}) {
+  const { user } = useSession();
+  const [scanError, setScanError] = useState("");
   const [edit, setEdit] = useState<{ i: number | null; line: ExpenseLine } | null>(report.lines.length ? null : { i: null, line: blank(report.month, v.sources[0]?.id ?? "non-contract") });
   const [certify, setCertify] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -387,7 +455,37 @@ function Editor({ v, report, setReport, monthName, onCancel, onSubmit }: { v: Ex
   };
   return (
     <section className="mt-6 space-y-4">
-      <h2 className="text-xl font-semibold">Expenses, {monthName(report.month)}</h2>
+      <h2 className="text-xl font-semibold">
+        {forName ? `${forName}'s expenses` : "Expenses"}, {monthName(report.month)}
+      </h2>
+      {forName && (
+        <div className="rounded-2xl border border-ochre/50 bg-ochre-soft p-4 text-sm">
+          <p className="font-semibold">The signed paper claim</p>
+          <p className="mt-1 text-muted">Scan or photograph the claim as {forName} signed it. Enter each line exactly as on the paper, with its receipts.</p>
+          <label className={`${quietBtn} mt-2 inline-block cursor-pointer`}>
+            {report.paperClaim ? `📎 ${report.paperClaim.name}` : "Attach the signed claim"}
+            <input
+              type="file"
+              accept="image/*,application/pdf"
+              capture="environment"
+              className="sr-only"
+              onChange={async (e) => {
+                const f = e.target.files?.[0];
+                if (!f) return;
+                setScanError("");
+                try {
+                  const body = new FormData();
+                  body.append("file", await shrink(f));
+                  setReport({ ...report, paperClaim: await call<Receipt>("/api/files", user?.id, { method: "POST", body }) });
+                } catch (err) {
+                  setScanError(err instanceof Error ? err.message : String(err));
+                }
+              }}
+            />
+          </label>
+          {scanError && <p className="mt-1 text-clay">{scanError}</p>}
+        </div>
+      )}
       <p className="text-sm text-muted">In {report.currency}, the currency you are paid in. Unsent changes stay in this browser; receipts are saved as soon as they upload.</p>
       {report.lines.length > 0 && (
         <ul className="divide-y divide-line rounded-2xl border border-line bg-surface">
@@ -419,12 +517,16 @@ function Editor({ v, report, setReport, monthName, onCancel, onSubmit }: { v: Ex
           <Totals report={report} v={v} />
           <label className="flex items-start gap-3 rounded-2xl border border-line bg-surface p-4 text-sm">
             <input type="checkbox" checked={certify} onChange={(e) => setCertify(e.target.checked)} className="mt-0.5 h-5 w-5" />
-            <span>I certify that these expenses were incurred for ROP work, are not claimed elsewhere, and the receipts are genuine.</span>
+            <span>
+              {forName
+                ? `Entered by Finance exactly as on ${forName}'s signed paper claim, attached; the original is kept on file.`
+                : "I certify that these expenses were incurred for ROP work, are not claimed elsewhere, and the receipts are genuine."}
+            </span>
           </label>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              disabled={!certify || busy}
+              disabled={!certify || busy || (!!forName && !report.paperClaim)}
               className={primaryBtn}
               onClick={async () => {
                 setBusy(true);
