@@ -1,4 +1,7 @@
 import type { Messages } from "./en";
+import { tsPs } from "./hr/timesheet";
+import { lvPs } from "./hr/leave";
+import { expPs } from "./hr/expense";
 
 /** Pashto. Draft: needs review by a native speaker before field use. */
 export const ps: Messages = {
@@ -353,4 +356,7 @@ export const ps: Messages = {
   "detail.openReport": "د پرمختګ راپور پرانیزئ",
   "detail.openReportFor": "د {donor} راپور پرانیزئ",
   "detail.openField": "ساحوي فعالیتونه پرانیزئ",
+  ...tsPs,
+  ...lvPs,
+  ...expPs,
 };

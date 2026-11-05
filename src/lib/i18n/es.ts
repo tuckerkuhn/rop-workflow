@@ -1,4 +1,7 @@
 import type { Messages } from "./en";
+import { tsEs } from "./hr/timesheet";
+import { lvEs } from "./hr/leave";
+import { expEs } from "./hr/expense";
 
 /** Spanish. Draft: needs review by a native speaker before field use. */
 export const es: Messages = {
@@ -378,4 +381,7 @@ export const es: Messages = {
   "detail.openReport": "Abrir el informe de avance",
   "detail.openReportFor": "Abrir el informe para {donor}",
   "detail.openField": "Abrir actividades de campo",
+  ...tsEs,
+  ...lvEs,
+  ...expEs,
 };

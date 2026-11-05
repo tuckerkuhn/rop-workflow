@@ -1,4 +1,7 @@
 import type { Messages } from "./en";
+import { tsFa } from "./hr/timesheet";
+import { lvFa } from "./hr/leave";
+import { expFa } from "./hr/expense";
 
 /** Dari. Draft: needs review by a native speaker before field use. */
 export const fa: Messages = {
@@ -353,4 +356,7 @@ export const fa: Messages = {
   "detail.openReport": "باز کردن گزارش پیشرفت",
   "detail.openReportFor": "باز کردن گزارش برای {donor}",
   "detail.openField": "باز کردن فعالیت‌های ساحوی",
+  ...tsFa,
+  ...lvFa,
+  ...expFa,
 };

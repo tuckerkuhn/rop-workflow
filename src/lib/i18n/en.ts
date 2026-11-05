@@ -1,3 +1,6 @@
+import { tsEn } from "./hr/timesheet";
+import { lvEn } from "./hr/leave";
+import { expEn } from "./hr/expense";
 /** English: the source strings. Every other language falls back to these. */
 export const en = {
   "nav.label": "Main",
@@ -448,6 +451,9 @@ export const en = {
   "detail.openReport": "Open the progress report",
   "detail.openReportFor": "Open the report for {donor}",
   "detail.openField": "Open field activities",
+  ...tsEn,
+  ...lvEn,
+  ...expEn,
 } as const;
 
 export type MessageKey = keyof typeof en;
