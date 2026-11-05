@@ -10,6 +10,8 @@ import type { BudgetLine as ProjectBudgetLine, WorkplanItem } from "@/lib/budget
 import { METHOD, toUsd, type PlanItem } from "@/lib/procurement-plan";
 import { AiCheck, DraftPanel, RoutePicker, SoleFacts, SupplierField, VoucherPanel, type DraftKind } from "@/components/procurement/route-panels";
 import { DocumentViewer } from "@/components/procurement/document";
+import { PaidPanel, PayFormPanel, PayFormSummary, PaymentsList, ReceiptPanel, SchedulePanel } from "@/components/procurement/payment-panels";
+import { asPaid, type PaymentRecord } from "@/lib/payments";
 import {
   AppShell,
   BackLink,
@@ -35,12 +37,12 @@ import {
   blockingIssues,
   budgetLines,
   checkState,
+  completeStep,
   documentsOf,
   issueHelp,
   issueTypes,
   levelFor,
   lineOf,
-  nextStep,
   ownerOf,
   prevStep,
   ready,
@@ -442,13 +444,15 @@ function Detail({
   const [raising, setRaising] = useState<string | null>(null);
   const [returning, setReturning] = useState(false);
   const [returnNote, setReturnNote] = useState("");
-  const [viewing, setViewing] = useState<{ doc: string; confirm: boolean } | null>(null);
+  const [viewing, setViewing] = useState<{ doc: string; confirm: boolean; paid?: PaymentRecord } | null>(null);
   const step = stepById[p.step];
   const owner = ownerOf(p);
   const ownerUser = owner ? holderFor(p, owner) : undefined;
-  const mine = !!role && owner === role && maySign(user, p, role);
+  // The second Finance check is someone other than the person who did the first.
+  const checkedBySelf = p.step === "verifyPay" && !!user && (p.signatures["Payment approval form"] ?? []).some((x) => x.as === "Checked by (finance)" && x.name === user.name);
+  const mine = !!role && owner === role && maySign(user, p, role) && !checkedBySelf;
   // A step this person's role covers but whose signature needs another role type (a large award, a sole source).
-  const needsOther = !!role && owner === role && !mine ? typeFor(p, role) : null;
+  const needsOther = !!role && owner === role && !mine && !checkedBySelf ? typeFor(p, role) : null;
   const value = valueOf(p);
   const line = lineOf(p);
   const isReady = ready(p);
@@ -464,10 +468,7 @@ function Detail({
   const complete = () =>
     update((q) => {
       const s = stepById[q.step];
-      const signatures = s.signs
-        ? { ...q.signatures, [s.signs.doc]: [...(q.signatures[s.signs.doc] ?? []), { as: s.signs.as, name: user?.name ?? roleLabel(s.owner), role: s.owner, date: today() }] }
-        : q.signatures;
-      return log({ ...q, signatures, step: nextStep(q) }, s.signs ? `${s.done} · signed ${s.signs.doc.toLowerCase()}` : s.done);
+      return log(completeStep(q, { name: user?.name ?? roleLabel(s.owner), date: today() }), s.signs ? `${s.done} · signed ${s.signs.doc.toLowerCase()}` : s.done);
     });
 
   return (
@@ -509,6 +510,7 @@ function Detail({
         </div>
       ) : (
         <>
+          {checkedBySelf && <p className="rounded-xl bg-ochre-soft px-4 py-3 text-sm text-ochre">You checked this payment, so another Finance person verifies it.</p>}
           {needsOther && (
             <p className="rounded-xl bg-ochre-soft px-4 py-3 text-sm text-ochre">
               This signature needs the {ROLE_LABEL[needsOther].toLowerCase()} ({holdersOfType(needsOther).map((id) => userById(id)?.name ?? id).join(" or ") || "nobody named in the authority table"}):{" "}
@@ -611,6 +613,11 @@ function Detail({
             <DraftPanel p={p} kind="sole" editable={false} update={update} onDraft={onDraft} />
           )}
           {p.step === "package" && <DraftPanel p={p} kind="package" editable={mine} update={update} onDraft={onDraft} />}
+          {p.step === "contract" && <SchedulePanel p={p} editable={mine} update={update} />}
+          {p.step === "receive" && <ReceiptPanel p={p} editable={mine} update={update} />}
+          {p.step === "payForm" && <PayFormPanel p={p} editable={mine} update={update} />}
+          {(p.step === "payReady" || p.step === "approvePay" || p.step === "voucher") && <PayFormSummary p={p} />}
+          {p.step === "paid" && <PaidPanel p={p} editable={mine} update={update} />}
           {p.step === "voucher" && <VoucherPanel p={p} editable={mine} update={update} />}
           {step.checks.some((c) => c.ai) && <AiCheck p={p} editable={mine} onCheck={onCheck} />}
           <ul className="divide-y divide-line px-5">
@@ -668,6 +675,8 @@ function Detail({
         }
       />
 
+      <PaymentsList p={p} canFinance={!!user && procRolesFor(user).includes("finance")} update={update} onView={(r, doc) => setViewing({ doc, confirm: false, paid: r })} />
+
       <div className="grid gap-6 sm:grid-cols-2">
         <section>
           <SectionLabel>File · {docs.length} documents</SectionLabel>
@@ -698,11 +707,11 @@ function Detail({
 
       {viewing && (
         <DocumentViewer
-          p={p}
+          p={viewing.paid ? asPaid(p, viewing.paid) : p}
           doc={viewing.doc}
           onClose={() => setViewing(null)}
-          pendingAs={mine && step?.signs?.doc === viewing.doc ? step.signs.as : undefined}
-          onConfirm={viewing.confirm && !reviewed ? () => update((q) => ({ ...q, checks: { ...q.checks, [reviewKey(q)]: true } })) : undefined}
+          pendingAs={mine && !viewing.paid && step?.signs?.doc === viewing.doc ? step.signs.as : undefined}
+          onConfirm={viewing.confirm && !viewing.paid && !reviewed ? () => update((q) => ({ ...q, checks: { ...q.checks, [reviewKey(q)]: true } })) : undefined}
         />
       )}
     </div>

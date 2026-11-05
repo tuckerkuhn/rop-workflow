@@ -141,6 +141,13 @@
       "when": 1793849921030,
       "tag": "0019_indicator_details",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1793917923454,
+      "tag": "0020_organization_state",
+      "breakpoints": true
     }
   ]
 }

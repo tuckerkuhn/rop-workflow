@@ -37,7 +37,7 @@ export function CloseoutPage() {
   if (!user) return null;
   const canClose = procRolesFor(user).includes("finance") || !!user.admin;
   // Vouchers from procurements and from bills paid directly.
-  const months = monthsOf([...procs.items.map((p) => fromProcurement(p, stepById[p.step]?.title ?? p.step)), ...bills.map(fromBill)]);
+  const months = monthsOf([...procs.items.flatMap((p) => fromProcurement(p, stepById[p.step]?.title ?? p.step)), ...bills.map(fromBill)]);
   const monthName = (m: string) => date(`${m}-01`, { month: "long", year: "numeric" });
 
   return (
@@ -122,7 +122,7 @@ export function CloseoutPage() {
                     {list.map((p) => (
                       <tr key={p.id} className="border-t border-line align-top">
                         <td className="px-3 py-2 font-mono text-xs">
-                          <Link href={p.kind === "bill" ? "/tasks/bills" : `/tasks?source=procurement&open=${p.id}`} className="text-forest hover:underline">
+                          <Link href={p.kind === "bill" ? "/tasks/bills" : `/tasks?source=procurement&open=${p.id.replace(/-P\d+$/, "")}`} className="text-forest hover:underline">
                             {p.voucher!.number}
                           </Link>
                         </td>

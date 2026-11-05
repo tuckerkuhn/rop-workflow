@@ -2,7 +2,8 @@ import { and, eq, inArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { donorById } from "@/lib/donors";
 import { MILEAGE_RATE } from "@/lib/expense";
-import { ROP, effective, type Cited, type Decision, type Profile } from "@/lib/policy";
+import { ROP, effective, type Approval, type Cited, type Decision, type Profile } from "@/lib/policy";
+import { loadOrgSettings, withSettings } from "@/server/org-settings-store";
 import { projectByCode } from "@/server/field-store";
 
 /**
@@ -14,7 +15,9 @@ export type PolicySetting = {
   donor: string | null;
   custom: { name: string; values: Record<string, Cited> } | null;
   decisions: Record<string, Decision>;
-  history: (Decision & { key: string })[];
+  /** Stricter donor requirements approved to layer on top of the organization's procedures. */
+  approvals?: Record<string, Approval>;
+  history: (Decision & { key: string; layered?: boolean })[];
   chosenBy?: { by: string; name: string; at: string };
 };
 
@@ -38,6 +41,13 @@ export async function savePolicy(code: string, data: PolicySetting) {
     .onConflictDoUpdate({ target: [s.projectState.projectId, s.projectState.key], set: { data, updatedAt: new Date() } });
 }
 
+/** The rules a project follows: its organization's rules (with Settings changes) combined with its donor's. */
+export async function projectRules(code: string) {
+  const project = await projectByCode(code);
+  const setting = await loadPolicy(code);
+  return effective(withSettings(await loadOrgSettings(project.organizationId)), donorOf(setting), setting.decisions, setting.approvals);
+}
+
 /** The donor profile a project's setting points to: a library donor, a custom one, or none. */
 export const donorOf = (setting: PolicySetting): Profile | null =>
   setting.donor === "custom" && setting.custom ? { id: "custom", name: setting.custom.name, kind: "donor", summary: "Entered for this project.", documents: [], values: setting.custom.values } : donorById(setting.donor);
@@ -48,11 +58,16 @@ export const donorOf = (setting: PolicySetting): Profile | null =>
  */
 export async function mileageRates(codes: string[]): Promise<Record<string, { rate: number; from: string }>> {
   const out: Record<string, { rate: number; from: string }> = {};
-  const fallback = { rate: Number(ROP.values.mileageRateUsd?.value ?? MILEAGE_RATE), from: "ROP default (US State Department rate)" };
+  // The organization's default, as set in Settings (one organization for now: the first one's).
+  const [first] = await db.select({ id: s.organizations.id }).from(s.organizations).orderBy(s.organizations.createdAt).limit(1);
+  const orgs = new Map<string, Profile>();
+  const orgFor = async (id: string) => orgs.get(id) ?? orgs.set(id, withSettings(await loadOrgSettings(id))).get(id)!;
+  const own = first ? await orgFor(first.id) : ROP;
+  const fallback = { rate: Number(own.values.mileageRateUsd?.value ?? MILEAGE_RATE), from: `${own.name} default` };
   for (const c of codes) out[c] = fallback;
   if (!codes.length) return out;
   const rows = await db
-    .select({ code: s.projects.code, data: s.projectState.data })
+    .select({ code: s.projects.code, org: s.projects.organizationId, data: s.projectState.data })
     .from(s.projectState)
     .innerJoin(s.projects, eq(s.projects.id, s.projectState.projectId))
     .where(and(eq(s.projectState.key, "policy"), inArray(s.projects.code, codes)));
@@ -60,7 +75,7 @@ export async function mileageRates(codes: string[]): Promise<Record<string, { ra
     if (!r.code) continue;
     const setting = { ...EMPTY, ...((r.data as Partial<PolicySetting> | null) ?? {}) };
     const donor = donorOf(setting);
-    const line = effective(ROP, donor, setting.decisions).lines.find((l) => l.key === "mileageRateUsd");
+    const line = effective(await orgFor(r.org), donor, setting.decisions, setting.approvals).lines.find((l) => l.key === "mileageRateUsd");
     const rate = Number(line?.value);
     if (Number.isFinite(rate) && rate > 0) out[r.code] = { rate, from: line?.donor && donor ? `${donor.name}'s rate` : fallback.from };
   }

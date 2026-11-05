@@ -114,7 +114,7 @@ export function workFor(u: AppUser, data: Data, viewer: AppUser, opts: { project
     });
   // Monthly closeout: ended months with vouchers that Finance has not closed.
   if (procRolesFor(u).includes("finance") && data.closeouts)
-    for (const [m, list] of monthsOf(procs.map((p) => fromProcurement(p, stepById[p.step]?.title ?? p.step))))
+    for (const [m, list] of monthsOf(procs.flatMap((p) => fromProcurement(p, stepById[p.step]?.title ?? p.step))))
       if (m < today().slice(0, 7) && !data.closeouts[m])
         cards.push({
           key: `close-${m}`,

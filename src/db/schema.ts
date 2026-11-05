@@ -405,6 +405,23 @@ export const projectState = pgTable(
   (t) => [uniqueIndex("project_state_project_key").on(t.projectId, t.key)],
 );
 
+/**
+ * Organization-wide documents, one per key, like project_state for a whole organization. Key
+ * "settings" holds the organization's own rules as changed from its written policy, with the
+ * full history of every change.
+ */
+export const organizationState = pgTable(
+  "organization_state",
+  {
+    id: id(),
+    organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+    key: text("key").notNull(),
+    data: jsonb("data").notNull(),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex("organization_state_org_key").on(t.organizationId, t.key)],
+);
+
 // ---------- Indicators & donors ----------
 
 /** Where an indicator sits in the results chain. Goal and outcome indicators are the project's impact. */

@@ -35,7 +35,7 @@ export async function POST(req: Request, { params }: Ctx) {
     const closeouts = await loadCloseouts(code);
     if (closeouts[month]) return NextResponse.json({ error: "That month is already closed." }, { status: 409 });
     // Vouchers from procurements and from bills paid directly.
-    const items = [...(await loadProcurements(code)).map((p) => fromProcurement(p, p.step)), ...(await loadBills(code)).items.map(fromBill)];
+    const items = [...(await loadProcurements(code)).flatMap((p) => fromProcurement(p, p.step)), ...(await loadBills(code)).items.map(fromBill)];
     const list = monthsOf(items).find(([m]) => m === month)?.[1] ?? [];
     const open = blockers(list);
     if (open.length) return NextResponse.json({ error: `Not yet: ${open.join("; ")}.` }, { status: 409 });

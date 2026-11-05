@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { primaryBtn } from "@/components/workspace/ui";
+import { currentInstalment } from "@/lib/payments";
 import { ROUTES, committeeNeeded, isSharePointUrl, levelFor, reviewKey, routesFor, rulesInForce, valueOf, type Draft, type Procurement } from "@/lib/procurement";
 import { today } from "@/lib/clock";
 
@@ -263,7 +264,8 @@ export function AiCheck({ p, editable, onCheck }: { p: Procurement; editable: bo
 
 /** Finance records where the voucher was filed (SharePoint) and posted (NetSuite). */
 export function VoucherPanel({ p, editable, update }: { p: Procurement; editable: boolean; update: Update }) {
-  const v = p.voucher ?? { number: `EV-${p.id}`, month: "", sharepointUrl: "", netsuiteRef: "" };
+  const i = currentInstalment(p);
+  const v = p.voucher ?? { number: i.of > 1 ? `EV-${p.id}-P${i.n}` : `EV-${p.id}`, month: "", sharepointUrl: "", netsuiteRef: "" };
   const set = (patch: Partial<typeof v>) => update((q) => ({ ...q, voucher: { ...v, month: v.month || today().slice(0, 7), ...patch } }));
   const badLink = !!v.sharepointUrl && !isSharePointUrl(v.sharepointUrl);
   return (

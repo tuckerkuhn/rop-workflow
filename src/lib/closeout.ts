@@ -1,5 +1,6 @@
 import { DONE, valueOf, type Procurement, type Voucher } from "@/lib/procurement";
 import type { Bill } from "@/lib/bills";
+import { invoiceUsd } from "@/lib/payments";
 
 /**
  * Monthly closeout: each month's expense vouchers, checked filed and posted, then signed off by
@@ -13,17 +14,34 @@ export type Closeouts = Record<string, MonthClose>;
 /** One voucher, whatever it came from. */
 export type VoucherItem = { id: string; kind: "procurement" | "bill"; title: string; payee: string | null; amountUsd: number; voucher: Voucher | null; filed: boolean; stage: string };
 
-export const fromProcurement = (p: Procurement, stage: string): VoucherItem => ({
-  id: p.id,
-  kind: "procurement",
-  title: p.title,
-  payee: p.supplier?.name ?? null,
-  amountUsd: p.invoice?.amount ?? valueOf(p),
-  voucher: p.voucher ?? null,
-  // A procurement voucher counts once Finance has finished the voucher step.
-  filed: !!p.voucher && (p.step === "close" || p.step === DONE),
-  stage,
-});
+/** A procurement's vouchers: one per paid instalment, and the one under way. */
+export const fromProcurement = (p: Procurement, stage: string): VoucherItem[] => [
+  ...(p.payments ?? []).map((r) => ({
+    id: `${p.id}-P${r.n}`,
+    kind: "procurement" as const,
+    title: p.title,
+    payee: r.supplier || (p.supplier?.name ?? null),
+    amountUsd: invoiceUsd(r.invoice) ?? 0,
+    voucher: r.voucher ?? null,
+    filed: !!r.voucher,
+    stage: "Paid",
+  })),
+  ...(p.voucher || !p.payments?.length
+    ? [
+        {
+          id: p.payments?.length || (p.schedule?.length ?? 0) > 1 ? `${p.id}-P${(p.payments?.length ?? 0) + 1}` : p.id,
+          kind: "procurement" as const,
+          title: p.title,
+          payee: p.supplier?.name ?? null,
+          amountUsd: invoiceUsd(p.invoice) ?? valueOf(p),
+          voucher: p.voucher ?? null,
+          // A procurement voucher counts once Finance has finished the voucher step.
+          filed: !!p.voucher && (p.step === "paid" || p.step === "close" || p.step === DONE),
+          stage,
+        },
+      ]
+    : []),
+];
 
 export const fromBill = (b: Bill): VoucherItem => ({
   id: b.id,

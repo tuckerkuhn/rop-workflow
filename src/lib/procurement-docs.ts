@@ -5,6 +5,8 @@
 
 import { PROJECT, holderOf } from "@/lib/demo";
 import { levelFor, lineOf, roleLabel, valueOf, type Money, type Procurement } from "@/lib/procurement";
+import { currentInstalment, expectedAfn, expectedUsd, invoiceUsd, receivedBefore, withholding } from "@/lib/payments";
+import { today } from "@/lib/clock";
 
 export type GeneratedDoc = { title: string; number: string; rows: [string, string][]; notes: string[] };
 
@@ -29,7 +31,13 @@ export function documentFor(p: Procurement, doc: string, money: Money, other: Mo
     ["Project", p.plan ? p.plan.project : `${PROJECT.name} · ${PROJECT.award}`],
     ["Item", p.title],
   ];
-  const number = `${p.id}-${slug(doc)}`;
+  const inst = currentInstalment(p);
+  const pn = inst.of > 1 ? `-P${inst.n}` : "";
+  const number = `${p.id}-${slug(doc)}${["Goods received note", "Payment approval form", "Checklist pass 2", "Procurement package"].includes(doc) ? pn : ""}`;
+  const instRow: [string, string][] = inst.of > 1 ? [["Payment", `${inst.n} of ${inst.of} · ${inst.label} · ${inst.pct}%`]] : [];
+  const cur = p.invoice?.currency ?? "USD";
+  const inCur = (n: number) => (cur === "USD" ? money(n) : `AFN ${Math.round(n).toLocaleString("en-US")}`);
+  const tax = withholding(p, p.paid?.date ?? today());
 
   // AI-drafted documents (corrected by procurement) are shown as drafted, section by section.
   const drafted = p.drafts?.[doc];
@@ -53,13 +61,16 @@ export function documentFor(p: Procurement, doc: string, money: Money, other: Mo
         rows: [
           ...base,
           ["Payee", p.supplier?.name ?? "[supplier]"],
-          ["Amount", p.invoice ? both(p.invoice.amount) : `${both(value)} (order value; no invoice recorded)`],
+          ...instRow,
+          ["Gross amount", p.invoice ? `${inCur(p.invoice.amount)}${cur === "AFN" && invoiceUsd(p.invoice) !== null ? ` (${money(invoiceUsd(p.invoice)!)})` : ""}` : `${both(value)} (order value; no invoice recorded)`],
+          ["Tax withheld", tax ? `${inCur(tax.amount)} (${tax.pct}%), payable to the Ministry of Finance` : "—"],
+          ["Net paid to supplier", p.invoice && tax ? inCur(p.invoice.amount - tax.amount) : "—"],
           ["Budget line", line ? `${line.code} ${line.name}` : p.budgetLine],
           ["Funding source", p.funding],
           ["Activity", p.activity],
           ["Order", `${p.id} · ${p.qty} ${p.unit}`],
           ["Goods received", p.grn ? `${p.grn.qty} ${p.unit} at ${p.grn.place}` : "[goods received note]"],
-          ["Invoice", p.invoice ? `${both(p.invoice.amount)} for ${p.invoice.qty} ${p.unit}` : "[invoice]"],
+          ["Invoice", p.invoice ? `${p.invoice.number ?? ""} ${p.invoice.date ?? ""} · ${inCur(p.invoice.amount)} for ${p.invoice.qty} ${p.unit}`.trim() : "[invoice]"],
           ["Approvals", signed.join("; ") || "—"],
           ["Filed in SharePoint", p.voucher?.sharepointUrl || "—"],
           ["NetSuite reference", p.voucher?.netsuiteRef || "—"],
@@ -149,7 +160,9 @@ export function documentFor(p: Procurement, doc: string, money: Money, other: Mo
           ...base,
           ["Supplier", p.supplier?.name ?? "—"],
           ["Ordered", `${p.qty.toLocaleString("en-US")} ${p.unit}`],
-          ["Received", p.grn ? `${p.grn.qty.toLocaleString("en-US")} ${p.unit}` : "—"],
+          ...instRow,
+          ["Received", p.grn ? `${p.grn.qty.toLocaleString("en-US")} ${p.unit}${receivedBefore(p) ? ` (${(receivedBefore(p) + p.grn.qty).toLocaleString("en-US")} in all, with earlier payments)` : ""}` : "—"],
+          ...(p.grn?.progressPct !== undefined ? ([["Work verified complete", `${p.grn.progressPct}%`]] as [string, string][]) : []),
           ["Place of receipt", p.grn?.place ?? p.place],
           ["Requesting department", holder],
         ],
@@ -162,12 +175,37 @@ export function documentFor(p: Procurement, doc: string, money: Money, other: Mo
         rows: [
           ...base,
           ["Supplier", p.supplier?.name ?? "—"],
-          ["Invoice", p.invoice ? both(p.invoice.amount) : "—"],
+          ...instRow,
+          ["Invoice", p.invoice ? inCur(p.invoice.amount) : "—"],
+          ["Tax withheld", tax ? `${inCur(tax.amount)} (${tax.pct}%)` : "—"],
           ["Last screening", p.supplier?.screenedOn ?? "—"],
           ["Payee account", "Verified against contract and supplier evidence"],
         ],
         notes: ["No payment without a complete file, a certified receipt and screening evidence. Payment approval follows the Finance Manual."],
       };
+    case "Payment approval form": {
+      const inv = p.invoice;
+      return {
+        title: "Payment approval form",
+        number,
+        rows: [
+          ...base,
+          ...instRow,
+          ["Payee", p.supplier?.name ?? "[supplier]"],
+          ["Business licence", p.supplier?.licenceNo ? `${p.supplier.licenceNo}, valid until ${p.supplier.licenceExpiry ?? "[date]"}` : p.supplier?.licenceExpiry ? `Valid until ${p.supplier.licenceExpiry}` : "[licence]"],
+          ["Contract value", p.contractAfn && p.contractCurrency === "AFN" ? `AFN ${p.contractAfn.toLocaleString("en-US")}` : both(value)],
+          ["Due for this payment", expectedAfn(p) !== null ? `AFN ${expectedAfn(p)!.toLocaleString("en-US")}` : money(expectedUsd(p))],
+          ["Invoice", inv ? `${inv.number ?? "[number]"} of ${inv.date ?? "[date]"}` : "[invoice]"],
+          ["Gross amount", inv ? `${inCur(inv.amount)}${cur === "AFN" && inv.rate ? ` at AFN ${inv.rate} per USD = ${money(invoiceUsd(inv)!)}` : ""}` : "—"],
+          ["Tax withheld", tax ? `${inCur(tax.amount)} (${tax.pct}%)` : "—"],
+          ["Net to pay", inv && tax ? inCur(inv.amount - tax.amount) : "—"],
+          ["Budget line", line ? `${line.code} ${line.name}` : p.budgetLine],
+          ["Activity", p.activity],
+          ["Funding source", p.funding],
+        ],
+        notes: [tax?.why ?? "", "Prepared by procurement, checked by Finance (and verified by a second Finance person on larger contracts), approved by programme management. The withholding rate is certified by Finance on each payment."].filter(Boolean),
+      };
+    }
     default:
       return {
         title: doc,

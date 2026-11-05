@@ -11,6 +11,26 @@ import { holdersOfType, holdsType } from "@/lib/authority";
 import type { HrRole } from "@/lib/hr";
 import { ROP, type Value } from "@/lib/policy";
 import { DEMO_DATE, today } from "@/lib/clock";
+import {
+  closeInstalment,
+  contractCurrency,
+  duplicateInvoices,
+  invoiceMatches,
+  licenceValid,
+  moreToPay,
+  paidSoFar,
+  receiptCovers,
+  setPaymentRules,
+  scheduleOf,
+  scheduleTotal,
+  taxOutstanding,
+  withholding,
+  type Currency,
+  type Instalment,
+  type Invoice,
+  type Paid,
+  type PaymentRecord,
+} from "@/lib/payments";
 
 export type Role = ProcRole;
 export type Money = (usd: number) => string;
@@ -41,7 +61,9 @@ export type Level = "Micro" | "Small" | "Medium" | "Large";
 const DEFAULT_RULES: Record<string, Value> = Object.fromEntries(Object.entries(ROP.values).map(([k, c]) => [k, c.value]));
 let rules: Record<string, Value> = DEFAULT_RULES;
 export function setProcurementRules(values?: Record<string, Value> | null) {
-  rules = { ...DEFAULT_RULES, ...Object.fromEntries(Object.entries(values ?? {}).filter(([, v]) => v !== null)) };
+  // A rule the organization turned off (null) is off, not the built-in default.
+  rules = { ...DEFAULT_RULES, ...(values ?? {}) };
+  setPaymentRules(rules);
 }
 export const rulesInForce = () => rules;
 const rule = (k: string, fallback: number) => (typeof rules[k] === "number" ? (rules[k] as number) : fallback);
@@ -183,11 +205,24 @@ export type Procurement = {
   signatures: Record<string, Signature[]>;
   step: string;
   checks: Record<string, boolean>;
-  supplier?: { name: string; screenedOn: string };
+  /** The licence is checked again on each payment date: an expired one changes the tax withheld. */
+  supplier?: { name: string; screenedOn: string; licenceNo?: string; licenceExpiry?: string };
   advertisedDays?: number;
   closingDate?: string;
-  grn?: { qty: number; place: string };
-  invoice?: { amount: number; qty: number };
+  /** Received for the instalment under way; for works, the verified progress percentage. */
+  grn?: { qty: number; place: string; progressPct?: number };
+  /** Invoice for the instalment under way. */
+  invoice?: Invoice;
+  /** Currency the contract is priced and paid in. */
+  contractCurrency?: Currency;
+  /** For an afghani contract: its value in afghani, as signed. Instalments are due in afghani from it. */
+  contractAfn?: number;
+  /** Payment schedule, set with the contract. Missing: one payment of 100%. */
+  schedule?: Instalment[];
+  /** Instalments already paid, each with its own documents and signatures. */
+  payments?: PaymentRecord[];
+  /** Proof of payment for the instalment under way. */
+  paid?: Paid;
   ai?: Record<string, string[]>;
   issues: Issue[];
   timeline: TimelineEvent[];
@@ -293,6 +328,8 @@ export function typeFor(p: Pick<Procurement, "route"> & Partial<Procurement>, ro
     case "ho":
       return "compliance";
     case "approver":
+      // Payments are approved by programme management (the team lead), whatever the award needed.
+      if (p.step === "approvePay") return "management";
       return p.route === "sole" || (p.qty !== undefined && levelFor(valueOf(p as Procurement)) === "Large") ? "ceo" : "management";
     default:
       return null;
@@ -807,6 +844,21 @@ export const steps: Step[] = [
       { id: "clauses", label: "Required clauses present", why: "Audit, records, anti-corruption, safeguarding, labor, E&S, data, IP, termination, subcontracting.", tag: "D1 §4.11" },
       { id: "aiConform", label: "AI conformity check reviewed", why: "Contract compared with the solicitation, winning bid and donor annex before signature. AI flags; a person records the check.", tag: "D1 §4.11; TS", ai: true },
       { id: "pass1", label: "Checklist pass 1 complete", why: "The first of two points where a procurement can still be stopped.", tag: "D1 §4.17" },
+      {
+        id: "schedule",
+        label: "Payment schedule matches the contract and adds up to 100%",
+        why: "Each instalment is paid only against work or goods received for it, with its own received note, invoice and approval.",
+        tag: "Finance Manual; ACRP payment packages",
+        auto: (p) => {
+          const s = scheduleOf(p);
+          const t = scheduleTotal(p);
+          const afnMissing = contractCurrency(p) === "AFN" && !(p.contractAfn && p.contractAfn > 0);
+          return {
+            ok: t === 100 && s.every((i) => i.pct > 0) && !afnMissing,
+            detail: `${s.length === 1 ? "One payment" : s.map((i) => `${i.label} ${i.pct}%`).join(" · ")} · in ${contractCurrency(p)}${t === 100 ? "" : ` · adds up to ${t}%`}${afnMissing ? " · enter the contract value in afghani" : ""}`,
+          };
+        },
+      },
     ],
   },
   {
@@ -837,16 +889,16 @@ export const steps: Step[] = [
     done: "Goods received note signed",
     produces: ["Goods received note"],
     signs: { doc: "Goods received note", as: "Received and inspected by" },
-    note: "The requester inspects, not procurement.",
+    note: "The requester inspects, not procurement. With instalments, each payment has its own received note for what was delivered or completed since the last one.",
     checks: [
       {
         id: "qtyMatch",
-        label: "Quantity received matches the order",
-        why: "Certification is a real check. Discrepancies go to procurement before payment.",
+        label: "What was received covers this payment",
+        why: "Certification is a real check. Goods are counted; works are measured by progress verified on site. Discrepancies go to procurement before payment.",
         tag: "D1 §4.12",
         fix: "Short delivery: notify the supplier in writing within 15 days.",
         resolve: "Record that the balance was delivered",
-        auto: (p) => (p.grn ? { ok: p.grn.qty === p.qty, detail: `Received ${fmt(p.grn.qty)} of ${fmt(p.qty)} ${p.unit}` } : null),
+        auto: (p) => receiptCovers(p),
       },
       {
         id: "placeMatch",
@@ -883,45 +935,136 @@ export const steps: Step[] = [
     ],
   },
   {
+    id: "payForm",
+    stage: 6,
+    title: "Prepare the payment approval form",
+    owner: "procurement",
+    levels: ALL,
+    action: "Send to Finance",
+    done: "Payment approval form prepared",
+    produces: ["Payment approval form"],
+    signs: { doc: "Payment approval form", as: "Prepared by (procurement)" },
+    note: "Enter the invoice and the supplier's licence. The form works out the tax to withhold and the amount to pay.",
+    checks: [
+      {
+        id: "invoice",
+        label: "Invoice recorded: number, date, amount and currency",
+        why: "The form is built from the invoice; nothing is typed twice.",
+        tag: "Finance Manual",
+        auto: (p) => {
+          const i = p.invoice;
+          const ok = !!i && !!i.number?.trim() && !!i.date && i.amount > 0 && ((i.currency ?? "USD") === "USD" || (i.rate ?? 0) > 0);
+          return { ok, detail: i ? `Invoice ${i.number || "[number]"} of ${i.date || "[date]"} · ${i.currency ?? "USD"} ${i.amount.toLocaleString("en-US")}${(i.currency ?? "USD") === "AFN" && !i.rate ? " · add the exchange rate" : ""}` : "Enter the invoice above" };
+        },
+      },
+      {
+        id: "duplicate",
+        label: "This invoice has not been paid before",
+        why: "UNDP's spot checks flagged invoices that could be paid twice. Every paid invoice is marked against its procurement and payment number.",
+        tag: "UNDP spot check 2022, 2025",
+        auto: (p) => {
+          if (!p.invoice?.number?.trim()) return null;
+          const d = duplicateInvoices(p, everyProcurement.some((q) => q.id === p.id) ? everyProcurement.map((q) => (q.id === p.id ? p : q)) : [...everyProcurement, p]);
+          return { ok: !d.length, detail: d.length ? `Invoice ${p.invoice.number} from this supplier is already on ${d.join(", ")}` : `No other payment of invoice ${p.invoice.number}` };
+        },
+        fix: "Possible duplicate invoice: stop and check with the supplier and Finance.",
+      },
+      {
+        id: "licence",
+        label: "Supplier's business licence checked on the payment date",
+        why: "The tax withheld depends on it: 2% with a valid licence, 7% without. UNDP's 2022 spot check found tax under-withheld from a supplier whose licence had expired before payment.",
+        tag: "Income Tax Law 2009 Art. 72; UNDP spot check 2022",
+        auto: (p) => {
+          const e = p.supplier?.licenceExpiry;
+          if (!e) return { ok: false, detail: "Record the licence expiry date above (from the licence copy on file)" };
+          return { ok: true, detail: licenceValid(e, today()) ? `Valid until ${e}` : `Expired ${e}: withhold at the unlicensed rate` };
+        },
+      },
+    ],
+  },
+  {
     id: "payReady",
     stage: 6,
-    title: "Make it payment-ready",
+    title: "Check the payment",
     owner: "finance",
     levels: ALL,
-    action: "Mark payment-ready",
-    done: "Payment-ready (Gate E): handed to Finance for approval and release",
+    action: "Send for approval",
+    done: "Payment checked and verified by Finance (Gate E)",
     gate: "E",
     produces: ["Invoice match", "Payee verification", "Checklist pass 2"],
-    signs: { doc: "Checklist pass 2", as: "Verified by (finance)" },
-    note: "Payment approval and release happen in Finance's own process, outside this tool.",
+    signs: { doc: "Payment approval form", as: "Checked by (finance)" },
     checks: [
       {
         id: "match",
-        label: "Invoice matches the order and the received note",
-        why: "Three-way match on amount and quantity.",
+        label: "Invoice matches the contract, this instalment and the received note",
+        why: "Three-way match on amount and quantity, instalment by instalment.",
         tag: "TS",
         resolve: "Record corrected invoice or credit note",
-        auto: (p, money) =>
-          p.invoice
-            ? { ok: p.invoice.amount === valueOf(p) && p.invoice.qty === (p.grn?.qty ?? p.qty), detail: `Invoice ${money(p.invoice.amount)} for ${fmt(p.invoice.qty)} ${p.unit}` }
-            : null,
+        auto: (p) => invoiceMatches(p),
+      },
+      {
+        id: "taxRate",
+        label: "Withholding rate certified",
+        why: "Finance certifies the rate on each payment: ROP's corrective action after the 2022 spot check.",
+        tag: "ROP response to UNDP spot check 2022",
+        auto: (p) => {
+          const t = withholding(p, today());
+          return t ? null : { ok: false, detail: "No invoice recorded" };
+        },
       },
       {
         id: "rescreen",
         label: "Supplier screening is current",
-        why: "Re-screen before payment when the last screening is more than six months old (proposed interval).",
+        get why() {
+          return `Re-screen before payment when the last screening is more than ${rule("rescreenMonths", 6)} months old.`;
+        },
         tag: "D1* §4.8",
         fix: "Re-screen the supplier before payment.",
         resolve: "Record new screening: no match",
         auto: (p) => {
           if (!p.supplier) return null;
           const d = daysBetween(p.supplier.screenedOn, today());
-          return { ok: d <= 183, detail: `Last screened ${p.supplier.screenedOn} (${d} days ago)` };
+          const months = rule("rescreenMonths", 6);
+          return { ok: d <= Math.round(months * 30.44), detail: `Last screened ${p.supplier.screenedOn} (${d} days ago; re-screen after ${months} months)` };
         },
       },
       { id: "payee", label: "Bank account verified against the contract and the supplier's own evidence", why: "A changed account is confirmed through a different channel from the one that asked for it.", tag: "D1 §4.13" },
       { id: "pass2", label: "Checklist pass 2 complete (file, receipt, screening, tax)", why: "No payment without a complete file, a certified receipt and screening evidence.", tag: "D1 §4.13, §4.17" },
       { id: "aiFinance", label: "AI finance review read", why: "Order, received note, invoice, budget line, approvals and screening compared. AI flags; Finance decides.", tag: "TS", ai: true },
+    ],
+  },
+  {
+    id: "verifyPay",
+    stage: 6,
+    title: "Verify the payment",
+    owner: "finance",
+    levels: ALL,
+    action: "Send for approval",
+    done: "Payment verified by a second Finance person",
+    canReturn: true,
+    produces: [],
+    signs: { doc: "Payment approval form", as: "Verified by (finance)" },
+    note: "For larger contracts: a different Finance person from the one who checked it.",
+    when: (p) => typeof rules.paymentVerifyAboveUsd === "number" && valueOf(p) > (rules.paymentVerifyAboveUsd as number),
+    checks: [
+      { id: "figures", label: "Gross, tax and net agree with the invoice, the received note and the contract", why: "A second pair of eyes on the larger payments.", tag: "Finance Manual" },
+      { id: "rate", label: "Withholding rate agrees with the licence on the payment date", why: "2% with a valid licence, 7% without.", tag: "Income Tax Law 2009 Art. 72" },
+    ],
+  },
+  {
+    id: "approvePay",
+    stage: 6,
+    title: "Approve the payment",
+    owner: "approver",
+    levels: ALL,
+    action: "Approve payment",
+    done: "Payment approved",
+    canReturn: true,
+    produces: [],
+    signs: { doc: "Payment approval form", as: "Approved by" },
+    note: "Programme management approves. Read the form: gross amount, tax withheld and net to pay.",
+    checks: [
+      { id: "read", label: "Gross, tax and net read against the invoice and the received note", why: "The approver relies on the figures on the form; Finance has checked them.", tag: "Finance Manual" },
     ],
   },
   {
@@ -954,6 +1097,32 @@ export const steps: Step[] = [
     ],
   },
   {
+    id: "paid",
+    stage: 6,
+    title: "Record the payment",
+    owner: "finance",
+    levels: ALL,
+    action: "Record as paid",
+    done: "Paid; invoice marked paid",
+    produces: [],
+    note: "Record the bank transfer, mark the invoice file paid, and the withheld tax once it is paid to the Ministry of Finance.",
+    checks: [
+      {
+        id: "proof",
+        label: "Proof of payment recorded (date and bank reference)",
+        why: "The payment package is complete only with proof that the supplier was paid what the form approved.",
+        tag: "Finance Manual",
+        auto: (p) => ({ ok: !!p.paid?.date && !!p.paid.ref.trim(), detail: p.paid?.ref.trim() ? `Paid ${p.paid.date} · ref ${p.paid.ref}` : "Enter the payment date and bank reference above" }),
+      },
+      {
+        id: "mark",
+        label: "Invoice file marked paid with the project and payment number",
+        why: "UNDP's spot check found invoices without the project-code stamp, which risks paying them again or charging them to another project.",
+        tag: "UNDP spot check 2025",
+      },
+    ],
+  },
+  {
     id: "close",
     stage: 7,
     title: "Close out",
@@ -964,6 +1133,18 @@ export const steps: Step[] = [
     produces: ["Closeout checklist", "Vendor evaluation"],
     signs: { doc: "Closeout checklist", as: "Closed by (procurement)" },
     checks: [
+      {
+        id: "allPaid",
+        label: "Every instalment paid and its withheld tax remitted",
+        why: "A contract closes once nothing is owed either way: every instalment paid, and the tax withheld paid to the Ministry of Finance by the 10th of the next month.",
+        tag: "Income Tax Law 2009 Art. 72",
+        auto: (p) => {
+          if (!p.payments) return null;
+          const left = scheduleOf(p).length - paidSoFar(p).length;
+          const owed = taxOutstanding(p);
+          return { ok: left <= 0 && !owed.length, detail: left > 0 ? `${left} instalment${left === 1 ? "" : "s"} still to pay` : owed.length ? `Tax remittance still to record for ${owed.map((r) => `payment ${r.n} (due ${r.taxDue})`).join(", ")}` : `${paidSoFar(p).length} paid · tax remitted` };
+        },
+      },
       { id: "closeout", label: "Closeout checklist complete (contracts over $5,000)", why: "New work: not done in any country office today.", tag: "D1 §4.15; CUR" },
       { id: "vendor", label: "Vendor performance recorded", why: "Scores feed future sourcing.", tag: "D1 §4.15" },
     ],
@@ -976,6 +1157,8 @@ export const stepsFor = (p: Procurement) => steps.filter((s) => s.id === p.step 
 export const DONE = "done";
 
 export function nextStep(p: Procurement): string {
+  // After an instalment is paid, the next one starts again at receipt.
+  if (p.step === "paid" && moreToPay(p)) return "receive";
   const list = stepsFor(p);
   const i = list.findIndex((s) => s.id === p.step);
   if (i >= 0) return i < list.length - 1 ? list[i + 1].id : DONE;
@@ -988,6 +1171,20 @@ export function prevStep(p: Procurement): string {
   const i = list.findIndex((s) => s.id === p.step);
   return i > 0 ? list[i - 1].id : p.step;
 }
+
+/**
+ * Completes the step under way: signs its document, moves on, and when an instalment has just
+ * been paid, files it away so the next one starts clean.
+ */
+export function completeStep(p: Procurement, sig: { name: string; date: string }): Procurement {
+  const s = stepById[p.step];
+  if (!s) return p;
+  const signatures = s.signs ? { ...p.signatures, [s.signs.doc]: [...(p.signatures[s.signs.doc] ?? []), { as: s.signs.as, name: sig.name, role: s.owner, date: sig.date }] } : p.signatures;
+  const signed = { ...p, signatures };
+  const step = nextStep(signed);
+  return s.id === "paid" ? { ...closeInstalment(signed), step } : { ...signed, step };
+}
+
 
 export function checkState(p: Procurement, c: Check, money: Money = usdFmt): { ok: boolean; auto: boolean; detail?: string } {
   const r = c.auto?.(p, money);

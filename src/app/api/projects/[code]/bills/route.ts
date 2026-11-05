@@ -10,9 +10,7 @@ import { requireViewer } from "@/server/auth";
 import { loadBills, saveBills } from "@/server/bills-store";
 import { handle } from "@/server/guard";
 import { hrBook, loadHr } from "@/server/hr-store";
-import { loadPolicy } from "@/server/policy-store";
-import { donorById } from "@/lib/donors";
-import { ROP, effective } from "@/lib/policy";
+import { projectRules } from "@/server/policy-store";
 
 type Ctx = { params: Promise<{ code: string }> };
 
@@ -38,8 +36,9 @@ const today = () => new Date().toISOString().slice(0, 10);
 async function view(code: string, u: AppUser) {
   const book = await loadBills(code);
   const roles = await rolesOf(u);
-  const setting = await loadPolicy(code).catch(() => null);
-  const rules = effective(ROP, setting?.donor ? donorById(setting.donor) : null, setting?.decisions ?? {}).values;
+  const rules = await projectRules(code)
+    .then((r) => r.values)
+    .catch(() => ({}) as Record<string, unknown>);
   const micro = typeof rules.microMaxUsd === "number" ? rules.microMaxUsd : 500;
   const projects = await db.select({ code: s.projects.code, name: s.projects.name }).from(s.projects);
   return {

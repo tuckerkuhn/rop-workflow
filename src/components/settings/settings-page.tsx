@@ -37,6 +37,11 @@ export function SettingsPage() {
         <PasswordSection />
 
         <p className="mt-4 text-sm">
+          <Link href="/settings/organization" className="font-semibold text-forest hover:underline">
+            Organization settings: the rules by department, and presets
+          </Link>
+        </p>
+        <p className="mt-2 text-sm">
           <Link href="/settings/policy" className="font-semibold text-forest hover:underline">
             Rules this project follows: organization and donor policy
           </Link>

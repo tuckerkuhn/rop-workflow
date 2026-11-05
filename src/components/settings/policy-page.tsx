@@ -7,7 +7,8 @@ import { useRequireUser, useSession } from "@/components/app/session";
 import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { canEditProject } from "@/lib/demo";
 import { setProcurementRules } from "@/lib/procurement";
-import { show, type Area, type Cited, type Line, type ParamDef, type Value } from "@/lib/policy";
+import { GapPanel } from "@/components/settings/gap-panel";
+import { DEPARTMENTS, layered, show, type Area, type Cited, type Line, type ParamDef, type Value } from "@/lib/policy";
 import type { PolicyView } from "@/app/api/projects/[code]/policy/route";
 
 /**
@@ -22,7 +23,7 @@ async function call<T>(url: string, user: string | undefined, init?: RequestInit
   return body as T;
 }
 
-const AREAS: Area[] = ["Procurement", "Travel and finance", "Grants", "Records"];
+const AREAS: Area[] = DEPARTMENTS;
 const input = "mt-1 block w-full rounded-xl border border-line bg-paper px-3 py-2.5 text-base";
 
 export function PolicyPage() {
@@ -65,6 +66,7 @@ export function PolicyPage() {
   const mayChoose = canEditProject(user) || !!user.admin;
   const def = (k: string) => v?.params.find((p) => p.key === k) as ParamDef;
   const open = v ? v.lines.filter((l) => v.open.includes(l.key)) : [];
+  const gaps = v ? v.lines.filter((l) => v.gaps.includes(l.key)) : [];
 
   return (
     <div className="min-h-screen">
@@ -73,7 +75,7 @@ export function PolicyPage() {
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ochre">{project.name}</p>
         <h1 className="mt-1 font-display text-3xl tracking-tight">Rules this project follows</h1>
         <p className="mt-1 max-w-3xl text-sm text-muted">
-          The organization&apos;s own policy combined with the donor&apos;s. Where they differ, the project follows the value that satisfies both. Where nothing satisfies both, an administrator decides, and the decision is kept.
+          The organization&apos;s own procedures always apply. Where the donor requires more, it shows as a gap; once approved, the donor&apos;s requirement is layered on for this project. Where nothing satisfies both, an administrator decides. Every approval and decision is kept.
         </p>
         <p className="mt-2 text-sm">
           <Link href="/settings" className="font-semibold text-forest hover:underline">
@@ -154,6 +156,25 @@ export function PolicyPage() {
               </section>
             )}
 
+            {gaps.length > 0 && (
+              <GapPanel
+                key={gaps.map((g) => g.key).join(",")}
+                title={`${gaps.length} donor ${gaps.length === 1 ? "requirement goes" : "requirements go"} beyond our procedures`}
+                intro={`Until approved, this project follows ${v.org.name}'s own procedures on these. Approve the ones to layer on for this project.`}
+                items={gaps.map((l) => ({
+                  key: l.key,
+                  label: def(l.key).label,
+                  ours: show(def(l.key), l.org?.value ?? null),
+                  required: show(def(l.key), l.donor!.value),
+                  result: show(def(l.key), layered(def(l.key), l.org?.value ?? null, l.donor!.value)),
+                  source: l.donor!.source,
+                }))}
+                canApprove={mayChoose}
+                cannot="The project manager or an administrator approves these."
+                onApprove={(keys, reason) => post({ action: "approve", keys, reason }, `${keys.length} donor ${keys.length === 1 ? "requirement" : "requirements"} layered on.`)}
+              />
+            )}
+
             {AREAS.map((area) => {
               const lines = v.lines.filter((l) => def(l.key)?.area === area);
               return (
@@ -186,7 +207,7 @@ export function PolicyPage() {
                 <ul className="mt-2 space-y-1 text-sm">
                   {[...v.setting.history].reverse().map((h, i) => (
                     <li key={i}>
-                      {h.at}: {def(h.key)?.label} set to {show(def(h.key), h.value)} by {h.name}. <span className="text-muted">{h.reason}</span>
+                      {h.at}: {def(h.key)?.label} {"layered" in h && h.layered ? "— the donor's requirement layered on" : `set to ${show(def(h.key), h.value)}`} by {h.name}. <span className="text-muted">{h.reason}</span>
                     </li>
                   ))}
                 </ul>
@@ -240,6 +261,11 @@ function Row({ l, d }: { l: Line; d: ParamDef }) {
       </td>
       <td className="px-3 py-2">
         <span className="font-semibold">{l.conflict && !l.decision ? "To decide" : show(d, l.value)}</span>
+        {l.gap && (
+          <span className="ms-2">
+            <Pill tone="ochre">Gap: approve above</Pill>
+          </span>
+        )}
         <span className="block text-xs text-muted">{l.conflict && !l.decision ? l.conflict : l.why}</span>
         {(l.org?.confidence === "to verify" || l.donor?.confidence === "to verify") && <Pill tone="ochre">To verify</Pill>}
       </td>

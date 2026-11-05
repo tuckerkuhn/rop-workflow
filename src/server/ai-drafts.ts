@@ -1,3 +1,4 @@
+import { currentInstalment, expectedUsd, invoiceUsd, scheduleOf, withholding } from "@/lib/payments";
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
@@ -69,7 +70,13 @@ function recordOf(p: Procurement) {
     advertised_days: p.advertisedDays ?? null,
     closing_date: p.closingDate ?? null,
     goods_received: p.grn ?? null,
-    invoice: p.invoice ? { amount_usd: p.invoice.amount, qty: p.invoice.qty } : null,
+    invoice: p.invoice ? { ...p.invoice, currency: p.invoice.currency ?? "USD", amount_usd: invoiceUsd(p.invoice) } : null,
+    payment_schedule: scheduleOf(p),
+    contract_currency: p.contractCurrency ?? "USD",
+    instalment_under_way: currentInstalment(p),
+    due_this_instalment_usd: expectedUsd(p),
+    tax_to_withhold: withholding(p, today()),
+    payments_already_made: (p.payments ?? []).map((r) => ({ n: r.n, label: r.label, pct: r.pct, grn: r.grn, invoice: r.invoice, tax: r.tax, net: r.net, paid: r.paid })),
     order_value_usd: Math.round(usd * 100) / 100,
     signatures: p.signatures,
     checks_done: Object.keys(p.checks).filter((k) => p.checks[k]),
@@ -135,7 +142,7 @@ const CHECKS: Record<string, string> = {
   package:
     "Check the procurement package for completeness and consistency before it goes to Finance. Look for: documents the route and level require that are missing; approvals missing or signed out of order (requisition approved before any supplier contact; sole source approved before the supplier was engaged; award before contract); order value above what was left on the budget line; received quantity or place different from the order; invoice different from the order or the receipt; screening missing or older than six months; open issues.",
   payReady:
-    "Review this procurement as Finance does before payment. Compare the order value, the goods received note and the invoice (amount and quantity); check the budget line and funding; check approvals and signatures are present and in order; check supplier screening is current (six months); note open issues and anything that would stop payment.",
+    "Review this procurement as Finance does before payment. It may be paid in instalments: compare the invoice with the amount due for the instalment under way (due_this_instalment_usd), and the goods received or verified progress with what this instalment pays for, counting earlier payments. Check the tax to withhold against the supplier's licence expiry on the payment date (2% licensed, 7% without a valid licence). Compare the order value, the goods received note and the invoice (amount and quantity); check the budget line and funding; check approvals and signatures are present and in order; check supplier screening is current (six months); note open issues and anything that would stop payment.",
   contract:
     "Check the contract record for conformity with the request and the award: supplier, value, quantity, delivery place and date, funding source and required clauses. Only what the record shows.",
   hoReview:

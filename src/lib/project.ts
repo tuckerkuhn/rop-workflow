@@ -59,7 +59,7 @@ export function activityStatus(a: Activity, field: FieldItem[], procs: Procureme
     }
     case 5: {
       const inputs = procs.filter((p) => ["2.1", "2.2"].includes(p.budgetLine));
-      const received = inputs.filter((p) => p.step === DONE || ["payReady", "close"].includes(p.step)).length;
+      const received = inputs.filter((p) => p.step === DONE || ["payForm", "payReady", "approvePay", "voucher", "paid", "close"].includes(p.step)).length;
       const stuck = inputs.find((p) => p.step !== DONE && p.neededBy < TODAY);
       return {
         status: received === inputs.length ? "Done" : stuck ? "Late" : "In progress",
