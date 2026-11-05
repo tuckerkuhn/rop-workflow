@@ -73,6 +73,7 @@ export const users: AppUser[] = [
   { id: "omid", name: "Omid Rahmani", title: "Accounting Manager", kind: "employee", org: ROP, reportsTo: "peter", field: [], procurement: [], project: [], fieldAccess: "none", procurementAccess: "view", pii: false, lang: "en" },
   { id: "mina", name: "Mina Sharifi", title: "HR Officer", kind: "employee", org: ROP, reportsTo: "sima", field: [], procurement: [], project: [], fieldAccess: "none", procurementAccess: "none", pii: false, lang: "fa" },
   { id: "arthur", name: "Arthur Lindqvist", title: "Board Treasurer", kind: "employee", org: ROP, field: [], procurement: [], project: [], fieldAccess: "none", procurementAccess: "none", pii: false, lang: "en" },
+  { id: "zarlasht", name: "Zarlasht Noori", title: "M&E Assistant", kind: "employee", org: ROP, reportsTo: "nadia", field: [], procurement: [], project: [], fieldAccess: "none", procurementAccess: "none", pii: false, lang: "fa" },
   { id: "elena", name: "Elena Marsh", title: "Program officer", kind: "donor", org: "Demo Foundation (fictional)", field: [], procurement: [], project: [], fieldAccess: "view", procurementAccess: "none", pii: false, lang: "en" },
 ];
 

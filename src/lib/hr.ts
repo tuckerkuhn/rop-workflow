@@ -443,7 +443,10 @@ export function fold(entries: Entry[], today: string): HrState {
       case "ex-approve":
       case "ex-return":
       case "ex-withdraw":
-        // Read by foldTimesheets (lib/timesheet.ts) and foldExpenses (lib/expense.ts).
+      case "policy":
+      case "onboard-start":
+      case "onboard-step":
+        // Read by foldTimesheets, foldExpenses and foldOnboarding (lib/timesheet.ts, expense.ts, onboarding.ts).
         break;
       default:
         ignore(e, "unknown kind of entry");

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { seesAll } from "@/lib/hr";
 import { foldExpenses, nextFor } from "@/lib/expense";
+import { foldOnboarding } from "@/lib/onboarding";
 import { requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
 import { loadFile } from "@/server/hr-files";
@@ -25,7 +26,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ hash: st
       if (seesAll(me, hr)) ok = true;
       else {
         const { reports } = foldExpenses(entries, hr);
-        ok = reports.some(
+        const { onboarding, policies } = foldOnboarding(entries, hr);
+        // Policies are for everyone; a contract or ID only for the person (HR already passed above).
+        if (policies.some((p) => p.file.hash === hash)) ok = true;
+        const mine = onboarding.find((o) => o.person === me);
+        if (mine && (mine.contract.hash === hash || Object.values(mine.done).some((d) => d.value.kind === "upload" && d.value.file.hash === hash))) ok = true;
+        ok ||= reports.some(
           (r) =>
             r.report.lines.some((l) => l.receipts.some((x) => x.hash === hash)) &&
             (r.person === me || hr.people[r.person]?.current.supervisor === me || r.signatures.some((s) => s.by === me) || !!nextFor(r, hr)?.people.includes(me)),
