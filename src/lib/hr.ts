@@ -12,9 +12,40 @@ import { z } from "zod";
 
 /* ---------------- Roles and rules ---------------- */
 
-export const HR_ROLES = ["hr", "payroll", "cfo", "ceo", "board"] as const;
+/**
+ * Role types: what kind of role a signature needs. Each organization says who in its own chart
+ * holds each type (the authority table, kept in "rules" entries and changed only with approval).
+ * The keys are stable; the labels describe the type, not any one organization's titles.
+ */
+export const HR_ROLES = ["ceo", "management", "cfo", "finance", "procurement", "hr", "payroll", "technical", "compliance", "board"] as const;
 export type HrRole = (typeof HR_ROLES)[number];
-export const ROLE_LABEL: Record<HrRole, string> = { hr: "HR", payroll: "Payroll", cfo: "CFO", ceo: "CEO", board: "Board" };
+/** Role types that open the HR record (everyone's pay and personal details). The others do not. */
+export const HR_ACCESS_ROLES: HrRole[] = ["hr", "payroll", "cfo", "ceo", "board"];
+/** What each role type is, in words any organization can map to its own titles. */
+export const ROLE_HELP: Record<HrRole, string> = {
+  ceo: "The executive head: CEO, Executive Director or President.",
+  management: "Programme or country management: Country Director, Chief of Party, Director of Operations.",
+  cfo: "The head of finance: CFO or Finance Director.",
+  finance: "Finance staff: accountants and finance officers who check and pay.",
+  procurement: "Procurement: the procurement manager and officers.",
+  hr: "Human resources: HR manager and officers.",
+  payroll: "Payroll: whoever prepares the monthly payroll, often the accounting manager.",
+  technical: "Technical leads: specialists who plan and request purchases for their activities.",
+  compliance: "Compliance review: the Home Office reviewer who checks large procurements before award.",
+  board: "The board, or its treasurer: the final check when the executive head has a conflict.",
+};
+export const ROLE_LABEL: Record<HrRole, string> = {
+  ceo: "Executive head",
+  management: "Programme management",
+  cfo: "Finance head",
+  finance: "Finance",
+  procurement: "Procurement",
+  hr: "HR",
+  payroll: "Payroll",
+  technical: "Technical lead",
+  compliance: "Compliance review",
+  board: "Board",
+};
 
 /** What kind of change a proposal is; each kind has its own approval steps. */
 export const CHANGE_KINDS = ["hire", "pay", "job", "details", "separate", "unrelate", "payroll", "leave", "rules"] as const;
@@ -208,7 +239,7 @@ const dayOf = (iso: string) => iso.slice(0, 10);
 export type RulesInput = { steps: Partial<Rules["steps"]>; holders: Partial<Rules["holders"]> };
 export const fullRules = (r: RulesInput): Rules => {
   const holders: Partial<Rules["holders"]> = r.holders;
-  return { steps: { ...DEFAULT_STEPS, ...r.steps } as Rules["steps"], holders: { hr: holders.hr ?? [], payroll: holders.payroll ?? [], cfo: holders.cfo ?? [], ceo: holders.ceo ?? [], board: holders.board ?? [] } };
+  return { steps: { ...DEFAULT_STEPS, ...r.steps } as Rules["steps"], holders: Object.fromEntries(HR_ROLES.map((role) => [role, holders[role] ?? []])) as Rules["holders"] };
 };
 
 export const kindOf = (p: ProposalInput): ChangeKind => {
@@ -287,7 +318,7 @@ export function mayPropose(u: string, p: ProposalInput, state: HrState): string 
   const rules = state.rules && fullRules(state.rules);
   if (!rules) return "The approval rules have not been set up yet.";
   const has = (r: HrRole) => rules.holders[r].includes(u);
-  if (p.type === "rules") return HR_ROLES.some(has) ? null : "Only people holding an HR role can propose new rules.";
+  if (p.type === "rules") return HR_ACCESS_ROLES.some(has) ? null : "Only HR, payroll, the finance head, the executive head or the board can propose a new authority table.";
   if (p.type === "leave-adjust") {
     if (!has("hr")) return "Only HR adjusts leave balances.";
     if (p.subject === u) return "HR cannot adjust their own leave; another HR officer does.";
@@ -527,7 +558,7 @@ export function rolesOf(u: string, state: HrState): HrRole[] {
 }
 
 /** Anyone holding an HR role sees every record. Admins do not, unless they hold a role. */
-export const seesAll = (u: string, state: HrState) => rolesOf(u, state).length > 0;
+export const seesAll = (u: string, state: HrState) => rolesOf(u, state).some((r) => HR_ACCESS_ROLES.includes(r));
 
 /** A supervisor sees their team's job details, never their pay or contacts. */
 export function visibleFields(viewer: string, person: string, state: HrState): Group[] {

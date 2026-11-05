@@ -15,7 +15,7 @@ import { Pill, SectionLabel, TODAY, TopBar, usePersistentState } from "@/compone
 import { workFor, type Data, type WorkCard } from "@/components/tasks/work";
 import { PROJECT, daysFrom, directReports, userById, type AppUser } from "@/lib/demo";
 import { PACKAGE, PACKAGE_USD, farmerName, farmerStages, fieldRoleLabel, maskName, type Farmer, type FieldItem } from "@/lib/field";
-import { DONE, roleLabel, valueOf } from "@/lib/procurement";
+import { DONE, procRolesFor, roleLabel, valueOf } from "@/lib/procurement";
 import { GATED_KEYS, seedProject, type ProjectState } from "@/lib/project";
 
 const buckets = [
@@ -357,7 +357,7 @@ export function Dashboard() {
   const { submissions } = useSubmissions(current.id);
   const { items: procs } = useProcurements(current.id);
   const plan = usePlan(current.saved ? current.id : null);
-  const closeouts = useCloseouts(current.saved && user?.procurement.includes("finance") ? current.id : null);
+  const closeouts = useCloseouts(current.saved && procRolesFor(user).includes("finance") ? current.id : null);
   const [local] = usePersistentState<ProjectState>(PROJECT_KEY, seedProject);
   // Review-queue records live in the database; the rest of the project state is still in this browser.
   const project: ProjectState = { ...local, submissions };

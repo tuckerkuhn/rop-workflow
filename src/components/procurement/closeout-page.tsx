@@ -8,7 +8,7 @@ import { useRequireUser, useSession } from "@/components/app/session";
 import { useCloseouts, useProcurements } from "@/components/app/use-project-data";
 import { Pill, SectionLabel, TODAY, TopBar, primaryBtn } from "@/components/workspace/ui";
 import { amountOf, blockers, filed, monthsOf } from "@/lib/closeout";
-import { stepById } from "@/lib/procurement";
+import { procRolesFor, stepById } from "@/lib/procurement";
 
 /**
  * Monthly closeout: every expense voucher by month, with its SharePoint and NetSuite records.
@@ -25,7 +25,7 @@ export function CloseoutPage() {
   const [busy, setBusy] = useState<string | null>(null);
 
   if (!user) return null;
-  const canClose = user.procurement.includes("finance") || !!user.admin;
+  const canClose = procRolesFor(user).includes("finance") || !!user.admin;
   const months = monthsOf(procs.items);
   const monthName = (m: string) => date(`${m}-01`, { month: "long", year: "numeric" });
 

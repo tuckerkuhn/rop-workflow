@@ -4,6 +4,7 @@ import { createBrowserClient } from "@supabase/ssr";
 import { useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { formatMoney, registerPeople, userById, type AppUser, type Currency } from "@/lib/demo";
+import { registerAuthority, type Authority } from "@/lib/authority";
 import { hasFeature, type Feature, type Plan } from "@/lib/plans";
 
 /**
@@ -46,7 +47,7 @@ export function supabaseBrowser() {
   return createBrowserClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 }
 
-type ServerSession = { mode: "demo" | "live"; configured: boolean; user: AppUser | null; actor: AppUser | null; viewingAs: boolean; people: AppUser[]; plan: Plan };
+type ServerSession = { mode: "demo" | "live"; configured: boolean; user: AppUser | null; actor: AppUser | null; viewingAs: boolean; people: AppUser[]; plan: Plan; authority?: Authority };
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [mode, setMode] = useState<Mode>("loading");
@@ -60,6 +61,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const refresh = useCallback(async () => {
     try {
       const s = (await (await fetch("/api/session", { cache: "no-store" })).json()) as ServerSession;
+      // Who holds each role type, before any screen asks who signs what.
+      registerAuthority(s.authority);
       if (s.mode === "live") {
         registerPeople(s.people);
         setLive({ user: s.user, actor: s.actor, viewingAs: s.viewingAs });

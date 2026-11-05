@@ -10,6 +10,7 @@ import { usePersistentState } from "@/components/workspace/ui";
 import type { AppUser, ProjectInfo } from "@/lib/demo";
 import { seedProject, type ProjectState } from "@/lib/project";
 import type { Row } from "@/lib/work-items";
+import { procRolesFor } from "@/lib/procurement";
 
 /**
  * Everything Tasks shows for one person on one project, as rows: tasks and milestones added in
@@ -23,7 +24,7 @@ export function useTaskRows(user: AppUser, project: ProjectInfo) {
   const { submissions } = useSubmissions(project.id);
   const { items: procs } = useProcurements(project.id);
   const plan = usePlan(project.saved ? project.id : null);
-  const closeouts = useCloseouts(project.saved && user.procurement.includes("finance") ? project.id : null);
+  const closeouts = useCloseouts(project.saved && procRolesFor(user).includes("finance") ? project.id : null);
   const [local] = usePersistentState<ProjectState>(PROJECT_KEY, seedProject);
 
   const rows = useMemo<Row[]>(() => {

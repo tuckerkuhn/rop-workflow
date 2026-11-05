@@ -25,6 +25,7 @@ import {
   type Value,
 } from "@/lib/hr";
 import type { HrView, PersonView, ProposalView } from "@/server/hr-view";
+import { ROLE_HELP, SIGNATURES, SIGNER_LABEL } from "@/lib/authority";
 
 /**
  * People: the HR record. Every change is proposed, signed by the people the rules name, and
@@ -106,7 +107,7 @@ export function PeoplePage() {
         { id: "waiting", label: `Waiting for you (${waiting.length})` },
         { id: "people", label: "People" },
         { id: "changes", label: "All changes" },
-        { id: "rules", label: "Rules" },
+        { id: "rules", label: "Authority" },
         { id: "ledger", label: "Ledger" },
       ]
     : [
@@ -827,10 +828,34 @@ function RulesView({ rules, names, onPropose, compact }: { rules: Rules; names: 
   return (
     <section className={compact ? "mt-3" : "mt-6 space-y-6"}>
       {!compact && (
-        <p className="max-w-2xl text-sm text-muted">
-          Who signs each kind of change, in order. Whatever these say, nobody signs a change to their own record, a related person&apos;s or their supervisor&apos;s, or one they proposed; a step whose role holders all have a conflict falls to the Board. Changing
-          these rules needs the CEO and the Board.
-        </p>
+        <>
+          <p className="max-w-2xl text-sm text-muted">
+            Every signature in the app needs a type of role, not a title. This table says who in this organization holds each type. Whatever it says, nobody signs anything about themselves, a related person or their own supervisor, or anything they
+            proposed; a step whose holders all have a conflict falls to the board. Changing this table needs the executive head and the board.
+          </p>
+          <div className="space-y-3">
+            {HR_ROLES.map((r) => (
+              <article key={r} className="rounded-2xl border border-line bg-surface p-4">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <h3 className="font-semibold">{ROLE_LABEL[r]}</h3>
+                  <span className="text-sm">{rules.holders[r].map((x) => names[x] ?? x).join(", ") || <span className="text-clay">Nobody named yet</span>}</span>
+                </div>
+                <p className="mt-1 text-sm text-muted">{ROLE_HELP[r]}</p>
+                {SIGNATURES.some((g) => g.by.includes(r)) && (
+                  <ul className="mt-2 list-disc ps-5 text-sm">
+                    {SIGNATURES.filter((g) => g.by.includes(r)).map((g) => (
+                      <li key={g.area + g.what}>
+                        <span className="text-muted">{g.area}:</span> {g.what}
+                        {g.by.length > 1 && <span className="text-muted"> (with {g.by.filter((x) => x !== r).map((x) => SIGNER_LABEL[x].toLowerCase()).join(", ")})</span>}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </article>
+            ))}
+          </div>
+          <SectionLabel>Steps for each kind of HR change</SectionLabel>
+        </>
       )}
       <table className="w-full text-sm">
         <tbody className="divide-y divide-line">
@@ -842,19 +867,21 @@ function RulesView({ rules, names, onPropose, compact }: { rules: Rules; names: 
           ))}
         </tbody>
       </table>
-      <table className="w-full text-sm">
-        <tbody className="divide-y divide-line">
-          {HR_ROLES.map((r) => (
-            <tr key={r}>
-              <td className="w-32 py-1.5 pe-3 text-muted">{ROLE_LABEL[r]}</td>
-              <td className="py-1.5">{rules.holders[r].map((x) => names[x] ?? x).join(", ") || "—"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {compact && (
+        <table className="w-full text-sm">
+          <tbody className="divide-y divide-line">
+            {HR_ROLES.map((r) => (
+              <tr key={r}>
+                <td className="w-40 py-1.5 pe-3 text-muted">{ROLE_LABEL[r]}</td>
+                <td className="py-1.5">{rules.holders[r].map((x) => names[x] ?? x).join(", ") || "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
       {onPropose && (
         <button type="button" className={quietBtn} onClick={onPropose}>
-          Propose new rules
+          Propose changes to the authority table
         </button>
       )}
     </section>
@@ -876,7 +903,7 @@ function RulesForm({ rules, view, onClose, submit }: { rules: Rules; view: HrVie
   const toggle = (r: HrRole, id: string) => setDraft((d) => ({ ...d, holders: { ...d.holders, [r]: d.holders[r].includes(id) ? d.holders[r].filter((x) => x !== id) : [...d.holders[r], id] } }));
   const sel = "rounded-lg border border-line bg-paper px-2 py-1.5 text-sm";
   return (
-    <Modal title="Propose new rules" onClose={onClose}>
+    <Modal title="Propose changes to the authority table" onClose={onClose}>
       <div className="space-y-5">
         <section>
           <SectionLabel>Steps</SectionLabel>
