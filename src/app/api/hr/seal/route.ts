@@ -1,6 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
-import { rolesOf } from "@/lib/hr";
+import { seesAll } from "@/lib/hr";
 import { requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
 import { loadHr, seal } from "@/server/hr-store";
@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     const v = await requireViewer(req, { write: true });
     if (v instanceof NextResponse) return v;
     const { state } = await loadHr();
-    if (!rolesOf(v.user.id, state).length) return NextResponse.json({ error: "Only people holding an HR role can seal the record." }, { status: 403 });
+    if (!seesAll(v.user.id, state)) return NextResponse.json({ error: "Only people holding an HR role can seal the record." }, { status: 403 });
     return NextResponse.json(await seal(v.user.id));
   });
 }

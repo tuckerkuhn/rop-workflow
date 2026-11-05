@@ -5,6 +5,7 @@ import { TODAY } from "@/lib/demo";
 import { requireViewer } from "@/server/auth";
 import { loadCloseouts, saveCloseouts } from "@/server/closeout-store";
 import { handle } from "@/server/guard";
+import { holdsRole } from "@/server/hr-store";
 import { loadProcurements } from "@/server/procurement-store";
 
 type Ctx = { params: Promise<{ code: string }> };
@@ -23,8 +24,9 @@ export async function GET(req: Request, { params }: Ctx) {
 export async function POST(req: Request, { params }: Ctx) {
   const { code } = await params;
   return handle(async () => {
-    const v = await requireViewer(req, { write: true, allow: (u) => u.procurement.includes("finance") || !!u.admin, why: "Only Finance closes a month." });
+    const v = await requireViewer(req, { write: true });
     if (v instanceof NextResponse) return v;
+    if (!(v.user.procurement.includes("finance") || v.user.admin || (await holdsRole(v.user.id, "finance")))) return NextResponse.json({ error: "Only Finance closes a month." }, { status: 403 });
     const parsed = z.object({ month: z.string().regex(/^\d{4}-\d{2}$/) }).safeParse(await req.json().catch(() => null));
     if (!parsed.success) return NextResponse.json({ error: "Say which month." }, { status: 400 });
     const { month } = parsed.data;

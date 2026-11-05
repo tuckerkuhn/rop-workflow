@@ -7,6 +7,8 @@
 export type StatusKind = "CUR" | "D1" | "D1*" | "TS" | "OPEN" | "PA";
 
 import { formatMoney, holderOf, users, type ProcRole } from "@/lib/demo";
+import { holdersOfType, holdsType } from "@/lib/authority";
+import type { HrRole } from "@/lib/hr";
 
 export type Role = ProcRole;
 export type Money = (usd: number) => string;
@@ -159,8 +161,57 @@ export type PlanLink = {
  */
 export function holderFor(p: Procurement, role: Role) {
   if (p.plan && role === "holder") return users.find((u) => u.id === p.plan!.requestedById) ?? users.find((u) => u.name === p.plan!.requestedBy);
+  // The authority table names who holds each role type; the old per-person roles are the fallback.
+  const type = typeFor(p, role);
+  const ids = type ? holdersOfType(type) : [];
+  if (ids.length) {
+    const holders = ids.map((id) => users.find((u) => u.id === id)).filter((u): u is (typeof users)[number] => !!u);
+    const manager = role === "procurement" ? holders.find((u) => /manager/i.test(u.title)) : undefined;
+    if (manager ?? holders[0]) return manager ?? holders[0];
+  }
   if (p.plan && role === "procurement") return users.find((u) => u.procurement.includes("procurement") && /manager/i.test(u.title)) ?? holderOf("procurement", role);
   return holderOf("procurement", role);
+}
+
+/**
+ * The role type a step needs. Award approval follows the policy levels: programme management
+ * up to the large threshold; the executive head for large awards and any sole source.
+ */
+export function typeFor(p: Pick<Procurement, "route"> & Partial<Procurement>, role: Role): HrRole | null {
+  switch (role) {
+    case "holder":
+      return "technical";
+    case "procurement":
+      return "procurement";
+    case "finance":
+      return "finance";
+    case "ho":
+      return "compliance";
+    case "approver":
+      return p.route === "sole" || (p.qty !== undefined && levelFor(valueOf(p as Procurement)) === "Large") ? "ceo" : "management";
+    default:
+      return null;
+  }
+}
+
+/** A person's procurement roles: from the authority table, plus any set on their profile. */
+export function procRolesFor(u: { id: string; procurement: ProcRole[] } | null | undefined): Role[] {
+  if (!u) return [];
+  const out = new Set<Role>(u.procurement);
+  if (holdsType(u.id, "procurement")) out.add("procurement");
+  if (holdsType(u.id, "finance")) out.add("finance");
+  if (holdsType(u.id, "compliance")) out.add("ho");
+  if (holdsType(u.id, "management") || holdsType(u.id, "ceo")) out.add("approver");
+  if (holdsType(u.id, "technical")) out.add("holder");
+  return [...out];
+}
+
+/** Whether this person may sign the step for this role on this procurement (an award may need the executive head). */
+export function maySign(u: { id: string; procurement: ProcRole[] } | null | undefined, p: Procurement, role: Role): boolean {
+  if (!u || !procRolesFor(u).includes(role)) return false;
+  const type = typeFor(p, role);
+  if (!type || !holdersOfType(type).length) return true;
+  return holdsType(u.id, type) || (role === "holder" && holderFor(p, role)?.id === u.id);
 }
 /** "Farid Sultani (Budget holder)" for a role on this procurement. */
 export const rolePersonFor = (p: Procurement, r: Role) => {

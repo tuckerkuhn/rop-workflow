@@ -144,7 +144,19 @@ async function storeSampleFile(name: string, text: string, by: string) {
 
 export async function seedSample(write: typeof append = append, file: typeof storeSampleFile = storeSampleFile) {
   const today = todayIso();
-  const rules: Rules = { steps: DEFAULT_STEPS, holders: { hr: ["sima", "mina"], payroll: ["omid"], cfo: ["peter"], ceo: ["grace"], board: ["arthur"] } };
+  const rules: Rules = { steps: DEFAULT_STEPS, holders: {
+      ceo: ["grace"],
+      management: ["karim"],
+      cfo: ["peter"],
+      finance: ["yusuf", "omid"],
+      procurement: ["hamid", "zahra"],
+      hr: ["sima", "mina"],
+      payroll: ["omid"],
+      technical: ["farid", "laila", "javed", "shabnam", "nadia"],
+      compliance: ["sarah"],
+      board: ["arthur"],
+    },
+  };
   await write("sima", "start", null, { rules });
 
   const usd = (pay: number): Fields => ({ payBasis: "Month", pay, currency: "USD" });
@@ -285,4 +297,10 @@ export async function seedSample(write: typeof append = append, file: typeof sto
     currency: "AFN",
     lines: [{ date: `${last}-08`, category: "taxi", description: "Taxi to farmer group meeting, Herat", source: "ACRP-2026", amount: 1500, receipts: [fuel] }],
   });
+}
+
+/** Whether a person holds a role type in the authority table (server side). */
+export async function holdsRole(person: string, type: import("@/lib/hr").HrRole) {
+  const { state } = await loadHr();
+  return !!state.rules?.holders[type]?.includes(person);
 }

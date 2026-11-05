@@ -29,7 +29,7 @@ import {
   Tracker,
   primaryBtn,
 } from "@/components/workspace/ui";
-import { AFN_PER_USD, projectPath, stepHistory } from "@/lib/demo";
+import { AFN_PER_USD, projectPath, stepHistory, userById } from "@/lib/demo";
 import {
   DONE,
   TODAY,
@@ -57,7 +57,12 @@ import {
   type Issue,
   type Procurement,
   type Role,
+  maySign,
+  procRolesFor,
+  typeFor,
 } from "@/lib/procurement";
+import { holdersOfType } from "@/lib/authority";
+import { ROLE_LABEL } from "@/lib/hr";
 
 
 const fieldCls = "w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm focus:border-forest focus:outline-none disabled:bg-paper disabled:text-muted";
@@ -440,7 +445,9 @@ function Detail({
   const step = stepById[p.step];
   const owner = ownerOf(p);
   const ownerUser = owner ? holderFor(p, owner) : undefined;
-  const mine = !!role && owner === role;
+  const mine = !!role && owner === role && maySign(user, p, role);
+  // A step this person's role covers but whose signature needs another role type (a large award, a sole source).
+  const needsOther = !!role && owner === role && !mine ? typeFor(p, role) : null;
   const value = valueOf(p);
   const line = lineOf(p);
   const isReady = ready(p);
@@ -500,6 +507,13 @@ function Detail({
           <p className="mt-1 text-sm text-muted">The file is complete and every document carries {p.id}.</p>
         </div>
       ) : (
+        <>
+          {needsOther && (
+            <p className="rounded-xl bg-ochre-soft px-4 py-3 text-sm text-ochre">
+              This signature needs the {ROLE_LABEL[needsOther].toLowerCase()} ({holdersOfType(needsOther).map((id) => userById(id)?.name ?? id).join(" or ") || "nobody named in the authority table"}):{" "}
+              {needsOther === "ceo" ? "large awards and every sole source go to the executive head." : "it is outside your role."}
+            </p>
+          )}
         <StepCard
           mine={mine}
           ownerLabel={rolePersonFor(p, owner!)}
@@ -640,6 +654,7 @@ function Detail({
             )}
           </ul>
         </StepCard>
+        </>
       )}
 
       <IssueList
@@ -696,7 +711,7 @@ function Detail({
 
 export function ProcurementWorkspace() {
   const { user } = useRequireUser();
-  const myRoles = (user?.procurement ?? []) as Role[];
+  const myRoles = procRolesFor(user);
   const { project } = useCurrentProject();
   const { items, setItems, error, reset, draft: draftDoc, check: runCheck } = useProcurements(project.id);
   const plan = usePlan(project.saved ? project.id : null);
