@@ -98,8 +98,11 @@ const money = z.number().finite().min(-1e9).max(1e9);
 /** The parts of a payroll line the rules need; the rest of the line is kept as written. */
 const payLine = z.looseObject({ person: personId, gross: money, bonus: money, retro: money, vacationPayout: money, medicalReimb: money, expenses: money, advance: money });
 export type PayLineCore = z.infer<typeof payLine>;
-/** Discretionary amounts: a person whose line has one of these may not sign the run. */
-export const adjustedIn = (lines: PayLineCore[]) => lines.filter((l) => l.bonus || l.retro || l.vacationPayout || l.medicalReimb || l.expenses || l.advance).map((l) => l.person);
+/**
+ * Discretionary amounts: a person whose line has one of these may not sign the run. Expenses are
+ * not among them: they come only from expense reports already approved by someone else.
+ */
+export const adjustedIn = (lines: PayLineCore[]) => lines.filter((l) => l.bonus || l.retro || l.vacationPayout || l.medicalReimb || l.advance).map((l) => l.person);
 
 const rulesSchema = z.object({
   // Partial, so rules written before a kind or role existed still read; missing ones take the defaults.
@@ -435,7 +438,11 @@ export function fold(entries: Entry[], today: string): HrState {
       case "timesheet":
       case "ts-approve":
       case "ts-return":
-        // Read by foldTimesheets (lib/timesheet.ts).
+      case "expense":
+      case "ex-approve":
+      case "ex-return":
+      case "ex-withdraw":
+        // Read by foldTimesheets (lib/timesheet.ts) and foldExpenses (lib/expense.ts).
         break;
       default:
         ignore(e, "unknown kind of entry");

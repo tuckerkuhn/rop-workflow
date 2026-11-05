@@ -9,12 +9,14 @@ import { sql } from "drizzle-orm";
 import {
   boolean,
   check,
+  customType,
   date,
   integer,
   jsonb,
   numeric,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -745,4 +747,26 @@ export const hrLedger = pgTable(
     hash: text("hash").notNull(),
   },
   (t) => [uniqueIndex("hr_ledger_book_n").on(t.book, t.n)],
+);
+
+const bytea = customType<{ data: Buffer }>({ dataType: () => "bytea" });
+
+/**
+ * Files kept as evidence in the HR record (receipts, signed forms), stored by their SHA-256
+ * fingerprint, which the ledger entries refer to. Like the ledger, never changed or deleted;
+ * books starting with "demo" may be cleared (migration 0018).
+ */
+export const hrFiles = pgTable(
+  "hr_files",
+  {
+    hash: text("hash").notNull(),
+    book: text("book").notNull(),
+    name: text("name").notNull(),
+    type: text("type").notNull(),
+    size: integer("size").notNull(),
+    data: bytea("data").notNull(),
+    uploadedBy: text("uploaded_by").notNull(),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.book, t.hash] }), check("hr_files_size", sql`${t.size} > 0 AND ${t.size} <= 5000000`)],
 );
