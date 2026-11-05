@@ -349,6 +349,29 @@ function PeopleCard() {
   );
 }
 
+/** For administrators: conflicts between the organization's and the donor's rules on this project, waiting for a decision. */
+function RulesConflicts() {
+  const { user } = useSession();
+  const { project } = useCurrentProject();
+  const [open, setOpen] = useState(0);
+  useEffect(() => {
+    if (!user?.admin || !project.saved) return;
+    fetch(`/api/projects/${project.id}/policy`, { cache: "no-store", headers: { "x-demo-user": user.id } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((v: { open: string[] } | null) => setOpen(v?.open.length ?? 0))
+      .catch(() => setOpen(0));
+  }, [user, project.id, project.saved]);
+  if (!open) return null;
+  return (
+    <Link href="/settings/policy" className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-2xl border border-clay bg-clay-soft px-5 py-3 text-sm text-clay transition hover:border-forest">
+      <span className="font-semibold">Rules to decide</span>
+      <span>
+        {open} {open === 1 ? "rule" : "rules"} in {project.name} where the organization&apos;s and the donor&apos;s policies conflict
+      </span>
+    </Link>
+  );
+}
+
 export function Dashboard() {
   const { user, money } = useRequireUser();
   const { project: current } = useCurrentProject();
@@ -422,6 +445,7 @@ export function Dashboard() {
             </p>
           )}
         </header>
+        {!readOnly && user.admin && <RulesConflicts />}
         {!readOnly && user.kind === "employee" && <PeopleCard />}
         {user.kind === "donor" ? (
           <DonorHome field={field} project={project} />

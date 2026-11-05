@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { primaryBtn } from "@/components/workspace/ui";
 import { TODAY } from "@/lib/demo";
-import { ROUTES, isSharePointUrl, levelFor, reviewKey, routesFor, valueOf, type Draft, type Procurement } from "@/lib/procurement";
+import { ROUTES, committeeNeeded, isSharePointUrl, levelFor, reviewKey, routesFor, rulesInForce, valueOf, type Draft, type Procurement } from "@/lib/procurement";
 
 /**
  * Step panels for choosing how to buy: the route, the sole-source facts, and AI drafts of the
@@ -30,8 +30,13 @@ const unreview = (q: Procurement): Record<string, boolean> => {
 };
 
 export function RoutePicker({ p, editable, update }: { p: Procurement; editable: boolean; update: Update }) {
-  const level = levelFor(valueOf(p));
-  const allowed = routesFor(level);
+  const value = valueOf(p);
+  const level = levelFor(value);
+  const allowed = routesFor(level, value);
+  const rif = rulesInForce();
+  const soleAbove = typeof rif.soleSourceAboveUsd === "number" ? rif.soleSourceAboveUsd : 5000;
+  const why = (id: string) =>
+    id === "direct" ? `Only for Micro purchases (up to $${Number(rif.microMaxUsd ?? 500).toLocaleString("en-US")}).` : id === "sole" ? `Sole source applies only above $${soleAbove.toLocaleString("en-US")}; below that, compete as usual.` : "Micro purchases are bought directly.";
   return (
     <fieldset className={box} disabled={!editable}>
       <legend className="sr-only">How it is bought</legend>
@@ -50,11 +55,32 @@ export function RoutePicker({ p, editable, update }: { p: Procurement; editable:
                 <input type="radio" name={`route-${p.id}`} checked={on} disabled={!ok || !editable} onChange={() => update((q) => ({ ...q, route: r.id }))} className="accent-[var(--forest)]" />
                 {r.title}
               </span>
-              <span className="mt-1 text-xs text-muted">{ok ? r.detail : r.id === "direct" ? "Only for Micro purchases (up to $500)." : "Micro purchases are bought directly."}</span>
+              <span className="mt-1 text-xs text-muted">{ok ? r.detail : why(r.id)}</span>
             </label>
           );
         })}
       </div>
+      {(level === "Medium" || level === "Large") && p.route === "rfq" && (
+        <div className="mt-4">
+          <p className="text-sm font-semibold">How will bids be evaluated?</p>
+          <div className="mt-2 flex flex-wrap gap-4 text-sm">
+            {(
+              [
+                ["lowest", "Lowest price that meets every requirement"],
+                ["bestValue", "Best value (weighted scoring; needs a bid committee)"],
+              ] as const
+            ).map(([id, label]) => (
+              <label key={id} className="flex items-center gap-2">
+                <input type="radio" name={`eval-${p.id}`} checked={(p.evaluation ?? "lowest") === id} disabled={!editable} onChange={() => update((q) => ({ ...q, evaluation: id }))} className="accent-[var(--forest)]" />
+                {label}
+              </label>
+            ))}
+          </div>
+          <p className="mt-1 text-xs text-muted">
+            {committeeNeeded(p) ? "A bid committee evaluates this one." : "Below the committee threshold on lowest price: programme management may waive the committee with a signed certification."}
+          </p>
+        </div>
+      )}
     </fieldset>
   );
 }

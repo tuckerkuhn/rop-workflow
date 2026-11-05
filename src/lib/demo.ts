@@ -186,6 +186,7 @@ export const stepHistory: Record<string, { median: number; n: number }> = {
   approveSol: { median: 2, n: 12 },
   bids: { median: 14, n: 12 },
   evaluate: { median: 4, n: 11 },
+  evaluateWaived: { median: 3, n: 6 },
   screen: { median: 2, n: 11 },
   approveAward: { median: 2, n: 27 },
   contract: { median: 4, n: 25 },

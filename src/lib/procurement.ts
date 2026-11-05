@@ -9,6 +9,7 @@ export type StatusKind = "CUR" | "D1" | "D1*" | "TS" | "OPEN" | "PA";
 import { formatMoney, holderOf, users, type ProcRole } from "@/lib/demo";
 import { holdersOfType, holdsType } from "@/lib/authority";
 import type { HrRole } from "@/lib/hr";
+import { ROP, type Value } from "@/lib/policy";
 
 export type Role = ProcRole;
 export type Money = (usd: number) => string;
@@ -32,13 +33,46 @@ export const rolePerson = (r: Role) => {
 
 export type Level = "Micro" | "Small" | "Medium" | "Large";
 
-/** USD thresholds: same in the April 2025 policy and Draft 1.0. */
+/**
+ * The rules in force: the project's organization policy combined with its donor's
+ * (lib/policy.ts), set when a project's rules load. Until then, ROP's own policy.
+ */
+const DEFAULT_RULES: Record<string, Value> = Object.fromEntries(Object.entries(ROP.values).map(([k, c]) => [k, c.value]));
+let rules: Record<string, Value> = DEFAULT_RULES;
+export function setProcurementRules(values?: Record<string, Value> | null) {
+  rules = { ...DEFAULT_RULES, ...Object.fromEntries(Object.entries(values ?? {}).filter(([, v]) => v !== null)) };
+}
+export const rulesInForce = () => rules;
+const rule = (k: string, fallback: number) => (typeof rules[k] === "number" ? (rules[k] as number) : fallback);
+const ruleList = (k: string) => (Array.isArray(rules[k]) ? (rules[k] as string[]) : []);
+
+/** The level a value falls in, by the thresholds in force (ROP: $500 / $5,000 / $25,000, April 2025 Table 1). */
 export function levelFor(value: number): Level {
-  if (value <= 500) return "Micro";
-  if (value <= 5000) return "Small";
-  if (value <= 25000) return "Medium";
+  if (value <= rule("microMaxUsd", 500)) return "Micro";
+  if (value <= rule("smallMaxUsd", 5000)) return "Small";
+  if (value <= rule("largeAboveUsd", 25000)) return "Medium";
   return "Large";
 }
+
+/** A bid committee: always for best value; for lowest price above the committee threshold (below it, programme management may waive it). */
+export const committeeNeeded = (p: Procurement) => (p.evaluation === "bestValue" && rules.committeeForBestValue !== false) || valueOf(p) > rule("committeeAboveUsd", 25000);
+
+/** Goods on the donor's restricted list that this request seems to cover. */
+export function restrictedHits(p: Pick<Procurement, "title" | "specification">) {
+  const text = ` ${p.title} ${p.specification} `.toLowerCase();
+  const stems: Record<string, string[]> = {
+    "agricultural commodities": ["seed", "grain", "wheat", "commodit"],
+    fertilizer: ["fertili", "urea", " dap "],
+    pesticides: ["pesticid", "insecticid", "herbicid", "fungicid"],
+    "motor vehicles": ["vehicle", "motorbike", "motorcycle", "truck", " car "],
+    pharmaceuticals: ["pharma", "medicine", " drug"],
+    "used equipment": [" used ", "second-hand", "second hand", "refurbished"],
+  };
+  return ruleList("restrictedGoods").filter((g) => (stems[g.toLowerCase()] ?? [g.toLowerCase()]).some((w) => text.includes(w)));
+}
+
+/** Screening lists in force, for the screening check. */
+export const screeningLists = () => ruleList("screeningLists");
 
 export const stages = ["Need", "Requisition", "Authorize", "Select", "Contract", "Receive", "Pay-ready", "Close"];
 
@@ -107,6 +141,8 @@ export type Procurement = {
   drafts?: Record<string, Draft>;
   /** Expense voucher prepared by Finance, filed in SharePoint and posted in NetSuite. */
   voucher?: Voucher;
+  /** How bids are evaluated: lowest price technically acceptable, or best value. */
+  evaluation?: "lowest" | "bestValue";
 };
 
 export type Voucher = {
@@ -125,8 +161,14 @@ export const ROUTES: { id: Route; title: string; detail: string }[] = [
   { id: "rfq", title: "Request for quotation", detail: "The app drafts the RFQ from the request; procurement checks it before it goes to suppliers." },
   { id: "sole", title: "Sole source", detail: "One supplier is uniquely placed. The app drafts the justification; the approving authority approves it before any supplier is engaged." },
 ];
-/** Routes allowed at a level: direct purchase only for Micro, competition otherwise; sole source at any level. */
-export const routesFor = (level: Level): Route[] => (level === "Micro" ? ["direct", "sole"] : ["rfq", "sole"]);
+/**
+ * Routes allowed: direct purchase for Micro, competition otherwise; sole source only above its
+ * threshold in force (ROP: over $5,000, April 2025 Table 1), since below it the micro and quotation rules apply.
+ */
+export const routesFor = (level: Level, value?: number): Route[] => {
+  const base: Route[] = level === "Micro" ? ["direct"] : ["rfq"];
+  return value === undefined || value > rule("soleSourceAboveUsd", 5000) ? [...base, "sole"] : base;
+};
 
 export type Draft = {
   sections: { heading: string; body: string }[];
@@ -269,6 +311,8 @@ const SMALL_UP: Level[] = ["Small", "Medium", "Large"];
 const OPEN_COMP: Level[] = ["Medium", "Large"];
 /** Competitive steps are skipped on the sole-source route. */
 const competitive = (p: Procurement) => p.route !== "sole";
+/** The committee's evaluation: competition, and a sole source too where the policy keeps the normal process (ROP April 2025 §4.6). */
+const evaluated = (p: Procurement) => competitive(p) || (p.route === "sole" && rules.soleSourceKeepsSteps === true);
 const fmt = (n: number) => n.toLocaleString("en-US");
 
 export const steps: Step[] = [
@@ -356,6 +400,23 @@ export const steps: Step[] = [
     checks: [
       { id: "noContact", label: "No supplier has been approached yet", why: "Requisition approval comes before any supplier is approached, at every level. Otherwise it is a post-facto action.", tag: "D1 §3.2" },
       { id: "reviewed", label: "Requisition reviewed and complete", why: "The approver relies on the budget, price basis and activity link shown above.", tag: "D1 §3.2" },
+      {
+        id: "donorApproval",
+        label: "Donor prior approval, where the donor requires it",
+        get why() {
+          const above = rules.donorApprovalAboveUsd;
+          const goods = ruleList("restrictedGoods");
+          return `Needed above ${typeof above === "number" ? `$${above.toLocaleString("en-US")}` : "no set amount"}${goods.length ? ` and for restricted goods (${goods.join(", ")})` : ""}, before any supplier is approached.`;
+        },
+        tag: "Donor rules",
+        auto: (p) => {
+          const above = rules.donorApprovalAboveUsd;
+          const hits = restrictedHits(p);
+          const overLimit = typeof above === "number" && valueOf(p) > above;
+          // Not needed: passes on its own. Needed: a person ticks it once the donor's written approval is on file.
+          return hits.length || overLimit ? null : { ok: true, detail: "Not needed under the donor's rules" };
+        },
+      },
     ],
   },
   {
@@ -377,7 +438,7 @@ export const steps: Step[] = [
         auto: (p) =>
           !p.route
             ? { ok: false, detail: "Choose a route above" }
-            : { ok: routesFor(levelFor(valueOf(p))).includes(p.route), detail: `${ROUTES.find((r) => r.id === p.route)!.title} · ${levelFor(valueOf(p))} level` },
+            : { ok: routesFor(levelFor(valueOf(p)), valueOf(p)).includes(p.route), detail: `${ROUTES.find((r) => r.id === p.route)!.title} · ${levelFor(valueOf(p))} level` },
       },
     ],
   },
@@ -432,6 +493,13 @@ export const steps: Step[] = [
     checks: [
       { id: "before", label: "No order placed with the supplier yet", why: "Sole source approval comes before the procurement begins. Otherwise it is a post-facto action.", tag: "D1 §3.2, §5.5" },
       { id: "grounds", label: "The grounds hold up", why: "Read the justification: is this supplier really the only one, and is the price reasonable?", tag: "D1 §5.5" },
+      {
+        id: "donorSole",
+        label: "The donor's written agreement is on file",
+        why: "Where the donor requires it (UNDP: competition unless it agrees otherwise in writing, RPA Art. 8.1), on top of the organization's own approval.",
+        tag: "Donor rules",
+        auto: () => (rules.soleSourceDonorApproval === true ? null : { ok: true, detail: "Not required by this project's donor" }),
+      },
     ],
   },
   {
@@ -519,12 +587,16 @@ export const steps: Step[] = [
       {
         id: "advert",
         label: "Advertised long enough",
-        why: "At least 10 days for Medium and 14 for Large, from first publication.",
-        tag: "D1 §4.5",
-        auto: (p) =>
-          p.advertisedDays === undefined
-            ? null
-            : { ok: p.advertisedDays >= (levelFor(valueOf(p)) === "Large" ? 14 : 10), detail: `Advertised ${p.advertisedDays} days` },
+        get why() {
+          return `At least ${rule("advertisingDays", 10)} days, or ${rule("advertisingDaysLarge", 14)} for Large, from first publication, and no more than ${rule("bidPeriodMaxDays", 30)}: the stricter of the organization's and the donor's rules.`;
+        },
+        tag: "ROP April 2025 §3.2.9, §4.5; donor rules",
+        auto: (p) => {
+          if (p.advertisedDays === undefined) return null;
+          const need = levelFor(valueOf(p)) === "Large" ? rule("advertisingDaysLarge", 14) : rule("advertisingDays", 10);
+          const cap = rule("bidPeriodMaxDays", 30);
+          return { ok: p.advertisedDays >= need && p.advertisedDays <= cap, detail: `Advertised ${p.advertisedDays} days; the rules in force need ${need} to ${cap}` };
+        },
       },
       {
         id: "sealed",
@@ -537,8 +609,27 @@ export const steps: Step[] = [
     ],
   },
   {
+    id: "evaluateWaived",
+    // Below the committee threshold, on lowest price, programme management may waive the committee (ROP April 2025 §3.2.6).
+    when: (p) => competitive(p) && !committeeNeeded(p),
+    stage: 3,
+    title: "Evaluate the bids (committee waived)",
+    owner: "procurement",
+    levels: OPEN_COMP,
+    action: "Sign selection memo",
+    done: "Source selection memo signed",
+    produces: ["Committee waiver", "Evaluation sheet", "Source selection memo"],
+    signs: { doc: "Source selection memo", as: "Evaluated by (procurement)" },
+    checks: [
+      { id: "waiver", label: "Programme management signed the committee waiver", why: "Allowed only for lowest-price evaluations at or below the committee threshold; best value always needs a committee.", tag: "ROP April 2025 §3.2.6" },
+      { id: "qualify", label: "Pass/fail checked before choosing", why: "A bid that fails a minimum requirement is not considered.", tag: "ROP April 2025 §3.2.7" },
+      { id: "lowest", label: "Lowest price that meets every requirement chosen", why: "Lowest price technically acceptable.", tag: "ROP April 2025 §3.2.7" },
+    ],
+  },
+  {
     id: "evaluate",
-    when: competitive,
+    // A committee for best value and above the threshold; a sole source keeps its committee review where the policy says so.
+    when: (p) => evaluated(p) && (committeeNeeded(p) || p.route === "sole"),
     stage: 3,
     title: "Evaluate the bids",
     owner: "committee",
@@ -559,15 +650,31 @@ export const steps: Step[] = [
     title: "Screen the chosen supplier",
     owner: "procurement",
     levels: ALL,
-    when: (p) => OPEN_COMP.includes(levelFor(valueOf(p))) || p.route === "sole",
+    // Screening and vendor documents at every level where the policy says so (ROP April 2025 checklists p26–39).
+    when: (p) => rules.dueDiligenceAllLevels === true || OPEN_COMP.includes(levelFor(valueOf(p))) || p.route === "sole",
     action: "Send for award",
     done: "Supplier screened",
     produces: ["Screening record", "Due diligence"],
     signs: { doc: "Screening record", as: "Screened and reviewed by" },
     checks: [
-      { id: "lists", label: "Checked against the donor's lists and the OFAC plan", why: "Which lists depends on the funding source.", tag: "D1 §4.8" },
-      { id: "human", label: "Result reviewed by a person; any match resolved with reasons", why: "Every screening result is reviewed before the workflow continues.", tag: "TS" },
-      { id: "dd", label: "Legal existence, capacity and no staff connection confirmed", why: "Due diligence at Medium and above, from evidence submitted with the bid.", tag: "D1 §4.8" },
+      {
+        id: "lists",
+        label: "Checked against every list the rules require",
+        get why() {
+          const lists = screeningLists();
+          return lists.length ? `Lists in force for this project: ${lists.join("; ")}.` : "Which lists depends on the funding source.";
+        },
+        tag: "ROP April 2025 §3.2.12; donor rules",
+      },
+      { id: "human", label: "Result reviewed by a person; any match resolved with reasons", why: "Every screening result is reviewed before the workflow continues. A match means exclusion.", tag: "TS" },
+      {
+        id: "dd",
+        label: "Licence, ID (tazkira) and bank details on file; no staff connection",
+        get why() {
+          return rules.dueDiligenceAllLevels === true ? "Vendor documents at every level, including Micro." : "Due diligence at Medium and above, from evidence submitted with the bid.";
+        },
+        tag: "ROP April 2025 checklists p26–39",
+      },
     ],
   },
   {
@@ -766,13 +873,17 @@ export const steps: Step[] = [
 ];
 
 export const stepById = Object.fromEntries(steps.map((s) => [s.id, s])) as Record<string, Step>;
-export const stepsFor = (p: Procurement) => steps.filter((s) => s.levels.includes(levelFor(valueOf(p))) && (!s.when || s.when(p)));
+/** The steps this procurement goes through under the rules in force. A step already under way stays in its path even if the rules have since changed. */
+export const stepsFor = (p: Procurement) => steps.filter((s) => s.id === p.step || (s.levels.includes(levelFor(valueOf(p))) && (!s.when || s.when(p))));
 export const DONE = "done";
 
 export function nextStep(p: Procurement): string {
   const list = stepsFor(p);
   const i = list.findIndex((s) => s.id === p.step);
-  return i >= 0 && i < list.length - 1 ? list[i + 1].id : DONE;
+  if (i >= 0) return i < list.length - 1 ? list[i + 1].id : DONE;
+  // A step that no longer applies (the rules changed while it was in progress): carry on from where it sits in the full sequence.
+  const at = steps.findIndex((s) => s.id === p.step);
+  return list.find((s) => steps.indexOf(s) > at)?.id ?? DONE;
 }
 export function prevStep(p: Procurement): string {
   const list = stepsFor(p);
