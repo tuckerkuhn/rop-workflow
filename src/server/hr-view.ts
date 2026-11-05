@@ -48,6 +48,9 @@ export type HrView = {
   me: string;
   roles: HrRole[];
   seesAll: boolean;
+  started: boolean;
+  /** Before the book starts: who may be named in its authority table. */
+  eligible?: string[];
   sample: boolean;
   book: string;
   integrity: Integrity;
@@ -114,6 +117,8 @@ export function viewFor(me: string, state: HrState, entries: Entry[], integrity:
     me,
     roles: rolesOf(me, state),
     seesAll: all,
+    /** False until the book's first entry sets who holds each approval role. */
+    started: !!state.rules,
     sample,
     book,
     integrity,

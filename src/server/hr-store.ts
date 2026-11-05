@@ -11,7 +11,12 @@ import { DEFAULT_STEPS, fold, type Entry, type Fields, type Integrity, type Prop
  */
 
 /** Which book this server writes to. Sample data lives in "demo", which may be cleared; real records go in a book that never can. */
-export const hrBook = () => process.env.HR_BOOK || "demo";
+/**
+ * Which book the app reads and writes. The live site uses ROP's real book ("rop"); the demo
+ * cast on a laptop uses the sample book. HR_BOOK overrides both. A book whose name starts with
+ * "demo" holds sample data and may be cleared; any other book can never be changed or deleted.
+ */
+export const hrBook = () => process.env.HR_BOOK || (process.env.DEMO_SIGN_IN === "1" ? "demo" : "rop");
 export const isSampleBook = () => hrBook().startsWith("demo");
 
 export const todayIso = () => new Date().toISOString().slice(0, 10);
@@ -46,7 +51,8 @@ const toEntry = (r: Row): Entry => ({ n: r.n, at: r.at_text, actor: r.actor, kin
 export async function loadHr() {
   const book = hrBook();
   let list = await rows(book);
-  if (!list.length && isSampleBook()) {
+  // Only the sample book fills itself; other "demo-…" books start empty, like a real one.
+  if (!list.length && book === "demo") {
     await seedSample();
     list = await rows(book);
   }

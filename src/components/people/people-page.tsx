@@ -163,6 +163,8 @@ export function PeoplePage() {
         )}
         {!v ? (
           !hr.error && <p className="mt-10 text-sm text-muted">Loading…</p>
+        ) : !v.started ? (
+          <StartRecord view={v} admin={!!user.admin} userId={user.id} onStarted={(msg) => void hr.reload().then(() => setNotice(msg))} />
         ) : (
           <>
             <IntegrityBar view={v} fmt={fmt} />
@@ -1099,5 +1101,87 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
         <div className="mt-4">{children}</div>
       </div>
     </div>
+  );
+}
+
+/**
+ * The HR record's first entry: who holds each approval role. Shown until the book is started.
+ * In a real book this entry can never be changed or deleted; later changes to the table need a
+ * proposal signed by the executive head and the board.
+ */
+function StartRecord({ view, admin, userId, onStarted }: { view: HrView; admin: boolean; userId: string; onStarted: (msg: string) => void }) {
+  const [holders, setHolders] = useState<Partial<Record<HrRole, string[]>>>({});
+  const [confirm, setConfirm] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  if (!admin)
+    return (
+      <p className="mt-6 rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">
+        The HR record has not been started yet. An administrator starts it by naming who holds each approval role.
+      </p>
+    );
+  const toggle = (r: HrRole, id: string) => setHolders((h) => ({ ...h, [r]: (h[r] ?? []).includes(id) ? (h[r] ?? []).filter((x) => x !== id) : [...(h[r] ?? []), id] }));
+  const name = (id: string) => view.names[id] ?? id;
+  const both = (holders.ceo ?? []).filter((x) => (holders.board ?? []).includes(x));
+  const missing = (["ceo", "board", "hr"] as HrRole[]).filter((r) => !(holders[r] ?? []).length);
+  const ready = !missing.length && !both.length && confirm.trim() === view.book;
+  const start = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      await call("/api/hr/start", userId, { method: "POST", body: JSON.stringify({ holders, confirm }) });
+      onStarted("The HR record is started. Changes to the authority table now need the executive head and the board.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="mt-6 rounded-2xl border border-line bg-surface p-5">
+      <h2 className="font-display text-2xl">Start the HR record</h2>
+      <p className="mt-1 max-w-2xl text-sm text-muted">
+        Name who holds each approval role. This is the record&rsquo;s first entry{view.sample ? "" : ", and in this real book it can never be changed or deleted"}. After it, the table changes only through a proposal signed by the executive head and the board. Only people added under{" "}
+        <a href="/settings/people" className="font-semibold text-forest hover:underline">
+          People and roles
+        </a>{" "}
+        who have a sign-in email can be named.
+      </p>
+      <div className="mt-4 divide-y divide-line">
+        {HR_ROLES.map((r) => (
+          <div key={r} className="py-3">
+            <p className="text-sm font-semibold">
+              {ROLE_LABEL[r]}
+              {(["ceo", "board", "hr"] as HrRole[]).includes(r) && <span className="ms-2 text-xs font-normal text-clay">required</span>}
+            </p>
+            <p className="text-xs text-muted">{ROLE_HELP[r]}</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {view.directory.filter((d) => !view.eligible || view.eligible.includes(d.id)).map((d) => {
+                const on = (holders[r] ?? []).includes(d.id);
+                return (
+                  <button key={d.id} type="button" aria-pressed={on} onClick={() => toggle(r, d.id)} className={`rounded-full border px-3 py-1 text-xs ${on ? "border-forest bg-mist font-semibold text-leaf" : "border-line text-muted hover:border-forest"}`}>
+                    {d.name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+      {both.length > 0 && <p className="mt-3 text-sm text-clay">{both.map(name).join(", ")} cannot be both executive head and board: nobody may sign two steps of one change.</p>}
+      {missing.length > 0 && <p className="mt-3 text-sm text-muted">Still needed: {missing.map((r) => ROLE_LABEL[r]).join(", ")}.</p>}
+      <label className="mt-4 block max-w-sm text-sm">
+        To confirm, type the book&rsquo;s name: <span className="font-mono">{view.book}</span>
+        <input className="mt-1 block w-full rounded-xl border border-line bg-paper px-3 py-2 text-base" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+      </label>
+      {error && (
+        <p role="alert" className="mt-3 text-sm text-clay">
+          {error}
+        </p>
+      )}
+      <button type="button" className={`${primaryBtn} mt-4`} disabled={!ready || busy} onClick={() => void start()}>
+        Start the HR record
+      </button>
+    </section>
   );
 }

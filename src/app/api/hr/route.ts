@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 import { actionSchema, conflictOf, mayPropose, nextSigners, ROLE_LABEL, seesAll, toYou, type HrAction } from "@/lib/hr";
 import { people, requireViewer } from "@/server/auth";
+import { eligibleSigners } from "@/server/hr-signers";
 import { handle } from "@/server/guard";
 import { append, isSampleBook, loadHr } from "@/server/hr-store";
 import { viewFor, waitingFor } from "@/server/hr-view";
@@ -15,7 +16,9 @@ export async function GET(req: Request) {
     // Home only needs the counts.
     if (new URL(req.url).searchParams.has("summary"))
       return NextResponse.json({ waiting: waitingFor(v.user.id, state), hrRole: seesAll(v.user.id, state), hasRecord: !!state.people[v.user.id], intact: integrity.ok });
-    return NextResponse.json(viewFor(v.user.id, state, entries, integrity, await people(), book, isSampleBook()));
+    const view = viewFor(v.user.id, state, entries, integrity, await people(), book, isSampleBook());
+    // Before the book starts: who may be named in its authority table (on the live site, only people who can sign in).
+    return NextResponse.json(state.rules ? view : { ...view, eligible: await eligibleSigners() });
   });
 }
 
@@ -87,3 +90,4 @@ export async function POST(req: Request) {
     return NextResponse.json({ n, view: viewFor(me, after.state, after.entries, after.integrity, await people(), after.book, isSampleBook()) });
   });
 }
+
