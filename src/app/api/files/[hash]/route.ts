@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { seesAll } from "@/lib/hr";
 import { foldExpenses, nextFor } from "@/lib/expense";
 import { foldOnboarding } from "@/lib/onboarding";
+import { foldLeave } from "@/lib/leave";
 import { requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
 import { loadFile } from "@/server/hr-files";
@@ -29,6 +30,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ hash: st
         const { onboarding, policies } = foldOnboarding(entries, hr);
         // Policies are for everyone; a contract or ID only for the person (HR already passed above).
         if (policies.some((p) => p.file.hash === hash)) ok = true;
+        // A sick-leave certificate: the person and their supervisor.
+        const { requests } = foldLeave(entries, hr);
+        if (requests.some((r) => r.certificate?.hash === hash && (r.person === me || hr.people[r.person]?.current.supervisor === me))) ok = true;
         const mine = onboarding.find((o) => o.person === me);
         if (mine && (mine.contract.hash === hash || Object.values(mine.done).some((d) => d.value.kind === "upload" && d.value.file.hash === hash))) ok = true;
         ok ||= reports.some(

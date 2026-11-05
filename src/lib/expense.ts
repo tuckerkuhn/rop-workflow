@@ -19,15 +19,15 @@ export const CATEGORIES = {
   airfareUs: { label: "US airfare", gl: "7000" },
   parking: { label: "Parking and tolls", gl: "7070" },
   taxi: { label: "Taxi and local transport", gl: "7040" },
-  mileage: { label: "Mileage (own car)", gl: null },
-  lodging: { label: "Lodging", gl: null },
+  mileage: { label: "Mileage (own car)", gl: "7090" },
+  lodging: { label: "Lodging", gl: "7060" },
   meals: { label: "Staff meals (internal meetings)", gl: "6320" },
   entertainment: { label: "Business entertainment (third parties, donors)", gl: "6280" },
   supplies: { label: "Supplies", gl: "6180" },
   equipment: { label: "Office equipment", gl: "6080" },
   maintenance: { label: "Facility maintenance", gl: "6070" },
-  subscriptions: { label: "Memberships and subscriptions", gl: null },
-  other: { label: "Other", gl: null },
+  subscriptions: { label: "Memberships and subscriptions", gl: "6250" },
+  other: { label: "Other", gl: "6360" },
 } as const;
 export type Category = keyof typeof CATEGORIES;
 export const CATEGORY_KEYS = Object.keys(CATEGORIES) as Category[];

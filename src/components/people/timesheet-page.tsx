@@ -271,6 +271,16 @@ function CurrentSheet({ v, monthName, onApprove, onReturn, onRevise }: { v: Time
         </span>
       </div>
       {t.decidedBy?.note && <p className="rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">“{t.decidedBy.note}”</p>}
+      {t.leaveCheck.length > 0 && (
+        <div className="rounded-xl bg-ochre-soft px-4 py-3 text-sm text-ochre">
+          <p className="font-semibold">Leave on this timesheet does not match approved leave:</p>
+          <ul className="mt-1 list-disc ps-5">
+            {t.leaveCheck.map((x) => (
+              <li key={x}>{x}</li>
+            ))}
+          </ul>
+        </div>
+      )}
       <Summary sheet={t.sheet} v={v} />
       <DayList sheet={t.sheet} v={v} />
       {t.cannotApprove && <p className="text-sm text-muted">You cannot approve this: {t.cannotApprove}.</p>}

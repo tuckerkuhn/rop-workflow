@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { db, schema as s } from "@/db";
 import { seesAll, toYou, conflictOf, type HrState } from "@/lib/hr";
-import { NON_CONTRACT, approversFor, foldTimesheets, lastShares, prefill, tsActionSchema, type FundingSource, type Timesheet } from "@/lib/timesheet";
+import { NON_CONTRACT, approversFor, foldTimesheets, lastShares, leaveMismatch, prefill, tsActionSchema, type FundingSource, type Timesheet } from "@/lib/timesheet";
+import { foldLeave, leaveDays } from "@/lib/leave";
 import { people, requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
 import { append, loadHr, todayIso } from "@/server/hr-store";
@@ -26,6 +27,7 @@ function visibleTo(me: string, hr: HrState): string[] {
 async function view(me: string, month: string, person: string | null) {
   const { state: hr, entries, integrity } = await loadHr();
   const { sheets, ignored } = foldTimesheets(entries, hr);
+  const { requests } = foldLeave(entries, hr);
   const names = Object.fromEntries((await people()).map((u) => [u.id, u.name]));
   for (const p of Object.values(hr.people)) if (typeof p.current.name === "string") names[p.id] = p.current.name;
   const visible = visibleTo(me, hr).filter((id) => !hr.people[id].separated || hr.people[id].separated!.effective >= `${month}-01`);
@@ -34,7 +36,7 @@ async function view(me: string, month: string, person: string | null) {
   const withApprovers = (t: Timesheet) => {
     const a = approversFor(t, hr);
     const conflict = a.people.includes(me) ? null : conflictOf(me, { subject: t.person, by: t.by, signatures: [], type: "timesheet" }, hr);
-    return { ...t, approvers: a.people, via: a.via, canApprove: t.status === "pending" && a.people.includes(me), cannotApprove: conflict ? toYou(conflict).replace("proposed", "submitted") : null };
+    return { ...t, leaveCheck: leaveMismatch(t.sheet, leaveDays(requests, t.person, t.month)), approvers: a.people, via: a.via, canApprove: t.status === "pending" && a.people.includes(me), cannotApprove: conflict ? toYou(conflict).replace("proposed", "submitted") : null };
   };
   const current = who ? sheets.find((t) => t.person === who && t.month === month) : undefined;
   const office = who ? officeOf(hr, who) : "Home Office";
@@ -54,7 +56,8 @@ async function view(me: string, month: string, person: string | null) {
     office,
     current: current ? withApprovers(current) : null,
     history: who ? sheets.filter((t) => t.person === who).sort((a, b) => b.month.localeCompare(a.month)).slice(0, 12).map((t) => ({ n: t.n, month: t.month, status: t.status, version: t.version })) : [],
-    prefill: who && !current ? prefill(month, office, shares) : null,
+    prefill: who && !current ? prefill(month, office, shares, leaveDays(requests, who, month)) : null,
+    approvedLeave: who ? leaveDays(requests, who, month) : {},
     overview: visible.map((id) => {
       const t = sheets.find((x) => x.person === id && x.month === month);
       return { person: id, status: t?.status ?? "missing", n: t?.n ?? null, by: t?.by ?? null, revised: t?.revisedAfterApproval ?? false };
