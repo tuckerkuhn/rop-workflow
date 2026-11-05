@@ -85,6 +85,26 @@ export function RoutePicker({ p, editable, update }: { p: Procurement; editable:
   );
 }
 
+/** The chosen supplier, named at screening: screened against the lists in force and added up for repeat micro buys. */
+export function SupplierField({ p, editable, update }: { p: Procurement; editable: boolean; update: Update }) {
+  const name = p.supplier?.name ?? p.sole?.supplier ?? "";
+  return (
+    <fieldset className={box} disabled={!editable}>
+      <legend className="sr-only">Supplier</legend>
+      <label className="block text-sm font-semibold" htmlFor={`supplier-${p.id}`}>
+        Chosen supplier
+      </label>
+      <p className="mt-1 text-xs text-muted">Its registered name, as on its licence. The same name across purchases lets the app add up repeat buys.</p>
+      <input
+        id={`supplier-${p.id}`}
+        value={name}
+        onChange={(e) => update((q) => ({ ...q, supplier: e.target.value.trim() ? { name: e.target.value, screenedOn: TODAY } : undefined }))}
+        className={`mt-2 ${field}`}
+      />
+    </fieldset>
+  );
+}
+
 export function SoleFacts({ p, editable, update }: { p: Procurement; editable: boolean; update: Update }) {
   const sole = p.sole ?? { supplier: "", reason: "" };
   const set = (patch: Partial<typeof sole>) => update((q) => ({ ...q, sole: { ...sole, ...patch }, checks: unreview(q) }));

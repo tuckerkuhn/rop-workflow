@@ -74,6 +74,68 @@ export function restrictedHits(p: Pick<Procurement, "title" | "specification">) 
 /** Screening lists in force, for the screening check. */
 export const screeningLists = () => ruleList("screeningLists");
 
+/* ---------------- Split purchases ---------------- */
+
+/** Every procurement in the project, so a check can look across them (set by the workspace). */
+let everyProcurement: Procurement[] = [];
+export function setProcurementSet(items: Procurement[]) {
+  everyProcurement = items;
+}
+const LEVELS: Level[] = ["Micro", "Small", "Medium", "Large"];
+/** When a request was made: its first recorded step, else when it is needed. */
+const madeOn = (p: Procurement) => p.timeline[0]?.date ?? p.neededBy;
+const vendorOf = (p: Procurement) => (p.supplier?.name ?? p.sole?.supplier ?? "").trim();
+const sameVendor = (a: string, b: string) => !!a && !!b && a.toLowerCase().replace(/[^a-z0-9]/g, "") === b.toLowerCase().replace(/[^a-z0-9]/g, "");
+/** Two titles name the same item when they share a meaningful word (four letters or more, not a filler word). */
+const FILLER = new Set(["with", "from", "second", "first", "third", "batch", "items", "lot", "lots", "pcs", "set", "sets", "for", "and", "the", "kit", "kits", "type", "size"]);
+const words = (t: string) => new Set(t.toLowerCase().split(/[^a-z]+/).filter((w) => w.length >= 4 && !FILLER.has(w)));
+export const sameItem = (a: string, b: string) => {
+  const wb = words(b);
+  return [...words(a)].some((w) => wb.has(w));
+};
+/** Window for treating separate requests for the same budget line and activity as one need. Not set by the policy; the app's choice. */
+export const SPLIT_WINDOW_DAYS = 30;
+
+/**
+ * Requests for the same budget line and activity made within the window whose combined value
+ * reaches a higher level than this one alone: a possible split to stay under a threshold
+ * (ROP April 2025 §3.2.2 p14, p26–27).
+ */
+export function splitRequests(p: Procurement) {
+  const line = p.plan?.budgetCode ?? p.budgetLine;
+  const others = everyProcurement.filter(
+    (q) =>
+      q.id !== p.id &&
+      (q.plan?.budgetCode ?? q.budgetLine) === line &&
+      q.activity === p.activity &&
+      // The same item: a different item on the same line is a different need, not a split.
+      ((!!p.plan && q.plan?.key === p.plan.key) || sameItem(q.title, p.title)) &&
+      Math.abs(daysBetween(madeOn(q), madeOn(p))) <= SPLIT_WINDOW_DAYS,
+  );
+  const combined = others.reduce((s, q) => s + valueOf(q), valueOf(p));
+  const alone = levelFor(valueOf(p));
+  const together = levelFor(combined);
+  return { others, combined, alone, together, split: LEVELS.indexOf(together) > LEVELS.indexOf(alone) };
+}
+
+/**
+ * Micro purchases from this supplier within the tracking period (ROP: 12 months), this one
+ * included. Repeated micro buys from one supplier must not add up past the threshold
+ * (ROP April 2025 p26: tracked "so they do not reach the Small threshold").
+ */
+export function microWithVendor(p: Procurement) {
+  const vendor = vendorOf(p);
+  const months = rule("splitTrackMonths", 12);
+  const since = (() => {
+    const d = new Date(`${madeOn(p)}T00:00:00Z`);
+    d.setUTCMonth(d.getUTCMonth() - months);
+    return d.toISOString().slice(0, 10);
+  })();
+  const buys = vendor ? everyProcurement.filter((q) => q.id !== p.id && levelFor(valueOf(q)) === "Micro" && sameVendor(vendorOf(q), vendor) && madeOn(q) >= since && madeOn(q) <= madeOn(p)) : [];
+  const total = buys.reduce((s, q) => s + valueOf(q), valueOf(p));
+  return { vendor, months, buys, total };
+}
+
 export const stages = ["Need", "Requisition", "Authorize", "Select", "Contract", "Receive", "Pay-ready", "Close"];
 
 export type BudgetLine = { code: string; name: string; remainingValue: number; remainingQty?: number; unit?: string };
@@ -401,6 +463,22 @@ export const steps: Step[] = [
       { id: "noContact", label: "No supplier has been approached yet", why: "Requisition approval comes before any supplier is approached, at every level. Otherwise it is a post-facto action.", tag: "D1 §3.2" },
       { id: "reviewed", label: "Requisition reviewed and complete", why: "The approver relies on the budget, price basis and activity link shown above.", tag: "D1 §3.2" },
       {
+        id: "notSplit",
+        label: "Not split from a larger need",
+        why: `Requests for the same budget line and activity made within ${SPLIT_WINDOW_DAYS} days are added together; if together they reach a higher level, they are one purchase at that level.`,
+        tag: "ROP April 2025 §3.2.2 p14, p26–27",
+        fix: "Possible split purchase: combine the requests and buy at the combined level, or record why they are separate needs.",
+        resolve: "Separate needs, recorded",
+        auto: (p, money) => {
+          const s = splitRequests(p);
+          if (!s.others.length) return { ok: true, detail: "No other request for this line and activity nearby" };
+          const list = s.others.map((q) => `${q.id} ${money(valueOf(q))}`).join(", ");
+          return s.split
+            ? { ok: false, detail: `With ${list}: ${money(s.combined)} together, a ${s.together} purchase, not ${s.alone}` }
+            : { ok: true, detail: `With ${list}: ${money(s.combined)} together, still ${s.together}` };
+        },
+      },
+      {
         id: "donorApproval",
         label: "Donor prior approval, where the donor requires it",
         get why() {
@@ -667,6 +745,25 @@ export const steps: Step[] = [
         tag: "ROP April 2025 §3.2.12; donor rules",
       },
       { id: "human", label: "Result reviewed by a person; any match resolved with reasons", why: "Every screening result is reviewed before the workflow continues. A match means exclusion.", tag: "TS" },
+      {
+        id: "vendorTotal",
+        label: "Micro buys from this supplier within the limit",
+        get why() {
+          return `Micro purchases from one supplier are added up over ${rule("splitTrackMonths", 12)} months. Past the micro limit, spread purchases across suppliers or ask for quotations.`;
+        },
+        tag: "ROP April 2025 p26",
+        fix: "Repeat micro purchases from one supplier are over the limit: get quotations for this one, or use another supplier.",
+        resolve: "Quotations obtained or supplier changed",
+        auto: (p, money) => {
+          if (levelFor(valueOf(p)) !== "Micro") return { ok: true, detail: "Not a micro purchase" };
+          const v = microWithVendor(p);
+          if (!v.vendor) return { ok: false, detail: "Name the supplier above" };
+          const limit = rule("microMaxUsd", 500);
+          const detail = `${v.vendor}: ${money(v.total)} in ${v.buys.length + 1} micro ${v.buys.length ? "purchases" : "purchase"} over ${v.months} months`;
+          if (v.total > rule("smallMaxUsd", 5000)) return { ok: false, detail: `${detail}, past the quotation limit too` };
+          return { ok: v.total <= limit, detail: v.total <= limit ? detail : `${detail}, past the ${money(limit)} micro limit` };
+        },
+      },
       {
         id: "dd",
         label: "Licence, ID (tazkira) and bank details on file; no staff connection",

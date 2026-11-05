@@ -8,7 +8,7 @@ import { useT } from "@/components/app/i18n";
 import { useDonors, usePlan, useProcurements } from "@/components/app/use-project-data";
 import type { BudgetLine as ProjectBudgetLine, WorkplanItem } from "@/lib/budget";
 import { METHOD, toUsd, type PlanItem } from "@/lib/procurement-plan";
-import { AiCheck, DraftPanel, RoutePicker, SoleFacts, VoucherPanel, type DraftKind } from "@/components/procurement/route-panels";
+import { AiCheck, DraftPanel, RoutePicker, SoleFacts, SupplierField, VoucherPanel, type DraftKind } from "@/components/procurement/route-panels";
 import { DocumentViewer } from "@/components/procurement/document";
 import {
   AppShell,
@@ -60,6 +60,7 @@ import {
   maySign,
   procRolesFor,
   typeFor,
+  setProcurementSet,
 } from "@/lib/procurement";
 import { holdersOfType } from "@/lib/authority";
 import { ROLE_LABEL } from "@/lib/hr";
@@ -601,6 +602,7 @@ function Detail({
         >
           {p.step === "requisition" && <RequisitionForm p={p} editable={mine} update={update} />}
           {p.step === "route" && <RoutePicker p={p} editable={mine} update={update} />}
+          {p.step === "screen" && <SupplierField p={p} editable={mine} update={update} />}
           {p.step === "soleSource" && <SoleFacts p={p} editable={mine} update={update} />}
           {(p.step === "rfq" || p.step === "solicitation" || p.step === "soleSource") && (
             <DraftPanel p={p} kind={p.step === "soleSource" ? "sole" : p.step === "rfq" ? "rfq" : "solicitation"} editable={mine} update={update} onDraft={onDraft} />
@@ -736,6 +738,8 @@ export function ProcurementWorkspace() {
   const [mobileDetail, setMobileDetail] = useState(false);
   const { money, mode } = useSession();
 
+  // Checks that look across procurements (split purchases) read the whole project's list.
+  setProcurementSet(items);
   const counts = useMemo(() => Object.fromEntries(roles.map((r) => [r.id, items.filter((p) => ownerOf(p) === r.id).length])), [items]);
   const readOnly = !role;
   const mineList = role ? items.filter((p) => ownerOf(p) === role) : items;
