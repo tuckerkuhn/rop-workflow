@@ -17,7 +17,7 @@ export type HrRole = (typeof HR_ROLES)[number];
 export const ROLE_LABEL: Record<HrRole, string> = { hr: "HR", payroll: "Payroll", cfo: "CFO", ceo: "CEO", board: "Board" };
 
 /** What kind of change a proposal is; each kind has its own approval steps. */
-export const CHANGE_KINDS = ["hire", "pay", "job", "details", "separate", "unrelate", "payroll", "rules"] as const;
+export const CHANGE_KINDS = ["hire", "pay", "job", "details", "separate", "unrelate", "payroll", "leave", "rules"] as const;
 export type ChangeKind = (typeof CHANGE_KINDS)[number];
 export const KIND_LABEL: Record<ChangeKind, string> = {
   hire: "New person",
@@ -27,6 +27,7 @@ export const KIND_LABEL: Record<ChangeKind, string> = {
   separate: "Leaving ROP",
   unrelate: "Remove a related-party link",
   payroll: "Monthly payroll",
+  leave: "Leave balance adjustment",
   rules: "Approval rules and role holders",
 };
 
@@ -46,6 +47,7 @@ export const DEFAULT_STEPS: Rules["steps"] = {
   separate: ["ceo"],
   unrelate: ["ceo"],
   payroll: ["cfo", "ceo"],
+  leave: ["hr"],
   rules: ["ceo", "board"],
 };
 
@@ -117,6 +119,15 @@ export const proposalSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("separate"), subject: personId, effective: isoDate, reason: z.string().trim().min(3).max(2000) }),
   z.object({ type: z.literal("unrelate"), subject: personId, other: personId, effective: isoDate, reason: z.string().trim().min(3).max(2000) }),
   z.object({ type: z.literal("rules"), subject: z.null(), effective: isoDate, rules: rulesSchema, reason: z.string().trim().min(3).max(2000) }),
+  /** A correction or opening balance for one leave kind, in hours (negative takes leave away). */
+  z.object({
+    type: z.literal("leave-adjust"),
+    subject: personId,
+    effective: isoDate,
+    leave: z.enum(["vacation", "sick", "floating", "urgent"]),
+    hours: z.number().min(-2000).max(2000).refine((h) => h !== 0, "Enter the hours to add or take away."),
+    reason: z.string().trim().min(3).max(2000),
+  }),
   /** A month's payroll for one pay group, as calculated by the server (lib/payroll.ts). The effective date is the pay date. */
   z.object({
     type: z.literal("payroll"),
@@ -201,6 +212,7 @@ export const fullRules = (r: RulesInput): Rules => {
 };
 
 export const kindOf = (p: ProposalInput): ChangeKind => {
+  if (p.type === "leave-adjust") return "leave";
   if (p.type !== "update") return p.type;
   const groups = new Set(Object.keys(p.fields).map((k) => FIELDS[k as FieldKey].group));
   return groups.has("pay") ? "pay" : groups.has("job") ? "job" : "details";
@@ -276,6 +288,11 @@ export function mayPropose(u: string, p: ProposalInput, state: HrState): string 
   if (!rules) return "The approval rules have not been set up yet.";
   const has = (r: HrRole) => rules.holders[r].includes(u);
   if (p.type === "rules") return HR_ROLES.some(has) ? null : "Only people holding an HR role can propose new rules.";
+  if (p.type === "leave-adjust") {
+    if (!has("hr")) return "Only HR adjusts leave balances.";
+    if (p.subject === u) return "HR cannot adjust their own leave; another HR officer does.";
+    return state.people[p.subject] ? null : "No record for this person.";
+  }
   if (p.type === "payroll") {
     if (!has("payroll")) return "Only the payroll role prepares a payroll.";
     const same = state.proposals.filter((x) => x.type === "payroll" && x.month === p.month && x.group === p.group);
@@ -446,6 +463,10 @@ export function fold(entries: Entry[], today: string): HrState {
       case "policy":
       case "onboard-start":
       case "onboard-step":
+      case "leave":
+      case "lv-approve":
+      case "lv-return":
+      case "lv-cancel":
         // Read by foldTimesheets, foldExpenses and foldOnboarding (lib/timesheet.ts, expense.ts, onboarding.ts).
         break;
       default:

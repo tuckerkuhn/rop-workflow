@@ -126,6 +126,9 @@ export function PeoplePage() {
             <a href="/timesheets" className="font-semibold text-forest hover:underline">
               Timesheets
             </a>
+            <a href="/leave" className="font-semibold text-forest hover:underline">
+              Leave
+            </a>
             <a href="/expenses" className="font-semibold text-forest hover:underline">
               Expenses
             </a>
@@ -501,7 +504,7 @@ function ProposalCard({ p, view, fmt, act, onDone }: { p: ProposalView; view: Hr
   };
   const who = p.subject ? (view.names[p.subject] ?? p.subject) : "Everyone";
   // Fields that only some kinds of change carry.
-  const extra = p as ProposalView & { other?: string; rules?: RulesInput; month?: string; group?: string; lines?: unknown[] };
+  const extra = p as ProposalView & { other?: string; rules?: RulesInput; month?: string; group?: string; lines?: unknown[]; leave?: string; hours?: number };
   return (
     <article className="rounded-2xl border border-line bg-surface p-4 sm:p-5">
       <div className="flex flex-wrap items-center gap-2">
@@ -516,6 +519,11 @@ function ProposalCard({ p, view, fmt, act, onDone }: { p: ProposalView; view: Hr
       <p className="text-sm text-muted">Takes effect {fmt(p.effective)}</p>
       {p.type === "separate" && <p className="mt-2 text-sm">Leaving ROP.</p>}
       {extra.other && <p className="mt-2 text-sm">Remove the link between {who} and {view.names[extra.other] ?? extra.other}.</p>}
+      {extra.leave && typeof extra.hours === "number" && (
+        <p className="mt-2 text-sm">
+          {extra.hours > 0 ? "Add" : "Take away"} {Math.abs(extra.hours / 8)} days of {extra.leave === "vacation" ? "annual" : extra.leave} leave.
+        </p>
+      )}
       {extra.rules && <RulesView rules={fullRules(extra.rules)} names={view.names} compact />}
       {extra.month && extra.group && (
         <p className="mt-2 text-sm">

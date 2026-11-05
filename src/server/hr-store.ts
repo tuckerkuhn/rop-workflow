@@ -272,6 +272,14 @@ export async function seedSample(write: typeof append = append, file: typeof sto
   await write("sima", "onboard-start", "zarlasht", { due: addDays(today, 11), contract });
   await write("mina", "onboard-step", "zarlasht", { step: "it", value: { kind: "confirm", note: "Email zarlasht.noori@ created; laptop RP-114 issued." } });
 
+  // Leave: one approved, one waiting, a sick claim without a certificate, a new hire in probation.
+  const nextWeek = addDays(today, 7);
+  const nadiaLeave = await write("nadia", "leave", "nadia", { kind: "vacation", start: addDays(today, 20), end: addDays(today, 24), note: "Family wedding in Mazar." });
+  await write("karim", "lv-approve", "nadia", { request: nadiaLeave });
+  await write("farid", "leave", "farid", { kind: "vacation", start: nextWeek, end: addDays(nextWeek, 3), note: "Visiting family in Herat." });
+  await write("bilal", "leave", "bilal", { kind: "sick", start: addDays(today, -6), end: addDays(today, -1) });
+  await write("zarlasht", "leave", "zarlasht", { kind: "vacation", start: addDays(today, 10), end: addDays(today, 11) });
+
   await write("nadia", "expense", "nadia", {
     month: last,
     currency: "AFN",

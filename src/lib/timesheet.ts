@@ -121,7 +121,7 @@ export const expectedHours = (month: string, office: string) => daysIn(month).fi
  * A starting sheet: every working day at 8 hours, split across funding sources as last month
  * was (or all to one source), and public holidays filled in as leave.
  */
-export function prefill(month: string, office: string, shares: Record<string, number>): Sheet {
+export function prefill(month: string, office: string, shares: Record<string, number>, leave: Record<string, { type: LeaveType; hours: number }> = {}): Sheet {
   const days: Record<string, Day> = {};
   const total = Object.values(shares).reduce((a, b) => a + b, 0) || 1;
   // Whole and half hours per source, with any remainder on the largest source.
@@ -134,7 +134,12 @@ export function prefill(month: string, office: string, shares: Record<string, nu
   for (const d of daysIn(month)) {
     if (!work.includes(weekday(d))) continue;
     if (HOLIDAYS[office]?.[d]) days[d] = { leave: { type: "holiday", hours: HOURS_PER_DAY }, note: HOLIDAYS[office][d] };
-    else days[d] = { hours: Object.fromEntries(Object.entries(per).filter(([, h]) => h > 0)), place: USUAL_PLACE[office] ?? "in" };
+    else if (leave[d] && leave[d].hours >= HOURS_PER_DAY) days[d] = { leave: { type: leave[d].type, hours: HOURS_PER_DAY }, note: "Approved leave" };
+    else if (leave[d]) {
+      // Half a day of approved leave: the other half worked on the first source.
+      const first = ids[0];
+      days[d] = { hours: first ? { [first]: HOURS_PER_DAY - leave[d].hours } : {}, place: USUAL_PLACE[office] ?? "in", leave: { type: leave[d].type, hours: leave[d].hours }, note: "Approved half day of leave" };
+    } else days[d] = { hours: Object.fromEntries(Object.entries(per).filter(([, h]) => h > 0)), place: USUAL_PLACE[office] ?? "in" };
   }
   return { month, days };
 }
@@ -291,6 +296,20 @@ export function foldTimesheets(entries: Entry[], hr: HrState): { sheets: Timeshe
     }
   }
   return { sheets: [...byKey.values()], ignored };
+}
+
+/** Days where the timesheet's leave differs from approved leave requests, for the approver. */
+export function leaveMismatch(sheet: Sheet, approved: Record<string, { type: LeaveType; hours: number }>): string[] {
+  const out: string[] = [];
+  for (const [d, a] of Object.entries(approved)) {
+    const l = sheet.days[d]?.leave;
+    if (!l || l.hours < a.hours) out.push(`${d}: approved leave not on the timesheet.`);
+  }
+  for (const [d, day] of Object.entries(sheet.days)) {
+    const l = day.leave;
+    if (l && l.hours > 0 && l.type !== "holiday" && !approved[d]) out.push(`${d}: ${LEAVE[l.type].toLowerCase()} on the timesheet with no approved request.`);
+  }
+  return out.sort();
 }
 
 /** Funding shares from a person's latest approved (else latest) timesheet, for prefilling the next one. */
