@@ -289,17 +289,29 @@ function PeopleCard() {
   const [s, setS] = useState<{ waiting: number; hrRole: boolean; hasRecord: boolean; intact: boolean } | null>(null);
   const [ts, setTs] = useState<{ hasRecord: boolean; month: string; status: string; waiting: number } | null>(null);
   const [ex, setEx] = useState<{ hasRecord: boolean; waiting: number; returned: number } | null>(null);
+  const [ob, setOb] = useState<{ mine: { done: number; total: number } | null; todo: number } | null>(null);
   useEffect(() => {
     if (!user) return;
     const get = (url: string) => fetch(url, { cache: "no-store", headers: { "x-demo-user": user.id } }).then((r) => (r.ok ? r.json() : null));
     get("/api/hr?summary=1").then(setS).catch(() => setS(null));
     get("/api/timesheets?summary=1").then(setTs).catch(() => setTs(null));
     get("/api/expenses?summary=1").then(setEx).catch(() => setEx(null));
+    get("/api/onboarding?summary=1").then(setOb).catch(() => setOb(null));
   }, [user]);
   if (!s || (!s.hrRole && !s.hasRecord)) return null;
+  const onboarding = ob && ((ob.mine && ob.mine.done < ob.mine.total) || ob.todo > 0);
   const tsText: Record<string, string> = { missing: "not submitted yet", pending: "waiting for approval", approved: "approved", returned: "sent back: open it to see why" };
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      {onboarding && (
+        <Link href="/onboarding" className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-2xl border border-forest/40 bg-mist/60 px-5 py-3 text-sm transition hover:border-forest sm:col-span-2 xl:col-span-3">
+          <span className="font-semibold">Onboarding</span>
+          <span className="text-muted">
+            {ob!.mine && ob!.mine.done < ob!.mine.total ? `Your first steps: ${ob!.mine.done} of ${ob!.mine.total} done` : ""}
+            {ob!.todo > 0 ? `${ob!.mine && ob!.mine.done < ob!.mine.total ? " · " : ""}${ob!.todo} ${ob!.todo === 1 ? "step" : "steps"} for you to do for new staff` : ""}
+          </span>
+        </Link>
+      )}
       <Link href="/people" className={`flex flex-wrap items-center gap-x-4 gap-y-1 rounded-2xl border px-5 py-3 text-sm transition hover:border-forest ${!s.intact ? "border-clay bg-clay-soft" : s.waiting ? "border-forest/40 bg-mist/60" : "border-line bg-surface"}`}>
         <span className="font-semibold">People</span>
         <span className="text-muted">

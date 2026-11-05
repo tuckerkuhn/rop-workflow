@@ -38,7 +38,7 @@ const writeDraft = (k: string, r: Report | null) => {
 };
 
 /** Photos are shrunk in the browser (longest side 1600 px, JPEG), so they upload quickly on a weak connection. */
-async function shrink(file: File): Promise<File> {
+export async function shrink(file: File): Promise<File> {
   if (!file.type.startsWith("image/") || file.size < 400_000) return file;
   try {
     const bmp = await createImageBitmap(file);
@@ -55,7 +55,7 @@ async function shrink(file: File): Promise<File> {
 }
 
 /** Opens a receipt; in the demo the person is sent as a header, so it is fetched first. */
-async function openReceipt(hash: string, user: string | undefined) {
+export async function openReceipt(hash: string, user: string | undefined) {
   const res = await fetch(`/api/files/${hash}`, { headers: { "x-demo-user": user ?? "" } });
   if (!res.ok) return;
   const url = URL.createObjectURL(await res.blob());

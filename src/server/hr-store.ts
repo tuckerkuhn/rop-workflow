@@ -248,6 +248,30 @@ export async function seedSample(write: typeof append = append, file: typeof sto
   await write("peter", "ex-approve", "sima", { report: simaEx });
   await write("omid", "ex-approve", "sima", { report: simaEx });
   const fuel = await file("taxi-herat.pdf", "Sample receipt: taxi Herat, 1500 AFN", "nadia");
+  // Policies new hires read (sample documents, to be replaced by ROP's own).
+  for (const [id, title] of [
+    ["code-of-conduct", "Code of Conduct"],
+    ["safeguarding", "Safeguarding and PSEA"],
+    ["anti-fraud", "Anti-fraud and anti-corruption"],
+    ["security", "Security plan, Afghanistan"],
+  ] as const)
+    await write("sima", "policy", null, { id, title, version: "2026-01", file: await file(`${id}.pdf`, `Sample policy: ${title}. Replace with ROP's document.`, "sima") });
+
+  // A new hire who started this week, part way through onboarding.
+  const zStart = addDays(today, -3);
+  const zHire = await propose("sima", {
+    type: "hire",
+    subject: "zarlasht",
+    effective: zStart,
+    fields: { name: "Zarlasht Noori", title: "M&E Assistant", office: "Afghanistan", employment: "National staff", supervisor: "nadia", startDate: zStart, contractEnd: "2027-12-31", ...afn(52000) },
+    reason: "New post in the ACRP staffing plan, recruited in October.",
+  });
+  await approve("peter", zHire, 0, "cfo", "zarlasht");
+  await approve("grace", zHire, 1, "ceo", "zarlasht");
+  const contract = await file("contract-zarlasht-noori.pdf", "Sample employment contract: Zarlasht Noori, M&E Assistant", "sima");
+  await write("sima", "onboard-start", "zarlasht", { due: addDays(today, 11), contract });
+  await write("mina", "onboard-step", "zarlasht", { step: "it", value: { kind: "confirm", note: "Email zarlasht.noori@ created; laptop RP-114 issued." } });
+
   await write("nadia", "expense", "nadia", {
     month: last,
     currency: "AFN",
