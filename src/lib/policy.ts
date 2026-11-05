@@ -19,8 +19,9 @@ export type Cited = { value: Value; source: string; confidence?: "documented" | 
  *  union: every item either lists (e.g. screening lists, restricted goods).
  *  common: only items both allow (e.g. procurement methods); none in common is a conflict.
  *  same: must be equal; different values are a conflict.
+ *  donor: the donor's value when it sets one; otherwise the organization's default (e.g. mileage rate).
  */
-export type Merge = "min" | "max" | "any" | "union" | "common" | "same";
+export type Merge = "min" | "max" | "any" | "union" | "common" | "same" | "donor";
 
 export type Area = "Procurement" | "Travel and finance" | "Grants" | "Records";
 export type ParamDef = { key: string; label: string; area: Area; unit?: "USD" | "days" | "years" | "%" | "count" | "months"; merge: Merge; help: string };
@@ -49,6 +50,7 @@ export const PARAMS: ParamDef[] = [
   { key: "vendorEvaluationAboveUsd", label: "Vendor performance evaluation above", area: "Procurement", unit: "USD", merge: "min", help: "" },
   { key: "perDiemSource", label: "Per diem rates from", area: "Travel and finance", merge: "same", help: "" },
   { key: "airClass", label: "Air travel class", area: "Travel and finance", merge: "same", help: "" },
+  { key: "mileageRateUsd", label: "Mileage rate for a personal vehicle, per mile", area: "Travel and finance", unit: "USD", merge: "donor", help: "The donor's rate applies to mileage it pays for; otherwise the organization's default." },
   { key: "advanceSettlementDays", label: "Settle travel advances within", area: "Travel and finance", unit: "days", merge: "min", help: "" },
   { key: "expenseReportDays", label: "Expense report due, days after the month ends", area: "Travel and finance", unit: "days", merge: "min", help: "" },
   { key: "grantCapUsd", label: "Sub-grant cap per grant", area: "Grants", unit: "USD", merge: "min", help: "" },
@@ -100,6 +102,7 @@ export const ROP: Profile = {
     vendorEvaluationAboveUsd: { value: 5000, source: `${AF25}, §3.2.14 p22, §3.2.23 p24` },
     perDiemSource: { value: "US State Department (abroad), GSA (in the US)", source: "ROP Travel Policy, January 2021" },
     airClass: { value: "Economy", source: "ROP Travel Policy, January 2021" },
+    mileageRateUsd: { value: 0.7, source: "ROP default: the US State Department rate (CFO, 5 Nov 2026); $0.70 confirmed by T. Kuhn, 5 Nov 2026" },
     advanceSettlementDays: { value: 30, source: "Finance and Accounting Procedure Manual 2020, §12.1.4 (the UN-projects manual says 15)" },
     expenseReportDays: { value: 0, source: "ROP Travel Policy 2021, §5: by the end of the month the costs were incurred" },
     grantCapUsd: { value: 50000, source: "CBARD Grants Manual 2023, p8 (fixed-amount and simplified grants)" },
@@ -137,6 +140,10 @@ export function combine(def: ParamDef, org: Cited | undefined, donor: Cited | un
   let why = "";
   let conflict: string | null = null;
   switch (def.merge) {
+    case "donor":
+      value = d;
+      why = norm(String(o)) === norm(String(d)) ? "Both say the same." : "The donor sets this for what it pays for.";
+      break;
     case "min":
       value = Math.min(Number(o), Number(d));
       why = Number(o) === Number(d) ? "Both say the same." : `The lower of the two satisfies both (${value === Number(o) ? "the organization's" : "the donor's"}).`;
@@ -195,7 +202,7 @@ export const show = (def: ParamDef, v: Value) => {
   if (v == null) return "—";
   if (typeof v === "boolean") return v ? "Yes" : "No";
   if (Array.isArray(v)) return v.length ? v.join("; ") : "None";
-  if (def.unit === "USD") return `$${Number(v).toLocaleString("en-US")}`;
+  if (def.unit === "USD") return `$${Number(v).toLocaleString("en-US", Number.isInteger(Number(v)) ? {} : { minimumFractionDigits: 2 })}`;
   if (def.unit) return `${v} ${def.unit === "count" ? "" : def.unit}`.trim();
   return String(v);
 };

@@ -8,6 +8,7 @@ import { NON_CONTRACT } from "@/lib/timesheet";
 import { people, requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
 import { append, hrBook, loadHr, todayIso } from "@/server/hr-store";
+import { mileageRates } from "@/server/policy-store";
 
 /**
  * Expense reports, from the HR ledger. Everyone sees their own; supervisors their team's; people
@@ -30,6 +31,7 @@ async function view(me: string, open: number | null) {
   const visible = reports.filter((r) => all || r.person === me || r.by === me || hr.people[r.person]?.current.supervisor === me || !!nextFor(r, hr)?.people.includes(me) || r.signatures.some((x) => x.by === me));
   const projects = await db.select({ code: s.projects.code, name: s.projects.name }).from(s.projects);
   const sources = [{ id: NON_CONTRACT, label: "General and admin (non-contract)" }, ...projects.filter((p) => p.code).map((p) => ({ id: p.code!, label: p.name }))];
+  const rates = await mileageRates(sources.map((x) => x.id));
   const names = Object.fromEntries((await people()).map((u) => [u.id, u.name]));
   for (const p of Object.values(hr.people)) if (typeof p.current.name === "string") names[p.id] = p.current.name;
   const paid = paidIn(hr);
@@ -49,6 +51,8 @@ async function view(me: string, open: number | null) {
     currency: String(hr.people[me]?.current.currency ?? "USD"),
     seesAll: all,
     sources,
+    /** USD per mile for each funding source: its donor's rate, or ROP's default. */
+    mileageRates: rates,
     names,
     mine: visible.filter((r) => r.person === me).sort((a, b) => b.report.month.localeCompare(a.report.month)).map(brief),
     waiting: visible.filter((r) => nextFor(r, hr)?.people.includes(me)).map(brief),
@@ -110,7 +114,10 @@ export async function POST(req: Request) {
         const found = await db.select({ hash: s.hrFiles.hash }).from(s.hrFiles).where(and(eq(s.hrFiles.book, hrBook()), inArray(s.hrFiles.hash, hashes)));
         if (found.length !== hashes.length) return fail("A receipt did not finish uploading. Attach it again.", 400);
       }
-      n = await append(me, "expense", person, a.report);
+      // Mileage is paid at the rate of the donor paying for each line, fixed when the report is submitted.
+      const rates = await mileageRates([...new Set(a.report.lines.map((l) => l.source))]);
+      const report = { ...a.report, lines: a.report.lines.map((l) => (l.category === "mileage" ? { ...l, rate: rates[l.source]?.rate } : { ...l, rate: undefined })) };
+      n = await append(me, "expense", person, report);
     } else {
       const r = reports.find((x) => x.n === a.report);
       if (!r) return fail("No such report.", 404);

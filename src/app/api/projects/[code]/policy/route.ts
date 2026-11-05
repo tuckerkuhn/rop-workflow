@@ -2,10 +2,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { canEditProject } from "@/lib/demo";
 import { DONORS, donorById } from "@/lib/donors";
-import { PARAMS, ROP, effective, paramByKey, type Profile } from "@/lib/policy";
+import { PARAMS, ROP, effective, paramByKey } from "@/lib/policy";
 import { requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
-import { loadPolicy, savePolicy, type PolicySetting } from "@/server/policy-store";
+import { donorOf, loadPolicy, savePolicy, type PolicySetting } from "@/server/policy-store";
 
 type Ctx = { params: Promise<{ code: string }> };
 
@@ -14,9 +14,6 @@ type Ctx = { params: Promise<{ code: string }> };
  * managers choose the donor profile (or enter a custom one); only an administrator decides a
  * conflict, and every decision is kept.
  */
-
-const donorOf = (setting: PolicySetting): Profile | null =>
-  setting.donor === "custom" && setting.custom ? { id: "custom", name: setting.custom.name, kind: "donor", summary: "Entered for this project.", documents: [], values: setting.custom.values } : donorById(setting.donor);
 
 function view(setting: PolicySetting) {
   const donor = donorOf(setting);

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useT } from "@/components/app/i18n";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { Pill, SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn } from "@/components/workspace/ui";
-import { CATEGORIES, CATEGORY_KEYS, FIRST_LAST_DAY, MILEAGE_RATE, amountOf, perDiemOf, summary, type Category, type ExAction, type ExpenseLine, type Receipt, type Report } from "@/lib/expense";
+import { CATEGORIES, CATEGORY_KEYS, FIRST_LAST_DAY, MILEAGE_RATE, amountOf, mileageRateOf, perDiemOf, summary, type Category, type ExAction, type ExpenseLine, type Receipt, type Report } from "@/lib/expense";
 import type { ExpenseView } from "@/app/api/expenses/route";
 import type { MessageKey } from "@/lib/i18n";
 import { NON_CONTRACT } from "@/lib/timesheet";
@@ -357,7 +357,7 @@ function Detail({ v, monthName, back, act, revise }: { v: ExpenseView; monthName
               {l.date} · {t(CAT_KEY[l.category])}
               {CATEGORIES[l.category].gl ? ` (GL ${CATEGORIES[l.category].gl})` : ""} · {label(l.source)}
               {l.perDiem && ` · ${t("exp.perDiemLine", { place: l.perDiem.place, start: l.perDiem.start, end: l.perDiem.end, rate: l.perDiem.rate })}`}
-              {l.category === "mileage" && ` · ${t("exp.mileageLine", { miles: l.miles ?? "", rate: MILEAGE_RATE })}`}
+              {l.category === "mileage" && ` · ${t("exp.mileageLine", { miles: l.miles ?? "", rate: mileageRateOf(l) })}`}
             </p>
             <p className="ms-9 mt-1 flex flex-wrap gap-2 text-xs">
               {l.receipts.map((rc) => (
@@ -595,6 +595,8 @@ function LineForm({ v, month, currency, line, onSave, onCancel }: { v: ExpenseVi
   const input = "mt-1 block w-full rounded-xl border border-line bg-paper px-3 py-2.5 text-base";
   const isPerDiem = l.category === "perDiem";
   const isMiles = l.category === "mileage";
+  // The paying donor's rate, or ROP's default; the server fixes it again on submission.
+  const rate = v.mileageRates[l.source]?.rate ?? MILEAGE_RATE;
   const pd = l.perDiem ?? { place: "", rate: 0, start: `${month}-01`, end: `${month}-01` };
   const calc = isPerDiem ? perDiemOf(pd) : null;
   const upload = async (files: FileList | null) => {
@@ -669,7 +671,7 @@ function LineForm({ v, month, currency, line, onSave, onCancel }: { v: ExpenseVi
           <label className="text-sm">
             <span className="font-medium">{t("exp.miles")}</span>
             <input type="number" inputMode="decimal" min={0} value={l.miles ?? ""} onChange={(e) => set({ miles: e.target.value === "" ? undefined : Number(e.target.value) })} className={input} />
-            <span className="mt-1 block text-xs text-muted">{t("exp.mileRate", { rate: MILEAGE_RATE, amount: money(amountOf(l), currency) })}</span>
+            <span className="mt-1 block text-xs text-muted">{t("exp.mileRate", { rate, amount: money(amountOf({ ...l, rate }), currency) })} · {v.mileageRates[l.source]?.from ?? ""}</span>
           </label>
         ) : (
           !isPerDiem && (
@@ -748,7 +750,7 @@ function LineForm({ v, month, currency, line, onSave, onCancel }: { v: ExpenseVi
         </p>
       )}
       <div className="flex flex-wrap items-center gap-2">
-        <button type="button" className={primaryBtn} disabled={!!problem || uploading} onClick={() => onSave({ ...l, ...(isPerDiem ? { perDiem: pd, date: pd.start, amount: undefined, miles: undefined, receipts: [] } : isMiles ? { amount: undefined, perDiem: undefined, receipts: [] } : { perDiem: undefined, miles: undefined }) })}>
+        <button type="button" className={primaryBtn} disabled={!!problem || uploading} onClick={() => onSave({ ...l, ...(isPerDiem ? { perDiem: pd, date: pd.start, amount: undefined, miles: undefined, receipts: [] } : isMiles ? { amount: undefined, perDiem: undefined, receipts: [], rate } : { perDiem: undefined, miles: undefined, rate: undefined }) })}>
           {t("exp.saveExpense")}
         </button>
         <button type="button" className={quietBtn} onClick={onCancel}>

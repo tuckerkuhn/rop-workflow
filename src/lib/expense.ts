@@ -5,7 +5,8 @@ import { conflictOf, type Entry, type HrState } from "@/lib/hr";
  * Expense reports, as on the ROP expense report form: one report per person per month, a line per
  * expense with its GL account, funding source and receipt. Per diem follows the per diem
  * calculation form: the M&IE rate for the place (State Department rates abroad, GSA in the US),
- * 75% on the days of departure and return, 100% in between. Mileage at the standard rate.
+ * 75% on the days of departure and return, 100% in between. Mileage at the rate of the donor that
+ * pays for the line (the policy library), or ROP's default, the US State Department rate.
  *
  * The supervisor approves, then Finance (the payroll role) checks receipts and codes. Accepted
  * reports are paid in the next payroll as non-taxable reimbursements, and charged to each line's
@@ -32,7 +33,10 @@ export const CATEGORIES = {
 export type Category = keyof typeof CATEGORIES;
 export const CATEGORY_KEYS = Object.keys(CATEGORIES) as Category[];
 
-/** Standard mileage rate in USD per mile. Finance updates it when the IRS rate changes. */
+/**
+ * ROP's default mileage rate in USD per mile (the US State Department rate), used when the paying
+ * donor sets none. The policy library holds the same default with its source; keep them equal.
+ */
 export const MILEAGE_RATE = 0.7;
 export const FIRST_LAST_DAY = 0.75;
 
@@ -49,6 +53,8 @@ export const lineSchema = z
     source: z.string().regex(/^[A-Za-z0-9-]{2,40}$/),
     amount: z.number().min(0).max(1e8).optional(),
     miles: z.number().min(0).max(10000).optional(),
+    /** USD per mile, set by the server on submission from the paying donor's rule; older lines have none and use the default. */
+    rate: z.number().min(0).max(10).optional(),
     perDiem: z.object({ place: z.string().trim().min(2).max(120), rate: z.number().min(0).max(2000), start: iso, end: iso }).optional(),
     receipts: z.array(receiptSchema).max(10),
     /** Why there is no receipt, when there is none. */
@@ -66,7 +72,7 @@ export const reportSchema = z.object({
   lines: z.array(lineSchema).min(1).max(100),
   /** Entered by Finance from a paper claim: the scan of the claim the person signed. */
   paperClaim: receiptSchema.optional(),
-}).refine((r) => r.currency === "USD" || !r.lines.some((l) => l.category === "mileage"), "Mileage is paid at the US rate; claim fuel as a receipt instead.");
+}).refine((r) => r.currency === "USD" || !r.lines.some((l) => l.category === "mileage"), "Mileage is paid in US dollars a mile; claim fuel as a receipt instead.");
 export type Report = z.infer<typeof reportSchema>;
 
 export const exActionSchema = z.discriminatedUnion("action", [
@@ -92,9 +98,12 @@ export function perDiemOf(p: { rate: number; start: string; end: string }) {
   return { days: n, full, partial, amount: r2(p.rate * full + p.rate * FIRST_LAST_DAY * partial) };
 }
 
+/** The line's mileage rate: as saved on submission, else ROP's default. */
+export const mileageRateOf = (l: Pick<ExpenseLine, "rate">) => l.rate ?? MILEAGE_RATE;
+
 export function amountOf(l: ExpenseLine) {
   if (l.category === "perDiem" && l.perDiem) return perDiemOf(l.perDiem).amount;
-  if (l.category === "mileage") return r2((l.miles ?? 0) * MILEAGE_RATE);
+  if (l.category === "mileage") return r2((l.miles ?? 0) * mileageRateOf(l));
   return r2(l.amount ?? 0);
 }
 

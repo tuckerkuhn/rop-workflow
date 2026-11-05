@@ -12,8 +12,8 @@ import { HOURS_PER_DAY, WORK_WEEK, apportion, daysIn, splitOf, weekday, type Tim
  * - Gross pay: regular pay, danger pay, post differential, allowances, medical reimbursement,
  *   vacation payout, bonus, retro pay and non-taxable expenses.
  * - 403(b): the employee's percentage of pay excluding expenses and vacation payout, rounded down to
- *   the cent; ROP adds half of that, rounded down. (The workbook includes the bonus on most rows
- *   and not on others; here it is always included.)
+ *   the cent; ROP adds half of that, rounded down. The bonus is always included: the workbook
+ *   left it out on a few rows, and the CFO confirmed (2026-11-05) that ROP's plan includes it.
  * - Employer taxes (FICA, SUI) for the Home Office are calculated by ADP and are not worked out here.
  * - Afghanistan: salary tax withheld on the monthly schedule below, for Finance to check and pay.
  *

@@ -149,6 +149,8 @@ const n = (v: number) => v.toLocaleString("en-US", { maximumFractionDigits: 2 })
  */
 export function suggestStatus(year: number, target: number, quarterNo: number): Status {
   if (target > 0 && year >= target) return "completed";
+  // Nothing planned this year (the work comes in a later year): not late.
+  if (target === 0 && year === 0) return "on_track";
   if (quarterNo >= 4) return year > 0 ? "delayed" : "not_implemented";
   if (year > 0) return "on_track";
   return quarterNo >= 3 ? "delayed" : "on_track";
@@ -162,7 +164,19 @@ export function suggestComment(r: Omit<Row, "suggested" | "status" | "comment" |
   const people = r.women + r.men > 0 ? ` (${n(r.women)} women, ${n(r.men)} men)` : r.womenLed + r.menLed > 0 ? ` (${n(r.womenLed)} women-led, ${n(r.menLed)} men-led)` : "";
   const pct = r.yearTarget ? ` (${Math.round((r.year / r.yearTarget) * 100)}% of the annual target)` : "";
   const done = r.quarter > 0 ? `During ${quarterLabel}, ${n(r.quarter)} ${units(r.quarter, r.unit)}${where}${people}.` : `Nothing was achieved during ${quarterLabel}.`;
+  if (!r.yearTarget && !r.year) return `${STATUS_LABEL[status]}: ${done} None is planned for this year; the work is planned for a later year.`;
   return `${STATUS_LABEL[status]}: ${done} ${n(r.year)} of ${n(r.yearTarget)} ${r.unit} so far this year${pct}.`;
+}
+
+/**
+ * This year's part of the target. Year targets are stored as running totals from the project's
+ * start (expected total by 31 December), but the report counts this year's results only, so the
+ * year's part is this year's total less last year's (none before the first year).
+ */
+export function yearShare(i: Pick<IndicatorInfo, "target" | "yearTargets">, y: number) {
+  const byEnd = i.yearTargets[String(y)] ?? i.target;
+  const before = i.yearTargets[String(y - 1)] ?? 0;
+  return Math.max(0, byEnd - before);
 }
 
 /** The indicator table for a quarter, from accepted results. */
@@ -184,7 +198,7 @@ export function buildRows(indicators: IndicatorInfo[], results: ResultRecord[], 
       name: i.name,
       unit: i.unit,
       budgetRef: i.budgetRef,
-      yearTarget: i.yearTargets[y] ?? i.target,
+      yearTarget: yearShare(i, Number(y)),
       quarter: q.value,
       year: yr.value,
       women: q.female,
