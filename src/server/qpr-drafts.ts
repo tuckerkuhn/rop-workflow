@@ -71,7 +71,7 @@ export async function draftQpr(d: QprData, keys: string[]): Promise<{ sections: 
     fallbacks: "default",
     output_config: { effort: "medium", format: betaZodOutputFormat(outSchema) },
     system: SYSTEM,
-    messages: [{ role: "user", content: `Draft these sections: ${keys.join(", ")}.\n\nThe facts (JSON):\n${JSON.stringify(facts, null, 2)}` }],
+    messages: [{ role: "user", content: `Draft these sections: ${keys.join(", ")}. List only questions that these sections need answered, at most four, most important first.\n\nThe facts (JSON):\n${JSON.stringify(facts, null, 2)}` }],
   });
   let timedOut = false;
   const timer = setTimeout(() => {

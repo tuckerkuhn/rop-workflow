@@ -86,7 +86,10 @@ export async function POST(req: Request, { params }: Ctx) {
         const bad = a.keys.find((k) => !validKey(k) || (!k.startsWith("act.") && !SECTIONS.find((s) => s.key === k)?.draft));
         if (bad) return NextResponse.json({ error: `"${bad}" cannot be drafted.` }, { status: 400 });
         try {
-          const out = await draftQpr(d, a.keys);
+          // Two sections per request, all at once: each finishes well inside the server's time limit.
+          const groups = Array.from({ length: Math.ceil(a.keys.length / 2) }, (_, i) => a.keys.slice(i * 2, i * 2 + 2));
+          const parts = await Promise.all(groups.map((g) => draftQpr(d, g)));
+          const out = { sections: parts.flatMap((x) => x.sections), questions: [...new Set(parts.flatMap((x) => x.questions))] };
           for (const s of out.sections) next.sections[s.key] = { text: s.text, by: u.id, at: now, drafted: true };
           await saveQpr(code, q, next);
           return NextResponse.json({ ...(await view(code, q, u)), questions: out.questions });
