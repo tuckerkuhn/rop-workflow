@@ -39,6 +39,8 @@ export const resultSchema = z
     /** What was done, for the report's narrative: where, with whom, what changed. */
     note: z.string().trim().min(10).max(2000),
     files: z.array(receiptSchema).max(20),
+    /** Photo captions by file fingerprint; a captioned photo goes into the donor report. */
+    captions: z.record(z.string().regex(/^[0-9a-f]{64}$/), z.string().trim().max(300)).optional(),
     /** Why there is no file yet, when there is none. */
     noFile: z.string().trim().max(300).optional(),
   })
@@ -57,8 +59,25 @@ export type ResultRecord = ResultInput & {
   query: string | null;
 };
 
+/**
+ * An activity update: progress that is not an indicator count (10 of 15 reservoirs built, grant
+ * agreements signed, sales at an exhibition, analysis finished), with photos. It feeds the
+ * report's narrative and photos; it never changes a figure, so it needs no MEL check.
+ */
+export const updateSchema = z.object({
+  /** The activity's code, e.g. "1.1.1". */
+  activity: z.string().regex(/^\d+\.\d+\.\d+$/),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  note: z.string().trim().min(10).max(4000),
+  files: z.array(receiptSchema).max(20),
+  captions: z.record(z.string().regex(/^[0-9a-f]{64}$/), z.string().trim().max(300)).optional(),
+});
+export type UpdateInput = z.infer<typeof updateSchema>;
+export type UpdateRecord = UpdateInput & { id: string; quarter: string; by: string; at: string };
+
 export const resultActionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("record"), result: resultSchema }),
+  z.object({ action: z.literal("update"), update: updateSchema }),
   z.object({ action: z.literal("accept"), id: z.string().uuid() }),
   z.object({ action: z.literal("query"), id: z.string().uuid(), note: z.string().trim().min(3).max(1000) }),
 ]);

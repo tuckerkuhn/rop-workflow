@@ -8,7 +8,7 @@ import { useRequireUser, useSession } from "@/components/app/session";
 import { openReceipt, shrink } from "@/components/people/expense-page";
 import { Pill, SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import type { Receipt } from "@/lib/expense";
-import { PROVINCES, quarterOf, quarterRange, totalsOf, type ResultAction, type ResultInput } from "@/lib/results";
+import { PROVINCES, quarterOf, quarterRange, totalsOf, type ResultAction, type ResultInput, type UpdateInput } from "@/lib/results";
 import type { ResultsView } from "@/app/api/projects/[code]/results/route";
 
 /**
@@ -41,6 +41,7 @@ export function ResultsPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [adding, setAdding] = useState<string | null>(null);
+  const [addingUpdate, setAddingUpdate] = useState(false);
   const [open, setOpen] = useState<string | null>(params.get("indicator"));
   const quarter = params.get("q");
   const url = `/api/projects/${project.id}/results`;
@@ -189,7 +190,163 @@ export function ResultsPage() {
               </ul>
             </section>
           ))}
+
+        {v && v.activities.length > 0 && (
+          <section className="mt-10 border-t border-line pt-6">
+            <h2 className="font-display text-2xl">Activity updates</h2>
+            <p className="mt-1 max-w-2xl text-sm text-muted">
+              Progress that is not a count on an indicator: reservoirs built, grant agreements signed, sales at an exhibition, an analysis finished. Add photos with a caption to put them in the donor report. Updates go into the report&rsquo;s narrative; they never change a figure.
+            </p>
+            {v.mayUpdate && !addingUpdate && (
+              <button type="button" className={`${quietBtn} mt-3`} onClick={() => setAddingUpdate(true)}>
+                Add an update
+              </button>
+            )}
+            {addingUpdate && <UpdateForm activities={v.activities} onClose={() => setAddingUpdate(false)} add={(u) => act({ action: "update", update: u }, "Update added.").then(() => setAddingUpdate(false))} />}
+            {v.activities.map((a) => {
+              const list = v.updates.filter((u) => u.activity === a.code && (!range || (u.date >= range.from && u.date <= range.to)));
+              if (!list.length) return null;
+              return (
+                <div key={a.code} className="mt-5">
+                  <SectionLabel>
+                    Activity {a.code}: {a.name}
+                  </SectionLabel>
+                  <div className="mt-2 space-y-2">
+                    {list.map((u) => (
+                      <article key={u.id} className="rounded-xl border border-line bg-paper p-3 text-sm">
+                        <p className="text-xs text-muted">
+                          {u.date} · {u.quarter} · by {u.by}
+                        </p>
+                        <p className="mt-1 whitespace-pre-line">{u.note}</p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {u.files.map((f) => (
+                            <button key={f.hash} type="button" onClick={() => void openReceipt(f.hash, user.id)} className="rounded-lg border border-line px-2 py-1 text-start text-xs font-semibold text-forest hover:bg-sunken">
+                              {f.name}
+                              {u.captions?.[f.hash] && <span className="block font-normal text-muted">Photo in the report: {u.captions[f.hash]}</span>}
+                            </button>
+                          ))}
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </section>
+        )}
       </main>
+    </div>
+  );
+}
+
+/** Only captions for photos still attached, and not empty. */
+const cleanCaptions = (c: Record<string, string>, files: Receipt[]) => {
+  const out = Object.fromEntries(Object.entries(c).filter(([h, v]) => v.trim() && files.some((f) => f.hash === h && f.type.startsWith("image/"))).map(([h, v]) => [h, v.trim()]));
+  return Object.keys(out).length ? out : undefined;
+};
+
+/** Upload photos and documents; each photo can get a caption, and captioned photos go into the donor report. */
+function ProofPicker({ files, setFiles, captions, setCaptions, setErr, setBusy }: { files: Receipt[]; setFiles: (f: Receipt[] | ((c: Receipt[]) => Receipt[])) => void; captions: Record<string, string>; setCaptions: (c: Record<string, string>) => void; setErr: (s: string) => void; setBusy: (b: boolean) => void }) {
+  const { user } = useSession();
+  const upload = async (list: FileList | null) => {
+    if (!list) return;
+    setErr("");
+    setBusy(true);
+    try {
+      const added: Receipt[] = [];
+      for (const file of Array.from(list)) {
+        const body = new FormData();
+        body.append("file", await shrink(file));
+        added.push(await call<Receipt>("/api/files", user?.id, { method: "POST", body }));
+      }
+      setFiles((cur) => [...cur, ...added].slice(0, 20));
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <>
+      <input type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf" className="mt-1 block text-sm" onChange={(e) => void upload(e.target.files)} />
+      {files.length > 0 && (
+        <ul className="mt-2 space-y-2">
+          {files.map((x) => (
+            <li key={x.hash} className="rounded-lg border border-line bg-paper px-3 py-2 text-xs">
+              <span className="flex items-center gap-2">
+                <span className="flex-1">{x.name}</span>
+                <button type="button" aria-label={`Remove ${x.name}`} className="text-muted hover:text-clay" onClick={() => setFiles(files.filter((y) => y.hash !== x.hash))}>
+                  ×
+                </button>
+              </span>
+              {x.type.startsWith("image/") && (
+                <input className={input} placeholder="Caption, to put this photo in the report: what, where, when" value={captions[x.hash] ?? ""} onChange={(e) => setCaptions({ ...captions, [x.hash]: e.target.value })} />
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
+}
+
+function UpdateForm({ activities, add, onClose }: { activities: { code: string; name: string }[]; add: (u: UpdateInput) => Promise<void>; onClose: () => void }) {
+  const [f, setF] = useState({ activity: activities[0]?.code ?? "", date: new Date().toISOString().slice(0, 10), note: "" });
+  const [files, setFiles] = useState<Receipt[]>([]);
+  const [captions, setCaptions] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const submit = async () => {
+    setErr("");
+    if (f.note.trim().length < 10) return setErr("Say what happened: it goes into the report.");
+    setBusy(true);
+    try {
+      await add({ activity: f.activity, date: f.date, note: f.note.trim(), files, captions: cleanCaptions(captions, files) });
+    } catch {
+      /* shown above */
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="mt-3 rounded-xl bg-sunken p-4">
+      <div className="grid gap-3 sm:grid-cols-3">
+        <label className="text-sm sm:col-span-2">
+          Activity
+          <select className={input} value={f.activity} onChange={(e) => setF({ ...f, activity: e.target.value })}>
+            {activities.map((a) => (
+              <option key={a.code} value={a.code}>
+                {a.code}: {a.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="text-sm">
+          Date
+          <input type="date" className={input} value={f.date} max={new Date().toISOString().slice(0, 10)} onChange={(e) => setF({ ...f, date: e.target.value })} />
+        </label>
+      </div>
+      <label className="mt-3 block text-sm">
+        What happened
+        <textarea className={input} rows={4} value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} placeholder="10 of the 15 planned water reservoirs completed in Nesh, Maiwand, Musa Qala and Sangin (about 121 m³ each)." />
+      </label>
+      <div className="mt-3 text-sm">
+        Photos or documents (optional)
+        <ProofPicker files={files} setFiles={setFiles} captions={captions} setCaptions={setCaptions} setErr={setErr} setBusy={setBusy} />
+      </div>
+      {err && (
+        <p role="alert" className="mt-3 text-sm text-clay">
+          {err}
+        </p>
+      )}
+      <div className="mt-4 flex gap-2">
+        <button type="button" disabled={busy} className={primaryBtn} onClick={() => void submit()}>
+          Add update
+        </button>
+        <button type="button" className={quietBtn} onClick={onClose}>
+          Cancel
+        </button>
+      </div>
     </div>
   );
 }
@@ -234,8 +391,9 @@ function ResultCard({ r, ind, act }: { r: Res; ind?: Ind; act: (a: ResultAction,
       )}
       <div className="mt-2 flex flex-wrap gap-2">
         {r.files.map((f) => (
-          <button key={f.hash} type="button" onClick={() => void openReceipt(f.hash, user?.id)} className="rounded-lg border border-line px-2 py-1 text-xs font-semibold text-forest hover:bg-sunken">
+          <button key={f.hash} type="button" onClick={() => void openReceipt(f.hash, user?.id)} className="rounded-lg border border-line px-2 py-1 text-start text-xs font-semibold text-forest hover:bg-sunken">
             {f.name}
+            {r.captions?.[f.hash] && <span className="block font-normal text-muted">Photo in the report: {r.captions[f.hash]}</span>}
           </button>
         ))}
         {!r.files.length && r.noFile && <span className="text-xs text-clay">No file: {r.noFile}</span>}
@@ -279,36 +437,17 @@ function ResultCard({ r, ind, act }: { r: Res; ind?: Ind; act: (a: ResultAction,
 }
 
 function RecordForm({ ind, add, onClose }: { ind: Ind; add: (r: ResultInput) => Promise<void>; onClose: () => void }) {
-  const { user } = useSession();
   const d = ind.disaggregation ?? [];
   const bySex = d.includes("sex");
   const byLead = d.includes("women-led or men-led");
   const byCrop = d.includes("crop");
   const [f, setF] = useState({ date: new Date().toISOString().slice(0, 10), value: "", female: "", male: "", womenLed: "", menLed: "", province: "", district: "", crop: "", note: "", noFile: "" });
   const [files, setFiles] = useState<Receipt[]>([]);
+  const [captions, setCaptions] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
   const opt = (s: string) => (s.trim() === "" ? undefined : Number(s));
-
-  const upload = async (list: FileList | null) => {
-    if (!list) return;
-    setErr("");
-    setBusy(true);
-    try {
-      const added: Receipt[] = [];
-      for (const file of Array.from(list)) {
-        const body = new FormData();
-        body.append("file", await shrink(file));
-        added.push(await call<Receipt>("/api/files", user?.id, { method: "POST", body }));
-      }
-      setFiles((cur) => [...cur, ...added].slice(0, 20));
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  };
 
   const submit = async () => {
     setErr("");
@@ -331,6 +470,7 @@ function RecordForm({ ind, add, onClose }: { ind: Ind; add: (r: ResultInput) => 
         crop: byCrop ? f.crop.trim() || undefined : undefined,
         note: f.note.trim(),
         files,
+        captions: cleanCaptions(captions, files),
         noFile: files.length ? undefined : f.noFile.trim() || undefined,
       });
     } catch {
@@ -401,19 +541,7 @@ function RecordForm({ ind, add, onClose }: { ind: Ind; add: (r: ResultInput) => 
       </label>
       <div className="mt-3 text-sm">
         Proof{ind.verification ? ` (${ind.verification})` : ""}
-        <input type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf" className="mt-1 block text-sm" onChange={(e) => void upload(e.target.files)} />
-        {files.length > 0 && (
-          <ul className="mt-2 flex flex-wrap gap-2">
-            {files.map((x) => (
-              <li key={x.hash} className="flex items-center gap-1 rounded-lg border border-line bg-paper px-2 py-1 text-xs">
-                {x.name}
-                <button type="button" aria-label={`Remove ${x.name}`} className="text-muted hover:text-clay" onClick={() => setFiles(files.filter((y) => y.hash !== x.hash))}>
-                  ×
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
+        <ProofPicker files={files} setFiles={setFiles} captions={captions} setCaptions={setCaptions} setErr={setErr} setBusy={setBusy} />
         {!files.length && (
           <label className="mt-2 block">
             No file yet? Say why

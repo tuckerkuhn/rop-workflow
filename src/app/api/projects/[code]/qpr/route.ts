@@ -75,6 +75,8 @@ export async function POST(req: Request, { params }: Ctx) {
       } else if (a.action === "info") {
         next.info = a.info;
         next.quarterSpend = a.quarterSpend;
+      } else if (a.action === "acronyms") {
+        next.acronyms = [...a.acronyms].sort((x, y) => x[0].localeCompare(y[0]));
       } else if (a.action === "risks") {
         next.risks = a.risks.filter((r) => r.risk || r.mitigation);
       } else if (a.action === "grm") {

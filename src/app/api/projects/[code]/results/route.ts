@@ -6,7 +6,8 @@ import { resultActionSchema } from "@/lib/results";
 import { isMelOwner, requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
 import { projectByCode } from "@/server/field-store";
-import { addResult, loadResults, reviewResult } from "@/server/results-store";
+import { addResult, addUpdate, loadResults, loadUpdates, reviewResult } from "@/server/results-store";
+import { activityOf } from "@/lib/qpr";
 
 type Ctx = { params: Promise<{ code: string }> };
 
@@ -25,13 +26,20 @@ async function view(code: string, u: AppUser) {
     .where(and(eq(s.indicators.projectId, project.id), eq(s.indicators.source, "results")))
     .orderBy(asc(s.indicators.position));
   const results = await loadResults(code);
+  const updates = await loadUpdates(code);
   const mel = isMelOwner(u);
+  const names = new Map<string, string>();
+  for (const l of await db.selectDistinct({ c: s.budgetLines.activityCode, n: s.budgetLines.activity }).from(s.budgetLines).where(eq(s.budgetLines.projectId, project.id))) if (l.c && l.n && !names.has(l.c)) names.set(l.c, l.n);
+  const activities = [...new Set(indicators.map((i) => activityOf(i.donorCode, i.code)))].map((c) => ({ code: c, name: names.get(c) ?? `Activity ${c}` }));
   return {
     me: u.id,
     mayRecord: mayRecord(u),
     mayReview: mel,
     indicators: indicators.map((i) => ({ ...i, target: Number(i.target) })),
     results: results.map((r) => ({ ...r, canReview: mel && r.status === "pending" && r.by !== u.id })),
+    activities,
+    updates,
+    mayUpdate: mayRecord(u) || mel,
   };
 }
 export type ResultsView = Awaited<ReturnType<typeof view>>;
@@ -54,6 +62,12 @@ export async function POST(req: Request, { params }: Ctx) {
     if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Check the form." }, { status: 400 });
     const a = parsed.data;
     const u = v.user;
+    if (a.action === "update") {
+      if (!(mayRecord(u) || isMelOwner(u))) return NextResponse.json({ error: "Only field staff and MEL can add activity updates." }, { status: 403 });
+      if (a.update.date > new Date().toISOString().slice(0, 10)) return NextResponse.json({ error: "The date is in the future." }, { status: 400 });
+      await addUpdate(code, a.update, u.id);
+      return NextResponse.json(await view(code, u));
+    }
     if (a.action === "record") {
       if (!mayRecord(u)) return NextResponse.json({ error: "Only staff who record field activities can record results." }, { status: 403 });
       const project = await projectByCode(code);

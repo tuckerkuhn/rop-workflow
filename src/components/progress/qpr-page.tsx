@@ -4,10 +4,11 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
+import { openReceipt } from "@/components/people/expense-page";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { SECTIONS, STATUSES, STATUS_LABEL, quarterSpendOf, type QprPatch, type Row, type Status } from "@/lib/qpr";
-import { qprHtml } from "@/lib/qpr-export";
+import { qprDocx, type Images } from "@/lib/qpr-docx";
 import { quarterOf, quarterRange } from "@/lib/results";
 import type { QprView } from "@/app/api/projects/[code]/qpr/route";
 
@@ -97,14 +98,46 @@ export function QprPage() {
   };
   const quiet = (p: Promise<void>) => p.catch(() => undefined);
 
-  const download = () => {
+  /** Fetches each captioned photo and turns it into a JPEG Word can hold. */
+  const loadImages = async (photos: QprView["photos"]): Promise<Images> => {
+    const out: Images = new Map();
+    for (const ph of photos) {
+      try {
+        const res = await fetch(`/api/files/${ph.hash}`, { headers: { "x-demo-user": user.id } });
+        if (!res.ok) continue;
+        const bmp = await createImageBitmap(await res.blob());
+        const scale = Math.min(1, 1400 / Math.max(bmp.width, bmp.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(bmp.width * scale);
+        canvas.height = Math.round(bmp.height * scale);
+        const ctx = canvas.getContext("2d")!;
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+        const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/jpeg", 0.85));
+        if (blob) out.set(ph.hash, { data: await blob.arrayBuffer(), width: canvas.width, height: canvas.height });
+      } catch {
+        /* a photo that cannot be read is marked in the document */
+      }
+    }
+    return out;
+  };
+  const download = async () => {
     if (!v) return;
-    const html = qprHtml({ ...v, origin: window.location.origin });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([html], { type: "application/msword" }));
-    a.download = `${v.project.code}-QPR-${v.quarter}.doc`;
-    a.click();
-    URL.revokeObjectURL(a.href);
+    setBusy("download");
+    setError("");
+    try {
+      const blob = await qprDocx({ ...v, origin: window.location.origin }, await loadImages(v.photos));
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `${v.project.code}-QPR-${v.quarter}.docx`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    } catch (e) {
+      setError(`The Word file could not be made: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy("");
+    }
   };
 
   const emptyDraftable = v ? [...SECTIONS.filter((s) => s.draft).map((s) => s.key as string), ...v.activities.map((a) => `act.${a.code}`)].filter((k) => !v.saved.sections[k]?.text.trim()) : [];
@@ -171,8 +204,8 @@ export function QprPage() {
                   {busy === "draft" ? "Drafting… (up to 2 minutes)" : `Draft ${emptyDraftable.length} empty section${emptyDraftable.length === 1 ? "" : "s"} with Claude`}
                 </button>
               )}
-              <button type="button" className={quietBtn} onClick={download}>
-                Download for Word
+              <button type="button" className={quietBtn} disabled={busy === "download"} onClick={() => void download()}>
+                {busy === "download" ? "Making the Word file…" : "Download for Word"}
               </button>
               {v.mayRelease && (
                 <button type="button" className={primaryBtn} disabled={!!busy || stops.length > 0} title={stops.length ? "Fix the items marked to fix first." : ""} onClick={() => quiet(act({ action: "release" }, "Released: the report is final and can no longer be changed."))}>
@@ -207,6 +240,7 @@ export function QprPage() {
             )}
 
             <InfoBox v={v} act={act} onImported={() => void load()} />
+            <Acronyms v={v} act={act} />
             <Section v={v} k="summary" act={act} busy={busy} />
             <Section v={v} k="background" act={act} busy={busy} />
 
@@ -218,7 +252,10 @@ export function QprPage() {
             <section className="mt-8">
               <h2 className="font-display text-2xl">Narrative Description</h2>
               {v.activities.map((a) => (
-                <Section key={a.code} v={v} k={`act.${a.code}`} heading={`Activity ${a.code}: ${a.name}`} act={act} busy={busy} draftable />
+                <div key={a.code}>
+                  <Section v={v} k={`act.${a.code}`} heading={`Activity ${a.code}: ${a.name}`} act={act} busy={busy} draftable />
+                  <ActivityExtras v={v} activity={a.code} />
+                </div>
               ))}
             </section>
 
@@ -259,7 +296,7 @@ function InfoBox({ v, act, onImported }: { v: QprView; act: Act; onImported: () 
   const field = (k: keyof typeof f, label: string, wide = false) => (
     <label className={`text-sm ${wide ? "sm:col-span-2" : ""}`}>
       {label}
-      <input className={input} value={f[k]} disabled={!v.mayEdit} onChange={(e) => setF({ ...f, [k]: e.target.value })} />
+      <input className={input} value={f[k] ?? ""} disabled={!v.mayEdit} onChange={(e) => setF({ ...f, [k]: e.target.value })} />
     </label>
   );
   return (
@@ -271,11 +308,7 @@ function InfoBox({ v, act, onImported }: { v: QprView; act: Act; onImported: () 
           <dd className="font-semibold tabular-nums">
             {num(v.spend.budget)} {c}
           </dd>
-          {v.spend.overhead && (
-            <dd className="text-xs text-muted">
-              plus overhead {num(v.spend.overhead.budget)} {v.spend.overhead.currency}
-            </dd>
-          )}
+          <dd className="text-xs text-muted">{v.spend.withOverhead ? "Whole agreement, overhead included" : "Overhead not included"}</dd>
         </div>
         <div>
           <dt className="text-muted">Cumulative to {to}</dt>
@@ -292,16 +325,21 @@ function InfoBox({ v, act, onImported }: { v: QprView; act: Act; onImported: () 
       <p className="mt-2 text-xs text-muted">
         {v.spend.source.kind === "import" ? (
           <>
-            From Finance&rsquo;s budget against actual: {v.spend.source.file}, imported by {v.spend.source.by} on {v.spend.source.at}
-            {v.spend.source.sharepointUrl && (
-              <>
-                {" · "}
-                <a href={v.spend.source.sharepointUrl} target="_blank" rel="noreferrer" className="font-semibold text-forest hover:underline">
-                  Open in SharePoint
-                </a>
-              </>
-            )}
-            . Overhead (GMS 8%) is not included.
+            From Finance&rsquo;s budget against actual:{" "}
+            {v.spend.source.files.map((f, k) => (
+              <span key={f.name + f.period}>
+                {k > 0 && "; "}
+                {f.period}: {f.sharepointUrl ? (
+                  <a href={f.sharepointUrl} target="_blank" rel="noreferrer" className="font-semibold text-forest hover:underline">
+                    {f.name}
+                  </a>
+                ) : (
+                  f.name
+                )}{" "}
+                (imported by {f.by} on {f.at})
+              </span>
+            ))}
+            .
           </>
         ) : (
           <>From the budget file{v.spend.source.at ? ` imported on ${v.spend.source.at}` : ""}. Import Finance&rsquo;s monthly workbook to fill this quarter&rsquo;s spending.</>
@@ -317,6 +355,7 @@ function InfoBox({ v, act, onImported }: { v: QprView; act: Act; onImported: () 
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         {field("title", "Project title", true)}
         {field("agreement", "Agreement number")}
+        {field("duration", "Project duration, as in the agreement (e.g. 1 March 2025 – 30 June 2027)")}
         {field("director", "Country director")}
         {field("locations", "Project locations (districts)", true)}
         {field("partner", "Responsible party")}
@@ -646,5 +685,107 @@ function SpendImport({ v, onDone }: { v: QprView; onDone: () => void }) {
         </button>
       </span>
     </span>
+  );
+}
+
+/** Under each activity: its updates this quarter, the breakdown tables and the photos that go into the report. */
+function ActivityExtras({ v, activity }: { v: QprView; activity: string }) {
+  const { user } = useSession();
+  const codes = v.rows.filter((r) => r.activity === activity).map((r) => r.code);
+  const updates = v.updates.filter((u) => u.activity === activity);
+  const tables = v.breakdowns.filter((b) => codes.includes(b.indicator));
+  const photos = v.photos.filter((p) => p.activity === activity);
+  if (!updates.length && !tables.length && !photos.length)
+    return (
+      <p className="mt-2 text-xs text-muted">
+        No activity updates or captioned photos this quarter.{" "}
+        <Link href="/progress/results" className="font-semibold text-forest hover:underline">
+          Add them on Results
+        </Link>
+      </p>
+    );
+  return (
+    <div className="mt-3 space-y-3 rounded-xl bg-sunken p-3 text-sm">
+      {updates.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Updates this quarter (Claude drafts from these)</p>
+          <ul className="mt-1 list-disc space-y-1 ps-5">
+            {updates.map((u) => (
+              <li key={u.id}>
+                <span className="text-muted">{u.date}:</span> {u.note}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {tables.map((b) => (
+        <div key={b.indicator}>
+          <p className="text-xs font-semibold">{b.title}</p>
+          <div className="mt-1 overflow-x-auto">
+            <table className="w-full min-w-[420px] text-xs">
+              <thead>
+                <tr>
+                  {b.columns.map((c) => (
+                    <th key={c} className="py-1 pe-3 text-start font-semibold text-muted">
+                      {c}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {b.rows.map((r, k) => (
+                  <tr key={k} className={r[0] === "Total" ? "font-semibold" : ""}>
+                    {r.map((c, j) => (
+                      <td key={j} className="py-1 pe-3 tabular-nums">
+                        {typeof c === "number" ? num(c) : c}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ))}
+      {photos.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Photos in the report ({photos.length})</p>
+          <ul className="mt-1 space-y-1">
+            {photos.map((ph) => (
+              <li key={ph.hash}>
+                <button type="button" className="text-start font-semibold text-forest hover:underline" onClick={() => void openReceipt(ph.hash, user?.id)}>
+                  {ph.caption}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Acronyms({ v, act }: { v: QprView; act: Act }) {
+  const toText = (l: [string, string][] | undefined) => (l ?? []).map(([a, b]) => `${a}: ${b}`).join("\n");
+  const [text, setText] = useState(toText(v.saved.acronyms));
+  useEffect(() => setText(toText(v.saved.acronyms)), [v.saved.acronyms]);
+  const dirty = text !== toText(v.saved.acronyms);
+  const parse = (): [string, string][] =>
+    text
+      .split("\n")
+      .map((l) => l.split(":"))
+      .filter((x) => x.length >= 2 && x[0].trim() && x.slice(1).join(":").trim())
+      .map((x) => [x[0].trim(), x.slice(1).join(":").trim()]);
+  return (
+    <details className="mt-6 rounded-xl border border-line bg-surface px-4 py-3">
+      <summary className="cursor-pointer font-display text-lg">Acronyms ({v.saved.acronyms?.length ?? 0})</summary>
+      <p className="mt-1 text-xs text-muted">One per line, as &ldquo;IWRM: Integrated Water Resources Management&rdquo;. Kept from quarter to quarter. The Word file also gets a table of contents.</p>
+      <textarea className={input} rows={8} value={text} disabled={!v.mayEdit} onChange={(e) => setText(e.target.value)} />
+      {v.mayEdit && dirty && (
+        <button type="button" className={`${primaryBtn} mt-2`} onClick={() => void act({ action: "acronyms", acronyms: parse() }, "Saved.").catch(() => undefined)}>
+          Save acronyms
+        </button>
+      )}
+    </details>
   );
 }

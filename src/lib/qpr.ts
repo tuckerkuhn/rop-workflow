@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { quarterRange, totalsOf, type ResultRecord } from "@/lib/results";
+import { quarterRange, totalsOf, type ResultRecord, type UpdateRecord } from "@/lib/results";
 
 /**
  * The UNDP quarterly progress report (QPR), in the layout ROP sends for ACRP (Q3 2026): project
@@ -38,7 +38,9 @@ export const activityOf = (donorCode: string | null, code: string) => (donorCode
 export type Text = { text: string; by: string; at: string; drafted?: boolean; from?: string };
 export type Qpr = {
   /** Project information box; carried forward from the last quarter. */
-  info: { title: string; agreement: string; locations: string; partner: string; director: string };
+  info: { title: string; agreement: string; locations: string; partner: string; director: string; duration?: string };
+  /** Abbreviations listed at the front of the report; carried forward each quarter. */
+  acronyms?: [string, string][];
   /** Spent this quarter in the budget currency, until the monthly spending import fills it. */
   quarterSpend: number | null;
   sections: Partial<Record<string, Text>>;
@@ -64,6 +66,7 @@ export function carryForward(prev: Qpr | null, projectName: string, prevQuarter:
   if (!prev) return q;
   q.info = prev.info;
   q.risks = prev.risks;
+  q.acronyms = prev.acronyms;
   for (const k of ["background", "principled", "partnerships", "safeguards", "challenges", "lessons"]) {
     const t = prev.sections[k];
     if (t?.text.trim()) q.sections[k] = { ...t, from: prevQuarter };
@@ -79,7 +82,8 @@ export const prevQuarterOf = (q: string) => {
 export const qprPatchSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("section"), key: z.string().regex(/^[a-z0-9.]{1,40}$/), text: z.string().max(20000) }),
   z.object({ action: z.literal("row"), indicator: z.string().regex(/^IND-\d+$/), status: z.enum(STATUSES).nullable(), comment: z.string().max(2000).nullable() }),
-  z.object({ action: z.literal("info"), info: z.object({ title: z.string().max(300), agreement: z.string().max(100), locations: z.string().max(600), partner: z.string().max(200), director: z.string().max(200) }), quarterSpend: z.number().min(0).max(1e13).nullable() }),
+  z.object({ action: z.literal("info"), info: z.object({ title: z.string().max(300), agreement: z.string().max(100), locations: z.string().max(600), partner: z.string().max(200), director: z.string().max(200), duration: z.string().max(200).optional() }), quarterSpend: z.number().min(0).max(1e13).nullable() }),
+  z.object({ action: z.literal("acronyms"), acronyms: z.array(z.tuple([z.string().trim().min(1).max(20), z.string().trim().min(1).max(200)])).max(80) }),
   z.object({ action: z.literal("risks"), risks: z.array(z.object({ risk: z.string().trim().max(600), mitigation: z.string().trim().max(1200) })).max(20) }),
   z.object({ action: z.literal("grm"), received: z.number().int().min(0).max(1e6).nullable(), resolved: z.number().int().min(0).max(1e6).nullable() }),
   z.object({ action: z.literal("draft"), keys: z.array(z.string().regex(/^[a-z0-9.]{1,40}$/)).min(1).max(20) }),
@@ -87,20 +91,22 @@ export const qprPatchSchema = z.discriminatedUnion("action", [
 ]);
 export type QprPatch = z.infer<typeof qprPatchSchema>;
 
-/** Spending for the report: from the imported budget against actual when there is one, else the budget file. */
+/** Spending for the report: from the imported budget against actual (every phase of the agreement, overhead included) when there is one, else the budget file. */
 export type Spend = {
   currency: string;
   budget: number;
-  /** Spent from the start to the end of the quarter. */
+  /** Spent from the agreement's start to the end of the quarter. */
   cumulative: number;
   /** Spent in the quarter, from the import; null without one. */
   quarter: number | null;
-  /** The workbook's 8% overhead (GMS) row, reported apart. */
-  overhead: { budget: number; actual: number; currency: string } | null;
-  source: { kind: "import"; file: string; sharepointUrl: string | null; by: string; at: string } | { kind: "budget"; at: string | null };
+  /** True when the figures include overhead (GMS 8%). */
+  withOverhead: boolean;
+  source: { kind: "import"; files: { name: string; sharepointUrl: string | null; by: string; at: string; period: string }[] } | { kind: "budget"; at: string | null };
+  /** Each imported phase: its period, budget and spending, overhead included. */
+  phases: { period: string; budget: number; actual: number }[];
   /** Months of the quarter the import does not cover yet. */
   missingMonths: string[];
-  /** Per budget line: budget, spent to the quarter's end, spent in the quarter. */
+  /** Per budget line of the current phase (overhead not included): budget, spent to the quarter's end, spent in the quarter. */
   byLine: Record<string, { budget: number; actual: number; quarter: number }>;
 };
 
@@ -236,5 +242,77 @@ export function checksFor(rows: Row[], results: ResultRecord[], quarter: string,
   }
   if (!saved.risks.length) out.push({ level: "check", text: "The risk table is empty." });
   if (saved.grm.received === null) out.push({ level: "check", text: "Complaints (GRM) numbers are not entered." });
+  return out;
+}
+
+/** Abbreviations a UNDP report on Afghanistan usually needs; the team edits the list. */
+export const DEFAULT_ACRONYMS: [string, string][] = [
+  ["CSA", "Climate-Smart Agriculture"],
+  ["DAIL", "Directorate of Agriculture, Irrigation and Livestock"],
+  ["GEWE", "Gender Equality and Women's Empowerment"],
+  ["GMS", "General Management Support"],
+  ["GRM", "Grievance Redress Mechanism"],
+  ["HVC", "High-Value Crop"],
+  ["IWRM", "Integrated Water Resources Management"],
+  ["MAIL", "Ministry of Agriculture, Irrigation and Livestock"],
+  ["MSME", "Micro, Small and Medium Enterprise"],
+  ["SES", "Social and Environmental Safeguards"],
+  ["UNDP", "United Nations Development Programme"],
+  ["WUA", "Water Users Association"],
+];
+
+/** A captioned photo from an accepted result or an activity update in the quarter, for the report. */
+export type Photo = { hash: string; name: string; type: string; caption: string; activity: string; date: string };
+
+export function photosFor(rows: Row[], results: ResultRecord[], updates: UpdateRecord[], quarter: string): Photo[] {
+  const { from, to } = quarterRange(quarter);
+  const out: Photo[] = [];
+  for (const r of results.filter((x) => x.status === "accepted" && x.date >= from && x.date <= to)) {
+    const activity = rows.find((x) => x.code === r.indicator)?.activity ?? "";
+    for (const f of r.files) if (f.type.startsWith("image/") && r.captions?.[f.hash]) out.push({ hash: f.hash, name: f.name, type: f.type, caption: r.captions[f.hash], activity, date: r.date });
+  }
+  for (const u of updates.filter((x) => x.date >= from && x.date <= to))
+    for (const f of u.files) if (f.type.startsWith("image/") && u.captions?.[f.hash]) out.push({ hash: f.hash, name: f.name, type: f.type, caption: u.captions[f.hash], activity: u.activity, date: u.date });
+  const seen = new Set<string>();
+  return out.filter((p) => !seen.has(p.hash) && !!seen.add(p.hash)).sort((a, b) => a.activity.localeCompare(b.activity) || a.date.localeCompare(b.date));
+}
+
+/**
+ * A breakdown table for an indicator, like ROP's "Summary of Commercial Greenhouses Constructed
+ * by Province and Beneficiary Gender": one row per province and district, from the quarter's
+ * accepted results. Only where at least two places are recorded, or people are broken down.
+ */
+export type Breakdown = { indicator: string; title: string; columns: string[]; rows: (string | number)[][] };
+
+export function breakdownsFor(rows: Row[], results: ResultRecord[], quarter: string): Breakdown[] {
+  const { from, to } = quarterRange(quarter);
+  const out: Breakdown[] = [];
+  for (const row of rows) {
+    // Every accepted result of the quarter, so the table's total is the indicator's; a result with no place gets its own row.
+    const list = results.filter((r) => r.indicator === row.code && r.status === "accepted" && r.date >= from && r.date <= to);
+    if (!list.some((r) => r.province || r.district)) continue;
+    const people = list.some((r) => r.female !== undefined || r.male !== undefined);
+    const lead = list.some((r) => r.womenLed !== undefined || r.menLed !== undefined);
+    const places = new Map<string, { province: string; district: string; value: number; a: number; b: number }>();
+    for (const r of list) {
+      const k = `${r.province ?? ""}|${r.district ?? ""}`;
+      const p = places.get(k) ?? { province: r.province ?? (r.district ? "" : "Not recorded"), district: r.district ?? "", value: 0, a: 0, b: 0 };
+      p.value += r.value;
+      p.a += people ? (r.female ?? 0) : (r.womenLed ?? 0);
+      p.b += people ? (r.male ?? 0) : (r.menLed ?? 0);
+      places.set(k, p);
+    }
+    if (places.size < 2 && !people && !lead) continue;
+    const sorted = [...places.values()].sort((x, y) => Number(x.province === "Not recorded") - Number(y.province === "Not recorded") || x.province.localeCompare(y.province) || x.district.localeCompare(y.district));
+    const extra = people ? ["Women", "Men"] : lead ? ["Women-led", "Men-led"] : [];
+    const cells = (p: { value: number; a: number; b: number }) => [p.value, ...(extra.length ? [p.a, p.b] : [])];
+    const total = sorted.reduce((t, p) => ({ value: t.value + p.value, a: t.a + p.a, b: t.b + p.b }), { value: 0, a: 0, b: 0 });
+    out.push({
+      indicator: row.code,
+      title: `${row.donorCode}: ${row.name}, by province and district${people ? " and sex" : lead ? " and who leads the business" : ""} (${quarter.replace("-", " ")})`,
+      columns: ["Province", "District", `Quantity (${row.unit})`, ...extra],
+      rows: [...sorted.map((p) => [p.province || "—", p.district || "—", ...cells(p)]), ["Total", "", ...cells(total)]],
+    });
+  }
   return out;
 }

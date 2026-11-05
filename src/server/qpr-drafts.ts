@@ -20,7 +20,7 @@ const outSchema = z.object({
 const SYSTEM = `You draft sections of the quarterly progress report that Roots of Peace (ROP) sends to UNDP for a project in Afghanistan.
 
 Rules:
-- Use only the facts given: figures, places, dates and the notes field staff wrote with each result. Never invent a number, place, partner, quote or outcome. If something a reader would expect is missing (for example why an indicator is behind), leave a marked placeholder in square brackets, e.g. [reason for delay], and list it in questions.
+- Use only the facts given: figures, places, dates, the notes field staff wrote with each result, and the activity updates (progress that is not an indicator count, such as reservoirs built, grants signed or sales at an exhibition). Never invent a number, place, partner, quote or outcome. If something a reader would expect is missing (for example why an indicator is behind), leave a marked placeholder in square brackets, e.g. [reason for delay], and list it in questions.
 - Every figure you use must match the facts exactly, with its unit.
 - Plain, factual report English, in short paragraphs. Past tense for what happened in the quarter. No marketing language, no bullet lists unless asked.
 - Refer to indicators by their UNDP code in brackets after the result, e.g. "(1.1.1.4)".
@@ -28,7 +28,7 @@ Rules:
 
 What each key means:
 - "summary": the Executive Summary: one short paragraph per output (1.1, 1.2, 2.1) with the quarter's headline results and the year's progress against target. About 250 to 350 words in all.
-- "act.X.Y.Z": the narrative for activity X.Y.Z: what was done this quarter under each of its indicators, where, for how many women and men or women-led and men-led businesses, and what is next; from the result notes. If nothing was achieved, say so in one or two sentences and what is planned, with a placeholder for the reason.
+- "act.X.Y.Z": the narrative for activity X.Y.Z: what was done this quarter under each of its indicators, where, for how many women and men or women-led and men-led businesses, and what is next; from the result notes and that activity's updates. If nothing was achieved, say so in one or two sentences and what is planned, with a placeholder for the reason.
 - "gender": 3.1 Gender Equality: women reached and women-led businesses this quarter, indicator by indicator, with figures; what the notes say about how women were included. Never add women across indicators into one total: the same person can be counted under more than one indicator.
 - "next": VII. Way Forward: priorities for next quarter, led by the indicators that are delayed or not implemented, and the remaining annual targets.`;
 
@@ -61,6 +61,7 @@ export async function draftQpr(d: QprData, keys: string[]): Promise<{ sections: 
     results_this_quarter: d.results
       .filter((r) => r.status === "accepted" && r.date >= from && r.date <= to)
       .map((r) => ({ indicator: d.rows.find((x) => x.code === r.indicator)?.donorCode, date: r.date, value: r.value, province: r.province, district: r.district, crop: r.crop, women: r.female, men: r.male, women_led: r.womenLed, men_led: r.menLed, note: r.note })),
+    activity_updates_this_quarter: d.updates.map((u) => ({ activity: u.activity, date: u.date, note: u.note })),
   };
   const client = new Anthropic({ maxRetries: 1 });
   const stream = client.beta.messages.stream({

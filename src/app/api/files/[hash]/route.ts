@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db, schema as s } from "@/db";
 import { seesAll } from "@/lib/hr";
@@ -56,7 +56,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ hash: st
           const [row] = await db
             .select({ id: s.evidence.id })
             .from(s.evidence)
-            .where(and(eq(s.evidence.form, "result"), sql`${s.evidence.payload}::text like ${`%${hash}%`}`))
+            .where(and(inArray(s.evidence.form, ["result", "update"]), sql`${s.evidence.payload}::text like ${`%${hash}%`}`))
             .limit(1);
           ok = !!row;
         }
