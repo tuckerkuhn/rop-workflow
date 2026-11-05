@@ -1,6 +1,6 @@
 import { and, asc, eq, inArray, isNotNull, notInArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
-import { TODAY, projects as demoProjects, type AppUser } from "@/lib/demo";
+import { projects as demoProjects, type AppUser } from "@/lib/demo";
 import { actualFor, indicators as demoIndicators, results as demoResults, type Indicator, type Submission } from "@/lib/project";
 import { totalsOf, type ResultRecord } from "@/lib/results";
 import { loadResults } from "@/server/results-store";
@@ -8,6 +8,7 @@ import { BUILT_IN_SOURCES, forecastFor, periodOf, projectYears, reportPeriod, tr
 import { FORMATS } from "@/lib/report-formats";
 import { listSubmissions } from "@/server/kobo";
 import { mappedInputs, mappedValue } from "@/server/kobo-link";
+import { today } from "@/lib/clock";
 
 /** Indicators with their values, and donors with their report deadlines, in Postgres. */
 
@@ -54,16 +55,16 @@ type Dates = { start: string | null; end: string | null };
 function forecastOf(r: IndicatorRow, dates: Dates, total: number | null, asOf: (date: string) => number | null): { forecast: ForecastYear[]; track: IndicatorProgress["track"] } {
   const years = projectYears(dates.start, dates.end);
   const plan = forecastFor(r.forecast, Number(r.target), years);
-  const now = Number(TODAY.slice(0, 4));
+  const now = Number(today().slice(0, 4));
   const forecast = years.map((year) => ({ year, forecast: plan.get(year) ?? null, actual: year < now ? asOf(`${year}-12-31`) : year === now ? total : null }));
-  const track = dates.start ? trackFor({ forecast: plan, actual: total, today: TODAY, start: dates.start, once: r.frequency === "end_of_season" }) : null;
+  const track = dates.start ? trackFor({ forecast: plan, actual: total, today: today(), start: dates.start, once: r.frequency === "end_of_season" }) : null;
   return { forecast, track };
 }
 
 /** Counted from a mapped KoboToolbox question. */
 function fromMapping(r: IndicatorRow, m: Mapped, dates: Dates): IndicatorProgress {
   const all = mappedValue(m.mapping, m.counted);
-  const p = periodOf(r.frequency, TODAY);
+  const p = periodOf(r.frequency, today());
   const inPeriod = p ? mappedValue(m.mapping, m.counted.filter((x) => x.date >= p.from && x.date <= p.to)) : null;
   const asOf = (d: string) => mappedValue(m.mapping, m.counted.filter((x) => x.date <= d)).value;
   return { ...base(r), total: all.value, period: inPeriod?.value ?? null, pending: m.waiting, byGender: null, lastDate: all.dates.sort().at(-1) ?? null, dataSource: "kobo", ...forecastOf(r, dates, all.value, asOf) };
@@ -73,7 +74,7 @@ function fromMapping(r: IndicatorRow, m: Mapped, dates: Dates): IndicatorProgres
 function fromResults(r: IndicatorRow, list: ResultRecord[], dates: Dates): IndicatorProgress {
   const mine = list.filter((x) => x.indicator === r.code);
   const all = totalsOf(mine);
-  const p = periodOf(r.frequency, TODAY);
+  const p = periodOf(r.frequency, today());
   const people = all.female + all.male > 0;
   const lastDate = mine.filter((x) => x.status === "accepted").map((x) => x.date).sort().at(-1) ?? null;
   return {
@@ -95,7 +96,7 @@ function withValues(r: IndicatorRow, subs: Submission[], span: Dates, mapped?: M
   if (!BUILT_IN_SOURCES.includes(r.source)) return { ...base(r), total: null, period: null, pending: 0, byGender: null, lastDate: null, dataSource: "none", ...forecastOf(r, span, null, () => null) };
   const ind = asIndicator(r);
   const all = actualFor(ind, subs);
-  const p = periodOf(r.frequency, TODAY);
+  const p = periodOf(r.frequency, today());
   const inPeriod = p ? actualFor(ind, subs.filter((x) => x.date >= p.from && x.date <= p.to)).value : null;
   const dates = all.evidence.map((e) => e.date).sort();
   const asOf = (d: string) => actualFor(ind, subs.filter((x) => x.date <= d)).value;
@@ -139,7 +140,7 @@ export async function listDonors(code: string, user: AppUser) {
 export async function loadProgress(code: string, user: AppUser): Promise<ProgressData> {
   const project = await projectOrNull(code);
   const demo = demoProjects.find((p) => p.id === code);
-  if (!project) return { saved: false, project: { code, name: demo?.name ?? code, startDate: null, endDate: null }, today: TODAY, indicators: [], donors: [], reports: [] };
+  if (!project) return { saved: false, project: { code, name: demo?.name ?? code, startDate: null, endDate: null }, today: today(), indicators: [], donors: [], reports: [] };
   const rows = await db.select().from(s.indicators).where(eq(s.indicators.projectId, project.id)).orderBy(asc(s.indicators.position));
   const subs = rows.some((r) => BUILT_IN_SOURCES.includes(r.source)) ? (await listSubmissions(code)).submissions : [];
   const mapped = rows.length ? await mappedInputs(project.id) : new Map<string, Mapped>();
@@ -147,7 +148,7 @@ export async function loadProgress(code: string, user: AppUser): Promise<Progres
   const results = rows.some((r) => r.source === "results") ? await loadResults(code) : [];
   // Each donor's report covers the time since its last deadline, so its counts differ from the cards'.
   const reports: ReportValues[] = [null, ...donors].map((d) => {
-    const { from, to } = reportPeriod(d, TODAY, project.startDate);
+    const { from, to } = reportPeriod(d, today(), project.startDate);
     const within = subs.filter((x) => x.date >= from && x.date <= to);
     const value = (r: IndicatorRow) => {
       const m = mapped.get(r.code);
@@ -160,7 +161,7 @@ export async function loadProgress(code: string, user: AppUser): Promise<Progres
   return {
     saved: true,
     project: { code, name: project.name, startDate: project.startDate, endDate: project.endDate },
-    today: TODAY,
+    today: today(),
     indicators: rows.map((r) => withValues(r, subs, { start: project.startDate, end: project.endDate }, mapped.get(r.code), results)),
     donors,
     reports,

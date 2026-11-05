@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { useT } from "@/components/app/i18n";
 import { RowItem, kindFill, type RowActions } from "@/components/tasks/row";
-import { TODAY } from "@/components/workspace/ui";
 import { weekStartOf } from "@/lib/i18n";
 import { addDays, onDay, type Row } from "@/lib/work-items";
+import { today } from "@/lib/clock";
 
 /**
  * A month of tasks and milestones. Phones show dots per day and the picked day's items below;
@@ -30,8 +30,8 @@ const shiftMonth = (month: string, n: number) => {
 
 export function CalendarView({ rows, actions }: { rows: Row[]; actions: RowActions }) {
   const { t, date, lang } = useT();
-  const [month, setMonth] = useState(TODAY.slice(0, 7));
-  const [picked, setPicked] = useState(TODAY);
+  const [month, setMonth] = useState(today().slice(0, 7));
+  const [picked, setPicked] = useState(today());
   const days = monthGrid(month, weekStartOf(lang));
   const dated = rows.filter((r) => r.date);
   const on = (day: string) => dated.filter((r) => onDay(r, day));
@@ -44,8 +44,8 @@ export function CalendarView({ rows, actions }: { rows: Row[]; actions: RowActio
         <button
           type="button"
           onClick={() => {
-            setMonth(TODAY.slice(0, 7));
-            setPicked(TODAY);
+            setMonth(today().slice(0, 7));
+            setPicked(today());
           }}
           className="rounded-full border border-line px-3 py-1.5 text-sm hover:border-forest"
         >
@@ -89,7 +89,7 @@ export function CalendarView({ rows, actions }: { rows: Row[]; actions: RowActio
                   onClick={() => setPicked(d)}
                   className={`flex min-h-14 flex-col items-stretch gap-1 p-1 text-start lg:min-h-24 ${inMonth ? "bg-surface" : "bg-paper text-muted"} ${isPicked ? "ring-2 ring-inset ring-forest" : ""}`}
                 >
-                  <span className={`grid h-6 w-6 place-items-center self-center rounded-full text-xs tabular-nums lg:self-start ${d === TODAY ? "bg-forest font-bold text-forest-ink" : ""}`}>
+                  <span className={`grid h-6 w-6 place-items-center self-center rounded-full text-xs tabular-nums lg:self-start ${d === today() ? "bg-forest font-bold text-forest-ink" : ""}`}>
                     {date(d, { day: "numeric" })}
                   </span>
                   {/* Phones: one dot per item, up to four. */}

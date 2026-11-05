@@ -1,8 +1,9 @@
 import { and, eq } from "drizzle-orm";
 import { db, schema as s } from "@/db";
-import { TODAY, type AppUser } from "@/lib/demo";
+import { type AppUser } from "@/lib/demo";
 import { addDays, fieldSteps, type Farmer } from "@/lib/field";
 import { toSubmission } from "@/server/kobo";
+import { today } from "@/lib/clock";
 
 /**
  * MEL decisions on the review queue. Accepting a Kobo readiness check is what records the
@@ -58,7 +59,7 @@ async function applyReadiness(tx: Tx, row: typeof s.evidence.$inferSelect, user:
   if (plot) {
     const [check] = await tx
       .insert(s.readinessChecks)
-      .values({ plotId: plot.id, visitDate: sub.date || TODAY, ready, issue, evidenceId: row.id })
+      .values({ plotId: plot.id, visitDate: sub.date || today(), ready, issue, evidenceId: row.id })
       .returning({ id: s.readinessChecks.id });
     checkId = check.id;
   }
@@ -69,7 +70,7 @@ async function applyReadiness(tx: Tx, row: typeof s.evidence.$inferSelect, user:
   const kbo = `${sub.id}, accepted by ${user.name}`;
   // The app runs on a fixed demo date; real visits are dated today. Count the 7 days from
   // whichever is later so a real No isn't overdue the moment it arrives.
-  const deadline = addDays(later(sub.date || TODAY, TODAY), 7);
+  const deadline = addDays(later(sub.date || today(), today()), 7);
   const checks = { ...f.checks, "verify.joint": sub.fields.both_present === "Yes", "verify.form": true, "verify.photo": sub.photo };
   let next: Farmer = f;
   let summary: string;
@@ -89,7 +90,7 @@ async function applyReadiness(tx: Tx, row: typeof s.evidence.$inferSelect, user:
 
   next = {
     ...next,
-    timeline: [...f.timeline, { date: sub.date || TODAY, who: "mel", what: `${summary.split(".")[0]}${issue && !ready ? `: ${issue}` : ""} (Kobo ${kbo})` }],
+    timeline: [...f.timeline, { date: sub.date || today(), who: "mel", what: `${summary.split(".")[0]}${issue && !ready ? `: ${issue}` : ""} (Kobo ${kbo})` }],
   };
   await tx.update(s.fieldItems).set({ data: next, updatedAt: new Date() }).where(eq(s.fieldItems.id, item.id));
   return summary;

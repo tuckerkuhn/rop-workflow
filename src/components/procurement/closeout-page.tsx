@@ -6,10 +6,11 @@ import { useCurrentProject } from "@/components/app/current-project";
 import { useT } from "@/components/app/i18n";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { useCloseouts, useProcurements } from "@/components/app/use-project-data";
-import { Pill, SectionLabel, TODAY, TopBar, primaryBtn } from "@/components/workspace/ui";
+import { Pill, SectionLabel, TopBar, primaryBtn } from "@/components/workspace/ui";
 import { blockers, fromBill, fromProcurement, monthsOf, total } from "@/lib/closeout";
 import type { Bill } from "@/lib/bills";
 import { procRolesFor, stepById } from "@/lib/procurement";
+import { today } from "@/lib/clock";
 
 /**
  * Monthly closeout: every expense voucher by month, with its SharePoint and NetSuite records.
@@ -66,7 +67,7 @@ export function CloseoutPage() {
         {months.map(([m, list]) => {
           const closed = closeouts.months[m];
           const open = blockers(list);
-          const ended = m < TODAY.slice(0, 7);
+          const ended = m < today().slice(0, 7);
           return (
             <section key={m} className="mt-8">
               <div className="flex flex-wrap items-end justify-between gap-3">

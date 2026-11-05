@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { TODAY, daysFrom } from "@/lib/demo";
+import { daysFrom } from "@/lib/demo";
+import { today as clockToday } from "@/lib/clock";
 
 /**
  * Tasks and milestones added in Tasks. Field and procurement steps are not stored here;
@@ -88,7 +89,7 @@ export type Row =
 
 export const rowEnd = (r: Row) => (r.kind === "milestone" ? (r.end ?? r.date) : r.date);
 
-export const isOverdue = (r: Row, today = TODAY) => r.kind === "task" && !r.done && ((!!r.date && r.date < today) || r.late);
+export const isOverdue = (r: Row, today = clockToday()) => r.kind === "task" && !r.done && ((!!r.date && r.date < today) || r.late);
 
 /** True when the row falls on `day`; a range covers every day in it. */
 export function onDay(r: Row, day: string) {
@@ -101,7 +102,7 @@ export type Bucket = "overdue" | "week" | "later" | "undated" | "done";
 export const BUCKETS: Bucket[] = ["overdue", "week", "later", "undated", "done"];
 
 /** Where a row goes in the list. "This week" is today and the next 6 days. */
-export function bucketOf(r: Row, today = TODAY): Bucket {
+export function bucketOf(r: Row, today = clockToday()): Bucket {
   if (r.kind === "task" && r.done) return "done";
   if (isOverdue(r, today)) return "overdue";
   if (!r.date) return "undated";

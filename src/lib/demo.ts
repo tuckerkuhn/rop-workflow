@@ -16,6 +16,7 @@ export const canValidate = (u: { project: string[]; field: string[] } | null | u
 export const canEditProject = canValidate;
 
 /** Fixed demo date the sample data is built around. Real Kobo submissions keep their real dates. */
+/** The demo projects' fixed date, for their synthetic data. Real work uses `today()` from "@/lib/clock". */
 export const TODAY = "2027-03-04";
 
 /** Every record carries an organization ID from day one (build spec). ROP only in the pilot. */

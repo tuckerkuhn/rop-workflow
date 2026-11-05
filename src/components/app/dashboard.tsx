@@ -11,12 +11,13 @@ import { useCurrentProject } from "@/components/app/current-project";
 import { useT } from "@/components/app/i18n";
 import { Initials, useRequireUser, useSession } from "@/components/app/session";
 import { HomePanels } from "@/components/home/panels";
-import { Pill, SectionLabel, TODAY, TopBar, usePersistentState } from "@/components/workspace/ui";
+import { Pill, SectionLabel, TopBar, usePersistentState } from "@/components/workspace/ui";
 import { workFor, type Data, type WorkCard } from "@/components/tasks/work";
 import { PROJECT, daysFrom, directReports, userById, type AppUser } from "@/lib/demo";
 import { PACKAGE, PACKAGE_USD, farmerName, farmerStages, fieldRoleLabel, maskName, type Farmer, type FieldItem } from "@/lib/field";
 import { DONE, procRolesFor, roleLabel, valueOf } from "@/lib/procurement";
 import { GATED_KEYS, seedProject, type ProjectState } from "@/lib/project";
+import { onDemoClock, today } from "@/lib/clock";
 
 const buckets = [
   { label: "This week", max: 6 },
@@ -29,7 +30,7 @@ function Pipeline({ cards }: { cards: WorkCard[] }) {
   const grouped = buckets.map((b, k) => ({
     ...b,
     cards: cards.filter((c) => {
-      const d = daysFrom(TODAY, c.date);
+      const d = daysFrom(today(), c.date);
       return d <= b.max && (k === 0 || d > buckets[k - 1].max);
     }),
   }));
@@ -94,7 +95,7 @@ function Team({ u, data, viewer, onView }: { u: AppUser; data: Data; viewer: App
           const cards = workFor(m, data, viewer);
           const now = cards.filter((c) => c.now);
           const late = now.filter((c) => c.late);
-          const soon = cards.filter((c) => !c.now && daysFrom(TODAY, c.date) <= 13);
+          const soon = cards.filter((c) => !c.now && daysFrom(today(), c.date) <= 13);
           const sub = directReports(m.id).length;
           return (
             <li key={m.id}>
@@ -141,7 +142,7 @@ function EmployeeHome({ u, data, viewer, readOnly, onView }: { u: AppUser; data:
   const cards = workFor(u, data, viewer);
   const now = cards.filter((c) => c.now);
   const late = now.filter((c) => c.late);
-  const soon = cards.filter((c) => !c.now && daysFrom(TODAY, c.date) <= 13);
+  const soon = cards.filter((c) => !c.now && daysFrom(today(), c.date) <= 13);
   const roleNames = rolesOf(u);
   const who = readOnly ? u.name.split(" ")[0] : "you";
 
@@ -432,7 +433,9 @@ export function Dashboard() {
         <header className="flex flex-wrap items-center gap-4">
           <Initials name={subject.name} className="h-14 w-14 text-xl" />
           <div className="min-w-0 flex-1">
-            <p className="text-sm text-muted">{date(TODAY, { weekday: "long", day: "numeric", month: "long", year: "numeric" })} · demo date</p>
+            <p className="text-sm text-muted">{date(today(), { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+              {onDemoClock() && " · demo date"}
+            </p>
             <h1 className="font-display text-4xl tracking-tight">{readOnly ? subject.name : t("home.greeting", { name: user.name.split(" ")[0] })}</h1>
             <p className="text-sm text-muted">
               {subject.title} · {subject.org}

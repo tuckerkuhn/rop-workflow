@@ -7,6 +7,7 @@ import { useSession } from "@/components/app/session";
 import { localeOf } from "@/lib/i18n";
 import { projects as demoProjects, type ProjectInfo } from "@/lib/demo";
 import type { ProjectSummary } from "@/lib/project-setup";
+import { setDemoClock } from "@/lib/clock";
 import { setProcurementRules } from "@/lib/procurement";
 import type { Value } from "@/lib/policy";
 
@@ -109,6 +110,8 @@ export function CurrentProjectProvider({ children }: { children: React.ReactNode
   const [rulesFor, setRulesFor] = useState<string | null>(null);
   const projectId = project?.id;
   const projectSaved = !!project?.saved;
+  // Saved projects run on the real date; demo projects on their fixed date. Set before children render.
+  setDemoClock(!!project && !projectSaved);
   useEffect(() => {
     if (!user || !projectId) return;
     if (!projectSaved) {

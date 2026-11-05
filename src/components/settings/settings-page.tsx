@@ -9,9 +9,10 @@ import { useRequireUser } from "@/components/app/session";
 import { useProgress } from "@/components/app/use-project-data";
 import { PasswordSection } from "@/components/settings/password-section";
 import { SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn } from "@/components/workspace/ui";
-import { TODAY, canEditProject } from "@/lib/demo";
+import { canEditProject } from "@/lib/demo";
 import type { DonorInfo, DonorInput, IndicatorProgress } from "@/lib/progress";
 import { FORMATS, formatById } from "@/lib/report-formats";
+import { today } from "@/lib/clock";
 
 /** Project settings. For now: the donors, their report format, deadlines and indicator codes. */
 export function SettingsPage() {
@@ -40,6 +41,13 @@ export function SettingsPage() {
             Rules this project follows: organization and donor policy
           </Link>
         </p>
+        {user?.admin && (
+          <p className="mt-2 text-sm">
+            <Link href="/settings/people" className="font-semibold text-forest hover:underline">
+              People and roles: who can sign in and what they may do
+            </Link>
+          </p>
+        )}
         <section className="mt-8" aria-labelledby="donors-heading">
           <div className="flex items-center justify-between gap-3">
             <span id="donors-heading">
@@ -61,7 +69,7 @@ export function SettingsPage() {
           {data?.saved && data.donors.length === 0 && <p className="mt-4 text-sm text-muted">{t("settings.none")}</p>}
           <ul className="mt-3 space-y-3">
             {data?.donors.map((d) => {
-              const next = d.deadlines.find((x) => x.date >= TODAY);
+              const next = d.deadlines.find((x) => x.date >= today());
               const body = (
                 <>
                   <p className="font-display text-xl">{d.name}</p>

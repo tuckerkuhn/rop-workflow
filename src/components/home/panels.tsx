@@ -6,10 +6,11 @@ import { useT } from "@/components/app/i18n";
 import { useProgress } from "@/components/app/use-project-data";
 import { RowItem, type RowActions } from "@/components/tasks/row";
 import { useTaskRows } from "@/components/tasks/use-rows";
-import { SectionLabel, TODAY, quietBtn } from "@/components/workspace/ui";
+import { SectionLabel, quietBtn } from "@/components/workspace/ui";
 import { canEditProject, daysFrom, type AppUser, type Stage, type ProjectInfo } from "@/lib/demo";
 import { isImpact, missingData } from "@/lib/progress";
 import { bucketOf, type Row } from "@/lib/work-items";
+import { today } from "@/lib/clock";
 
 /** Home for staff: what needs attention this week, and the current project in one card. */
 export function HomePanels({ user, project, stage }: { user: AppUser; project: ProjectInfo; stage: Stage }) {
@@ -30,7 +31,7 @@ function ThisWeek({ rows, progress, actions }: { rows: Row[]; progress: ReturnTy
   const soon = rows.filter((r) => r.kind === "task" && bucketOf(r) === "week");
   // The next deadline of each donor, however far off.
   const deadlines = (progress?.donors ?? []).flatMap((d) => {
-    const next = d.deadlines.find((x) => x.date >= TODAY);
+    const next = d.deadlines.find((x) => x.date >= today());
     return next ? [{ ...next, donor: d.name }] : [];
   });
   const noData = (progress?.indicators ?? []).filter(missingData);
@@ -75,7 +76,7 @@ function ThisWeek({ rows, progress, actions }: { rows: Row[]; progress: ReturnTy
                   <span className="font-medium">{d.title}</span>
                   <span className="block text-xs text-muted">{d.donor}</span>
                 </span>
-                <span className={`shrink-0 tabular-nums ${daysFrom(TODAY, d.date) <= 6 ? "font-semibold text-clay" : "text-muted"}`}>{date(d.date, { weekday: "short", day: "numeric", month: "short" })}</span>
+                <span className={`shrink-0 tabular-nums ${daysFrom(today(), d.date) <= 6 ? "font-semibold text-clay" : "text-muted"}`}>{date(d.date, { weekday: "short", day: "numeric", month: "short" })}</span>
               </li>
             ))}
           </ul>

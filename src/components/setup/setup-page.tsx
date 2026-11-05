@@ -11,10 +11,11 @@ import { KoboConnect, KoboDone, KoboForms, KoboMap } from "@/components/setup/ko
 import { BudgetStep, WorkplanStep } from "@/components/setup/plan-steps";
 import { Question, field } from "@/components/setup/question";
 import { TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
-import { TODAY, canEditProject } from "@/lib/demo";
+import { canEditProject } from "@/lib/demo";
 import { localeOf, type MessageKey } from "@/lib/i18n";
 import { COUNTRIES, projectDesignSchema, type IndicatorInput, type ProjectDesign } from "@/lib/project-setup";
 import { projectYears } from "@/lib/progress";
+import { realToday } from "@/lib/clock";
 
 /**
  * Project setup: one question per screen. New projects answer the design questions, are
@@ -27,7 +28,7 @@ const PLAN_STEPS = ["budget", "workplan"] as const;
 const KOBO_STEPS = ["kobo-connect", "kobo-forms", "kobo-map", "done"] as const;
 type Step = (typeof DESIGN_STEPS)[number] | (typeof PLAN_STEPS)[number] | (typeof KOBO_STEPS)[number];
 
-const empty: ProjectDesign = { name: "", country: "AF", crop: "", startDate: TODAY, endDate: TODAY, goal: "", indicators: [], donors: [] };
+const empty: ProjectDesign = { name: "", country: "AF", crop: "", startDate: realToday(), endDate: realToday(), goal: "", indicators: [], donors: [] };
 
 export function SetupPage() {
   const { user } = useRequireUser();
@@ -85,7 +86,7 @@ function Wizard({ code: initialCode, first }: { code: string | null; first: Step
       .then((r) => r.json())
       .then((d: ProjectDesign & { error?: string }) => {
         if (d.error) setError(d.error);
-        else setDraft({ ...empty, ...d, crop: d.crop ?? "", goal: d.goal ?? "", startDate: d.startDate ?? TODAY, endDate: d.endDate ?? TODAY, donors: [] });
+        else setDraft({ ...empty, ...d, crop: d.crop ?? "", goal: d.goal ?? "", startDate: d.startDate ?? realToday(), endDate: d.endDate ?? realToday(), donors: [] });
         setLoaded(true);
       })
       .catch((e) => setError(String(e)));

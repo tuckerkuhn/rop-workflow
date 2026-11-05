@@ -2,8 +2,8 @@
 
 import { useT } from "@/components/app/i18n";
 import { kindFill } from "@/components/tasks/row";
-import { TODAY } from "@/components/workspace/ui";
 import { rowEnd, type Row } from "@/lib/work-items";
+import { today } from "@/lib/clock";
 
 /**
  * Gantt-style timeline (paid plan): one line per dated item, ranges as bars, single days as
@@ -23,8 +23,8 @@ export function TimelineView({ rows }: { rows: Row[] }) {
   const dated = rows.filter((r): r is Row & { date: string } => !!r.date);
   if (dated.length === 0) return <p className="py-16 text-center text-sm text-muted">{t("timeline.empty")}</p>;
 
-  const from = monthStart([TODAY, ...dated.map((r) => r.date)].sort()[0]);
-  const to = nextMonth([TODAY, ...dated.map((r) => rowEnd(r) ?? r.date)].sort().at(-1)!);
+  const from = monthStart([today(), ...dated.map((r) => r.date)].sort()[0]);
+  const to = nextMonth([today(), ...dated.map((r) => rowEnd(r) ?? r.date)].sort().at(-1)!);
   const span = day(to) - day(from);
   const at = (iso: string) => ((day(iso) - day(from)) / span) * 100;
   const months: string[] = [];
@@ -57,7 +57,7 @@ export function TimelineView({ rows }: { rows: Row[] }) {
                   {months.map((m) => (
                     <span key={m} className="absolute inset-y-0 border-s border-line/60" style={{ insetInlineStart: `${at(m)}%` }} aria-hidden />
                   ))}
-                  <span className="absolute inset-y-0 border-s-2 border-ochre/70" style={{ insetInlineStart: `${at(TODAY)}%` }} aria-hidden />
+                  <span className="absolute inset-y-0 border-s-2 border-ochre/70" style={{ insetInlineStart: `${at(today())}%` }} aria-hidden />
                   {range ? (
                     <span
                       className={`absolute top-1/2 h-3 -translate-y-1/2 rounded-full ${fill}`}

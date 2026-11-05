@@ -10,6 +10,7 @@ import { formatMoney, holderOf, users, type ProcRole } from "@/lib/demo";
 import { holdersOfType, holdsType } from "@/lib/authority";
 import type { HrRole } from "@/lib/hr";
 import { ROP, type Value } from "@/lib/policy";
+import { DEMO_DATE, today } from "@/lib/clock";
 
 export type Role = ProcRole;
 export type Money = (usd: number) => string;
@@ -328,8 +329,8 @@ export const valueOf = (p: Procurement) => p.qty * p.unitPrice;
 export const lineOf = (p: Procurement): BudgetLine | undefined =>
   p.plan ? { code: p.plan.budgetCode, name: p.plan.budgetName, remainingValue: p.plan.leftUsd } : budgetLines.find((b) => b.code === p.budgetLine);
 
-/** Fixed "today" so the synthetic dates stay meaningful. */
-export const TODAY = "2027-03-04";
+/** The demo projects' fixed date, for their synthetic procurements. Checks use `today()`. */
+export const TODAY = DEMO_DATE;
 const daysBetween = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)) / 86400000);
 
 export type CheckResult = { ok: boolean; detail: string };
@@ -681,7 +682,7 @@ export const steps: Step[] = [
         label: "Bids held sealed until closing",
         why: "Held by two senior managers outside procurement. Nothing opened before closing.",
         tag: "D1 §4.6",
-        auto: (p) => (p.closingDate ? { ok: daysBetween(p.closingDate, TODAY) >= 0, detail: `Closing ${p.closingDate}` } : null),
+        auto: (p) => (p.closingDate ? { ok: daysBetween(p.closingDate, today()) >= 0, detail: `Closing ${p.closingDate}` } : null),
       },
       { id: "opening", label: "Opening record signed, with each bid's receipt time", why: "A signed record in its own right, not a table inside the selection memo.", tag: "D1 §4.6" },
     ],
@@ -914,7 +915,7 @@ export const steps: Step[] = [
         resolve: "Record new screening: no match",
         auto: (p) => {
           if (!p.supplier) return null;
-          const d = daysBetween(p.supplier.screenedOn, TODAY);
+          const d = daysBetween(p.supplier.screenedOn, today());
           return { ok: d <= 183, detail: `Last screened ${p.supplier.screenedOn} (${d} days ago)` };
         },
       },

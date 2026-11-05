@@ -32,7 +32,6 @@ import {
 import { AFN_PER_USD, projectPath, stepHistory, userById } from "@/lib/demo";
 import {
   DONE,
-  TODAY,
   blockingIssues,
   budgetLines,
   checkState,
@@ -64,6 +63,7 @@ import {
 } from "@/lib/procurement";
 import { holdersOfType } from "@/lib/authority";
 import { ROLE_LABEL } from "@/lib/hr";
+import { today } from "@/lib/clock";
 
 
 const fieldCls = "w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm focus:border-forest focus:outline-none disabled:bg-paper disabled:text-muted";
@@ -79,11 +79,11 @@ export function procurementComingTo(items: Procurement[], role: string) {
     .flatMap((p) => {
       const list = stepsFor(p);
       const i = list.findIndex((s) => s.id === p.step);
-      const since = p.timeline.length ? p.timeline[p.timeline.length - 1].date : TODAY;
+      const since = p.timeline.length ? p.timeline[p.timeline.length - 1].date : today();
       const path = projectPath(
         list.slice(i).map((s) => ({ step: s.id, owner: s.owner })),
         since,
-        TODAY,
+        today(),
       );
       const hit = path.find((x, k) => k > 0 && x.owner === role);
       if (!hit) return [];
@@ -266,7 +266,7 @@ function NewRequest({ onCancel, onCreate, from }: { onCancel: () => void; onCrea
           step: "need",
           checks: {},
           issues: [],
-          timeline: [{ date: TODAY, who: "holder", what: item ? `Request created from procurement calendar ${item.key}` : "Request created" }],
+          timeline: [{ date: today(), who: "holder", what: item ? `Request created from procurement calendar ${item.key}` : "Request created" }],
           ...(item
             ? {
                 plan: {
@@ -459,13 +459,13 @@ function Detail({
   stepsFor(p).forEach((s) => s.gate && (letters[s.stage] = [...(letters[s.stage] ?? []), s.gate]));
   const gates = Object.fromEntries(Object.entries(letters).map(([k, g]) => [k, `${g.length > 1 ? "Gates" : "Gate"} ${g.join("·")}`]));
 
-  const log = (q: Procurement, what: string): Procurement => ({ ...q, timeline: [...q.timeline, { date: TODAY, who: role ?? "procurement", what }] });
+  const log = (q: Procurement, what: string): Procurement => ({ ...q, timeline: [...q.timeline, { date: today(), who: role ?? "procurement", what }] });
 
   const complete = () =>
     update((q) => {
       const s = stepById[q.step];
       const signatures = s.signs
-        ? { ...q.signatures, [s.signs.doc]: [...(q.signatures[s.signs.doc] ?? []), { as: s.signs.as, name: user?.name ?? roleLabel(s.owner), role: s.owner, date: TODAY }] }
+        ? { ...q.signatures, [s.signs.doc]: [...(q.signatures[s.signs.doc] ?? []), { as: s.signs.as, name: user?.name ?? roleLabel(s.owner), role: s.owner, date: today() }] }
         : q.signatures;
       return log({ ...q, signatures, step: nextStep(q) }, s.signs ? `${s.done} · signed ${s.signs.doc.toLowerCase()}` : s.done);
     });
@@ -827,7 +827,7 @@ export function ProcurementWorkspace() {
             <ul className="space-y-1.5 px-2 pb-6 sm:px-3">
               {list.map((p) => {
                 const s = stepById[p.step];
-                const late = p.step !== DONE && p.neededBy < TODAY && (s?.stage ?? 0) < 5;
+                const late = p.step !== DONE && p.neededBy < today() && (s?.stage ?? 0) < 5;
                 const o = ownerOf(p);
                 return (
                   <QueueItem
@@ -912,7 +912,7 @@ export function ProcurementWorkspace() {
             }}
             onCreate={(draft) => {
               // Next free number this year, so two people never get the same ID.
-              const year = TODAY.slice(0, 4);
+              const year = today().slice(0, 4);
               const used = items.map((x) => x.id.match(new RegExp(`^PR-${year}-(\\d+)$`))?.[1]).filter(Boolean).map(Number);
               const p = { ...draft, id: `PR-${year}-${String(Math.max(0, ...used) + 1).padStart(3, "0")}` };
               setItems((all) => [p, ...all]);

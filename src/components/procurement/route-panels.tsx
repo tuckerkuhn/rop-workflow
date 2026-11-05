@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { primaryBtn } from "@/components/workspace/ui";
-import { TODAY } from "@/lib/demo";
 import { ROUTES, committeeNeeded, isSharePointUrl, levelFor, reviewKey, routesFor, rulesInForce, valueOf, type Draft, type Procurement } from "@/lib/procurement";
+import { today } from "@/lib/clock";
 
 /**
  * Step panels for choosing how to buy: the route, the sole-source facts, and AI drafts of the
@@ -98,7 +98,7 @@ export function SupplierField({ p, editable, update }: { p: Procurement; editabl
       <input
         id={`supplier-${p.id}`}
         value={name}
-        onChange={(e) => update((q) => ({ ...q, supplier: e.target.value.trim() ? { name: e.target.value, screenedOn: TODAY } : undefined }))}
+        onChange={(e) => update((q) => ({ ...q, supplier: e.target.value.trim() ? { name: e.target.value, screenedOn: today() } : undefined }))}
         className={`mt-2 ${field}`}
       />
     </fieldset>
@@ -264,7 +264,7 @@ export function AiCheck({ p, editable, onCheck }: { p: Procurement; editable: bo
 /** Finance records where the voucher was filed (SharePoint) and posted (NetSuite). */
 export function VoucherPanel({ p, editable, update }: { p: Procurement; editable: boolean; update: Update }) {
   const v = p.voucher ?? { number: `EV-${p.id}`, month: "", sharepointUrl: "", netsuiteRef: "" };
-  const set = (patch: Partial<typeof v>) => update((q) => ({ ...q, voucher: { ...v, month: v.month || TODAY.slice(0, 7), ...patch } }));
+  const set = (patch: Partial<typeof v>) => update((q) => ({ ...q, voucher: { ...v, month: v.month || today().slice(0, 7), ...patch } }));
   const badLink = !!v.sharepointUrl && !isSharePointUrl(v.sharepointUrl);
   return (
     <div className={box}>

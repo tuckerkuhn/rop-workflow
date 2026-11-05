@@ -1,9 +1,10 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
-import { TODAY, users, type AppUser } from "@/lib/demo";
+import { users, type AppUser } from "@/lib/demo";
 import { applyAction, buildPlan, type PlanAction, type PlanItem } from "@/lib/procurement-plan";
 import { projectByCode } from "@/server/field-store";
 import { loadBudget, loadWorkplan } from "@/server/plan-store";
+import { today } from "@/lib/clock";
 
 /** The procurement calendar in Postgres, one `procurement_plan` row per item. */
 
@@ -31,7 +32,7 @@ async function write(tx: Tx, projectId: string, items: PlanItem[]) {
 export async function rebuildPlan(code: string, people: AppUser[] = users) {
   const project = await projectByCode(code);
   const [budget, workplan, existing] = await Promise.all([loadBudget(code), loadWorkplan(code), loadPlan(code)]);
-  const { items, removed } = buildPlan({ lines: budget.lines, currency: budget.currency, workplan, projectStart: project.startDate ?? TODAY, people, existing });
+  const { items, removed } = buildPlan({ lines: budget.lines, currency: budget.currency, workplan, projectStart: project.startDate ?? today(), people, existing });
   await db.transaction(async (tx) => {
     if (removed.length) await tx.delete(s.procurementPlan).where(and(eq(s.procurementPlan.projectId, project.id), inArray(s.procurementPlan.planKey, removed)));
     await write(tx, project.id, items);
@@ -48,7 +49,7 @@ export async function actOnPlan(code: string, key: string, action: PlanAction, u
     .where(and(eq(s.procurementPlan.projectId, project.id), eq(s.procurementPlan.planKey, key)))
     .limit(1);
   if (!row) return { error: "No such plan item.", status: 404 };
-  const out = applyAction(row.data as PlanItem, action, user, people, TODAY);
+  const out = applyAction(row.data as PlanItem, action, user, people, today());
   if (typeof out === "string") return { error: out, status: 403 };
   await db.transaction(async (tx) => {
     await write(tx, project.id, [out]);

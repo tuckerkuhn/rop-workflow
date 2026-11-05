@@ -2,13 +2,13 @@
 
 import { comingTo } from "@/components/field/workspace";
 import { procurementComingTo } from "@/components/procurement/workspace";
-import { TODAY } from "@/components/workspace/ui";
 import { PROJECT, daysFrom, projectPath, stepHistory, type AppUser, type Stage } from "@/lib/demo";
 import { farmerLabel, fieldSteps, ownerOfItem, projectItem, type FieldItem } from "@/lib/field";
 import { ownerOf, procRolesFor, stepById, stepsFor, type Procurement } from "@/lib/procurement";
 import { actualFor, indicators, type ProjectState } from "@/lib/project";
 import { blockers, fromProcurement, monthsOf, type Closeouts } from "@/lib/closeout";
 import { awaiting, type PlanItem } from "@/lib/procurement-plan";
+import { today } from "@/lib/clock";
 
 /** One person's work across the workflows, shared by Home and Tasks. */
 
@@ -26,8 +26,8 @@ export type Data = {
   sampleSignOffs?: boolean;
 };
 
-const lastDate = (t: { date: string }[]) => (t.length ? t[t.length - 1].date : TODAY);
-const isLate = (step: string, since: string) => daysFrom(since, TODAY) > (stepHistory[step]?.median ?? 3);
+const lastDate = (t: { date: string }[]) => (t.length ? t[t.length - 1].date : today());
+const isLate = (step: string, since: string) => daysFrom(since, today()) > (stepHistory[step]?.median ?? 3);
 
 /** Everything on one person's plate: workflow steps they hold, project sign-offs, and what is projected to reach them. */
 export function workFor(u: AppUser, data: Data, viewer: AppUser, opts: { projectCards?: boolean } = {}): WorkCard[] {
@@ -42,7 +42,7 @@ export function workFor(u: AppUser, data: Data, viewer: AppUser, opts: { project
           key: `f-${i.id}`,
           title: i.kind === "farmer" ? farmerLabel(i, viewer) : i.title,
           step: fieldSteps[i.step].title,
-          date: projectItem(i)[0]?.end ?? TODAY,
+          date: projectItem(i)[0]?.end ?? today(),
           href: `/tasks?source=field&open=${i.id}`,
           space: "Field",
           now: true,
@@ -64,13 +64,13 @@ export function workFor(u: AppUser, data: Data, viewer: AppUser, opts: { project
         const path = projectPath(
           list.slice(i).map((s) => ({ step: s.id, owner: s.owner })),
           since,
-          TODAY,
+          today(),
         );
         cards.push({
           key: `p-${p.id}`,
           title: `${p.title} · ${p.id}`,
           step: stepById[p.step].title,
-          date: path[0]?.end ?? TODAY,
+          date: path[0]?.end ?? today(),
           href: `/tasks?source=procurement&open=${p.id}`,
           space: "Procurement",
           now: true,
@@ -90,7 +90,7 @@ export function workFor(u: AppUser, data: Data, viewer: AppUser, opts: { project
       key: `pp-approve-${as}`,
       title: `Approve ${n} planned ${n === 1 ? "purchase" : "purchases"}`,
       step: as === "manager" ? "Procurement calendar · as procurement manager" : "Procurement calendar · as technical lead",
-      date: TODAY,
+      date: today(),
       href: "/tasks/plan?filter=mine",
       space: "Procurement",
       now: true,
@@ -109,18 +109,18 @@ export function workFor(u: AppUser, data: Data, viewer: AppUser, opts: { project
       href: `/tasks?source=procurement&new=1&plan=${i.key}`,
       space: "Procurement",
       now: true,
-      late: i.startBy < TODAY,
+      late: i.startBy < today(),
       note: "",
     });
   // Monthly closeout: ended months with vouchers that Finance has not closed.
   if (procRolesFor(u).includes("finance") && data.closeouts)
     for (const [m, list] of monthsOf(procs.map((p) => fromProcurement(p, stepById[p.step]?.title ?? p.step))))
-      if (m < TODAY.slice(0, 7) && !data.closeouts[m])
+      if (m < today().slice(0, 7) && !data.closeouts[m])
         cards.push({
           key: `close-${m}`,
           title: `Close ${m}: ${list.length} expense ${list.length === 1 ? "voucher" : "vouchers"}`,
           step: blockers(list).length ? `${blockers(list).length} not yet filed or posted` : "All filed and posted",
-          date: TODAY,
+          date: today(),
           href: "/tasks/closeout",
           space: "Procurement",
           now: true,
@@ -137,7 +137,7 @@ export function workFor(u: AppUser, data: Data, viewer: AppUser, opts: { project
     return !a || a.note !== String(actualFor(i, project.submissions).value);
   }).length;
   const proj = (key: string, title: string, step: string, tab: string, days: number) =>
-    cards.push({ key, title, step, date: new Date(Date.parse(TODAY) + days * 86400000).toISOString().slice(0, 10), href: `/progress/records?project=${PROJECT.id}#${tab}`, space: "Project", now: true, late: false, note: "" });
+    cards.push({ key, title, step, date: new Date(Date.parse(today()) + days * 86400000).toISOString().slice(0, 10), href: `/progress/records?project=${PROJECT.id}#${tab}`, space: "Project", now: true, late: false, note: "" });
   if (u.project.includes("mel-owner")) {
     if (pending) proj("pj-queue", `${pending} Kobo submissions to review`, "Accept or query in the review queue", "verify", 1);
     if (unapproved) proj("pj-actuals", `${unapproved} actuals to approve`, "Approve this period's actuals", "verify", 3);

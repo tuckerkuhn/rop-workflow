@@ -6,10 +6,11 @@ import { useCurrentProject } from "@/components/app/current-project";
 import { useT } from "@/components/app/i18n";
 import { useRequireUser } from "@/components/app/session";
 import { usePlan } from "@/components/app/use-project-data";
-import { Pill, SectionLabel, TODAY, TopBar, primaryBtn, quietBtn, type Tone } from "@/components/workspace/ui";
+import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn, type Tone } from "@/components/workspace/ui";
 import type { BudgetLine, WorkplanItem } from "@/lib/budget";
 import { canEditProject, userById, users, type AppUser } from "@/lib/demo";
 import { METHOD, awaiting, isManager, procurementManager, type PlanItem, type PlanStatus } from "@/lib/procurement-plan";
+import { today } from "@/lib/clock";
 
 /**
  * Procurement calendar: every planned purchase from the budget, by the month it has to start.
@@ -199,9 +200,9 @@ export function ProcurementPlanPage() {
                                 <Pill tone={LEVEL_TONE[i.level]}>{i.level}</Pill>
                                 <Pill tone={STATUS[i.status].tone}>{STATUS[i.status].label}</Pill>
                               </span>
-                              <span className={`mt-1 block text-xs ${i.startBy < TODAY && i.status !== "started" ? "font-semibold text-clay" : "text-muted"}`}>
+                              <span className={`mt-1 block text-xs ${i.startBy < today() && i.status !== "started" ? "font-semibold text-clay" : "text-muted"}`}>
                                 Start by {date(i.startBy)}
-                                {i.startBy < TODAY && i.status !== "started" ? " · late" : ""}
+                                {i.startBy < today() && i.status !== "started" ? " · late" : ""}
                               </span>
                             </span>
                           </button>
@@ -449,9 +450,9 @@ function Detail({
             </Row>
             <Row label="Lead time">{item.leadDays} days (typical for {item.level.toLowerCase()} purchases)</Row>
             <Row label="Start by">
-              <span className={item.startBy < TODAY && item.status !== "started" ? "font-semibold text-clay" : ""}>
+              <span className={item.startBy < today() && item.status !== "started" ? "font-semibold text-clay" : ""}>
                 {date(item.startBy, { day: "numeric", month: "short", year: "numeric" })}
-                {item.startBy < TODAY && item.status !== "started" ? " · late" : ""}
+                {item.startBy < today() && item.status !== "started" ? " · late" : ""}
               </span>
             </Row>
           </dl>

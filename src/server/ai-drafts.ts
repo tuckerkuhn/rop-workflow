@@ -1,8 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
-import { TODAY } from "@/lib/demo";
 import { holderFor, levelFor, valueOf, type Draft, type Procurement } from "@/lib/procurement";
+import { today } from "@/lib/clock";
 
 /**
  * AI drafting of procurement documents with Claude. Drafts only: procurement reads and corrects
@@ -77,7 +77,7 @@ function recordOf(p: Procurement) {
     history: p.timeline,
     documents_drafted: Object.keys(p.drafts ?? {}),
     voucher: p.voucher ?? null,
-    today: TODAY,
+    today: today(),
   };
 }
 
@@ -126,7 +126,7 @@ export async function draftDocument(p: Procurement, kind: DraftKind, by: string)
   if (response.stop_reason === "max_tokens") throw new Error("The draft was cut off. Try again.");
   const out = response.parsed_output;
   if (!out || !out.sections.length) throw new Error("The draft came back empty. Try again.");
-  return { sections: out.sections, questions: out.questions, model: response.model, at: TODAY, by, edited: false };
+  return { sections: out.sections, questions: out.questions, model: response.model, at: today(), by, edited: false };
 }
 
 /* ---------------- AI checks ---------------- */

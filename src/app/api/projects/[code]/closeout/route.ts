@@ -2,12 +2,12 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { blockers, fromBill, fromProcurement, monthsOf, total } from "@/lib/closeout";
 import { loadBills } from "@/server/bills-store";
-import { TODAY } from "@/lib/demo";
 import { requireViewer } from "@/server/auth";
 import { loadCloseouts, saveCloseouts } from "@/server/closeout-store";
 import { handle } from "@/server/guard";
 import { holdsRole } from "@/server/hr-store";
 import { loadProcurements } from "@/server/procurement-store";
+import { today } from "@/lib/clock";
 
 type Ctx = { params: Promise<{ code: string }> };
 
@@ -31,7 +31,7 @@ export async function POST(req: Request, { params }: Ctx) {
     const parsed = z.object({ month: z.string().regex(/^\d{4}-\d{2}$/) }).safeParse(await req.json().catch(() => null));
     if (!parsed.success) return NextResponse.json({ error: "Say which month." }, { status: 400 });
     const { month } = parsed.data;
-    if (month >= TODAY.slice(0, 7)) return NextResponse.json({ error: "A month closes after it ends." }, { status: 400 });
+    if (month >= today().slice(0, 7)) return NextResponse.json({ error: "A month closes after it ends." }, { status: 400 });
     const closeouts = await loadCloseouts(code);
     if (closeouts[month]) return NextResponse.json({ error: "That month is already closed." }, { status: 409 });
     // Vouchers from procurements and from bills paid directly.
@@ -39,7 +39,7 @@ export async function POST(req: Request, { params }: Ctx) {
     const list = monthsOf(items).find(([m]) => m === month)?.[1] ?? [];
     const open = blockers(list);
     if (open.length) return NextResponse.json({ error: `Not yet: ${open.join("; ")}.` }, { status: 409 });
-    closeouts[month] = { by: v.user.id, name: v.user.name, at: TODAY, count: list.length, totalUsd: total(list) };
+    closeouts[month] = { by: v.user.id, name: v.user.name, at: today(), count: list.length, totalUsd: total(list) };
     await saveCloseouts(code, closeouts);
     return NextResponse.json({ months: closeouts });
   });
