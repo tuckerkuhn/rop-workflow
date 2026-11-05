@@ -7,6 +7,8 @@ import { useSession } from "@/components/app/session";
 import { localeOf } from "@/lib/i18n";
 import { projects as demoProjects, type ProjectInfo } from "@/lib/demo";
 import type { ProjectSummary } from "@/lib/project-setup";
+import { setProcurementRules } from "@/lib/procurement";
+import type { Value } from "@/lib/policy";
 
 /**
  * The project the four sections show, and every project there is: the demo projects plus
@@ -14,7 +16,8 @@ import type { ProjectSummary } from "@/lib/project-setup";
  * browser, else the first project.
  */
 
-type CurrentProject = { project: ProjectInfo; setProject: (id: string) => void; projects: ProjectInfo[]; reload: () => Promise<void> };
+/** `rulesFor` changes once a project's rules have loaded, so screens that read them draw again. */
+type CurrentProject = { project: ProjectInfo; setProject: (id: string) => void; projects: ProjectInfo[]; reload: () => Promise<void>; rulesFor: string | null };
 
 const KEY = "rop-current-project";
 const Ctx = createContext<CurrentProject | null>(null);
@@ -101,8 +104,35 @@ export function CurrentProjectProvider({ children }: { children: React.ReactNode
   // A project created in setup (linked or remembered) waits for the project list instead of showing another one first.
   const waiting = savedId === null || (stored === null && !!user && ((!!askedId && !byId(askedId)) || !byId(savedId)));
   const project = byId(askedId) ?? byId(savedId) ?? projects[0];
+
+  // The rules this project follows (its organization's policy combined with its donor's): procurement reads them.
+  const [rulesFor, setRulesFor] = useState<string | null>(null);
+  const projectId = project?.id;
+  const projectSaved = !!project?.saved;
+  useEffect(() => {
+    if (!user || !projectId) return;
+    if (!projectSaved) {
+      setProcurementRules(null);
+      setRulesFor(projectId);
+      return;
+    }
+    let live = true;
+    fetch(`/api/projects/${projectId}/policy`, { cache: "no-store", headers: { "x-demo-user": user.id } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((v: { lines: { key: string; value: Value; conflict: string | null; decision: unknown }[] } | null) => {
+        if (!live) return;
+        // An undecided conflict leaves that rule at the organization's own value until an administrator decides.
+        setProcurementRules(v ? Object.fromEntries(v.lines.filter((l) => !l.conflict || l.decision).map((l) => [l.key, l.value])) : null);
+        setRulesFor(projectId);
+      })
+      .catch(() => live && setRulesFor(projectId));
+    return () => {
+      live = false;
+    };
+  }, [user, projectId, projectSaved]);
+
   if (waiting) return null;
-  return <Ctx.Provider value={{ project, setProject, projects, reload }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ project, setProject, projects, reload, rulesFor }}>{children}</Ctx.Provider>;
 }
 
 export function useCurrentProject() {

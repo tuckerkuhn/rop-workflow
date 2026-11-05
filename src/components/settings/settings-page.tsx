@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useCallback, useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useT } from "@/components/app/i18n";
@@ -33,6 +35,11 @@ export function SettingsPage() {
 
         <PasswordSection />
 
+        <p className="mt-4 text-sm">
+          <Link href="/settings/policy" className="font-semibold text-forest hover:underline">
+            Rules this project follows: organization and donor policy
+          </Link>
+        </p>
         <section className="mt-8" aria-labelledby="donors-heading">
           <div className="flex items-center justify-between gap-3">
             <span id="donors-heading">
