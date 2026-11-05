@@ -12,11 +12,11 @@ import { DEFAULT_STEPS, fold, type Entry, type Fields, type Integrity, type Prop
 
 /** Which book this server writes to. Sample data lives in "demo", which may be cleared; real records go in a book that never can. */
 /**
- * Which book the app reads and writes. The live site uses ROP's real book ("rop"); the demo
- * cast on a laptop uses the sample book. HR_BOOK overrides both. A book whose name starts with
- * "demo" holds sample data and may be cleared; any other book can never be changed or deleted.
+ * Which book the app reads and writes: the sample book ("demo") until launch. At launch, set
+ * HR_BOOK=rop in Vercel and start the real book from the People page. A book whose name starts
+ * with "demo" holds sample data and may be cleared; any other book can never be changed or deleted.
  */
-export const hrBook = () => process.env.HR_BOOK || (process.env.DEMO_SIGN_IN === "1" ? "demo" : "rop");
+export const hrBook = () => process.env.HR_BOOK || "demo";
 export const isSampleBook = () => hrBook().startsWith("demo");
 
 export const todayIso = () => new Date().toISOString().slice(0, 10);
