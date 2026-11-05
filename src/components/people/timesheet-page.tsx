@@ -69,12 +69,15 @@ export function TimesheetPage() {
   const [v, setV] = useState<TimesheetView | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  // The month and person in the link are read before the first load, so it never loads the wrong month first.
+  const [init, setInit] = useState(false);
   const [editing, setEditing] = useState<Sheet | null>(null);
 
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     if (q.get("month")) setMonth(q.get("month"));
     if (q.get("person")) setPerson(q.get("person"));
+    setInit(true);
   }, []);
 
   const load = useCallback(async () => {
@@ -94,8 +97,8 @@ export function TimesheetPage() {
     }
   }, [user, month, person]);
   useEffect(() => {
-    if (ready && user) void load();
-  }, [ready, user, load]);
+    if (init && ready && user) void load();
+  }, [init, ready, user, load]);
 
   useEffect(() => {
     if (v?.person && editing && v.current === null) writeDraft(draftKey(v.person, v.month), editing);
