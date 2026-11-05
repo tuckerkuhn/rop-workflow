@@ -129,7 +129,13 @@ export function ProgressPage() {
         )}
 
         {staff && (
-          <p className="mt-10 border-t border-line pt-4 text-sm">
+          <p className="mt-10 flex flex-wrap gap-x-6 gap-y-2 border-t border-line pt-4 text-sm">
+            <Link href="/progress/report" className="font-semibold text-forest hover:underline">
+              Quarterly report <Arrow />
+            </Link>
+            <Link href="/progress/results" className="font-semibold text-forest hover:underline">
+              Results and proof <Arrow />
+            </Link>
             <Link href="/progress/records" className="font-semibold text-forest hover:underline">
               {t("progress.records")} <Arrow />
             </Link>
@@ -195,6 +201,11 @@ function IndicatorCard({ i, donorCode, canMap }: { i: IndicatorProgress; donorCo
         )}
         {i.pending > 0 && <span className="text-ochre">{t("progress.pending", { n: i.pending })}</span>}
         {i.lastDate && <span className="text-muted">{t("progress.last", { date: date(i.lastDate) })}</span>}
+        {i.dataSource === "results" && (
+          <Link href={`/progress/results?indicator=${i.code}`} className="font-semibold text-forest hover:underline">
+            Records and proof <Arrow />
+          </Link>
+        )}
       </p>
     </li>
   );

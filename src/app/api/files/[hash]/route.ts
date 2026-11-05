@@ -51,6 +51,15 @@ export async function GET(req: Request, { params }: { params: Promise<{ hash: st
             .limit(1);
           ok = !!row;
         }
+        // Proof of a project result (attendance sheet, photos, verification report): staff who see field records.
+        if (!ok && v.user.fieldAccess !== "none") {
+          const [row] = await db
+            .select({ id: s.evidence.id })
+            .from(s.evidence)
+            .where(and(eq(s.evidence.form, "result"), sql`${s.evidence.payload}::text like ${`%${hash}%`}`))
+            .limit(1);
+          ok = !!row;
+        }
       }
     }
     if (!ok) return NextResponse.json({ error: "You cannot open this file." }, { status: 403 });

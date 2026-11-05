@@ -28,7 +28,7 @@ export type IndicatorProgress = {
   /** Only where the records say; null for counts from mapped KoboToolbox questions. */
   byGender: { Female: number; Male: number } | null;
   /** Where the value comes from: a mapped KoboToolbox question, the built-in forms, a survey, or nothing yet. */
-  dataSource: "kobo" | "records" | "survey" | "none";
+  dataSource: "kobo" | "records" | "results" | "survey" | "none";
   /** Date of the latest record counted. */
   lastDate: string | null;
   /** Each calendar year of the project: the forecast total by 31 December and the actual total by then (to date for this year; null for later years). */

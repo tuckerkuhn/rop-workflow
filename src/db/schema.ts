@@ -437,6 +437,15 @@ export const indicators = pgTable(
     frequency: indicatorFrequencyEnum("frequency").notNull(),
     /** Indicator library theme, e.g. "Net income". */
     theme: text("theme"),
+    /** The donor's own code for it, as in the donor's results framework, e.g. "1.1.1.4". */
+    donorCode: text("donor_code"),
+    baseline: numeric("baseline", { precision: 14, scale: 2 }),
+    /** How results are broken down, e.g. ["sex", "province", "district", "crop"]. */
+    disaggregation: jsonb("disaggregation").$type<string[]>(),
+    /** Means of verification: the documents that prove a result, e.g. "Attendance sheets, field verification report". */
+    verification: text("verification"),
+    /** The budget line that pays for it, e.g. "PRG-1.1.1.A", so cost can be shown beside results. */
+    budgetRef: text("budget_ref"),
     position: integer("position").notNull().default(0),
     ...timestamps,
   },

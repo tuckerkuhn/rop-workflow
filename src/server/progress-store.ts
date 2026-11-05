@@ -2,6 +2,8 @@ import { and, asc, eq, inArray, isNotNull, notInArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { TODAY, projects as demoProjects, type AppUser } from "@/lib/demo";
 import { actualFor, indicators as demoIndicators, results as demoResults, type Indicator, type Submission } from "@/lib/project";
+import { totalsOf, type ResultRecord } from "@/lib/results";
+import { loadResults } from "@/server/results-store";
 import { BUILT_IN_SOURCES, forecastFor, periodOf, projectYears, reportPeriod, trackFor, type DonorInfo, type ForecastYear, type DonorInput, type IndicatorProgress, type Level, type ProgressData, type ReportValues } from "@/lib/progress";
 import { FORMATS } from "@/lib/report-formats";
 import { listSubmissions } from "@/server/kobo";
@@ -67,8 +69,28 @@ function fromMapping(r: IndicatorRow, m: Mapped, dates: Dates): IndicatorProgres
   return { ...base(r), total: all.value, period: inPeriod?.value ?? null, pending: m.waiting, byGender: null, lastDate: all.dates.sort().at(-1) ?? null, dataSource: "kobo", ...forecastOf(r, dates, all.value, asOf) };
 }
 
-function withValues(r: IndicatorRow, subs: Submission[], span: Dates, mapped?: Mapped): IndicatorProgress {
+/** Counted from results recorded with their proof and accepted by MEL. */
+function fromResults(r: IndicatorRow, list: ResultRecord[], dates: Dates): IndicatorProgress {
+  const mine = list.filter((x) => x.indicator === r.code);
+  const all = totalsOf(mine);
+  const p = periodOf(r.frequency, TODAY);
+  const people = all.female + all.male > 0;
+  const lastDate = mine.filter((x) => x.status === "accepted").map((x) => x.date).sort().at(-1) ?? null;
+  return {
+    ...base(r),
+    total: all.value,
+    period: p ? totalsOf(mine, p.from, p.to).value : null,
+    pending: mine.filter((x) => x.status === "pending").length,
+    byGender: people ? { Female: all.female, Male: all.male } : null,
+    lastDate,
+    dataSource: "results",
+    ...forecastOf(r, dates, all.value, (d) => totalsOf(mine, undefined, d).value),
+  };
+}
+
+function withValues(r: IndicatorRow, subs: Submission[], span: Dates, mapped?: Mapped, results?: ResultRecord[]): IndicatorProgress {
   if (mapped) return fromMapping(r, mapped, span);
+  if (r.source === "results") return fromResults(r, results ?? [], span);
   // Added in setup and not mapped to a question yet: nothing to count.
   if (!BUILT_IN_SOURCES.includes(r.source)) return { ...base(r), total: null, period: null, pending: 0, byGender: null, lastDate: null, dataSource: "none", ...forecastOf(r, span, null, () => null) };
   const ind = asIndicator(r);
@@ -122,6 +144,7 @@ export async function loadProgress(code: string, user: AppUser): Promise<Progres
   const subs = rows.some((r) => BUILT_IN_SOURCES.includes(r.source)) ? (await listSubmissions(code)).submissions : [];
   const mapped = rows.length ? await mappedInputs(project.id) : new Map<string, Mapped>();
   const donors = visibleDonors(await donorsOf(project.id), user);
+  const results = rows.some((r) => r.source === "results") ? await loadResults(code) : [];
   // Each donor's report covers the time since its last deadline, so its counts differ from the cards'.
   const reports: ReportValues[] = [null, ...donors].map((d) => {
     const { from, to } = reportPeriod(d, TODAY, project.startDate);
@@ -129,6 +152,7 @@ export async function loadProgress(code: string, user: AppUser): Promise<Progres
     const value = (r: IndicatorRow) => {
       const m = mapped.get(r.code);
       if (m) return mappedValue(m.mapping, m.counted.filter((x) => x.date >= from && x.date <= to)).value;
+      if (r.source === "results") return totalsOf(results.filter((x) => x.indicator === r.code), from, to).value;
       return r.source === "survey" || !BUILT_IN_SOURCES.includes(r.source) ? null : actualFor(asIndicator(r), within).value;
     };
     return { donorId: d?.id ?? null, from, to, values: Object.fromEntries(rows.map((r) => [r.code, value(r)])) };
@@ -137,7 +161,7 @@ export async function loadProgress(code: string, user: AppUser): Promise<Progres
     saved: true,
     project: { code, name: project.name, startDate: project.startDate, endDate: project.endDate },
     today: TODAY,
-    indicators: rows.map((r) => withValues(r, subs, { start: project.startDate, end: project.endDate }, mapped.get(r.code))),
+    indicators: rows.map((r) => withValues(r, subs, { start: project.startDate, end: project.endDate }, mapped.get(r.code), results)),
     donors,
     reports,
   };

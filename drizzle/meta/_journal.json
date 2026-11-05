@@ -134,6 +134,13 @@
       "when": 1793838609520,
       "tag": "0018_hr_files",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1793849921030,
+      "tag": "0019_indicator_details",
+      "breakpoints": true
     }
   ]
 }
