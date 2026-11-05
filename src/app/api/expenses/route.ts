@@ -36,7 +36,9 @@ async function view(me: string, open: number | null) {
   const brief = (r: ExpenseReport) => ({ n: r.n, person: r.person, month: r.report.month, currency: r.report.currency, total: r.total, status: r.status, version: r.version, lines: r.report.lines.length, paid: paid.get(r.n) ?? null });
   const detail = (r: ExpenseReport) => {
     const next = nextFor(r, hr);
-    const conflict = next && !next.people.includes(me) ? whyNot(me, r, hr) : null;
+    // Only said to someone who would otherwise sign: the supervisor, HR, Finance or the CFO.
+    const wouldSign = r.person !== me && (hr.people[r.person]?.current.supervisor === me || !!["hr", "payroll", "cfo"].some((role) => hr.rules?.holders[role as "hr"].includes(me)));
+    const conflict = next && !next.people.includes(me) && wouldSign ? whyNot(me, r, hr) : null;
     return { ...r, summary: summary(r.report), flags: flags(r.report), next, canSign: !!next?.people.includes(me), cannotSign: conflict ? toYou(conflict).replace("proposed", "submitted") : null, canWithdraw: r.status === "pending" && r.by === me, paid: paid.get(r.n) ?? null };
   };
   const selected = open ? visible.find((r) => r.n === open) : undefined;

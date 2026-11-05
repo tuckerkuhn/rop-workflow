@@ -240,6 +240,7 @@ export const toYou = (why: string) =>
   ({
     "proposed it": "you proposed it",
     "already signed a step": "you already signed a step",
+    "already signed this report": "you already signed this report",
     "it is their own record": "it is your own record",
     "related to the person": "you are related to the person",
     "reports to the person": "you report to the person",
