@@ -54,7 +54,8 @@ export const PARAMS: ParamDef[] = [
   { key: "grantCapUsd", label: "Sub-grant cap per grant", area: "Grants", unit: "USD", merge: "min", help: "" },
   { key: "grantCapCumulativeUsd", label: "Sub-grant cap per recipient, cumulative", area: "Grants", unit: "USD", merge: "min", help: "" },
   { key: "costSharePct", label: "Grantee cost share, at least", area: "Grants", unit: "%", merge: "max", help: "" },
-  { key: "grantAssetTransfer", label: "Equipment bought with project funds and given to grantees", area: "Grants", merge: "same", help: "Who owns it once it is handed over." },
+  { key: "grantAssetTransfer", label: "Assets given to grantees as in-kind grants", area: "Grants", merge: "same", help: "Who owns them once handed over. Grants build up the private sector, so this is separate from the project's own equipment." },
+  { key: "projectEquipment", label: "The project's own equipment (vehicles, furniture, IT) when the project ends", area: "Records", merge: "same", help: "An administrative cost of running the project, separate from grants." },
   { key: "retentionYears", label: "Keep records for", area: "Records", unit: "years", merge: "max", help: "" },
 ];
 export const paramByKey = Object.fromEntries(PARAMS.map((p) => [p.key, p])) as Record<string, ParamDef>;

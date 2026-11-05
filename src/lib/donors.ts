@@ -27,7 +27,9 @@ export const DONORS: Profile[] = [
       soleSourceDonorApproval: { value: true, source: `${RPA}, Art. 8.1: competition "unless otherwise agreed upon in writing by UNDP"`, confidence: "to verify" },
       subcontractorApproval: { value: true, source: `${RPA}, Art. 7.1(b): each Subcontractor approved in writing in advance; whether this covers vendors is to confirm with UNDP`, confidence: "to verify" },
       screeningLists: { value: ["UN Security Council 1267 list"], source: "UNDP–ROP agreement for CBARD, §16.3 (the ACRP agreement points to the Project Document's AML/CFT terms)", confidence: "to verify" },
-      grantAssetTransfer: { value: "Not allowed: UNDP-financed equipment remains UNDP's property and is returned within 30 days of completion", source: `${RPA}, Art. 9.1, 9.5` },
+      // Art. 9 covers the equipment ROP uses to run the project, an administrative cost; assets granted to grantees are on-granting,
+      // which builds up the private sector (ROP's reading, T. Kuhn, 5 Nov 2026; ACRP's on-granting annex to confirm).
+      projectEquipment: { value: "Remains UNDP's property; returned or disposed of as UNDP instructs within 30 days of completion", source: `${RPA}, Art. 9.1, 9.5` },
       grantCapUsd: { value: 50000, source: "ACRP Project Document (RPA Annex A), p.35: market-shelter matching grants up to $50,000; the CBARD annex allowed $60,000" },
       grantCapCumulativeUsd: { value: 120000, source: `${OG}, §4.3 (ACRP's own annex not yet found)`, confidence: "to verify" },
       costSharePct: { value: 50, source: "ACRP Project Document: 50% for male-owned firms, 30% for female-owned" },
