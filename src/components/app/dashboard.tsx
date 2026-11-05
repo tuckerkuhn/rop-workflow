@@ -288,16 +288,18 @@ function PeopleCard() {
   const { date } = useT();
   const [s, setS] = useState<{ waiting: number; hrRole: boolean; hasRecord: boolean; intact: boolean } | null>(null);
   const [ts, setTs] = useState<{ hasRecord: boolean; month: string; status: string; waiting: number } | null>(null);
+  const [ex, setEx] = useState<{ hasRecord: boolean; waiting: number; returned: number } | null>(null);
   useEffect(() => {
     if (!user) return;
     const get = (url: string) => fetch(url, { cache: "no-store", headers: { "x-demo-user": user.id } }).then((r) => (r.ok ? r.json() : null));
     get("/api/hr?summary=1").then(setS).catch(() => setS(null));
     get("/api/timesheets?summary=1").then(setTs).catch(() => setTs(null));
+    get("/api/expenses?summary=1").then(setEx).catch(() => setEx(null));
   }, [user]);
   if (!s || (!s.hrRole && !s.hasRecord)) return null;
   const tsText: Record<string, string> = { missing: "not submitted yet", pending: "waiting for approval", approved: "approved", returned: "sent back: open it to see why" };
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
       <Link href="/people" className={`flex flex-wrap items-center gap-x-4 gap-y-1 rounded-2xl border px-5 py-3 text-sm transition hover:border-forest ${!s.intact ? "border-clay bg-clay-soft" : s.waiting ? "border-forest/40 bg-mist/60" : "border-line bg-surface"}`}>
         <span className="font-semibold">People</span>
         <span className="text-muted">
@@ -310,6 +312,14 @@ function PeopleCard() {
           <span className="text-muted">
             {ts.hasRecord ? `${date(`${ts.month}-01`, { month: "long" })}: ${tsText[ts.status] ?? ts.status}` : ""}
             {ts.waiting > 0 ? `${ts.hasRecord ? " · " : ""}${ts.waiting} to approve` : ""}
+          </span>
+        </Link>
+      )}
+      {ex && (ex.hasRecord || ex.waiting > 0) && (
+        <Link href="/expenses" className={`flex flex-wrap items-center gap-x-4 gap-y-1 rounded-2xl border px-5 py-3 text-sm transition hover:border-forest ${ex.waiting || ex.returned ? "border-forest/40 bg-mist/60" : "border-line bg-surface"}`}>
+          <span className="font-semibold">Expenses</span>
+          <span className="text-muted">
+            {[ex.waiting ? `${ex.waiting} to sign` : "", ex.returned ? `${ex.returned} sent back to you` : "", !ex.waiting && !ex.returned ? "Claim expenses with receipts" : ""].filter(Boolean).join(" · ")}
           </span>
         </Link>
       )}

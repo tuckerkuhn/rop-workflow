@@ -48,12 +48,13 @@ export const ADJUSTMENTS = {
   retro: "Retro pay",
   vacationPayout: "Vacation payout",
   medicalReimb: "Medical reimbursement",
-  expenses: "Expenses (non-taxable)",
   advance: "Advance repayment (deducted)",
 } as const;
 export type AdjustmentKey = keyof typeof ADJUSTMENTS;
 export const ADJUSTMENT_KEYS = Object.keys(ADJUSTMENTS) as AdjustmentKey[];
 export type Adjustment = Partial<Record<AdjustmentKey, number>> & { note?: string };
+/** Accepted expense reports to reimburse: total, by funding source, and which reports. */
+export type Expenses = { total: number; bySource: Record<string, number>; reports: number[] };
 
 export const adjustmentSchema = z
   .object({
@@ -61,7 +62,6 @@ export const adjustmentSchema = z
     retro: z.number().min(-1e8).max(1e8).optional(),
     vacationPayout: z.number().min(0).max(1e8).optional(),
     medicalReimb: z.number().min(0).max(1e8).optional(),
-    expenses: z.number().min(0).max(1e8).optional(),
     advance: z.number().min(0).max(1e8).optional(),
     note: z.string().trim().max(500).optional(),
   })
@@ -106,6 +106,9 @@ export type Line = {
   cost: Record<string, number>;
   pct: Record<string, number>;
   timesheet: number | null;
+  /** Expense reports reimbursed in this line, and their amounts by funding source. */
+  expenseReports: number[];
+  expenseBySource: Record<string, number>;
   note: string | null;
   problems: string[];
 };
@@ -138,7 +141,7 @@ export function inPayroll(hr: HrState, group: Group, month: string): string[] {
     .map((p) => p.id);
 }
 
-export function lineFor(hr: HrState, person: string, month: string, sheet: Timesheet | undefined, adj: Adjustment = {}): Line {
+export function lineFor(hr: HrState, person: string, month: string, sheet: Timesheet | undefined, adj: Adjustment = {}, exp?: Expenses): Line {
   const days = daysIn(month);
   const last = days.at(-1)!;
   const rec = recordOn(hr, person, last);
@@ -176,7 +179,8 @@ export function lineFor(hr: HrState, person: string, month: string, sheet: Times
   const comms = r2(num(rec.commsAllowance) * employed);
   const living = r2(num(rec.livingAllowance) * employed);
   const a = (k: AdjustmentKey) => r2(num(adj[k]));
-  const [bonus, retro, vacationPayout, medicalReimb, expenses, advance] = ADJUSTMENT_KEYS.map(a);
+  const [bonus, retro, vacationPayout, medicalReimb, advance] = ADJUSTMENT_KEYS.map(a);
+  const expenses = r2(exp?.total ?? 0);
 
   const gross = r2(regular + dangerPay + postDiff + comms + living + medicalReimb + vacationPayout + bonus + retro + expenses);
   const retirementBase = r2(regular + dangerPay + postDiff + comms + living + medicalReimb + bonus + retro);
@@ -189,7 +193,7 @@ export function lineFor(hr: HrState, person: string, month: string, sheet: Times
   if (office === "Afghanistan" && !rec.bankAccount) problems.push("No bank account in the record.");
 
   const pct = split?.pct ?? {};
-  const cost = Object.keys(pct).length ? apportion(pct, r2(gross + er403b), 0.01) : { "non-contract": r2(gross + er403b) };
+  const cost = costOf(pct, r2(gross - expenses + er403b), exp?.bySource);
   if (!Object.keys(pct).length && gross) problems.push("No approved timesheet split: cost charged to non-contract for now.");
 
   return {
@@ -228,17 +232,35 @@ export function lineFor(hr: HrState, person: string, month: string, sheet: Times
     cost,
     pct,
     timesheet: sheet?.n ?? null,
+    expenseReports: exp?.reports ?? [],
+    expenseBySource: exp?.bySource ?? {},
     note: adj.note?.trim() || null,
     problems,
   };
 }
 
-export function register(hr: HrState, sheets: Timesheet[], group: Group, month: string, adjustments: Record<string, Adjustment> = {}, supplemental = false): Line[] {
-  const people = supplemental ? Object.keys(adjustments) : inPayroll(hr, group, month);
+/** Pay is shared by the timesheet split; expenses go to the funding source on each expense line. */
+function costOf(pct: Record<string, number>, pay: number, expenses?: Record<string, number>) {
+  const cost: Record<string, number> = Object.keys(pct).length ? apportion(pct, pay, 0.01) : pay ? { "non-contract": pay } : {};
+  for (const [s, v] of Object.entries(expenses ?? {})) cost[s] = r2((cost[s] ?? 0) + v);
+  return cost;
+}
+
+export function register(
+  hr: HrState,
+  sheets: Timesheet[],
+  group: Group,
+  month: string,
+  adjustments: Record<string, Adjustment> = {},
+  supplemental = false,
+  expenses: Record<string, Expenses> = {},
+): Line[] {
+  const inGroup = new Set(inPayroll(hr, group, month));
+  const people = supplemental ? [...new Set([...Object.keys(adjustments), ...Object.keys(expenses)])].filter((id) => inGroup.has(id) || hr.people[id]) : [...inGroup];
   return people
     .map((id) => {
       const sheet = sheets.find((t) => t.person === id && t.month === month);
-      const line = lineFor(hr, id, month, sheet, adjustments[id]);
+      const line = lineFor(hr, id, month, sheet, adjustments[id], expenses[id]);
       // A supplemental payroll pays only the adjustments; regular pay went in the first one.
       if (!supplemental) return line;
       return recalc({ ...line, regular: 0, dangerPay: 0, postDiff: 0, comms: 0, living: 0, problems: line.problems.filter((x) => !x.startsWith("Timesheet") && !x.startsWith("No timesheet")) });
@@ -254,7 +276,7 @@ function recalc(l: Line): Line {
   const ee403b = down2(retirementBase * pctRet);
   const er403b = down2(ee403b * EMPLOYER_MATCH);
   const tax = l.office === "Afghanistan" ? afghanTax(gross - l.expenses) : 0;
-  const cost = Object.keys(l.pct).length ? apportion(l.pct, r2(gross + er403b), 0.01) : { "non-contract": r2(gross + er403b) };
+  const cost = costOf(l.pct, r2(gross - l.expenses + er403b), l.expenseBySource);
   return { ...l, gross, retirementBase, ee403b, er403b, tax, net: r2(gross - l.advance - ee403b - tax), cost };
 }
 

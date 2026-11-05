@@ -205,6 +205,20 @@ function Register({ lines, totals, v, adjust, onAdjust }: { lines: Line[]; total
                     </span>
                   ))}
                   {l.note && <span className="mt-0.5 block text-xs text-muted">“{l.note}”</span>}
+                  {(l.expenseReports ?? []).length > 0 && (
+                    <span className="mt-0.5 block text-xs text-muted">
+                      Reimburses expense report{l.expenseReports.length > 1 ? "s" : ""}{" "}
+                      {l.expenseReports.map((n, i) => (
+                        <span key={n}>
+                          {i > 0 && ", "}
+                          <a href={`/expenses?open=${n}`} className="underline">
+                            #{n}
+                          </a>
+                        </span>
+                      ))}{" "}
+                      ({amt(l.expenses, l.currency)})
+                    </span>
+                  )}
                   {onAdjust && (
                     <button type="button" onClick={() => onAdjust(l.person)} className="mt-1 text-xs font-semibold text-forest hover:underline">
                       {adjust?.[l.person] ? "Change adjustments" : "Add an adjustment"}
@@ -438,8 +452,8 @@ function Prepare({ v, supplemental, onDone }: { v: PayrollView; supplemental: bo
       <h2 className="text-lg font-semibold">{supplemental ? "Prepare a supplemental payroll" : "Prepare this payroll"}</h2>
       <p className="mt-1 max-w-2xl text-sm text-muted">
         {supplemental
-          ? "This month is already paid. A supplemental payroll pays only adjustments: a late bonus, retro pay, a correction after a revised timesheet."
-          : "Every amount below is worked out from the HR record and the approved timesheets. Add bonuses, retro pay, payouts, reimbursements or advance repayments with a note; nothing else can be typed in."}
+          ? "This month is already paid. A supplemental payroll pays only adjustments and newly accepted expense reports: a late bonus, retro pay, a correction after a revised timesheet."
+          : "Every amount below is worked out from the HR record, the approved timesheets and the accepted expense reports. Add bonuses, retro pay, payouts, medical reimbursements or advance repayments with a note; nothing else can be typed in."}
       </p>
       {supplemental && (
         <div className="mt-3 flex flex-wrap items-center gap-2">

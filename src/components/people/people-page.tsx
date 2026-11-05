@@ -126,6 +126,9 @@ export function PeoplePage() {
             <a href="/timesheets" className="font-semibold text-forest hover:underline">
               Timesheets
             </a>
+            <a href="/expenses" className="font-semibold text-forest hover:underline">
+              Expenses
+            </a>
             {v?.seesAll && (
               <a href="/payroll" className="font-semibold text-forest hover:underline">
                 Payroll

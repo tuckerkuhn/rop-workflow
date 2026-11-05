@@ -101,6 +101,7 @@ export async function seal(actor: string) {
 export async function resetSample() {
   if (!isSampleBook()) throw new Error("Only a sample book can be reset.");
   await db.delete(s.hrLedger).where(eq(s.hrLedger.book, hrBook()));
+  await db.delete(s.hrFiles).where(eq(s.hrFiles.book, hrBook()));
   await seedSample();
 }
 
@@ -113,7 +114,35 @@ const firstOfNextMonth = (d: string) => {
 };
 
 /** Writes the sample records through `write` (the ledger by default). */
-export async function seedSample(write: typeof append = append) {
+/** A one-page PDF saying it is a sample receipt, so the sample has real files to open. */
+function samplePdf(text: string) {
+  const content = `BT /F1 14 Tf 40 100 Td (${text.replace(/[()\\]/g, "")}) Tj ET`;
+  const objs = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 420 200] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+    `<< /Length ${content.length} >>\nstream\n${content}\nendstream`,
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+  ];
+  let pdf = "%PDF-1.4\n";
+  const offsets: number[] = [];
+  objs.forEach((o, i) => {
+    offsets.push(pdf.length);
+    pdf += `${i + 1} 0 obj\n${o}\nendobj\n`;
+  });
+  const xref = pdf.length;
+  pdf += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n${offsets.map((o) => `${String(o).padStart(10, "0")} 00000 n \n`).join("")}trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+  return Buffer.from(pdf, "latin1");
+}
+
+async function storeSampleFile(name: string, text: string, by: string) {
+  const buf = samplePdf(text);
+  const hash = createHash("sha256").update(buf).digest("hex");
+  await db.insert(s.hrFiles).values({ hash, book: hrBook(), name, type: "application/pdf", size: buf.length, data: buf, uploadedBy: by }).onConflictDoNothing();
+  return { hash, name, type: "application/pdf", size: buf.length };
+}
+
+export async function seedSample(write: typeof append = append, file: typeof storeSampleFile = storeSampleFile) {
   const today = todayIso();
   const rules: Rules = { steps: DEFAULT_STEPS, holders: { hr: ["sima", "mina"], payroll: ["omid"], cfo: ["peter"], ceo: ["grace"], board: ["arthur"] } };
   await write("sima", "start", null, { rules });
@@ -204,4 +233,24 @@ export async function seedSample(write: typeof append = append) {
   }
   const javed = await write("javed", "timesheet", "javed", sheet("Afghanistan", { "ACRP-2026": 1 }));
   await write("karim", "ts-return", "javed", { timesheet: javed, note: "The two days in Herat need the field-trip note and danger pay marked." });
+
+  // Expense reports. Sima's trip matches the per diem form in the payroll package: 94 a day, 75% on travel days.
+  const taxi = await file("airport-shuttle.pdf", "Sample receipt: airport shuttle, 29.00 USD", "sima");
+  const simaEx = await write("sima", "expense", "sima", {
+    month: last,
+    currency: "USD",
+    lines: [
+      { date: `${last}-14`, category: "perDiem", description: "Programme visit, Western Highlands", source: "non-contract", perDiem: { place: "Guatemala City", rate: 94, start: `${last}-14`, end: `${last}-22` }, receipts: [] },
+      { date: `${last}-13`, category: "taxi", description: "Airport shuttle", source: "non-contract", amount: 29, receipts: [taxi] },
+      { date: `${last}-28`, category: "parking", description: "Ferry parking, donor meeting", source: "non-contract", amount: 4, receipts: [], noReceipt: "Pay-and-display machine, no receipt" },
+    ],
+  });
+  await write("peter", "ex-approve", "sima", { report: simaEx });
+  await write("omid", "ex-approve", "sima", { report: simaEx });
+  const fuel = await file("taxi-herat.pdf", "Sample receipt: taxi Herat, 1500 AFN", "nadia");
+  await write("nadia", "expense", "nadia", {
+    month: last,
+    currency: "AFN",
+    lines: [{ date: `${last}-08`, category: "taxi", description: "Taxi to farmer group meeting, Herat", source: "ACRP-2026", amount: 1500, receipts: [fuel] }],
+  });
 }
