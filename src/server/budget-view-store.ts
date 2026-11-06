@@ -1,0 +1,43 @@
+import { asc, eq } from "drizzle-orm";
+import { db, schema as s } from "@/db";
+import { budgetView, type BudgetView } from "@/lib/budget-view";
+import { totalsOf } from "@/lib/results";
+import { loadActuals } from "@/server/actuals-store";
+import { projectByCode } from "@/server/field-store";
+import { loadResults } from "@/server/results-store";
+
+/** Budget against actual for the project's current phase, from its budget lines and Finance's latest import. */
+export async function loadBudgetView(code: string): Promise<BudgetView & { imported: { file: string; by: string; at: string } | null; beforeOverhead: boolean }> {
+  const project = await projectByCode(code);
+  const lines = await db.select().from(s.budgetLines).where(eq(s.budgetLines.projectId, project.id)).orderBy(asc(s.budgetLines.sort));
+  const actuals = await loadActuals(code);
+  const startMonth = (project.startDate ?? "0000-00").slice(0, 7);
+  // This phase's import: the latest one whose months reach the project's start (earlier phases share codes with other meanings).
+  const current = [...actuals.imports].reverse().find((i) => (i.months.at(-1) ?? "") >= startMonth) ?? null;
+  const indicators = await db.select().from(s.indicators).where(eq(s.indicators.projectId, project.id)).orderBy(asc(s.indicators.position));
+  const results = await loadResults(code);
+  const to = current?.months.at(-1) ? `${current.months.at(-1)}-31` : new Date().toISOString().slice(0, 10);
+  const from = project.startDate ?? "0000-01-01";
+  const priorYear = String(Number(from.slice(0, 4)) - 1);
+  const view = budgetView({
+    lines: lines.map((l) => ({ code: l.code, description: l.description, activityCode: l.activityCode, activity: l.activity, kind: l.kind, currency: l.currency, amount: l.amount === null ? null : Number(l.amount), schedule: (l.schedule as Record<string, number>) ?? {} })),
+    imported: (current?.lines ?? []).filter((l) => !l.currency).map((l) => ({ code: l.code, description: l.description, budget: l.budget, actual: l.actual, months: l.months })),
+    months: current?.months ?? [],
+    currency: current?.currency ?? lines[0]?.currency ?? "USD",
+    start: project.startDate,
+    end: project.endDate,
+    results: indicators
+      .filter((i) => i.source === "results" && i.budgetRef)
+      .map((i) => ({
+        indicator: i.code,
+        donorCode: i.donorCode ?? i.code,
+        name: i.name,
+        unit: i.unit,
+        budgetRef: i.budgetRef,
+        achieved: totalsOf(results.filter((r) => r.indicator === i.code), from, to).value,
+        // This phase's target: the whole agreement's less what was due before the phase began.
+        target: Number(i.target) - Number((i.forecast as Record<string, number>)?.[priorYear] ?? 0),
+      })),
+  });
+  return { ...view, imported: current ? { file: current.file.name, by: current.by, at: current.at } : null, beforeOverhead: true };
+}

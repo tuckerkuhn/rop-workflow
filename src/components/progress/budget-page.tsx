@@ -1,0 +1,181 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { useCurrentProject } from "@/components/app/current-project";
+import { useRequireUser } from "@/components/app/session";
+import { Pill, TopBar } from "@/components/workspace/ui";
+import { LIMITS, type ActivityView, type LineView } from "@/lib/budget-view";
+import type { loadBudgetView } from "@/server/budget-view-store";
+
+/**
+ * Budget against actual by activity, for the current phase: approved (Finance's workbook),
+ * spent to date, forecast at completion (spent plus the revised plan for the quarters left),
+ * results beside the lines that pay for them, and the lines to explain.
+ */
+
+type View = Awaited<ReturnType<typeof loadBudgetView>>;
+
+const money = (n: number | null) => (n === null ? "—" : Math.round(n).toLocaleString("en-US"));
+const pctText = (p: number | null) => (p === null ? "—" : `${p}%`);
+const monthLabel = (m: string) => new Date(`${m}-15T00:00:00Z`).toLocaleDateString("en-GB", { month: "short", year: "numeric", timeZone: "UTC" });
+
+export function BudgetPage() {
+  const { user } = useRequireUser();
+  const { project } = useCurrentProject();
+  const [v, setV] = useState<View | null>(null);
+  const [error, setError] = useState("");
+  const [open, setOpen] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user || !project.saved) return;
+    fetch(`/api/projects/${project.id}/budget-view`, { cache: "no-store", headers: { "x-demo-user": user.id } })
+      .then(async (r) => {
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error ?? "Could not load the budget.");
+        setV(d);
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
+  }, [user, project.id, project.saved]);
+
+  if (!user) return null;
+  const flagged = v?.activities.reduce((t, a) => t + a.flags, 0) ?? 0;
+  return (
+    <div className="min-h-screen">
+      <TopBar />
+      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+        <h1 className="font-display text-4xl tracking-tight">Budget vs actual</h1>
+        {!project.saved ? (
+          <p className="mt-6 rounded-xl bg-sunken px-4 py-3 text-sm text-muted">This demo project is kept in this browser only; its budget is on the project page.</p>
+        ) : error ? (
+          <p role="alert" className="mt-6 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">
+            {error}
+          </p>
+        ) : !v ? (
+          <p className="mt-6 text-sm text-muted">Loading…</p>
+        ) : !v.period ? (
+          <p className="mt-6 rounded-xl bg-sunken px-4 py-3 text-sm text-muted">
+            No spending imported for this phase yet. Import Finance&rsquo;s budget against actual workbook on the{" "}
+            <Link href="/progress/report" className="font-semibold text-forest hover:underline">
+              quarterly report
+            </Link>{" "}
+            page.
+          </p>
+        ) : (
+          <>
+            <p className="mt-1 max-w-3xl text-sm text-muted">
+              {project.name}, {monthLabel(v.period.from)} to {monthLabel(v.period.to)}, in {v.currency} before overhead, from {v.imported?.file}. Approved is Finance&rsquo;s budget; forecast is spent so far plus the revised plan for the quarters left.
+            </p>
+
+            <dl className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {[
+                ["Approved", money(v.totals.approved)],
+                ["Spent", `${money(v.totals.spent)} (${pctText(v.totals.approved ? Math.round((v.totals.spent / v.totals.approved) * 1000) / 10 : null)})`],
+                ["Forecast at completion", money(v.totals.forecast)],
+                ["Time gone", v.timeGone === null ? "—" : `${Math.round(v.timeGone * 100)}%`],
+              ].map(([k, val]) => (
+                <div key={k} className="rounded-2xl border border-line bg-surface px-4 py-3">
+                  <dt className="text-xs uppercase tracking-[0.12em] text-muted">{k}</dt>
+                  <dd className="mt-1 font-display text-xl tabular-nums">{val}</dd>
+                </div>
+              ))}
+            </dl>
+
+            {flagged > 0 && (
+              <p className="mt-4 rounded-xl bg-sunken px-4 py-3 text-sm">
+                {flagged} {flagged === 1 ? "line needs" : "lines need"} a look: overspent (more than {LIMITS.overPct}% over approved), forecast more than {LIMITS.revisionPct}% over approved, or spending more than {LIMITS.behindPts} points behind or ahead of the time gone. Open an activity to see them.
+              </p>
+            )}
+
+            <div className="mt-5 overflow-x-auto rounded-2xl border border-line bg-surface">
+              <table className="w-full min-w-[720px] text-sm">
+                <thead className="text-xs uppercase tracking-[0.12em] text-muted">
+                  <tr>
+                    <th className="px-4 py-3 text-start font-semibold">Activity</th>
+                    <th className="px-3 py-3 text-end font-semibold">Approved</th>
+                    <th className="px-3 py-3 text-end font-semibold">Spent</th>
+                    <th className="px-3 py-3 text-end font-semibold">Spent %</th>
+                    <th className="px-3 py-3 text-end font-semibold">Forecast</th>
+                    <th className="px-3 py-3 text-end font-semibold">Forecast %</th>
+                    <th className="px-4 py-3 text-end font-semibold">To check</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-line">
+                  {v.activities.map((a) => (
+                    <ActivityRows key={a.code} a={a} open={open === a.code} onToggle={() => setOpen(open === a.code ? null : a.code)} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {(v.notInBudget.length > 0 || v.notInFile.length > 0) && (
+              <section className="mt-6 rounded-2xl border border-line bg-surface p-4 text-sm">
+                <h2 className="font-semibold">Lines to map</h2>
+                {v.notInBudget.length > 0 && (
+                  <p className="mt-2">
+                    In Finance&rsquo;s file but not the budget (their spending is not counted above): {v.notInBudget.map((l) => `${l.code} (${money(l.actual)})`).join(", ")}. Add them to the budget in{" "}
+                    <Link href="/setup" className="font-semibold text-forest hover:underline">
+                      setup
+                    </Link>
+                    , or ask Finance which line they belong to.
+                  </p>
+                )}
+                {v.notInFile.length > 0 && <p className="mt-2">In the budget but not Finance&rsquo;s file (no spending shown): {v.notInFile.map((l) => l.code).join(", ")}.</p>}
+              </section>
+            )}
+          </>
+        )}
+      </main>
+    </div>
+  );
+}
+
+function ActivityRows({ a, open, onToggle }: { a: ActivityView; open: boolean; onToggle: () => void }) {
+  return (
+    <>
+      <tr className="cursor-pointer hover:bg-sunken" onClick={onToggle}>
+        <td className="px-4 py-3">
+          <button type="button" aria-expanded={open} className="text-start font-semibold" onClick={(e) => (e.stopPropagation(), onToggle())}>
+            <span aria-hidden className="me-1 inline-block w-3 text-muted">
+              {open ? "▾" : "▸"}
+            </span>
+            {a.code} {a.name}
+          </button>
+        </td>
+        <td className="px-3 py-3 text-end tabular-nums">{money(a.approved)}</td>
+        <td className="px-3 py-3 text-end tabular-nums">{money(a.spent)}</td>
+        <td className="px-3 py-3 text-end tabular-nums">{pctText(a.spentPct)}</td>
+        <td className="px-3 py-3 text-end tabular-nums">{money(a.forecast)}</td>
+        <td className={`px-3 py-3 text-end tabular-nums ${a.forecastPct !== null && a.forecastPct > 100 + LIMITS.revisionPct ? "font-semibold text-clay" : ""}`}>{pctText(a.forecastPct)}</td>
+        <td className="px-4 py-3 text-end">{a.flags > 0 ? <Pill tone="ochre">{a.flags}</Pill> : <span className="text-muted">—</span>}</td>
+      </tr>
+      {open && a.lines.map((l) => <LineRow key={l.code} l={l} />)}
+    </>
+  );
+}
+
+function LineRow({ l }: { l: LineView }) {
+  return (
+    <tr className="bg-paper align-top">
+      <td className="px-4 py-2 ps-10">
+        <span className="font-mono text-xs text-muted">{l.code}</span> <span className="text-sm">{l.description}</span>
+        {l.results.map((r) => (
+          <span key={r.indicator} className="mt-1 block text-xs text-muted">
+            Pays for {r.donorCode}: {r.achieved.toLocaleString("en-US")} of {r.target.toLocaleString("en-US")} {r.unit} this phase
+          </span>
+        ))}
+        {l.flags.map((f) => (
+          <span key={f.text} className={`mt-1 block text-xs ${f.level === "stop" ? "font-semibold text-clay" : "text-ochre"}`}>
+            {f.text}
+          </span>
+        ))}
+      </td>
+      <td className="px-3 py-2 text-end tabular-nums">{money(l.approved)}</td>
+      <td className="px-3 py-2 text-end tabular-nums">{money(l.spent)}</td>
+      <td className="px-3 py-2 text-end tabular-nums">{pctText(l.spentPct)}</td>
+      <td className="px-3 py-2 text-end tabular-nums">{money(l.forecast)}</td>
+      <td className="px-3 py-2 text-end tabular-nums">{pctText(l.forecastPct)}</td>
+      <td className="px-4 py-2" />
+    </tr>
+  );
+}
