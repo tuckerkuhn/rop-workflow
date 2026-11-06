@@ -425,6 +425,22 @@ export function useDonors(code: string) {
 }
 
 /** The project's KoboToolbox link. Every action throws with the server's message so screens can show it. */
+/**
+ * The KoboToolbox server this project collects on, for a plain link to it. Null code skips the request
+ * (no field access, or a project kept in the browser only); without a connection it is the main server.
+ */
+export function useKoboServer(code: string | null) {
+  const { user, ready } = useSession();
+  const [server, setServer] = useState("https://kf.kobotoolbox.org");
+  useEffect(() => {
+    if (!code || !ready || !user) return;
+    call<KoboState>(`/api/projects/${code}/kobo`, user.id)
+      .then((s) => s.connection?.serverUrl && setServer(s.connection.serverUrl))
+      .catch(() => {});
+  }, [code, ready, user]);
+  return server;
+}
+
 export function useKobo(code: string) {
   const { user, ready } = useSession();
   const [state, setState] = useState<KoboState | null>(null);

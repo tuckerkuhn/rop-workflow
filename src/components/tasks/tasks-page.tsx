@@ -8,7 +8,7 @@ import { DonorFilter, useDonorChoice } from "@/components/app/donor-filter";
 import { useT } from "@/components/app/i18n";
 import { LockIcon, LockedFeature } from "@/components/app/locked-feature";
 import { useFeature, useRequireUser } from "@/components/app/session";
-import { useDonors } from "@/components/app/use-project-data";
+import { useDonors, useKoboServer } from "@/components/app/use-project-data";
 import { FieldWorkspace } from "@/components/field/workspace";
 import { ProcurementWorkspace } from "@/components/procurement/workspace";
 import { AddSheet } from "@/components/tasks/add-sheet";
@@ -20,7 +20,7 @@ import { taskHref, taskSources, type TaskSource } from "@/components/tasks/sourc
 import { TimelineView } from "@/components/tasks/timeline-view";
 import { useTaskRows } from "@/components/tasks/use-rows";
 import { TopBar, usePersistentState } from "@/components/workspace/ui";
-import type { AppUser } from "@/lib/demo";
+import { canEditProject, type AppUser, type ProjectInfo } from "@/lib/demo";
 import type { MessageKey } from "@/lib/i18n";
 import type { Row } from "@/lib/work-items";
 
@@ -199,6 +199,68 @@ const chevron = (
   </svg>
 );
 
+type StartItem = { key: string; title: MessageKey; hint: MessageKey; href?: string; onClick?: () => void; external?: boolean };
+type StartGroup = { key: string; title: MessageKey; items: StartItem[] };
+
+/**
+ * The kinds of work a person can start, grouped the way the work runs: plan it, do it in the field,
+ * buy for it, report on it, and their own time and costs. Each one opens the screen where it starts;
+ * only what this person may start on this project is listed, and empty groups are left out.
+ */
+function startGroups(user: AppUser, project: ProjectInfo, sources: TaskSource[], canAdd: boolean, onAdd: () => void, kobo: string): StartGroup[] {
+  const field = sources.includes("field");
+  const proc = sources.includes("procurement");
+  const groups: StartGroup[] = [
+    {
+      key: "plan",
+      title: "work.group.plan",
+      items: [
+        ...(canAdd ? [{ key: "task", title: "work.new.task", hint: "work.new.taskHint", onClick: onAdd } as StartItem] : []),
+        ...(canEditProject(user) ? [{ key: "project", title: "work.new.project", hint: "work.new.projectHint", href: "/setup?new=1" } as StartItem] : []),
+        { key: "design", title: "work.new.design", hint: "work.new.designHint", href: "/design" },
+      ],
+    },
+    {
+      key: "field",
+      title: "work.group.field",
+      items: field
+        ? [
+            { key: "finding", title: "work.new.field", hint: "work.new.fieldHint", href: taskHref("field", "new=1") },
+            { key: "step", title: "work.new.farmerStep", hint: "work.new.farmerStepHint", href: taskHref("field") },
+            // Farmers are registered and visits recorded in the Kobo forms, not here.
+            { key: "kobo", title: "work.new.kobo", hint: "work.new.koboHint", href: kobo, external: true },
+          ]
+        : [],
+    },
+    {
+      key: "procurement",
+      title: "work.group.procurement",
+      items: proc
+        ? [
+            { key: "request", title: "work.new.procurement", hint: "work.new.procurementHint", href: taskHref("procurement", "new=1") },
+            ...(project.saved
+              ? ([
+                  { key: "plan", title: "work.new.planPurchase", hint: "work.new.planPurchaseHint", href: "/work/plan" },
+                  { key: "bill", title: "work.new.bill", hint: "work.new.billHint", href: "/work/bills" },
+                ] as StartItem[])
+              : []),
+          ]
+        : [],
+    },
+    { key: "report", title: "work.group.report", items: [{ key: "qpr", title: "work.new.report", hint: "work.new.reportHint", href: "/progress/report" }] },
+    {
+      key: "mine",
+      title: "work.group.mine",
+      items: [
+        { key: "timesheet", title: "work.new.timesheet", hint: "work.new.timesheetHint", href: "/timesheets" },
+        { key: "leave", title: "work.new.leave", hint: "work.new.leaveHint", href: "/leave" },
+        { key: "expense", title: "work.new.expense", hint: "work.new.expenseHint", href: "/expenses" },
+      ],
+    },
+  ];
+  return groups.filter((g) => g.items.length > 0);
+}
+
 /** Start new work, then the three ways back into work already under way. */
 function WorkHub({
   user,
@@ -220,17 +282,15 @@ function WorkHub({
   const [starting, setStarting] = useState(false);
   const sources = taskSources(user, project);
   const label = (s: TaskSource) => t(s === "field" ? "tasks.field" : "tasks.procurement");
-  const options: { key: string; title: MessageKey; hint: MessageKey; href?: string; onClick?: () => void }[] = [
-    ...(canAdd ? [{ key: "task", title: "work.new.task" as const, hint: "work.new.taskHint" as const, onClick: onAdd }] : []),
-    ...(sources.includes("procurement") ? [{ key: "procurement", title: "work.new.procurement" as const, hint: "work.new.procurementHint" as const, href: taskHref("procurement", "new=1") }] : []),
-    ...(sources.includes("field") ? [{ key: "field", title: "work.new.field" as const, hint: "work.new.fieldHint" as const, href: taskHref("field", "new=1") }] : []),
-  ];
+  const kobo = useKoboServer(sources.includes("field") && project.saved ? project.id : null);
+  const groups = startGroups(user, project, sources, canAdd, onAdd, kobo);
+  const options = groups.flatMap((g) => g.items);
   const row = "flex w-full items-center gap-3 px-4 py-3.5 text-start hover:bg-sunken";
 
   return (
     <div className="mt-5 grid gap-4 lg:grid-cols-2">
       {options.length > 0 && (
-        <section className="rounded-2xl bg-forest p-5 text-forest-ink">
+        <section className={`rounded-2xl bg-forest p-5 text-forest-ink ${starting ? "lg:col-span-2" : ""}`}>
           <button type="button" aria-expanded={starting} onClick={() => setStarting((v) => !v)} className="flex w-full items-start gap-3 text-start">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" aria-hidden className="mt-0.5 h-7 w-7 shrink-0">
               <circle cx="12" cy="12" r="9" />
@@ -242,37 +302,52 @@ function WorkHub({
             </span>
           </button>
           {starting && (
-            <ul className="mt-4 grid gap-2">
-              {options.map((o) => {
-                const body = (
-                  <>
-                    <span className="block font-semibold">{t(o.title)}</span>
-                    <span className="block text-sm text-forest-ink/75">{t(o.hint)}</span>
-                  </>
-                );
-                const cls = "block w-full rounded-xl bg-forest-ink/10 px-4 py-3 text-start hover:bg-forest-ink/20";
-                return (
-                  <li key={o.key}>
-                    {o.href ? (
-                      <Link href={o.href} className={cls}>
-                        {body}
-                      </Link>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setStarting(false);
-                          o.onClick?.();
-                        }}
-                        className={cls}
-                      >
-                        {body}
-                      </button>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {groups.map((g) => (
+                <div key={g.key}>
+                  <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-forest-ink/70">{t(g.title)}</h3>
+                  <ul className="mt-2 grid gap-2">
+                    {g.items.map((o) => {
+                      const body = (
+                        <>
+                          <span className="block font-semibold">
+                            {t(o.title)}
+                            {o.external && <span aria-hidden> ↗</span>}
+                          </span>
+                          <span className="block text-sm text-forest-ink/75">{t(o.hint)}</span>
+                        </>
+                      );
+                      const cls = "block w-full rounded-xl bg-forest-ink/10 px-4 py-3 text-start hover:bg-forest-ink/20";
+                      return (
+                        <li key={o.key}>
+                          {o.external ? (
+                            <a href={o.href} target="_blank" rel="noopener noreferrer" className={cls}>
+                              {body}
+                              <span className="sr-only"> ({t("work.newTab")})</span>
+                            </a>
+                          ) : o.href ? (
+                            <Link href={o.href} className={cls}>
+                              {body}
+                            </Link>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setStarting(false);
+                                o.onClick?.();
+                              }}
+                              className={cls}
+                            >
+                              {body}
+                            </button>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              ))}
+            </div>
           )}
         </section>
       )}
