@@ -3,6 +3,7 @@
 import { Arrow } from "@/components/app/arrow";
 import Link from "next/link";
 import { useT } from "@/components/app/i18n";
+import { hasDesignPage, hasStarted } from "@/components/app/project-stage";
 import { useProgress } from "@/components/app/use-project-data";
 import { RowItem, type RowActions } from "@/components/tasks/row";
 import { useTaskRows } from "@/components/tasks/use-rows";
@@ -142,10 +143,17 @@ function Glance({ user, project, stage, progress }: { user: AppUser; project: Pr
         </div>
       )}
       <div className="mt-5 flex flex-wrap gap-2">
-        {/* Projects in the database open in setup; the browser-only demo projects keep Project design. */}
-        <Link href={project.saved ? "/setup" : `/design?project=${project.id}`} className={`${quietBtn} py-2`}>
-          {t("home.editDesign")}
-        </Link>
+        {/* Once a project has started its design is view-only. Projects in the database open in setup;
+            the browser-only demo projects keep Project design. */}
+        {hasStarted(stage) && hasDesignPage(project.id) ? (
+          <Link href={`/design?project=${project.id}`} className={`${quietBtn} py-2`}>
+            {t("home.viewDesign")}
+          </Link>
+        ) : (
+          <Link href={project.saved ? "/setup" : `/design?project=${project.id}`} className={`${quietBtn} py-2`}>
+            {t("home.editDesign")}
+          </Link>
+        )}
         {canEditProject(user) && (
           <Link href="/settings" className={`${quietBtn} py-2`}>
             {t("home.settings")}

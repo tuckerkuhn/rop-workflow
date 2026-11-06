@@ -51,7 +51,7 @@ export function MoveToExecute({ u, state, setState }: Pick<Props, "u" | "state" 
         >
           Sign off Design and move to Execute →
         </button>
-        {!canSign && <p className="text-xs text-muted">Only a plan approver (Tucker or Daniel) can sign off Design.</p>}
+        {!canSign && <p className="text-xs text-muted">Only a plan approver (the CEO, Director of Programs or Country Director) can sign off Design.</p>}
       </div>
       {missing.length > 0 && (
         <div role="alert" className="rounded-xl border border-clay/40 bg-clay-soft px-4 py-3 text-sm text-clay">

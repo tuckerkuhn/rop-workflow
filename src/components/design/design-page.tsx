@@ -181,7 +181,7 @@ function Explore({ u, state, setState, locked, cal, setCal, crop, setCrop, intel
             </button>
           ))}
         </div>
-        {!editable && <span className="text-xs text-muted">Set by Nadia, Tucker or Daniel.</span>}
+        {!editable && <span className="text-xs text-muted">Set by the CEO, Director of Programs, Country Director or Project Manager.</span>}
       </div>
       <Calendar
         crop={crop}
@@ -276,7 +276,7 @@ function Validate({ u, state, setState, locked, cal }: Props) {
       <div>
         <SectionLabel>2 · Validate the short-list</SectionLabel>
         <p className="mt-1 max-w-2xl text-sm text-muted">
-          A window counts as validated when every item has a named person and evidence. {editable ? "You can confirm items." : "Nadia, Tucker or Daniel confirm items."} AI only suggests where to look.
+          A window counts as validated when every item has a named person and evidence. {editable ? "You can confirm items." : "The CEO, Director of Programs, Country Director or Project Manager confirm items."} AI only suggests where to look.
         </p>
       </div>
       {design.shortlist.length === 0 && <p className="rounded-2xl border border-line bg-surface p-5 text-sm text-muted">Nothing short-listed yet. Pick windows in step 1.</p>}
@@ -469,11 +469,11 @@ function Choose({ u, state, setState, locked, cal, projectId, openTarget, intel 
             </div>
           </div>
         ) : (
-          <p className="mt-2 text-sm text-muted">Not chosen yet. Nadia, Tucker or Daniel choose it.</p>
+          <p className="mt-2 text-sm text-muted">Not chosen yet. The CEO, Director of Programs, Country Director or Project Manager choose it.</p>
         )}
       </div>
       <p className="text-sm text-muted">
-        Next: Tucker or Daniel signs off Design on the{" "}
+        Next: the CEO, Director of Programs or Country Director signs off Design on the{" "}
         <Link href={`/progress/records?project=${projectId}`} className="font-semibold text-forest hover:underline">
           project page
         </Link>
@@ -560,23 +560,26 @@ export function DesignPage() {
           <Validate {...props} />
           <Choose {...props} projectId={project.id} openTarget={() => setTargetOpen(true)} intel={intel} />
         </div>
-        <p className="mt-10 text-xs text-muted">
-          Reset this project&rsquo;s demo data:{" "}
-          <button type="button" onClick={() => setState(store.seed())} className="font-semibold underline-offset-2 hover:underline">
-            reset
-          </button>
-          .
-          {intel && (
-            <>
-              {" "}
-              Reset the harvest and competitor calendar:{" "}
-              <button type="button" onClick={() => setCal(seedCalendar())} className="font-semibold underline-offset-2 hover:underline">
-                reset
-              </button>
-              .
-            </>
-          )}
-        </p>
+        {/* Resetting would move a started project back to Design, so a view-only design has no reset. */}
+        {!locked && (
+          <p className="mt-10 text-xs text-muted">
+            Reset this project&rsquo;s demo data:{" "}
+            <button type="button" onClick={() => setState(store.seed())} className="font-semibold underline-offset-2 hover:underline">
+              reset
+            </button>
+            .
+            {intel && (
+              <>
+                {" "}
+                Reset the harvest and competitor calendar:{" "}
+                <button type="button" onClick={() => setCal(seedCalendar())} className="font-semibold underline-offset-2 hover:underline">
+                  reset
+                </button>
+                .
+              </>
+            )}
+          </p>
+        )}
       </div>
       {targetOpen && state.marketTarget && <TargetPanel state={state} onClose={() => setTargetOpen(false)} />}
     </div>

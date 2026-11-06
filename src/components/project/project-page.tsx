@@ -163,7 +163,7 @@ function Overview({ u, state, setState, field, procs, roster, go }: SectionProps
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-plum">AI draft · Monthly reviewer</p>
             <h3 className="mt-1 font-display text-2xl tracking-tight">March monthly review</h3>
           </div>
-          <p className="text-xs text-muted">For Tucker and Daniel. Sources listed below each part.</p>
+          <p className="text-xs text-muted">For the CEO, Director of Programs or Country Director. Sources listed below each part.</p>
         </div>
         <div className="grid gap-6 px-5 py-5 md:grid-cols-3">
           <div>
@@ -234,7 +234,7 @@ function Overview({ u, state, setState, field, procs, roster, go }: SectionProps
                         ))}
                       </div>
                     ) : (
-                      <p className="mt-2 text-xs text-muted">Waiting for Tucker or Daniel</p>
+                      <p className="mt-2 text-xs text-muted">Waiting for the CEO, Director of Programs or Country Director</p>
                     )
                   ) : (
                     <p className={`mt-2 text-xs font-semibold ${c.status === "approved" ? "text-leaf" : "text-muted"}`}>

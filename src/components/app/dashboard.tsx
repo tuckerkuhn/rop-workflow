@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { stageOf } from "@/components/field/workspace";
 import { useFieldData, useSubmissions } from "@/components/app/use-project-data";
+import { useProjectStage } from "@/components/app/project-stage";
 import { PROJECT_KEY } from "@/components/project/project-page";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useT } from "@/components/app/i18n";
@@ -386,6 +387,7 @@ export function Dashboard() {
   // Review-queue records live in the database; the rest of the project state is still in this browser.
   const project: ProjectState = { ...local, submissions };
   const [grapes] = usePersistentState<ProjectState>(GATED_KEYS["AG-2027"].key, GATED_KEYS["AG-2027"].seed);
+  const stage = useProjectStage(current);
   const [viewing, setViewing] = useState<string | null>(null);
 
   // /home?view=farida shows a direct report's work, read-only.
@@ -456,7 +458,7 @@ export function Dashboard() {
           <EmployeeHome u={subject} data={data} viewer={user} readOnly={readOnly} onView={(id) => view(id)} />
         ) : (
           <>
-            <HomePanels user={user} project={current} stage={(current.id === "A-2027" ? local.stage : current.id === "AG-2027" ? grapes.stage : undefined) ?? current.stage} />
+            <HomePanels user={user} project={current} stage={stage} />
             <Team u={user} data={data} viewer={user} onView={(id) => view(id)} />
           </>
         )}

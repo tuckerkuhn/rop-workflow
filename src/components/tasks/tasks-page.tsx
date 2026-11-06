@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
+import { hasStarted, useProjectStage } from "@/components/app/project-stage";
 import { DonorFilter, useDonorChoice } from "@/components/app/donor-filter";
 import { useT } from "@/components/app/i18n";
 import { LockIcon, LockedFeature } from "@/components/app/locked-feature";
-import { useFeature, useRequireUser } from "@/components/app/session";
+import { useFeature, useRequireUser, useSession } from "@/components/app/session";
 import { useDonors, useKoboServer } from "@/components/app/use-project-data";
 import { FieldWorkspace } from "@/components/field/workspace";
 import { ProcurementWorkspace } from "@/components/procurement/workspace";
@@ -20,7 +21,7 @@ import { taskHref, taskSources, type TaskSource } from "@/components/tasks/sourc
 import { TimelineView } from "@/components/tasks/timeline-view";
 import { useTaskRows } from "@/components/tasks/use-rows";
 import { TopBar, usePersistentState } from "@/components/workspace/ui";
-import { canEditProject, type AppUser, type ProjectInfo } from "@/lib/demo";
+import { canEditProject, type AppUser, type ProjectInfo, type Stage } from "@/lib/demo";
 import type { MessageKey } from "@/lib/i18n";
 import type { Row } from "@/lib/work-items";
 
@@ -204,21 +205,18 @@ type StartGroup = { key: string; title: MessageKey; items: StartItem[] };
 
 /**
  * The kinds of work a person can start, grouped the way the work runs: plan it, do it in the field,
- * buy for it, report on it, and their own time and costs. Each one opens the screen where it starts;
- * only what this person may start on this project is listed, and empty groups are left out.
+ * buy for it and report on it. Each one opens the screen where it starts; only what this person may
+ * start on this project is listed, and empty groups are left out. Planning ends once the project is
+ * in Execute. A task or milestone is offered on its own, above the groups, in every stage.
  */
-function startGroups(user: AppUser, project: ProjectInfo, sources: TaskSource[], canAdd: boolean, onAdd: () => void, kobo: string): StartGroup[] {
+function startGroups(user: AppUser, project: ProjectInfo, stage: Stage, sources: TaskSource[], kobo: string): StartGroup[] {
   const field = sources.includes("field");
   const proc = sources.includes("procurement");
   const groups: StartGroup[] = [
     {
       key: "plan",
       title: "work.group.plan",
-      items: [
-        ...(canAdd ? [{ key: "task", title: "work.new.task", hint: "work.new.taskHint", onClick: onAdd } as StartItem] : []),
-        ...(canEditProject(user) ? [{ key: "project", title: "work.new.project", hint: "work.new.projectHint", href: "/setup?new=1" } as StartItem] : []),
-        { key: "design", title: "work.new.design", hint: "work.new.designHint", href: "/design" },
-      ],
+      items: !hasStarted(stage) && canEditProject(user) ? [{ key: "project", title: "work.new.project", hint: "work.new.projectHint", href: "/setup?new=1" }] : [],
     },
     {
       key: "field",
@@ -248,20 +246,71 @@ function startGroups(user: AppUser, project: ProjectInfo, sources: TaskSource[],
         : [],
     },
     { key: "report", title: "work.group.report", items: [{ key: "qpr", title: "work.new.report", hint: "work.new.reportHint", href: "/progress/report" }] },
-    {
-      key: "mine",
-      title: "work.group.mine",
-      items: [
-        { key: "timesheet", title: "work.new.timesheet", hint: "work.new.timesheetHint", href: "/timesheets" },
-        { key: "leave", title: "work.new.leave", hint: "work.new.leaveHint", href: "/leave" },
-        { key: "expense", title: "work.new.expense", hint: "work.new.expenseHint", href: "/expenses" },
-      ],
-    },
   ];
   return groups.filter((g) => g.items.length > 0);
 }
 
-/** Start new work, then the three ways back into work already under way. */
+const ADMIN: StartItem[] = [
+  { key: "timesheet", title: "work.new.timesheet", hint: "work.new.timesheetHint", href: "/timesheets" },
+  { key: "leave", title: "work.new.leave", hint: "work.new.leaveHint", href: "/leave" },
+  { key: "expense", title: "work.new.expense", hint: "work.new.expenseHint", href: "/expenses" },
+];
+
+/** Whether this person has an HR record, the same check the People card on Home makes. */
+function useHasHrRecord() {
+  const { user } = useSession();
+  const [has, setHas] = useState(false);
+  useEffect(() => {
+    if (!user || user.kind !== "employee") return;
+    fetch("/api/hr?summary=1", { cache: "no-store", headers: { "x-demo-user": user.id } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((s: { hasRecord?: boolean } | null) => setHas(!!s?.hasRecord))
+      .catch(() => setHas(false));
+  }, [user]);
+  return has;
+}
+
+/** One choice in Start new work: a link, a link out to another site, or a button that opens a form here. */
+function StartChoice({ o, onPick }: { o: StartItem; onPick: () => void }) {
+  const { t } = useT();
+  const body = (
+    <>
+      <span className="block font-semibold">
+        {t(o.title)}
+        {o.external && <span aria-hidden> ↗</span>}
+      </span>
+      <span className="block text-sm text-forest-ink/75">{t(o.hint)}</span>
+    </>
+  );
+  const cls = "block w-full rounded-xl bg-forest-ink/10 px-4 py-3 text-start hover:bg-forest-ink/20";
+  if (o.external)
+    return (
+      <a href={o.href} target="_blank" rel="noopener noreferrer" className={cls}>
+        {body}
+        <span className="sr-only"> ({t("work.newTab")})</span>
+      </a>
+    );
+  if (o.href)
+    return (
+      <Link href={o.href} className={cls}>
+        {body}
+      </Link>
+    );
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        onPick();
+        o.onClick?.();
+      }}
+      className={cls}
+    >
+      {body}
+    </button>
+  );
+}
+
+/** Start new work and the person's own admin, then the three ways back into work already under way. */
 function WorkHub({
   user,
   canAdd,
@@ -279,77 +328,80 @@ function WorkHub({
 }) {
   const { t } = useT();
   const { project } = useCurrentProject();
+  const stage = useProjectStage(project);
+  const hasRecord = useHasHrRecord();
   const [starting, setStarting] = useState(false);
   const sources = taskSources(user, project);
   const label = (s: TaskSource) => t(s === "field" ? "tasks.field" : "tasks.procurement");
   const kobo = useKoboServer(sources.includes("field") && project.saved ? project.id : null);
-  const groups = startGroups(user, project, sources, canAdd, onAdd, kobo);
-  const options = groups.flatMap((g) => g.items);
+  const groups = startGroups(user, project, stage, sources, kobo);
+  const task: StartItem | null = canAdd ? { key: "task", title: "work.new.task", hint: "work.new.taskHint", onClick: onAdd } : null;
+  const canStart = !!task || groups.length > 0;
   const row = "flex w-full items-center gap-3 px-4 py-3.5 text-start hover:bg-sunken";
 
   return (
     <div className="mt-5 grid gap-4 lg:grid-cols-2">
-      {options.length > 0 && (
-        <section className={`rounded-2xl bg-forest p-5 text-forest-ink ${starting ? "lg:col-span-2" : ""}`}>
-          <button type="button" aria-expanded={starting} onClick={() => setStarting((v) => !v)} className="flex w-full items-start gap-3 text-start">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" aria-hidden className="mt-0.5 h-7 w-7 shrink-0">
-              <circle cx="12" cy="12" r="9" />
-              <path d="M12 8v8M8 12h8" />
-            </svg>
-            <span className="flex-1">
-              <span className="block font-display text-xl">{t("work.start")}</span>
-              <span className="mt-1 block text-sm text-forest-ink/80">{t("work.startHint")}</span>
-            </span>
-          </button>
-          {starting && (
-            <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {groups.map((g) => (
-                <div key={g.key}>
-                  <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-forest-ink/70">{t(g.title)}</h3>
-                  <ul className="mt-2 grid gap-2">
-                    {g.items.map((o) => {
-                      const body = (
-                        <>
-                          <span className="block font-semibold">
-                            {t(o.title)}
-                            {o.external && <span aria-hidden> ↗</span>}
-                          </span>
-                          <span className="block text-sm text-forest-ink/75">{t(o.hint)}</span>
-                        </>
-                      );
-                      const cls = "block w-full rounded-xl bg-forest-ink/10 px-4 py-3 text-start hover:bg-forest-ink/20";
-                      return (
-                        <li key={o.key}>
-                          {o.external ? (
-                            <a href={o.href} target="_blank" rel="noopener noreferrer" className={cls}>
-                              {body}
-                              <span className="sr-only"> ({t("work.newTab")})</span>
-                            </a>
-                          ) : o.href ? (
-                            <Link href={o.href} className={cls}>
-                              {body}
-                            </Link>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setStarting(false);
-                                o.onClick?.();
-                              }}
-                              className={cls}
-                            >
-                              {body}
-                            </button>
-                          )}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              ))}
-            </div>
+      {(canStart || hasRecord) && (
+        <div className={`grid content-start gap-4 ${starting ? "lg:col-span-2" : ""}`}>
+          {canStart && (
+            <section className="rounded-2xl bg-forest p-5 text-forest-ink">
+              <button type="button" aria-expanded={starting} onClick={() => setStarting((v) => !v)} className="flex w-full items-start gap-3 text-start">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" aria-hidden className="mt-0.5 h-7 w-7 shrink-0">
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M12 8v8M8 12h8" />
+                </svg>
+                <span className="flex-1">
+                  <span className="block font-display text-xl">{t("work.start")}</span>
+                  <span className="mt-1 block text-sm text-forest-ink/80">{t("work.startHint")}</span>
+                </span>
+              </button>
+              {starting && (
+                <>
+                  {task && (
+                    <div className="mt-4 sm:max-w-sm">
+                      <StartChoice o={task} onPick={() => setStarting(false)} />
+                    </div>
+                  )}
+                  {groups.length > 0 && (
+                    <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                      {groups.map((g) => (
+                        <div key={g.key}>
+                          <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-forest-ink/70">{t(g.title)}</h3>
+                          <ul className="mt-2 grid gap-2">
+                            {g.items.map((o) => (
+                              <li key={o.key}>
+                                <StartChoice o={o} onPick={() => setStarting(false)} />
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </section>
           )}
-        </section>
+
+          {hasRecord && (
+            <section className="rounded-2xl border border-line bg-surface">
+              <h2 className="px-4 pt-4 pb-1 text-xs font-semibold uppercase tracking-[0.16em] text-muted">{t("work.group.admin")}</h2>
+              <ul className="divide-y divide-line">
+                {ADMIN.map((o) => (
+                  <li key={o.key}>
+                    <Link href={o.href!} className={row}>
+                      <span className="flex-1">
+                        <span className="block font-semibold">{t(o.title)}</span>
+                        <span className="block text-sm text-muted">{t(o.hint)}</span>
+                      </span>
+                      {chevron}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </div>
       )}
 
       <section className="rounded-2xl border border-line bg-surface">
