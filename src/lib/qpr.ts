@@ -132,6 +132,7 @@ export type Row = {
   men: number;
   womenLed: number;
   menLed: number;
+  /** Provinces of this quarter's results; empty when any of them has no province recorded. */
   provinces: string[];
   /** Accepted records this quarter and this year, files on them, and records this year still waiting for (or queried by) MEL. */
   records: { quarter: number; year: number; files: number; open: number };
@@ -241,6 +242,9 @@ export function buildRows(indicators: IndicatorInfo[], results: ResultRecord[], 
     const yr = totalsOf(mine, yearFrom, to);
     // Recorded this year but not counted yet: waiting for MEL, or queried.
     const open = mine.filter((r) => r.status !== "accepted" && r.date >= yearFrom && r.date <= to).length;
+    // Name the provinces only when every counted record has one: a record without a province
+    // (training across both provinces, say) would otherwise be put down to the others.
+    const unplaced = mine.some((r) => r.status === "accepted" && r.date >= from && r.date <= to && !r.province);
     const base = {
       code: i.code,
       donorCode: i.donorCode ?? i.code,
@@ -256,7 +260,7 @@ export function buildRows(indicators: IndicatorInfo[], results: ResultRecord[], 
       men: q.male,
       womenLed: q.womenLed,
       menLed: q.menLed,
-      provinces: q.provinces,
+      provinces: unplaced ? [] : q.provinces,
       records: { quarter: q.records, year: yr.records, files: q.files, open },
       planned: i.workplanCode && plans[i.workplanCode] ? plans[i.workplanCode].filter((d) => d.startsWith(y)).map((d) => Math.floor((Number(d.slice(5, 7)) - 1) / 3) + 1) : null,
     };
