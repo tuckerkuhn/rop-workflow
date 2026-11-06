@@ -274,7 +274,9 @@ export function buildRows(indicators: IndicatorInfo[], results: ResultRecord[], 
 /** Things to fix before the report goes out. Each one names the indicator or section. */
 export function checksFor(rows: Row[], results: ResultRecord[], quarter: string, saved: Qpr, spend: Spend, activities: string[]) {
   const { from, to } = quarterRange(quarter);
-  const inQ = results.filter((r) => r.date >= from && r.date <= to);
+  // Only the indicators in this report's table: others (annual-report-only) are checked elsewhere.
+  const inTable = new Set(rows.map((r) => r.code));
+  const inQ = results.filter((r) => r.date >= from && r.date <= to && inTable.has(r.indicator));
   const code = (ind: string) => rows.find((r) => r.code === ind)?.donorCode ?? ind;
   const out: { level: "stop" | "check"; text: string }[] = [];
   const pending = inQ.filter((r) => r.status === "pending");
