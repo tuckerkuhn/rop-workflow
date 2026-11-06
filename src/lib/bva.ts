@@ -141,7 +141,8 @@ export function readIce(rows: unknown[][], sheet: string): Bva {
       if (usd) notes.push(`${code} is in US dollars; it is counted in the overhead (USD) row, not in the afghani lines.`);
     } else if (/^total costs/i.test(code)) costs = totalsOfRow();
     else if (/^required usd/i.test(code)) overhead = { ...totalsOfRow(), currency: "USD" };
-    else if (/^total$/i.test(code)) grand = totalsOfRow();
+    // "Total" (2025 workbooks) or "Grand Total in AFN" (2026).
+    else if (/^(grand )?total$|^grand total\b/i.test(code)) grand = totalsOfRow();
   }
   if (!lines.length) problems.push(`No budget lines (PRG-, LAB-, OPS-) found in "${sheet}".`);
   const local = lines.filter((l) => !l.currency);
