@@ -6,7 +6,7 @@ import { resultActionSchema } from "@/lib/results";
 import { isMelOwner, requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
 import { projectByCode } from "@/server/field-store";
-import { addResult, addUpdate, loadResults, loadUpdates, reviewResult } from "@/server/results-store";
+import { addProof, addResult, addUpdate, loadResults, loadUpdates, reviewResult } from "@/server/results-store";
 import { activityOf } from "@/lib/qpr";
 
 type Ctx = { params: Promise<{ code: string }> };
@@ -40,6 +40,8 @@ async function view(code: string, u: AppUser) {
     activities,
     updates,
     mayUpdate: mayRecord(u) || mel,
+    /** Proof can be added to any result, whoever recorded it: it never changes the figure. */
+    mayAddProof: mayRecord(u) || mel,
   };
 }
 export type ResultsView = Awaited<ReturnType<typeof view>>;
@@ -66,6 +68,12 @@ export async function POST(req: Request, { params }: Ctx) {
       if (!(mayRecord(u) || isMelOwner(u))) return NextResponse.json({ error: "Only field staff and MEL can add activity updates." }, { status: 403 });
       if (a.update.date > new Date().toISOString().slice(0, 10)) return NextResponse.json({ error: "The date is in the future." }, { status: 400 });
       await addUpdate(code, a.update, u.id);
+      return NextResponse.json(await view(code, u));
+    }
+    if (a.action === "proof") {
+      if (!(mayRecord(u) || isMelOwner(u))) return NextResponse.json({ error: "Only field staff and MEL can add proof." }, { status: 403 });
+      const done = await addProof(code, a.id, { files: a.files, links: a.links, captions: a.captions });
+      if (!done) return NextResponse.json({ error: "No such result." }, { status: 404 });
       return NextResponse.json(await view(code, u));
     }
     if (a.action === "record") {

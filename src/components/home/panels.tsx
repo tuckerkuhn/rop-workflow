@@ -4,6 +4,7 @@ import { Arrow } from "@/components/app/arrow";
 import Link from "next/link";
 import { useT } from "@/components/app/i18n";
 import { hasDesignPage, hasStarted } from "@/components/app/project-stage";
+import { StageControl } from "@/components/home/stage-control";
 import { useProgress } from "@/components/app/use-project-data";
 import { RowItem, type RowActions } from "@/components/tasks/row";
 import { useTaskRows } from "@/components/tasks/use-rows";
@@ -119,6 +120,7 @@ function Glance({ user, project, stage, progress }: { user: AppUser; project: Pr
       <p className="mt-3 text-sm">
         <span className="text-muted">{t("home.phase")}:</span> <span className="font-semibold">{t(`stage.${stage}`)}</span>
       </p>
+      <StageControl project={project} stage={stage} />
       {key.length > 0 && (
         <div className="mt-4">
           <SectionLabel>{t("home.keyIndicators")}</SectionLabel>

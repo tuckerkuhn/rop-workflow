@@ -5,7 +5,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { useT } from "@/components/app/i18n";
 import { useSession } from "@/components/app/session";
 import { localeOf } from "@/lib/i18n";
-import { projects as demoProjects, type ProjectInfo } from "@/lib/demo";
+import { STAGES, projects as demoProjects, type ProjectInfo, type Stage } from "@/lib/demo";
 import type { ProjectSummary } from "@/lib/project-setup";
 import { setDemoClock } from "@/lib/clock";
 import { setProcurementRules } from "@/lib/procurement";
@@ -63,7 +63,7 @@ export function CurrentProjectProvider({ children }: { children: React.ReactNode
           season: p.startDate && p.endDate ? `${p.startDate.slice(0, 4)}–${p.endDate.slice(0, 4)}` : "",
           orgId: "rop",
           status: "Active",
-          stage: "Design",
+          stage: (STAGES as readonly string[]).includes(p.stage) ? (p.stage as Stage) : "Design",
           note: p.goal ?? "",
           // Procurement runs from the budget and calendar saved in setup.
           workflows: ["procurement"],

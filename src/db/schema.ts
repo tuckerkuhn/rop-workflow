@@ -138,6 +138,8 @@ export const projects = pgTable("projects", {
   crop: text("crop"),
   /** What changes for people if the project succeeds (top of the results chain). */
   goal: text("goal"),
+  /** Develop, Design, Execute, Verify or Report. Moves forward only with a plan approver's sign-off, recorded in audit_log. */
+  stage: text("stage").notNull().default("Design"),
   ...timestamps,
 });
 

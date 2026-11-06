@@ -8,7 +8,7 @@ import { useRequireUser, useSession } from "@/components/app/session";
 import { openReceipt, shrink } from "@/components/people/expense-page";
 import { Pill, SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import type { Receipt } from "@/lib/expense";
-import { PROVINCES, quarterOf, quarterRange, totalsOf, type ResultAction, type ResultInput, type UpdateInput } from "@/lib/results";
+import { PROVINCES, proofCount, proofLinkSchema, quarterOf, quarterRange, totalsOf, type ProofLink, type ResultAction, type ResultInput, type UpdateInput } from "@/lib/results";
 import type { ResultsView } from "@/app/api/projects/[code]/results/route";
 
 /**
@@ -126,7 +126,7 @@ export function ResultsPage() {
             <SectionLabel>To check ({waiting.length})</SectionLabel>
             <div className="mt-3 space-y-3">
               {waiting.map((r) => (
-                <ResultCard key={r.id} r={r} ind={v.indicators.find((i) => i.code === r.indicator)} act={act} />
+                <ResultCard key={r.id} r={r} ind={v.indicators.find((i) => i.code === r.indicator)} act={act} mayAddProof={v.mayAddProof} />
               ))}
             </div>
           </section>
@@ -180,7 +180,7 @@ export function ResultsPage() {
                           )}
                           {!mine.length && <p className="text-sm text-muted">Nothing recorded{range ? ` in ${rangeLabel}` : ""} yet.</p>}
                           {mine.map((r) => (
-                            <ResultCard key={r.id} r={r} ind={i} act={act} />
+                            <ResultCard key={r.id} r={r} ind={i} act={act} mayAddProof={v.mayAddProof} />
                           ))}
                         </div>
                       )}
@@ -351,9 +351,88 @@ function UpdateForm({ activities, add, onClose }: { activities: { code: string; 
   );
 }
 
-function ResultCard({ r, ind, act }: { r: Res; ind?: Ind; act: (a: ResultAction, msg: string) => Promise<void> }) {
+/** Link documents already in SharePoint (Copy link) instead of uploading them again. */
+function LinkPicker({ links, setLinks }: { links: ProofLink[]; setLinks: (l: ProofLink[]) => void }) {
+  const [title, setTitle] = useState("");
+  const [url, setUrl] = useState("");
+  const [err, setErr] = useState("");
+  const add = () => {
+    const r = proofLinkSchema.safeParse({ title, url });
+    if (!r.success) return setErr(r.error.issues[0]?.message ?? "Check the link.");
+    if (!links.some((l) => l.url === r.data.url)) setLinks([...links, r.data].slice(0, 20));
+    setTitle("");
+    setUrl("");
+    setErr("");
+  };
+  return (
+    <div className="mt-2">
+      <span className="block text-xs text-muted">Or link a document in SharePoint (open it, then Copy link)</span>
+      <div className="mt-1 grid gap-2 sm:grid-cols-[1fr_2fr_auto]">
+        <input className={input} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What it is: attendance sheet, 27–30 Jul" aria-label="Document title" />
+        <input className={input} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://rootsofpeace.sharepoint.com/…" aria-label="Document link" inputMode="url" />
+        <button type="button" className={`${quietBtn} mt-1`} onClick={add}>
+          Add link
+        </button>
+      </div>
+      {err && <p className="mt-1 text-xs text-clay">{err}</p>}
+      {links.length > 0 && (
+        <ul className="mt-2 space-y-1">
+          {links.map((l) => (
+            <li key={l.url} className="flex items-center gap-2 rounded-lg border border-line bg-paper px-3 py-2 text-xs">
+              <span className="min-w-0 flex-1 truncate">
+                {l.title} <span className="text-muted">· {l.url}</span>
+              </span>
+              <button type="button" aria-label={`Remove ${l.title}`} className="text-muted hover:text-clay" onClick={() => setLinks(links.filter((x) => x.url !== l.url))}>
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/** Adds proof to a result already recorded; the figure and its review stay as they are. */
+function AddProof({ r, act, onClose }: { r: Res; act: (a: ResultAction, msg: string) => Promise<void>; onClose: () => void }) {
+  const [files, setFiles] = useState<Receipt[]>([]);
+  const [captions, setCaptions] = useState<Record<string, string>>({});
+  const [links, setLinks] = useState<ProofLink[]>([]);
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+  const save = async () => {
+    setBusy(true);
+    try {
+      await act({ action: "proof", id: r.id, files, links, captions: cleanCaptions(captions, files) }, "Proof added.");
+      onClose();
+    } catch {
+      /* shown above */
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="mt-3 rounded-lg border border-line bg-surface p-3 text-sm">
+      <span className="font-semibold">Add proof</span>
+      <ProofPicker files={files} setFiles={setFiles} captions={captions} setCaptions={setCaptions} setErr={setErr} setBusy={setBusy} />
+      <LinkPicker links={links} setLinks={setLinks} />
+      {err && <p className="mt-2 text-xs text-clay">{err}</p>}
+      <div className="mt-3 flex gap-2">
+        <button type="button" disabled={busy || files.length + links.length === 0} className={primaryBtn} onClick={() => void save()}>
+          Save proof
+        </button>
+        <button type="button" className={quietBtn} onClick={onClose}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ResultCard({ r, ind, act, mayAddProof }: { r: Res; ind?: Ind; act: (a: ResultAction, msg: string) => Promise<void>; mayAddProof: boolean }) {
   const { user } = useSession();
   const [query, setQuery] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
   const [busy, setBusy] = useState(false);
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
@@ -396,8 +475,19 @@ function ResultCard({ r, ind, act }: { r: Res; ind?: Ind; act: (a: ResultAction,
             {r.captions?.[f.hash] && <span className="block font-normal text-muted">Photo in the report: {r.captions[f.hash]}</span>}
           </button>
         ))}
-        {!r.files.length && r.noFile && <span className="text-xs text-clay">No file: {r.noFile}</span>}
+        {(r.links ?? []).map((l) => (
+          <a key={l.url} href={l.url} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-line px-2 py-1 text-xs font-semibold text-forest hover:bg-sunken">
+            {l.title} <span aria-hidden>↗</span>
+          </a>
+        ))}
+        {!proofCount(r) && r.noFile && <span className="text-xs text-clay">No file: {r.noFile}</span>}
+        {mayAddProof && !adding && (
+          <button type="button" className="rounded-lg px-2 py-1 text-xs font-semibold text-forest hover:bg-sunken" onClick={() => setAdding(true)}>
+            + Add proof
+          </button>
+        )}
       </div>
+      {adding && <AddProof r={r} act={act} onClose={() => setAdding(false)} />}
       <p className="mt-2 text-xs text-muted">
         Recorded by {r.by}
         {r.reviewedBy && ` · ${r.status === "accepted" ? "accepted" : "queried"} by ${r.reviewedBy}`}
@@ -444,6 +534,7 @@ function RecordForm({ ind, add, onClose }: { ind: Ind; add: (r: ResultInput) => 
   const [f, setF] = useState({ date: new Date().toISOString().slice(0, 10), value: "", female: "", male: "", womenLed: "", menLed: "", province: "", district: "", crop: "", note: "", noFile: "" });
   const [files, setFiles] = useState<Receipt[]>([]);
   const [captions, setCaptions] = useState<Record<string, string>>({});
+  const [links, setLinks] = useState<ProofLink[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
@@ -470,8 +561,9 @@ function RecordForm({ ind, add, onClose }: { ind: Ind; add: (r: ResultInput) => 
         crop: byCrop ? f.crop.trim() || undefined : undefined,
         note: f.note.trim(),
         files,
+        links: links.length ? links : undefined,
         captions: cleanCaptions(captions, files),
-        noFile: files.length ? undefined : f.noFile.trim() || undefined,
+        noFile: files.length || links.length ? undefined : f.noFile.trim() || undefined,
       });
     } catch {
       /* shown above */
@@ -542,7 +634,8 @@ function RecordForm({ ind, add, onClose }: { ind: Ind; add: (r: ResultInput) => 
       <div className="mt-3 text-sm">
         Proof{ind.verification ? ` (${ind.verification})` : ""}
         <ProofPicker files={files} setFiles={setFiles} captions={captions} setCaptions={setCaptions} setErr={setErr} setBusy={setBusy} />
-        {!files.length && (
+        <LinkPicker links={links} setLinks={setLinks} />
+        {!files.length && !links.length && (
           <label className="mt-2 block">
             No file yet? Say why
             <input className={input} value={f.noFile} onChange={set("noFile")} placeholder="Verification report due after the field visit on 12 Oct" />

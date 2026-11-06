@@ -12,6 +12,7 @@ const summary = (p: typeof s.projects.$inferSelect): ProjectSummary => ({
   goal: p.goal,
   startDate: p.startDate,
   endDate: p.endDate,
+  stage: p.stage,
 });
 
 export async function listProjects() {

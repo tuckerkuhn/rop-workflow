@@ -1,0 +1,1 @@
+ALTER TABLE "projects" ADD COLUMN "stage" text DEFAULT 'Design' NOT NULL;

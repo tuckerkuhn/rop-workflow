@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { quarterRange, totalsOf, type ResultRecord, type UpdateRecord } from "@/lib/results";
+import { proofCount, quarterRange, totalsOf, type ResultRecord, type UpdateRecord } from "@/lib/results";
 
 /**
  * The UNDP quarterly progress report (QPR), in the layout ROP sends for ACRP (Q3 2026): project
@@ -283,7 +283,7 @@ export function checksFor(rows: Row[], results: ResultRecord[], quarter: string,
   for (const c of [...new Set(pending.map((r) => r.indicator))]) out.push({ level: "stop", text: `${code(c)}: ${pending.filter((r) => r.indicator === c).length} result(s) this quarter still waiting for MEL, so not counted.` });
   const queried = inQ.filter((r) => r.status === "queried");
   for (const c of [...new Set(queried.map((r) => r.indicator))]) out.push({ level: "check", text: `${code(c)}: ${queried.filter((r) => r.indicator === c).length} result(s) this quarter were queried by MEL and are not counted.` });
-  const noProof = inQ.filter((x) => x.status === "accepted" && !x.files.length);
+  const noProof = inQ.filter((x) => x.status === "accepted" && !proofCount(x));
   for (const c of [...new Set(noProof.map((r) => r.indicator))]) {
     const list = noProof.filter((r) => r.indicator === c);
     out.push({ level: "check", text: `${code(c)}: ${list.length} result(s) this quarter have no proof attached${list[0].noFile ? ` (${list[0].noFile})` : ""}.` });

@@ -22,6 +22,21 @@ export const quarterRange = (q: string) => {
 
 export const PROVINCES = ["Kandahar", "Helmand", "Uruzgan", "Zabul", "Kabul", "Herat", "Balkh", "Nangarhar"];
 
+/**
+ * Proof kept where ROP already keeps it: a link to the document in SharePoint (or another https
+ * address), with a short title so the report and the MEL owner know what it is.
+ */
+export const proofLinkSchema = z.object({
+  url: z
+    .string()
+    .trim()
+    .url("That is not a web address.")
+    .max(2000)
+    .refine((u) => u.startsWith("https://"), "Use the document's https:// link (for SharePoint: Copy link)."),
+  title: z.string().trim().min(2, "Say what the document is.").max(200),
+});
+export type ProofLink = z.infer<typeof proofLinkSchema>;
+
 export const resultSchema = z
   .object({
     /** The indicator's code in the app, e.g. "IND-3". */
@@ -39,12 +54,17 @@ export const resultSchema = z
     /** What was done, for the report's narrative: where, with whom, what changed. */
     note: z.string().trim().min(10).max(2000),
     files: z.array(receiptSchema).max(20),
+    /** Documents linked rather than uploaded, e.g. the attendance sheet in SharePoint. */
+    links: z.array(proofLinkSchema).max(20).optional(),
     /** Photo captions by file fingerprint; a captioned photo goes into the donor report. */
     captions: z.record(z.string().regex(/^[0-9a-f]{64}$/), z.string().trim().max(300)).optional(),
     /** Why there is no file yet, when there is none. */
     noFile: z.string().trim().max(300).optional(),
   })
-  .refine((r) => r.files.length > 0 || (r.noFile ?? "").length >= 5, "Attach the proof (attendance sheet, photos, report), or say why it is not attached yet.");
+  .refine((r) => r.files.length > 0 || (r.links?.length ?? 0) > 0 || (r.noFile ?? "").length >= 5, "Attach or link the proof (attendance sheet, photos, report), or say why it is not attached yet.");
+
+/** Files and links on a result: the proof behind it. */
+export const proofCount = (r: Pick<ResultInput, "files" | "links">) => r.files.length + (r.links?.length ?? 0);
 export type ResultInput = z.infer<typeof resultSchema>;
 
 export type ResultStatus = "pending" | "accepted" | "queried";
@@ -79,6 +99,16 @@ export const resultActionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("record"), result: resultSchema }),
   z.object({ action: z.literal("update"), update: updateSchema }),
   z.object({ action: z.literal("accept"), id: z.string().uuid() }),
+  /** Adds proof to a recorded result, at any stage: it never changes the figure. */
+  z
+    .object({
+      action: z.literal("proof"),
+      id: z.string().uuid(),
+      files: z.array(receiptSchema).max(20),
+      links: z.array(proofLinkSchema).max(20),
+      captions: z.record(z.string().regex(/^[0-9a-f]{64}$/), z.string().trim().max(300)).optional(),
+    })
+    .refine((a) => a.files.length + a.links.length > 0, "Add a file or a link."),
   z.object({ action: z.literal("query"), id: z.string().uuid(), note: z.string().trim().min(3).max(1000) }),
 ]);
 export type ResultAction = z.infer<typeof resultActionSchema>;
@@ -88,7 +118,7 @@ export function totalsOf(list: ResultRecord[], from?: string, to?: string) {
   const counted = list.filter((r) => r.status === "accepted" && (!from || r.date >= from) && (!to || r.date <= to));
   const sum = (k: "value" | "female" | "male" | "womenLed" | "menLed") => counted.reduce((s, r) => s + (r[k] ?? 0), 0);
   const provinces = [...new Set(counted.map((r) => r.province).filter(Boolean))] as string[];
-  return { value: sum("value"), female: sum("female"), male: sum("male"), womenLed: sum("womenLed"), menLed: sum("menLed"), provinces, records: counted.length, files: counted.reduce((s, r) => s + r.files.length, 0) };
+  return { value: sum("value"), female: sum("female"), male: sum("male"), womenLed: sum("womenLed"), menLed: sum("menLed"), provinces, records: counted.length, files: counted.reduce((s, r) => s + proofCount(r), 0) };
 }
 
 export type { Receipt };

@@ -58,6 +58,24 @@ export async function reviewResult(code: string, id: string, status: "accepted" 
   return row ? toRecord(row) : null;
 }
 
+/**
+ * Adds proof to a recorded result. Files and links are appended (the same file or link once);
+ * the figure, date and review status stay as they are.
+ */
+export async function addProof(code: string, id: string, add: { files: ResultInput["files"]; links: NonNullable<ResultInput["links"]>; captions?: ResultInput["captions"] }) {
+  const project = await projectByCode(code);
+  const where = and(eq(s.evidence.id, id), eq(s.evidence.projectId, project.id), eq(s.evidence.form, "result"));
+  const [row] = await db.select().from(s.evidence).where(where);
+  if (!row) return null;
+  const p = row.payload as ResultInput;
+  const files = [...p.files, ...add.files.filter((f) => !p.files.some((x) => x.hash === f.hash))].slice(0, 20);
+  const links = [...(p.links ?? []), ...add.links.filter((l) => !(p.links ?? []).some((x) => x.url === l.url))].slice(0, 20);
+  const captions = { ...(p.captions ?? {}), ...(add.captions ?? {}) };
+  const payload: ResultInput = { ...p, files, links, ...(Object.keys(captions).length ? { captions } : {}) };
+  const [updated] = await db.update(s.evidence).set({ payload, updatedAt: new Date() }).where(where).returning();
+  return toRecord(updated);
+}
+
 /* ---------- activity updates (form "update"): narrative and photos, never counted ---------- */
 
 export async function loadUpdates(code: string): Promise<UpdateRecord[]> {
