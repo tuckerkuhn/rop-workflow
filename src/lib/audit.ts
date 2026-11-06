@@ -26,6 +26,18 @@ export function describeAudit(entity: string, action: string, d: D): string {
       return `Imported spending from ${str(d.file)} (${str(d.period)}): ${num(d.actual)} of ${num(d.budget)} ${str(d.currency)}`;
     case "stage_changed":
       return d.signedOff ? `Signed off the plan and budget: ${str(d.from)} to ${str(d.to)}${d.note ? ` (${str(d.note)})` : ""}` : `Moved the project from ${str(d.from)} to ${str(d.to)}${d.note ? ` (${str(d.note)})` : ""}`;
+    case "review_edited":
+      return `Edited the ${str(d.month)} monthly review (${str(d.part)})`;
+    case "review_change_proposed":
+      return `Proposed in the ${str(d.month)} review: ${str(d.change)} (${str(d.reason)})`;
+    case "review_change_withdrawn":
+      return `Withdrew from the ${str(d.month)} review: ${str(d.change)}`;
+    case "review_change_approved":
+      return `Approved and applied from the ${str(d.month)} review: ${str(d.change)}${d.note ? ` (${str(d.note)})` : ""}`;
+    case "review_change_rejected":
+      return `Rejected in the ${str(d.month)} review: ${str(d.change)}${d.note ? ` (${str(d.note)})` : ""}`;
+    case "review_signed_off":
+      return `Signed off the ${str(d.month)} monthly review (${num(d.changes)} change(s) applied)`;
     case "accepted":
     case "queried":
       return `${action === "accepted" ? "Accepted" : "Queried"} a ${str(d.form)} submission${d.farmer ? ` for farmer ${str(d.farmer)}` : ""}${d.note ? `: ${str(d.note)}` : ""}${d.applied ? ` (${str(d.applied)})` : ""}`;

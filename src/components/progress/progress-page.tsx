@@ -136,6 +136,9 @@ export function ProgressPage() {
             <Link href="/progress/results" className="font-semibold text-forest hover:underline">
               Results and proof <Arrow />
             </Link>
+            <Link href="/progress/review" className="font-semibold text-forest hover:underline">
+              Monthly review <Arrow />
+            </Link>
             <Link href="/progress/budget" className="font-semibold text-forest hover:underline">
               Budget vs actual <Arrow />
             </Link>
