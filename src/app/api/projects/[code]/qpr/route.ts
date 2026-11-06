@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { db } from "@/db";
 import type { AppUser } from "@/lib/demo";
 import { qprPatchSchema, SECTIONS, type Qpr } from "@/lib/qpr";
 import { requireViewer } from "@/server/auth";
@@ -7,6 +8,8 @@ import { handle } from "@/server/guard";
 import { holdsRole } from "@/server/hr-store";
 import { draftQpr } from "@/server/qpr-drafts";
 import { qprData, saveQpr } from "@/server/qpr-store";
+import { logAudit } from "@/server/audit";
+import { projectByCode } from "@/server/field-store";
 
 type Ctx = { params: Promise<{ code: string }> };
 export const maxDuration = 120;
@@ -92,6 +95,8 @@ export async function POST(req: Request, { params }: Ctx) {
           const out = { sections: parts.flatMap((x) => x.sections), questions: [...new Set(parts.flatMap((x) => x.questions))] };
           for (const s of out.sections) next.sections[s.key] = { text: s.text, by: u.id, at: now, drafted: true };
           await saveQpr(code, q, next);
+          const project = await projectByCode(code);
+          await logAudit(db, project.id, { entity: "qpr", entityId: project.id, action: "qpr_ai_drafted", by: u.id, detail: { quarter: q, keys: out.sections.map((s) => s.key), questions: out.questions.length } });
           return NextResponse.json({ ...(await view(code, q, u)), questions: out.questions });
         } catch (e) {
           if (e instanceof DraftingUnavailable) return NextResponse.json({ error: e.message }, { status: 503 });
@@ -100,6 +105,14 @@ export async function POST(req: Request, { params }: Ctx) {
       }
     }
     await saveQpr(code, q, next);
+    const project = await projectByCode(code);
+    await logAudit(db, project.id, {
+      entity: "qpr",
+      entityId: project.id,
+      action: a.action === "release" ? "qpr_released" : "qpr_edited",
+      by: u.id,
+      detail: { quarter: q, part: a.action, ...(a.action === "section" ? { key: a.key, cleared: !a.text.trim() } : a.action === "row" ? { key: a.indicator, status: a.status, comment: a.comment } : {}) },
+    });
     return NextResponse.json(await view(code, q, u));
   });
 }

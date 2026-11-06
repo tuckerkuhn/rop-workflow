@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { db, schema as s } from "@/db";
-import { quarterOf, type ResultInput, type ResultRecord, type UpdateInput, type UpdateRecord } from "@/lib/results";
+import { proofCount, quarterOf, type ResultInput, type ResultRecord, type UpdateInput, type UpdateRecord } from "@/lib/results";
+import { logAudit } from "@/server/audit";
 import { projectByCode } from "@/server/field-store";
 
 /** Recorded results, kept as evidence records (source "manual", form "result"). */
@@ -31,30 +32,41 @@ export async function loadResults(code: string): Promise<ResultRecord[]> {
 
 export async function addResult(code: string, input: ResultInput, by: string) {
   const project = await projectByCode(code);
-  const [row] = await db
-    .insert(s.evidence)
-    .values({
-      organizationId: project.organizationId,
-      projectId: project.id,
-      source: "manual",
-      form: "result",
-      reviewStatus: "pending",
-      completedBy: by,
-      completedAt: new Date(`${input.date}T12:00:00Z`),
-      location: [input.district, input.province].filter(Boolean).join(", ") || null,
-      payload: input,
-    })
-    .returning();
+  const row = await db.transaction(async (tx) => {
+    const [r] = await tx
+      .insert(s.evidence)
+      .values({
+        organizationId: project.organizationId,
+        projectId: project.id,
+        source: "manual",
+        form: "result",
+        reviewStatus: "pending",
+        completedBy: by,
+        completedAt: new Date(`${input.date}T12:00:00Z`),
+        location: [input.district, input.province].filter(Boolean).join(", ") || null,
+        payload: input,
+      })
+      .returning();
+    await logAudit(tx, project.id, { entity: "result", entityId: r.id, action: "result_recorded", by, detail: { indicator: input.indicator, value: input.value, date: input.date, proof: proofCount(input) } });
+    return r;
+  });
   return toRecord(row);
 }
 
 export async function reviewResult(code: string, id: string, status: "accepted" | "queried", by: string, note: string | null) {
   const project = await projectByCode(code);
-  const [row] = await db
-    .update(s.evidence)
-    .set({ reviewStatus: status, reviewedBy: by, reviewedAt: new Date(), queryNote: note, updatedAt: new Date() })
-    .where(and(eq(s.evidence.id, id), eq(s.evidence.projectId, project.id), eq(s.evidence.form, "result")))
-    .returning();
+  const row = await db.transaction(async (tx) => {
+    const [r] = await tx
+      .update(s.evidence)
+      .set({ reviewStatus: status, reviewedBy: by, reviewedAt: new Date(), queryNote: note, updatedAt: new Date() })
+      .where(and(eq(s.evidence.id, id), eq(s.evidence.projectId, project.id), eq(s.evidence.form, "result")))
+      .returning();
+    if (r) {
+      const p = r.payload as ResultInput;
+      await logAudit(tx, project.id, { entity: "result", entityId: r.id, action: status === "accepted" ? "result_accepted" : "result_queried", by, detail: { indicator: p.indicator, value: p.value, date: p.date, note } });
+    }
+    return r;
+  });
   return row ? toRecord(row) : null;
 }
 
@@ -62,7 +74,7 @@ export async function reviewResult(code: string, id: string, status: "accepted" 
  * Adds proof to a recorded result. Files and links are appended (the same file or link once);
  * the figure, date and review status stay as they are.
  */
-export async function addProof(code: string, id: string, add: { files: ResultInput["files"]; links: NonNullable<ResultInput["links"]>; captions?: ResultInput["captions"] }) {
+export async function addProof(code: string, id: string, add: { files: ResultInput["files"]; links: NonNullable<ResultInput["links"]>; captions?: ResultInput["captions"]; by: string }) {
   const project = await projectByCode(code);
   const where = and(eq(s.evidence.id, id), eq(s.evidence.projectId, project.id), eq(s.evidence.form, "result"));
   const [row] = await db.select().from(s.evidence).where(where);
@@ -72,7 +84,11 @@ export async function addProof(code: string, id: string, add: { files: ResultInp
   const links = [...(p.links ?? []), ...add.links.filter((l) => !(p.links ?? []).some((x) => x.url === l.url))].slice(0, 20);
   const captions = { ...(p.captions ?? {}), ...(add.captions ?? {}) };
   const payload: ResultInput = { ...p, files, links, ...(Object.keys(captions).length ? { captions } : {}) };
-  const [updated] = await db.update(s.evidence).set({ payload, updatedAt: new Date() }).where(where).returning();
+  const updated = await db.transaction(async (tx) => {
+    const [r] = await tx.update(s.evidence).set({ payload, updatedAt: new Date() }).where(where).returning();
+    await logAudit(tx, project.id, { entity: "result", entityId: r.id, action: "proof_added", by: add.by, detail: { indicator: p.indicator, date: p.date, files: add.files.map((f) => f.name), links: add.links } });
+    return r;
+  });
   return toRecord(updated);
 }
 
@@ -94,15 +110,21 @@ export async function loadUpdates(code: string): Promise<UpdateRecord[]> {
 
 export async function addUpdate(code: string, input: UpdateInput, by: string) {
   const project = await projectByCode(code);
-  await db.insert(s.evidence).values({
-    organizationId: project.organizationId,
-    projectId: project.id,
-    source: "manual",
-    form: "update",
-    // Updates change no figure, so there is nothing for MEL to accept.
-    reviewStatus: "accepted",
-    completedBy: by,
-    completedAt: new Date(`${input.date}T12:00:00Z`),
-    payload: input,
+  await db.transaction(async (tx) => {
+    const [r] = await tx
+      .insert(s.evidence)
+      .values({
+        organizationId: project.organizationId,
+        projectId: project.id,
+        source: "manual",
+        form: "update",
+        // Updates change no figure, so there is nothing for MEL to accept.
+        reviewStatus: "accepted",
+        completedBy: by,
+        completedAt: new Date(`${input.date}T12:00:00Z`),
+        payload: input,
+      })
+      .returning({ id: s.evidence.id });
+    await logAudit(tx, project.id, { entity: "update", entityId: r.id, action: "update_added", by, detail: { activity: input.activity, date: input.date } });
   });
 }

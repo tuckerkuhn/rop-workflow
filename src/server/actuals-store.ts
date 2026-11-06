@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import ExcelJS from "exceljs";
 import { db, schema as s } from "@/db";
 import { readIce, type Bva } from "@/lib/bva";
+import { logAudit } from "@/server/audit";
 import { projectByCode } from "@/server/field-store";
 
 /**
@@ -83,6 +84,14 @@ export async function saveActuals(code: string, bva: Bva, file: Imported["file"]
       imports,
       history: [...prev.history, { file, by, at, months: bva.months, actual: bva.totals.grand?.actual ?? bva.lines.reduce((t, l) => t + l.actual, 0) }].slice(-36),
     };
+    const g = bva.totals.grand;
+    await logAudit(tx, project.id, {
+      entity: "actuals",
+      entityId: project.id,
+      action: "actuals_imported",
+      by,
+      detail: { file: file.name, hash: file.hash, sharepointUrl: file.sharepointUrl, months: bva.months, period: `${bva.months[0] ?? ""} to ${bva.months.at(-1) ?? ""}`, budget: g?.budget ?? null, actual: g?.actual ?? null, currency: bva.currency },
+    });
     await tx
       .insert(s.projectState)
       .values({ projectId: project.id, key: "actuals", data })

@@ -72,7 +72,7 @@ export async function POST(req: Request, { params }: Ctx) {
     }
     if (a.action === "proof") {
       if (!(mayRecord(u) || isMelOwner(u))) return NextResponse.json({ error: "Only field staff and MEL can add proof." }, { status: 403 });
-      const done = await addProof(code, a.id, { files: a.files, links: a.links, captions: a.captions });
+      const done = await addProof(code, a.id, { files: a.files, links: a.links, captions: a.captions, by: u.id });
       if (!done) return NextResponse.json({ error: "No such result." }, { status: 404 });
       return NextResponse.json(await view(code, u));
     }

@@ -136,6 +136,9 @@ export function ProgressPage() {
             <Link href="/progress/results" className="font-semibold text-forest hover:underline">
               Results and proof <Arrow />
             </Link>
+            <Link href="/progress/audit" className="font-semibold text-forest hover:underline">
+              Audit trail <Arrow />
+            </Link>
             <Link href="/progress/records" className="font-semibold text-forest hover:underline">
               {t("progress.records")} <Arrow />
             </Link>
