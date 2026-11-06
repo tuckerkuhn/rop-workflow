@@ -27,7 +27,7 @@ async function call<T>(url: string, user: string | undefined, init?: RequestInit
 
 const input = "mt-1 block w-full rounded-xl border border-line bg-paper px-3 py-2 text-base";
 const num = (v: number) => v.toLocaleString("en-US", { maximumFractionDigits: 2 });
-const TONE: Record<Status, "forest" | "sky" | "ochre" | "clay"> = { completed: "forest", on_track: "sky", delayed: "ochre", not_implemented: "clay" };
+const TONE: Record<Status, "forest" | "sky" | "ochre" | "clay" | "muted"> = { completed: "forest", on_track: "sky", delayed: "ochre", not_implemented: "clay", not_started: "muted" };
 
 /** Quarters from the project's start to the last one that has ended (real date, not the demo date). */
 function quartersFor(start: string | null) {

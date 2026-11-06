@@ -12,9 +12,9 @@ import { quarterRange, totalsOf, type ResultRecord, type UpdateRecord } from "@/
  * write or edit the text, and Claude can draft it from the result notes.
  */
 
-export const STATUSES = ["completed", "on_track", "delayed", "not_implemented"] as const;
+export const STATUSES = ["completed", "on_track", "delayed", "not_implemented", "not_started"] as const;
 export type Status = (typeof STATUSES)[number];
-export const STATUS_LABEL: Record<Status, string> = { completed: "Completed", on_track: "On track", delayed: "Delayed", not_implemented: "Not implemented" };
+export const STATUS_LABEL: Record<Status, string> = { completed: "Completed", on_track: "On track", delayed: "Delayed", not_implemented: "Not implemented", not_started: "Not yet started" };
 
 /** Fixed sections, in the report's order. Activity narratives come between progress and cross-cutting. */
 export const SECTIONS = [
@@ -113,7 +113,7 @@ export type Spend = {
 /** What the report says was spent this quarter: what the team typed, or the import. */
 export const quarterSpendOf = (saved: Qpr, spend: Spend) => saved.quarterSpend ?? spend.quarter;
 
-export type IndicatorInfo = { code: string; donorCode: string | null; name: string; unit: string; target: number; yearTargets: Record<string, number>; result: string | null; disaggregation: string[] | null; budgetRef: string | null };
+export type IndicatorInfo = { code: string; donorCode: string | null; name: string; unit: string; target: number; yearTargets: Record<string, number>; result: string | null; disaggregation: string[] | null; budgetRef: string | null; workplanCode?: string | null };
 
 export type Row = {
   code: string;
@@ -133,7 +133,13 @@ export type Row = {
   womenLed: number;
   menLed: number;
   provinces: string[];
-  records: { quarter: number; year: number; files: number };
+  /** Accepted records this quarter and this year, files on them, and records this year still waiting for (or queried by) MEL. */
+  records: { quarter: number; year: number; files: number; open: number };
+  /**
+   * Quarters of this year (1–4) the workplan plans the work for; null when the indicator is not
+   * linked to a workplan activity, so lateness cannot be judged from the plan.
+   */
+  planned: number[] | null;
   suggested: Status;
   status: Status;
   comment: string;
@@ -143,17 +149,52 @@ export type Row = {
 const n = (v: number) => v.toLocaleString("en-US", { maximumFractionDigits: 2 });
 
 /**
- * The status UNDP's table asks for. Work is often planned for the second half of the year, so
- * anything under way before Q4 is suggested as on track, as ROP's team judged it in Q3 2026;
- * the team changes it where the plan says otherwise.
+ * The status UNDP's table asks for, worded the way ROP's team reports. The workplan decides
+ * whether work that is short of target is late or simply not due yet:
+ * - target reached: completed;
+ * - the planned window has not opened yet: not started (planned for later in the year);
+ * - the window is open now, however broad: on track once anything is recorded; with nothing
+ *   recorded, not started until the window's last quarter and delayed in it;
+ * - the window has closed short of target: delayed (not implemented if nothing happened at all);
+ * - in Q4, written after the year ends, anything short of the year's target is delayed (or not
+ *   implemented), whatever the plan said.
+ * Without a workplan link, before Q4: on track if anything is recorded, not started if not.
+ * The team changes it where they know better.
+ *
+ * `underWay`: anything recorded against the indicator this year, counted or not.
+ * `planned`: quarters of this year with work planned (see Row.planned).
  */
-export function suggestStatus(year: number, target: number, quarterNo: number): Status {
+export function suggestStatus(year: number, target: number, quarterNo: number, underWay = year > 0, planned: number[] | null = null): Status {
   if (target > 0 && year >= target) return "completed";
-  // Nothing planned this year (the work comes in a later year): not late.
-  if (target === 0 && year === 0) return "on_track";
-  if (quarterNo >= 4) return year > 0 ? "delayed" : "not_implemented";
-  if (year > 0) return "on_track";
-  return quarterNo >= 3 ? "delayed" : "on_track";
+  if (target === 0 && year === 0) return "not_started";
+  const late = (none: boolean) => (none ? "not_implemented" : "delayed");
+  // The Q4 report is written after the year ends: whatever is short of the year's target is late.
+  if (quarterNo >= 4) return late(!underWay);
+  // Linked, but the workplan has nothing for it this year.
+  if (planned && !planned.length) return underWay ? "on_track" : "not_started";
+  if (planned && planned.length) {
+    const first = Math.min(...planned);
+    const last = Math.max(...planned);
+    if (quarterNo < first) return underWay ? "on_track" : "not_started";
+    // In the window: on track once work is recorded; nothing yet is fine until its last quarter.
+    if (quarterNo < last) return underWay ? "on_track" : "not_started";
+    if (quarterNo === last) return underWay ? "on_track" : "delayed";
+    return late(!underWay);
+  }
+  return underWay ? "on_track" : "not_started";
+}
+
+/** "Q3", "Q3–Q4" or "Q2 and Q4" for the planned quarters. */
+export function plannedLabel(planned: number[], year: string) {
+  const q = [...new Set(planned)].sort();
+  const runs: string[] = [];
+  for (let i = 0; i < q.length; i++) {
+    let j = i;
+    while (j + 1 < q.length && q[j + 1] === q[j] + 1) j++;
+    runs.push(i === j ? `Q${q[i]}` : `Q${q[i]}–Q${q[j]}`);
+    i = j;
+  }
+  return `${runs.join(" and ")} ${year}`;
 }
 
 /** "1 events" reads "1 event". */
@@ -163,9 +204,13 @@ export function suggestComment(r: Omit<Row, "suggested" | "status" | "comment" |
   const where = r.provinces.length ? ` in ${r.provinces.join(" and ")}` : "";
   const people = r.women + r.men > 0 ? ` (${n(r.women)} women, ${n(r.men)} men)` : r.womenLed + r.menLed > 0 ? ` (${n(r.womenLed)} women-led, ${n(r.menLed)} men-led)` : "";
   const pct = r.yearTarget ? ` (${Math.round((r.year / r.yearTarget) * 100)}% of the annual target)` : "";
-  const done = r.quarter > 0 ? `During ${quarterLabel}, ${n(r.quarter)} ${units(r.quarter, r.unit)}${where}${people}.` : `Nothing was achieved during ${quarterLabel}.`;
+  const waiting = r.records.open > 0 ? ` ${r.records.open} ${r.records.open === 1 ? "record is" : "records are"} waiting for MEL review.` : "";
+  const done = r.quarter > 0 ? `During ${quarterLabel}, ${n(r.quarter)} ${units(r.quarter, r.unit)}${where}${people}.` : `Nothing was counted during ${quarterLabel}.${waiting}`;
+  const year = quarterLabel.slice(-4);
+  const plan = r.planned ? (r.planned.length ? ` The workplan schedules it for ${plannedLabel(r.planned, year)}.` : ` The workplan does not schedule it in ${year}.`) : "";
   if (!r.yearTarget && !r.year) return `${STATUS_LABEL[status]}: ${done} None is planned for this year; the work is planned for a later year.`;
-  return `${STATUS_LABEL[status]}: ${done} ${n(r.year)} of ${n(r.yearTarget)} ${r.unit} so far this year${pct}.`;
+  if (status === "not_started") return `${STATUS_LABEL[status]}: nothing has been recorded yet against the ${n(r.yearTarget)} ${r.unit} planned for this year.${plan}`;
+  return `${STATUS_LABEL[status]}: ${done} ${n(r.year)} of ${n(r.yearTarget)} ${r.unit} so far this year${pct}.${plan}`;
 }
 
 /**
@@ -180,7 +225,11 @@ export function yearShare(i: Pick<IndicatorInfo, "target" | "yearTargets">, y: n
 }
 
 /** The indicator table for a quarter, from accepted results. */
-export function buildRows(indicators: IndicatorInfo[], results: ResultRecord[], quarter: string, saved: Qpr): Row[] {
+/**
+ * `plans`: for each workplan activity code, the first days of the quarters with work planned
+ * (workplan_items.active, e.g. ["2026-07-01"]), for the partner whose report this is.
+ */
+export function buildRows(indicators: IndicatorInfo[], results: ResultRecord[], quarter: string, saved: Qpr, plans: Record<string, string[]> = {}): Row[] {
   const { from, to } = quarterRange(quarter);
   const y = quarter.slice(0, 4);
   const yearFrom = `${y}-01-01`;
@@ -190,6 +239,8 @@ export function buildRows(indicators: IndicatorInfo[], results: ResultRecord[], 
     const mine = results.filter((r) => r.indicator === i.code);
     const q = totalsOf(mine, from, to);
     const yr = totalsOf(mine, yearFrom, to);
+    // Recorded this year but not counted yet: waiting for MEL, or queried.
+    const open = mine.filter((r) => r.status !== "accepted" && r.date >= yearFrom && r.date <= to).length;
     const base = {
       code: i.code,
       donorCode: i.donorCode ?? i.code,
@@ -206,9 +257,10 @@ export function buildRows(indicators: IndicatorInfo[], results: ResultRecord[], 
       womenLed: q.womenLed,
       menLed: q.menLed,
       provinces: q.provinces,
-      records: { quarter: q.records, year: yr.records, files: q.files },
+      records: { quarter: q.records, year: yr.records, files: q.files, open },
+      planned: i.workplanCode && plans[i.workplanCode] ? plans[i.workplanCode].filter((d) => d.startsWith(y)).map((d) => Math.floor((Number(d.slice(5, 7)) - 1) / 3) + 1) : null,
     };
-    const suggested = suggestStatus(base.year, base.yearTarget, quarterNo);
+    const suggested = suggestStatus(base.year, base.yearTarget, quarterNo, base.year > 0 || open > 0, base.planned);
     const o = saved.rows[i.code];
     const status = o?.status ?? suggested;
     return { ...base, suggested, status, comment: o?.comment ?? suggestComment(base, status, label), edited: !!(o?.status || o?.comment) };

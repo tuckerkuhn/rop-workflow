@@ -95,7 +95,7 @@ export async function qprData(code: string, quarter: string) {
   const rows = await db
     .select()
     .from(s.indicators)
-    .where(and(eq(s.indicators.projectId, project.id), eq(s.indicators.source, "results")))
+    .where(and(eq(s.indicators.projectId, project.id), eq(s.indicators.source, "results"), eq(s.indicators.inQuarterlyReport, true)))
     .orderBy(asc(s.indicators.position));
   const indicators: IndicatorInfo[] = rows.map((r) => ({
     code: r.code,
@@ -107,12 +107,21 @@ export async function qprData(code: string, quarter: string) {
     result: r.result,
     disaggregation: r.disaggregation,
     budgetRef: r.budgetRef,
+    workplanCode: r.workplanCode,
   }));
   const results = await loadResults(code);
   const updates = await loadUpdates(code);
   const saved = await loadQpr(code, quarter);
   saved.acronyms ??= DEFAULT_ACRONYMS;
-  const table = buildRows(indicators, results, quarter, saved);
+  // When each activity is planned. A consortium workplan lists every partner; this report is ROP's.
+  const plan = await db
+    .select({ code: s.workplanItems.code, org: s.workplanItems.org, active: s.workplanItems.active })
+    .from(s.workplanItems)
+    .where(eq(s.workplanItems.projectId, project.id));
+  const ours = plan.some((w) => w.org === "ROP") ? plan.filter((w) => w.org === "ROP") : plan;
+  const plans: Record<string, string[]> = {};
+  for (const w of ours) plans[w.code] = [...new Set([...(plans[w.code] ?? []), ...((w.active as string[]) ?? [])])];
+  const table = buildRows(indicators, results, quarter, saved, plans);
   const lines = await db
     .select({ code: s.budgetLines.code, amount: s.budgetLines.amount, spent: s.budgetLines.spent, currency: s.budgetLines.currency, activityCode: s.budgetLines.activityCode, activity: s.budgetLines.activity, updatedAt: s.budgetLines.updatedAt })
     .from(s.budgetLines)

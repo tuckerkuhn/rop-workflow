@@ -463,6 +463,10 @@ export const indicators = pgTable(
     verification: text("verification"),
     /** The budget line that pays for it, e.g. "PRG-1.1.1.A", so cost can be shown beside results. */
     budgetRef: text("budget_ref"),
+    /** The workplan activity that delivers it (workplan_items.code, e.g. "1.1.1.3"), so the report can tell late work from work planned for later. */
+    workplanCode: text("workplan_code"),
+    /** False for indicators tracked for other reports (e.g. UNDP's annual report) but not in the donor's quarterly table. */
+    inQuarterlyReport: boolean("in_quarterly_report").notNull().default(true),
     position: integer("position").notNull().default(0),
     ...timestamps,
   },
