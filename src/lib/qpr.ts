@@ -165,12 +165,17 @@ const n = (v: number) => v.toLocaleString("en-US", { maximumFractionDigits: 2 })
  * `underWay`: anything recorded against the indicator this year, counted or not.
  * `planned`: quarters of this year with work planned (see Row.planned).
  */
-export function suggestStatus(year: number, target: number, quarterNo: number, underWay = year > 0, planned: number[] | null = null): Status {
+/**
+ * `quarterOver`: judged after the quarter has ended, as the quarterly report always is. A monthly
+ * review in the quarter's first two months passes false: work due this quarter is not yet late,
+ * and the year-end rule (anything short of target in Q4 is late) waits for December.
+ */
+export function suggestStatus(year: number, target: number, quarterNo: number, underWay = year > 0, planned: number[] | null = null, quarterOver = true): Status {
   if (target > 0 && year >= target) return "completed";
   if (target === 0 && year === 0) return "not_started";
   const late = (none: boolean) => (none ? "not_implemented" : "delayed");
   // The Q4 report is written after the year ends: whatever is short of the year's target is late.
-  if (quarterNo >= 4) return late(!underWay);
+  if (quarterNo >= 4 && quarterOver) return late(!underWay);
   // Linked, but the workplan has nothing for it this year.
   if (planned && !planned.length) return underWay ? "on_track" : "not_started";
   if (planned && planned.length) {
@@ -179,7 +184,7 @@ export function suggestStatus(year: number, target: number, quarterNo: number, u
     if (quarterNo < first) return underWay ? "on_track" : "not_started";
     // In the window: on track once work is recorded; nothing yet is fine until its last quarter.
     if (quarterNo < last) return underWay ? "on_track" : "not_started";
-    if (quarterNo === last) return underWay ? "on_track" : "delayed";
+    if (quarterNo === last) return underWay ? "on_track" : quarterOver ? "delayed" : "not_started";
     return late(!underWay);
   }
   return underWay ? "on_track" : "not_started";

@@ -30,6 +30,7 @@ import {
   StepCard,
   Tracker,
   primaryBtn,
+  quietBtn,
 } from "@/components/workspace/ui";
 import { AFN_PER_USD, projectPath, stepHistory, userById } from "@/lib/demo";
 import {
@@ -62,6 +63,8 @@ import {
   procRolesFor,
   typeFor,
   setProcurementSet,
+  isSharePointUrl,
+  type DocLink,
 } from "@/lib/procurement";
 import { holdersOfType } from "@/lib/authority";
 import { ROLE_LABEL } from "@/lib/hr";
@@ -701,6 +704,7 @@ function Detail({
             </ul>
           )}
           <p className="mt-3 text-xs text-muted">Every document is generated from this record and filed under {p.id}.</p>
+          <LinkedDocs p={p} canEdit={!!user && (user.procurementAccess === "edit" || !!user.admin)} add={(l) => update((q) => log({ ...q, links: [...(q.links ?? []), l] }, `Linked ${l.title} from SharePoint`))} by={user?.name ?? ""} />
         </section>
         <History events={p.timeline} roleLabel={(r) => rolePersonFor(p, r as Role)} />
       </div>
@@ -948,5 +952,63 @@ export function ProcurementWorkspace() {
         )
       }
     />
+  );
+}
+
+/** Documents filed in SharePoint and linked to the record (signed bids, contract, photos). */
+function LinkedDocs({ p, canEdit, add, by }: { p: Procurement; canEdit: boolean; add: (l: DocLink) => void; by: string }) {
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState("");
+  const [url, setUrl] = useState("");
+  const links = p.links ?? [];
+  const ok = title.trim().length >= 2 && isSharePointUrl(url);
+  return (
+    <div className="mt-4">
+      <SectionLabel>Linked from SharePoint · {links.length}</SectionLabel>
+      {links.length > 0 && (
+        <ul className="mt-2 space-y-1">
+          {links.map((l) => (
+            <li key={l.url} className="text-sm">
+              <a href={l.url} target="_blank" rel="noopener noreferrer" className="font-semibold text-forest hover:underline">
+                {l.title} <span aria-hidden>↗</span>
+              </a>
+              <span className="block text-xs text-muted">
+                {stepById[l.step]?.title ?? l.step} · {l.by}, {l.date}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {canEdit &&
+        (open ? (
+          <div className="mt-2 space-y-2 rounded-xl border border-line bg-surface p-3 text-sm">
+            <input className="w-full rounded-lg border border-line bg-paper px-3 py-2" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What it is: signed bid from Vision Supply" aria-label="Document title" />
+            <input className="w-full rounded-lg border border-line bg-paper px-3 py-2" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://rootsofpeace.sharepoint.com/…" aria-label="SharePoint link" inputMode="url" />
+            {url && !isSharePointUrl(url) && <p className="text-xs text-clay">That is not a SharePoint link: open the file in SharePoint and use Copy link.</p>}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className={primaryBtn}
+                disabled={!ok}
+                onClick={() => {
+                  add({ title: title.trim(), url: url.trim(), step: p.step, by, date: today() });
+                  setTitle("");
+                  setUrl("");
+                  setOpen(false);
+                }}
+              >
+                Link document
+              </button>
+              <button type="button" className={quietBtn} onClick={() => setOpen(false)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button type="button" className="mt-2 text-sm font-semibold text-forest hover:underline" onClick={() => setOpen(true)}>
+            + Link a document in SharePoint
+          </button>
+        ))}
+    </div>
   );
 }

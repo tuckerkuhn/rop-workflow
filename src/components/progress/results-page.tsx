@@ -493,6 +493,13 @@ function ResultCard({ r, ind, act, mayAddProof }: { r: Res; ind?: Ind; act: (a: 
         {r.reviewedBy && ` · ${r.status === "accepted" ? "accepted" : "queried"} by ${r.reviewedBy}`}
       </p>
       {r.query && <p className="mt-1 rounded-lg bg-clay-soft px-3 py-2 text-sm text-clay">MEL asked: {r.query}</p>}
+      {r.status === "pending" && r.checks.length > 0 && (
+        <ul className="mt-2 space-y-1 rounded-lg bg-ochre-soft px-3 py-2 text-xs">
+          {r.checks.map((c) => (
+            <li key={c}>Check: {c}</li>
+          ))}
+        </ul>
+      )}
       {r.canReview && (
         <div className="mt-3">
           {query === null ? (

@@ -216,7 +216,12 @@ function startGroups(user: AppUser, project: ProjectInfo, stage: Stage, sources:
     {
       key: "plan",
       title: "work.group.plan",
-      items: !hasStarted(stage) && canEditProject(user) ? [{ key: "project", title: "work.new.project", hint: "work.new.projectHint", href: "/setup?new=1" }] : [],
+      items: hasStarted(stage)
+        ? []
+        : [
+            ...(canEditProject(user) ? [{ key: "project", title: "work.new.project", hint: "work.new.projectHint", href: "/setup?new=1" } as StartItem] : []),
+            ...(project.saved ? [{ key: "lens", title: "work.new.lens", hint: "work.new.lensHint", href: "/setup/lens" } as StartItem] : []),
+          ],
     },
     {
       key: "field",

@@ -1221,18 +1221,14 @@ export function ProjectPage({ id }: { id: string }) {
           </>
         ) : gated ? (
           <p className="mt-8 rounded-2xl border border-line bg-surface p-6 text-sm text-muted">This project is still in design and is not shared with donors yet.</p>
+        ) : id !== "A-2027" && project?.saved ? (
+          <DatabaseProjectOverview />
         ) : id !== "A-2027" ? (
           <section className="mt-8 rounded-2xl border border-line bg-surface p-6">
-            <p className="font-display text-2xl">Plan not loaded yet</p>
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted">
-              Week 1 of the pilot loads the Western Highlands results, activities, indicators and targets. Until then this record stays empty rather than guessed. Two open questions in the build spec block it:
-            </p>
-            <ul className="mt-3 list-disc space-y-1 pl-5 text-sm">
-              <li>Where does the Western Highlands data live today, and is there field data or only the plan?</li>
-              <li>Which donor template is the mapping target for the pilot?</li>
-            </ul>
-            <Link href="/progress/records?project=A-2027" className={`${quietBtn} mt-5 inline-block`}>
-              See the thin path on the demo project
+            <p className="font-display text-2xl">Not set up yet</p>
+            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted">This project has no plan in the app yet. Set it up from its award: goal, indicators and targets, budget and workplan.</p>
+            <Link href="/setup?new=1" className={`${quietBtn} mt-5 inline-block`}>
+              Set up a project
             </Link>
           </section>
         ) : (
@@ -1288,5 +1284,36 @@ export function ProjectPage({ id }: { id: string }) {
       {evidence && <EvidencePanel ind={evidence} state={state} onClose={() => setEvidence(null)} />}
       {targetOpen && state.marketTarget && <TargetPanel state={state} onClose={() => setTargetOpen(false)} />}
     </div>
+  );
+}
+
+/**
+ * A database project's record: the screens that hold its plan, evidence, money, reviews and audit
+ * trail. (The tabbed record above is the browser-only demo project's.)
+ */
+function DatabaseProjectOverview() {
+  const cards: { href: string; title: string; text: string }[] = [
+    { href: "/setup", title: "Plan", text: "Goal, indicators and targets with their impact themes, budget lines and the workplan, as signed off." },
+    { href: "/setup/lens", title: "Lens review", text: "The plan read through ROP's reviewer lenses, with a decision on every gap." },
+    { href: "/progress/results", title: "Results and proof", text: "Results recorded with their documents and SharePoint links, checked and accepted by MEL." },
+    { href: "/progress/budget", title: "Budget vs actual", text: "Spending against the approved budget by activity, the forecast, and the lines to explain." },
+    { href: "/progress/review", title: "Monthly review", text: "Where results and money stand, and changes to targets, budget and workplan approved by a second reviewer." },
+    { href: "/progress/report", title: "Quarterly report", text: "The donor's report, every figure linked to its evidence, released with a sign-off." },
+    { href: "/work?source=procurement", title: "Procurement", text: "Requests, bids, contracts and payments, with the documents filed in SharePoint." },
+    { href: "/progress/audit", title: "Audit trail", text: "Who recorded, accepted, changed, imported, drafted, signed off and released what, with a CSV export." },
+  ];
+  return (
+    <section className="mt-8">
+      <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {cards.map((c) => (
+          <li key={c.href}>
+            <Link href={c.href} className="block h-full rounded-2xl border border-line bg-surface p-4 transition hover:border-forest">
+              <span className="font-display text-lg">{c.title}</span>
+              <span className="mt-1 block text-sm text-muted">{c.text}</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

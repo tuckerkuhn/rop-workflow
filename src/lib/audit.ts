@@ -36,6 +36,18 @@ export function describeAudit(entity: string, action: string, d: D): string {
       return `Approved and applied from the ${str(d.month)} review: ${str(d.change)}${d.note ? ` (${str(d.note)})` : ""}`;
     case "review_change_rejected":
       return `Rejected in the ${str(d.month)} review: ${str(d.change)}${d.note ? ` (${str(d.note)})` : ""}`;
+    case "review_ai_drafted":
+      return `AI drafted the ${str(d.month)} monthly review's summary and needs-attention note (${str(d.model)}; draft, to review)`;
+    case "ai_drafted":
+      return `AI drafted the ${str(d.document)} for procurement ${str(d.procurement)} (${str(d.model)}; draft, to review)`;
+    case "ai_checked":
+      return `AI checked procurement ${str(d.procurement)} at step ${str(d.step)}: ${num(d.findings)} finding(s) for its owner (${str(d.model)})`;
+    case "lens_review_run":
+      return `AI reviewed the plan through ROP's lenses (${str(d.model)}): ${num(d.findings)} finding(s), ${num(d.high)} high (draft, to decide)`;
+    case "lens_finding_acted":
+      return `Will act on a lens finding (${str(d.severity)}): ${str(d.gap)} (${str(d.note)})`;
+    case "lens_finding_dismissed":
+      return `Dismissed a lens finding (${str(d.severity)}): ${str(d.gap)} (${str(d.note)})`;
     case "review_signed_off":
       return `Signed off the ${str(d.month)} monthly review (${num(d.changes)} change(s) applied)`;
     case "accepted":

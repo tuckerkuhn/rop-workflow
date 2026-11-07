@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { holderFor, stepById } from "@/lib/procurement";
 import { requireViewer } from "@/server/auth";
-import { CHECKABLE_STEPS, DraftingUnavailable, checkProcurement } from "@/server/ai-drafts";
+import { CHECKABLE_STEPS, DRAFT_MODEL, DraftingUnavailable, checkProcurement } from "@/server/ai-drafts";
+import { db } from "@/db";
+import { logAudit } from "@/server/audit";
+import { projectByCode } from "@/server/field-store";
 import { handle } from "@/server/guard";
 import { loadProcurements, saveProcurements } from "@/server/procurement-store";
 
@@ -26,6 +29,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
       const findings = await checkProcurement(p, p.step);
       const item = { ...p, ai: { ...p.ai, [p.step]: findings } };
       await saveProcurements(code, [item]);
+      const project = await projectByCode(code);
+      await logAudit(db, project.id, { entity: "procurement", entityId: project.id, action: "ai_checked", by: v.user.id, detail: { procurement: p.id, step: p.step, model: DRAFT_MODEL, findings: findings.length } });
       return NextResponse.json({ item });
     } catch (e) {
       if (e instanceof DraftingUnavailable) return NextResponse.json({ error: e.message }, { status: 503 });

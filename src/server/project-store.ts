@@ -1,5 +1,6 @@
 import { and, asc, eq, notInArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
+import { THEMES, type ImpactTheme } from "@/lib/indicator-library";
 import type { IndicatorInput, ProjectDesign, ProjectSummary } from "@/lib/project-setup";
 
 /** Projects and their design (goal, dates, indicators) in Postgres, written by project setup. */
@@ -25,7 +26,7 @@ export async function projectDesign(code: string) {
   const inds = await db.select().from(s.indicators).where(eq(s.indicators.projectId, p.id)).orderBy(asc(s.indicators.position));
   return {
     ...summary(p),
-    indicators: inds.map((i) => ({ code: i.code, name: i.name, unit: i.unit, target: Number(i.target), level: i.level, frequency: i.frequency, forecast: i.forecast })),
+    indicators: inds.map((i) => ({ code: i.code, name: i.name, unit: i.unit, target: Number(i.target), level: i.level, frequency: i.frequency, forecast: i.forecast, theme: (THEMES as readonly string[]).includes(i.theme ?? "") ? (i.theme as ImpactTheme) : null })),
   };
 }
 
@@ -51,7 +52,8 @@ async function syncIndicators(tx: Parameters<Parameters<typeof db.transaction>[0
   await tx.delete(s.indicators).where(keep.length ? and(mine, notInArray(s.indicators.code, keep)) : mine);
   let next = Math.max(0, ...existing.map((e) => Number(e.code.replace(/^IND-/, "")) || 0)) + 1;
   for (const [position, i] of list.entries()) {
-    const fields = { name: i.name, unit: i.unit, target: String(i.target), forecast: i.forecast ?? {}, level: i.level, frequency: i.frequency, position, updatedAt: new Date() };
+    // A theme left out (older clients) keeps what is stored; null clears it.
+    const fields = { name: i.name, unit: i.unit, target: String(i.target), forecast: i.forecast ?? {}, level: i.level, frequency: i.frequency, position, updatedAt: new Date(), ...(i.theme !== undefined ? { theme: i.theme } : {}) };
     if (i.code && keep.includes(i.code)) await tx.update(s.indicators).set(fields).where(and(mine, eq(s.indicators.code, i.code)));
     // New indicators count from a KoboToolbox question once one is mapped.
     else await tx.insert(s.indicators).values({ ...fields, projectId, code: `IND-${next++}`, source: "kobo" });

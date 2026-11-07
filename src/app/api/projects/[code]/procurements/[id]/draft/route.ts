@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireViewer } from "@/server/auth";
 import { DRAFT_KINDS, DraftingUnavailable, draftDocument } from "@/server/ai-drafts";
+import { db } from "@/db";
+import { logAudit } from "@/server/audit";
+import { projectByCode } from "@/server/field-store";
 import { handle } from "@/server/guard";
 import { loadProcurements, saveProcurements } from "@/server/procurement-store";
 
@@ -25,6 +28,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
       const draft = await draftDocument(p, parsed.data.kind, v.user.name);
       const item = { ...p, drafts: { ...p.drafts, [DRAFT_KINDS[parsed.data.kind]]: draft } };
       await saveProcurements(code, [item]);
+      const project = await projectByCode(code);
+      await logAudit(db, project.id, { entity: "procurement", entityId: project.id, action: "ai_drafted", by: v.user.id, detail: { procurement: p.id, document: DRAFT_KINDS[parsed.data.kind], model: draft.model, questions: draft.questions.length } });
       return NextResponse.json({ item });
     } catch (e) {
       if (e instanceof DraftingUnavailable) return NextResponse.json({ error: e.message }, { status: 503 });

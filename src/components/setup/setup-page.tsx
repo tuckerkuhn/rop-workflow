@@ -13,6 +13,7 @@ import { Question, field } from "@/components/setup/question";
 import { TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { canEditProject } from "@/lib/demo";
 import { localeOf, type MessageKey } from "@/lib/i18n";
+import { LIBRARY, THEMES, THEME_LABEL } from "@/lib/indicator-library";
 import { COUNTRIES, projectDesignSchema, type IndicatorInput, type ProjectDesign } from "@/lib/project-setup";
 import { projectYears } from "@/lib/progress";
 import { realToday } from "@/lib/clock";
@@ -281,6 +282,7 @@ function IndicatorsQuestion({ list, years, onChange }: { list: IndicatorInput[];
   const update = (k: number, patch: Partial<IndicatorInput>) => onChange(list.map((i, j) => (j === k ? { ...i, ...patch } : i)));
   const add = (i: IndicatorInput) => onChange([...list, i]);
   const unused = SUGGESTIONS.filter((s) => !list.some((i) => i.name === t(s.name)));
+  const fromLibrary = LIBRARY.filter((l) => !list.some((i) => i.name === t(l.name)));
   return (
     <Question title={t("setup.q.indicators")} help={t("setup.h.indicators")}>
       {unused.length > 0 && (
@@ -295,6 +297,34 @@ function IndicatorsQuestion({ list, years, onChange }: { list: IndicatorInput[];
               + {t(s.name)}
             </button>
           ))}
+        </div>
+      )}
+      {fromLibrary.length > 0 && (
+        <div className="mt-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">{t("setup.library")}</p>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            {THEMES.map((th) => {
+              const items = fromLibrary.filter((l) => l.theme === th);
+              if (!items.length) return null;
+              return (
+                <div key={th} className="rounded-xl border border-line px-3 py-2">
+                  <p className="text-xs font-semibold">{t(THEME_LABEL[th])}</p>
+                  <div className="mt-1 flex flex-wrap gap-2">
+                    {items.map((l) => (
+                      <button
+                        key={l.name}
+                        type="button"
+                        onClick={() => add({ name: t(l.name), unit: t(l.unit), target: 1, level: l.level, frequency: l.frequency, theme: l.theme })}
+                        className="rounded-full border border-dashed border-line px-3 py-1 text-xs hover:border-forest hover:text-forest"
+                      >
+                        + {t(l.name)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
       <ul className="mt-4 space-y-3">
@@ -314,7 +344,7 @@ function IndicatorsQuestion({ list, years, onChange }: { list: IndicatorInput[];
                 ×
               </button>
             </div>
-            <div className="mt-2 grid grid-cols-2 gap-2">
+            <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
               <label className="text-xs text-muted">
                 {t("report.col.target")}
                 <input type="number" min={0} step="any" value={Number.isFinite(i.target) ? i.target : ""} onChange={(e) => update(k, { target: Number(e.target.value) })} className={field} />
@@ -339,6 +369,17 @@ function IndicatorsQuestion({ list, years, onChange }: { list: IndicatorInput[];
                   {FREQUENCIES.map((f) => (
                     <option key={f.id} value={f.id}>
                       {t(f.label)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-xs text-muted">
+                {t("setup.theme")}
+                <select value={i.theme ?? ""} onChange={(e) => update(k, { theme: (e.target.value || null) as IndicatorInput["theme"] })} className={field}>
+                  <option value="">{t("setup.theme.none")}</option>
+                  {THEMES.map((th) => (
+                    <option key={th} value={th}>
+                      {t(THEME_LABEL[th])}
                     </option>
                   ))}
                 </select>

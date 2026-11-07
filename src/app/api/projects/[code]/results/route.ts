@@ -8,6 +8,7 @@ import { handle } from "@/server/guard";
 import { projectByCode } from "@/server/field-store";
 import { addProof, addResult, addUpdate, loadResults, loadUpdates, reviewResult } from "@/server/results-store";
 import { activityOf } from "@/lib/qpr";
+import { dataChecks } from "@/lib/data-checks";
 
 type Ctx = { params: Promise<{ code: string }> };
 
@@ -36,7 +37,8 @@ async function view(code: string, u: AppUser) {
     mayRecord: mayRecord(u),
     mayReview: mel,
     indicators: indicators.map((i) => ({ ...i, target: Number(i.target) })),
-    results: results.map((r) => ({ ...r, canReview: mel && r.status === "pending" && r.by !== u.id })),
+    // The data checker's flags, for MEL before accepting (and for the recorder to fix first).
+    results: results.map((r) => ({ ...r, canReview: mel && r.status === "pending" && r.by !== u.id, checks: dataChecks(r, results, indicators.find((i) => i.code === r.indicator)) })),
     activities,
     updates,
     mayUpdate: mayRecord(u) || mel,

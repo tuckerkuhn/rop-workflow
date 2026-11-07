@@ -3,7 +3,9 @@ import { and, eq } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import type { AppUser } from "@/lib/demo";
 import { describeChange, emptyReview, quarterOfMonth, type Change, type ChangeInput, type MonthlyReview, type ReviewAction } from "@/lib/monthly-review";
-import { yearShare } from "@/lib/qpr";
+import { suggestStatus, yearShare } from "@/lib/qpr";
+import { z } from "zod";
+import { draftStructured } from "@/server/ai-structured";
 import { logAudit } from "@/server/audit";
 import { loadBudgetView } from "@/server/budget-view-store";
 import { projectByCode } from "@/server/field-store";
@@ -80,6 +82,7 @@ export async function loadReview(code: string, month: string, u: AppUser) {
     month,
     quarter,
     review,
+    // Judged as of the month: until the quarter's last month, work due this quarter is not yet late (the report's own status assumes the quarter is over).
     indicators: report.rows.map((r) => ({
       code: r.code,
       donorCode: r.donorCode,
@@ -88,7 +91,7 @@ export async function loadReview(code: string, month: string, u: AppUser) {
       yearTarget: r.yearTarget,
       year: r.year,
       quarterValue: r.quarter,
-      status: r.status,
+      status: suggestStatus(r.year, r.yearTarget, Number(quarter.slice(6)), r.year > 0 || r.records.open > 0, r.planned, ["03", "06", "09", "12"].includes(month.slice(5))),
       planned: r.planned,
     })),
     year,
@@ -218,6 +221,21 @@ export async function applyChange(tx: Tx, projectId: string, c: Change): Promise
   return { activity: c.activity, from: before, to: quarters };
 }
 
+export const draftSchema = z.object({
+  summary: z.string().describe("Where the project stands this month: 3 to 5 sentences."),
+  attention: z.string().describe("What needs attention: one line per item, most urgent first, each with what to do."),
+});
+
+export const DRAFT_SYSTEM = `You draft the monthly project review for Roots of Peace (ROP), an NGO running a donor-funded agriculture project in Afghanistan. Two people review it: the pilot lead and the director of operations.
+
+Rules:
+- Use only the facts given. Never invent a figure, place, cause or plan. Where a reason is missing, write it as a question in square brackets, e.g. [why is 1.2.1.6 not started?].
+- Every figure must match the facts exactly, with its unit.
+- "summary": 3 to 5 plain sentences: results against this year's targets (what is done, on track, not started, delayed, citing indicator codes), then money (spent against approved, against the time gone, forecast).
+- "attention": one line per item, most urgent first: delayed or not-implemented indicators, budget lines flagged, results waiting for MEL, decisions pending on proposed changes. Say what someone should do about each. No more than eight lines.
+- A status of not_started means the work is not due yet or not begun; only call work late when its status is delayed or not_implemented.
+- Plain English, no marketing language, no headings.`;
+
 /** Runs one action on the month's review. Returns an error message for the person, or null. */
 export async function actOnReview(code: string, month: string, a: ReviewAction, u: AppUser): Promise<string | null> {
   const project = await projectByCode(code);
@@ -265,9 +283,39 @@ export async function actOnReview(code: string, month: string, a: ReviewAction, 
   }
 
   if (!mayEditReview(u)) return "Only the monthly reviewers, plan approvers and MEL can write the review.";
+  if (a.action === "draft") {
+    try {
+      const v = await loadReview(code, month, u);
+      const { out, model } = await draftStructured({
+        system: DRAFT_SYSTEM,
+        task: `Draft the summary and the needs-attention note for the ${month} monthly review.`,
+        facts: {
+          project: v.project.name,
+          stage: v.project.stage,
+          month,
+          indicators_this_year: v.indicators.map((i) => ({ code: i.donorCode, indicator: i.name, unit: i.unit, target_this_year: i.yearTarget, achieved_this_year: i.year, status: i.status, workplan_quarters_this_year: i.planned })),
+          money: v.budget,
+          results_waiting_for_mel: v.open.pending,
+          results_queried: v.open.queried,
+          proposed_changes: review.changes.map((c) => ({ change: describeChange(c), reason: c.reason, status: c.status })),
+        },
+        schema: draftSchema,
+      });
+      await db.transaction(async (tx) => {
+        review.summary = { text: out.summary, by: u.id, at: now, drafted: true };
+        review.attention = { text: out.attention, by: u.id, at: now, drafted: true };
+        await saveReview(tx, project.id, review);
+        await log(tx, "review_ai_drafted", { model, parts: ["summary", "attention"] });
+      });
+    } catch (e) {
+      return e instanceof Error ? e.message : String(e);
+    }
+    return null;
+  }
   try {
     await db.transaction(async (tx) => {
       if (a.action === "summary" || a.action === "attention") {
+      // An edit by a person replaces any AI draft.
         if (a.text) review[a.action] = { text: a.text, by: u.id, at: now };
         else delete review[a.action];
         await log(tx, "review_edited", { part: a.action });

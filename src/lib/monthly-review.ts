@@ -54,7 +54,8 @@ export type Change = ChangeInput & {
   note?: string;
 };
 
-export type Text = { text: string; by: string; at: string };
+/** `drafted`: written by AI from the month's figures and not yet edited by a person. */
+export type Text = { text: string; by: string; at: string; drafted?: boolean };
 export type MonthlyReview = {
   month: string;
   summary?: Text;
@@ -79,6 +80,8 @@ export const reviewActionSchema = z.discriminatedUnion("action", [
     note: z.string().trim().max(1000).optional(),
   }),
   z.object({ action: z.literal("withdraw"), id: z.string().min(1) }),
+  /** AI drafts the summary and what needs attention from the month's figures. */
+  z.object({ action: z.literal("draft") }),
   z.object({ action: z.literal("signoff") }),
 ]);
 export type ReviewAction = z.infer<typeof reviewActionSchema>;

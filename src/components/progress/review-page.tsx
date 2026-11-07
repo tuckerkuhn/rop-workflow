@@ -170,7 +170,15 @@ export function ReviewPage() {
                   </div>
                 </section>
 
-                <section className="mt-6 grid gap-4 md:grid-cols-2">
+                {v.mayEdit && (
+                  <div className="mt-6 flex flex-wrap items-center gap-3">
+                    <button type="button" className={quietBtn} disabled={busy} onClick={() => void act({ action: "draft" })}>
+                      {busy ? "Working…" : v.review.summary ? "Redraft summary and needs attention with AI" : "Draft summary and needs attention with AI"}
+                    </button>
+                    <span className="text-xs text-muted">AI writes from the figures on this page only; read and correct it before signing off.</span>
+                  </div>
+                )}
+                <section className="mt-3 grid gap-4 md:grid-cols-2">
                   <Note label="Summary" hint="Where the project stands this month, in a few sentences." value={v.review.summary} editable={v.mayEdit} busy={busy} onSave={(text) => act({ action: "summary", text })} />
                   <Note label="Needs attention" hint="Risks, late work and decisions needed, and who acts on each." value={v.review.attention} editable={v.mayEdit} busy={busy} onSave={(text) => act({ action: "attention", text })} />
                 </section>
@@ -207,7 +215,7 @@ export function ReviewPage() {
   );
 }
 
-function Note({ label, hint, value, editable, busy, onSave }: { label: string; hint: string; value?: { text: string; by: string; at: string }; editable: boolean; busy: boolean; onSave: (text: string) => Promise<boolean> }) {
+function Note({ label, hint, value, editable, busy, onSave }: { label: string; hint: string; value?: { text: string; by: string; at: string; drafted?: boolean }; editable: boolean; busy: boolean; onSave: (text: string) => Promise<boolean> }) {
   const [text, setText] = useState(value?.text ?? "");
   const [editing, setEditing] = useState(false);
   useEffect(() => setText(value?.text ?? ""), [value?.text]);
@@ -231,7 +239,7 @@ function Note({ label, hint, value, editable, busy, onSave }: { label: string; h
           <p className={`mt-2 whitespace-pre-line ${value ? "" : "text-muted"}`}>{value?.text ?? hint}</p>
           {value && (
             <p className="mt-1 text-xs text-muted">
-              {who(value.by)}, {day(value.at)}
+              {value.drafted ? `AI draft for ${who(value.by)}, ${day(value.at)}: check it` : `${who(value.by)}, ${day(value.at)}`}
             </p>
           )}
           {editable && (

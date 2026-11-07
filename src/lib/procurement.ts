@@ -237,11 +237,18 @@ export type Procurement = {
   sole?: { supplier: string; reason: string };
   /** AI drafts of generated documents, by document name. A person reads and corrects each one. */
   drafts?: Record<string, Draft>;
+  /**
+   * Documents kept in SharePoint and linked to the record: signed bids, the bid analysis, the
+   * contract, delivery photos, anything filed outside the app. Each says which step it belongs to.
+   */
+  links?: DocLink[];
   /** Expense voucher prepared by Finance, filed in SharePoint and posted in NetSuite. */
   voucher?: Voucher;
   /** How bids are evaluated: lowest price technically acceptable, or best value. */
   evaluation?: "lowest" | "bestValue";
 };
+
+export type DocLink = { title: string; url: string; step: string; by: string; date: string };
 
 export type Voucher = {
   number: string;
