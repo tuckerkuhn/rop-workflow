@@ -19,7 +19,7 @@ type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 export const mayEditReview = (u: AppUser) => u.kind === "employee" && (u.admin || u.project.some((r) => ["monthly-review", "plan-approver", "mel-owner"].includes(r)));
 export const mayDecideReview = (u: AppUser) => u.kind === "employee" && u.project.some((r) => ["monthly-review", "plan-approver"].includes(r));
 
-async function rawReview(projectId: string, month: string): Promise<MonthlyReview> {
+export async function rawReview(projectId: string, month: string): Promise<MonthlyReview> {
   const [row] = await db
     .select({ data: s.projectState.data })
     .from(s.projectState)
@@ -107,6 +107,7 @@ export async function loadReview(code: string, month: string, u: AppUser) {
             code: l.code,
             description: l.description,
             flags: l.flags,
+            spentPct: l.spentPct,
           })),
       ),
     },
@@ -122,6 +123,9 @@ export async function loadReview(code: string, month: string, u: AppUser) {
     mayEdit: mayEditReview(u) && !review.signedOff,
     mayDecide: mayDecideReview(u) && !review.signedOff,
     me: u.id,
+    /** The quarter's report checks and all results, for Home (saves building the report twice). */
+    checks: report.checks,
+    results: report.results,
   };
 }
 export type ReviewView = Awaited<ReturnType<typeof loadReview>>;

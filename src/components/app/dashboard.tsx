@@ -12,6 +12,7 @@ import { useCurrentProject } from "@/components/app/current-project";
 import { useT } from "@/components/app/i18n";
 import { Initials, useRequireUser, useSession } from "@/components/app/session";
 import { HomePanels } from "@/components/home/panels";
+import { RoleHome } from "@/components/home/role-home";
 import { Pill, SectionLabel, TopBar, usePersistentState } from "@/components/workspace/ui";
 import { workFor, type Data, type WorkCard } from "@/components/tasks/work";
 import { PROJECT, daysFrom, directReports, userById, type AppUser } from "@/lib/demo";
@@ -451,13 +452,16 @@ export function Dashboard() {
           )}
         </header>
         {!readOnly && user.admin && <RulesConflicts />}
-        {!readOnly && user.kind === "employee" && <PeopleCard />}
         {user.kind === "donor" ? (
           <DonorHome field={field} project={project} />
         ) : readOnly ? (
           <EmployeeHome u={subject} data={data} viewer={user} readOnly={readOnly} onView={(id) => view(id)} />
         ) : (
           <>
+            {/* Database projects get the role view first: where things stand, what needs you, what is in season. */}
+            {current.saved && user.kind === "employee" && <RoleHome user={user} project={current} />}
+            {/* The person's own HR items (timesheet, leave, expenses) come after the project view. */}
+            <PeopleCard />
             <HomePanels user={user} project={current} stage={stage} />
             <Team u={user} data={data} viewer={user} onView={(id) => view(id)} />
           </>

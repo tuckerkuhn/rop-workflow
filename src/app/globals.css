@@ -17,6 +17,8 @@
   --clay-soft: #f6dfd8;
   --sky: #23578a;
   --sky-soft: #e1ecf7;
+  /* "On track" beside solid forest ("done") in status bars; checked for colour-blind separation. */
+  --progress: #8fb39f;
   --plum: #5b4592;
   --plum-soft: #ece7f6;
   --deep: #1f4d36;
@@ -41,6 +43,7 @@
     --clay-soft: #2d1813;
     --sky: #8dbbe8;
     --sky-soft: #142233;
+    --progress: #3d6b52;
     --plum: #bba9ee;
     --plum-soft: #211a33;
     --deep: #10261b;
@@ -64,6 +67,7 @@
   --color-clay-soft: var(--clay-soft);
   --color-sky: var(--sky);
   --color-sky-soft: var(--sky-soft);
+  --color-progress: var(--progress);
   --color-plum: var(--plum);
   --color-plum-soft: var(--plum-soft);
   --color-deep: var(--deep);
