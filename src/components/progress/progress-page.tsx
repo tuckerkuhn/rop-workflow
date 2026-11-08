@@ -3,6 +3,7 @@
 import { Arrow } from "@/components/app/arrow";
 import Link from "next/link";
 import { THEMES, THEME_LABEL, type ImpactTheme } from "@/lib/indicator-library";
+import { ProgressSummaryPanel } from "@/components/progress/progress-summary";
 import { useCallback, useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { DonorFilter, useDonorChoice } from "@/components/app/donor-filter";
@@ -69,6 +70,8 @@ export function ProgressPage() {
             </button>
           )}
         </div>
+        {/* Database projects open on what to celebrate and what needs attention. */}
+        {staff && project.saved && <ProgressSummaryPanel projectId={project.id} userId={user.id} />}
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <DonorFilter donors={donors} donor={donor} onChange={setDonor} />
           {canSync && (
