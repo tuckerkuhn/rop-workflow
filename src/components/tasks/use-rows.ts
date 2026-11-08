@@ -16,6 +16,43 @@ import type { HomeView } from "@/server/home-store";
 const STATUS_WORD: Record<string, string> = { not_started: "Not started", in_progress: "Under way", on_hold: "On hold" };
 
 /**
+ * HR items waiting for this person on other people's records: approvals of timesheets, leave and
+ * expenses, HR record changes to sign, onboarding and leaving steps, and a broken HR record.
+ * The person's own timesheet, leave and expenses are on Home, not here.
+ */
+function useHrWork(user: AppUser): Row[] {
+  const [rows, setRows] = useState<Row[]>([]);
+  useEffect(() => {
+    if (user.kind !== "employee") return setRows([]);
+    let live = true;
+    const get = (url: string) =>
+      fetch(url, { cache: "no-store", headers: { "x-demo-user": user.id } })
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null);
+    void Promise.all([get("/api/hr?summary=1"), get("/api/timesheets?summary=1"), get("/api/leave?summary=1"), get("/api/expenses?summary=1"), get("/api/onboarding?summary=1"), get("/api/offboarding")]).then(([hr, ts, lv, ex, ob, off]) => {
+      if (!live) return;
+      const today = new Date().toISOString().slice(0, 10);
+      const out: Row[] = [];
+      const add = (key: string, title: string, href: string, urgent = false) => out.push({ key: `hr:${key}`, kind: "task", title, date: urgent ? today : null, done: false, late: false, source: "hr", step: "Needs you", href });
+      const n = (v: unknown) => (typeof v === "number" ? v : 0);
+      if (hr && hr.intact === false) add("intact", "The HR record shows signs of tampering: open it now", "/people", true);
+      if (n(hr?.waiting)) add("sign", `Sign ${hr.waiting} HR record ${hr.waiting === 1 ? "change" : "changes"}`, "/people");
+      if (n(ts?.waiting)) add("ts", `Approve ${ts.waiting} ${ts.waiting === 1 ? "timesheet" : "timesheets"}`, "/timesheets");
+      if (n(lv?.waiting)) add("lv", `Approve ${lv.waiting} leave ${lv.waiting === 1 ? "request" : "requests"}`, "/leave");
+      if (n(ex?.waiting)) add("ex", `Sign ${ex.waiting} expense ${ex.waiting === 1 ? "report" : "reports"}`, "/expenses");
+      if (n(ob?.todo)) add("ob", `${ob.todo} onboarding ${ob.todo === 1 ? "step" : "steps"} for new staff`, "/onboarding");
+      const leaving = (off?.leavers ?? []).flatMap((o: { steps: { canDo: boolean }[] }) => o.steps.filter((x) => x.canDo)).length;
+      if (leaving) add("off", `${leaving} leaving ${leaving === 1 ? "step" : "steps"} to do`, "/offboarding");
+      setRows(out);
+    });
+    return () => {
+      live = false;
+    };
+  }, [user.id, user.kind]);
+  return rows;
+}
+
+/**
  * A database project's own work for this person, from the same view as Home: what needs them,
  * the activities they own this quarter, and (for leads) the activities nobody owns yet.
  */
@@ -59,6 +96,7 @@ export function useTaskRows(user: AppUser, project: ProjectInfo) {
   const closeouts = useCloseouts(project.saved && procRolesFor(user).includes("finance") ? project.id : null);
   const [local] = usePersistentState<ProjectState>(PROJECT_KEY, seedProject);
   const projectWork = useProjectWork(user, project);
+  const hrWork = useHrWork(user);
 
   const rows = useMemo<Row[]>(() => {
     const stored: Row[] = work.items
@@ -69,7 +107,7 @@ export function useTaskRows(user: AppUser, project: ProjectInfo) {
           ? { key: i.id, kind: "milestone", id: i.id, title: i.title, date: i.date!, end: i.endDate, milestoneKind: i.milestoneKind!, automatic: i.automatic, donorId: i.donorId, createdBy: i.createdBy, notes: i.notes }
           : { key: i.id, kind: "task", id: i.id, title: i.title, date: i.date, done: !!i.doneAt, late: false, source: "manual", assignee: i.assignee, createdBy: i.createdBy, doneBy: i.doneBy, doneAt: i.doneAt, notes: i.notes },
       );
-    if (!hasWorkflows) return [...projectWork, ...stored].sort((a, b) => (a.date ?? "9999").localeCompare(b.date ?? "9999"));
+    if (!hasWorkflows) return [...hrWork, ...projectWork, ...stored].sort((a, b) => (a.date ?? "9999").localeCompare(b.date ?? "9999"));
     // The demo project's sample sign-offs belong to it alone.
     const demo = project.workflows.includes("field");
     const steps: Row[] = workFor(user, { field: demo ? field : [], procs, project: { ...local, submissions }, stages: {}, plan: plan.items, closeouts: closeouts.months }, user, { projectCards: demo })
@@ -85,8 +123,8 @@ export function useTaskRows(user: AppUser, project: ProjectInfo) {
         source: c.space === "Field" ? "field" : c.space === "Procurement" ? "procurement" : "project",
         href: c.href,
       }));
-    return [...projectWork, ...stored, ...steps].sort((a, b) => (a.date ?? "9999").localeCompare(b.date ?? "9999"));
-  }, [projectWork, work.items, hasWorkflows, user, field, procs, local, submissions, plan.items, project.workflows, closeouts.months]);
+    return [...hrWork, ...projectWork, ...stored, ...steps].sort((a, b) => (a.date ?? "9999").localeCompare(b.date ?? "9999"));
+  }, [hrWork, projectWork, work.items, hasWorkflows, user, field, procs, local, submissions, plan.items, project.workflows, closeouts.months]);
 
   return { rows, work };
 }

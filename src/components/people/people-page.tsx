@@ -1314,3 +1314,34 @@ function BambooImport({ user, onDone }: { user: string; onDone: (msg: string) =>
     </section>
   );
 }
+
+/** My details: the signed-in person's own HR record, read-only. Changes go through HR. */
+export function MyDetailsPage() {
+  const { user } = useRequireUser();
+  const { date } = useT();
+  const hr = useHr();
+  if (!user) return null;
+  const v = hr.view;
+  const mine = v?.people.find((p) => p.id === v.me);
+  const fmt = (iso: string) => date(iso.slice(0, 10), { day: "numeric", month: "short", year: "numeric" });
+  return (
+    <div className="min-h-screen">
+      <TopBar />
+      <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
+        <a href="/home" className="text-sm text-muted hover:text-ink">
+          ← Home
+        </a>
+        <h1 className="mt-2 font-display text-4xl tracking-tight">My details</h1>
+        <p className="mt-1 text-sm text-muted">Your HR record as it stands. To change anything, ask HR.</p>
+        {hr.error && <p className="mt-4 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">{hr.error}</p>}
+        {!v && !hr.error && <p className="mt-6 text-sm text-muted">Loading…</p>}
+        {v && !mine && <p className="mt-6 text-sm text-muted">You have no HR record yet. HR adds it when your contract starts.</p>}
+        {v && mine && (
+          <div className="mt-6">
+            <PersonRecord p={mine} view={v} fmt={fmt} />
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}

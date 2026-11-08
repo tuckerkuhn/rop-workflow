@@ -286,68 +286,62 @@ function DonorHome({ field, project }: { field: FieldItem[]; project: ProjectSta
 }
 
 /** The HR record on Home: changes waiting for this person's signature, their timesheet, and timesheets to approve. */
+/**
+ * The person's own admin, only for people with an HR record: my timesheet, my leave, my expenses,
+ * my onboarding, and my details (read-only). Approvals and other people's records are in Work,
+ * under Needs my attention.
+ */
 function PeopleCard() {
   const { user } = useSession();
-  const { date } = useT();
-  const [s, setS] = useState<{ waiting: number; hrRole: boolean; hasRecord: boolean; intact: boolean } | null>(null);
-  const [ts, setTs] = useState<{ hasRecord: boolean; month: string; status: string; waiting: number } | null>(null);
-  const [ex, setEx] = useState<{ hasRecord: boolean; waiting: number; returned: number } | null>(null);
-  const [lv, setLv] = useState<{ hasRecord: boolean; annualDays: number | null; waiting: number; returned: number } | null>(null);
-  const [ob, setOb] = useState<{ mine: { done: number; total: number } | null; todo: number } | null>(null);
+  const { date, t } = useT();
+  const [ts, setTs] = useState<{ hasRecord: boolean; month: string; status: string } | null>(null);
+  const [ex, setEx] = useState<{ hasRecord: boolean; returned: number } | null>(null);
+  const [lv, setLv] = useState<{ hasRecord: boolean; annualDays: number | null; returned: number } | null>(null);
+  const [ob, setOb] = useState<{ mine: { done: number; total: number } | null } | null>(null);
   useEffect(() => {
     if (!user) return;
     const get = (url: string) => fetch(url, { cache: "no-store", headers: { "x-demo-user": user.id } }).then((r) => (r.ok ? r.json() : null));
-    get("/api/hr?summary=1").then(setS).catch(() => setS(null));
     get("/api/timesheets?summary=1").then(setTs).catch(() => setTs(null));
     get("/api/expenses?summary=1").then(setEx).catch(() => setEx(null));
     get("/api/onboarding?summary=1").then(setOb).catch(() => setOb(null));
     get("/api/leave?summary=1").then(setLv).catch(() => setLv(null));
   }, [user]);
-  if (!s || (!s.hrRole && !s.hasRecord)) return null;
-  const onboarding = ob && ((ob.mine && ob.mine.done < ob.mine.total) || ob.todo > 0);
+  if (!ts?.hasRecord) return null;
   const tsText: Record<string, string> = { missing: "not submitted yet", pending: "waiting for approval", approved: "approved", returned: "sent back: open it to see why" };
+  const card = (on: boolean) => `flex flex-wrap items-center gap-x-4 gap-y-1 rounded-2xl border px-5 py-3 text-sm transition hover:border-forest ${on ? "border-forest/40 bg-mist/60" : "border-line bg-surface"}`;
+  const onboarding = ob?.mine && ob.mine.done < ob.mine.total ? ob.mine : null;
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {onboarding && (
-        <Link href="/onboarding" className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-2xl border border-forest/40 bg-mist/60 px-5 py-3 text-sm transition hover:border-forest sm:col-span-2 xl:col-span-3">
+        <Link href="/onboarding" className={`${card(true)} sm:col-span-2 xl:col-span-3`}>
           <span className="font-semibold">Onboarding</span>
           <span className="text-muted">
-            {ob!.mine && ob!.mine.done < ob!.mine.total ? `Your first steps: ${ob!.mine.done} of ${ob!.mine.total} done` : ""}
-            {ob!.todo > 0 ? `${ob!.mine && ob!.mine.done < ob!.mine.total ? " · " : ""}${ob!.todo} ${ob!.todo === 1 ? "step" : "steps"} for you to do for new staff` : ""}
+            Your first steps: {onboarding.done} of {onboarding.total} done
           </span>
         </Link>
       )}
-      <Link href="/people" className={`flex flex-wrap items-center gap-x-4 gap-y-1 rounded-2xl border px-5 py-3 text-sm transition hover:border-forest ${!s.intact ? "border-clay bg-clay-soft" : s.waiting ? "border-forest/40 bg-mist/60" : "border-line bg-surface"}`}>
-        <span className="font-semibold">People</span>
+      <Link href="/timesheets" className={card(ts.status === "returned" || ts.status === "missing")}>
+        <span className="font-semibold">Timesheet</span>
         <span className="text-muted">
-          {!s.intact ? "The HR record shows signs of tampering. Open it now." : s.waiting ? `${s.waiting} HR ${s.waiting === 1 ? "change is" : "changes are"} waiting for your signature` : s.hrRole ? "The HR record" : "Your HR record"}
+          {date(`${ts.month}-01`, { month: "long" })}: {tsText[ts.status] ?? ts.status}
         </span>
       </Link>
-      {ts && (ts.hasRecord || ts.waiting > 0) && (
-        <Link href="/timesheets" className={`flex flex-wrap items-center gap-x-4 gap-y-1 rounded-2xl border px-5 py-3 text-sm transition hover:border-forest ${ts.waiting || ts.status === "returned" ? "border-forest/40 bg-mist/60" : "border-line bg-surface"}`}>
-          <span className="font-semibold">Timesheet</span>
-          <span className="text-muted">
-            {ts.hasRecord ? `${date(`${ts.month}-01`, { month: "long" })}: ${tsText[ts.status] ?? ts.status}` : ""}
-            {ts.waiting > 0 ? `${ts.hasRecord ? " · " : ""}${ts.waiting} to approve` : ""}
-          </span>
-        </Link>
-      )}
-      {lv && (lv.hasRecord || lv.waiting > 0) && (
-        <Link href="/leave" className={`flex flex-wrap items-center gap-x-4 gap-y-1 rounded-2xl border px-5 py-3 text-sm transition hover:border-forest ${lv.waiting || lv.returned ? "border-forest/40 bg-mist/60" : "border-line bg-surface"}`}>
+      {lv?.hasRecord && (
+        <Link href="/leave" className={card(!!lv.returned)}>
           <span className="font-semibold">Leave</span>
-          <span className="text-muted">
-            {[lv.annualDays != null ? `${lv.annualDays} days of annual leave` : "", lv.waiting ? `${lv.waiting} to approve` : "", lv.returned ? `${lv.returned} sent back` : ""].filter(Boolean).join(" · ") || "Ask for leave"}
-          </span>
+          <span className="text-muted">{[lv.annualDays != null ? `${lv.annualDays} days of annual leave` : "", lv.returned ? `${lv.returned} sent back` : ""].filter(Boolean).join(" · ") || "Ask for leave"}</span>
         </Link>
       )}
-      {ex && (ex.hasRecord || ex.waiting > 0) && (
-        <Link href="/expenses" className={`flex flex-wrap items-center gap-x-4 gap-y-1 rounded-2xl border px-5 py-3 text-sm transition hover:border-forest ${ex.waiting || ex.returned ? "border-forest/40 bg-mist/60" : "border-line bg-surface"}`}>
+      {ex?.hasRecord && (
+        <Link href="/expenses" className={card(!!ex.returned)}>
           <span className="font-semibold">Expenses</span>
-          <span className="text-muted">
-            {[ex.waiting ? `${ex.waiting} to sign` : "", ex.returned ? `${ex.returned} sent back to you` : "", !ex.waiting && !ex.returned ? "Claim expenses with receipts" : ""].filter(Boolean).join(" · ")}
-          </span>
+          <span className="text-muted">{ex.returned ? `${ex.returned} sent back to you` : "Claim expenses with receipts"}</span>
         </Link>
       )}
+      <Link href="/people/me" className={card(false)}>
+        <span className="font-semibold">{t("home.myDetails")}</span>
+        <span className="text-muted">{t("home.myDetailsHint")}</span>
+      </Link>
     </div>
   );
 }

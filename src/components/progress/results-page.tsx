@@ -50,6 +50,14 @@ export function ResultsPage() {
   const [addingUpdate, setAddingUpdate] = useState(false);
   const [open, setOpen] = useState<string | null>(params.get("indicator"));
   const quarter = params.get("q");
+  // From "+ New → Record a result": once loaded, put the person on the indicator picker.
+  const recordAsked = params.get("record") === "1";
+  useEffect(() => {
+    if (!recordAsked || !v) return;
+    const el = document.getElementById("record-pick");
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    el?.focus();
+  }, [recordAsked, v]);
   const url = `/api/projects/${project.id}/results`;
 
   const load = useCallback(async () => {
@@ -188,7 +196,9 @@ export function ResultsPage() {
                       </p>
                       {isOpen && (
                         <div className="mt-4 space-y-3 border-t border-line pt-4">
-                          {adding === i.code ? (
+                          {i.fromKobo ? (
+                            <p className="text-sm text-muted">This indicator comes from Kobo: its results are counted from the form, not recorded here.</p>
+                          ) : adding === i.code ? (
                             <RecordForm ind={i} onClose={() => setAdding(null)} add={(r) => act({ action: "record", result: r }, "Recorded. MEL will check it.").then(() => setAdding(null))} />
                           ) : (
                             v.mayRecord && (
@@ -210,7 +220,7 @@ export function ResultsPage() {
             </section>
           ))}
 
-        {v?.mayRecord && v.indicators.length > 0 && <ImportResults indicators={v.indicators} act={act} />}
+        {v?.mayRecord && v.indicators.some((i) => !i.fromKobo) && <ImportResults indicators={v.indicators.filter((i) => !i.fromKobo)} act={act} />}
         {v && v.activities.length > 0 && (
           <section className="mt-10 border-t border-line pt-6">
             <h2 className="font-display text-2xl">Activity updates</h2>
@@ -1012,7 +1022,7 @@ function WhatNeedsDoing({ v, me, onRecord }: { v: ResultsView; me: string; onRec
   const noProof = v.results.filter((r) => r.status === "accepted" && r.date >= `${year}-01-01` && !proofCount(r)).length;
   return (
     <section className="mt-5 rounded-2xl border border-line bg-surface p-4">
-      {v.mayRecord && (
+      {v.mayRecord && v.indicators.some((i) => !i.fromKobo) && (
         <form
           className="flex flex-wrap items-center gap-2"
           onSubmit={(e) => {
@@ -1020,9 +1030,9 @@ function WhatNeedsDoing({ v, me, onRecord }: { v: ResultsView; me: string; onRec
             if (pick) onRecord(pick);
           }}
         >
-          <select value={pick} onChange={(e) => setPick(e.target.value)} className="min-w-0 flex-1 rounded-xl border border-line bg-paper px-3 py-2.5 text-sm" aria-label="Indicator for the result">
+          <select id="record-pick" value={pick} onChange={(e) => setPick(e.target.value)} className="min-w-0 flex-1 rounded-xl border border-line bg-paper px-3 py-2.5 text-sm" aria-label="Indicator for the result">
             <option value="">Which indicator is the result for?</option>
-            {v.indicators.map((i) => (
+            {v.indicators.filter((i) => !i.fromKobo).map((i) => (
               <option key={i.code} value={i.code}>
                 {i.donorCode ?? i.code} {i.name}
               </option>

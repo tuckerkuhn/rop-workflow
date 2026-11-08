@@ -3,6 +3,7 @@ import { canEditProject } from "@/lib/demo";
 import { projectDesignSchema } from "@/lib/project-setup";
 import { onProject, requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
+import { handRecordedCounts } from "@/server/kobo-fed";
 import { createProject, listProjects } from "@/server/project-store";
 
 /** Projects in the database, for the project picker. */
@@ -10,8 +11,9 @@ export async function GET(req: Request) {
   return handle(async () => {
     const v = await requireViewer(req);
     if (v instanceof NextResponse) return v;
-    // Only the projects this person works on.
-    return NextResponse.json({ projects: (await listProjects()).filter((p) => onProject(v.user, p.code)) });
+    // Only the projects this person works on, each with how many indicators take results by hand.
+    const hand = await handRecordedCounts();
+    return NextResponse.json({ projects: (await listProjects()).filter((p) => onProject(v.user, p.code)).map((p) => ({ ...p, handRecorded: hand.get(p.code) ?? 0 })) });
   });
 }
 
