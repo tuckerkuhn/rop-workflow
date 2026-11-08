@@ -5,10 +5,11 @@ import type { AppUser } from "@/lib/demo";
 import { resultActionSchema } from "@/lib/results";
 import { sameResult } from "@/lib/results-import";
 import { logAudit } from "@/server/audit";
+import { FROM_KOBO, koboFedCodes } from "@/server/kobo-fed";
 import { isMelOwner, requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
 import { projectByCode } from "@/server/field-store";
-import { addProof, addResult, addUpdate, correctResult, loadResults, loadUpdates, reviewResult } from "@/server/results-store";
+import { addProof, addResult, addResults, addUpdate, correctResult, loadResults, loadUpdates, reviewResult } from "@/server/results-store";
 import { activityOf } from "@/lib/qpr";
 import { dataChecks } from "@/lib/data-checks";
 
@@ -23,6 +24,7 @@ const mayRecord = (u: AppUser) => u.kind === "employee" && u.fieldAccess === "ed
 
 async function view(code: string, u: AppUser) {
   const project = await projectByCode(code);
+  const kobo = await koboFedCodes(project.id);
   const indicators = await db
     .select({ code: s.indicators.code, donorCode: s.indicators.donorCode, name: s.indicators.name, unit: s.indicators.unit, target: s.indicators.target, result: s.indicators.result, disaggregation: s.indicators.disaggregation, verification: s.indicators.verification, source: s.indicators.source })
     .from(s.indicators)
@@ -38,7 +40,7 @@ async function view(code: string, u: AppUser) {
     me: u.id,
     mayRecord: mayRecord(u),
     mayReview: mel,
-    indicators: indicators.map((i) => ({ ...i, target: Number(i.target) })),
+    indicators: indicators.map((i) => ({ ...i, target: Number(i.target), fromKobo: kobo.has(i.code) })),
     // The data checker's flags, for MEL before accepting (and for the recorder to fix first).
     results: results.map((r) => ({ ...r, canReview: mel && r.status === "pending" && r.by !== u.id, checks: dataChecks(r, results, indicators.find((i) => i.code === r.indicator)) })),
     activities,
@@ -75,6 +77,9 @@ export async function POST(req: Request, { params }: Ctx) {
       return NextResponse.json(await view(code, u));
     }
     if (a.action === "correct") {
+      // The same checks as a new result.
+      if (a.changes.date > new Date().toISOString().slice(0, 10)) return NextResponse.json({ error: "The date is in the future." }, { status: 400 });
+      if (a.changes.female !== undefined && a.changes.male !== undefined && a.changes.female + a.changes.male === 0) return NextResponse.json({ error: "Women and men are both 0: leave them blank if the result is not about people." }, { status: 400 });
       const err = await correctResult(code, a.id, a.changes, a.reply, u.id);
       if (err) return NextResponse.json({ error: err }, { status: 400 });
       return NextResponse.json(await view(code, u));
@@ -91,16 +96,18 @@ export async function POST(req: Request, { params }: Ctx) {
       const allowed = new Set((await db.select({ code: s.indicators.code }).from(s.indicators).where(and(eq(s.indicators.projectId, project.id), eq(s.indicators.source, "results")))).map((r) => r.code));
       const today = new Date().toISOString().slice(0, 10);
       const existing = await loadResults(code);
+      const fromKobo = await koboFedCodes(project.id);
       // All or none: one bad row refuses the file, with every row's reason.
       const problems: string[] = [];
       a.results.forEach((r, i) => {
         if (!allowed.has(r.indicator)) problems.push(`Row ${i + 1}: ${r.indicator} is not one this project records results for`);
+        else if (fromKobo.has(r.indicator)) problems.push(`Row ${i + 1}: ${FROM_KOBO} (${r.indicator})`);
         if (r.date > today) problems.push(`Row ${i + 1}: the date is in the future`);
         if (existing.some((x) => sameResult(x, r))) problems.push(`Row ${i + 1}: already recorded (${r.indicator}, ${r.date}, ${r.value})`);
         if (a.results.some((x, j) => j < i && sameResult(x, r))) problems.push(`Row ${i + 1}: the same as an earlier row`);
       });
       if (problems.length) return NextResponse.json({ error: `Nothing imported. ${problems.slice(0, 8).join("; ")}${problems.length > 8 ? `; and ${problems.length - 8} more` : ""}.` }, { status: 400 });
-      for (const r of a.results) await addResult(code, r, u.id);
+      await addResults(code, a.results, u.id);
       await logAudit(db, project.id, { entity: "result", entityId: project.id, action: "results_imported", by: u.id, detail: { file: a.file, count: a.results.length } });
       return NextResponse.json(await view(code, u));
     }
@@ -109,6 +116,7 @@ export async function POST(req: Request, { params }: Ctx) {
       const project = await projectByCode(code);
       const [ind] = await db.select({ code: s.indicators.code }).from(s.indicators).where(and(eq(s.indicators.projectId, project.id), eq(s.indicators.code, a.result.indicator), eq(s.indicators.source, "results")));
       if (!ind) return NextResponse.json({ error: "That indicator is not one this project records results for." }, { status: 400 });
+      if ((await koboFedCodes(project.id)).has(a.result.indicator)) return NextResponse.json({ error: `${FROM_KOBO}: its results are counted from the form, not recorded here.` }, { status: 400 });
       if (a.result.date > new Date().toISOString().slice(0, 10)) return NextResponse.json({ error: "The date is in the future." }, { status: 400 });
       const { female, male } = a.result;
       if (female !== undefined && male !== undefined && female + male === 0) return NextResponse.json({ error: "Women and men are both 0: leave them blank if the result is not about people." }, { status: 400 });
@@ -119,7 +127,8 @@ export async function POST(req: Request, { params }: Ctx) {
       if (!r) return NextResponse.json({ error: "No such result." }, { status: 404 });
       if (r.by === u.id) return NextResponse.json({ error: "You recorded this result, so someone else must check it." }, { status: 403 });
       if (r.status !== "pending") return NextResponse.json({ error: "This result has already been checked." }, { status: 409 });
-      await reviewResult(code, a.id, a.action === "accept" ? "accepted" : "queried", u.id, a.action === "query" ? a.note : null);
+      const done = await reviewResult(code, a.id, a.action === "accept" ? "accepted" : "queried", u.id, a.action === "query" ? a.note : null);
+      if (!done) return NextResponse.json({ error: "Someone else has just decided this result. Reload to see it." }, { status: 409 });
     }
     return NextResponse.json(await view(code, u));
   });

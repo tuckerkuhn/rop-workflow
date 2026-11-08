@@ -232,6 +232,8 @@ export type CommitteeMember = { name: string; role: "chair" | "member"; declared
 
 export type Procurement = {
   id: string;
+  /** Version, raised by the server on every save: a save made from an older copy is refused. */
+  rev?: number;
   title: string;
   qty: number;
   unit: string;
@@ -462,7 +464,8 @@ const none = (what: string) => (recordsRequired() ? { ok: false, detail: what } 
 
 /** A bid's amount in dollars, or null when an afghani bid has no rate. */
 export const bidUsd = (b: Bid) => (b.currency === "AFN" ? (b.rate && b.rate > 0 ? b.amount / b.rate : null) : b.amount);
-const recordedBids = (p: Procurement) => (p.bids ?? []).filter((b) => b.supplier.trim() && b.amount > 0 && isSharePointUrl(b.evidence));
+// An afghani bid needs its exchange rate, or it cannot be compared with the others.
+const recordedBids = (p: Procurement) => (p.bids ?? []).filter((b) => b.supplier.trim() && b.amount > 0 && isSharePointUrl(b.evidence) && (b.currency !== "AFN" || (b.rate ?? 0) > 0));
 /** The lowest-priced bid that passed the minimum requirements. */
 export function lowestPassing(p: Procurement): Bid | null {
   const ok = (p.bids ?? []).filter((b) => b.passes === true && bidUsd(b) !== null);
@@ -494,6 +497,8 @@ function qualifyCheck(p: Procurement) {
   const open = bids.filter((b) => b.passes === null);
   const unexplained = bids.filter((b) => b.passes === false && !b.failWhy.trim());
   const late = lateBids(p).filter((b) => b.passes !== false);
+  const noRate = bids.filter((b) => b.currency === "AFN" && !((b.rate ?? 0) > 0));
+  if (noRate.length) return { ok: false, detail: `Add the exchange rate for ${noRate.map((b) => b.supplier || "the afghani bid").join(", ")}, so it can be compared` };
   if (late.length) return { ok: false, detail: `Received after closing and not rejected: ${late.map((b) => b.supplier).join(", ")}` };
   return { ok: !open.length && !unexplained.length, detail: open.length ? `${open.length} not judged yet` : unexplained.length ? `Say why ${unexplained.map((b) => b.supplier).join(", ")} failed` : `${bids.filter((b) => b.passes).length} of ${bids.length} passed` };
 }

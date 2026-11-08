@@ -73,7 +73,7 @@ export async function itemsFor(u: AppUser, today: string): Promise<DigestItem[]>
     if (lead) {
       const sum = await loadProgressSummary(p.code, u).catch(() => null);
       for (const c of sum?.concerns.filter((x) => x.key.startsWith("late-") || x.key === "due" || x.key === "acts-owner") ?? [])
-        out.push({ key: `${p.code}:impact:${c.key}:${c.text}`, project: short, text: c.text, why: c.why, href: c.href, urgent: c.level === "critical", kind: "impact" });
+        out.push({ key: `${p.code}:impact:${c.key}:${stable(c.text)}`, project: short, text: c.text, why: c.why, href: c.href, urgent: c.level === "critical", kind: "impact" });
     }
     if (u.kind === "employee") {
       const acts = await loadActivities(p.code, u).catch(() => null);
@@ -82,10 +82,10 @@ export async function itemsFor(u: AppUser, today: string): Promise<DigestItem[]>
       for (const r of acts?.rows.filter((x) => x.mine && x.timing === "due_now" && x.status === "not_started") ?? [])
         out.push({ key: `${p.code}:actdue:${r.code}`, project: short, text: `${r.code} ${r.title} is planned for this quarter and not started`, why: "Start it, or flag what is holding it up.", href: "/work/activities", urgent: false, kind: "impact" });
     }
-    for (const a of (home?.actions ?? []).filter((x) => IMPACT_ACTIONS.has(x.key))) out.push({ key: `${p.code}:${a.key}:${a.text}`, project: short, text: a.text, href: a.href, urgent: a.urgent, kind: "impact" });
+    for (const a of (home?.actions ?? []).filter((x) => IMPACT_ACTIONS.has(x.key))) out.push({ key: `${p.code}:${a.key}:${stable(a.text)}`, project: short, text: a.text, href: a.href, urgent: a.urgent, kind: "impact" });
 
     // Workflow: needed, but in service of the above.
-    for (const a of (home?.actions ?? []).filter((x) => !IMPACT_ACTIONS.has(x.key))) out.push({ key: `${p.code}:${a.key}:${a.text}`, project: short, text: a.text, href: a.href, urgent: a.urgent, kind: "workflow" });
+    for (const a of (home?.actions ?? []).filter((x) => !IMPACT_ACTIONS.has(x.key))) out.push({ key: `${p.code}:${a.key}:${stable(a.text)}`, project: short, text: a.text, href: a.href, urgent: a.urgent, kind: "workflow" });
     if (u.procurementAccess === "edit") {
       const procs = await loadProcurements(p.code).catch(() => []);
       setProcurementSet(procs);
@@ -118,6 +118,12 @@ export async function itemsFor(u: AppUser, today: string): Promise<DigestItem[]>
   }
   return out;
 }
+
+/**
+ * The part of an item's text that says what it is, without its counts: "Accept or query 3 results"
+ * and "… 2 results" are the same item, while a new month's review is a new one.
+ */
+const stable = (text: string) => text.replace(/\d+([.,]\d+)?/g, "#");
 
 const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
@@ -185,9 +191,12 @@ export async function runDigest(origin: string, dryRun = false) {
       }
     }
     // Remember today's list either way, so an item is new only once.
-    if (!dryRun) st.sent[u.id] = { at: go ? today : (st.sent[u.id]?.at ?? ""), keys: items.map((i) => i.key) };
+    if (!dryRun) {
+      st.sent[u.id] = { at: go ? today : (st.sent[u.id]?.at ?? ""), keys: items.map((i) => i.key) };
+      // Saved person by person, so a run cut short does not email the same people again tomorrow.
+      await saveState(row.organizationId, st);
+    }
     report.push({ person: u.id, fresh: fresh.length, waiting: waiting.length, sent: go && !dryRun, ...(go ? {} : { why: "nothing new" }) });
   }
-  if (!dryRun) for (const [org, st] of byOrg) await saveState(org, st);
   return { date: today, people: report };
 }

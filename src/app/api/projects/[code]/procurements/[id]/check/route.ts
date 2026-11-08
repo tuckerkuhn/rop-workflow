@@ -30,7 +30,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
     if (!ok) return NextResponse.json({ error: "Only the person working on this step runs its AI check." }, { status: 403 });
     try {
       const findings = await checkProcurement(p, p.step);
-      const item = { ...p, ai: { ...p.ai, [p.step]: findings } };
+      // Applied to the latest copy (the check took a while), and the version raised.
+      const latest = (await loadProcurements(code)).find((x) => x.id === id) ?? p;
+      const item = { ...latest, ai: { ...latest.ai, [p.step]: findings }, rev: (latest.rev ?? 0) + 1 };
       await saveProcurements(code, [item]);
       const project = await projectByCode(code);
       await logAudit(db, project.id, { entity: "procurement", entityId: project.id, action: "ai_checked", by: v.user.id, detail: { procurement: p.id, step: p.step, model: DRAFT_MODEL, findings: findings.length } });

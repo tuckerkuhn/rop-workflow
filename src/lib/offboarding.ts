@@ -2,6 +2,7 @@ import { z } from "zod";
 import { DEFAULT_PAYOUT, type Entry, type HrState, type Payout, type PayoutGroup } from "@/lib/hr";
 import { balanceOf, groupOf, type LeaveKind, type LeaveRequest } from "@/lib/leave";
 import { HOURS_PER_DAY } from "@/lib/timesheet";
+import { AVERAGE_DAYS } from "@/lib/payroll";
 
 /**
  * Offboarding: what has to happen when someone leaves, once their leaving is approved in the HR
@@ -42,6 +43,34 @@ export function mayDoOff(u: string, owner: OffOwner, person: string, hr: HrState
 }
 
 /** Everyone whose departure is approved, with the steps done so far. Entries that break a rule are skipped. */
+/**
+ * Whether the person could do the step when they recorded it (entry n): HR and payroll as the
+ * authority table stood then, the supervisor as the record stood then. A step done properly
+ * stays done when roles or supervisors change later.
+ */
+function couldThen(actor: string, owner: OffOwner, person: string, n: number, entries: Entry[], hr: HrState): boolean {
+  if (actor === person) return false;
+  if (owner === "hr" || owner === "payroll") {
+    // The authority table in force at entry n: the start, then each approved change to it.
+    let holders: Record<string, string[]> | undefined;
+    const start = entries.find((e) => e.kind === "start");
+    if (start && start.n < n) holders = (start.data as { rules?: { holders?: Record<string, string[]> } }).rules?.holders;
+    for (const p of hr.proposals.filter((x) => x.type === "rules" && x.status === "approved")) {
+      const doneAt = Math.max(0, ...p.signatures.map((sg) => sg.n));
+      if (doneAt && doneAt < n) holders = (p as { rules: { holders: Record<string, string[]> } }).rules.holders;
+    }
+    return !!holders?.[owner]?.includes(actor);
+  }
+  // Supervisor: the latest approved change to the person's supervisor before entry n.
+  let sup: unknown = undefined;
+  for (const p of hr.proposals.filter((x) => (x.type === "hire" || x.type === "update") && x.subject === person && x.status === "approved").sort((a, b) => a.id - b.id)) {
+    const doneAt = Math.max(0, ...p.signatures.map((sg) => sg.n));
+    const f = (p as { fields?: Record<string, unknown> }).fields;
+    if (doneAt && doneAt < n && f && "supervisor" in f) sup = f.supervisor;
+  }
+  return sup === actor;
+}
+
 export function foldOffboarding(entries: Entry[], hr: HrState): Offboarding[] {
   const list = new Map<string, Offboarding>();
   for (const p of Object.values(hr.people)) if (p.separated) list.set(p.id, { person: p.id, effective: p.separated.effective, reason: p.separated.reason, done: {} });
@@ -51,7 +80,7 @@ export function foldOffboarding(entries: Entry[], hr: HrState): Offboarding[] {
     const d = offActionSchema.safeParse({ person: e.subject, ...(e.data as object) });
     if (!o || !d.success) continue;
     const def = OFF_STEPS.find((s) => s.id === d.data.step)!;
-    if (o.done[def.id] || !mayDoOff(e.actor, def.owner, o.person, hr) || (def.needsNote && d.data.note.length < 3)) continue;
+    if (o.done[def.id] || !(mayDoOff(e.actor, def.owner, o.person, hr) || couldThen(e.actor, def.owner, o.person, e.n, entries, hr)) || (def.needsNote && d.data.note.length < 3)) continue;
     o.done[def.id] = { by: e.actor, at: e.at, n: e.n, note: d.data.note };
   }
   return [...list.values()].sort((a, b) => a.effective.localeCompare(b.effective));
@@ -68,13 +97,16 @@ export function leavePayout(
   const rec = hr.people[person]?.current ?? {};
   const g = groupOf(rec);
   const rule = g === "none" ? { rule: "none" as const, capDays: null, source: "Consultants do not earn paid leave" } : (hr.rules?.leavePayout?.[g as PayoutGroup] ?? DEFAULT_PAYOUT[g as PayoutGroup]);
-  const bal = balanceOf(person, "vacation", hr, requests, adjustments, lastDay);
+  // Balance at the end of the last day: that month's accrual counts once the month is worked
+  // (balances accrue at month ends), and leave booked for after the last day does not reduce it.
+  const dayAfter = new Date(Date.parse(`${lastDay}T00:00:00Z`) + 864e5).toISOString().slice(0, 10);
+  const bal = balanceOf(person, "vacation", hr, requests.filter((r) => r.start <= lastDay), adjustments, dayAfter);
   const days = bal ? Math.max(0, Math.round((bal.available / HOURS_PER_DAY) * 100) / 100) : 0;
   const paidDays = rule.rule === "pays" ? (rule.capDays == null ? days : Math.min(days, rule.capDays)) : 0;
   const pay = Number(rec.pay ?? 0);
   const basis = String(rec.payBasis ?? "Month");
-  // A working day: a month's pay over 21.67 days (260 a year), a day's pay, or eight hours.
-  const dailyRate = pay > 0 ? Math.round((basis === "Month" ? (pay * 12) / 260 : basis === "Day" ? pay : pay * HOURS_PER_DAY) * 100) / 100 : null;
+  // A working day, as payroll counts it: a month's pay over the average working days, a day's pay, or eight hours.
+  const dailyRate = pay > 0 ? Math.round((basis === "Month" ? pay / AVERAGE_DAYS : basis === "Day" ? pay : pay * HOURS_PER_DAY) * 100) / 100 : null;
   const amount = rule.rule === "pays" && dailyRate !== null ? Math.round(paidDays * dailyRate * 100) / 100 : rule.rule === "none" ? 0 : null;
   const note =
     rule.rule === "unset"

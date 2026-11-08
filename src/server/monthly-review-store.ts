@@ -11,6 +11,13 @@ import { loadBudgetView } from "@/server/budget-view-store";
 import { projectByCode } from "@/server/field-store";
 import { qprData } from "@/server/qpr-store";
 
+/** Whether a quarter ("2026-Q4") has ended as of today. */
+const quarterEnded = (q: string) => {
+  const y = Number(q.slice(0, 4));
+  const n = Number(q.slice(6));
+  return new Date().toISOString().slice(0, 10) > new Date(Date.UTC(y, n * 3, 0)).toISOString().slice(0, 10);
+};
+
 /** Monthly reviews, kept as project_state "review:2026-10". See lib/monthly-review.ts. */
 
 const KEY = (month: string) => `review:${month}`;
@@ -91,7 +98,10 @@ export async function loadReview(code: string, month: string, u: AppUser) {
       yearTarget: r.yearTarget,
       year: r.year,
       quarterValue: r.quarter,
-      status: suggestStatus(r.year, r.yearTarget, Number(quarter.slice(6)), r.year > 0 || r.records.open > 0, r.planned, ["03", "06", "09", "12"].includes(month.slice(5))),
+      // The team's own status from the quarterly report wins; otherwise judged as of today. A
+      // quarter counts as over only once its last day has passed, so December is not judged as
+      // if the year had already ended.
+      status: r.status !== r.suggested ? r.status : suggestStatus(r.year, r.yearTarget, Number(quarter.slice(6)), r.year > 0 || r.records.open > 0, r.planned, quarterEnded(quarter)),
       planned: r.planned,
       workplanCode: r.workplanCode,
     })),
@@ -132,9 +142,11 @@ export async function loadReview(code: string, month: string, u: AppUser) {
 export type ReviewView = Awaited<ReturnType<typeof loadReview>>;
 
 /** What the plan says now for the thing a change touches. */
-async function currentValue(projectId: string, c: ChangeInput): Promise<number | string[] | null> {
+type Exec = Pick<typeof db, "select">;
+/** Read with the caller's transaction when there is one: a second connection inside a transaction can wait forever on a small pool. */
+async function currentValue(projectId: string, c: ChangeInput, exec: Exec = db): Promise<number | string[] | null> {
   if (c.kind === "target") {
-    const [i] = await db
+    const [i] = await exec
       .select()
       .from(s.indicators)
       .where(and(eq(s.indicators.projectId, projectId), eq(s.indicators.code, c.indicator)));
@@ -148,7 +160,7 @@ async function currentValue(projectId: string, c: ChangeInput): Promise<number |
     );
   }
   if (c.kind === "budget") {
-    const [l] = await db
+    const [l] = await exec
       .select({ amount: s.budgetLines.amount })
       .from(s.budgetLines)
       .where(and(eq(s.budgetLines.projectId, projectId), eq(s.budgetLines.code, c.fromLine)));
@@ -325,7 +337,7 @@ export async function actOnReview(code: string, month: string, a: ReviewAction, 
         else delete review[a.action];
         await log(tx, "review_edited", { part: a.action });
       } else if (a.action === "propose") {
-        const from = await currentValue(project.id, a.change);
+        const from = await currentValue(project.id, a.change, tx);
         const c: Change = {
           ...a.change,
           id: randomUUID(),

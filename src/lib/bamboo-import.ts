@@ -47,7 +47,8 @@ export function readBamboo(grid: Grid): { rows: BambooRow[]; missing: string[] }
     end: find(head, /contract end/, /end date/),
     reports: find(head, /reports to/, /supervisor/, /manager/),
     rate: find(head, /pay rate/, /^salary/, /^compensation/),
-    per: find(head, /pay per/, /pay schedule/, /pay type/),
+    per: find(head, /^pay per/, /rate period/),
+    schedule: find(head, /pay schedule/, /pay frequency/),
     phone: find(head, /mobile phone/, /work phone/, /^phone/),
     adp: find(head, /adp/),
   };
@@ -88,7 +89,7 @@ export function readBamboo(grid: Grid): { rows: BambooRow[]; missing: string[] }
     } else if (/week/.test(per)) {
       pay = Math.round(((amount * 52) / 12) * 100) / 100;
       warnings.push(`Weekly pay entered as ${pay.toLocaleString("en-US")} a month`);
-    } else if (!per) warnings.push("Pay period not given: taken as monthly");
+    } else if (!per) warnings.push(col.schedule >= 0 ? "No Pay Per column (Pay Schedule says how often, not what the rate covers): taken as monthly; check" : "Pay period not given: taken as monthly");
     const startDate = isoDate(at(r, col.hire));
     const contractEnd = isoDate(at(r, col.end));
     const fields: Fields = {

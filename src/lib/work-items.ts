@@ -60,7 +60,7 @@ export type Row =
       done: boolean;
       /** A workflow step taking longer than usual, even if its projected date is still ahead. */
       late: boolean;
-      source: "manual" | "field" | "procurement" | "project" | "activity";
+      source: "manual" | "field" | "procurement" | "project" | "activity" | "hr";
       /** Workflow steps: what to do now. */
       step?: string;
       href?: string;

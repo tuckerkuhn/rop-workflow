@@ -524,6 +524,7 @@ export function fold(entries: Entry[], today: string): HrState {
       case "policy":
       case "onboard-start":
       case "onboard-step":
+      case "offboard-step":
       case "leave":
       case "lv-approve":
       case "lv-return":

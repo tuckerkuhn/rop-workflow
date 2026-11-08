@@ -5,7 +5,7 @@ import { seesAll } from "@/lib/hr";
 import { foldExpenses, nextFor } from "@/lib/expense";
 import { foldOnboarding } from "@/lib/onboarding";
 import { foldLeave } from "@/lib/leave";
-import { requireViewer } from "@/server/auth";
+import { onProject, requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
 import { loadFile } from "@/server/hr-files";
 import { loadHr } from "@/server/hr-store";
@@ -53,12 +53,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ hash: st
         }
         // Proof of a project result (attendance sheet, photos, verification report): staff who see field records.
         if (!ok && v.user.fieldAccess !== "none") {
-          const [row] = await db
-            .select({ id: s.evidence.id })
+          // Only on a project this person works on.
+          const rows = await db
+            .select({ code: s.projects.code })
             .from(s.evidence)
+            .innerJoin(s.projects, eq(s.projects.id, s.evidence.projectId))
             .where(and(inArray(s.evidence.form, ["result", "update"]), sql`${s.evidence.payload}::text like ${`%${hash}%`}`))
-            .limit(1);
-          ok = !!row;
+            .limit(5);
+          ok = rows.some((r) => !!r.code && onProject(v.user, r.code));
         }
       }
     }

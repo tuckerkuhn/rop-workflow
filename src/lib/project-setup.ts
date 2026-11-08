@@ -39,4 +39,4 @@ export const projectDesignSchema = z
 export type ProjectDesign = z.infer<typeof projectDesignSchema>;
 
 /** A project from the database, for the project picker. */
-export type ProjectSummary = { code: string; name: string; country: string; crop: string | null; goal: string | null; startDate: string | null; endDate: string | null; stage: string };
+export type ProjectSummary = { code: string; name: string; country: string; crop: string | null; goal: string | null; startDate: string | null; endDate: string | null; stage: string; /** Indicators that take results recorded by hand (not fed by Kobo). */ handRecorded?: number };

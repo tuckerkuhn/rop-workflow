@@ -18,7 +18,7 @@ import { loadActivities } from "@/server/activities-store";
  */
 
 export type HomeAction = { key: string; for: Lens; urgent: boolean; text: string; href: string };
-export type Lens = "lead" | "mel" | "field" | "finance" | "procurement";
+export type Lens = "lead" | "hr" | "mel" | "field" | "finance" | "procurement";
 
 const monthOf = (d: Date) => d.toISOString().slice(0, 7);
 const prevMonth = (m: string) => (m.endsWith("-01") ? `${Number(m.slice(0, 4)) - 1}-12` : `${m.slice(0, 4)}-${String(Number(m.slice(5)) - 1).padStart(2, "0")}`);
@@ -28,10 +28,14 @@ const qLabel = (q: string) => `${q.slice(0, 4)}-Q${Math.floor((Number(q.slice(5,
 const monthName = (m: string) => new Date(`${m}-15T00:00:00Z`).toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" });
 const days = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)) / 864e5);
 
-/** Which views a person gets on Home, most senior first. */
-export function lensesFor(u: AppUser): Lens[] {
+/**
+ * Which views a person gets on Home, most senior first. `hrStaff`: they hold the HR or payroll
+ * role type, so their Home is about the organization's people, not a project's activities.
+ */
+export function lensesFor(u: AppUser, hrStaff = false): Lens[] {
   const out: Lens[] = [];
   if (u.admin || u.project.some((r) => r === "plan-approver" || r === "monthly-review")) out.push("lead");
+  if (hrStaff) out.push("hr");
   const proc = procRolesFor(u);
   if (u.project.includes("mel-owner")) out.push("mel");
   // Delivery before money and process: the people who run activities (field staff, technical
@@ -41,6 +45,11 @@ export function lensesFor(u: AppUser): Lens[] {
   // Procurement is the view of the people who run the workflow, not of everyone who requests a purchase.
   if (proc.some((r) => r === "procurement" || r === "approver" || r === "ho")) out.push("procurement");
   return out.length ? out : ["field"];
+}
+
+async function holdsHrRole(personId: string) {
+  const holders = ((await (await import("@/server/hr-store")).loadHr().catch(() => null))?.state.rules?.holders ?? {}) as Record<string, string[]>;
+  return !!(holders.hr?.includes(personId) || holders.payroll?.includes(personId));
 }
 
 export async function loadHome(code: string, u: AppUser) {
@@ -141,7 +150,7 @@ export async function loadHome(code: string, u: AppUser) {
   // Waiting for this person.
   const allResults = report.results;
   const actions: HomeAction[] = [];
-  const lenses = lensesFor(u);
+  const lenses = lensesFor(u, await holdsHrRole(u.id));
   if (lenses.includes("lead")) {
     if (project.stage === "Design") actions.push({ key: "signoff", for: "lead", urgent: true, text: "Sign off the plan and budget to start Execute", href: "/home" });
     for (const r of [lastReview, review]) {

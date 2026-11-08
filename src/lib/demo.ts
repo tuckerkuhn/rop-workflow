@@ -126,6 +126,8 @@ export type ProjectInfo = {
   crop?: string;
   /** Stored in the database, so it can be edited in setup and connected to KoboToolbox. */
   saved?: boolean;
+  /** Indicators that take results recorded by hand, not fed by Kobo. */
+  handRecorded?: number;
 };
 
 export const projects: ProjectInfo[] = [

@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { eq, sql } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { projectRolesFromTypes, type Authority } from "@/lib/authority";
+import { HR_ACCESS_ROLES } from "@/lib/hr";
 import { loadOrgSettings, withSettings } from "@/server/org-settings-store";
 import { NextResponse } from "next/server";
 import { db, schema as s } from "@/db";
@@ -80,8 +81,10 @@ async function twoStepState(organizationId: string): Promise<Viewer["twoStep"]> 
 let holdersCache: { at: number; holders: Authority } | null = null;
 async function roleHolders(): Promise<Authority> {
   if (holdersCache && Date.now() - holdersCache.at < 60_000) return holdersCache.holders;
-  const holders = ((await (await import("@/server/hr-store")).loadHr().catch(() => null))?.state.rules?.holders ?? {}) as Authority;
-  holdersCache = { at: Date.now(), holders };
+  const loaded = await (await import("@/server/hr-store")).loadHr().catch(() => null);
+  const holders = (loaded?.state.rules?.holders ?? {}) as Authority;
+  // A failed read is not remembered, so a database hiccup does not take approvals away for a minute.
+  if (loaded) holdersCache = { at: Date.now(), holders };
   return holders;
 }
 /** Adds the project roles a person has from the role types they hold (lib/authority PROJECT_ROLE_TYPES). */
@@ -137,6 +140,11 @@ export async function requireViewer(req: Request, opts: { write?: boolean; allow
   if (!v) return deny(401, "Sign in to continue.");
   if (v.twoStep) return deny(401, v.twoStep === "verify" ? "Enter the code from your authenticator app to continue." : "Your organization requires two-step sign-in: set it up to continue.");
   if (opts.write && v.viewingAs) return deny(403, `You are viewing as ${v.user.name}. View as is read-only.`);
+  // View as never opens HR, pay or personal files beyond what the administrator may see themselves.
+  if (v.viewingAs && /^\/api\/(hr|payroll|files|timesheets|leave|expenses|onboarding|offboarding)(\/|$)/.test(new URL(req.url).pathname)) {
+    const holders = await roleHolders();
+    if (!HR_ACCESS_ROLES.some((r) => holders[r]?.includes(v.actor.id))) return deny(403, "View as does not open HR records, pay or personal files.");
+  }
   if (opts.allow && !opts.allow(v.user)) return deny(403, opts.why ?? "Your role does not allow this.");
   // Per-project access: a person listed on projects has their roles only there.
   const code = new URL(req.url).pathname.match(/^\/api\/projects\/([^/]+)/)?.[1];

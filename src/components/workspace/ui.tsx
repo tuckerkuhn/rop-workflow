@@ -1,5 +1,6 @@
 "use client";
 
+import { NewMenu } from "@/components/app/new-menu";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -508,6 +509,7 @@ export function TopBar({ active, children }: { active?: "design" | "project" | "
         </div>
         {children}
         <div className="ms-auto flex items-center gap-3">
+          {user?.kind === "employee" && <NewMenu />}
           <CurrencyToggle />
           {user && (
             <div className="relative">

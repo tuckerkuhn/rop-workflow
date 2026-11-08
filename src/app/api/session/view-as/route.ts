@@ -11,6 +11,7 @@ export async function POST(req: Request) {
     if (demoMode()) return NextResponse.json({ error: "In demo mode, pick the person on the sign-in page instead." }, { status: 400 });
     const v = await getViewer(req);
     if (!v) return NextResponse.json({ error: "Sign in to continue." }, { status: 401 });
+    if (v.twoStep) return NextResponse.json({ error: "Enter the code from your authenticator app first." }, { status: 401 });
     if (!v.actor.admin) return NextResponse.json({ error: "View as is limited to administrators." }, { status: 403 });
 
     const { id } = (await req.json()) as { id: string | null };

@@ -54,7 +54,7 @@ export function CurrentProjectProvider({ children }: { children: React.ReactNode
     const names = new Intl.DisplayNames([localeOf(lang)], { type: "region" });
     const fromDb = (stored ?? []).filter((p) => !demoProjects.some((d) => d.id === p.code));
     return [
-      ...demoProjects.map((d) => ({ ...d, saved: (stored ?? []).some((p) => p.code === d.id) })),
+      ...demoProjects.map((d) => ({ ...d, saved: (stored ?? []).some((p) => p.code === d.id), handRecorded: (stored ?? []).find((p) => p.code === d.id)?.handRecorded ?? 0 })),
       ...fromDb.map(
         (p): ProjectInfo => ({
           id: p.code,
@@ -69,6 +69,7 @@ export function CurrentProjectProvider({ children }: { children: React.ReactNode
           workflows: ["procurement"],
           crop: p.crop ?? undefined,
           saved: true,
+          handRecorded: p.handRecorded ?? 0,
         }),
       ),
     ];

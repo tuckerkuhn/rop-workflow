@@ -238,6 +238,10 @@ export function OpportunitiesPage() {
   const [v, setV] = useState<OpportunitiesView | null>(null);
   const [error, setError] = useState("");
   const [adding, setAdding] = useState(false);
+  // From "+ New → Record an opportunity".
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("new") === "1") setAdding(true);
+  }, []);
   const load = useCallback(async () => {
     if (!user) return;
     try {

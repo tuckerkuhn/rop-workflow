@@ -93,6 +93,8 @@ export async function actOnOpportunity(orgId: string, a: OppAction, u: AppUser):
     if (o.status !== "match") return "Only a matched opportunity goes into design.";
     next = { ...o, status: "designing", projectCode: a.projectCode, history: [...o.history, ev(`Design started as ${a.projectCode}`)] };
   }
-  await save(orgId, { items: b.items.map((x) => (x.id === o.id ? next : x)) });
+  // Read again before saving: the AI brief takes a while, and others may have changed the list since.
+  const latest = await load(orgId);
+  await save(orgId, { items: latest.items.map((x) => (x.id === o.id ? next : x)) });
   return null;
 }

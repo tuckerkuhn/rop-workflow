@@ -75,10 +75,17 @@ export const PAY_LOOP = ["receive", "package", "payForm", "payReady", "verifyPay
 /** Documents made once per instalment. */
 export const PAY_DOCS = ["Goods received note", "Procurement package", "Payment approval form", "Checklist pass 2", "Expense voucher"];
 
-/** The contract's value in dollars as signed; the request's estimate only until it is recorded. */
-const orderUsd = (p: Procurement) => (contractCurrency(p) === "USD" && p.contractUsd && p.contractUsd > 0 ? p.contractUsd : p.qty * p.unitPrice);
-/** Whether the signed value is recorded, so invoices are matched to the contract rather than the estimate. */
-export const contractValueKnown = (p: Procurement) => (contractCurrency(p) === "AFN" ? !!(p.contractAfn && p.contractAfn > 0) : !!(p.contractUsd && p.contractUsd > 0));
+/** The chosen quotation in dollars, for purchases with no contract step (micro and direct buys). */
+const chosenBidUsd = (p: Procurement) => {
+  const b = p.bids?.find((x) => x.id === p.selectedBid);
+  if (!b) return null;
+  return b.currency === "AFN" ? (b.rate && b.rate > 0 ? b.amount / b.rate : null) : b.amount;
+};
+/** What was agreed, in dollars: the contract as signed, else the chosen quotation, else the request's estimate. */
+const orderUsd = (p: Procurement) => (contractCurrency(p) === "USD" && p.contractUsd && p.contractUsd > 0 ? p.contractUsd : (chosenBidUsd(p) ?? p.qty * p.unitPrice));
+/** Whether the agreed value is known, so invoices are matched to it rather than the estimate. */
+export const contractValueKnown = (p: Procurement) =>
+  contractCurrency(p) === "AFN" ? !!(p.contractAfn && p.contractAfn > 0) : !!(p.contractUsd && p.contractUsd > 0) || chosenBidUsd(p) !== null || p.route === "direct";
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 export const scheduleOf = (p: Procurement): Instalment[] => (p.schedule?.length ? p.schedule : [{ label: "Full payment", pct: 100 }]);

@@ -38,7 +38,13 @@ export async function offboardingView(me: string) {
       title: String(hr.people[o.person]?.current.title ?? ""),
       effective: o.effective,
       reason: all ? o.reason : "",
-      steps: OFF_STEPS.map((def) => ({ ...def, done: o.done[def.id] ? { ...o.done[def.id], byName: names[o.done[def.id].by] ?? o.done[def.id].by } : null, canDo: !o.done[def.id] && mayDoOff(me, def.owner, o.person, hr) })),
+      // HR roles see every note; a supervisor sees the notes of their own two steps only (final
+      // pay, the exit interview and equipment notes stay with HR).
+      steps: OFF_STEPS.map((def) => {
+        const d = o.done[def.id];
+        const showNote = all || def.owner === "supervisor";
+        return { ...def, done: d ? { ...d, note: showNote ? d.note : "", byName: names[d.by] ?? d.by } : null, canDo: !d && mayDoOff(me, def.owner, o.person, hr) };
+      }),
       payout: all ? leavePayout(o.person, hr, requests, adjustmentsOf(hr, o.person), o.effective) : null,
     }));
   const soon = new Date(Date.now() + RENEWAL_DAYS * 86400000).toISOString().slice(0, 10);

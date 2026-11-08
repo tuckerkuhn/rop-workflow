@@ -1,4 +1,5 @@
 import {
+  FIELDS,
   conflictOf,
   toYou,
   nextSigners,
@@ -8,7 +9,9 @@ import {
   visibleFields,
   warningsFor,
   type Entry,
+  type FieldKey,
   type Fields,
+  type Group,
   type HrRole,
   type HrState,
   type Integrity,
@@ -91,11 +94,17 @@ export function viewFor(me: string, state: HrState, entries: Entry[], integrity:
     .filter((p): p is PersonView => !!p)
     .sort((a, b) => a.name.localeCompare(b.name));
 
+  const signsNext = (p: (typeof state.proposals)[number]) => {
+    const next = nextSigners(p, state);
+    return p.status === "pending" && !!next && (state.rules?.holders[next.fellBack ? "board" : next.role] ?? []).includes(me);
+  };
   const proposals: ProposalView[] = state.proposals
-    .filter((p) => all || p.subject === me || p.by === me)
+    .filter((p) => all || p.subject === me || p.by === me || signsNext(p))
     .map((p) => {
       const next = nextSigners(p, state);
-      const groups = p.subject ? visibleFields(me, p.subject, state) : ["job", "pay", "details"];
+      // Someone outside the HR roles who must sign sees the parts of the record the change touches.
+      const touched = "fields" in p && p.fields ? ([...new Set(Object.keys(p.fields).map((k) => FIELDS[k as FieldKey]?.group).filter(Boolean))] as Group[]) : (["job"] as Group[]);
+      const groups = p.subject ? (signsNext(p) && !all ? [...new Set([...visibleFields(me, p.subject, state), ...touched])] : visibleFields(me, p.subject, state)) : ["job", "pay", "details"];
       const holds = !!next && (state.rules?.holders[next.fellBack ? "board" : next.role] ?? []).includes(me);
       const base: ProposalView = {
         ...p,

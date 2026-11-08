@@ -37,12 +37,18 @@ export const proofLinkSchema = z.object({
 });
 export type ProofLink = z.infer<typeof proofLinkSchema>;
 
+/** A real calendar date: "2026-02-30" and month 31 are refused. */
+export const realDate = (d: string) => {
+  const t = Date.parse(`${d}T00:00:00Z`);
+  return !Number.isNaN(t) && new Date(t).toISOString().slice(0, 10) === d;
+};
+
 export const resultSchema = z
   .object({
     /** The indicator's code in the app, e.g. "IND-3". */
     indicator: z.string().regex(/^IND-\d+$/),
     /** When it was achieved (the last day of the activity, or the verification date). */
-    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(realDate, "That date does not exist."),
     value: z.number().positive().max(1e9),
     female: z.number().int().min(0).max(1e7).optional(),
     male: z.number().int().min(0).max(1e7).optional(),
@@ -79,7 +85,7 @@ export type Correction = { at: string; by: string; query: string | null; reply: 
 
 /** Fields a recorder may correct after a query; the indicator and the proof stay as they are. */
 export const correctionSchema = z.object({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(realDate, "That date does not exist."),
   value: z.number().positive().max(1e9),
   female: z.number().int().min(0).max(1e7).optional(),
   male: z.number().int().min(0).max(1e7).optional(),
