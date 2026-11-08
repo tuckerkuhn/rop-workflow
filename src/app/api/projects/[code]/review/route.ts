@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { lastMonth, monthOk, reviewActionSchema } from "@/lib/monthly-review";
 import { isEmployee, requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
+import { aiAllowed } from "@/server/limits";
 import { actOnReview, loadReview } from "@/server/monthly-review-store";
 
 type Ctx = { params: Promise<{ code: string }> };
@@ -28,6 +29,10 @@ export async function POST(req: Request, { params }: Ctx) {
     if (v instanceof NextResponse) return v;
     const parsed = reviewActionSchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Check the form." }, { status: 400 });
+    if (parsed.data.action === "draft") {
+      const limit = await aiAllowed(v.user.id);
+      if (limit) return limit;
+    }
     const month = monthOf(req);
     const error = await actOnReview(code, month, parsed.data, v.user);
     if (error) return NextResponse.json({ error }, { status: 400 });

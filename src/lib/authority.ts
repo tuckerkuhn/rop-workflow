@@ -23,6 +23,23 @@ export const SIGNER_LABEL: Record<Signer, string> = { ...ROLE_LABEL, supervisor:
 
 export type Signature = { area: string; what: string; by: Signer[]; note?: string };
 
+/**
+ * Project approvals by role type. A person holding the role type has the project role on every
+ * project they work on; the per-person project roles in Settings → People remain as extra,
+ * named grants (for a pilot, or cover during leave).
+ */
+export const PROJECT_ROLE_TYPES: Record<"plan-approver" | "monthly-review" | "report-release" | "mel-owner" | "finance-import", HrRole[]> = {
+  "plan-approver": ["management", "ceo"],
+  "monthly-review": ["management"],
+  "report-release": ["management"],
+  "mel-owner": ["mel"],
+  "finance-import": ["finance", "cfo"],
+};
+/** The project roles a person has from the role types they hold. */
+export function projectRolesFromTypes(person: string, holders: Authority) {
+  return (Object.entries(PROJECT_ROLE_TYPES) as [keyof typeof PROJECT_ROLE_TYPES, HrRole[]][]).filter(([, types]) => types.some((t) => holders[t]?.includes(person))).map(([r]) => r);
+}
+
 /** Every signature in the app, in order of the work it belongs to. */
 export const SIGNATURES: Signature[] = [
   { area: "Procurement", what: "Request a purchase", by: ["technical"], note: "The technical lead for the budget line." },
@@ -49,6 +66,11 @@ export const SIGNATURES: Signature[] = [
   { area: "Time and leave", what: "Approve unpaid, parental or Hajj leave", by: ["supervisor", "hr"] },
   { area: "Time and leave", what: "Accept an expense report for payment", by: ["payroll"], note: "The finance head when payroll has a conflict." },
   { area: "Time and leave", what: "Enter an expense claim from a signed paper claim, with the scan attached", by: ["finance"], note: "Someone else in Finance then accepts it for payment." },
+  { area: "Projects", what: "Sign off a project's plan and budget, change a signed-off plan, close a project", by: ["management", "ceo"] },
+  { area: "Projects", what: "Decide proposed changes in the monthly review and sign it off", by: ["management"], note: "Not the person who proposed the change." },
+  { area: "Projects", what: "Release the donor report", by: ["management"] },
+  { area: "Projects", what: "Accept or query recorded results", by: ["mel"], note: "Not the person who recorded the result." },
+  { area: "Projects", what: "Import Finance's monthly spending workbook", by: ["finance", "cfo"] },
   { area: "Onboarding", what: "Start onboarding, confirm IT set-up, propose the new hire's details", by: ["hr"] },
   { area: "Onboarding", what: "Confirm the security briefing and the induction", by: ["supervisor"] },
 ];

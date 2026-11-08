@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { logAudit } from "@/server/audit";
 import { projectByCode } from "@/server/field-store";
 import { handle } from "@/server/guard";
+import { aiAllowed } from "@/server/limits";
 import { loadProcurements, saveProcurements } from "@/server/procurement-store";
 
 const bodySchema = z.object({ kind: z.enum(["rfq", "solicitation", "sole", "package"]) });
@@ -22,6 +23,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
     if (v instanceof NextResponse) return v;
     const parsed = bodySchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return NextResponse.json({ error: "Say which document to draft." }, { status: 400 });
+    const limit = await aiAllowed(v.user.id);
+    if (limit) return limit;
     const p = (await loadProcurements(code)).find((x) => x.id === id);
     if (!p) return NextResponse.json({ error: "No such procurement." }, { status: 404 });
     try {

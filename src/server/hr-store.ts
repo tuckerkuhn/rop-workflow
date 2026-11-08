@@ -161,6 +161,7 @@ export async function seedSample(write: typeof append = append, file: typeof sto
       technical: ["farid", "laila", "javed", "shabnam", "nadia"],
       compliance: ["sarah"],
       bills: ["shabnam"],
+      mel: [],
       board: ["arthur"],
     },
   };

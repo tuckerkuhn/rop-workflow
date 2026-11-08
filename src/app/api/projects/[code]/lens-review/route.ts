@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { lensActionSchema } from "@/lib/lens-review";
 import { isEmployee, requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
+import { aiAllowed } from "@/server/limits";
 import { actOnLensReview, loadLensReview, mayRunLensReview } from "@/server/lens-review-store";
 
 type Ctx = { params: Promise<{ code: string }> };
@@ -24,6 +25,10 @@ export async function POST(req: Request, { params }: Ctx) {
     if (v instanceof NextResponse) return v;
     const parsed = lensActionSchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Check the form." }, { status: 400 });
+    if (parsed.data.action === "run") {
+      const limit = await aiAllowed(v.user.id);
+      if (limit) return limit;
+    }
     const error = await actOnLensReview(code, parsed.data, v.user);
     if (error) return NextResponse.json({ error }, { status: 400 });
     return NextResponse.json({ review: await loadLensReview(code), mayRun: mayRunLensReview(v.user), aiReady: !!process.env.ANTHROPIC_API_KEY });

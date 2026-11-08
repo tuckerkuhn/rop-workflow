@@ -5,6 +5,7 @@ import { qprPatchSchema, SECTIONS, type Qpr } from "@/lib/qpr";
 import { requireViewer } from "@/server/auth";
 import { DraftingUnavailable } from "@/server/ai-drafts";
 import { handle } from "@/server/guard";
+import { aiAllowed } from "@/server/limits";
 import { holdsRole } from "@/server/hr-store";
 import { draftQpr } from "@/server/qpr-drafts";
 import { qprData, saveQpr } from "@/server/qpr-store";
@@ -86,6 +87,8 @@ export async function POST(req: Request, { params }: Ctx) {
         if (a.received !== null && a.resolved !== null && a.resolved > a.received) return NextResponse.json({ error: "More cases resolved than received." }, { status: 400 });
         next.grm = { received: a.received, resolved: a.resolved };
       } else if (a.action === "draft") {
+        const limit = await aiAllowed(u.id);
+        if (limit) return limit;
         const bad = a.keys.find((k) => !validKey(k) || (!k.startsWith("act.") && !SECTIONS.find((s) => s.key === k)?.draft));
         if (bad) return NextResponse.json({ error: `"${bad}" cannot be drafted.` }, { status: 400 });
         try {

@@ -7,7 +7,28 @@ import { NextResponse, type NextRequest } from "next/server";
  */
 const OPEN = ["/", "/about", "/auth/callback"];
 
+/**
+ * A ceiling on changes per address per minute, against runaway scripts and loops. Kept in each
+ * server instance's memory, so it is approximate; AI runs have their own limit in the database.
+ */
+const WRITES_PER_MINUTE = Number(process.env.WRITES_PER_MINUTE || 120);
+const writes = new Map<string, { start: number; n: number }>();
+function tooManyWrites(request: NextRequest) {
+  if (!request.nextUrl.pathname.startsWith("/api/") || ["GET", "HEAD", "OPTIONS"].includes(request.method)) return false;
+  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
+  const now = Date.now();
+  const w = writes.get(ip);
+  if (!w || now - w.start > 60_000) {
+    writes.set(ip, { start: now, n: 1 });
+    if (writes.size > 5000) writes.clear();
+    return false;
+  }
+  w.n++;
+  return w.n > WRITES_PER_MINUTE;
+}
+
 export async function middleware(request: NextRequest) {
+  if (tooManyWrites(request)) return NextResponse.json({ error: "Too many changes in a minute. Wait a moment and try again." }, { status: 429, headers: { "Retry-After": "60" } });
   if (process.env.DEMO_SIGN_IN === "1") return NextResponse.next();
   const path = request.nextUrl.pathname;
   const toSignIn = () => {

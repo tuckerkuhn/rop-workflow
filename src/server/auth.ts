@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { eq, sql } from "drizzle-orm";
 import { cookies } from "next/headers";
+import { projectRolesFromTypes, type Authority } from "@/lib/authority";
 import { loadOrgSettings, withSettings } from "@/server/org-settings-store";
 import { NextResponse } from "next/server";
 import { db, schema as s } from "@/db";
@@ -75,7 +76,28 @@ async function twoStepState(organizationId: string): Promise<Viewer["twoStep"]> 
   return required ? "enroll" : undefined;
 }
 
+/** Who holds each role type, read from the HR record at most once a minute per server. */
+let holdersCache: { at: number; holders: Authority } | null = null;
+async function roleHolders(): Promise<Authority> {
+  if (holdersCache && Date.now() - holdersCache.at < 60_000) return holdersCache.holders;
+  const holders = ((await (await import("@/server/hr-store")).loadHr().catch(() => null))?.state.rules?.holders ?? {}) as Authority;
+  holdersCache = { at: Date.now(), holders };
+  return holders;
+}
+/** Adds the project roles a person has from the role types they hold (lib/authority PROJECT_ROLE_TYPES). */
+async function withRoleTypes(u: AppUser): Promise<AppUser> {
+  const extra = projectRolesFromTypes(u.id, await roleHolders()).filter((r) => !u.project.includes(r));
+  return extra.length ? { ...u, project: [...u.project, ...extra] } : u;
+}
+
 export async function getViewer(req: Request): Promise<Viewer | null> {
+  const v = await viewerAsStored(req);
+  if (!v || v.twoStep) return v;
+  const actor = await withRoleTypes(v.actor);
+  return { ...v, actor, user: v.viewingAs ? await withRoleTypes(v.user) : actor };
+}
+
+async function viewerAsStored(req: Request): Promise<Viewer | null> {
   if (demoMode()) {
     const u = userById(req.headers.get("x-demo-user") ?? "");
     return u ? { user: u, actor: u, actorStaffId: null, viewingAs: false } : null;

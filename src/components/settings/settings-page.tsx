@@ -8,6 +8,7 @@ import { useT } from "@/components/app/i18n";
 import { useRequireUser } from "@/components/app/session";
 import { useProgress } from "@/components/app/use-project-data";
 import { PasswordSection } from "@/components/settings/password-section";
+import { NotifySection } from "@/components/settings/notify-section";
 import { TwoStepSettings } from "@/components/app/two-step";
 import { SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { canEditProject } from "@/lib/demo";
@@ -36,12 +37,20 @@ export function SettingsPage() {
         <p className="mt-1 text-sm text-muted">{project.name}</p>
 
         <PasswordSection />
+        <NotifySection />
         {mode === "live" && (
           <div className="mt-6">
             <TwoStepSettings />
           </div>
         )}
 
+        {user.admin && (
+          <p className="mt-4 text-sm">
+            <Link href="/settings/health" className="font-semibold text-forest hover:underline">
+              Health: errors, AI use, email and a copy of the records
+            </Link>
+          </p>
+        )}
         <p className="mt-4 text-sm">
           <Link href="/settings/organization" className="font-semibold text-forest hover:underline">
             Organization settings: the rules by department, and presets

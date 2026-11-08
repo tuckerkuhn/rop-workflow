@@ -7,6 +7,7 @@ import { db } from "@/db";
 import { logAudit } from "@/server/audit";
 import { projectByCode } from "@/server/field-store";
 import { handle } from "@/server/guard";
+import { aiAllowed } from "@/server/limits";
 import { loadProcurements, saveProcurements } from "@/server/procurement-store";
 
 const bodySchema = z.object({ step: z.string() });
@@ -17,6 +18,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
   return handle(async () => {
     const v = await requireViewer(req, { write: true, allow: (u) => u.procurementAccess === "edit" || !!u.admin, why: "You can view Procurement but not change it." });
     if (v instanceof NextResponse) return v;
+    const limit = await aiAllowed(v.user.id);
+    if (limit) return limit;
     const parsed = bodySchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success || !CHECKABLE_STEPS.includes(parsed.data.step)) return NextResponse.json({ error: "This step has no AI check." }, { status: 400 });
     const p = (await loadProcurements(code)).find((x) => x.id === id);
