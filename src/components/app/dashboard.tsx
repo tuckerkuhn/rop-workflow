@@ -13,6 +13,8 @@ import { useT } from "@/components/app/i18n";
 import { Initials, useRequireUser, useSession } from "@/components/app/session";
 import { HomePanels } from "@/components/home/panels";
 import { RoleHome } from "@/components/home/role-home";
+import { HrHome } from "@/components/home/hr-home";
+import { holdsType } from "@/lib/authority";
 import { Pill, SectionLabel, TopBar, usePersistentState } from "@/components/workspace/ui";
 import { workFor, type Data, type WorkCard } from "@/components/tasks/work";
 import { PROJECT, daysFrom, directReports, userById, type AppUser } from "@/lib/demo";
@@ -412,6 +414,8 @@ export function Dashboard() {
   const subject = viewing && inLine(viewing) ? userById(viewing)! : user;
   const readOnly = subject.id !== user.id;
   const open = procs.filter((p) => p.step !== DONE);
+  // HR and payroll role holders: their Home is the People view on every project.
+  const hrStaff = user.kind === "employee" && (holdsType(user.id, "hr") || holdsType(user.id, "payroll"));
 
   return (
     <div className="min-h-screen">
@@ -454,11 +458,13 @@ export function Dashboard() {
           <>
             {/* Database projects get the role view first: where things stand, what needs you, what is in season. */}
             {current.saved && user.kind === "employee" && <RoleHome user={user} project={current} />}
+            {/* HR's view is about the organization's people, not a project: the same on every project. */}
+            {!current.saved && hrStaff && <HrHome userId={user.id} />}
             {/* The person's own HR items (timesheet, leave, expenses) come after the project view. */}
             <PeopleCard />
             {/* The role view covers a database project; the older panels serve the demo projects. */}
-            {!current.saved && <HomePanels user={user} project={current} stage={stage} />}
-            {!current.saved && <Team u={user} data={data} viewer={user} onView={(id) => view(id)} />}
+            {!current.saved && !hrStaff && <HomePanels user={user} project={current} stage={stage} />}
+            {!current.saved && !hrStaff && <Team u={user} data={data} viewer={user} onView={(id) => view(id)} />}
           </>
         )}
       </main>
