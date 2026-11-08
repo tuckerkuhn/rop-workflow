@@ -317,27 +317,62 @@ const csv = (rows: (string | number | null)[][]) =>
   rows.map((r) => r.map((c) => (c == null ? "" : /[",\n]/.test(String(c)) ? `"${String(c).replace(/"/g, '""')}"` : String(c))).join(",")).join("\r\n") + "\r\n";
 
 /**
- * For ADP RUN: one row per earning. Draft layout until ROP's RUN import template is in hand;
- * the earning codes map to RUN's once known.
+ * For ADP RUN: one row per earning per employee. The columns, their headings and the earning
+ * codes are a Payroll setting (RunLayout), so ROP's RUN import template is matched in the app
+ * when Finance supplies it, without a code change. Until then the draft layout below is used and
+ * every file says it is a draft.
  */
-export const RUN_CODES: [keyof Line, string][] = [
-  ["regular", "REG"],
-  ["dangerPay", "DANGER"],
-  ["postDiff", "POSTDIFF"],
-  ["comms", "COMMS"],
-  ["living", "LIVING"],
-  ["medicalReimb", "MEDREIMB"],
-  ["vacationPayout", "VACPAY"],
-  ["bonus", "BONUS"],
-  ["retro", "RETRO"],
-  ["expenses", "EXPREIMB"],
-];
-export function runFile(lines: Line[]) {
-  const rows: (string | number | null)[][] = [["Employee ID", "Employee name", "Earning code", "Hours", "Amount"]];
+export const RUN_EARNINGS = ["regular", "dangerPay", "postDiff", "comms", "living", "medicalReimb", "vacationPayout", "bonus", "retro", "expenses"] as const;
+export type RunEarning = (typeof RUN_EARNINGS)[number];
+export const RUN_EARNING_LABEL: Record<RunEarning, string> = { regular: "Regular pay", dangerPay: "Danger pay", postDiff: "Post differential", comms: "Communications", living: "Living allowance", medicalReimb: "Medical reimbursement", vacationPayout: "Vacation payout", bonus: "Bonus", retro: "Retro pay", expenses: "Expense reimbursement" };
+export const RUN_COLUMNS = ["companyCode", "employeeId", "name", "earningCode", "hours", "rate", "amount", "payDate", "memo"] as const;
+export type RunColumn = (typeof RUN_COLUMNS)[number];
+export const RUN_COLUMN_LABEL: Record<RunColumn, string> = { companyCode: "Company code", employeeId: "Employee ID (ADP file number)", name: "Employee name", earningCode: "Earning code", hours: "Hours (hourly staff)", rate: "Rate", amount: "Amount", payDate: "Pay date", memo: "Memo" };
+export type RunLayout = { columns: { key: RunColumn; heading: string }[]; codes: Record<RunEarning, string>; companyCode: string; dateFormat: "MM/DD/YYYY" | "YYYY-MM-DD"; confirmed: boolean; source: string };
+export const DRAFT_RUN_LAYOUT: RunLayout = {
+  columns: [
+    { key: "employeeId", heading: "Employee ID" },
+    { key: "name", heading: "Employee name" },
+    { key: "earningCode", heading: "Earning code" },
+    { key: "hours", heading: "Hours" },
+    { key: "amount", heading: "Amount" },
+  ],
+  codes: { regular: "REG", dangerPay: "DANGER", postDiff: "POSTDIFF", comms: "COMMS", living: "LIVING", medicalReimb: "MEDREIMB", vacationPayout: "VACPAY", bonus: "BONUS", retro: "RETRO", expenses: "EXPREIMB" },
+  companyCode: "",
+  dateFormat: "MM/DD/YYYY",
+  confirmed: false,
+  source: "Draft: replace with ROP's ADP RUN import template from Finance",
+};
+export const runLayoutSchema = z.object({
+  columns: z.array(z.object({ key: z.enum(RUN_COLUMNS), heading: z.string().trim().min(1).max(60) })).min(3).max(RUN_COLUMNS.length),
+  codes: z.object(Object.fromEntries(RUN_EARNINGS.map((k) => [k, z.string().trim().min(1).max(20)])) as Record<RunEarning, z.ZodString>),
+  companyCode: z.string().trim().max(20),
+  dateFormat: z.enum(["MM/DD/YYYY", "YYYY-MM-DD"]),
+  confirmed: z.boolean(),
+  source: z.string().trim().min(3).max(300),
+});
+/** Kept for screens that list the codes. */
+export const RUN_CODES: [keyof Line, string][] = RUN_EARNINGS.map((k) => [k, DRAFT_RUN_LAYOUT.codes[k]]);
+
+export function runFile(lines: Line[], layout: RunLayout = DRAFT_RUN_LAYOUT, payDate = "") {
+  const date = payDate && layout.dateFormat === "MM/DD/YYYY" ? `${payDate.slice(5, 7)}/${payDate.slice(8, 10)}/${payDate.slice(0, 4)}` : payDate;
+  const rows: (string | number | null)[][] = [layout.columns.map((c) => c.heading)];
   for (const l of lines.filter((x) => x.office === "Home Office"))
-    for (const [k, code] of RUN_CODES) {
+    for (const k of RUN_EARNINGS) {
       const v = l[k] as number;
-      if (v) rows.push([l.adpId, l.name, code, k === "regular" && l.payBasis === "Hour" ? l.hoursWorked : null, v.toFixed(2)]);
+      if (!v) continue;
+      const cell: Record<RunColumn, string | number | null> = {
+        companyCode: layout.companyCode,
+        employeeId: l.adpId,
+        name: l.name,
+        earningCode: layout.codes[k],
+        hours: k === "regular" && l.payBasis === "Hour" ? l.hoursWorked : null,
+        rate: k === "regular" && l.payBasis === "Hour" ? l.rate : null,
+        amount: v.toFixed(2),
+        payDate: date,
+        memo: RUN_EARNING_LABEL[k],
+      };
+      rows.push(layout.columns.map((c) => cell[c.key]));
     }
   return csv(rows);
 }

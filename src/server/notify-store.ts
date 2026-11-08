@@ -9,6 +9,7 @@ import { loadHome } from "@/server/home-store";
 import { loadProgressSummary } from "@/server/progress-summary-store";
 import { DEMO_PROJECT } from "@/server/procurement-guard";
 import { loadHr } from "@/server/hr-store";
+import { offboardingView } from "@/server/offboarding-view";
 import { loadProcurements } from "@/server/procurement-store";
 import { listProjects } from "@/server/project-store";
 import { listWorkItems } from "@/server/work-store";
@@ -106,6 +107,14 @@ export async function itemsFor(u: AppUser, today: string): Promise<DigestItem[]>
       for (const t of work.items.filter((w) => w.type === "task" && !w.doneAt && w.assignee === u.id && w.date && w.date <= soon))
         out.push({ key: `${p.code}:task:${t.id}`, project: short, text: `${t.title}${t.date! < today ? ` (was due ${t.date})` : ` (due ${t.date})`}`, href: "/work", urgent: t.date! < today, kind: "workflow" });
     }
+  }
+  // HR, once for all projects: leavers' steps this person owns, and contracts ending soon.
+  if (u.kind === "employee") {
+    const off = await offboardingView(u.id).catch(() => null);
+    const mine = off?.leavers.flatMap((o) => o.steps.filter((x) => x.canDo).map((x) => `${o.name}: ${x.title.toLowerCase()}`)) ?? [];
+    if (mine.length) out.push({ key: `hr:off:${mine.sort().join("|")}`, project: "HR", text: `${mine.length} leaving ${mine.length === 1 ? "step is" : "steps are"} yours: ${mine.slice(0, 3).join("; ")}${mine.length > 3 ? "…" : ""}`, href: "/offboarding", urgent: false, kind: "workflow" });
+    if (off?.isHr && off.renewals.length)
+      out.push({ key: `hr:renew:${off.renewals.map((r) => `${r.person}@${r.contractEnd}`).join(",")}`, project: "HR", text: `${off.renewals.length} ${off.renewals.length === 1 ? "contract ends" : "contracts end"} within ${off.renewalDays} days: renew or plan the leaving`, href: "/offboarding", urgent: off.renewals.some((r) => r.overdue), kind: "workflow" });
   }
   return out;
 }

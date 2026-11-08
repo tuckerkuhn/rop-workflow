@@ -6,7 +6,21 @@ import { useT } from "@/components/app/i18n";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { Pill, SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { ROLE_LABEL } from "@/lib/hr";
-import { ADJUSTMENTS, ADJUSTMENT_KEYS, GROUPS, type Adjustment, type Group, type Line, type Totals } from "@/lib/payroll";
+import {
+  ADJUSTMENTS,
+  ADJUSTMENT_KEYS,
+  GROUPS,
+  RUN_COLUMNS,
+  RUN_COLUMN_LABEL,
+  RUN_EARNINGS,
+  RUN_EARNING_LABEL,
+  type Adjustment,
+  type Group,
+  type Line,
+  type RunColumn,
+  type RunLayout,
+  type Totals,
+} from "@/lib/payroll";
 import type { PayrollView } from "@/app/api/payroll/route";
 
 /**
@@ -128,7 +142,14 @@ export function PayrollPage() {
           </div>
           <div role="radiogroup" aria-label="Pay group" className="flex rounded-full border border-line bg-surface p-1">
             {GROUPS.map((g) => (
-              <button key={g} type="button" role="radio" aria-checked={group === g} onClick={() => go({ group: g })} className={`rounded-full px-4 py-2 text-sm ${group === g ? "bg-forest font-semibold text-forest-ink" : "text-muted"}`}>
+              <button
+                key={g}
+                type="button"
+                role="radio"
+                aria-checked={group === g}
+                onClick={() => go({ group: g })}
+                className={`rounded-full px-4 py-2 text-sm ${group === g ? "bg-forest font-semibold text-forest-ink" : "text-muted"}`}
+              >
                 {g} · {g === "Home Office" ? "ADP RUN" : "bank"}
               </button>
             ))}
@@ -151,7 +172,15 @@ export function PayrollPage() {
               />
             ))}
             {v.canPrepare && !pending ? (
-              <Prepare key={`${v.month}-${v.group}-${v.runs.length}`} v={v} supplemental={!!paid} onDone={async (msg) => { setNotice(msg); await load(); }} />
+              <Prepare
+                key={`${v.month}-${v.group}-${v.runs.length}`}
+                v={v}
+                supplemental={!!paid}
+                onDone={async (msg) => {
+                  setNotice(msg);
+                  await load();
+                }}
+              />
             ) : (
               !v.runs.length && (
                 <section className="mt-6">
@@ -162,6 +191,7 @@ export function PayrollPage() {
             )}
           </>
         )}
+        {v && group === "Home Office" && <RunLayoutPanel user={user.id} />}
       </main>
     </div>
   );
@@ -279,7 +309,21 @@ function Register({ lines, totals, v, adjust, onAdjust }: { lines: Line[]; total
 
 /* ---------------- A prepared payroll ---------------- */
 
-function RunCard({ r, v, monthName, approve, reject, withdraw }: { r: Run; v: PayrollView; monthName: (m: string) => string; approve: () => Promise<void>; reject: (note: string) => Promise<void>; withdraw: () => Promise<void> }) {
+function RunCard({
+  r,
+  v,
+  monthName,
+  approve,
+  reject,
+  withdraw,
+}: {
+  r: Run;
+  v: PayrollView;
+  monthName: (m: string) => string;
+  approve: () => Promise<void>;
+  reject: (note: string) => Promise<void>;
+  withdraw: () => Promise<void>;
+}) {
   const [open, setOpen] = useState(r.status !== "rejected" && r.status !== "withdrawn");
   const [back, setBack] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -306,7 +350,15 @@ function RunCard({ r, v, monthName, approve, reject, withdraw }: { r: Run; v: Pa
   return (
     <article className="mt-6 rounded-2xl border border-line bg-paper p-4 sm:p-5">
       <div className="flex flex-wrap items-center gap-2">
-        {r.status === "approved" ? <Pill tone="forest">Approved</Pill> : r.status === "pending" ? <Pill tone="ochre">Waiting for signatures</Pill> : r.status === "rejected" ? <Pill tone="clay">Sent back</Pill> : <Pill tone="muted">Withdrawn</Pill>}
+        {r.status === "approved" ? (
+          <Pill tone="forest">Approved</Pill>
+        ) : r.status === "pending" ? (
+          <Pill tone="ochre">Waiting for signatures</Pill>
+        ) : r.status === "rejected" ? (
+          <Pill tone="clay">Sent back</Pill>
+        ) : (
+          <Pill tone="muted">Withdrawn</Pill>
+        )}
         {r.supplemental && <Pill tone="plum">Supplemental</Pill>}
         <span className="text-xs text-muted">
           #{r.id} · prepared by {name(r.by)} · pay date {r.payDate}
@@ -327,7 +379,9 @@ function RunCard({ r, v, monthName, approve, reject, withdraw }: { r: Run; v: Pa
               <li key={c}>{c}</li>
             ))}
           </ul>
-          <p className="mt-1">{r.status === "approved" ? "A timesheet or record changed after approval: pay the difference in a supplemental payroll." : "Send it back so payroll prepares it again."}</p>
+          <p className="mt-1">
+            {r.status === "approved" ? "A timesheet or record changed after approval: pay the difference in a supplemental payroll." : "Send it back so payroll prepares it again."}
+          </p>
         </div>
       )}
       {r.warnings.length > 0 && (
@@ -355,7 +409,11 @@ function RunCard({ r, v, monthName, approve, reject, withdraw }: { r: Run; v: Pa
           {r.next.blocked.length > 0 && ` · Cannot: ${r.next.blocked.map((b) => `${name(b.id)} (${b.why})`).join(", ")}`}
         </p>
       )}
-      {r.closedBy?.note && <p className="mt-2 text-sm text-clay">Sent back by {name(r.closedBy.by)}: {r.closedBy.note}</p>}
+      {r.closedBy?.note && (
+        <p className="mt-2 text-sm text-clay">
+          Sent back by {name(r.closedBy.by)}: {r.closedBy.note}
+        </p>
+      )}
       {r.cannotSign && <p className="mt-2 text-sm text-muted">You cannot sign this: {r.cannotSign}.</p>}
       {back === null && (r.canSign || r.canWithdraw || r.status === "approved") && (
         <div className="mt-4 flex flex-wrap gap-2">
@@ -465,7 +523,15 @@ function Prepare({ v, supplemental, onDone }: { v: PayrollView; supplemental: bo
               </option>
             ))}
           </select>
-          <button type="button" disabled={!addPerson} className={quietBtn} onClick={() => { setEditing(addPerson); setAddPerson(""); }}>
+          <button
+            type="button"
+            disabled={!addPerson}
+            className={quietBtn}
+            onClick={() => {
+              setEditing(addPerson);
+              setAddPerson("");
+            }}
+          >
             Add an adjustment
           </button>
         </div>
@@ -499,7 +565,12 @@ function Prepare({ v, supplemental, onDone }: { v: PayrollView; supplemental: bo
         </label>
         <label className="text-sm">
           <span className="font-medium">What this covers (kept forever)</span>
-          <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder={`${v.group} payroll, ${v.month}`} className="mt-1 block w-full rounded-xl border border-line bg-paper px-3 py-2.5 text-base" />
+          <input
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder={`${v.group} payroll, ${v.month}`}
+            className="mt-1 block w-full rounded-xl border border-line bg-paper px-3 py-2.5 text-base"
+          />
         </label>
       </div>
       {problems > 0 && <p className="mt-3 text-sm text-ochre">{problems} lines have something to check. The signers will see them; fix what you can first (approve timesheets, complete records).</p>}
@@ -563,5 +634,135 @@ function AdjustForm({ name, value, onSave, onClose }: { name: string; value: Adj
         </button>
       </div>
     </div>
+  );
+}
+
+/** The ADP RUN file layout: columns, headings and earning codes, set by payroll to match ROP's RUN template. */
+function RunLayoutPanel({ user }: { user: string }) {
+  const [d, setD] = useState<{ run: RunLayout; history: { at: string; byName: string; reason: string }[]; mayEdit: boolean } | null>(null);
+  const [draft, setDraft] = useState<RunLayout | null>(null);
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState("");
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    fetch("/api/payroll/settings", { cache: "no-store", headers: { "x-demo-user": user } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((x) => x && (setD(x), setDraft(x.run)));
+  }, [user]);
+  if (!d || !draft) return null;
+  const sel = "rounded-lg border border-line bg-paper px-2 py-1.5 text-sm";
+  const save = async () => {
+    setError("");
+    const r = await fetch("/api/payroll/settings", { method: "POST", headers: { "Content-Type": "application/json", "x-demo-user": user }, body: JSON.stringify({ run: draft, reason }) });
+    const x = await r.json();
+    if (!r.ok) return setError(x.error ?? "Could not save.");
+    setD(x);
+    setDraft(x.run);
+    setReason("");
+    setOpen(false);
+  };
+  const move = (i: number, by: number) => setDraft({ ...draft, columns: draft.columns.map((c, j, all) => (j === i ? all[i + by] : j === i + by ? all[i] : c)) });
+  return (
+    <section className="mt-10 border-t border-line pt-6">
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="min-w-0 flex-1 font-display text-2xl">ADP RUN file layout</h2>
+        <Pill tone={d.run.confirmed ? "forest" : "ochre"}>{d.run.confirmed ? "Matches the RUN template" : "Draft layout"}</Pill>
+      </div>
+      <p className="mt-1 text-sm text-muted">
+        {d.run.source}. Columns: {d.run.columns.map((c) => c.heading).join(", ")}.
+        {d.history.length ? ` Last changed ${d.history[d.history.length - 1].at} by ${d.history[d.history.length - 1].byName}.` : ""}
+      </p>
+      {d.mayEdit && !open && (
+        <button type="button" className={`${quietBtn} mt-2`} onClick={() => setOpen(true)}>
+          Change the layout
+        </button>
+      )}
+      {open && (
+        <div className="mt-3 space-y-4 rounded-2xl border border-line bg-surface p-4">
+          <div>
+            <SectionLabel>Columns, in order</SectionLabel>
+            <ul className="mt-2 space-y-1.5">
+              {draft.columns.map((c, i) => (
+                <li key={c.key} className="flex flex-wrap items-center gap-2 text-sm">
+                  <span className="w-48 text-muted">{RUN_COLUMN_LABEL[c.key]}</span>
+                  <input
+                    value={c.heading}
+                    onChange={(e) => setDraft({ ...draft, columns: draft.columns.map((x, j) => (j === i ? { ...x, heading: e.target.value } : x)) })}
+                    className={sel}
+                    aria-label={`Heading for ${RUN_COLUMN_LABEL[c.key]}`}
+                  />
+                  <button type="button" disabled={i === 0} onClick={() => move(i, -1)} className="px-1 text-muted disabled:opacity-30" aria-label="Move up">
+                    ↑
+                  </button>
+                  <button type="button" disabled={i === draft.columns.length - 1} onClick={() => move(i, 1)} className="px-1 text-muted disabled:opacity-30" aria-label="Move down">
+                    ↓
+                  </button>
+                  <button type="button" onClick={() => setDraft({ ...draft, columns: draft.columns.filter((_, j) => j !== i) })} className="text-xs text-muted hover:text-clay">
+                    Remove
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <select
+              value=""
+              onChange={(e) => e.target.value && setDraft({ ...draft, columns: [...draft.columns, { key: e.target.value as RunColumn, heading: RUN_COLUMN_LABEL[e.target.value as RunColumn] }] })}
+              className={`${sel} mt-2`}
+              aria-label="Add a column"
+            >
+              <option value="">Add a column…</option>
+              {RUN_COLUMNS.filter((k) => !draft.columns.some((c) => c.key === k)).map((k) => (
+                <option key={k} value={k}>
+                  {RUN_COLUMN_LABEL[k]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <SectionLabel>Earning codes</SectionLabel>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              {RUN_EARNINGS.map((k) => (
+                <label key={k} className="flex items-center gap-2 text-sm">
+                  <span className="w-44 text-muted">{RUN_EARNING_LABEL[k]}</span>
+                  <input value={draft.codes[k]} onChange={(e) => setDraft({ ...draft, codes: { ...draft.codes, [k]: e.target.value } })} className={`${sel} w-28`} />
+                </label>
+              ))}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-4 text-sm">
+            <label className="flex items-center gap-2">
+              Company code <input value={draft.companyCode} onChange={(e) => setDraft({ ...draft, companyCode: e.target.value })} className={`${sel} w-28`} />
+            </label>
+            <label className="flex items-center gap-2">
+              Pay date as
+              <select value={draft.dateFormat} onChange={(e) => setDraft({ ...draft, dateFormat: e.target.value as RunLayout["dateFormat"] })} className={sel}>
+                <option>MM/DD/YYYY</option>
+                <option>YYYY-MM-DD</option>
+              </select>
+            </label>
+          </div>
+          <label className="block text-sm">
+            Where this layout comes from
+            <input value={draft.source} onChange={(e) => setDraft({ ...draft, source: e.target.value })} className={`${sel} mt-1 w-full`} />
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={draft.confirmed} onChange={(e) => setDraft({ ...draft, confirmed: e.target.checked })} />
+            This matches ROP&rsquo;s ADP RUN import template
+          </label>
+          <label className="block text-sm">
+            Reason for the change
+            <input value={reason} onChange={(e) => setReason(e.target.value)} className={`${sel} mt-1 w-full`} />
+          </label>
+          {error && <p className="text-sm text-clay">{error}</p>}
+          <div className="flex gap-2">
+            <button type="button" className={primaryBtn} disabled={reason.trim().length < 5} onClick={() => void save()}>
+              Save layout
+            </button>
+            <button type="button" className={quietBtn} onClick={() => (setOpen(false), setDraft(d.run))}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
   );
 }

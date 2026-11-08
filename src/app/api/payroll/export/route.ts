@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { db, schema as s } from "@/db";
 import { seesAll } from "@/lib/hr";
-import { bankFile, registerFile, runFile, type Line } from "@/lib/payroll";
+import { DRAFT_RUN_LAYOUT, bankFile, registerFile, runFile, type Line } from "@/lib/payroll";
+import { orgIdForPerson } from "@/server/org-settings-store";
+import { loadPayrollSettings } from "@/server/payroll-settings";
 import { NON_CONTRACT } from "@/lib/timesheet";
 import { requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
@@ -20,12 +22,14 @@ export async function GET(req: Request) {
     if (run.status !== "approved") return NextResponse.json({ error: "Files are available once the payroll is approved." }, { status: 409 });
     const lines = run.lines as unknown as Line[];
     const file = q.get("file");
+    const org = await orgIdForPerson(v.user.id);
+    const layout = org ? (await loadPayrollSettings(org)).run : DRAFT_RUN_LAYOUT;
     const projects = await db.select({ code: s.projects.code, name: s.projects.name }).from(s.projects);
     const label = (id: string) => (id === NON_CONTRACT ? "Non-contract" : (projects.find((p) => p.code === id)?.name ?? id));
     const tag = `${run.month}-${run.group === "Home Office" ? "HO" : "AF"}${run.supplemental ? "-supplemental" : ""}`;
     const [body, name] =
       file === "run" && run.group === "Home Office"
-        ? [runFile(lines), `ADP-RUN-import-${tag}.csv`]
+        ? [runFile(lines, layout, run.effective), `ADP-RUN-import-${tag}${layout.confirmed ? "" : "-DRAFT-LAYOUT"}.csv`]
         : file === "bank" && run.group === "Afghanistan"
           ? [bankFile(lines, run.month), `bank-transfers-${tag}.csv`]
           : [registerFile(lines, label), `payroll-register-${tag}.csv`];

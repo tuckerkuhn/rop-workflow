@@ -66,11 +66,30 @@ export const KIND_LABEL: Record<ChangeKind, string> = {
   rules: "Approval rules and role holders",
 };
 
+/** Staff groups with their own leave rules (lib/leave.ts groupOf). */
+export const PAYOUT_GROUPS = ["homeOffice", "expat", "afghanistan", "guatemala"] as const;
+export type PayoutGroup = (typeof PAYOUT_GROUPS)[number];
+export const PAYOUT_GROUP_LABEL: Record<PayoutGroup, string> = { homeOffice: "Home Office", expat: "Expatriates", afghanistan: "Afghanistan national staff", guatemala: "Guatemala" };
+/**
+ * Whether unused annual leave is paid out when someone leaves, set by HR and approved like the
+ * rest of the authority table. "unset" means HR has not decided: a leaver's final pay then waits
+ * for HR to say. The law changes; the app does not settle it in code.
+ */
+export type Payout = { rule: "pays" | "none" | "unset"; capDays: number | null; source: string };
+export const DEFAULT_PAYOUT: Record<PayoutGroup, Payout> = {
+  homeOffice: { rule: "pays", capDays: 24, source: "Personnel Policies 2024 §9.2: unused leave is paid out on leaving, up to 24 days" },
+  expat: { rule: "unset", capDays: null, source: "Personnel Policies 2024: HR to confirm" },
+  afghanistan: { rule: "unset", capDays: null, source: "Afghan labour law as currently applied: HR to set" },
+  guatemala: { rule: "unset", capDays: null, source: "Guatemalan labour law: HR to set" },
+};
+
 export type Rules = {
   /** Approval steps per kind of change, in order. Each step is signed by a different person. */
   steps: Record<ChangeKind, HrRole[]>;
   /** Who holds each role. */
   holders: Record<HrRole, string[]>;
+  /** Unused annual leave on leaving, per staff group. */
+  leavePayout: Record<PayoutGroup, Payout>;
 };
 
 /** Steps when nothing else is set: HR prepares, the CFO checks money, the CEO approves; the Board approves rule changes. */
@@ -145,6 +164,9 @@ const rulesSchema = z.object({
   // Partial, so rules written before a kind or role existed still read; missing ones take the defaults.
   steps: z.partialRecord(z.enum(CHANGE_KINDS), z.array(z.enum(HR_ROLES)).min(1).max(4)),
   holders: z.partialRecord(z.enum(HR_ROLES), z.array(personId).max(20)),
+  leavePayout: z
+    .partialRecord(z.enum(PAYOUT_GROUPS), z.object({ rule: z.enum(["pays", "none", "unset"]), capDays: z.number().min(0).max(365).nullable(), source: z.string().trim().min(3).max(300) }))
+    .optional(),
 });
 
 /** A proposed change, as written in the ledger. Its id is the entry number. */
@@ -240,10 +262,14 @@ export type HrState = {
 const dayOf = (iso: string) => iso.slice(0, 10);
 /** Copy of the rules with every kind present, so a missing kind never means "no approval". */
 /** Rules as written in the ledger: kinds or roles added later may be missing. */
-export type RulesInput = { steps: Partial<Rules["steps"]>; holders: Partial<Rules["holders"]> };
+export type RulesInput = { steps: Partial<Rules["steps"]>; holders: Partial<Rules["holders"]>; leavePayout?: Partial<Rules["leavePayout"]> };
 export const fullRules = (r: RulesInput): Rules => {
   const holders: Partial<Rules["holders"]> = r.holders;
-  return { steps: { ...DEFAULT_STEPS, ...r.steps } as Rules["steps"], holders: Object.fromEntries(HR_ROLES.map((role) => [role, holders[role] ?? []])) as Rules["holders"] };
+  return {
+    steps: { ...DEFAULT_STEPS, ...r.steps } as Rules["steps"],
+    holders: Object.fromEntries(HR_ROLES.map((role) => [role, holders[role] ?? []])) as Rules["holders"],
+    leavePayout: { ...DEFAULT_PAYOUT, ...(r.leavePayout ?? {}) } as Rules["leavePayout"],
+  };
 };
 
 export const kindOf = (p: ProposalInput): ChangeKind => {

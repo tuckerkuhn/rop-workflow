@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { prefill, type Sheet } from "@/lib/timesheet";
-import { DEFAULT_STEPS, fold, type Entry, type Fields, type Integrity, type ProposalInput, type Rules } from "@/lib/hr";
+import { DEFAULT_STEPS, DEFAULT_PAYOUT, fold, type Entry, type Fields, type Integrity, type ProposalInput, type Rules } from "@/lib/hr";
 
 /**
  * Reads and writes the HR ledger. The database numbers, timestamps and hashes every entry
@@ -150,7 +150,7 @@ async function storeSampleFile(name: string, text: string, by: string) {
 
 export async function seedSample(write: typeof append = append, file: typeof storeSampleFile = storeSampleFile) {
   const today = todayIso();
-  const rules: Rules = { steps: DEFAULT_STEPS, holders: {
+  const rules: Rules = { steps: DEFAULT_STEPS, leavePayout: DEFAULT_PAYOUT, holders: {
       ceo: ["grace"],
       management: ["karim"],
       cfo: ["peter"],

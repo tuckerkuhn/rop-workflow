@@ -23,8 +23,12 @@ import {
   type Rules,
   type RulesInput,
   type Value,
+  PAYOUT_GROUPS,
+  PAYOUT_GROUP_LABEL,
+  DEFAULT_PAYOUT,
 } from "@/lib/hr";
 import type { HrView, PersonView, ProposalView } from "@/server/hr-view";
+import { readBamboo, type BambooRow } from "@/lib/bamboo-import";
 import { ROLE_HELP, SIGNATURES, SIGNER_LABEL } from "@/lib/authority";
 
 /**
@@ -95,6 +99,7 @@ export function PeoplePage() {
   const [form, setForm] = useState<FormState | null>(null);
   const [declare, setDeclare] = useState(false);
   const [notice, setNotice] = useState("");
+  const [importing, setImporting] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
 
   const v = hr.view;
@@ -135,6 +140,9 @@ export function PeoplePage() {
             </a>
             <a href="/onboarding" className="font-semibold text-forest hover:underline">
               Onboarding
+            </a>
+            <a href="/offboarding" className="font-semibold text-forest hover:underline">
+              Leaving and renewals
             </a>
             {v?.seesAll && (
               <a href="/payroll" className="font-semibold text-forest hover:underline">
@@ -223,11 +231,26 @@ export function PeoplePage() {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <SectionLabel>{v.people.length} people</SectionLabel>
                   {isHr && (
-                    <button type="button" className={primaryBtn} onClick={() => setForm({ type: "hire" })}>
-                      Add a person
-                    </button>
+                    <div className="flex flex-wrap gap-2">
+                      <button type="button" className={quietBtn} onClick={() => setImporting(!importing)}>
+                        Move people from BambooHR
+                      </button>
+                      <button type="button" className={primaryBtn} onClick={() => setForm({ type: "hire" })}>
+                        Add a person
+                      </button>
+                    </div>
                   )}
                 </div>
+                {isHr && importing && (
+                  <BambooImport
+                    user={user!.id}
+                    onDone={(msg) => {
+                      setImporting(false);
+                      setNotice(msg);
+                      void hr.reload();
+                    }}
+                  />
+                )}
                 <ul className="mt-3 divide-y divide-line rounded-2xl border border-line bg-surface">
                   {v.people.map((p) => (
                     <li key={p.id}>
@@ -945,6 +968,37 @@ function RulesForm({ rules, view, onClose, submit }: { rules: Rules; view: HrVie
             ))}
           </div>
         </section>
+        <section>
+          <SectionLabel>Unused annual leave when someone leaves</SectionLabel>
+          <p className="mt-1 text-xs text-muted">Follow the law and policy in force for each group, and say where it comes from. While a group is &ldquo;not decided&rdquo;, a leaver&rsquo;s final pay waits for HR.</p>
+          <div className="mt-2 space-y-2">
+            {PAYOUT_GROUPS.map((g) => {
+              const v = draft.leavePayout?.[g] ?? DEFAULT_PAYOUT[g];
+              const put = (patch: Partial<typeof v>) => setDraft((d) => ({ ...d, leavePayout: { ...DEFAULT_PAYOUT, ...d.leavePayout, [g]: { ...v, ...patch } } }));
+              return (
+                <div key={g} className="grid gap-2 text-sm sm:grid-cols-[11rem_9rem_7rem_1fr] sm:items-center">
+                  <span className="text-muted">{PAYOUT_GROUP_LABEL[g]}</span>
+                  <select value={v.rule} onChange={(e) => put({ rule: e.target.value as typeof v.rule })} className={sel} aria-label={`${PAYOUT_GROUP_LABEL[g]}: payout`}>
+                    <option value="pays">Paid out</option>
+                    <option value="none">Not paid out</option>
+                    <option value="unset">Not decided</option>
+                  </select>
+                  <input
+                    type="number"
+                    min={0}
+                    disabled={v.rule !== "pays"}
+                    placeholder="No cap"
+                    value={v.capDays ?? ""}
+                    onChange={(e) => put({ capDays: e.target.value === "" ? null : Number(e.target.value) })}
+                    className={sel}
+                    aria-label={`${PAYOUT_GROUP_LABEL[g]}: most days paid`}
+                  />
+                  <input value={v.source} onChange={(e) => put({ source: e.target.value })} className={sel} aria-label={`${PAYOUT_GROUP_LABEL[g]}: source`} placeholder="Law or policy, with the section" />
+                </div>
+              );
+            })}
+          </div>
+        </section>
         <label className="block text-sm">
           <span className="font-medium">Reason (required, kept forever)</span>
           <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={2} className="mt-1 w-full rounded-xl border border-line bg-paper px-3 py-2 text-base" />
@@ -1182,6 +1236,81 @@ function StartRecord({ view, admin, userId, onStarted }: { view: HrView; admin: 
       <button type="button" className={`${primaryBtn} mt-4`} disabled={!ready || busy} onClick={() => void start()}>
         Start the HR record
       </button>
+    </section>
+  );
+}
+
+/** BambooHR's employee report in; one "new person" proposal per employee out, each approved as usual. */
+function BambooImport({ user, onDone }: { user: string; onDone: (msg: string) => void }) {
+  const [file, setFile] = useState("");
+  const [rows, setRows] = useState<BambooRow[] | null>(null);
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+  const read = async (f: File) => {
+    setErr("");
+    setRows(null);
+    setFile(f.name);
+    try {
+      const { readWorkbook } = await import("@/lib/read-sheet");
+      const { parseCsv } = await import("@/lib/results-import");
+      const grid = /\.csv$/i.test(f.name) ? parseCsv(await f.text()) : ((await readWorkbook(await f.arrayBuffer()))[0]?.grid ?? []);
+      const out = readBamboo(grid);
+      if (out.missing.length) return setErr(`The report needs columns for: ${out.missing.join(", ")}.`);
+      setRows(out.rows);
+    } catch (e) {
+      setErr(`Could not read ${f.name}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+  const ready = rows?.filter((r) => !r.skip && !r.errors.length) ?? [];
+  const bad = rows?.filter((r) => !r.skip && r.errors.length) ?? [];
+  return (
+    <section className="mt-3 rounded-2xl border border-line bg-surface p-4">
+      <p className="text-sm font-semibold">Move people from BambooHR</p>
+      <p className="mt-1 text-sm text-muted">
+        In BambooHR, run a report with First Name, Last Name, Job Title, Location, Employment Status, Hire Date, Reports To, Pay Rate, Pay Per, Mobile Phone and Contract End Date, and export it. Each active person becomes a new-person proposal that the finance head and the executive head approve as usual. Bank details, ID and leave balances are added after, through the normal changes.
+      </p>
+      <input type="file" accept=".csv,.xlsx" className="mt-3 block text-sm" onChange={(e) => e.target.files?.[0] && void read(e.target.files[0])} aria-label="BambooHR report" />
+      {err && <p className="mt-2 text-sm text-clay">{err}</p>}
+      {rows && (
+        <>
+          <p className="mt-3 text-sm">
+            {ready.length} ready, {bad.length} to fix in the report, {rows.filter((r) => r.skip).length} skipped (inactive).
+          </p>
+          <ul className="mt-2 max-h-72 divide-y divide-line overflow-auto rounded-xl border border-line text-sm">
+            {rows.map((r) => (
+              <li key={r.row} className={`px-3 py-2 ${r.skip ? "text-muted" : ""}`}>
+                <span className="font-semibold">{String(r.fields.name || `Row ${r.row}`)}</span> · {String(r.fields.title ?? "")} · {String(r.fields.office ?? "")}, {String(r.fields.employment ?? "")}
+                {r.fields.pay != null && ` · ${r.fields.currency} ${Number(r.fields.pay).toLocaleString("en-US")} per ${String(r.fields.payBasis).toLowerCase()}`}
+                {r.reportsTo && ` · reports to ${r.reportsTo}`}
+                {r.skip && <span className="block text-xs">{r.skip}</span>}
+                {r.errors.length > 0 && <span className="block text-xs text-clay">{r.errors.join("; ")}</span>}
+                {r.warnings.length > 0 && <span className="block text-xs text-ochre">{r.warnings.join("; ")}</span>}
+              </li>
+            ))}
+          </ul>
+          <button
+            type="button"
+            className={`${primaryBtn} mt-3`}
+            disabled={busy || !ready.length}
+            onClick={async () => {
+              setBusy(true);
+              setErr("");
+              try {
+                const res = await fetch("/api/hr/import", { method: "POST", headers: { "Content-Type": "application/json", "x-demo-user": user }, body: JSON.stringify({ file, rows: ready.map((r) => ({ fields: r.fields, reportsTo: r.reportsTo })) }) });
+                const d = await res.json();
+                if (!res.ok) throw new Error(d.error ?? "Import failed.");
+                onDone(`${d.made.length} people proposed from BambooHR${d.skipped.length ? `; ${d.skipped.length} skipped (${d.skipped.map((x: { name: string; why: string }) => `${x.name}: ${x.why}`).slice(0, 3).join("; ")})` : ""}. They join the record once approved.`);
+              } catch (e) {
+                setErr(e instanceof Error ? e.message : String(e));
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            Propose {ready.length} people
+          </button>
+        </>
+      )}
     </section>
   );
 }
