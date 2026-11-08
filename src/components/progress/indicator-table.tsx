@@ -22,7 +22,8 @@ const n = (v: number) => v.toLocaleString("en-US", { maximumFractionDigits: 1 })
 export function indicatorStatus(i: { status: string; planned: number[] | null; year: number; yearTarget: number }) {
   const qNow = Math.floor(new Date().getUTCMonth() / 3) + 1;
   if (i.status === "not_started" && i.planned && i.planned.length === 0 && i.yearTarget > i.year) return { tone: "clay" as const, text: "Not planned" };
-  if (i.status === "not_started" && i.planned?.includes(qNow)) return { tone: "ochre" as const, text: "Due this quarter" };
+  // Due this quarter: this is the last quarter of its window (the same rule as the summary's list).
+  if (i.status === "not_started" && i.planned?.length && Math.max(...i.planned) === qNow) return { tone: "ochre" as const, text: "Due this quarter" };
   return STATUS[i.status] ?? { tone: "muted" as const, text: i.status };
 }
 

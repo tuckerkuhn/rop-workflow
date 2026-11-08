@@ -9,7 +9,7 @@ import { FROM_KOBO, koboFedCodes } from "@/server/kobo-fed";
 import { isMelOwner, requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
 import { projectByCode } from "@/server/field-store";
-import { addProof, addResult, addUpdate, correctResult, loadResults, loadUpdates, reviewResult } from "@/server/results-store";
+import { addProof, addResult, addResults, addUpdate, correctResult, loadResults, loadUpdates, reviewResult } from "@/server/results-store";
 import { activityOf } from "@/lib/qpr";
 import { dataChecks } from "@/lib/data-checks";
 
@@ -77,6 +77,9 @@ export async function POST(req: Request, { params }: Ctx) {
       return NextResponse.json(await view(code, u));
     }
     if (a.action === "correct") {
+      // The same checks as a new result.
+      if (a.changes.date > new Date().toISOString().slice(0, 10)) return NextResponse.json({ error: "The date is in the future." }, { status: 400 });
+      if (a.changes.female !== undefined && a.changes.male !== undefined && a.changes.female + a.changes.male === 0) return NextResponse.json({ error: "Women and men are both 0: leave them blank if the result is not about people." }, { status: 400 });
       const err = await correctResult(code, a.id, a.changes, a.reply, u.id);
       if (err) return NextResponse.json({ error: err }, { status: 400 });
       return NextResponse.json(await view(code, u));
@@ -104,7 +107,7 @@ export async function POST(req: Request, { params }: Ctx) {
         if (a.results.some((x, j) => j < i && sameResult(x, r))) problems.push(`Row ${i + 1}: the same as an earlier row`);
       });
       if (problems.length) return NextResponse.json({ error: `Nothing imported. ${problems.slice(0, 8).join("; ")}${problems.length > 8 ? `; and ${problems.length - 8} more` : ""}.` }, { status: 400 });
-      for (const r of a.results) await addResult(code, r, u.id);
+      await addResults(code, a.results, u.id);
       await logAudit(db, project.id, { entity: "result", entityId: project.id, action: "results_imported", by: u.id, detail: { file: a.file, count: a.results.length } });
       return NextResponse.json(await view(code, u));
     }
@@ -124,7 +127,8 @@ export async function POST(req: Request, { params }: Ctx) {
       if (!r) return NextResponse.json({ error: "No such result." }, { status: 404 });
       if (r.by === u.id) return NextResponse.json({ error: "You recorded this result, so someone else must check it." }, { status: 403 });
       if (r.status !== "pending") return NextResponse.json({ error: "This result has already been checked." }, { status: 409 });
-      await reviewResult(code, a.id, a.action === "accept" ? "accepted" : "queried", u.id, a.action === "query" ? a.note : null);
+      const done = await reviewResult(code, a.id, a.action === "accept" ? "accepted" : "queried", u.id, a.action === "query" ? a.note : null);
+      if (!done) return NextResponse.json({ error: "Someone else has just decided this result. Reload to see it." }, { status: 409 });
     }
     return NextResponse.json(await view(code, u));
   });

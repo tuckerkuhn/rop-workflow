@@ -3,6 +3,9 @@ import { NextResponse } from "next/server";
 import { handle } from "@/server/guard";
 import { runDigest } from "@/server/notify-store";
 
+// Every person's projects are read in turn: allow the time it takes.
+export const maxDuration = 300;
+
 /** The daily email, called by the Vercel cron (vercel.json) with CRON_SECRET. ?dry=1 sends nothing. */
 export async function GET(req: Request) {
   return handle(async () => {

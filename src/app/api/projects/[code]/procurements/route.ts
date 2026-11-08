@@ -7,7 +7,7 @@ import { loadProcurements, saveProcurements } from "@/server/procurement-store";
 import { db } from "@/db";
 import { logAudit } from "@/server/audit";
 import { projectByCode } from "@/server/field-store";
-import { DEMO_PROJECT, describeProcurementSave, prepareProcurementRules, validateProcurementSave } from "@/server/procurement-guard";
+import { DEMO_PROJECT, applyProcurementContext, describeProcurementSave, loadProcurementContext, validateProcurementSave } from "@/server/procurement-guard";
 import { loadPlan } from "@/server/procurement-plan-store";
 import { orgIdForPerson } from "@/server/org-settings-store";
 
@@ -35,12 +35,19 @@ export async function PUT(req: Request, { params }: { params: Promise<{ code: st
     if (!parsed.success) return NextResponse.json({ error: "That procurement could not be saved: the record is incomplete." }, { status: 400 });
     const items = parsed.data.items as unknown as Procurement[];
     // The server decides what is allowed (the same rules as the screen), then records each save.
-    const stored = new Map((await loadProcurements(code)).map((p) => [p.id, p]));
-    const register = await prepareProcurementRules(code, await orgIdForPerson(v.user.id));
-    // A real project's requests must charge its procurement calendar; the demo keeps its sample lines.
-    const calendar = code === DEMO_PROJECT ? undefined : await loadPlan(code);
+    // Everything is loaded first; the checks then run with no await in between, so another
+    // request cannot swap in its own project's rules while these run.
+    const storedList = await loadProcurements(code);
+    const stored = new Map(storedList.map((p) => [p.id, p]));
+    const merged = [...storedList.filter((p) => !items.some((x) => x.id === p.id)), ...items];
+    const [ctx, calendar] = await Promise.all([
+      loadProcurementContext(code, await orgIdForPerson(v.user.id), merged),
+      // A real project's requests must charge its procurement calendar; the demo keeps its sample lines.
+      code === DEMO_PROJECT ? Promise.resolve(undefined) : loadPlan(code),
+    ]);
+    applyProcurementContext(ctx);
     for (const next of items) {
-      const why = validateProcurementSave(stored.get(next.id), next, v.user, calendar, register);
+      const why = validateProcurementSave(stored.get(next.id), next, v.user, calendar, ctx.register, merged);
       if (why) return NextResponse.json({ error: `${next.id}: ${why}` }, { status: 409 });
     }
     await saveProcurements(code, items);

@@ -11,6 +11,13 @@ import { loadBudgetView } from "@/server/budget-view-store";
 import { projectByCode } from "@/server/field-store";
 import { qprData } from "@/server/qpr-store";
 
+/** Whether a quarter ("2026-Q4") has ended as of today. */
+const quarterEnded = (q: string) => {
+  const y = Number(q.slice(0, 4));
+  const n = Number(q.slice(6));
+  return new Date().toISOString().slice(0, 10) > new Date(Date.UTC(y, n * 3, 0)).toISOString().slice(0, 10);
+};
+
 /** Monthly reviews, kept as project_state "review:2026-10". See lib/monthly-review.ts. */
 
 const KEY = (month: string) => `review:${month}`;
@@ -91,7 +98,10 @@ export async function loadReview(code: string, month: string, u: AppUser) {
       yearTarget: r.yearTarget,
       year: r.year,
       quarterValue: r.quarter,
-      status: suggestStatus(r.year, r.yearTarget, Number(quarter.slice(6)), r.year > 0 || r.records.open > 0, r.planned, ["03", "06", "09", "12"].includes(month.slice(5))),
+      // The team's own status from the quarterly report wins; otherwise judged as of today. A
+      // quarter counts as over only once its last day has passed, so December is not judged as
+      // if the year had already ended.
+      status: r.status !== r.suggested ? r.status : suggestStatus(r.year, r.yearTarget, Number(quarter.slice(6)), r.year > 0 || r.records.open > 0, r.planned, quarterEnded(quarter)),
       planned: r.planned,
       workplanCode: r.workplanCode,
     })),

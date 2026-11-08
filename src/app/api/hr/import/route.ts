@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { FIELD_KEYS, mayPropose, type FieldKey, type Fields, type ProposalInput } from "@/lib/hr";
-import { requireViewer } from "@/server/auth";
+import { people, requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
 import { append, loadHr, todayIso } from "@/server/hr-store";
 
@@ -31,7 +31,12 @@ export async function POST(req: Request) {
     const me = v.user.id;
     const { state } = await loadHr();
     const existing = new Map(Object.values(state.people).map((p) => [norm(String(p.current.name ?? "")), p.id]));
-    const rows = parsed.data.rows.map((r) => ({ ...r, id: slug(String(r.fields.name ?? "")) }));
+    // People already proposed (a second click, or a run cut short), and staff who already sign in:
+    // reuse their sign-in identity so their record, team and approvals reach them.
+    const pending = new Set(state.proposals.filter((p) => p.type === "hire" && p.status === "pending").map((p) => norm(String((p as { fields: Record<string, unknown> }).fields?.name ?? ""))));
+    const staff = new Map((await people()).map((u) => [norm(u.name), u.id]));
+    const seen = new Set<string>();
+    const rows = parsed.data.rows.map((r) => ({ ...r, id: staff.get(norm(String(r.fields.name ?? ""))) ?? slug(String(r.fields.name ?? "")) }));
     const inFile = new Map(rows.map((r) => [norm(String(r.fields.name ?? "")), r.id]));
     const reason = `Moved from BambooHR (${parsed.data.file}).`;
     const effective = todayIso();
@@ -46,7 +51,16 @@ export async function POST(req: Request) {
         skipped.push({ name, why: "already in the HR record" });
         continue;
       }
-      const sup = r.reportsTo ? (inFile.get(norm(r.reportsTo)) ?? existing.get(norm(r.reportsTo)) ?? null) : null;
+      if (pending.has(norm(name))) {
+        skipped.push({ name, why: "already proposed, waiting for approval" });
+        continue;
+      }
+      if (seen.has(norm(name))) {
+        skipped.push({ name, why: "listed twice in the file" });
+        continue;
+      }
+      seen.add(norm(name));
+      const sup = r.reportsTo ? (existing.get(norm(r.reportsTo)) ?? staff.get(norm(r.reportsTo)) ?? inFile.get(norm(r.reportsTo)) ?? null) : null;
       const fields: Fields = { ...r.fields, ...(sup ? { supervisor: sup } : {}) };
       const p: ProposalInput = { type: "hire", subject: r.id, effective, fields, reason: r.reportsTo && !sup ? `${reason} Supervisor "${r.reportsTo}" not found: set it after approval.` : reason };
       const why = mayPropose(me, p, state);

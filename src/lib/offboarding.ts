@@ -2,6 +2,7 @@ import { z } from "zod";
 import { DEFAULT_PAYOUT, type Entry, type HrState, type Payout, type PayoutGroup } from "@/lib/hr";
 import { balanceOf, groupOf, type LeaveKind, type LeaveRequest } from "@/lib/leave";
 import { HOURS_PER_DAY } from "@/lib/timesheet";
+import { AVERAGE_DAYS } from "@/lib/payroll";
 
 /**
  * Offboarding: what has to happen when someone leaves, once their leaving is approved in the HR
@@ -73,8 +74,8 @@ export function leavePayout(
   const paidDays = rule.rule === "pays" ? (rule.capDays == null ? days : Math.min(days, rule.capDays)) : 0;
   const pay = Number(rec.pay ?? 0);
   const basis = String(rec.payBasis ?? "Month");
-  // A working day: a month's pay over 21.67 days (260 a year), a day's pay, or eight hours.
-  const dailyRate = pay > 0 ? Math.round((basis === "Month" ? (pay * 12) / 260 : basis === "Day" ? pay : pay * HOURS_PER_DAY) * 100) / 100 : null;
+  // A working day, as payroll counts it: a month's pay over the average working days, a day's pay, or eight hours.
+  const dailyRate = pay > 0 ? Math.round((basis === "Month" ? pay / AVERAGE_DAYS : basis === "Day" ? pay : pay * HOURS_PER_DAY) * 100) / 100 : null;
   const amount = rule.rule === "pays" && dailyRate !== null ? Math.round(paidDays * dailyRate * 100) / 100 : rule.rule === "none" ? 0 : null;
   const note =
     rule.rule === "unset"

@@ -1,7 +1,9 @@
 import { registerAuthority } from "@/lib/authority";
 import type { AppUser } from "@/lib/demo";
 import type { Value } from "@/lib/policy";
-import { DONE, setSupplierRegister, maySign, nextStep, ownerOf, prevStep, procRolesFor, ready, roleLabel, setProcurementRules, stepById, type Procurement, type Role } from "@/lib/procurement";
+import { DONE, setProcurementSet, setSupplierRegister, maySign, nextStep, ownerOf, prevStep, procRolesFor, ready, roleLabel, setProcurementRules, stepById, type Procurement, type Role } from "@/lib/procurement";
+import { closeInstalment } from "@/lib/payments";
+import type { Authority } from "@/lib/authority";
 import type { PlanItem } from "@/lib/procurement-plan";
 import { loadHr } from "@/server/hr-store";
 import { loadSuppliers } from "@/server/suppliers-store";
@@ -23,18 +25,22 @@ import { projectRules } from "@/server/policy-store";
  * One rule broken refuses the whole save, with a plain-language reason.
  */
 
-/**
- * Loads the project's rules, the authority table and (for a real project) the supplier register
- * into the shared rules before validating. Returns the register.
- */
-export async function prepareProcurementRules(code: string, orgId?: string | null): Promise<Supplier[] | null> {
-  const eff = await projectRules(code);
+/** Everything the checks read, loaded first so they can then run without waiting on anything. */
+export type ProcurementContext = { rules: Record<string, Value>; holders: Authority; register: Supplier[] | null; set: Procurement[] };
+export async function loadProcurementContext(code: string, orgId: string | null | undefined, set: Procurement[]): Promise<ProcurementContext> {
+  const [eff, hr, reg] = await Promise.all([projectRules(code), loadHr().catch(() => null), code !== DEMO_PROJECT && orgId ? loadSuppliers(orgId) : Promise.resolve(null)]);
   // An undecided conflict leaves that rule at the organization's own value, as on screen.
-  setProcurementRules(Object.fromEntries(eff.lines.filter((l) => !l.conflict || l.decision).map((l) => [l.key, l.value as Value])));
-  registerAuthority((await loadHr().catch(() => null))?.state.rules?.holders ?? {});
-  const register = code !== DEMO_PROJECT && orgId ? (await loadSuppliers(orgId)).suppliers : null;
-  setSupplierRegister(register);
-  return register;
+  return { rules: Object.fromEntries(eff.lines.filter((l) => !l.conflict || l.decision).map((l) => [l.key, l.value as Value])), holders: hr?.state.rules?.holders ?? {}, register: reg?.suppliers ?? null, set };
+}
+/**
+ * Puts the context into the shared rules. The checks read module state, so call this immediately
+ * before validating, with no await in between: another request cannot swap in its own project.
+ */
+export function applyProcurementContext(c: ProcurementContext) {
+  setProcurementRules(c.rules);
+  registerAuthority(c.holders);
+  setSupplierRegister(c.register);
+  setProcurementSet(c.set);
 }
 
 /** On a real project the supplier is a register record, copied as it stands there. */
@@ -47,7 +53,51 @@ function checkSupplier(prev: Procurement, next: Procurement, register: Supplier[
   return null;
 }
 
-const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+/** Compares by value with keys sorted: records come back from the database with their keys reordered. */
+const stable = (v: unknown): unknown => (Array.isArray(v) ? v.map(stable) : v && typeof v === "object" ? Object.fromEntries(Object.keys(v as object).sort().filter((k) => (v as Record<string, unknown>)[k] !== undefined).map((k) => [k, stable((v as Record<string, unknown>)[k])])) : v);
+const same = (a: unknown, b: unknown) => JSON.stringify(stable(a ?? null)) === JSON.stringify(stable(b ?? null));
+
+/**
+ * The steps at which each part of the record may change. A part not listed here may change at
+ * any step, by that step's owner. Where the money comes from (plan, budget line, funding) never
+ * changes after the request is made.
+ */
+const REQUISITION = ["need", "requisition"];
+const FIELD_STEPS: Record<string, string[]> = {
+  title: REQUISITION,
+  qty: REQUISITION,
+  unit: REQUISITION,
+  unitPrice: REQUISITION,
+  specification: REQUISITION,
+  priceBasis: REQUISITION,
+  esRisk: REQUISITION,
+  neededBy: REQUISITION,
+  place: REQUISITION,
+  urgent: REQUISITION,
+  activity: REQUISITION,
+  feeds: REQUISITION,
+  route: ["route"],
+  evaluation: ["route", "solicitation", "rfq"],
+  sole: ["route", "soleSource"],
+  advertisedDays: ["rfq", "solicitation", "hoReview", "approveSol", "bids"],
+  closingDate: ["rfq", "solicitation", "hoReview", "approveSol", "bids"],
+  bids: ["quotes", "bids", "evaluateWaived", "evaluate"],
+  selectedBid: ["quotes", "evaluateWaived", "evaluate"],
+  committee: ["evaluate"],
+  opening: ["bids"],
+  supplier: ["quotes", "screen", "payForm"],
+  contractCurrency: ["contract"],
+  contractAfn: ["contract"],
+  contractUsd: ["contract"],
+  schedule: ["contract"],
+  grn: ["receive"],
+  invoice: ["payForm"],
+  voucher: ["voucher"],
+  paid: ["paid"],
+  plan: [],
+  budgetLine: [],
+  funding: [],
+};
 /** Parts of the record anyone with procurement access may add to at any stage. */
 const FREE = new Set(["timeline", "links", "issues", "signatures", "checks", "step", "payments", "updatedAt", "distribution"]);
 
@@ -66,6 +116,7 @@ function checkDistribution(prev: Procurement, next: Procurement, u: AppUser): st
   if (b.lists.length < before.lists.length || !same(b.lists.slice(0, before.lists.length), before.lists)) return "A distribution list cannot be changed or removed once recorded.";
   if (b.checks.length < before.checks.length || !same(b.checks.slice(0, before.checks.length), before.checks)) return "A verification cannot be changed or removed once recorded.";
   if (a?.forParticipants && !b.forParticipants && before.lists.length) return "Distribution lists are recorded: it cannot be marked as not for participants.";
+  if ((a?.inStock ?? 0) !== b.inStock && !procRolesFor(u).some((r) => r === "holder" || r === "procurement")) return "Only the budget holder or procurement records what is in stock.";
   for (const l of b.lists.slice(before.lists.length)) if (l.by !== u.id) return "A distribution list is recorded in your own name.";
   const distributors = new Set(b.lists.map((l) => l.by));
   for (const c of b.checks.slice(before.checks.length)) {
@@ -97,14 +148,21 @@ function checkAgainstCalendar(next: Procurement, calendar: PlanItem[]): string |
 }
 
 /** Null when allowed; otherwise why not. Rules must be prepared first (prepareProcurementRules). */
-export function validateProcurementSave(prev: Procurement | undefined, next: Procurement, u: AppUser, calendar?: PlanItem[], register?: Supplier[] | null): string | null {
+export function validateProcurementSave(prev: Procurement | undefined, next: Procurement, u: AppUser, calendar?: PlanItem[], register?: Supplier[] | null, others: Procurement[] = []): string | null {
   const roles = procRolesFor(u);
   if (!prev) {
     if (next.step !== "need") return "A new request starts at the first step.";
     if (Object.values(next.signatures ?? {}).some((l) => l.length)) return "A new request cannot carry signatures.";
     if (Object.values(next.checks ?? {}).some(Boolean)) return "A new request cannot have checks ticked.";
     if (!roles.includes("holder")) return "Only a budget holder can request a purchase.";
-    if (calendar) return checkAgainstCalendar(next, calendar);
+    if (calendar) {
+      const why = checkAgainstCalendar(next, calendar);
+      if (why) return why;
+      // The request is the requester's own, so they cannot later approve it under another name.
+      if ((next.plan?.requestedById && next.plan.requestedById !== u.id) || (next.plan?.requestedBy && next.plan.requestedBy !== u.name)) return "A request is made in your own name.";
+      // One request per calendar item, counting requests saved alongside this one.
+      if (others.some((q) => q.id !== next.id && q.plan?.key === next.plan?.key)) return `${next.plan?.key} already has a request.`;
+    }
     return null;
   }
   // Where the money comes from is fixed once requested.
@@ -128,7 +186,18 @@ export function validateProcurementSave(prev: Procurement | undefined, next: Pro
   const owner = ownerOf(prev);
   const ownsStep = !!owner && maySign(u, prev, owner);
   // An instalment paid: its signatures and checks are filed into the payment record and start clean.
+  // The server rebuilds exactly what that must look like; anything else is refused.
   const archived = prev.step === "paid" && (next.payments?.length ?? 0) > (prev.payments?.length ?? 0);
+  if (archived) {
+    if (!ownsStep) return "Only Finance records a payment.";
+    if (!ready(prev)) return "“Record the payment” is not complete: record the proof of payment and tick its checks first.";
+    const expected = { ...closeInstalment(prev), step: nextStep(prev) };
+    const strip = (x: Procurement) => ({ ...x, timeline: undefined, updatedAt: undefined, links: undefined, issues: undefined });
+    if (!same(strip(next), strip(expected))) return "A paid instalment is filed exactly as recorded: reload the procurement and record the payment again.";
+    return null;
+  }
+  // Paid instalments are history: never changed or removed.
+  if (!same(prev.payments ?? [], next.payments ?? [])) return "A paid instalment cannot be changed or removed.";
 
   // Signatures: append-only, each new one the signer's own and theirs to give.
   for (const doc of new Set([...Object.keys(prev.signatures ?? {}), ...Object.keys(next.signatures ?? {})])) {
@@ -176,7 +245,13 @@ export function validateProcurementSave(prev: Procurement | undefined, next: Pro
     const mine = (k: string) => k === `review.${prev.step}` || k.startsWith(`${prev.step}.`) || k.startsWith(`fix.${prev.step}.`);
     const other = checksChanged.find((k) => !mine(k));
     if (other) return "Only the checks of the step under way can change.";
+    // A failed automatic check can be overridden only where the step offers it, with its resolution.
+    const badFix = checksChanged.find((k) => k.startsWith("fix.") && next.checks?.[k] && !stepById[prev.step]?.checks.find((c) => `fix.${prev.step}.${c.id}` === k)?.resolve);
+    if (badFix) return "That check cannot be overridden.";
   }
+  // Each part of the record changes only at its own steps.
+  const outOfStep = fieldsChanged.find((k) => k in FIELD_STEPS && !FIELD_STEPS[k].includes(prev.step));
+  if (outOfStep) return `${outOfStep} cannot change at “${stepById[prev.step]?.title ?? prev.step}”.`;
   if (fieldsChanged.length && !ownsStep) return `Only the ${owner ? roleLabel(owner) : "step's owner"} can change this procurement's details at “${stepById[prev.step]?.title ?? prev.step}” (${fieldsChanged.slice(0, 3).join(", ")}).`;
   return null;
 }

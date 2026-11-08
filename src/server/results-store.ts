@@ -34,6 +34,34 @@ export async function loadResults(code: string): Promise<ResultRecord[]> {
   return rows.map(toRecord).sort((a, b) => b.date.localeCompare(a.date));
 }
 
+/** Many results at once, in one transaction: all are saved or none. */
+export async function addResults(code: string, inputs: ResultInput[], by: string) {
+  const project = await projectByCode(code);
+  await db.transaction(async (tx) => {
+    for (const input of inputs) await insertResult(tx, project, input, by);
+  });
+}
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+async function insertResult(tx: Tx, project: Awaited<ReturnType<typeof projectByCode>>, input: ResultInput, by: string) {
+  const [r] = await tx
+    .insert(s.evidence)
+    .values({
+      organizationId: project.organizationId,
+      projectId: project.id,
+      source: "manual",
+      form: "result",
+      reviewStatus: "pending",
+      completedBy: by,
+      completedAt: new Date(`${input.date}T12:00:00Z`),
+      location: [input.district, input.province].filter(Boolean).join(", ") || null,
+      payload: input,
+    })
+    .returning();
+  await logAudit(tx, project.id, { entity: "result", entityId: r.id, action: "result_recorded", by, detail: { indicator: input.indicator, value: input.value, date: input.date, proof: proofCount(input) } });
+  return r;
+}
+
 export async function addResult(code: string, input: ResultInput, by: string) {
   const project = await projectByCode(code);
   const row = await db.transaction(async (tx) => {
@@ -63,7 +91,8 @@ export async function reviewResult(code: string, id: string, status: "accepted" 
     const [r] = await tx
       .update(s.evidence)
       .set({ reviewStatus: status, reviewedBy: by, reviewedAt: new Date(), queryNote: note, updatedAt: new Date() })
-      .where(and(eq(s.evidence.id, id), eq(s.evidence.projectId, project.id), eq(s.evidence.form, "result")))
+      // Only while still pending: two reviewers at once cannot both decide it.
+      .where(and(eq(s.evidence.id, id), eq(s.evidence.projectId, project.id), eq(s.evidence.form, "result"), eq(s.evidence.reviewStatus, "pending")))
       .returning();
     if (r) {
       const p = r.payload as ResultInput;
@@ -108,7 +137,7 @@ export async function correctResult(code: string, id: string, changes: Correctio
   if (row.reviewStatus !== "queried") return "Only a result MEL has queried can be corrected.";
   if (row.completedBy !== by) return "Only the person who recorded this result can correct it.";
   const p = row.payload as ResultInput & { history?: Correction[] };
-  const keys = ["date", "value", "female", "male", "womenLed", "menLed", "province", "district", "note"] as const;
+  const keys = ["date", "value", "female", "male", "youth", "womenLed", "menLed", "province", "district", "note"] as const;
   const previous = Object.fromEntries(keys.filter((k) => p[k] !== undefined).map((k) => [k, p[k]])) as Partial<ResultInput>;
   const next = { ...p, ...Object.fromEntries(keys.map((k) => [k, changes[k]])), history: [...(p.history ?? []), { at: new Date().toISOString(), by, query: row.queryNote, reply, previous }] };
   for (const k of keys) if (next[k] === undefined || next[k] === "") delete (next as Record<string, unknown>)[k];

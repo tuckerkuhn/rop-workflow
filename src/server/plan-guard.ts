@@ -13,7 +13,15 @@ import { projectByCode } from "@/server/field-store";
 
 export type PlanPart = "design" | "budget" | "workplan";
 const OPEN = ["Develop", "Design"];
-export const reasonOf = (req: Request) => decodeURIComponent(req.headers.get("x-change-reason") ?? "").trim();
+export const reasonOf = (req: Request) => {
+  const raw = req.headers.get("x-change-reason") ?? "";
+  try {
+    return decodeURIComponent(raw).trim();
+  } catch {
+    // A malformed header reads as no reason, which is refused with a clear message.
+    return "";
+  }
+};
 
 /** Null when the change may go ahead; otherwise the response to send. */
 export async function checkPlanChange(code: string, u: AppUser, req: Request): Promise<NextResponse | null> {
