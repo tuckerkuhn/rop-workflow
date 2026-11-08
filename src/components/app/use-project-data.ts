@@ -101,6 +101,7 @@ export function useProcurements(code = "A-2027") {
   const [status, setStatus] = useState<Load>("loading");
   const [error, setError] = useState("");
   const current = useRef<Procurement[]>([]);
+  const queue = useRef<Promise<void>>(Promise.resolve());
 
   const reload = useCallback(async () => {
     try {
@@ -126,13 +127,24 @@ export function useProcurements(code = "A-2027") {
       const value = typeof next === "function" ? next(current.current) : next;
       current.current = value;
       setItemsState(value);
-      const changed = value.filter((p) => before.get(p.id) !== JSON.stringify(p));
-      if (changed.length)
-        void call(`/api/projects/${code}/procurements`, user?.id, { method: "PUT", body: JSON.stringify({ items: changed }) }).catch((e) =>
-          setError(`Not saved: ${e instanceof Error ? e.message : e}`),
-        );
+      const changed = value.filter((p) => before.get(p.id) !== JSON.stringify(p)).map((p) => p.id);
+      if (!changed.length) return;
+      // Saves go one after another, each sending the latest copy with the version it is based on.
+      queue.current = queue.current.then(async () => {
+        const send = current.current.filter((p) => changed.includes(p.id));
+        if (!send.length) return;
+        try {
+          const r = await call<{ revs: Record<string, number> }>(`/api/projects/${code}/procurements`, user?.id, { method: "PUT", body: JSON.stringify({ items: send }) });
+          current.current = current.current.map((p) => (r.revs[p.id] !== undefined ? { ...p, rev: r.revs[p.id] } : p));
+          setItemsState(current.current);
+        } catch (e) {
+          setError(`Not saved: ${e instanceof Error ? e.message : e}`);
+          // A stale copy, or a refusal: show what is actually saved.
+          await reload();
+        }
+      });
     },
-    [code, user?.id],
+    [code, user?.id, reload],
   );
 
   /** Drafts a document with AI on the server; the saved record comes back with the draft on it. */

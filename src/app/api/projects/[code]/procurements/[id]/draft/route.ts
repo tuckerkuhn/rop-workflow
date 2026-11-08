@@ -29,7 +29,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
     if (!p) return NextResponse.json({ error: "No such procurement." }, { status: 404 });
     try {
       const draft = await draftDocument(p, parsed.data.kind, v.user.name);
-      const item = { ...p, drafts: { ...p.drafts, [DRAFT_KINDS[parsed.data.kind]]: draft } };
+      // Applied to the latest copy (the draft took a while), and the version raised.
+      const latest = (await loadProcurements(code)).find((x) => x.id === id) ?? p;
+      const item = { ...latest, drafts: { ...latest.drafts, [DRAFT_KINDS[parsed.data.kind]]: draft }, rev: (latest.rev ?? 0) + 1 };
       await saveProcurements(code, [item]);
       const project = await projectByCode(code);
       await logAudit(db, project.id, { entity: "procurement", entityId: project.id, action: "ai_drafted", by: v.user.id, detail: { procurement: p.id, document: DRAFT_KINDS[parsed.data.kind], model: draft.model, questions: draft.questions.length } });

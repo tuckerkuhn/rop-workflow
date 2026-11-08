@@ -186,7 +186,9 @@ export function lineFor(hr: HrState, person: string, month: string, sheet: Times
   const retirementBase = r2(regular + dangerPay + postDiff + comms + living + medicalReimb + bonus + retro);
   const ee403b = down2(retirementBase * (num(rec.retirementPct) / 100));
   const er403b = down2(ee403b * EMPLOYER_MATCH);
-  const tax = office === "Afghanistan" ? afghanTax(gross - expenses) : 0;
+  // The Afghan schedule is in afghani: it applies to afghani pay only.
+  const tax = office === "Afghanistan" && currency === "AFN" ? afghanTax(gross - expenses) : 0;
+  if (office === "Afghanistan" && currency !== "AFN") problems.push(`Paid in ${currency}: Afghan salary tax is not worked out here. Finance to confirm the tax for this person.`);
   const net = r2(gross - advance - ee403b - tax);
 
   if (office === "Home Office" && !rec.adpId) problems.push("No ADP employee ID in the record.");
@@ -275,7 +277,7 @@ function recalc(l: Line): Line {
   const pctRet = l.retirementBase ? l.ee403b / l.retirementBase : 0;
   const ee403b = down2(retirementBase * pctRet);
   const er403b = down2(ee403b * EMPLOYER_MATCH);
-  const tax = l.office === "Afghanistan" ? afghanTax(gross - l.expenses) : 0;
+  const tax = l.office === "Afghanistan" && l.currency === "AFN" ? afghanTax(gross - l.expenses) : 0;
   const cost = costOf(l.pct, r2(gross - l.expenses + er403b), l.expenseBySource);
   return { ...l, gross, retirementBase, ee403b, er403b, tax, net: r2(gross - l.advance - ee403b - tax), cost };
 }
@@ -322,9 +324,9 @@ const csv = (rows: (string | number | null)[][]) =>
  * when Finance supplies it, without a code change. Until then the draft layout below is used and
  * every file says it is a draft.
  */
-export const RUN_EARNINGS = ["regular", "dangerPay", "postDiff", "comms", "living", "medicalReimb", "vacationPayout", "bonus", "retro", "expenses"] as const;
+export const RUN_EARNINGS = ["regular", "dangerPay", "postDiff", "comms", "living", "medicalReimb", "vacationPayout", "bonus", "retro", "expenses", "advance"] as const;
 export type RunEarning = (typeof RUN_EARNINGS)[number];
-export const RUN_EARNING_LABEL: Record<RunEarning, string> = { regular: "Regular pay", dangerPay: "Danger pay", postDiff: "Post differential", comms: "Communications", living: "Living allowance", medicalReimb: "Medical reimbursement", vacationPayout: "Vacation payout", bonus: "Bonus", retro: "Retro pay", expenses: "Expense reimbursement" };
+export const RUN_EARNING_LABEL: Record<RunEarning, string> = { regular: "Regular pay", dangerPay: "Danger pay", postDiff: "Post differential", comms: "Communications", living: "Living allowance", medicalReimb: "Medical reimbursement", vacationPayout: "Vacation payout", bonus: "Bonus", retro: "Retro pay", expenses: "Expense reimbursement", advance: "Advance repayment (deduction)" };
 export const RUN_COLUMNS = ["companyCode", "employeeId", "name", "earningCode", "hours", "rate", "amount", "payDate", "memo"] as const;
 export type RunColumn = (typeof RUN_COLUMNS)[number];
 export const RUN_COLUMN_LABEL: Record<RunColumn, string> = { companyCode: "Company code", employeeId: "Employee ID (ADP file number)", name: "Employee name", earningCode: "Earning code", hours: "Hours (hourly staff)", rate: "Rate", amount: "Amount", payDate: "Pay date", memo: "Memo" };
@@ -337,7 +339,7 @@ export const DRAFT_RUN_LAYOUT: RunLayout = {
     { key: "hours", heading: "Hours" },
     { key: "amount", heading: "Amount" },
   ],
-  codes: { regular: "REG", dangerPay: "DANGER", postDiff: "POSTDIFF", comms: "COMMS", living: "LIVING", medicalReimb: "MEDREIMB", vacationPayout: "VACPAY", bonus: "BONUS", retro: "RETRO", expenses: "EXPREIMB" },
+  codes: { regular: "REG", dangerPay: "DANGER", postDiff: "POSTDIFF", comms: "COMMS", living: "LIVING", medicalReimb: "MEDREIMB", vacationPayout: "VACPAY", bonus: "BONUS", retro: "RETRO", expenses: "EXPREIMB", advance: "ADVANCE" },
   companyCode: "",
   dateFormat: "MM/DD/YYYY",
   confirmed: false,
@@ -377,8 +379,9 @@ export function runFile(lines: Line[], layout: RunLayout = DRAFT_RUN_LAYOUT, pay
   return csv(rows);
 }
 
+/** Bank transfers, each in the currency the person is paid in (afghani rounded to whole afghani). */
 export function bankFile(lines: Line[], month: string) {
-  return csv([["Name", "Bank account", "Amount (AFN)", "Reference"], ...lines.filter((l) => l.net > 0).map((l) => [l.name, l.bankAccount, Math.round(l.net), `ROP salary ${month}`])]);
+  return csv([["Name", "Bank account", "Amount", "Currency", "Reference"], ...lines.filter((l) => l.net > 0).map((l) => [l.name, l.bankAccount, l.currency === "AFN" ? Math.round(l.net) : l.net.toFixed(2), l.currency, `ROP salary ${month}`])]);
 }
 
 export function registerFile(lines: Line[], sourceLabel: (s: string) => string) {

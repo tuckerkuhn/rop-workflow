@@ -9,7 +9,7 @@ import { requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
 import { loadHr } from "@/server/hr-store";
 import { orgIdForPerson, orgProfile } from "@/server/org-settings-store";
-import { loadSuppliers, saveSuppliers } from "@/server/suppliers-store";
+import { loadSuppliers, updateSuppliers } from "@/server/suppliers-store";
 
 /**
  * The supplier register. Everyone with procurement access reads it; procurement staff add
@@ -63,10 +63,13 @@ export async function POST(req: Request) {
     const links = [a.action === "add" || a.action === "edit" ? a.fields.licenceEvidence : "", "evidence" in a ? a.evidence : ""].filter(Boolean);
     if (links.some((l) => !isSharePointUrl(l))) return NextResponse.json({ error: "Evidence must be a link to the file in ROP's SharePoint." }, { status: 400 });
     const orgId = await orgOf(v.user);
-    const reg = await loadSuppliers(orgId);
-    const out = applySupplierAction(reg, a, await who(v.user), today(), () => `SUP-${randomUUID().slice(0, 8).toUpperCase()}`);
+    const w = await who(v.user);
+    const out = await updateSuppliers(
+      orgId,
+      (reg) => applySupplierAction(reg, a, w, today(), () => `SUP-${randomUUID().slice(0, 8).toUpperCase()}`),
+      (r) => (typeof r === "string" ? null : r),
+    );
     if (typeof out === "string") return NextResponse.json({ error: out }, { status: 409 });
-    await saveSuppliers(orgId, out);
     const id = a.action === "add" ? out.suppliers[out.suppliers.length - 1].id : a.id;
     await db.insert(s.auditLog).values({ projectId: null, entity: "supplier", entityId: orgId, action: `supplier_${a.action}`, detail: { by: v.user.id, supplier: id, name: out.suppliers.find((x) => x.id === id)?.name } });
     return NextResponse.json(await view(orgId, v.user));

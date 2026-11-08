@@ -232,6 +232,8 @@ export type CommitteeMember = { name: string; role: "chair" | "member"; declared
 
 export type Procurement = {
   id: string;
+  /** Version, raised by the server on every save: a save made from an older copy is refused. */
+  rev?: number;
   title: string;
   qty: number;
   unit: string;

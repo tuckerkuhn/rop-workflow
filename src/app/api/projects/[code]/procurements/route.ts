@@ -45,14 +45,18 @@ export async function PUT(req: Request, { params }: { params: Promise<{ code: st
       // A real project's requests must charge its procurement calendar; the demo keeps its sample lines.
       code === DEMO_PROJECT ? Promise.resolve(undefined) : loadPlan(code),
     ]);
+    // Someone else saved since this copy was loaded: refuse, and the screen reloads the latest.
+    const stale = items.find((x) => stored.has(x.id) && (stored.get(x.id)!.rev ?? 0) !== (x.rev ?? 0));
+    if (stale) return NextResponse.json({ error: `${stale.id} was changed by someone else just now. The latest copy is loaded; make your change again.`, stale: true }, { status: 409 });
     applyProcurementContext(ctx);
     for (const next of items) {
       const why = validateProcurementSave(stored.get(next.id), next, v.user, calendar, ctx.register, merged);
       if (why) return NextResponse.json({ error: `${next.id}: ${why}` }, { status: 409 });
     }
-    await saveProcurements(code, items);
+    const saved = items.map((x) => ({ ...x, rev: (stored.get(x.id)?.rev ?? 0) + 1 }));
+    await saveProcurements(code, saved);
     const project = await projectByCode(code);
     for (const next of items) await logAudit(db, project.id, { entity: "procurement", entityId: project.id, action: "procurement_saved", by: v.user.id, detail: describeProcurementSave(stored.get(next.id), next) });
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, revs: Object.fromEntries(saved.map((x) => [x.id, x.rev])) });
   });
 }

@@ -99,7 +99,7 @@ const FIELD_STEPS: Record<string, string[]> = {
   funding: [],
 };
 /** Parts of the record anyone with procurement access may add to at any stage. */
-const FREE = new Set(["timeline", "links", "issues", "signatures", "checks", "step", "payments", "updatedAt", "distribution"]);
+const FREE = new Set(["timeline", "links", "issues", "signatures", "checks", "step", "payments", "updatedAt", "distribution", "rev"]);
 
 /**
  * Distribution to participants: lists and checks are added, never changed, each in the name of
@@ -192,7 +192,7 @@ export function validateProcurementSave(prev: Procurement | undefined, next: Pro
     if (!ownsStep) return "Only Finance records a payment.";
     if (!ready(prev)) return "“Record the payment” is not complete: record the proof of payment and tick its checks first.";
     const expected = { ...closeInstalment(prev), step: nextStep(prev) };
-    const strip = (x: Procurement) => ({ ...x, timeline: undefined, updatedAt: undefined, links: undefined, issues: undefined });
+    const strip = (x: Procurement) => ({ ...x, timeline: undefined, updatedAt: undefined, links: undefined, issues: undefined, rev: undefined });
     if (!same(strip(next), strip(expected))) return "A paid instalment is filed exactly as recorded: reload the procurement and record the payment again.";
     return null;
   }

@@ -142,9 +142,11 @@ export async function loadReview(code: string, month: string, u: AppUser) {
 export type ReviewView = Awaited<ReturnType<typeof loadReview>>;
 
 /** What the plan says now for the thing a change touches. */
-async function currentValue(projectId: string, c: ChangeInput): Promise<number | string[] | null> {
+type Exec = Pick<typeof db, "select">;
+/** Read with the caller's transaction when there is one: a second connection inside a transaction can wait forever on a small pool. */
+async function currentValue(projectId: string, c: ChangeInput, exec: Exec = db): Promise<number | string[] | null> {
   if (c.kind === "target") {
-    const [i] = await db
+    const [i] = await exec
       .select()
       .from(s.indicators)
       .where(and(eq(s.indicators.projectId, projectId), eq(s.indicators.code, c.indicator)));
@@ -158,7 +160,7 @@ async function currentValue(projectId: string, c: ChangeInput): Promise<number |
     );
   }
   if (c.kind === "budget") {
-    const [l] = await db
+    const [l] = await exec
       .select({ amount: s.budgetLines.amount })
       .from(s.budgetLines)
       .where(and(eq(s.budgetLines.projectId, projectId), eq(s.budgetLines.code, c.fromLine)));
@@ -335,7 +337,7 @@ export async function actOnReview(code: string, month: string, a: ReviewAction, 
         else delete review[a.action];
         await log(tx, "review_edited", { part: a.action });
       } else if (a.action === "propose") {
-        const from = await currentValue(project.id, a.change);
+        const from = await currentValue(project.id, a.change, tx);
         const c: Change = {
           ...a.change,
           id: randomUUID(),
