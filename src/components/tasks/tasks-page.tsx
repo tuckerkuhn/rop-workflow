@@ -57,8 +57,9 @@ function StaffOnly() {
 type View = "list" | "calendar" | "timeline";
 /** What the list below the hub shows: everything, my own open tasks, or workflow steps waiting on me. */
 type Focus = "all" | "mine" | "attention";
-const isMine = (r: Row) => r.kind === "task" && r.source === "manual" && !r.done;
-const needsMe = (r: Row) => r.kind === "task" && r.source !== "manual" && !r.done;
+// Mine: tasks and the activities I own. Needs me: everything waiting on me from the project and its workflows.
+const isMine = (r: Row) => r.kind === "task" && (r.source === "manual" || r.source === "activity") && !r.done;
+const needsMe = (r: Row) => r.kind === "task" && r.source !== "manual" && r.source !== "activity" && !r.done;
 
 const VIEWS: { id: View; label: MessageKey }[] = [
   { id: "list", label: "tasks.view.list" },

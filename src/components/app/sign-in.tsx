@@ -31,7 +31,7 @@ export function SignIn() {
   };
 
   return (
-    <div className="grid min-h-screen lg:grid-cols-[1fr_1.1fr]">
+    <div className="grid min-h-screen grid-cols-[minmax(0,1fr)] lg:grid-cols-[1fr_1.1fr]">
       <section className="relative flex flex-col justify-between overflow-hidden bg-deep px-6 py-10 text-deep-ink sm:px-12">
         <svg
           aria-hidden
@@ -66,7 +66,7 @@ export function SignIn() {
         <p className="relative text-xs opacity-60">
           {mode === "demo"
             ? "Demo mode with fictional people and records."
-            : "Prototype: project records are still fictional."}{" "}
+            : "Pilot for Roots of Peace staff."}{" "}
           <Link href="/about" className="underline underline-offset-2">
             About this project
           </Link>

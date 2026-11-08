@@ -4,6 +4,9 @@ import { Arrow } from "@/components/app/arrow";
 import Link from "next/link";
 import { THEMES, THEME_LABEL, type ImpactTheme } from "@/lib/indicator-library";
 import { ProgressSummaryPanel } from "@/components/progress/progress-summary";
+import { IndicatorTable } from "@/components/progress/indicator-table";
+import { StageControl } from "@/components/home/stage-control";
+import { useProjectStage } from "@/components/app/project-stage";
 import { useCallback, useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { DonorFilter, useDonorChoice } from "@/components/app/donor-filter";
@@ -24,6 +27,7 @@ import type { WorkItem } from "@/lib/work-items";
 export function ProgressPage() {
   const { user } = useRequireUser();
   const { project } = useCurrentProject();
+  const stage = useProjectStage(project);
   const { t, date } = useT();
   const progress = useProgress(project.id);
   const work = useWorkItems(project.id);
@@ -72,6 +76,11 @@ export function ProgressPage() {
         </div>
         {/* Database projects open on what to celebrate and what needs attention. */}
         {staff && project.saved && <ProgressSummaryPanel projectId={project.id} userId={user.id} />}
+        {staff && project.saved && (
+          <div className="mt-6 max-w-md">
+            <StageControl project={project} stage={stage} />
+          </div>
+        )}
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <DonorFilter donors={donors} donor={donor} onChange={setDonor} />
           {canSync && (
@@ -98,7 +107,9 @@ export function ProgressPage() {
         {data && !data.saved && <p className="mt-6 rounded-xl bg-sunken px-4 py-3 text-sm text-muted">{t("progress.notSaved")}</p>}
         {data?.saved && tracked.length === 0 && <p className="py-16 text-center text-sm text-muted">{t("progress.empty")}</p>}
 
-        {data && tracked.length > 0 && (
+        {/* Staff on a database project: one table, judged like the summary; the report is a link away. */}
+        {staff && project.saved && <IndicatorTable projectId={project.id} userId={user.id} />}
+        {data && tracked.length > 0 && !(staff && project.saved) && (
           <>
             {[
               { key: "impact", label: t("progress.impact"), list: tracked.filter(isImpact) },
@@ -134,36 +145,24 @@ export function ProgressPage() {
 
         {staff && (
           <p className="mt-10 flex flex-wrap gap-x-6 gap-y-2 border-t border-line pt-4 text-sm">
-            <Link href="/progress/report" className="font-semibold text-forest hover:underline">
-              Quarterly report <Arrow />
-            </Link>
-            <Link href="/progress/annual" className="font-semibold text-forest hover:underline">
-              Annual and final reports <Arrow />
-            </Link>
-            <Link href="/progress/results" className="font-semibold text-forest hover:underline">
-              Results and proof <Arrow />
-            </Link>
-            <Link href="/progress/framework" className="font-semibold text-forest hover:underline">
-              Results framework <Arrow />
-            </Link>
-            <Link href="/progress/learning" className="font-semibold text-forest hover:underline">
-              Lessons and close-out <Arrow />
-            </Link>
-            <Link href="/progress/review" className="font-semibold text-forest hover:underline">
-              Monthly review <Arrow />
-            </Link>
-            <Link href="/progress/budget" className="font-semibold text-forest hover:underline">
-              Budget vs actual <Arrow />
-            </Link>
-            <Link href="/setup/lens" className="font-semibold text-forest hover:underline">
-              Lens review <Arrow />
-            </Link>
-            <Link href="/progress/audit" className="font-semibold text-forest hover:underline">
-              Audit trail <Arrow />
-            </Link>
-            <Link href="/progress/records" className="font-semibold text-forest hover:underline">
-              {t("progress.records")} <Arrow />
-            </Link>
+            <span className="grid w-full gap-4 sm:grid-cols-3">
+              {(
+                [
+                  ["Steer the work", [["/progress/review", "Monthly review"], ["/progress/budget", "Budget vs actual"], ["/progress/framework", "Results framework"], ["/setup/lens", "Lens review"]]],
+                  ["Prove it", [["/progress/results", "Results and proof"], ["/progress/records", t("progress.records")], ["/progress/audit", "Audit trail"]]],
+                  ["Report and learn", [["/progress/report", "Quarterly report"], ["/progress/annual", "Annual and final reports"], ["/progress/learning", "Lessons and close-out"]]],
+                ] as [string, [string, string][]][]
+              ).map(([head, links]) => (
+                <span key={head} className="block">
+                  <span className="block text-xs font-semibold uppercase tracking-wide text-muted">{head}</span>
+                  {links.map(([href, label]) => (
+                    <Link key={href} href={href} className="mt-1.5 block font-semibold text-forest hover:underline">
+                      {label} <Arrow />
+                    </Link>
+                  ))}
+                </span>
+              ))}
+            </span>
           </p>
         )}
       </main>

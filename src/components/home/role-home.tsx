@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Pill } from "@/components/workspace/ui";
 import { useEffect, useState } from "react";
 import { usePersistentState } from "@/components/workspace/ui";
 import type { AppUser, ProjectInfo } from "@/lib/demo";
@@ -19,7 +20,7 @@ const LEVEL: Record<Level, { word: string; icon: string; chip: string }> = {
   critical: { word: "Act now", icon: "!", chip: "bg-clay-soft text-clay" },
   unknown: { word: "No data", icon: "–", chip: "bg-sunken text-muted" },
 };
-const LENS_LABEL: Record<Lens, string> = { lead: "Leadership", mel: "MEL", finance: "Finance", procurement: "Procurement", field: "Field" };
+const LENS_LABEL: Record<Lens, string> = { lead: "Leadership", mel: "MEL", finance: "Finance", procurement: "Procurement", field: "Delivery" };
 
 const pct = (n: number | null) => (n === null ? "—" : `${Math.round(n)}%`);
 const compact = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}K` : String(Math.round(n)));
@@ -150,8 +151,9 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
         </span>
       </Tile>,
       <div key="budget">{budgetTile}</div>,
-      <Tile key="you" clear label="Needs you" value={String(mine.length)} level={mine.some((a) => a.urgent) ? "critical" : mine.length ? "warning" : "good"}>
-        {mine[0]?.text ?? "Nothing is waiting for you."}
+      // What is waiting for the lead is listed beside the tiles; this tile is about evidence.
+      <Tile key="count" label="Waiting to count" value={String(v.mel.pending + v.mel.queried)} level={v.mel.pending + v.mel.queried ? "warning" : "good"} href="/progress/results">
+        {v.mel.pending + v.mel.queried ? `${v.mel.pending} results waiting for MEL${v.mel.queried ? `, ${v.mel.queried} queried` : ""}: they count once accepted.` : "Every recorded result is checked."}
       </Tile>,
       <div key="deadline">{deadlineTile}</div>,
     ],
@@ -183,7 +185,7 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
       </Tile>,
       <div key="budget">{budgetTile}</div>,
       <Tile key="you" label="Needs you" value={String(mine.length)} level={mine.length ? "warning" : "good"} href="/work?source=procurement">
-        Procurement steps waiting for you are listed under This week.
+        Procurement steps waiting for you are in Work.
       </Tile>,
       <div key="deadline">{deadlineTile}</div>,
     ],
@@ -194,9 +196,15 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
       <Tile key="mine" label="My results this quarter" value={String(v.field.mine)} level="good" href="/progress/results">
         Recorded by you since the quarter began.
       </Tile>,
-      <Tile key="season" label="Work in season" value={String(v.season.now.length)} level="good">
-        Activities the workplan schedules for {v.season.quarter}.
-      </Tile>,
+      (() => {
+        const mine = v.season.now.filter((a) => a.owner === user.name && a.status !== "done" && a.status !== "cancelled");
+        const idle = mine.filter((a) => a.status === "not_started").length;
+        return (
+          <Tile key="season" label="My activities this quarter" value={String(mine.length)} level={idle ? "warning" : "good"} href="/work/activities">
+            {mine.length ? `${idle ? `${idle} not started yet` : "All under way"}; ${v.season.weeksLeft} weeks left in ${v.season.quarter}.` : "None assigned to you this quarter."}
+          </Tile>
+        );
+      })(),
       <div key="deadline">{deadlineTile}</div>,
     ],
   };
@@ -206,7 +214,13 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
     mel: v.mel.toCheck ? `${v.mel.toCheck} ${v.mel.toCheck === 1 ? "result is" : "results are"} waiting for you to check, and the ${v.mel.quarter} report has ${v.mel.stops} ${v.mel.stops === 1 ? "item" : "items"} to fix before release.` : `No results are waiting for you; the ${v.mel.quarter} report has ${v.mel.stops} ${v.mel.stops === 1 ? "item" : "items"} to fix before release.`,
     finance: `Spending is imported to ${monthWord(b.importedTo)}: ${pct(b.spentPct)} spent with ${pct(b.timePct)} of the time gone, ${b.flagged} budget ${b.flagged === 1 ? "line" : "lines"} to explain.`,
     procurement: `${v.season.purchases.length} ${v.season.purchases.length === 1 ? "purchase starts" : "purchases start"} in the next 60 days; spending is at ${pct(b.spentPct)} of the budget.`,
-    field: v.field.queried ? `MEL has queried ${v.field.queried} of your results: fix them so they count.` : `${v.season.now.length} activities are in season for ${v.season.quarter}; record results as you finish them.`,
+    field: (() => {
+      if (v.field.queried) return `MEL has queried ${v.field.queried} of your results: fix them so they count.`;
+      const mine = v.season.now.filter((a) => a.owner === user.name && a.status !== "done" && a.status !== "cancelled");
+      const idle = mine.filter((a) => a.status === "not_started").length;
+      if (!mine.length) return `No activities are assigned to you for ${v.season.quarter} yet; ${v.season.now.length} are due across the project.`;
+      return `You own ${mine.length} ${mine.length === 1 ? "activity" : "activities"} due by ${dayWord(v.season.quarterEnd)}${idle ? `, ${idle} not started yet` : ", all under way"}. Record results as you finish them.`;
+    })(),
   };
 
   return (
@@ -241,7 +255,7 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{tiles[lens]}</div>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-        <section className="min-w-0 rounded-2xl border border-line bg-surface p-4" aria-labelledby="needs-you">
+        <section className={`min-w-0 rounded-2xl border border-line bg-surface p-4 ${mine.length || (lens === "lead" && (late > 0 || b.overspent.length > 0)) ? "" : "self-start"}`} aria-labelledby="needs-you">
           <h2 id="needs-you" className="font-display text-xl">
             Needs you
           </h2>
@@ -291,42 +305,75 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
         </section>
 
         <section className="min-w-0 rounded-2xl border border-line bg-surface p-4" aria-labelledby="season">
-          <h2 id="season" className="font-display text-xl">
-            In season · {v.season.quarter}
-          </h2>
-          {v.season.now.length === 0 ? (
-            <p className="mt-2 text-sm text-muted">The workplan schedules nothing this quarter.</p>
-          ) : (
-            <ul className="mt-2 space-y-1.5 text-sm">
-              {v.season.now.map((a) => (
-                <li key={a.code} className="flex gap-2">
-                  <span className="shrink-0 font-mono text-xs text-muted">{a.code}</span>
-                  <span className="min-w-0 truncate" title={a.title}>
-                    {a.title}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-          {v.season.next.length > 0 && (
-            <p className="mt-3 text-sm text-muted">
-              Starting in {v.season.nextQuarter}: {v.season.next.map((a) => a.code).join(", ")}
-            </p>
-          )}
-          {v.season.purchases.length > 0 && (
-            <div className="mt-3 border-t border-line pt-3 text-sm">
-              <p className="font-semibold">Purchases to start</p>
-              {v.season.purchases.slice(0, 4).map((p) => (
-                <p key={p.key} className="flex gap-2">
-                  <span className="shrink-0 tabular-nums text-muted">{dayWord(p.startBy!)}</span>
-                  <span className="min-w-0 truncate">{p.title}</span>
+          {(() => {
+            const now = v.season.now;
+            const done = now.filter((a) => a.status === "done").length;
+            const moving = now.filter((a) => a.status === "in_progress").length;
+            const idle = now.filter((a) => a.status === "not_started").length;
+            const held = now.filter((a) => a.status === "on_hold").length;
+            const unowned = now.filter((a) => !a.owner && a.status !== "done" && a.status !== "cancelled").length;
+            const parts = [moving && `${moving} under way`, done && `${done} done`, idle && `${idle} not started`, held && `${held} on hold`].filter(Boolean).join(", ");
+            return (
+              <>
+                <h2 id="season" className="font-display text-xl">
+                  This quarter&rsquo;s work
+                </h2>
+                {now.length === 0 ? (
+                  <p className="mt-2 text-sm text-muted">The workplan schedules nothing for {v.season.quarter}.</p>
+                ) : (
+                  <>
+                    <p className="mt-1 text-sm">
+                      <span className="font-semibold">
+                        {now.length} {now.length === 1 ? "activity" : "activities"} due by {dayWord(v.season.quarterEnd)}, {v.season.weeksLeft} {v.season.weeksLeft === 1 ? "week" : "weeks"} left.
+                      </span>{" "}
+                      {parts}
+                      {unowned ? `; ${unowned === now.length ? "none has an owner" : `${unowned} ${unowned === 1 ? "has" : "have"} no owner`}` : ""}.
+                    </p>
+                    <ul className="mt-3 divide-y divide-line">
+                      {now.map((a) => {
+                        const st =
+                          a.status === "done"
+                            ? { tone: "forest" as const, text: "Done" }
+                            : a.status === "in_progress"
+                              ? { tone: "sky" as const, text: "Under way" }
+                              : a.status === "on_hold"
+                                ? { tone: "clay" as const, text: "On hold" }
+                                : a.status === "cancelled"
+                                  ? { tone: "muted" as const, text: "Cancelled" }
+                                  : { tone: "ochre" as const, text: "Not started" };
+                        return (
+                          <li key={a.code} className="py-2">
+                            <p className="line-clamp-2 text-sm leading-snug" title={a.title}>
+                              {a.title}
+                            </p>
+                            <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
+                              <Pill tone={st.tone}>{st.text}</Pill>
+                              <span className={a.owner ? "" : "text-clay"}>{a.owner ?? "No owner"}</span>
+                              {a.result && (
+                                <span className="tabular-nums">
+                                  · {compact(a.result.achieved)} of {compact(a.result.target)} {a.result.unit} this year
+                                </span>
+                              )}
+                            </p>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </>
+                )}
+                <p className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                  <Link href="/work/activities" className="font-semibold text-forest hover:underline">
+                    {unowned && v.lenses.includes("lead") ? "Assign owners" : "Open activities"} →
+                  </Link>
+                  {v.season.next.length > 0 && (
+                    <span className="text-muted">
+                      {v.season.next.length} more start in {v.season.nextQuarter}
+                    </span>
+                  )}
                 </p>
-              ))}
-            </div>
-          )}
-          <p className="mt-3 text-xs text-muted">
-            Spent to date {compact(b.spent)} of {compact(b.approved)} {b.currency}; forecast {compact(b.forecast)}.
-          </p>
+              </>
+            );
+          })()}
         </section>
       </div>
     </section>

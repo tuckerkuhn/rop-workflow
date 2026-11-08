@@ -5,10 +5,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useT } from "@/components/app/i18n";
 import { useRequireUser, useSession } from "@/components/app/session";
-import { Pill, TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
+import { Pill, TopBar, primaryBtn } from "@/components/workspace/ui";
 import { ACTIVITY_STATUSES, type ActivityAction, type ActivityStatus, type Timing } from "@/lib/activities";
 import type { ActKey } from "@/lib/i18n/activities";
-import type { ActivitiesView } from "@/server/activities-store";
+import type { ActivitiesPageView as ActivitiesView } from "@/app/api/projects/[code]/activities/route";
 
 /**
  * Execute: ROP's workplan activities as they are carried out. Each has an owner, a status with the
@@ -39,7 +39,7 @@ async function call(url: string, user: string, init?: RequestInit): Promise<Acti
 
 function ActivityRow({ r, v, act }: { r: Row; v: ActivitiesView; act: (a: ActivityAction) => Promise<void> }) {
   const { t, date } = useT();
-  const [open, setOpen] = useState<"status" | "task" | null>(null);
+  const [open, setOpen] = useState<"status" | "task" | "owner" | null>(null);
   const [status, setStatus] = useState<ActivityStatus>(r.status === "not_started" ? "in_progress" : r.status);
   const [on, setOn] = useState(v.today);
   const [blocker, setBlocker] = useState(r.blocker);
@@ -59,36 +59,63 @@ function ActivityRow({ r, v, act }: { r: Row; v: ActivitiesView; act: (a: Activi
             {r.doneOn ? ` · ${t("act.doneOn", { date: date(r.doneOn) })}` : ""}
           </p>
           {r.blocker && <p className="mt-0.5 text-xs text-clay">{r.blocker}</p>}
+          <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+            <span className={r.ownerName ? "text-ink" : "text-clay"}>{r.ownerName ? t("act.owner", { name: r.ownerName }) : t("act.noOwner")}</span>
+            {r.results.map((x) => (
+              <span key={x.code} className="tabular-nums text-muted" title={x.name}>
+                {r.results.length > 1 ? `${x.code}: ` : ""}
+                {t("act.result", { achieved: x.achieved.toLocaleString(), target: x.target.toLocaleString(), unit: x.unit })}
+              </span>
+            ))}
+          </p>
+          {/* Work recorded as done in results but not here: offer to close it. */}
+          {r.allMet && r.status !== "done" && r.status !== "cancelled" && (
+            <p className="mt-1 text-xs text-forest">
+              {t("act.targetMet")}{" "}
+              {may && (
+                <button type="button" className="font-semibold underline" onClick={() => void act({ action: "status", code: r.code, status: "done", on: v.today, blocker: "" })}>
+                  {t("act.markDone")}
+                </button>
+              )}
+            </p>
+          )}
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {r.status !== "done" && r.status !== "not_started" && <Pill tone="muted">{t(`act.s.${r.status}` as ActKey)}</Pill>}
           <Pill tone={tm.tone}>{t(tm.text)}</Pill>
         </div>
       </div>
-      <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
-        {v.can.manage ? (
-          <select aria-label={t("act.ownerOf", { code: r.code })} value={r.owner ?? ""} onChange={(e) => void act({ action: "assign", code: r.code, owner: e.target.value || null })} className={field}>
-            <option value="">{t("act.noOwnerOption")}</option>
-            {v.people.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <span className="text-muted">{r.ownerName ? t("act.owner", { name: r.ownerName }) : t("act.noOwner")}</span>
-        )}
-        {may && (
-          <>
-            <button type="button" className={quietBtn} onClick={() => setOpen(open === "status" ? null : "status")}>
-              {t("act.update")}
+      {may && (
+        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+          {v.can.manage && (
+            <button type="button" className="font-semibold text-forest hover:underline" onClick={() => setOpen(open === "owner" ? null : "owner")}>
+              {r.owner ? t("act.changeOwner") : t("act.assign")}
             </button>
-            <button type="button" className={quietBtn} onClick={() => setOpen(open === "task" ? null : "task")}>
-              {t("act.addTask")}
-            </button>
-          </>
-        )}
-      </div>
+          )}
+          <button type="button" className="font-semibold text-forest hover:underline" onClick={() => setOpen(open === "status" ? null : "status")}>
+            {t("act.update")}
+          </button>
+          <button type="button" className="font-semibold text-forest hover:underline" onClick={() => setOpen(open === "task" ? null : "task")}>
+            {t("act.addTask")}
+          </button>
+        </div>
+      )}
+      {open === "owner" && (
+        <select
+          autoFocus
+          aria-label={t("act.ownerOf", { code: r.code })}
+          value={r.owner ?? ""}
+          onChange={(e) => void act({ action: "assign", code: r.code, owner: e.target.value || null }).then(() => setOpen(null))}
+          className={`${field} mt-2`}
+        >
+          <option value="">{t("act.noOwnerOption")}</option>
+          {v.people.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+      )}
       {open === "status" && (
         <form
           className="mt-2 flex flex-wrap items-end gap-2"
@@ -160,7 +187,7 @@ export function ActivitiesPage() {
   const { t } = useT();
   const [v, setV] = useState<ActivitiesView | null>(null);
   const [error, setError] = useState("");
-  const [filter, setFilter] = useState<Filter>("all");
+  const [filter, setFilter] = useState<Filter | null>(null);
   const url = `/api/projects/${project.id}/activities`;
   const load = useCallback(async () => {
     if (!user) return;
@@ -174,16 +201,18 @@ export function ActivitiesPage() {
   useEffect(() => {
     if (ready && user && project.saved) void load();
   }, [ready, user, project.saved, load]);
+  // Opens on your own work, else this quarter's, else everything.
+  const shown: Filter = filter ?? (v?.rows.some((r) => r.mine && r.timing !== "done") ? "mine" : v?.summary.dueNow ? "due_now" : "all");
   const groups = useMemo(() => {
     if (!v) return [];
-    const keep = v.rows.filter((r) => (filter === "all" ? true : filter === "mine" ? r.mine : filter === "unowned" ? !r.owner && r.timing !== "done" && r.timing !== "cancelled" : r.timing === filter));
+    const keep = v.rows.filter((r) => (shown === "all" ? true : shown === "mine" ? r.mine : shown === "unowned" ? !r.owner && r.timing !== "done" && r.timing !== "cancelled" : r.timing === shown));
     const by = new Map<string, Row[]>();
     for (const r of keep) {
       const k = r.activityCode ? `${r.activityCode} ${r.activity ?? ""}`.trim() : t("act.other");
       by.set(k, [...(by.get(k) ?? []), r]);
     }
     return [...by.entries()];
-  }, [v, filter, t]);
+  }, [v, shown, t]);
   if (!user) return null;
   const act = async (a: ActivityAction) => {
     setError("");
@@ -228,7 +257,7 @@ export function ActivitiesPage() {
         {v && (
           <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label={t("act.show")}>
             {chips.map(([k, label, n]) => (
-              <button key={k} type="button" aria-pressed={filter === k} onClick={() => setFilter(k)} className={`whitespace-nowrap rounded-full px-3 py-1.5 text-sm ${filter === k ? "bg-forest text-paper" : "bg-mist text-forest hover:bg-sunken"}`}>
+              <button key={k} type="button" aria-pressed={shown === k} onClick={() => setFilter(k)} className={`whitespace-nowrap rounded-full px-3 py-1.5 text-sm ${shown === k ? "bg-forest text-paper" : "bg-mist text-forest hover:bg-sunken"}`}>
                 {label} {n !== undefined && <span className="tabular-nums opacity-80">{n}</span>}
               </button>
             ))}

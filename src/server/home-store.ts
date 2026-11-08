@@ -8,6 +8,7 @@ import { projectByCode } from "@/server/field-store";
 import { loadReview, rawReview } from "@/server/monthly-review-store";
 import { loadPlan } from "@/server/procurement-plan-store";
 import { loadQpr } from "@/server/qpr-store";
+import { loadActivities } from "@/server/activities-store";
 
 /**
  * Everything Home needs for a database project, computed once: where results stand against the
@@ -31,10 +32,14 @@ const days = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)
 export function lensesFor(u: AppUser): Lens[] {
   const out: Lens[] = [];
   if (u.admin || u.project.some((r) => r === "plan-approver" || r === "monthly-review")) out.push("lead");
+  const proc = procRolesFor(u);
   if (u.project.includes("mel-owner")) out.push("mel");
-  if (u.project.includes("finance-import") || procRolesFor(u).includes("finance")) out.push("finance");
-  if (u.procurementAccess === "edit") out.push("procurement");
-  if (u.fieldAccess === "edit") out.push("field");
+  // Delivery before money and process: the people who run activities (field staff, technical
+  // leads, budget holders) open on their activities and results.
+  if (u.fieldAccess === "edit" || proc.includes("holder")) out.push("field");
+  if (u.project.includes("finance-import") || proc.includes("finance")) out.push("finance");
+  // Procurement is the view of the people who run the workflow, not of everyone who requests a purchase.
+  if (proc.some((r) => r === "procurement" || r === "approver" || r === "ho")) out.push("procurement");
   return out.length ? out : ["field"];
 }
 
@@ -45,12 +50,13 @@ export async function loadHome(code: string, u: AppUser) {
   const thisQ = quarterStart(today);
   const lastQ = quarterStart(`${prevMonth(thisQ.slice(0, 7))}-01`);
   // One full load (results, statuses, budget, this quarter's report checks); the rest only what they decide.
-  const [review, last, lastReport, plan, allPlan] = await Promise.all([
+  const [review, last, lastReport, plan, allPlan, acts] = await Promise.all([
     loadReview(code, month, u),
     rawReview(project.id, prevMonth(month)),
     loadQpr(code, qLabel(lastQ)),
     db.select().from(s.workplanItems).where(eq(s.workplanItems.projectId, project.id)),
     loadPlan(code),
+    loadActivities(code, u).catch(() => null),
   ]);
   const lastReview = { month: prevMonth(month), review: last };
   const report = { checks: review.checks, results: review.results };
@@ -108,7 +114,29 @@ export async function loadHome(code: string, u: AppUser) {
     .filter((p) => p.status !== "started" && p.startBy && p.startBy >= today && days(today, p.startBy) <= 60)
     .sort((a, b2) => (a.startBy ?? "").localeCompare(b2.startBy ?? ""))
     .map((p) => ({ key: p.key, title: p.title, startBy: p.startBy, days: days(today, p.startBy!) }));
-  const season = { quarter: qLabel(thisQ).replace("-", " "), now: inQ(thisQ), next: inQ(nextQ).filter((x) => !inQ(thisQ).some((y) => y.code === x.code)), nextQuarter: qLabel(nextQ).replace("-", " "), purchases };
+  // This quarter's work as it stands: who owns it, whether it has started, and its result so far.
+  const qEnd = new Date(Date.UTC(Number(thisQ.slice(0, 4)), Number(thisQ.slice(5, 7)) + 2, 0)).toISOString().slice(0, 10);
+  const now = inQ(thisQ).map((a) => {
+    const rec = acts?.rows.find((r) => r.code === a.code);
+    // An activity can deliver several indicators; they are linked by the indicator's workplan code.
+    const ind = review.indicators.filter((i) => i.workplanCode === a.code && i.yearTarget > 0)[0];
+    return {
+      ...a,
+      owner: rec?.ownerName ?? null,
+      status: rec?.status ?? "not_started",
+      timing: rec?.timing ?? "due_now",
+      result: ind && ind.yearTarget > 0 ? { achieved: ind.year, target: ind.yearTarget, unit: ind.unit } : null,
+    };
+  });
+  const season = {
+    quarter: qLabel(thisQ).replace("-", " "),
+    quarterEnd: qEnd,
+    weeksLeft: Math.max(0, Math.ceil(days(today, qEnd) / 7)),
+    now,
+    next: inQ(nextQ).filter((x) => !inQ(thisQ).some((y) => y.code === x.code)),
+    nextQuarter: qLabel(nextQ).replace("-", " "),
+    purchases,
+  };
 
   // Waiting for this person.
   const allResults = report.results;
@@ -149,7 +177,7 @@ export async function loadHome(code: string, u: AppUser) {
     deadlines,
     season,
     actions,
-    mel: { toCheck: allResults.filter((r) => r.status === "pending" && r.by !== u.id).length, noProof: proof, stops: report.checks.filter((c) => c.level === "stop").length, checks: report.checks.filter((c) => c.level === "check").length, quarter: qLabel(thisQ).replace("-", " ") },
+    mel: { pending: allResults.filter((r) => r.status === "pending").length, queried: allResults.filter((r) => r.status === "queried").length, toCheck: allResults.filter((r) => r.status === "pending" && r.by !== u.id).length, noProof: proof, stops: report.checks.filter((c) => c.level === "stop").length, checks: report.checks.filter((c) => c.level === "check").length, quarter: qLabel(thisQ).replace("-", " ") },
     field: { queried: myQueried.length, mine: allResults.filter((r) => r.by === u.id && r.date >= thisQ).length },
   };
 }

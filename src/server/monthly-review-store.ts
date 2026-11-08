@@ -93,6 +93,7 @@ export async function loadReview(code: string, month: string, u: AppUser) {
       quarterValue: r.quarter,
       status: suggestStatus(r.year, r.yearTarget, Number(quarter.slice(6)), r.year > 0 || r.records.open > 0, r.planned, ["03", "06", "09", "12"].includes(month.slice(5))),
       planned: r.planned,
+      workplanCode: r.workplanCode,
     })),
     year,
     budget: {

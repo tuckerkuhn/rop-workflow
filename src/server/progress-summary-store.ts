@@ -102,7 +102,10 @@ export async function loadProgressSummary(code: string, u: AppUser) {
   if (noProof) concerns.push({ key: "proof", level: "warning", text: `${noProof} accepted ${noProof === 1 ? "result has" : "results have"} no proof attached this year`, why: "Every figure in a donor report should click through to its evidence.", href: "/progress/results" });
   const stops = v.checks.filter((c) => c.level === "stop").length;
   if (stops) concerns.push({ key: "stops", level: "warning", text: `The ${qLabel(today)} report has ${stops} stop ${stops === 1 ? "item" : "items"}`, why: "It cannot be released until they are fixed.", href: "/progress/report" });
-  concerns.sort((a, b) => Number(b.level === "critical") - Number(a.level === "critical"));
+  // Impact first: results and the activities that deliver them, then money, then evidence and
+  // workflow. Within each, what needs action now before what needs it soon.
+  const group = (k: string) => (/^(late-|due$|unplanned-|acts-)/.test(k) ? 0 : /^(over-|forecast$)/.test(k) ? 1 : 2);
+  concerns.sort((a, b) => group(a.key) - group(b.key) || Number(b.level === "critical") - Number(a.level === "critical"));
 
   return { project: v.project, quarter: qLabel(today), year: v.year, wins, concerns };
 }

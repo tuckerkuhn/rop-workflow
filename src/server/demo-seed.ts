@@ -65,6 +65,8 @@ export async function seedDatabase() {
 
 /** Restores the demo state of an existing project. Real Kobo submissions are kept and go back to pending. */
 export async function resetDemo(code: string) {
+  // A second lock, for scripts: only the demo project is ever reset.
+  if (code !== "A-2027") throw new Error(`${code} is a real project: its records cannot be reset.`);
   const [project] = await db.select().from(s.projects).where(eq(s.projects.code, code)).limit(1);
   if (!project) throw new Error(`Project ${code} is not in the database. Run npm run db:seed.`);
 

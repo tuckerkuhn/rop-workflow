@@ -21,7 +21,11 @@ import type { ResultsView } from "@/app/api/projects/[code]/results/route";
  */
 
 async function call<T>(url: string, user: string | undefined, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, { cache: "no-store", ...init, headers: { ...(init?.body instanceof FormData ? {} : { "Content-Type": "application/json" }), "x-demo-user": user ?? "", ...(init?.headers ?? {}) } });
+  const res = await fetch(url, {
+    cache: "no-store",
+    ...init,
+    headers: { ...(init?.body instanceof FormData ? {} : { "Content-Type": "application/json" }), "x-demo-user": user ?? "", ...(init?.headers ?? {}) },
+  });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error((body as { error?: string }).error ?? `Request failed (${res.status})`);
   return body as T;
@@ -94,7 +98,8 @@ export function ResultsPage() {
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ochre">{project.name}</p>
         <h1 className="mt-1 font-display text-3xl tracking-tight">Results and their proof</h1>
         <p className="mt-1 max-w-2xl text-sm text-muted">
-          Record each result with the attendance sheet, photos or verification report that proves it. MEL checks it; once accepted it counts in Progress and in the donor report, and every figure there opens these records.
+          Record each result with the attendance sheet, photos or verification report that proves it. MEL checks it; once accepted it counts in Progress and in the donor report, and every figure there
+          opens these records.
         </p>
         <p className="mt-2 flex gap-4 text-sm">
           <Link href="/progress" className="font-semibold text-forest hover:underline">
@@ -112,7 +117,21 @@ export function ResultsPage() {
             {notice}
           </p>
         )}
-        {v && !v.indicators.length && <p className="mt-6 rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">This project has no indicators that take recorded results.</p>}
+        {v && !v.indicators.length && (
+          <p className="mt-6 rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">This project has no indicators that take recorded results.</p>
+        )}
+
+        {v && v.indicators.length > 0 && !range && (
+          <WhatNeedsDoing
+            v={v}
+            me={v.me}
+            onRecord={(code) => {
+              setOpen(code);
+              setAdding(code);
+              setTimeout(() => document.getElementById(`ind-${code}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+            }}
+          />
+        )}
 
         {range && (
           <p className="mt-6 flex flex-wrap items-center gap-2 rounded-xl bg-sunken px-4 py-3 text-sm">
@@ -152,9 +171,7 @@ export function ResultsPage() {
                         <span className="flex-1 font-medium leading-snug">{i.name}</span>
                         <span className="shrink-0 text-end">
                           <span className="font-display text-2xl tabular-nums">{num(range ? shown.value : all.value)}</span>
-                          <span className="block text-xs text-muted">
-                            {range ? `in ${rangeLabel}` : `of ${num(i.target)} ${i.unit}`}
-                          </span>
+                          <span className="block text-xs text-muted">{range ? `in ${rangeLabel}` : `of ${num(i.target)} ${i.unit}`}</span>
                         </span>
                       </button>
                       <p className="mt-2 flex flex-wrap gap-x-3 text-xs text-muted">
@@ -198,14 +215,17 @@ export function ResultsPage() {
           <section className="mt-10 border-t border-line pt-6">
             <h2 className="font-display text-2xl">Activity updates</h2>
             <p className="mt-1 max-w-2xl text-sm text-muted">
-              Progress that is not a count on an indicator: reservoirs built, grant agreements signed, sales at an exhibition, an analysis finished. Add photos with a caption to put them in the donor report. Updates go into the report&rsquo;s narrative; they never change a figure.
+              Progress that is not a count on an indicator: reservoirs built, grant agreements signed, sales at an exhibition, an analysis finished. Add photos with a caption to put them in the donor
+              report. Updates go into the report&rsquo;s narrative; they never change a figure.
             </p>
             {v.mayUpdate && !addingUpdate && (
               <button type="button" className={`${quietBtn} mt-3`} onClick={() => setAddingUpdate(true)}>
                 Add an update
               </button>
             )}
-            {addingUpdate && <UpdateForm activities={v.activities} onClose={() => setAddingUpdate(false)} add={(u) => act({ action: "update", update: u }, "Update added.").then(() => setAddingUpdate(false))} />}
+            {addingUpdate && (
+              <UpdateForm activities={v.activities} onClose={() => setAddingUpdate(false)} add={(u) => act({ action: "update", update: u }, "Update added.").then(() => setAddingUpdate(false))} />
+            )}
             {v.activities.map((a) => {
               const list = v.updates.filter((u) => u.activity === a.code && (!range || (u.date >= range.from && u.date <= range.to)));
               if (!list.length) return null;
@@ -223,7 +243,12 @@ export function ResultsPage() {
                         <p className="mt-1 whitespace-pre-line">{u.note}</p>
                         <div className="mt-2 flex flex-wrap gap-2">
                           {u.files.map((f) => (
-                            <button key={f.hash} type="button" onClick={() => void openReceipt(f.hash, user.id)} className="rounded-lg border border-line px-2 py-1 text-start text-xs font-semibold text-forest hover:bg-sunken">
+                            <button
+                              key={f.hash}
+                              type="button"
+                              onClick={() => void openReceipt(f.hash, user.id)}
+                              className="rounded-lg border border-line px-2 py-1 text-start text-xs font-semibold text-forest hover:bg-sunken"
+                            >
                               {f.name}
                               {u.captions?.[f.hash] && <span className="block font-normal text-muted">Photo in the report: {u.captions[f.hash]}</span>}
                             </button>
@@ -244,12 +269,30 @@ export function ResultsPage() {
 
 /** Only captions for photos still attached, and not empty. */
 const cleanCaptions = (c: Record<string, string>, files: Receipt[]) => {
-  const out = Object.fromEntries(Object.entries(c).filter(([h, v]) => v.trim() && files.some((f) => f.hash === h && f.type.startsWith("image/"))).map(([h, v]) => [h, v.trim()]));
+  const out = Object.fromEntries(
+    Object.entries(c)
+      .filter(([h, v]) => v.trim() && files.some((f) => f.hash === h && f.type.startsWith("image/")))
+      .map(([h, v]) => [h, v.trim()]),
+  );
   return Object.keys(out).length ? out : undefined;
 };
 
 /** Upload photos and documents; each photo can get a caption, and captioned photos go into the donor report. */
-function ProofPicker({ files, setFiles, captions, setCaptions, setErr, setBusy }: { files: Receipt[]; setFiles: (f: Receipt[] | ((c: Receipt[]) => Receipt[])) => void; captions: Record<string, string>; setCaptions: (c: Record<string, string>) => void; setErr: (s: string) => void; setBusy: (b: boolean) => void }) {
+function ProofPicker({
+  files,
+  setFiles,
+  captions,
+  setCaptions,
+  setErr,
+  setBusy,
+}: {
+  files: Receipt[];
+  setFiles: (f: Receipt[] | ((c: Receipt[]) => Receipt[])) => void;
+  captions: Record<string, string>;
+  setCaptions: (c: Record<string, string>) => void;
+  setErr: (s: string) => void;
+  setBusy: (b: boolean) => void;
+}) {
   const { user } = useSession();
   const upload = async (list: FileList | null) => {
     if (!list) return;
@@ -283,7 +326,12 @@ function ProofPicker({ files, setFiles, captions, setCaptions, setErr, setBusy }
                 </button>
               </span>
               {x.type.startsWith("image/") && (
-                <input className={input} placeholder="Caption, to put this photo in the report: what, where, when" value={captions[x.hash] ?? ""} onChange={(e) => setCaptions({ ...captions, [x.hash]: e.target.value })} />
+                <input
+                  className={input}
+                  placeholder="Caption, to put this photo in the report: what, where, when"
+                  value={captions[x.hash] ?? ""}
+                  onChange={(e) => setCaptions({ ...captions, [x.hash]: e.target.value })}
+                />
               )}
             </li>
           ))}
@@ -331,7 +379,13 @@ function UpdateForm({ activities, add, onClose }: { activities: { code: string; 
       </div>
       <label className="mt-3 block text-sm">
         What happened
-        <textarea className={input} rows={4} value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} placeholder="10 of the 15 planned water reservoirs completed in Nesh, Maiwand, Musa Qala and Sangin (about 121 m³ each)." />
+        <textarea
+          className={input}
+          rows={4}
+          value={f.note}
+          onChange={(e) => setF({ ...f, note: e.target.value })}
+          placeholder="10 of the 15 planned water reservoirs completed in Nesh, Maiwand, Musa Qala and Sangin (about 121 m³ each)."
+        />
       </label>
       <div className="mt-3 text-sm">
         Photos or documents (optional)
@@ -434,7 +488,17 @@ function AddProof({ r, act, onClose }: { r: Res; act: (a: ResultAction, msg: str
 
 /** The recorder answers MEL's query: corrected figures and a note on what changed. */
 function CorrectForm({ r, act, onClose }: { r: Res; act: (a: ResultAction, msg: string) => Promise<void>; onClose: () => void }) {
-  const [f, setF] = useState({ date: r.date, value: String(r.value), female: r.female?.toString() ?? "", male: r.male?.toString() ?? "", womenLed: r.womenLed?.toString() ?? "", menLed: r.menLed?.toString() ?? "", province: r.province ?? "", district: r.district ?? "", note: r.note });
+  const [f, setF] = useState({
+    date: r.date,
+    value: String(r.value),
+    female: r.female?.toString() ?? "",
+    male: r.male?.toString() ?? "",
+    womenLed: r.womenLed?.toString() ?? "",
+    menLed: r.menLed?.toString() ?? "",
+    province: r.province ?? "",
+    district: r.district ?? "",
+    note: r.note,
+  });
   const [reply, setReply] = useState("");
   const [busy, setBusy] = useState(false);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
@@ -447,7 +511,17 @@ function CorrectForm({ r, act, onClose }: { r: Res; act: (a: ResultAction, msg: 
           action: "correct",
           id: r.id,
           reply: reply.trim(),
-          changes: { date: f.date, value: Number(f.value), female: opt(f.female), male: opt(f.male), womenLed: opt(f.womenLed), menLed: opt(f.menLed), province: f.province || undefined, district: f.district.trim() || undefined, note: f.note.trim() },
+          changes: {
+            date: f.date,
+            value: Number(f.value),
+            female: opt(f.female),
+            male: opt(f.male),
+            womenLed: opt(f.womenLed),
+            menLed: opt(f.menLed),
+            province: f.province || undefined,
+            district: f.district.trim() || undefined,
+            note: f.note.trim(),
+          },
         },
         "Corrected and sent back to MEL.",
       );
@@ -559,7 +633,13 @@ function ResultCard({ r, ind, act, mayAddProof, me }: { r: Res; ind?: Ind; act: 
           {r.crop && ` · ${r.crop}`}
         </span>
       </div>
-      {ind && !r.canReview ? null : ind && <p className="mt-1 text-xs text-muted">{ind.donorCode ?? ind.code}: {ind.name}</p>}
+      {ind && !r.canReview
+        ? null
+        : ind && (
+            <p className="mt-1 text-xs text-muted">
+              {ind.donorCode ?? ind.code}: {ind.name}
+            </p>
+          )}
       <p className="mt-2 whitespace-pre-line text-sm">{r.note}</p>
       {(r.female !== undefined || r.male !== undefined || r.womenLed !== undefined || r.menLed !== undefined) && (
         <p className="mt-1 text-xs text-muted">
@@ -571,7 +651,12 @@ function ResultCard({ r, ind, act, mayAddProof, me }: { r: Res; ind?: Ind; act: 
       )}
       <div className="mt-2 flex flex-wrap gap-2">
         {r.files.map((f) => (
-          <button key={f.hash} type="button" onClick={() => void openReceipt(f.hash, user?.id)} className="rounded-lg border border-line px-2 py-1 text-start text-xs font-semibold text-forest hover:bg-sunken">
+          <button
+            key={f.hash}
+            type="button"
+            onClick={() => void openReceipt(f.hash, user?.id)}
+            className="rounded-lg border border-line px-2 py-1 text-start text-xs font-semibold text-forest hover:bg-sunken"
+          >
             {f.name}
             {r.captions?.[f.hash] && <span className="block font-normal text-muted">Photo in the report: {r.captions[f.hash]}</span>}
           </button>
@@ -602,7 +687,9 @@ function ResultCard({ r, ind, act, mayAddProof, me }: { r: Res; ind?: Ind; act: 
       {correcting && <CorrectForm r={r} act={act} onClose={() => setCorrecting(false)} />}
       {(r.history ?? []).length > 0 && (
         <details className="mt-2 text-xs text-muted">
-          <summary className="cursor-pointer">Corrected {r.history!.length} {r.history!.length === 1 ? "time" : "times"}</summary>
+          <summary className="cursor-pointer">
+            Corrected {r.history!.length} {r.history!.length === 1 ? "time" : "times"}
+          </summary>
           <ul className="mt-1 space-y-1">
             {r.history!.map((h) => (
               <li key={h.at}>
@@ -637,7 +724,12 @@ function ResultCard({ r, ind, act, mayAddProof, me }: { r: Res; ind?: Ind; act: 
                 <textarea className={input} rows={2} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="The attendance sheet shows 38 names, not 45." />
               </label>
               <div className="mt-2 flex gap-2">
-                <button type="button" disabled={busy || query.trim().length < 3} className={dangerBtn} onClick={() => run(() => act({ action: "query", id: r.id, note: query }, "Queried: it goes back to the person who recorded it."))}>
+                <button
+                  type="button"
+                  disabled={busy || query.trim().length < 3}
+                  className={dangerBtn}
+                  onClick={() => run(() => act({ action: "query", id: r.id, note: query }, "Queried: it goes back to the person who recorded it."))}
+                >
                   Send query
                 </button>
                 <button type="button" className={quietBtn} onClick={() => setQuery(null)}>
@@ -657,7 +749,20 @@ function RecordForm({ ind, add, onClose }: { ind: Ind; add: (r: ResultInput) => 
   const bySex = d.includes("sex");
   const byLead = d.includes("women-led or men-led");
   const byCrop = d.includes("crop");
-  const [f, setF] = useState({ date: new Date().toISOString().slice(0, 10), value: "", female: "", male: "", youth: "", womenLed: "", menLed: "", province: "", district: "", crop: "", note: "", noFile: "" });
+  const [f, setF] = useState({
+    date: new Date().toISOString().slice(0, 10),
+    value: "",
+    female: "",
+    male: "",
+    youth: "",
+    womenLed: "",
+    menLed: "",
+    province: "",
+    district: "",
+    crop: "",
+    note: "",
+    noFile: "",
+  });
   const [files, setFiles] = useState<Receipt[]>([]);
   const [captions, setCaptions] = useState<Record<string, string>>({});
   const [links, setLinks] = useState<ProofLink[]>([]);
@@ -671,7 +776,8 @@ function RecordForm({ ind, add, onClose }: { ind: Ind; add: (r: ResultInput) => 
     const value = Number(f.value);
     if (!(value > 0)) return setErr(`Enter how many ${ind.unit}.`);
     if (f.note.trim().length < 10) return setErr("Say what was done, where and with whom: it goes into the report.");
-    if (bySex && opt(f.female) !== undefined && opt(f.male) !== undefined && ind.unit === "persons" && opt(f.female)! + opt(f.male)! !== value) return setErr(`Women and men add up to ${opt(f.female)! + opt(f.male)!}, not ${value}.`);
+    if (bySex && opt(f.female) !== undefined && opt(f.male) !== undefined && ind.unit === "persons" && opt(f.female)! + opt(f.male)! !== value)
+      return setErr(`Women and men add up to ${opt(f.female)! + opt(f.male)!}, not ${value}.`);
     setBusy(true);
     try {
       await add({
@@ -760,7 +866,13 @@ function RecordForm({ ind, add, onClose }: { ind: Ind; add: (r: ResultInput) => 
       </div>
       <label className="mt-3 block text-sm">
         What was done
-        <textarea className={input} rows={3} value={f.note} onChange={set("note")} placeholder="Drip irrigation installed on 10 ha for 20 farmers in Nahr-e Saraj and Arghandab; 6 women-headed households." />
+        <textarea
+          className={input}
+          rows={3}
+          value={f.note}
+          onChange={set("note")}
+          placeholder="Drip irrigation installed on 10 ha for 20 farmers in Nahr-e Saraj and Arghandab; 6 women-headed households."
+        />
       </label>
       <div className="mt-3 text-sm">
         Proof{ind.verification ? ` (${ind.verification})` : ""}
@@ -827,7 +939,8 @@ function ImportResults({ indicators, act }: { indicators: { code: string; donorC
     <section className="mt-6 rounded-2xl border border-line bg-surface p-4">
       <h2 className="font-display text-xl">Import results</h2>
       <p className="mt-1 text-sm text-muted">
-        One row per result. The indicator may be the app&rsquo;s code (IND-7) or the donor&rsquo;s (1.2.1.4). Each row is checked as if typed in, and nothing is saved until every row passes. Imported results wait for MEL like any other.{" "}
+        One row per result. The indicator may be the app&rsquo;s code (IND-7) or the donor&rsquo;s (1.2.1.4). Each row is checked as if typed in, and nothing is saved until every row passes. Imported
+        results wait for MEL like any other.{" "}
         <a href={template} download="results-template.csv" className="font-semibold text-forest hover:underline">
           Download the template
         </a>
@@ -883,6 +996,56 @@ function ImportResults({ indicators, act }: { indicators: { code: string; donorC
           Cancel
         </button>
       </div>
+    </section>
+  );
+}
+
+/**
+ * The top of Results, by who is looking: record a result (field staff), what is waiting for MEL,
+ * what MEL queried of yours, and accepted results still without proof.
+ */
+function WhatNeedsDoing({ v, me, onRecord }: { v: ResultsView; me: string; onRecord: (code: string) => void }) {
+  const [pick, setPick] = useState("");
+  const pending = v.results.filter((r) => r.status === "pending").length;
+  const queriedMine = v.results.filter((r) => r.status === "queried" && r.by === me).length;
+  const year = new Date().toISOString().slice(0, 4);
+  const noProof = v.results.filter((r) => r.status === "accepted" && r.date >= `${year}-01-01` && !proofCount(r)).length;
+  return (
+    <section className="mt-5 rounded-2xl border border-line bg-surface p-4">
+      {v.mayRecord && (
+        <form
+          className="flex flex-wrap items-center gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (pick) onRecord(pick);
+          }}
+        >
+          <select value={pick} onChange={(e) => setPick(e.target.value)} className="min-w-0 flex-1 rounded-xl border border-line bg-paper px-3 py-2.5 text-sm" aria-label="Indicator for the result">
+            <option value="">Which indicator is the result for?</option>
+            {v.indicators.map((i) => (
+              <option key={i.code} value={i.code}>
+                {i.donorCode ?? i.code} {i.name}
+              </option>
+            ))}
+          </select>
+          <button type="submit" className={primaryBtn} disabled={!pick}>
+            Record a result
+          </button>
+        </form>
+      )}
+      <ul className={`${v.mayRecord ? "mt-3" : ""} flex flex-wrap gap-x-5 gap-y-1 text-sm`}>
+        <li>
+          <span className={`font-semibold tabular-nums ${pending ? "text-ochre" : ""}`}>{pending}</span> waiting for MEL
+        </li>
+        {queriedMine > 0 && (
+          <li>
+            <span className="font-semibold tabular-nums text-clay">{queriedMine}</span> of yours queried: answer them below
+          </li>
+        )}
+        <li>
+          <span className={`font-semibold tabular-nums ${noProof ? "text-clay" : ""}`}>{noProof}</span> accepted this year with no proof attached
+        </li>
+      </ul>
     </section>
   );
 }

@@ -6,6 +6,7 @@ import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { Pill, TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import type { FrameworkAction } from "@/lib/framework";
+import { indicatorStatus } from "@/components/progress/indicator-table";
 import type { FrameworkView, TreeNode } from "@/server/framework-store";
 
 /**
@@ -13,14 +14,6 @@ import type { FrameworkView, TreeNode } from "@/server/framework-store";
  * and on each activity its indicators (this year's progress) and ROP's sub-activities (status).
  */
 
-const STATUS: Record<string, { tone: "forest" | "ochre" | "clay" | "muted" | "sky"; text: string }> = {
-  completed: { tone: "forest", text: "Target met" },
-  on_track: { tone: "sky", text: "On track" },
-  delayed: { tone: "clay", text: "Delayed" },
-  not_implemented: { tone: "clay", text: "Not implemented" },
-  not_started: { tone: "muted", text: "Not started" },
-  planned_later: { tone: "muted", text: "Planned later" },
-};
 const TIMING: Record<string, string> = { late: "late", due_now: "due this quarter", done: "done", cancelled: "cancelled", upcoming: "later", unscheduled: "no quarter planned" };
 const n = (v: number) => v.toLocaleString("en-US", { maximumFractionDigits: 1 });
 
@@ -97,7 +90,7 @@ function Node({ node, canEdit, save, year }: { node: TreeNode; canEdit: boolean;
       {node.indicators.length > 0 && (
         <ul className="mt-2 space-y-1.5">
           {node.indicators.map((i) => {
-            const st = STATUS[i.status] ?? { tone: "muted" as const, text: i.status };
+            const st = indicatorStatus(i);
             return (
               <li key={i.code} className="flex flex-wrap items-baseline gap-x-2 text-sm">
                 <span className="font-mono text-xs text-muted">{i.donorCode}</span>

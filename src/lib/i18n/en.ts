@@ -105,6 +105,7 @@ export const en = {
   "tasks.source.field": "Field",
   "tasks.source.procurement": "Procurement",
   "tasks.source.project": "Project",
+  "tasks.source.activity": "Activity",
   "tasks.source.manual": "Task",
 
   "milestone.label": "Milestone",

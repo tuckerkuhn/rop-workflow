@@ -13,6 +13,8 @@ export function ProgressSummaryPanel({ projectId, userId }: { projectId: string;
   const [v, setV] = useState<ProgressSummary | null>(null);
   const [error, setError] = useState("");
   const [allWins, setAllWins] = useState(false);
+  // On a phone the list stops at four; the rest are a tap away.
+  const [allConcerns, setAllConcerns] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -88,8 +90,8 @@ export function ProgressSummaryPanel({ projectId, userId }: { projectId: string;
             <p className="mt-2 text-sm text-muted">Nothing is off plan.</p>
           ) : (
             <ol className="mt-3 divide-y divide-line">
-              {v.concerns.map((c) => (
-                <li key={c.key}>
+              {v.concerns.map((c, k) => (
+                <li key={c.key} className={k >= 4 && !allConcerns ? "hidden lg:block" : ""}>
                   <Link href={c.href} className="flex gap-3 py-2.5 hover:text-forest">
                     <span className={`mt-0.5 shrink-0 self-start rounded-full px-2 py-0.5 text-[11px] font-semibold ${c.level === "critical" ? "bg-clay-soft text-clay" : "bg-ochre-soft text-ochre"}`}>
                       {c.level === "critical" ? "Now" : "Soon"}
@@ -105,6 +107,11 @@ export function ProgressSummaryPanel({ projectId, userId }: { projectId: string;
                 </li>
               ))}
             </ol>
+          )}
+          {v.concerns.length > 4 && !allConcerns && (
+            <button type="button" className="mt-2 text-sm font-semibold text-forest hover:underline lg:hidden" onClick={() => setAllConcerns(true)}>
+              Show all {v.concerns.length}
+            </button>
           )}
         </section>
       </div>

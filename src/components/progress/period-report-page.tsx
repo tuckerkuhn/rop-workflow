@@ -107,7 +107,7 @@ export function PeriodReportPage() {
           <>
             <p className="mt-4 text-lg">
               {met} of {v.rows.length} indicators met their {annual ? "targets for the year" : "life-of-project targets"}
-              {v.open ? `; ${v.open} results from the period are still waiting for MEL and not counted` : ""}.
+              {v.open ? `; ${v.open} ${v.open === 1 ? "result" : "results"} from the period ${v.open === 1 ? "is" : "are"} still waiting for MEL and not counted` : ""}.
             </p>
             <div className="mt-4 overflow-x-auto rounded-2xl border border-line bg-surface print:overflow-visible">
               <table className="w-full min-w-[720px] text-sm">

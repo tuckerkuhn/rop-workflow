@@ -445,7 +445,7 @@ export function Dashboard() {
               {subject.reportsTo && !readOnly ? ` · reports to ${userById(subject.reportsTo)?.name}` : ""}
             </p>
           </div>
-          {!readOnly && user.kind === "employee" && user.procurementAccess !== "none" && (
+          {!readOnly && !current.saved && user.kind === "employee" && user.procurementAccess !== "none" && (
             <p className="basis-full text-sm text-muted sm:basis-auto">
               {open.length} open procurements · <span className="tabular-nums">{money(open.reduce((s, p) => s + valueOf(p), 0))}</span>
             </p>
@@ -462,8 +462,9 @@ export function Dashboard() {
             {current.saved && user.kind === "employee" && <RoleHome user={user} project={current} />}
             {/* The person's own HR items (timesheet, leave, expenses) come after the project view. */}
             <PeopleCard />
-            <HomePanels user={user} project={current} stage={stage} />
-            <Team u={user} data={data} viewer={user} onView={(id) => view(id)} />
+            {/* The role view covers a database project; the older panels serve the demo projects. */}
+            {!current.saved && <HomePanels user={user} project={current} stage={stage} />}
+            {!current.saved && <Team u={user} data={data} viewer={user} onView={(id) => view(id)} />}
           </>
         )}
       </main>

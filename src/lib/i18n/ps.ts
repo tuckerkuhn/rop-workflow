@@ -118,6 +118,7 @@ export const ps: Messages = {
   "tasks.source.field": "ساحه",
   "tasks.source.procurement": "تدارکات",
   "tasks.source.project": "پروژه",
+  "tasks.source.activity": "فعالیت",
   "tasks.source.manual": "دنده",
   "milestone.label": "مهمه نېټه",
   "milestone.kind.report_deadline": "د راپور وروستۍ نېټه",

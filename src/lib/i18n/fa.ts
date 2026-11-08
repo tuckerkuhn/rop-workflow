@@ -118,6 +118,7 @@ export const fa: Messages = {
   "tasks.source.field": "ساحه",
   "tasks.source.procurement": "تدارکات",
   "tasks.source.project": "پروژه",
+  "tasks.source.activity": "فعالیت",
   "tasks.source.manual": "کار",
   "milestone.label": "نقطهٔ عطف",
   "milestone.kind.report_deadline": "مهلت گزارش",

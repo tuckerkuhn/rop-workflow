@@ -51,6 +51,11 @@ export const actEn = {
   "act.addTaskBtn": "Add task",
   "act.taskDue": "due {date}",
   "act.other": "Other",
+  "act.result": "{achieved} of {target} {unit} this year",
+  "act.targetMet": "This year's target is met.",
+  "act.markDone": "Mark it done",
+  "act.assign": "Assign an owner",
+  "act.changeOwner": "Change owner",
 };
 export type ActKey = keyof typeof actEn;
 
@@ -102,6 +107,11 @@ export const actFa: Partial<Record<ActKey, string>> = {
   "act.addTaskBtn": "افزودن وظیفه",
   "act.taskDue": "موعد {date}",
   "act.other": "دیگر",
+  "act.result": "{achieved} از {target} {unit} امسال",
+  "act.targetMet": "هدف امسال برآورده شده است.",
+  "act.markDone": "انجام‌شده علامت بزنید",
+  "act.assign": "تعیین مسئول",
+  "act.changeOwner": "تغییر مسئول",
 };
 
 export const actPs: Partial<Record<ActKey, string>> = {
@@ -152,6 +162,11 @@ export const actPs: Partial<Record<ActKey, string>> = {
   "act.addTaskBtn": "دنده زیاتول",
   "act.taskDue": "نېټه {date}",
   "act.other": "نور",
+  "act.result": "{achieved} له {target} {unit} څخه سږکال",
+  "act.targetMet": "د سږکال هدف پوره شوی.",
+  "act.markDone": "بشپړ یې وښایاست",
+  "act.assign": "مسوول ټاکل",
+  "act.changeOwner": "مسوول بدلول",
 };
 
 export const actEs: Partial<Record<ActKey, string>> = {
@@ -202,4 +217,9 @@ export const actEs: Partial<Record<ActKey, string>> = {
   "act.addTaskBtn": "Añadir tarea",
   "act.taskDue": "para el {date}",
   "act.other": "Otras",
+  "act.result": "{achieved} de {target} {unit} este año",
+  "act.targetMet": "La meta del año está cumplida.",
+  "act.markDone": "Marcarla como hecha",
+  "act.assign": "Asignar responsable",
+  "act.changeOwner": "Cambiar responsable",
 };

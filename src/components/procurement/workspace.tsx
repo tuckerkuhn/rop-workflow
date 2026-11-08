@@ -904,9 +904,9 @@ export function ProcurementWorkspace() {
             </p>
           )}
           <QueueFooter
-            note={mode === "demo" ? "Fictional records, saved in the project database. Resetting restores all sample records." : "Saved in the project database."}
+            note={mode === "demo" && project.id === "A-2027" ? "Fictional records, saved in the project database. Resetting restores all sample records." : "Saved in the project database."}
             onReset={
-              mode === "demo"
+              mode === "demo" && project.id === "A-2027"
                 ? () => {
                     void reset();
                     setSelected(null);

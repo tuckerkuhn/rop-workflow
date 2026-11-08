@@ -33,9 +33,10 @@ export function SettingsPage() {
     <div className="min-h-screen">
       <TopBar />
       <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-        <h1 className="font-display text-4xl tracking-tight">{t("settings.title")}</h1>
-        <p className="mt-1 text-sm text-muted">{project.name}</p>
+        <h1 className="font-display text-4xl tracking-tight">Settings</h1>
 
+        {/* You: how you sign in and what reaches you. */}
+        <h2 className="mt-8 font-display text-2xl">You</h2>
         <PasswordSection />
         <NotifySection />
         {mode === "live" && (
@@ -44,30 +45,13 @@ export function SettingsPage() {
           </div>
         )}
 
-        {user.admin && (
-          <p className="mt-4 text-sm">
-            <Link href="/settings/health" className="font-semibold text-forest hover:underline">
-              Health: errors, AI use, email and a copy of the records
-            </Link>
-          </p>
-        )}
-        <p className="mt-4 text-sm">
-          <Link href="/settings/organization" className="font-semibold text-forest hover:underline">
-            Organization settings: the rules by department, and presets
-          </Link>
-        </p>
+        {/* This project: its donors and the rules it follows. */}
+        <h2 className="mt-10 font-display text-2xl">{project.name}</h2>
         <p className="mt-2 text-sm">
           <Link href="/settings/policy" className="font-semibold text-forest hover:underline">
             Rules this project follows: organization and donor policy
           </Link>
         </p>
-        {user?.admin && (
-          <p className="mt-2 text-sm">
-            <Link href="/settings/people" className="font-semibold text-forest hover:underline">
-              People and roles: who can sign in and what they may do
-            </Link>
-          </p>
-        )}
         <section className="mt-8" aria-labelledby="donors-heading">
           <div className="flex items-center justify-between gap-3">
             <span id="donors-heading">
@@ -114,6 +98,28 @@ export function SettingsPage() {
             })}
           </ul>
         </section>
+
+        {/* The organization: administrators' tools. */}
+        <h2 className="mt-10 font-display text-2xl">Roots of Peace</h2>
+        <p className="mt-2 text-sm">
+          <Link href="/settings/organization" className="font-semibold text-forest hover:underline">
+            Organization settings: the rules by department, and presets
+          </Link>
+        </p>
+        {user.admin && (
+          <>
+            <p className="mt-2 text-sm">
+              <Link href="/settings/people" className="font-semibold text-forest hover:underline">
+                People and roles: who can sign in and what they may do
+              </Link>
+            </p>
+            <p className="mt-2 text-sm">
+              <Link href="/settings/health" className="font-semibold text-forest hover:underline">
+                Health: errors, AI use, email and a copy of the records
+              </Link>
+            </p>
+          </>
+        )}
       </main>
       {editing && data && (
         <DonorSheet

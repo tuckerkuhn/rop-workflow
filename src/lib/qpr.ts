@@ -124,6 +124,8 @@ export type Row = {
   unit: string;
   /** The budget line that pays for it, e.g. "PRG-1.1.1.C". */
   budgetRef: string | null;
+  /** The workplan activity that delivers it, e.g. "1.1.1.3"; codes differ from the indicator's own. */
+  workplanCode: string | null;
   yearTarget: number;
   quarter: number;
   year: number;
@@ -258,6 +260,7 @@ export function buildRows(indicators: IndicatorInfo[], results: ResultRecord[], 
       name: i.name,
       unit: i.unit,
       budgetRef: i.budgetRef,
+      workplanCode: i.workplanCode ?? null,
       yearTarget: yearShare(i, Number(y)),
       quarter: q.value,
       year: yr.value,

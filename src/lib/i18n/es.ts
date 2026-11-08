@@ -118,6 +118,7 @@ export const es: Messages = {
   "tasks.source.field": "Campo",
   "tasks.source.procurement": "Adquisiciones",
   "tasks.source.project": "Proyecto",
+  "tasks.source.activity": "Actividad",
   "tasks.source.manual": "Tarea",
   "milestone.label": "Hito",
   "milestone.kind.report_deadline": "Plazo de informe",
