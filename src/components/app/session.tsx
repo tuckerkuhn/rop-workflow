@@ -1,6 +1,7 @@
 "use client";
 
 import { createBrowserClient } from "@supabase/ssr";
+import { TwoStepGate } from "@/components/app/two-step";
 import { useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { formatMoney, registerPeople, userById, type AppUser, type Currency } from "@/lib/demo";
@@ -47,7 +48,7 @@ export function supabaseBrowser() {
   return createBrowserClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 }
 
-type ServerSession = { mode: "demo" | "live"; configured: boolean; user: AppUser | null; actor: AppUser | null; viewingAs: boolean; people: AppUser[]; plan: Plan; authority?: Authority };
+type ServerSession = { mode: "demo" | "live"; configured: boolean; user: AppUser | null; actor: AppUser | null; viewingAs: boolean; people: AppUser[]; plan: Plan; authority?: Authority; twoStep?: "verify" | "enroll" };
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [mode, setMode] = useState<Mode>("loading");
@@ -57,12 +58,15 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [currency, setCurrencyState] = useState<Currency>("USD");
   const [stored, setStored] = useState(false);
   const [plan, setPlan] = useState<Plan>("free");
+  // Live sign-in: the second step still owed this session, if any (see TwoStepGate).
+  const [twoStep, setTwoStep] = useState<"verify" | "enroll" | null>(null);
 
   const refresh = useCallback(async () => {
     try {
       const s = (await (await fetch("/api/session", { cache: "no-store" })).json()) as ServerSession;
       // Who holds each role type, before any screen asks who signs what.
       registerAuthority(s.authority);
+      setTwoStep(s.mode === "live" ? (s.twoStep ?? null) : null);
       if (s.mode === "live") {
         registerPeople(s.people);
         setLive({ user: s.user, actor: s.actor, viewingAs: s.viewingAs });
@@ -133,7 +137,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     [mode, configured, live, demoUser, stored, signOut, refresh, viewAs, currency, money, plan],
   );
 
-  return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
+  return <SessionContext.Provider value={value}>{twoStep ? <TwoStepGate kind={twoStep} onDone={() => void refresh()} /> : children}</SessionContext.Provider>;
 }
 
 export function useSession() {

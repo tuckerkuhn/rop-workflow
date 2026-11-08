@@ -32,6 +32,7 @@ export function personOf(r: Row): PersonInput & { id: string; active: boolean; s
     pii: !!p.pii,
     admin: !!p.admin,
     leads: p.leads ?? [],
+    projects: p.projects ?? [],
     active: r.active,
     signedIn: !!r.authUserId,
   };
@@ -52,6 +53,7 @@ const profileOf = (p: PersonInput, old: Profile): Profile => ({
   pii: p.pii,
   admin: p.admin,
   leads: p.leads.length ? p.leads : undefined,
+  projects: p.projects?.length ? p.projects : undefined,
 });
 
 export async function listPeople() {

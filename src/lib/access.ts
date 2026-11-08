@@ -59,6 +59,8 @@ export const personSchema = z.object({
   admin: z.boolean(),
   /** Workplan activity numbers this person leads ("1.1", "2.1.2"), or "operations". */
   leads: z.array(z.string().trim().regex(/^(\d+(\.\d+)*|operations)$/)).max(30),
+  /** Project codes this person works on (their roles apply only there); empty for every project. */
+  projects: z.array(z.string().trim().regex(/^[A-Za-z0-9-]{2,40}$/, "Project codes look like ACRP-2026.")).max(50).default([]),
 });
 export type PersonInput = z.infer<typeof personSchema>;
 
@@ -99,12 +101,13 @@ export function describeChange(before: PersonInput | null, after: PersonInput): 
   ];
   for (const [k, label] of simple) if (JSON.stringify(before[k]) !== JSON.stringify(after[k])) out.push(`${label}: ${String(before[k] ?? "none")} → ${String(after[k] ?? "none")}`);
   if (before.leads.join(",") !== after.leads.join(",")) out.push(`Leads: ${before.leads.join(", ") || "none"} → ${after.leads.join(", ") || "none"}`);
+  if ((before.projects ?? []).join(",") !== (after.projects ?? []).join(",")) out.push(`Projects: ${(before.projects ?? []).join(", ") || "all"} → ${(after.projects ?? []).join(", ") || "all"}`);
   return out;
 }
 
 /** Changes a person may not make to their own record: another administrator must. */
 export function selfChangeProblem(before: PersonInput, after: PersonInput): string | null {
-  const locked: (keyof PersonInput)[] = ["project", "field", "procurement", "fieldAccess", "procurementAccess", "pii", "admin", "kind", "org", "email", "reportsTo"];
+  const locked: (keyof PersonInput)[] = ["project", "field", "procurement", "fieldAccess", "procurementAccess", "pii", "admin", "kind", "org", "email", "reportsTo", "projects"];
   const changed = locked.filter((k) => JSON.stringify(before[k]) !== JSON.stringify(after[k]));
   return changed.length ? "You cannot change your own roles, access or email: ask another administrator. You can change your own name, title and language." : null;
 }

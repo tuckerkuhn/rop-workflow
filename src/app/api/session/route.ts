@@ -17,6 +17,8 @@ export async function GET(req: Request) {
     if (!authConfigured()) return NextResponse.json({ mode: "live", configured: false, user: null, actor: null, viewingAs: false, people: [], plan: "free" });
     const v = await getViewer(req);
     if (!v) return NextResponse.json({ mode: "live", configured: true, user: null, actor: null, viewingAs: false, people: [], plan: "free" });
+    // The second step still to do: say so, and nothing more.
+    if (v.twoStep) return NextResponse.json({ mode: "live", configured: true, user: null, actor: null, viewingAs: false, people: [], plan: "free", twoStep: v.twoStep, email: v.user.name });
     return NextResponse.json({ mode: "live", configured: true, user: v.user, actor: v.actor, viewingAs: v.viewingAs, people: await people(), plan: await planFor(v), authority: await authority() });
   });
 }

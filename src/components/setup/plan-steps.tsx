@@ -1,5 +1,6 @@
 "use client";
 
+import { changeReasonHeader } from "@/components/setup/change-reason";
 import { useEffect, useMemo, useState } from "react";
 import { useT } from "@/components/app/i18n";
 import { useSession } from "@/components/app/session";
@@ -33,7 +34,7 @@ const cellInput = "w-full min-w-0 rounded-lg border border-transparent bg-transp
 const colName = (c: number) => (c >= 26 ? String.fromCharCode(64 + Math.floor(c / 26)) : "") + String.fromCharCode(65 + (c % 26));
 
 async function api<T>(url: string, user: string | undefined, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, { cache: "no-store", ...init, headers: { "Content-Type": "application/json", "x-demo-user": user ?? "" } });
+  const res = await fetch(url, { cache: "no-store", ...init, headers: { "Content-Type": "application/json", "x-demo-user": user ?? "", ...(init?.method === "PUT" ? changeReasonHeader(url) : {}) } });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error((body as { error?: string }).error ?? `Request failed (${res.status})`);
   return body as T;

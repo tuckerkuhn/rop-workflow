@@ -4,6 +4,10 @@ import type { Procurement } from "@/lib/procurement";
 import { requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
 import { loadProcurements, saveProcurements } from "@/server/procurement-store";
+import { db } from "@/db";
+import { logAudit } from "@/server/audit";
+import { projectByCode } from "@/server/field-store";
+import { describeProcurementSave, prepareProcurementRules, validateProcurementSave } from "@/server/procurement-guard";
 
 /** The project's procurements. */
 export async function GET(req: Request, { params }: { params: Promise<{ code: string }> }) {
@@ -27,7 +31,17 @@ export async function PUT(req: Request, { params }: { params: Promise<{ code: st
     if (v instanceof NextResponse) return v;
     const parsed = bodySchema.safeParse(await req.json());
     if (!parsed.success) return NextResponse.json({ error: "That procurement could not be saved: the record is incomplete." }, { status: 400 });
-    await saveProcurements(code, parsed.data.items as unknown as Procurement[]);
+    const items = parsed.data.items as unknown as Procurement[];
+    // The server decides what is allowed (the same rules as the screen), then records each save.
+    const stored = new Map((await loadProcurements(code)).map((p) => [p.id, p]));
+    await prepareProcurementRules(code);
+    for (const next of items) {
+      const why = validateProcurementSave(stored.get(next.id), next, v.user);
+      if (why) return NextResponse.json({ error: `${next.id}: ${why}` }, { status: 409 });
+    }
+    await saveProcurements(code, items);
+    const project = await projectByCode(code);
+    for (const next of items) await logAudit(db, project.id, { entity: "procurement", entityId: project.id, action: "procurement_saved", by: v.user.id, detail: describeProcurementSave(stored.get(next.id), next) });
     return NextResponse.json({ ok: true });
   });
 }

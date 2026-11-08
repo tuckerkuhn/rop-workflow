@@ -1,7 +1,11 @@
 import { and, eq } from "drizzle-orm";
 import { db, schema as s } from "@/db";
-import { proofCount, quarterOf, type ResultInput, type ResultRecord, type UpdateInput, type UpdateRecord } from "@/lib/results";
+import { proofCount, quarterOf, type Correction, type ResultInput, type ResultRecord, type UpdateInput, type UpdateRecord } from "@/lib/results";
+import type { z } from "zod";
+import type { correctionSchema } from "@/lib/results";
 import { logAudit } from "@/server/audit";
+
+type CorrectionInput = z.infer<typeof correctionSchema>;
 import { projectByCode } from "@/server/field-store";
 
 /** Recorded results, kept as evidence records (source "manual", form "result"). */
@@ -90,6 +94,32 @@ export async function addProof(code: string, id: string, add: { files: ResultInp
     return r;
   });
   return toRecord(updated);
+}
+
+/**
+ * The recorder corrects a queried result: the new figures replace the old, the old ones, MEL's
+ * question and the reply go into the record's history, and it goes back to MEL as pending.
+ */
+export async function correctResult(code: string, id: string, changes: CorrectionInput, reply: string, by: string): Promise<string | null> {
+  const project = await projectByCode(code);
+  const where = and(eq(s.evidence.id, id), eq(s.evidence.projectId, project.id), eq(s.evidence.form, "result"));
+  const [row] = await db.select().from(s.evidence).where(where);
+  if (!row) return "No such result.";
+  if (row.reviewStatus !== "queried") return "Only a result MEL has queried can be corrected.";
+  if (row.completedBy !== by) return "Only the person who recorded this result can correct it.";
+  const p = row.payload as ResultInput & { history?: Correction[] };
+  const keys = ["date", "value", "female", "male", "womenLed", "menLed", "province", "district", "note"] as const;
+  const previous = Object.fromEntries(keys.filter((k) => p[k] !== undefined).map((k) => [k, p[k]])) as Partial<ResultInput>;
+  const next = { ...p, ...Object.fromEntries(keys.map((k) => [k, changes[k]])), history: [...(p.history ?? []), { at: new Date().toISOString(), by, query: row.queryNote, reply, previous }] };
+  for (const k of keys) if (next[k] === undefined || next[k] === "") delete (next as Record<string, unknown>)[k];
+  await db.transaction(async (tx) => {
+    await tx
+      .update(s.evidence)
+      .set({ payload: next, reviewStatus: "pending", reviewedBy: null, reviewedAt: null, queryNote: null, completedAt: new Date(`${changes.date}T12:00:00Z`), location: [changes.district, changes.province].filter(Boolean).join(", ") || null, updatedAt: new Date() })
+      .where(where);
+    await logAudit(tx, project.id, { entity: "result", entityId: id, action: "result_corrected", by, detail: { indicator: p.indicator, query: row.queryNote, reply, before: { value: p.value, date: p.date }, after: { value: changes.value, date: changes.date } } });
+  });
+  return null;
 }
 
 /* ---------- activity updates (form "update"): narrative and photos, never counted ---------- */

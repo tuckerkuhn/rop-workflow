@@ -12,6 +12,8 @@ export function describeAudit(entity: string, action: string, d: D): string {
       return `Accepted result for ${str(d.indicator)} (${num(d.value)} on ${str(d.date)}); it now counts`;
     case "result_queried":
       return `Queried result for ${str(d.indicator)} (${num(d.value)} on ${str(d.date)}): ${str(d.note)}`;
+    case "result_corrected":
+      return `Corrected the ${str(d.indicator)} result after MEL's query (${num((d.before as D)?.value)} to ${num((d.after as D)?.value)}): ${str(d.reply)}`;
     case "proof_added":
       return `Added proof to the ${str(d.indicator)} result of ${str(d.date)}: ${[...((d.files as string[]) ?? []), ...((d.links as { title: string }[]) ?? []).map((l) => l.title)].join("; ")}`;
     case "update_added":
@@ -48,6 +50,16 @@ export function describeAudit(entity: string, action: string, d: D): string {
       return `Will act on a lens finding (${str(d.severity)}): ${str(d.gap)} (${str(d.note)})`;
     case "lens_finding_dismissed":
       return `Dismissed a lens finding (${str(d.severity)}): ${str(d.gap)} (${str(d.note)})`;
+    case "plan_edited":
+      return `Edited the plan in setup (${str(d.part)})`;
+    case "plan_changed_after_signoff":
+      return `Changed the signed-off plan in setup (${str(d.part)}): ${str(d.reason)}`;
+    case "procurement_saved": {
+      const st = d.step as { from?: string; to?: string } | string;
+      const moved = typeof st === "object" && st ? ` moved from ${st.from} to ${st.to};` : "";
+      const signed = ((d.signed as string[]) ?? []).length ? ` signed ${((d.signed as string[]) ?? []).join(", ")};` : "";
+      return d.created ? `Requested purchase ${str(d.procurement)}: ${str(d.title)}` : `Procurement ${str(d.procurement)}:${moved}${signed}${num(d.checks)} check(s) changed${((d.fields as string[]) ?? []).length ? `; edited ${((d.fields as string[]) ?? []).join(", ")}` : ""}`;
+    }
     case "review_signed_off":
       return `Signed off the ${str(d.month)} monthly review (${num(d.changes)} change(s) applied)`;
     case "accepted":

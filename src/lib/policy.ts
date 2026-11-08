@@ -75,6 +75,7 @@ export const PARAMS: ParamDef[] = [
   { key: "grantAssetTransfer", label: "Assets given to grantees as in-kind grants", area: "Grants", merge: "same", help: "Who owns them once handed over. Grants build up the private sector, so this is separate from the project's own equipment." },
   { key: "projectEquipment", label: "The project's own equipment (vehicles, furniture, IT) when the project ends", area: "Records", merge: "same", help: "An administrative cost of running the project, separate from grants." },
   { key: "retentionYears", label: "Keep records for", area: "Records", unit: "years", merge: "max", help: "" },
+  { key: "twoStepRequired", label: "Everyone signs in with a second step (an authenticator app code)", area: "Records", merge: "any", help: "Turn on only after the administrators have set up their own in Settings: until then it would lock them out. People who set one up use it either way." },
 ];
 export const paramByKey = Object.fromEntries(PARAMS.map((p) => [p.key, p])) as Record<string, ParamDef>;
 
@@ -129,6 +130,7 @@ export const ROP: Profile = {
     grantCapUsd: { value: 50000, source: "CBARD Grants Manual 2023, p8 (fixed-amount and simplified grants)" },
     grantCapCumulativeUsd: { value: 100000, source: "CBARD Grants Manual 2023, p8" },
     costSharePct: { value: 50, source: "CBARD Grants Manual 2023, p8 (25% for women-owned businesses)" },
+    twoStepRequired: { value: false, source: "Not in the written policy: set by an administrator" },
     retentionYears: { value: 5, source: "Afghan Ministry of Finance requirement, cited in ROP's document management guidance", confidence: "to verify" },
   },
 };

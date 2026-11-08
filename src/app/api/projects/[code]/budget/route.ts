@@ -3,6 +3,7 @@ import { budgetSchema } from "@/lib/budget";
 import { canEditProject } from "@/lib/demo";
 import { isEmployee, requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
+import { checkPlanChange, logPlanChange } from "@/server/plan-guard";
 import { loadBudget, saveBudget } from "@/server/plan-store";
 
 type Ctx = { params: Promise<{ code: string }> };
@@ -31,7 +32,12 @@ export async function PUT(req: Request, { params }: Ctx) {
     const codes = parsed.data.lines.map((l) => l.code);
     const dup = codes.find((c, i) => codes.indexOf(c) !== i);
     if (dup) return NextResponse.json({ error: `Line code ${dup} is used twice. Each line needs its own code.` }, { status: 400 });
+    const blocked = await checkPlanChange(code, v.user, req);
+    if (blocked) return blocked;
+    const before = await loadBudget(code);
+    const total = (b: { lines: { total: number }[] }) => Math.round(b.lines.reduce((t, l) => t + Number(l.total ?? 0), 0));
     await saveBudget(code, parsed.data);
+    await logPlanChange(code, v.user, req, "budget", { lines: { before: before.lines.length, after: parsed.data.lines.length }, total: { before: total(before), after: total(parsed.data) }, currency: parsed.data.currency });
     return NextResponse.json({ ok: true });
   });
 }

@@ -3,6 +3,7 @@ import { workplanSchema } from "@/lib/budget";
 import { canEditProject } from "@/lib/demo";
 import { isEmployee, requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
+import { checkPlanChange, logPlanChange } from "@/server/plan-guard";
 import { loadWorkplan, saveWorkplan } from "@/server/plan-store";
 
 type Ctx = { params: Promise<{ code: string }> };
@@ -31,7 +32,11 @@ export async function PUT(req: Request, { params }: Ctx) {
     const keys = parsed.data.items.map((i) => `${i.code}|${i.org ?? ""}`);
     const dup = keys.find((k, i) => keys.indexOf(k) !== i);
     if (dup) return NextResponse.json({ error: `${dup.replace("|", " for ")} is listed twice.` }, { status: 400 });
+    const blocked = await checkPlanChange(code, v.user, req);
+    if (blocked) return blocked;
+    const before = await loadWorkplan(code);
     await saveWorkplan(code, parsed.data.items);
+    await logPlanChange(code, v.user, req, "workplan", { items: { before: before.length, after: parsed.data.items.length } });
     return NextResponse.json({ ok: true });
   });
 }

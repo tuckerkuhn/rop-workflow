@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { canEditProject } from "@/lib/demo";
 import { projectDesignSchema } from "@/lib/project-setup";
-import { requireViewer } from "@/server/auth";
+import { onProject, requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
 import { createProject, listProjects } from "@/server/project-store";
 
@@ -10,7 +10,8 @@ export async function GET(req: Request) {
   return handle(async () => {
     const v = await requireViewer(req);
     if (v instanceof NextResponse) return v;
-    return NextResponse.json({ projects: await listProjects() });
+    // Only the projects this person works on.
+    return NextResponse.json({ projects: (await listProjects()).filter((p) => onProject(v.user, p.code)) });
   });
 }
 

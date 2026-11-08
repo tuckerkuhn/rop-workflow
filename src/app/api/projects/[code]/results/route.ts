@@ -6,7 +6,7 @@ import { resultActionSchema } from "@/lib/results";
 import { isMelOwner, requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
 import { projectByCode } from "@/server/field-store";
-import { addProof, addResult, addUpdate, loadResults, loadUpdates, reviewResult } from "@/server/results-store";
+import { addProof, addResult, addUpdate, correctResult, loadResults, loadUpdates, reviewResult } from "@/server/results-store";
 import { activityOf } from "@/lib/qpr";
 import { dataChecks } from "@/lib/data-checks";
 
@@ -70,6 +70,11 @@ export async function POST(req: Request, { params }: Ctx) {
       if (!(mayRecord(u) || isMelOwner(u))) return NextResponse.json({ error: "Only field staff and MEL can add activity updates." }, { status: 403 });
       if (a.update.date > new Date().toISOString().slice(0, 10)) return NextResponse.json({ error: "The date is in the future." }, { status: 400 });
       await addUpdate(code, a.update, u.id);
+      return NextResponse.json(await view(code, u));
+    }
+    if (a.action === "correct") {
+      const err = await correctResult(code, a.id, a.changes, a.reply, u.id);
+      if (err) return NextResponse.json({ error: err }, { status: 400 });
       return NextResponse.json(await view(code, u));
     }
     if (a.action === "proof") {

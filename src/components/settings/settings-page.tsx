@@ -8,6 +8,7 @@ import { useT } from "@/components/app/i18n";
 import { useRequireUser } from "@/components/app/session";
 import { useProgress } from "@/components/app/use-project-data";
 import { PasswordSection } from "@/components/settings/password-section";
+import { TwoStepSettings } from "@/components/app/two-step";
 import { SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { canEditProject } from "@/lib/demo";
 import type { DonorInfo, DonorInput, IndicatorProgress } from "@/lib/progress";
@@ -16,7 +17,7 @@ import { today } from "@/lib/clock";
 
 /** Project settings. For now: the donors, their report format, deadlines and indicator codes. */
 export function SettingsPage() {
-  const { user } = useRequireUser();
+  const { user, mode } = useRequireUser();
   const { project } = useCurrentProject();
   const { t, date } = useT();
   const progress = useProgress(project.id);
@@ -35,6 +36,11 @@ export function SettingsPage() {
         <p className="mt-1 text-sm text-muted">{project.name}</p>
 
         <PasswordSection />
+        {mode === "live" && (
+          <div className="mt-6">
+            <TwoStepSettings />
+          </div>
+        )}
 
         <p className="mt-4 text-sm">
           <Link href="/settings/organization" className="font-semibold text-forest hover:underline">

@@ -13,6 +13,7 @@ import { Question, field } from "@/components/setup/question";
 import { TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { canEditProject } from "@/lib/demo";
 import { localeOf, type MessageKey } from "@/lib/i18n";
+import { SignedOffBanner, changeReasonHeader } from "@/components/setup/change-reason";
 import { LIBRARY, THEMES, THEME_LABEL } from "@/lib/indicator-library";
 import { COUNTRIES, projectDesignSchema, type IndicatorInput, type ProjectDesign } from "@/lib/project-setup";
 import { projectYears } from "@/lib/progress";
@@ -72,8 +73,10 @@ function Wizard({ code: initialCode, first }: { code: string | null; first: Step
   const { t } = useT();
   const { user } = useSession();
   const router = useRouter();
-  const { reload: reloadProjects, setProject } = useCurrentProject();
+  const { reload: reloadProjects, setProject, projects } = useCurrentProject();
   const code = initialCode;
+  const stage = projects.find((p) => p.id === code)?.stage ?? "Design";
+  const signedOff = !!code && stage !== "Design" && stage !== "Develop";
   const [draft, setDraft] = useState<ProjectDesign>(empty);
   const [loaded, setLoaded] = useState(!initialCode);
   const [step, setStep] = useState<Step>(first);
@@ -115,7 +118,7 @@ function Wizard({ code: initialCode, first }: { code: string | null; first: Step
     try {
       const res = await fetch(code ? `/api/projects/${code}` : "/api/projects", {
         method: code ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json", "x-demo-user": user?.id ?? "" },
+        headers: { "Content-Type": "application/json", "x-demo-user": user?.id ?? "", ...(code ? changeReasonHeader(`/api/projects/${code}`) : {}) },
         body: JSON.stringify(parsed.data),
       });
       const body = (await res.json().catch(() => ({}))) as { code?: string; error?: string };
@@ -151,6 +154,7 @@ function Wizard({ code: initialCode, first }: { code: string | null; first: Step
 
   return (
     <Frame wide={step === "budget" || step === "workplan"}>
+      {signedOff && code && <SignedOffBanner code={code} stage={stage} />}
       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ochre">{t(code ? "setup.editTitle" : "setup.newTitle")}</p>
       <div className="mt-2 h-1 overflow-hidden rounded-full bg-sunken" aria-hidden>
         <div className="h-full rounded-full bg-forest transition-all" style={{ width: `${((index + 1) / steps.length) * 100}%` }} />

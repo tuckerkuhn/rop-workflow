@@ -22,7 +22,7 @@ async function call<T>(user: string | undefined, init?: RequestInit): Promise<T>
 
 type Person = PeopleView["people"][number];
 const input = "mt-1 block w-full rounded-xl border border-line bg-paper px-3 py-2 text-base";
-const blank: PersonInput = { name: "", title: "", email: null, kind: "employee", org: "Roots of Peace", reportsTo: null, lang: "en", project: [], field: [], fieldAccess: "none", procurement: [], procurementAccess: "none", pii: false, admin: false, leads: [] };
+const blank: PersonInput = { name: "", title: "", email: null, kind: "employee", org: "Roots of Peace", reportsTo: null, lang: "en", project: [], field: [], fieldAccess: "none", procurement: [], procurementAccess: "none", pii: false, admin: false, leads: [], projects: [] };
 const strip = (p: Person): PersonInput => {
   const { id: _id, active: _a, signedIn: _s, ...rest } = p;
   void _id;
@@ -250,10 +250,12 @@ function Checks<T extends string>({ label, options, value, onChange, disabled }:
 function PersonForm({ v, initial, self, email, onSave, onCancel }: { v: PeopleView; initial: PersonInput; self?: boolean; email?: string | null; onSave: (p: PersonInput) => Promise<unknown>; onCancel: () => void }) {
   const [p, setP] = useState<PersonInput>(initial);
   const [leads, setLeads] = useState(initial.leads.join(", "));
+  const [projects, setProjects] = useState((initial.projects ?? []).join(", "));
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     setP(initial);
     setLeads(initial.leads.join(", "));
+    setProjects((initial.projects ?? []).join(", "));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(initial)]);
   const set = <K extends keyof PersonInput>(k: K, val: PersonInput[K]) => setP({ ...p, [k]: val });
@@ -261,7 +263,7 @@ function PersonForm({ v, initial, self, email, onSave, onCancel }: { v: PeopleVi
   const save = async () => {
     setBusy(true);
     try {
-      await onSave({ ...p, email: p.email?.trim() ? p.email.trim() : null, leads: leads.split(",").map((x) => x.trim()).filter(Boolean) });
+      await onSave({ ...p, email: p.email?.trim() ? p.email.trim() : null, leads: leads.split(",").map((x) => x.trim()).filter(Boolean), projects: projects.split(",").map((x) => x.trim().toUpperCase()).filter(Boolean) });
     } finally {
       setBusy(false);
     }
@@ -321,6 +323,11 @@ function PersonForm({ v, initial, self, email, onSave, onCancel }: { v: PeopleVi
           Leads activities (optional)
           <input className={input} value={leads} disabled={locked} onChange={(e) => setLeads(e.target.value)} placeholder="1.1, 2.1.2 or operations" />
           <span className="mt-1 block text-xs text-muted">Their budget lines come to them on the procurement calendar.</span>
+        </label>
+        <label className="text-sm">
+          Projects (optional)
+          <input className={input} value={projects} disabled={locked} onChange={(e) => setProjects(e.target.value)} placeholder="ACRP-2026" />
+          <span className="mt-1 block text-xs text-muted">Their roles apply only on these projects. Leave empty for every project. Donors should always have their projects listed.</span>
         </label>
       </div>
 

@@ -42,6 +42,8 @@ export type AppUser = {
   feedback?: { score: number; n: number };
   /** May use "View as" to see the app as another person sees it (read-only). */
   admin?: boolean;
+  /** Project codes this person works on; their roles apply only there. Absent: every project. */
+  projects?: string[];
   /**
    * Technical lead for these workplan activity numbers (prefixes such as "1.1"), or "operations"
    * for office running costs. Their budget lines come to them on the procurement calendar.

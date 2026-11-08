@@ -68,7 +68,25 @@ export const proofCount = (r: Pick<ResultInput, "files" | "links">) => r.files.l
 export type ResultInput = z.infer<typeof resultSchema>;
 
 export type ResultStatus = "pending" | "accepted" | "queried";
+/** A correction after MEL queried a result: what it said before, what MEL asked, and the reply. */
+export type Correction = { at: string; by: string; query: string | null; reply: string; previous: Partial<ResultInput> };
+
+/** Fields a recorder may correct after a query; the indicator and the proof stay as they are. */
+export const correctionSchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  value: z.number().positive().max(1e9),
+  female: z.number().int().min(0).max(1e7).optional(),
+  male: z.number().int().min(0).max(1e7).optional(),
+  womenLed: z.number().int().min(0).max(1e6).optional(),
+  menLed: z.number().int().min(0).max(1e6).optional(),
+  province: z.string().trim().max(60).optional(),
+  district: z.string().trim().max(80).optional(),
+  note: z.string().trim().min(10).max(2000),
+});
+
 export type ResultRecord = ResultInput & {
+  /** Earlier versions, oldest first, each with the query that prompted the correction. */
+  history?: Correction[];
   id: string;
   quarter: string;
   status: ResultStatus;
@@ -110,6 +128,8 @@ export const resultActionSchema = z.discriminatedUnion("action", [
     })
     .refine((a) => a.files.length + a.links.length > 0, "Add a file or a link."),
   z.object({ action: z.literal("query"), id: z.string().uuid(), note: z.string().trim().min(3).max(1000) }),
+  /** The recorder answers MEL's query: corrected figures and what changed. It goes back to MEL. */
+  z.object({ action: z.literal("correct"), id: z.string().uuid(), changes: correctionSchema, reply: z.string().trim().min(5, "Say what you changed, for MEL.").max(1000) }),
 ]);
 export type ResultAction = z.infer<typeof resultActionSchema>;
 

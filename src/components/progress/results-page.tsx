@@ -126,7 +126,7 @@ export function ResultsPage() {
             <SectionLabel>To check ({waiting.length})</SectionLabel>
             <div className="mt-3 space-y-3">
               {waiting.map((r) => (
-                <ResultCard key={r.id} r={r} ind={v.indicators.find((i) => i.code === r.indicator)} act={act} mayAddProof={v.mayAddProof} />
+                <ResultCard key={r.id} r={r} ind={v.indicators.find((i) => i.code === r.indicator)} act={act} mayAddProof={v.mayAddProof} me={v.me} />
               ))}
             </div>
           </section>
@@ -180,7 +180,7 @@ export function ResultsPage() {
                           )}
                           {!mine.length && <p className="text-sm text-muted">Nothing recorded{range ? ` in ${rangeLabel}` : ""} yet.</p>}
                           {mine.map((r) => (
-                            <ResultCard key={r.id} r={r} ind={i} act={act} mayAddProof={v.mayAddProof} />
+                            <ResultCard key={r.id} r={r} ind={i} act={act} mayAddProof={v.mayAddProof} me={v.me} />
                           ))}
                         </div>
                       )}
@@ -429,10 +429,108 @@ function AddProof({ r, act, onClose }: { r: Res; act: (a: ResultAction, msg: str
   );
 }
 
-function ResultCard({ r, ind, act, mayAddProof }: { r: Res; ind?: Ind; act: (a: ResultAction, msg: string) => Promise<void>; mayAddProof: boolean }) {
+/** The recorder answers MEL's query: corrected figures and a note on what changed. */
+function CorrectForm({ r, act, onClose }: { r: Res; act: (a: ResultAction, msg: string) => Promise<void>; onClose: () => void }) {
+  const [f, setF] = useState({ date: r.date, value: String(r.value), female: r.female?.toString() ?? "", male: r.male?.toString() ?? "", womenLed: r.womenLed?.toString() ?? "", menLed: r.menLed?.toString() ?? "", province: r.province ?? "", district: r.district ?? "", note: r.note });
+  const [reply, setReply] = useState("");
+  const [busy, setBusy] = useState(false);
+  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
+  const opt = (v: string) => (v.trim() === "" ? undefined : Number(v));
+  const save = async () => {
+    setBusy(true);
+    try {
+      await act(
+        {
+          action: "correct",
+          id: r.id,
+          reply: reply.trim(),
+          changes: { date: f.date, value: Number(f.value), female: opt(f.female), male: opt(f.male), womenLed: opt(f.womenLed), menLed: opt(f.menLed), province: f.province || undefined, district: f.district.trim() || undefined, note: f.note.trim() },
+        },
+        "Corrected and sent back to MEL.",
+      );
+      onClose();
+    } catch {
+      /* shown above */
+    } finally {
+      setBusy(false);
+    }
+  };
+  const box = "mt-1 w-full rounded-lg border border-line bg-paper px-2 py-1.5 text-sm";
+  return (
+    <div className="mt-3 rounded-lg border border-line bg-surface p-3 text-sm">
+      <span className="font-semibold">Correct and resubmit</span>
+      <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <label className="text-xs text-muted">
+          Date
+          <input type="date" className={box} value={f.date} onChange={set("date")} />
+        </label>
+        <label className="text-xs text-muted">
+          Value
+          <input type="number" min={0} step="any" className={box} value={f.value} onChange={set("value")} />
+        </label>
+        {r.female !== undefined || r.male !== undefined ? (
+          <>
+            <label className="text-xs text-muted">
+              Women
+              <input type="number" min={0} className={box} value={f.female} onChange={set("female")} />
+            </label>
+            <label className="text-xs text-muted">
+              Men
+              <input type="number" min={0} className={box} value={f.male} onChange={set("male")} />
+            </label>
+          </>
+        ) : null}
+        {r.womenLed !== undefined || r.menLed !== undefined ? (
+          <>
+            <label className="text-xs text-muted">
+              Women-led
+              <input type="number" min={0} className={box} value={f.womenLed} onChange={set("womenLed")} />
+            </label>
+            <label className="text-xs text-muted">
+              Men-led
+              <input type="number" min={0} className={box} value={f.menLed} onChange={set("menLed")} />
+            </label>
+          </>
+        ) : null}
+        <label className="text-xs text-muted">
+          Province
+          <select className={box} value={f.province} onChange={set("province")}>
+            <option value="">—</option>
+            {PROVINCES.map((p) => (
+              <option key={p}>{p}</option>
+            ))}
+          </select>
+        </label>
+        <label className="text-xs text-muted">
+          District
+          <input className={box} value={f.district} onChange={set("district")} />
+        </label>
+      </div>
+      <label className="mt-2 block text-xs text-muted">
+        What was done
+        <textarea className={box} rows={2} value={f.note} onChange={set("note")} />
+      </label>
+      <label className="mt-2 block text-xs text-muted">
+        Your answer to MEL: what you changed and why
+        <input className={box} value={reply} onChange={(e) => setReply(e.target.value)} placeholder="Corrected to 274 men and 50 women; the attendance sheet counted staff twice." />
+      </label>
+      <div className="mt-3 flex gap-2">
+        <button type="button" className={primaryBtn} disabled={busy || reply.trim().length < 5} onClick={() => void save()}>
+          Send back to MEL
+        </button>
+        <button type="button" className={quietBtn} onClick={onClose}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ResultCard({ r, ind, act, mayAddProof, me }: { r: Res; ind?: Ind; act: (a: ResultAction, msg: string) => Promise<void>; mayAddProof: boolean; me: string }) {
   const { user } = useSession();
   const [query, setQuery] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [correcting, setCorrecting] = useState(false);
   const [busy, setBusy] = useState(false);
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
@@ -493,6 +591,24 @@ function ResultCard({ r, ind, act, mayAddProof }: { r: Res; ind?: Ind; act: (a: 
         {r.reviewedBy && ` · ${r.status === "accepted" ? "accepted" : "queried"} by ${r.reviewedBy}`}
       </p>
       {r.query && <p className="mt-1 rounded-lg bg-clay-soft px-3 py-2 text-sm text-clay">MEL asked: {r.query}</p>}
+      {r.status === "queried" && r.by === me && !correcting && (
+        <button type="button" className={`${primaryBtn} mt-2`} onClick={() => setCorrecting(true)}>
+          Correct and resubmit
+        </button>
+      )}
+      {correcting && <CorrectForm r={r} act={act} onClose={() => setCorrecting(false)} />}
+      {(r.history ?? []).length > 0 && (
+        <details className="mt-2 text-xs text-muted">
+          <summary className="cursor-pointer">Corrected {r.history!.length} {r.history!.length === 1 ? "time" : "times"}</summary>
+          <ul className="mt-1 space-y-1">
+            {r.history!.map((h) => (
+              <li key={h.at}>
+                {h.at.slice(0, 10)}: was {String(h.previous.value)} on {String(h.previous.date)}. MEL asked: {h.query ?? "—"}. Reply: {h.reply}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
       {r.status === "pending" && r.checks.length > 0 && (
         <ul className="mt-2 space-y-1 rounded-lg bg-ochre-soft px-3 py-2 text-xs">
           {r.checks.map((c) => (
