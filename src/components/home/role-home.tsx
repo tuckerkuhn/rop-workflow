@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Pill } from "@/components/workspace/ui";
+import { HrHome } from "@/components/home/hr-home";
 import { useEffect, useState } from "react";
 import { usePersistentState } from "@/components/workspace/ui";
 import type { AppUser, ProjectInfo } from "@/lib/demo";
@@ -20,7 +21,7 @@ const LEVEL: Record<Level, { word: string; icon: string; chip: string }> = {
   critical: { word: "Act now", icon: "!", chip: "bg-clay-soft text-clay" },
   unknown: { word: "No data", icon: "–", chip: "bg-sunken text-muted" },
 };
-const LENS_LABEL: Record<Lens, string> = { lead: "Leadership", mel: "MEL", finance: "Finance", procurement: "Procurement", field: "Delivery" };
+const LENS_LABEL: Record<Lens, string> = { lead: "Leadership", hr: "People", mel: "MEL", finance: "Finance", procurement: "Procurement", field: "Delivery" };
 
 const pct = (n: number | null) => (n === null ? "—" : `${Math.round(n)}%`);
 const compact = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}K` : String(Math.round(n)));
@@ -143,6 +144,8 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
     </Tile>
   );
   const tiles: Record<Lens, React.ReactNode[]> = {
+    // HR staff get their own Home (HrHome), about the organization's people.
+    hr: [],
     lead: [
       <Tile key="time" label="On time" value={`${onTrack} of ${s.total}`} level={s.level} href="/progress/review">
         <StatusBar counts={s.counts} total={s.total} />
@@ -210,6 +213,7 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
   };
 
   const headline: Record<Lens, string> = {
+    hr: "",
     lead: `${v.project.short} is ${late ? `behind on ${late} ${late === 1 ? "indicator" : "indicators"}` : "on schedule"}: ${onTrack} of ${s.total} indicators done or on track${late ? "" : ", none late"}. It has spent ${pct(b.spentPct)} of its budget with ${pct(b.timePct)} of the time gone${b.overspent.length ? `, and ${b.overspent.length} ${b.overspent.length === 1 ? "line is" : "lines are"} overspent` : ""}.`,
     mel: v.mel.toCheck ? `${v.mel.toCheck} ${v.mel.toCheck === 1 ? "result is" : "results are"} waiting for you to check, and the ${v.mel.quarter} report has ${v.mel.stops} ${v.mel.stops === 1 ? "item" : "items"} to fix before release.` : `No results are waiting for you; the ${v.mel.quarter} report has ${v.mel.stops} ${v.mel.stops === 1 ? "item" : "items"} to fix before release.`,
     finance: `Spending is imported to ${monthWord(b.importedTo)}: ${pct(b.spentPct)} spent with ${pct(b.timePct)} of the time gone, ${b.flagged} budget ${b.flagged === 1 ? "line" : "lines"} to explain.`,
@@ -223,6 +227,24 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
     })(),
   };
 
+  const switcher =
+    v.lenses.length > 1 ? (
+      <div role="radiogroup" aria-label="View Home as" className="flex rounded-full bg-sunken p-1 text-sm">
+        {v.lenses.map((l) => (
+          <button key={l} type="button" role="radio" aria-checked={l === lens} onClick={() => setChosen(l)} className={`rounded-full px-3 py-1 ${l === lens ? "bg-surface font-semibold shadow-sm" : "text-muted hover:text-ink"}`}>
+            {LENS_LABEL[l]}
+          </button>
+        ))}
+      </div>
+    ) : null;
+  if (lens === "hr")
+    return (
+      <div className="space-y-4">
+        {switcher && <div className="flex justify-end">{switcher}</div>}
+        <HrHome userId={user.id} />
+      </div>
+    );
+
   return (
     <section aria-label="Where things stand" className="space-y-5">
       <div className="flex flex-wrap items-start gap-3">
@@ -234,22 +256,7 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
             </Link>
           )}
         </p>
-        {v.lenses.length > 1 && (
-          <div role="radiogroup" aria-label="View Home as" className="flex rounded-full bg-sunken p-1 text-sm">
-            {v.lenses.map((l) => (
-              <button
-                key={l}
-                type="button"
-                role="radio"
-                aria-checked={l === lens}
-                onClick={() => setChosen(l)}
-                className={`rounded-full px-3 py-1 ${l === lens ? "bg-surface font-semibold shadow-sm" : "text-muted hover:text-ink"}`}
-              >
-                {LENS_LABEL[l]}
-              </button>
-            ))}
-          </div>
-        )}
+        {switcher}
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{tiles[lens]}</div>
