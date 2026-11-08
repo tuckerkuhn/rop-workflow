@@ -9,6 +9,8 @@ import { useDonors, usePlan, useProcurements } from "@/components/app/use-projec
 import type { BudgetLine as ProjectBudgetLine, WorkplanItem } from "@/lib/budget";
 import { METHOD, toUsd, type PlanItem } from "@/lib/procurement-plan";
 import { AiCheck, DraftPanel, RoutePicker, SoleFacts, SupplierField, VoucherPanel, type DraftKind } from "@/components/procurement/route-panels";
+import { useSupplierRegister, type SupplierRow } from "@/components/procurement/suppliers-page";
+import { BidsPanel, DistributionPanel } from "@/components/procurement/bid-panels";
 import { DocumentViewer } from "@/components/procurement/document";
 import { PaidPanel, PayFormPanel, PayFormSummary, PaymentsList, ReceiptPanel, SchedulePanel } from "@/components/procurement/payment-panels";
 import { asPaid, type PaymentRecord } from "@/lib/payments";
@@ -63,6 +65,8 @@ import {
   procRolesFor,
   typeFor,
   setProcurementSet,
+  setSupplierRegister,
+  receivedQty,
   isSharePointUrl,
   type DocLink,
 } from "@/lib/procurement";
@@ -435,7 +439,9 @@ function Detail({
   onBack,
   onDraft,
   onCheck,
+  register,
 }: {
+  register?: SupplierRow[] | null;
   p: Procurement;
   role: Role | null;
   update: (fn: (p: Procurement) => Procurement) => void;
@@ -607,7 +613,8 @@ function Detail({
         >
           {p.step === "requisition" && <RequisitionForm p={p} editable={mine} update={update} />}
           {p.step === "route" && <RoutePicker p={p} editable={mine} update={update} />}
-          {p.step === "screen" && <SupplierField p={p} editable={mine} update={update} />}
+          {p.step === "screen" && <SupplierField p={p} editable={mine} update={update} register={register} />}
+          {["quotes", "bids", "evaluateWaived", "evaluate"].includes(p.step) && <BidsPanel p={p} editable={mine} update={update} register={register} money={money} />}
           {p.step === "soleSource" && <SoleFacts p={p} editable={mine} update={update} />}
           {(p.step === "rfq" || p.step === "solicitation" || p.step === "soleSource") && (
             <DraftPanel p={p} kind={p.step === "soleSource" ? "sole" : p.step === "rfq" ? "rfq" : "solicitation"} editable={mine} update={update} onDraft={onDraft} />
@@ -621,6 +628,7 @@ function Detail({
           {p.step === "payForm" && <PayFormPanel p={p} editable={mine} update={update} />}
           {(p.step === "payReady" || p.step === "approvePay" || p.step === "voucher") && <PayFormSummary p={p} />}
           {p.step === "paid" && <PaidPanel p={p} editable={mine} update={update} />}
+          {user && (receivedQty(p) > 0 || p.distribution) && <DistributionPanel p={p} canEdit={user.procurementAccess === "edit"} update={update} me={{ id: user.id, name: user.name }} />}
           {p.step === "voucher" && <VoucherPanel p={p} editable={mine} update={update} />}
           {step.checks.some((c) => c.ai) && <AiCheck p={p} editable={mine} onCheck={onCheck} />}
           <ul className="divide-y divide-line px-5">
@@ -753,6 +761,9 @@ export function ProcurementWorkspace() {
 
   // Checks that look across procurements (split purchases) read the whole project's list.
   setProcurementSet(items);
+  // On a real project the supplier checks read the supplier register.
+  const register = useSupplierRegister(!!project.saved && project.id !== "A-2027", user?.id);
+  setSupplierRegister(register);
   const counts = useMemo(() => Object.fromEntries(roles.map((r) => [r.id, items.filter((p) => ownerOf(p) === r.id).length])), [items]);
   const readOnly = !role;
   const mineList = role ? items.filter((p) => ownerOf(p) === role) : items;
@@ -815,6 +826,10 @@ export function ProcurementWorkspace() {
             <div className="mx-4 mt-3 grid gap-2 sm:mx-6">
               <Link href="/work/plan" className="flex items-center justify-between rounded-xl bg-mist px-3 py-2 text-sm font-semibold text-forest hover:bg-sunken">
                 Procurement calendar
+                <span aria-hidden>→</span>
+              </Link>
+              <Link href="/work/suppliers" className="flex items-center justify-between rounded-xl bg-mist px-3 py-2 text-sm font-semibold text-forest hover:bg-sunken">
+                Suppliers
                 <span aria-hidden>→</span>
               </Link>
               <Link href="/work/bills" className="flex items-center justify-between rounded-xl bg-mist px-3 py-2 text-sm font-semibold text-forest hover:bg-sunken">
@@ -903,7 +918,15 @@ export function ProcurementWorkspace() {
       }
       detail={
         creating ? (
-          planKey && !fromPlan ? (
+          project.saved && !planKey ? (
+            <div className="mx-auto max-w-xl py-16 text-center text-sm">
+              <p className="font-display text-2xl">Start from the procurement calendar</p>
+              <p className="mt-2 text-muted">On this project every request charges an approved calendar item, so it carries the real budget line and the money left on it.</p>
+              <Link href="/work/plan" className="mt-4 inline-block rounded-full bg-forest px-4 py-2 font-semibold text-paper">
+                Open the procurement calendar
+              </Link>
+            </div>
+          ) : planKey && !fromPlan ? (
             <div className="mx-auto max-w-xl py-16 text-center text-sm text-muted">
               {plan.status === "loading" ? "Loading the plan…" : `${planKey} is not on this project's procurement calendar.`}
             </div>
@@ -940,7 +963,7 @@ export function ProcurementWorkspace() {
           )
         ) : current ? (
           <div className="mx-auto max-w-3xl">
-            <Detail key={current.id} p={current} role={role} update={update(current.id)} onBack={() => setMobileDetail(false)} onDraft={(kind) => draftDoc(current.id, kind)} onCheck={() => runCheck(current.id, current.step)} />
+            <Detail key={current.id} register={register} p={current} role={role} update={update(current.id)} onBack={() => setMobileDetail(false)} onDraft={(kind) => draftDoc(current.id, kind)} onCheck={() => runCheck(current.id, current.step)} />
           </div>
         ) : (
           <div className="grid h-full place-items-center py-24 text-center">

@@ -44,6 +44,8 @@ export type PaymentRecord = {
   grn?: { qty: number; place: string; progressPct?: number };
   invoice: Invoice;
   supplier: string;
+  /** Its record in the supplier register, when linked. */
+  supplierId?: string;
   licenceExpiry?: string;
   tax: Withholding;
   net: number;
@@ -73,7 +75,10 @@ export const PAY_LOOP = ["receive", "package", "payForm", "payReady", "verifyPay
 /** Documents made once per instalment. */
 export const PAY_DOCS = ["Goods received note", "Procurement package", "Payment approval form", "Checklist pass 2", "Expense voucher"];
 
-const orderUsd = (p: Procurement) => p.qty * p.unitPrice;
+/** The contract's value in dollars as signed; the request's estimate only until it is recorded. */
+const orderUsd = (p: Procurement) => (contractCurrency(p) === "USD" && p.contractUsd && p.contractUsd > 0 ? p.contractUsd : p.qty * p.unitPrice);
+/** Whether the signed value is recorded, so invoices are matched to the contract rather than the estimate. */
+export const contractValueKnown = (p: Procurement) => (contractCurrency(p) === "AFN" ? !!(p.contractAfn && p.contractAfn > 0) : !!(p.contractUsd && p.contractUsd > 0));
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 export const scheduleOf = (p: Procurement): Instalment[] => (p.schedule?.length ? p.schedule : [{ label: "Full payment", pct: 100 }]);
@@ -136,6 +141,10 @@ export const expectedAfn = (p: Procurement) => {
  */
 export function invoiceMatches(p: Procurement): { ok: boolean; detail: string } | null {
   if (!p.invoice) return null;
+  if (!contractValueKnown(p)) return { ok: false, detail: "The contract value as signed is not recorded: add it with the payment schedule, so the invoice is matched to the contract and not the estimate" };
+  // Quantity: never more than received for this instalment (goods; works are matched on progress).
+  if (p.grn && p.grn.progressPct === undefined && p.invoice.qty > p.grn.qty)
+    return { ok: false, detail: `Invoice for ${p.invoice.qty.toLocaleString("en-US")} ${p.unit}, but ${p.grn.qty.toLocaleString("en-US")} received for this payment` };
   const usd = invoiceUsd(p.invoice);
   const cur = p.invoice.currency ?? "USD";
   const shown = `${cur} ${p.invoice.amount.toLocaleString("en-US")}`;
@@ -147,7 +156,7 @@ export function invoiceMatches(p: Procurement): { ok: boolean; detail: string } 
   if (usd === null) return { ok: false, detail: `${shown}: add the exchange rate to compare it with the order` };
   const want = expectedUsd(p);
   const ok = Math.abs(usd - want) <= Math.max(0.01, want * 0.005);
-  return { ok, detail: `${shown} = $${usd.toLocaleString("en-US")} · ${part}due $${want.toLocaleString("en-US")}` };
+  return { ok, detail: `${shown} = $${usd.toLocaleString("en-US")} · ${part}due $${want.toLocaleString("en-US")} under the contract` };
 }
 
 /** Whether the licence is valid on the payment date. Missing counts as no licence. */
@@ -204,11 +213,14 @@ const normal = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 export function duplicateInvoices(p: Procurement, all: Procurement[]): string[] {
   const no = normal(p.invoice?.number ?? "");
   const who = normal(p.supplier?.name ?? "");
-  if (!no || !who) return [];
+  const id = p.supplier?.id;
+  if (!no || (!who && !id)) return [];
+  // The same supplier: the same register record, or failing that the same name.
+  const same = (otherId: string | undefined, name: string) => (id && otherId ? id === otherId : normal(name) === who);
   const out: string[] = [];
   for (const q of all)
-    for (const r of q.payments ?? []) if (normal(r.invoice.number ?? "") === no && normal(r.supplier) === who) out.push(`${q.id}-P${r.n}`);
-  for (const q of all) if (q.id !== p.id && normal(q.invoice?.number ?? "") === no && normal(q.supplier?.name ?? "") === who) out.push(`${q.id} (in progress)`);
+    for (const r of q.payments ?? []) if (normal(r.invoice.number ?? "") === no && same(r.supplierId, r.supplier)) out.push(`${q.id}-P${r.n}`);
+  for (const q of all) if (q.id !== p.id && normal(q.invoice?.number ?? "") === no && same(q.supplier?.id, q.supplier?.name ?? "")) out.push(`${q.id} (in progress)`);
   return out;
 }
 
@@ -231,6 +243,7 @@ export function closeInstalment(p: Procurement): Procurement {
     grn: p.grn,
     invoice: p.invoice ?? { amount: 0, qty: 0 },
     supplier: p.supplier?.name ?? "",
+    ...(p.supplier?.id ? { supplierId: p.supplier.id } : {}),
     licenceExpiry: p.supplier?.licenceExpiry,
     tax,
     net: (p.invoice?.amount ?? 0) - tax.amount,

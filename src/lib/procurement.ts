@@ -11,6 +11,7 @@ import { holdersOfType, holdsType } from "@/lib/authority";
 import type { HrRole } from "@/lib/hr";
 import { ROP, type Value } from "@/lib/policy";
 import { DEMO_DATE, today } from "@/lib/clock";
+import { lastScreening, sameSupplierName, supplierGaps, type Supplier } from "@/lib/suppliers";
 import {
   closeInstalment,
   contractCurrency,
@@ -100,6 +101,14 @@ export const screeningLists = () => ruleList("screeningLists");
 /* ---------------- Split purchases ---------------- */
 
 /** Every procurement in the project, so a check can look across them (set by the workspace). */
+/** The organization's supplier register, once loaded: checks read the supplier's live record. */
+let supplierRegister: Supplier[] | null = null;
+export function setSupplierRegister(list: Supplier[] | null) {
+  supplierRegister = list;
+}
+/** The chosen supplier's register record, when it is linked and the register is loaded. */
+export const registered = (p: Procurement) => (p.supplier?.id && supplierRegister ? (supplierRegister.find((x) => x.id === p.supplier!.id) ?? null) : null);
+
 let everyProcurement: Procurement[] = [];
 export function setProcurementSet(items: Procurement[]) {
   everyProcurement = items;
@@ -108,7 +117,7 @@ const LEVELS: Level[] = ["Micro", "Small", "Medium", "Large"];
 /** When a request was made: its first recorded step, else when it is needed. */
 const madeOn = (p: Procurement) => p.timeline[0]?.date ?? p.neededBy;
 const vendorOf = (p: Procurement) => (p.supplier?.name ?? p.sole?.supplier ?? "").trim();
-const sameVendor = (a: string, b: string) => !!a && !!b && a.toLowerCase().replace(/[^a-z0-9]/g, "") === b.toLowerCase().replace(/[^a-z0-9]/g, "");
+const sameVendor = (a: string, b: string) => !!a && !!b && (a.toLowerCase().replace(/[^a-z0-9]/g, "") === b.toLowerCase().replace(/[^a-z0-9]/g, "") || sameSupplierName(a, b));
 /** Two titles name the same item when they share a meaningful word (four letters or more, not a filler word). */
 const FILLER = new Set(["with", "from", "second", "first", "third", "batch", "items", "lot", "lots", "pcs", "set", "sets", "for", "and", "the", "kit", "kits", "type", "size"]);
 const words = (t: string) => new Set(t.toLowerCase().split(/[^a-z]+/).filter((w) => w.length >= 4 && !FILLER.has(w)));
@@ -186,6 +195,41 @@ export type TimelineEvent = { date: string; who: Role; what: string };
 
 export type Signature = { as: string; name: string; role: Role; date: string };
 
+/** A quotation or bid as received: who, when, how much, the file, and how it was judged. */
+export type Bid = {
+  id: string;
+  supplier: string;
+  /** Its supplier register record, when it is there. */
+  supplierId?: string;
+  /** Date and time received (local time, as on the receipt). */
+  receivedAt: string;
+  amount: number;
+  currency: Currency;
+  /** Afghani per dollar, for an afghani bid. */
+  rate?: number;
+  /** The signed quotation or bid in SharePoint. */
+  evidence: string;
+  /** Pass/fail on the minimum requirements; null until judged. */
+  passes: boolean | null;
+  failWhy: string;
+  /** Best value: the committee's total score. */
+  score?: number;
+  /** For an unusually low bid: what the supplier showed to prove it can deliver. */
+  lowNote: string;
+};
+/** One signed distribution list: who received the goods, where and when. */
+export type DistributionList = { date: string; place: string; recipients: number; women: number; qty: number; evidence: string; by: string; byName: string };
+/** Someone other than the distributors contacted a sample of recipients to confirm they received it. */
+export type DistributionCheck = { on: string; sampled: number; confirmed: number; issues: string; evidence: string; by: string; byName: string };
+/**
+ * Goods that go to participants: the signed distribution lists, what is left in stock, and an
+ * independent check on a sample (UNDP audit finding: no verification of what beneficiaries received).
+ */
+export type Distribution = { forParticipants: boolean; lists: DistributionList[]; inStock: number; checks: DistributionCheck[] };
+
+/** A bid committee member and their declaration against the named bidders, signed before seeing a bid. */
+export type CommitteeMember = { name: string; role: "chair" | "member"; declaredOn: string; declaration: string; conflict: boolean };
+
 export type Procurement = {
   id: string;
   title: string;
@@ -206,7 +250,7 @@ export type Procurement = {
   step: string;
   checks: Record<string, boolean>;
   /** The licence is checked again on each payment date: an expired one changes the tax withheld. */
-  supplier?: { name: string; screenedOn: string; licenceNo?: string; licenceExpiry?: string };
+  supplier?: { name: string; screenedOn: string; licenceNo?: string; licenceExpiry?: string; /** Its record in the supplier register. */ id?: string };
   advertisedDays?: number;
   closingDate?: string;
   /** Received for the instalment under way; for works, the verified progress percentage. */
@@ -217,6 +261,8 @@ export type Procurement = {
   contractCurrency?: Currency;
   /** For an afghani contract: its value in afghani, as signed. Instalments are due in afghani from it. */
   contractAfn?: number;
+  /** For a dollar contract: its value in dollars, as signed. Invoices are matched to it, not to the request's estimate. */
+  contractUsd?: number;
   /** Payment schedule, set with the contract. Missing: one payment of 100%. */
   schedule?: Instalment[];
   /** Instalments already paid, each with its own documents and signatures. */
@@ -233,6 +279,16 @@ export type Procurement = {
   plan?: PlanLink;
   /** How it is bought, chosen by procurement after the request is approved. */
   route?: Route;
+  /** For goods handed on to participants: distribution lists, stock and verification. */
+  distribution?: Distribution;
+  /** Quotations or bids received. */
+  bids?: Bid[];
+  /** The bid chosen. */
+  selectedBid?: string;
+  /** Bid committee, with each member's declaration. */
+  committee?: CommitteeMember[];
+  /** The bid opening: when, who was present, and the signed record. */
+  opening?: { at: string; present: string; evidence: string };
   /** Sole source: the supplier and why only they can supply it. */
   sole?: { supplier: string; reason: string };
   /** AI drafts of generated documents, by document name. A person reads and corrects each one. */
@@ -370,6 +426,121 @@ export const rolePersonFor = (p: Procurement, r: Role) => {
 
 export const valueOf = (p: Procurement) => p.qty * p.unitPrice;
 /** The budget line a procurement buys from: the project budget when started from the calendar, else the demo budget. */
+/* ---------- distribution ---------- */
+
+/** Received so far, in the order's unit: earlier instalments plus the one under way. */
+export const receivedQty = (p: Procurement) => (p.payments ?? []).reduce((s, r) => s + (r.grn?.qty ?? 0), 0) + (p.grn?.qty ?? 0);
+/** Smallest sample that counts as a check: 10% of recipients, at least 5 (or all, if fewer). */
+export const sampleNeeded = (recipients: number) => Math.min(recipients, Math.max(5, Math.ceil(recipients * 0.1)));
+
+export function distributionState(p: Procurement): { ok: boolean; detail: string } | null {
+  const d = p.distribution;
+  if (!d?.forParticipants) return null;
+  const given = d.lists.reduce((s, l) => s + l.qty, 0);
+  const people = d.lists.reduce((s, l) => s + l.recipients, 0);
+  const got = receivedQty(p);
+  const fmt = (n: number) => n.toLocaleString("en-US");
+  if (!d.lists.length) return { ok: false, detail: "No distribution list recorded yet" };
+  const gap = got - given - d.inStock;
+  if (Math.abs(gap) > 1e-9) return { ok: false, detail: `Received ${fmt(got)} ${p.unit}, distributed ${fmt(given)}, in stock ${fmt(d.inStock)}: ${fmt(Math.abs(gap))} ${gap > 0 ? "unaccounted for" : "more than received"}` };
+  const distributors = new Set(d.lists.map((l) => l.by));
+  const valid = d.checks.filter((c) => !distributors.has(c.by));
+  const sampled = valid.reduce((s, c) => s + c.sampled, 0);
+  const confirmed = valid.reduce((s, c) => s + c.confirmed, 0);
+  const need = sampleNeeded(people);
+  if (!valid.length) return { ok: false, detail: `${fmt(people)} recipients on ${d.lists.length} ${d.lists.length === 1 ? "list" : "lists"}; not yet verified by someone who did not distribute (sample of ${need} needed)` };
+  if (sampled < need) return { ok: false, detail: `${sampled} of ${need} recipients contacted so far` };
+  if (confirmed < sampled) return { ok: false, detail: `${sampled - confirmed} of ${sampled} contacted did not confirm receipt: ${valid.map((c) => c.issues).filter(Boolean).join("; ") || "record what was found"}` };
+  return { ok: true, detail: `${fmt(given)} ${p.unit} to ${fmt(people)} people; ${confirmed} of ${sampled} sampled confirmed; ${fmt(d.inStock)} in stock` };
+}
+
+/* ---------- bids ---------- */
+
+/** On a real project (the register is loaded) bids are records, not ticks: missing records fail. */
+const recordsRequired = () => supplierRegister !== null;
+const none = (what: string) => (recordsRequired() ? { ok: false, detail: what } : null);
+
+/** A bid's amount in dollars, or null when an afghani bid has no rate. */
+export const bidUsd = (b: Bid) => (b.currency === "AFN" ? (b.rate && b.rate > 0 ? b.amount / b.rate : null) : b.amount);
+const recordedBids = (p: Procurement) => (p.bids ?? []).filter((b) => b.supplier.trim() && b.amount > 0 && isSharePointUrl(b.evidence));
+/** The lowest-priced bid that passed the minimum requirements. */
+export function lowestPassing(p: Procurement): Bid | null {
+  const ok = (p.bids ?? []).filter((b) => b.passes === true && bidUsd(b) !== null);
+  return ok.sort((a, b) => bidUsd(a)! - bidUsd(b)!)[0] ?? null;
+}
+/** Bids received after closing: rejected, never considered. */
+export const lateBids = (p: Procurement) => (p.closingDate ? (p.bids ?? []).filter((b) => b.receivedAt.slice(0, 10) > p.closingDate!) : []);
+/** Bids under 75% of the estimate: the supplier must show it can deliver. */
+export const lowBids = (p: Procurement) => (p.bids ?? []).filter((b) => b.passes !== false && (bidUsd(b) ?? Infinity) < valueOf(p) * 0.75);
+
+function quotesCheck(p: Procurement) {
+  const n = recordedBids(p).length;
+  const micro = levelFor(valueOf(p)) === "Micro";
+  const need = micro ? rule("microPriceChecks", 3) : rule("quotesSmall", 3);
+  if (!(p.bids ?? []).length) return none("Record each quotation with its file below");
+  return { ok: n >= need, detail: `${n} of ${need} ${micro ? "prices" : "written quotations"} recorded with the file${n < need && !micro ? ": file a memo explaining why fewer" : ""}` };
+}
+function lowestCheck(p: Procurement, money: Money) {
+  if (!(p.bids ?? []).length) return none("Record the bids below, then mark the one chosen");
+  const low = lowestPassing(p);
+  const chosen = (p.bids ?? []).find((b) => b.id === p.selectedBid);
+  if (!chosen) return { ok: false, detail: "Mark the bid chosen" };
+  if (!low) return { ok: false, detail: "No bid has passed the minimum requirements" };
+  return { ok: chosen.id === low.id, detail: chosen.id === low.id ? `${chosen.supplier}: ${money(bidUsd(chosen)!)}, the lowest that passed` : `${chosen.supplier} chosen, but ${low.supplier} passed at ${money(bidUsd(low)!)}, lower` };
+}
+function qualifyCheck(p: Procurement) {
+  const bids = p.bids ?? [];
+  if (!bids.length) return none("Record the bids below and judge each against the minimum requirements");
+  const open = bids.filter((b) => b.passes === null);
+  const unexplained = bids.filter((b) => b.passes === false && !b.failWhy.trim());
+  const late = lateBids(p).filter((b) => b.passes !== false);
+  if (late.length) return { ok: false, detail: `Received after closing and not rejected: ${late.map((b) => b.supplier).join(", ")}` };
+  return { ok: !open.length && !unexplained.length, detail: open.length ? `${open.length} not judged yet` : unexplained.length ? `Say why ${unexplained.map((b) => b.supplier).join(", ")} failed` : `${bids.filter((b) => b.passes).length} of ${bids.length} passed` };
+}
+function lowBidCheck(p: Procurement) {
+  if (!(p.bids ?? []).length) return none("Record the bids first");
+  const low = lowBids(p);
+  const open = low.filter((b) => !b.lowNote.trim());
+  return { ok: !open.length, detail: !low.length ? "No bid under 75% of the estimate" : open.length ? `Under 75% of the estimate, not yet explained: ${open.map((b) => b.supplier).join(", ")}` : `Explained: ${low.map((b) => b.supplier).join(", ")}` };
+}
+function openingCheck(p: Procurement) {
+  const o = p.opening;
+  if (!o) return (p.bids ?? []).length ? { ok: false, detail: "Record the opening: when, who was present, and the signed record" } : none("Record the bids and the opening below");
+  if (!isSharePointUrl(o.evidence)) return { ok: false, detail: "Link the signed opening record in SharePoint" };
+  if (p.closingDate && o.at.slice(0, 10) < p.closingDate) return { ok: false, detail: `Opened ${o.at.slice(0, 10)}, before closing on ${p.closingDate}` };
+  const missing = (p.bids ?? []).filter((b) => !b.receivedAt);
+  return { ok: !missing.length && recordedBids(p).length === (p.bids ?? []).length, detail: missing.length ? "Every bid needs its receipt time" : `Opened ${o.at.replace("T", " ")} with ${o.present}; ${(p.bids ?? []).length} bids` };
+}
+function declareCheck(p: Procurement) {
+  const c = p.committee ?? [];
+  if (!c.length) return none("Name the committee members and link each declaration below");
+  const sitting = c.filter((m) => !m.conflict);
+  const undeclared = c.filter((m) => !m.declaredOn || !isSharePointUrl(m.declaration));
+  const late = p.opening ? c.filter((m) => m.declaredOn && m.declaredOn > p.opening!.at.slice(0, 10)) : [];
+  const chair = sitting.some((m) => m.role === "chair");
+  if (undeclared.length) return { ok: false, detail: `Declaration missing: ${undeclared.map((m) => m.name || "unnamed").join(", ")}` };
+  if (late.length) return { ok: false, detail: `Declared after the bids were opened: ${late.map((m) => m.name).join(", ")}` };
+  return { ok: sitting.length >= 3 && chair, detail: `${sitting.length} members sitting${c.length > sitting.length ? `, ${c.length - sitting.length} withdrawn (conflict)` : ""}${chair ? "" : ", no chair"}${sitting.length < 3 ? ": at least three needed" : ""}` };
+}
+
+/**
+ * Money other open procurements on the same budget line are committed to, not yet paid: the
+ * contract value once recorded, or the estimate, less instalments already paid. Without it two
+ * requests could each pass against the same money.
+ */
+export function committedOn(p: Procurement) {
+  const line = p.plan?.budgetCode ?? p.budgetLine;
+  const others = everyProcurement
+    .filter((q) => q.id !== p.id && q.step !== DONE && (q.plan?.budgetCode ?? q.budgetLine) === line && (!p.plan || q.plan?.project === p.plan.project))
+    .map((q) => {
+      const value = contractCurrency(q) === "USD" && q.contractUsd && q.contractUsd > 0 ? q.contractUsd : valueOf(q);
+      const paid = (q.payments ?? []).reduce((s, r) => s + (r.invoice.currency === "AFN" ? (r.invoice.rate ? r.invoice.amount / r.invoice.rate : 0) : r.invoice.amount), 0);
+      return { id: q.id, open: Math.max(0, value - paid) };
+    })
+    .filter((o) => o.open > 0);
+  return { others, total: others.reduce((s, o) => s + o.open, 0) };
+}
+
 export const lineOf = (p: Procurement): BudgetLine | undefined =>
   p.plan ? { code: p.plan.budgetCode, name: p.plan.budgetName, remainingValue: p.plan.leftUsd } : budgetLines.find((b) => b.code === p.budgetLine);
 
@@ -459,7 +630,11 @@ export const steps: Step[] = [
         auto: (p, money) => {
           const l = lineOf(p);
           if (!l) return null;
-          return { ok: valueOf(p) <= l.remainingValue, detail: `Needs ${money(valueOf(p))} · ${money(l.remainingValue)} left on ${l.code}` };
+          // Other open requests on the line have a claim on the same money.
+          const c = committedOn(p);
+          const free = l.remainingValue - c.total;
+          const held = c.others.length ? ` less ${money(c.total)} committed to ${c.others.map((o) => o.id).join(", ")}` : "";
+          return { ok: valueOf(p) <= free, detail: `Needs ${money(valueOf(p))} · ${money(l.remainingValue)} left on ${l.code}${held}${held ? ` = ${money(free)} free` : ""}` };
         },
       },
       {
@@ -637,8 +812,8 @@ export const steps: Step[] = [
     produces: ["Quotations", "Screening record", "Source selection memo"],
     signs: { doc: "Source selection memo", as: "Prepared by (procurement)" },
     checks: [
-      { id: "three", label: "Three suppliers priced (written quotes above $500)", why: "Micro: market pricing from three suppliers. Small: three written quotations, or a memo explaining why fewer.", tag: "D1 §5.1, §5.2" },
-      { id: "lowest", label: "Lowest price that meets the specification chosen", why: "Small purchases are awarded to the lowest compliant quotation.", tag: "D1 §5.2" },
+      { id: "three", label: "Three suppliers priced (written quotes above $500)", why: "Micro: market pricing from three suppliers. Small: three written quotations, or a memo explaining why fewer.", tag: "D1 §5.1, §5.2", resolve: "Memo explaining fewer quotations filed", auto: (p) => quotesCheck(p) },
+      { id: "lowest", label: "Lowest price that meets the specification chosen", why: "Small purchases are awarded to the lowest compliant quotation.", tag: "D1 §5.2", auto: (p, money) => lowestCheck(p, money) },
       { id: "screened", label: "Supplier screened and the result reviewed by a person", why: "No order or payment to any party before screening. A person reviews every result.", tag: "D1 §4.8; TS" },
     ],
   },
@@ -728,7 +903,7 @@ export const steps: Step[] = [
         tag: "D1 §4.6",
         auto: (p) => (p.closingDate ? { ok: daysBetween(p.closingDate, today()) >= 0, detail: `Closing ${p.closingDate}` } : null),
       },
-      { id: "opening", label: "Opening record signed, with each bid's receipt time", why: "A signed record in its own right, not a table inside the selection memo.", tag: "D1 §4.6" },
+      { id: "opening", label: "Opening record signed, with each bid's receipt time", why: "A signed record in its own right, not a table inside the selection memo.", tag: "D1 §4.6", auto: (p) => openingCheck(p) },
     ],
   },
   {
@@ -745,8 +920,8 @@ export const steps: Step[] = [
     signs: { doc: "Source selection memo", as: "Evaluated by (procurement)" },
     checks: [
       { id: "waiver", label: "Programme management signed the committee waiver", why: "Allowed only for lowest-price evaluations at or below the committee threshold; best value always needs a committee.", tag: "ROP April 2025 §3.2.6" },
-      { id: "qualify", label: "Pass/fail checked before choosing", why: "A bid that fails a minimum requirement is not considered.", tag: "ROP April 2025 §3.2.7" },
-      { id: "lowest", label: "Lowest price that meets every requirement chosen", why: "Lowest price technically acceptable.", tag: "ROP April 2025 §3.2.7" },
+      { id: "qualify", label: "Pass/fail checked before choosing", why: "A bid that fails a minimum requirement is not considered.", tag: "ROP April 2025 §3.2.7", auto: (p) => qualifyCheck(p) },
+      { id: "lowest", label: "Lowest price that meets every requirement chosen", why: "Lowest price technically acceptable.", tag: "ROP April 2025 §3.2.7", auto: (p, money) => lowestCheck(p, money) },
     ],
   },
   {
@@ -762,9 +937,9 @@ export const steps: Step[] = [
     produces: ["Committee declarations", "Evaluation sheets", "Source selection memo"],
     signs: { doc: "Source selection memo", as: "Committee chair" },
     checks: [
-      { id: "declare", label: "Every member declared against the named bidder list", why: "Signed before anyone sees a bid. A member connected to a bidder withdraws.", tag: "D1 §4.7" },
-      { id: "qualify", label: "Pass/fail checked before any scoring", why: "A bid that fails a minimum requirement is not scored or ranked.", tag: "D1 §4.4" },
-      { id: "lowbid", label: "Unusually low bids investigated", why: "Roughly 20–30% under the price basis: ask for proof the supplier can deliver.", tag: "D1 §4.7" },
+      { id: "declare", label: "Every member declared against the named bidder list", why: "Signed before anyone sees a bid. A member connected to a bidder withdraws.", tag: "D1 §4.7", auto: (p) => declareCheck(p) },
+      { id: "qualify", label: "Pass/fail checked before any scoring", why: "A bid that fails a minimum requirement is not scored or ranked.", tag: "D1 §4.4", auto: (p) => qualifyCheck(p) },
+      { id: "lowbid", label: "Unusually low bids investigated", why: "Roughly 20–30% under the price basis: ask for proof the supplier can deliver.", tag: "D1 §4.7", auto: (p) => lowBidCheck(p) },
     ],
   },
   {
@@ -816,6 +991,13 @@ export const steps: Step[] = [
           return rules.dueDiligenceAllLevels === true ? "Vendor documents at every level, including Micro." : "Due diligence at Medium and above, from evidence submitted with the bid.";
         },
         tag: "ROP April 2025 checklists p26–39",
+        auto: (p) => {
+          if (!supplierRegister) return null;
+          const r = registered(p);
+          if (!r) return { ok: false, detail: "Pick the supplier from the supplier register" };
+          const gaps = supplierGaps(r, today(), rule("rescreenMonths", 6)).filter((g) => !/screen/i.test(g));
+          return { ok: !gaps.length, detail: gaps.length ? `${r.name}: ${gaps.join("; ")}` : `${r.name}: licence ${r.licenceNo} to ${r.licenceExpiry}, bank confirmed ${r.bank!.on}, declaration on file` };
+        },
       },
     ],
   },
@@ -859,10 +1041,10 @@ export const steps: Step[] = [
         auto: (p) => {
           const s = scheduleOf(p);
           const t = scheduleTotal(p);
-          const afnMissing = contractCurrency(p) === "AFN" && !(p.contractAfn && p.contractAfn > 0);
+          const valueMissing = contractCurrency(p) === "AFN" ? !(p.contractAfn && p.contractAfn > 0) : !(p.contractUsd && p.contractUsd > 0);
           return {
-            ok: t === 100 && s.every((i) => i.pct > 0) && !afnMissing,
-            detail: `${s.length === 1 ? "One payment" : s.map((i) => `${i.label} ${i.pct}%`).join(" · ")} · in ${contractCurrency(p)}${t === 100 ? "" : ` · adds up to ${t}%`}${afnMissing ? " · enter the contract value in afghani" : ""}`,
+            ok: t === 100 && s.every((i) => i.pct > 0) && !valueMissing,
+            detail: `${s.length === 1 ? "One payment" : s.map((i) => `${i.label} ${i.pct}%`).join(" · ")} · in ${contractCurrency(p)}${t === 100 ? "" : ` · adds up to ${t}%`}${valueMissing ? " · enter the contract value as signed" : ""}`,
           };
         },
       },
@@ -1030,12 +1212,34 @@ export const steps: Step[] = [
         resolve: "Record new screening: no match",
         auto: (p) => {
           if (!p.supplier) return null;
+          const r = registered(p);
+          if (r) {
+            const sc = lastScreening(r);
+            if (!sc) return { ok: false, detail: `${r.name} has no screening in the register` };
+            if (r.status === "suspended") return { ok: false, detail: `${r.name} is suspended: ${r.suspendedWhy}` };
+            const months = rule("rescreenMonths", 6);
+            const d = daysBetween(sc.date, today());
+            return { ok: sc.result === "clear" && d <= Math.round(months * 30.44), detail: `Last screened ${sc.date} by ${sc.byName}: ${sc.result} (${d} days ago; re-screen after ${months} months)` };
+          }
           const d = daysBetween(p.supplier.screenedOn, today());
           const months = rule("rescreenMonths", 6);
           return { ok: d <= Math.round(months * 30.44), detail: `Last screened ${p.supplier.screenedOn} (${d} days ago; re-screen after ${months} months)` };
         },
       },
-      { id: "payee", label: "Bank account verified against the contract and the supplier's own evidence", why: "A changed account is confirmed through a different channel from the one that asked for it.", tag: "D1 §4.13" },
+      {
+        id: "payee",
+        label: "Bank account verified against the contract and the supplier's own evidence",
+        why: "A changed account is confirmed through a different channel from the one that asked for it.",
+        tag: "D1 §4.13",
+        auto: (p) => {
+          if (!supplierRegister || !p.supplier) return null;
+          const r = registered(p);
+          if (!r) return { ok: false, detail: "Link the supplier to the register, where Finance confirms its bank details" };
+          if (!r.bank) return { ok: false, detail: `${r.name}: bank details not confirmed by Finance in the register` };
+          const changed = r.history.some((h) => h.what.startsWith("Bank details CHANGED") && h.at >= madeOn(p));
+          return { ok: true, detail: `${r.bank.bank} …${r.bank.accountEnd}, confirmed by ${r.bank.confirmedByName} on ${r.bank.on} (${r.bank.how})${changed ? ". Changed since this request: check the confirmation" : ""}` };
+        },
+      },
       { id: "pass2", label: "Checklist pass 2 complete (file, receipt, screening, tax)", why: "No payment without a complete file, a certified receipt and screening evidence.", tag: "D1 §4.13, §4.17" },
       { id: "aiFinance", label: "AI finance review read", why: "Order, received note, invoice, budget line, approvals and screening compared. AI flags; Finance decides.", tag: "TS", ai: true },
     ],
@@ -1140,6 +1344,13 @@ export const steps: Step[] = [
     produces: ["Closeout checklist", "Vendor evaluation"],
     signs: { doc: "Closeout checklist", as: "Closed by (procurement)" },
     checks: [
+      {
+        id: "distributed",
+        label: "Goods that go to participants reached them: distribution reconciled and independently verified",
+        why: "Received = distributed + in stock, on signed lists, and a sample of recipients confirmed by someone who did not hand the goods out.",
+        tag: "UNDP audit finding (beneficiary verification)",
+        auto: (p) => distributionState(p) ?? { ok: true, detail: "Not handed on to participants" },
+      },
       {
         id: "allPaid",
         label: "Every instalment paid and its withheld tax remitted",
@@ -1372,6 +1583,7 @@ export function seedProcurements(): Procurement[] {
       step: "receive",
       supplier: { name: "SafeStore Supplies (fictional)", screenedOn: "2027-01-30" },
       grn: { qty: 2850, place: "Village B collection point" },
+      contractUsd: 4200,
     }),
     seed({
       ...common,
@@ -1389,6 +1601,7 @@ export function seedProcurements(): Procurement[] {
       advertisedDays: 10,
       closingDate: "2026-12-10",
       grn: { qty: 60, place: "Village B collection point" },
+      contractUsd: 7800,
       invoice: { amount: 7800, qty: 60 },
       issues: [
         {

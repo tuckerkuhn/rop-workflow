@@ -1,10 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { primaryBtn } from "@/components/workspace/ui";
 import { currentInstalment } from "@/lib/payments";
 import { ROUTES, committeeNeeded, isSharePointUrl, levelFor, reviewKey, routesFor, rulesInForce, valueOf, type Draft, type Procurement } from "@/lib/procurement";
 import { today } from "@/lib/clock";
+import { lastScreening, type Supplier } from "@/lib/suppliers";
 
 /**
  * Step panels for choosing how to buy: the route, the sole-source facts, and AI drafts of the
@@ -86,9 +88,53 @@ export function RoutePicker({ p, editable, update }: { p: Procurement; editable:
   );
 }
 
-/** The chosen supplier, named at screening: screened against the lists in force and added up for repeat micro buys. */
-export function SupplierField({ p, editable, update }: { p: Procurement; editable: boolean; update: Update }) {
+/**
+ * The chosen supplier, named at screening. On a real project it is picked from the supplier
+ * register, so screening, licence and bank checks read the supplier's own record; the demo
+ * project keeps a typed name.
+ */
+export function SupplierField({ p, editable, update, register }: { p: Procurement; editable: boolean; update: Update; register?: (Supplier & { gaps: string[] })[] | null }) {
   const name = p.supplier?.name ?? p.sole?.supplier ?? "";
+  if (register) {
+    const chosen = register.find((x) => x.id === p.supplier?.id);
+    const pick = (id: string) => {
+      const r = register.find((x) => x.id === id);
+      update((q) => ({ ...q, supplier: r ? { id: r.id, name: r.name, screenedOn: lastScreening(r)?.date ?? "", licenceNo: r.licenceNo, licenceExpiry: r.licenceExpiry } : undefined, checks: unreview(q) }));
+    };
+    return (
+      <fieldset className={box} disabled={!editable}>
+        <legend className="sr-only">Supplier</legend>
+        <label className="block text-sm font-semibold" htmlFor={`supplier-${p.id}`}>
+          Chosen supplier
+        </label>
+        <p className="mt-1 text-xs text-muted">
+          From the supplier register. Not there yet?{" "}
+          <Link href="/work/suppliers" className="font-semibold text-forest hover:underline">
+            Add it to the register
+          </Link>{" "}
+          with its licence, then screen it.
+        </p>
+        <select id={`supplier-${p.id}`} value={chosen?.id ?? ""} onChange={(e) => pick(e.target.value)} className={`mt-2 ${field}`}>
+          <option value="">{name && !chosen ? `${name} (not in the register: pick its record)` : "Pick a supplier"}</option>
+          {register
+            .filter((r) => r.status === "active" || r.id === chosen?.id)
+            .map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name}
+                {r.gaps.length ? ` · ${r.gaps.length} to resolve` : " · ready"}
+              </option>
+            ))}
+        </select>
+        {chosen && chosen.gaps.length > 0 && (
+          <ul className="mt-2 space-y-0.5 text-xs text-clay">
+            {chosen.gaps.map((g) => (
+              <li key={g}>· {g}</li>
+            ))}
+          </ul>
+        )}
+      </fieldset>
+    );
+  }
   return (
     <fieldset className={box} disabled={!editable}>
       <legend className="sr-only">Supplier</legend>

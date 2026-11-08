@@ -56,7 +56,7 @@ export function DocumentViewer({
             </div>
             <div className="text-right font-mono text-xs text-muted">
               <p>{d.number}</p>
-              <p>Draft rules: Procurement Policy Draft 1.0</p>
+              <p>ROP Procurement Policy, April 2025</p>
             </div>
           </header>
 
@@ -99,7 +99,7 @@ export function DocumentViewer({
                     </div>
                     <p className="mt-1.5 text-xs font-semibold">{l.as}</p>
                     <p className="text-xs text-muted">
-                      {l.signed ? `Signed electronically ${l.signed.date} · demo signature` : isPending ? (user?.name ?? "") : (who ?? "")}
+                      {l.signed ? `Signed electronically in ROP Workflow, ${l.signed.date}` : isPending ? (user?.name ?? "") : (who ?? "")}
                     </p>
                   </div>
                 );

@@ -68,6 +68,17 @@ export function SchedulePanel({ p, editable, update }: { p: Procurement; editabl
             <option value="AFN">Afghani</option>
           </select>
         </label>
+        {contractCurrency(p) === "USD" && (
+          <label>
+            <span className={label}>Contract value as signed, USD</span>
+            <input
+              inputMode="decimal"
+              value={p.contractUsd === undefined ? "" : String(p.contractUsd)}
+              onChange={(e) => update((q) => ({ ...q, contractUsd: e.target.value.trim() === "" ? undefined : num(e.target.value), checks: unreview(q) }))}
+              className={`mt-1 ${field} tabular-nums`}
+            />
+          </label>
+        )}
         {contractCurrency(p) === "AFN" && (
           <label>
             <span className={label}>Contract value, AFN</span>

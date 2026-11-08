@@ -29,7 +29,7 @@ const draftSchema = z.object({
   questions: z.array(z.string()).describe("Facts the record does not settle that a person must fill in or confirm before the document is used. Empty if none."),
 });
 
-const POLICY = `You draft procurement documents for Roots of Peace (ROP), an international NGO, under its procurement policy (Draft 1.0). Rules that apply:
+const POLICY = `You draft procurement documents for Roots of Peace (ROP), an international NGO, under its procurement policy (Afghanistan, April 2025). Rules that apply:
 - Levels by estimated value in USD: Micro up to $500; Small $500 to $5,000; Medium $5,000 to $25,000; Large over $25,000.
 - A request for quotation (RFQ) is awarded to the lowest-priced quotation that meets every requirement (lowest price technically acceptable). An RFP is best value. Never mix the two.
 - Pass/fail requirements are listed separately from anything priced or scored; a price never stands in for a minimum requirement.

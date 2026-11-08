@@ -7,7 +7,9 @@ import { loadProcurements, saveProcurements } from "@/server/procurement-store";
 import { db } from "@/db";
 import { logAudit } from "@/server/audit";
 import { projectByCode } from "@/server/field-store";
-import { describeProcurementSave, prepareProcurementRules, validateProcurementSave } from "@/server/procurement-guard";
+import { DEMO_PROJECT, describeProcurementSave, prepareProcurementRules, validateProcurementSave } from "@/server/procurement-guard";
+import { loadPlan } from "@/server/procurement-plan-store";
+import { orgIdForPerson } from "@/server/org-settings-store";
 
 /** The project's procurements. */
 export async function GET(req: Request, { params }: { params: Promise<{ code: string }> }) {
@@ -34,9 +36,11 @@ export async function PUT(req: Request, { params }: { params: Promise<{ code: st
     const items = parsed.data.items as unknown as Procurement[];
     // The server decides what is allowed (the same rules as the screen), then records each save.
     const stored = new Map((await loadProcurements(code)).map((p) => [p.id, p]));
-    await prepareProcurementRules(code);
+    const register = await prepareProcurementRules(code, await orgIdForPerson(v.user.id));
+    // A real project's requests must charge its procurement calendar; the demo keeps its sample lines.
+    const calendar = code === DEMO_PROJECT ? undefined : await loadPlan(code);
     for (const next of items) {
-      const why = validateProcurementSave(stored.get(next.id), next, v.user);
+      const why = validateProcurementSave(stored.get(next.id), next, v.user, calendar, register);
       if (why) return NextResponse.json({ error: `${next.id}: ${why}` }, { status: 409 });
     }
     await saveProcurements(code, items);
