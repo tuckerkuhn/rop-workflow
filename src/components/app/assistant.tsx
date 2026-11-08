@@ -4,12 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useT } from "@/components/app/i18n";
 import { LockIcon, LockedFeature } from "@/components/app/locked-feature";
-import { useFeature } from "@/components/app/session";
+import Link from "next/link";
+import { useFeature, useSession } from "@/components/app/session";
 import type { MessageKey } from "@/lib/i18n";
 
 /**
- * The AI assistant (paid plan): a button on every screen that opens a panel. For now the panel
- * is a shell; answering questions, voice and WhatsApp input come later.
+ * The AI assistant (paid plan): a button on every screen that opens a panel where staff ask
+ * about the current project. Answers come from the project's own records (server/assistant.ts),
+ * with links to where to act. Voice and WhatsApp input come later.
  */
 
 const EXAMPLES: MessageKey[] = ["assistant.ex.late", "assistant.ex.noData", "assistant.ex.report"];
@@ -30,6 +32,34 @@ export function Assistant() {
   const launcher = useRef<HTMLButtonElement>(null);
   const closer = useRef<HTMLButtonElement>(null);
   const wasOpen = useRef(false);
+  const scroller = useRef<HTMLDivElement>(null);
+  const { user } = useSession();
+  const [q, setQ] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [turns, setTurns] = useState<{ q: string; a: string | null; error?: string; links: { label: string; href: string }[]; followUps: string[] }[]>([]);
+  // A new project is a new conversation.
+  useEffect(() => setTurns([]), [project.id]);
+  useEffect(() => {
+    scroller.current?.scrollTo({ top: scroller.current.scrollHeight });
+  }, [turns]);
+  const send = async (question: string) => {
+    const text = question.trim();
+    if (text.length < 3 || busy || !user) return;
+    setQ("");
+    setBusy(true);
+    const history = turns.filter((x) => x.a).map((x) => ({ q: x.q, a: x.a! }));
+    setTurns((all) => [...all, { q: text, a: null, links: [], followUps: [] }]);
+    try {
+      const res = await fetch(`/api/projects/${project.id}/assistant`, { method: "POST", headers: { "Content-Type": "application/json", "x-demo-user": user.id }, body: JSON.stringify({ question: text, history }) });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error ?? "No answer.");
+      setTurns((all) => all.map((x, i) => (i === all.length - 1 ? { ...x, a: d.answer, links: d.links, followUps: d.followUps } : x)));
+    } catch (e) {
+      setTurns((all) => all.map((x, i) => (i === all.length - 1 ? { ...x, a: "", error: e instanceof Error ? e.message : String(e) } : x)));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   // Focus moves into the panel on open and back to the button on close.
   useEffect(() => {
@@ -86,29 +116,65 @@ export function Assistant() {
 
           {allowed ? (
             <>
-              <div className="flex-1 overflow-y-auto px-5 py-5">
-                <p className="text-sm">{t("assistant.intro")}</p>
-                <p className="mt-5 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">{t("assistant.examples")}</p>
-                <ul className="mt-2 space-y-2">
-                  {EXAMPLES.map((k) => (
-                    <li key={k} className="rounded-xl border border-dashed border-line px-3 py-2 text-sm text-muted">
-                      {t(k)}
-                    </li>
-                  ))}
-                </ul>
-                <p role="status" className="mt-5 rounded-xl bg-ochre-soft px-4 py-3 text-sm">
-                  {t("assistant.soon")}
-                </p>
+              <div ref={scroller} className="flex-1 overflow-y-auto px-5 py-5" aria-live="polite">
+                {!turns.length && (
+                  <>
+                    <p className="text-sm">{t("assistant.intro")}</p>
+                    <p className="mt-5 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">{t("assistant.examples")}</p>
+                    <ul className="mt-2 space-y-2">
+                      {EXAMPLES.map((k) => (
+                        <li key={k}>
+                          <button type="button" onClick={() => void send(t(k))} className="w-full rounded-xl border border-line px-3 py-2 text-start text-sm hover:border-forest">
+                            {t(k)}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+                {turns.map((x, i) => (
+                  <div key={i} className="mb-5">
+                    <p className="ms-8 rounded-2xl bg-mist px-3 py-2 text-sm">{x.q}</p>
+                    {x.a === null ? (
+                      <p className="mt-2 text-sm text-muted">{t("assistant.thinking")}</p>
+                    ) : x.error ? (
+                      <p className="mt-2 rounded-xl bg-clay-soft px-3 py-2 text-sm text-clay">{x.error}</p>
+                    ) : (
+                      <div className="mt-2">
+                        <p className="whitespace-pre-line text-sm leading-relaxed">{x.a}</p>
+                        {x.links.length > 0 && (
+                          <p className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-sm">
+                            {x.links.map((l) => (
+                              <Link key={l.href + l.label} href={l.href} onClick={() => setOpen(false)} className="font-semibold text-forest hover:underline">
+                                {l.label} →
+                              </Link>
+                            ))}
+                          </p>
+                        )}
+                        {i === turns.length - 1 && x.followUps.length > 0 && (
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {x.followUps.map((f) => (
+                              <button key={f} type="button" onClick={() => void send(f)} className="rounded-full border border-line px-3 py-1 text-xs hover:border-forest">
+                                {f}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+                {turns.length > 0 && <p className="text-[11px] text-muted">{t("assistant.note")}</p>}
               </div>
-              <form onSubmit={(e) => e.preventDefault()} className="flex items-center gap-2 border-t border-line px-3 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] lg:pb-3">
-                <button type="button" disabled title={t("assistant.voice")} aria-label={t("assistant.voice")} className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-muted disabled:opacity-40">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" className="h-5 w-5" aria-hidden>
-                    <rect x="9" y="3" width="6" height="11" rx="3" />
-                    <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
-                  </svg>
-                </button>
-                <input disabled placeholder={t("assistant.placeholder")} aria-label={t("assistant.placeholder")} className="min-w-0 flex-1 rounded-full border border-line bg-surface px-4 py-2.5 text-base disabled:opacity-60" />
-                <button type="submit" disabled aria-label={t("assistant.send")} className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-forest text-forest-ink disabled:opacity-40">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void send(q);
+                }}
+                className="flex items-center gap-2 border-t border-line px-3 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] lg:pb-3"
+              >
+                <input value={q} onChange={(e) => setQ(e.target.value)} disabled={busy} placeholder={t("assistant.placeholder")} aria-label={t("assistant.placeholder")} className="min-w-0 flex-1 rounded-full border border-line bg-surface px-4 py-2.5 text-base disabled:opacity-60" />
+                <button type="submit" disabled={busy || q.trim().length < 3} aria-label={t("assistant.send")} className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-forest text-forest-ink disabled:opacity-40">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 rtl:-scale-x-100" aria-hidden>
                     <path d="M5 12h14M13 6l6 6-6 6" />
                   </svg>

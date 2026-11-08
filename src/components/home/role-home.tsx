@@ -212,7 +212,14 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
   return (
     <section aria-label="Where things stand" className="space-y-5">
       <div className="flex flex-wrap items-start gap-3">
-        <p className="min-w-0 flex-1 text-lg leading-snug">{headline[lens]}</p>
+        <p className="min-w-0 flex-1 text-lg leading-snug">
+          {headline[lens]}
+          {lens === "lead" && (
+            <Link href="/portfolio" className="ms-2 whitespace-nowrap text-sm font-semibold text-forest hover:underline">
+              All projects →
+            </Link>
+          )}
+        </p>
         {v.lenses.length > 1 && (
           <div role="radiogroup" aria-label="View Home as" className="flex rounded-full bg-sunken p-1 text-sm">
             {v.lenses.map((l) => (

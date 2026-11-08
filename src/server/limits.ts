@@ -10,7 +10,7 @@ import { db, schema as s } from "@/db";
  * - Server errors: written to the audit trail (entity "system") for administrators to see.
  */
 
-export const AI_ACTIONS = ["qpr_ai_drafted", "review_ai_drafted", "ai_drafted", "ai_checked", "lens_review_run"];
+export const AI_ACTIONS = ["assistant_asked", "opportunity_briefed", "qpr_ai_drafted", "review_ai_drafted", "ai_drafted", "ai_checked", "lens_review_run"];
 export const AI_PER_PERSON_HOUR = Number(process.env.AI_PER_PERSON_HOUR || 20);
 export const AI_PER_DAY = Number(process.env.AI_PER_DAY || 300);
 

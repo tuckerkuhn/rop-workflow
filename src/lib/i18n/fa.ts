@@ -1,5 +1,6 @@
 import type { Messages } from "./en";
 import { tsFa } from "./hr/timesheet";
+import { actFa } from "./activities";
 import { lvFa } from "./hr/leave";
 import { expFa } from "./hr/expense";
 
@@ -51,6 +52,9 @@ export const fa: Messages = {
   "work.group.execute": "اجرای پلان",
   "work.new.activities": "فعالیت‌ها",
   "work.new.activitiesHint": "مسئول، وضعیت و وظایف هر فعالیت پلان کاری",
+  "work.new.opportunity": "فرصت‌ها",
+  "work.new.opportunityHint": "ثبت فرصت تمویل، تهیه خلاصه تطابق و تصمیم‌گیری",
+  "work.group.develop": "یافتن کار تازه",
   "work.group.report": "گزارش‌دهی",
   "work.new.report": "گزارش ربعوار به تمویل‌کننده",
   "work.new.reportHint": "گزارش را با پیوند هر رقم به شواهد آن تهیه کنید",
@@ -399,6 +403,8 @@ export const fa: Messages = {
   "assistant.ex.noData": "کدام شاخص‌ها این ماه داده ندارند؟",
   "assistant.ex.report": "دستاوردهای گزارش بعدی تمویل‌کننده را پیش‌نویس کن",
   "assistant.soon": "دستیار در حال ساخت است. نخست سؤال‌های نوشتاری، سپس صدا و واتس‌اپ.",
+  "assistant.thinking": "در حال بررسی سوابق پروژه…",
+  "assistant.note": "پاسخ‌ها از سوابق پروژه در برنامه می‌آیند. ارقام را پیش از فرستادن به تمویل‌کننده بررسی کنید.",
   "assistant.placeholder": "دربارهٔ این پروژه بپرسید",
   "assistant.send": "ارسال",
   "assistant.voice": "صدا (به‌زودی)",
@@ -435,5 +441,6 @@ export const fa: Messages = {
   "detail.openField": "باز کردن فعالیت‌های ساحوی",
   ...tsFa,
   ...lvFa,
+  ...actFa,
   ...expFa,
 };

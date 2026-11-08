@@ -224,6 +224,11 @@ function startGroups(user: AppUser, project: ProjectInfo, stage: Stage, sources:
           ],
     },
     {
+      key: "develop",
+      title: "work.group.develop",
+      items: user.kind === "employee" ? [{ key: "opportunity", title: "work.new.opportunity", hint: "work.new.opportunityHint", href: "/work/opportunities" } as StartItem] : [],
+    },
+    {
       key: "field",
       title: "work.group.field",
       items: field

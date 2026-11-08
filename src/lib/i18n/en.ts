@@ -1,4 +1,5 @@
 import { tsEn } from "./hr/timesheet";
+import { actEn } from "./activities";
 import { lvEn } from "./hr/leave";
 import { expEn } from "./hr/expense";
 /** English: the source strings. Every other language falls back to these. */
@@ -49,6 +50,9 @@ export const en = {
   "work.group.execute": "Carry out the plan",
   "work.new.activities": "Activities",
   "work.new.activitiesHint": "Owners, status and tasks for each workplan activity",
+  "work.new.opportunity": "Opportunities",
+  "work.new.opportunityHint": "Record a funding opportunity, draft the match brief, make the match call",
+  "work.group.develop": "Find new work",
   "work.group.report": "Reporting",
   "work.new.report": "Quarterly donor report",
   "work.new.reportHint": "Draft the report with each figure linked to its evidence",
@@ -489,11 +493,13 @@ export const en = {
   "assistant.close": "Close the assistant",
   "assistant.for": "For {project}",
   "assistant.intro": "Ask about this project: what is running late, how an indicator is counted, or what to write in the next donor report.",
-  "assistant.examples": "You will be able to ask",
+  "assistant.examples": "Try asking",
   "assistant.ex.late": "What is running late this week?",
   "assistant.ex.noData": "Which indicators have no data this month?",
   "assistant.ex.report": "Draft the achievements for the next donor report",
   "assistant.soon": "The assistant is being built. Typed questions come first; voice and WhatsApp follow.",
+  "assistant.thinking": "Looking at the project records…",
+  "assistant.note": "Answers come from the project's records in the app. Check figures before they go to a donor.",
   "assistant.placeholder": "Ask about this project",
   "assistant.send": "Send",
   "assistant.voice": "Voice (coming later)",
@@ -530,6 +536,7 @@ export const en = {
   "detail.openField": "Open field activities",
   ...tsEn,
   ...lvEn,
+  ...actEn,
   ...expEn,
 } as const;
 

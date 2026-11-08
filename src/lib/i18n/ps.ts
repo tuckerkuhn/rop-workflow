@@ -1,5 +1,6 @@
 import type { Messages } from "./en";
 import { tsPs } from "./hr/timesheet";
+import { actPs } from "./activities";
 import { lvPs } from "./hr/leave";
 import { expPs } from "./hr/expense";
 
@@ -51,6 +52,9 @@ export const ps: Messages = {
   "work.group.execute": "د پلان پلي کول",
   "work.new.activities": "فعالیتونه",
   "work.new.activitiesHint": "د کاري پلان د هر فعالیت مسوول، حالت او دندې",
+  "work.new.opportunity": "فرصتونه",
+  "work.new.opportunityHint": "د تمویل فرصت ثبتول، د سمون لنډیز چمتو کول او پرېکړه",
+  "work.group.develop": "نوی کار موندل",
   "work.group.report": "راپور ورکول",
   "work.new.report": "مرسته‌کوونکي ته درې میاشتنی راپور",
   "work.new.reportHint": "راپور داسې چمتو کړئ چې هره شمېره له خپل ثبوت سره تړلې وي",
@@ -399,6 +403,8 @@ export const ps: Messages = {
   "assistant.ex.noData": "کوم شاخصونه دا میاشت معلومات نه لري؟",
   "assistant.ex.report": "د تمویلوونکي د راتلونکي راپور لاسته راوړنې ولیکه",
   "assistant.soon": "مرستندوی جوړېږي. لومړی لیکلې پوښتنې، بیا غږ او واټساپ.",
+  "assistant.thinking": "د پروژې ریکارډونه کتل کیږي…",
+  "assistant.note": "ځوابونه په اپ کې د پروژې له ریکارډونو راځي. ارقام مرسته‌کوونکي ته له لېږلو مخکې وګورئ.",
   "assistant.placeholder": "د دې پروژې په اړه وپوښتئ",
   "assistant.send": "لېږل",
   "assistant.voice": "غږ (وروسته)",
@@ -435,5 +441,6 @@ export const ps: Messages = {
   "detail.openField": "ساحوي فعالیتونه پرانیزئ",
   ...tsPs,
   ...lvPs,
+  ...actPs,
   ...expPs,
 };

@@ -1,5 +1,6 @@
 import type { Messages } from "./en";
 import { tsEs } from "./hr/timesheet";
+import { actEs } from "./activities";
 import { lvEs } from "./hr/leave";
 import { expEs } from "./hr/expense";
 
@@ -51,6 +52,9 @@ export const es: Messages = {
   "work.group.execute": "Ejecutar el plan",
   "work.new.activities": "Actividades",
   "work.new.activitiesHint": "Responsables, estado y tareas de cada actividad del plan de trabajo",
+  "work.new.opportunity": "Oportunidades",
+  "work.new.opportunityHint": "Registrar una oportunidad de financiamiento, preparar el resumen y decidir si conviene",
+  "work.group.develop": "Buscar nuevo trabajo",
   "work.group.report": "Informes",
   "work.new.report": "Informe trimestral al donante",
   "work.new.reportHint": "Redacta el informe con cada cifra vinculada a su evidencia",
@@ -424,6 +428,8 @@ export const es: Messages = {
   "assistant.ex.noData": "¿Qué indicadores no tienen datos este mes?",
   "assistant.ex.report": "Redacta los logros para el próximo informe al donante",
   "assistant.soon": "El asistente está en construcción. Primero llegan las preguntas escritas; luego la voz y WhatsApp.",
+  "assistant.thinking": "Revisando los registros del proyecto…",
+  "assistant.note": "Las respuestas salen de los registros del proyecto en la aplicación. Verifica las cifras antes de enviarlas a un donante.",
   "assistant.placeholder": "Pregunta sobre este proyecto",
   "assistant.send": "Enviar",
   "assistant.voice": "Voz (próximamente)",
@@ -460,5 +466,6 @@ export const es: Messages = {
   "detail.openField": "Abrir actividades de campo",
   ...tsEs,
   ...lvEs,
+  ...actEs,
   ...expEs,
 };
