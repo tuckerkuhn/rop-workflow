@@ -137,8 +137,17 @@ export function ProgressPage() {
             <Link href="/progress/report" className="font-semibold text-forest hover:underline">
               Quarterly report <Arrow />
             </Link>
+            <Link href="/progress/annual" className="font-semibold text-forest hover:underline">
+              Annual and final reports <Arrow />
+            </Link>
             <Link href="/progress/results" className="font-semibold text-forest hover:underline">
               Results and proof <Arrow />
+            </Link>
+            <Link href="/progress/framework" className="font-semibold text-forest hover:underline">
+              Results framework <Arrow />
+            </Link>
+            <Link href="/progress/learning" className="font-semibold text-forest hover:underline">
+              Lessons and close-out <Arrow />
             </Link>
             <Link href="/progress/review" className="font-semibold text-forest hover:underline">
               Monthly review <Arrow />

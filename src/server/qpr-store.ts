@@ -9,7 +9,7 @@ import { loadResults, loadUpdates } from "@/server/results-store";
 
 /** One saved quarterly report per project and quarter, as project_state "qpr:2026-Q3". */
 
-async function rawQpr(projectId: string, quarter: string) {
+export async function rawQpr(projectId: string, quarter: string) {
   const [row] = await db
     .select()
     .from(s.projectState)
@@ -37,7 +37,7 @@ export async function saveQpr(code: string, quarter: string, data: Qpr) {
 type LineRow = { code: string; amount: string | null; spent: string | null; currency: string; updatedAt: Date };
 
 /** The quarter's spending: from the latest budget-against-actual import, else the budget file's totals. */
-async function spendFor(code: string, quarter: string, lines: LineRow[]): Promise<Spend> {
+export async function spendFor(code: string, quarter: string, lines: LineRow[]): Promise<Spend> {
   const { imports } = await loadActuals(code);
   const { from, to } = quarterRange(quarter);
   const [fm, tm] = [from.slice(0, 7), to.slice(0, 7)];

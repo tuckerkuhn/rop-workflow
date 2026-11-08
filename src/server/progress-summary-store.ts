@@ -2,6 +2,7 @@ import type { AppUser } from "@/lib/demo";
 import { proofCount, quarterRange } from "@/lib/results";
 import { loadBudgetView } from "@/server/budget-view-store";
 import { loadReview } from "@/server/monthly-review-store";
+import { loadActivities } from "@/server/activities-store";
 
 /**
  * The top of Progress: what deserves celebrating and what needs attention, each item specific and
@@ -86,6 +87,13 @@ export async function loadProgressSummary(code: string, u: AppUser) {
   for (const l of overspent) concerns.push({ key: `over-${l.code}`, level: "critical", text: `${l.code} is ${Math.round(l.spentPct ?? 0)}% spent: ${l.description}`, why: "Spending above the approved line needs an explanation or an approved realignment before the donor sees it.", href: "/progress/budget" });
   const above = v.budget.flagged.filter((l) => l.flags.some((f) => f.level === "check" && /forecast/i.test(f.text)));
   if (above.length) concerns.push({ key: "forecast", level: "warning", text: `${above.length} budget ${above.length === 1 ? "line is" : "lines are"} forecast more than 10% above approved`, why: "Check the donor has agreed the revision for each.", href: "/progress/budget" });
+  const acts = await loadActivities(code, u).catch(() => null);
+  if (acts) {
+    const late = acts.rows.filter((r) => r.timing === "late");
+    if (late.length) concerns.push({ key: "acts-late", level: "warning", text: `${late.length} workplan ${late.length === 1 ? "activity is" : "activities are"} past ${late.length === 1 ? "its" : "their"} planned quarter and not done: ${late.slice(0, 4).map((r) => r.code).join(", ")}${late.length > 4 ? "…" : ""}`, why: "Mark them done, or say what is in the way and re-plan them in the monthly review.", href: "/work/activities" });
+    const unowned = acts.rows.filter((r) => r.timing === "due_now" && !r.owner);
+    if (unowned.length) concerns.push({ key: "acts-owner", level: "warning", text: `${unowned.length} ${unowned.length === 1 ? "activity" : "activities"} due this quarter ${unowned.length === 1 ? "has" : "have"} no owner`, why: "Work nobody owns slips: assign each to a person.", href: "/work/activities" });
+  }
   const pending = v.results.filter((r) => r.status === "pending").length;
   if (pending) concerns.push({ key: "pending", level: "warning", text: `${pending} ${pending === 1 ? "result is" : "results are"} waiting for MEL`, why: "They do not count in reports until accepted.", href: "/progress/results" });
   const queried = v.results.filter((r) => r.status === "queried").length;

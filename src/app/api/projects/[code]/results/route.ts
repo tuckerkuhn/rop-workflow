@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { db, schema as s } from "@/db";
 import type { AppUser } from "@/lib/demo";
 import { resultActionSchema } from "@/lib/results";
+import { sameResult } from "@/lib/results-import";
+import { logAudit } from "@/server/audit";
 import { isMelOwner, requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
 import { projectByCode } from "@/server/field-store";
@@ -81,6 +83,25 @@ export async function POST(req: Request, { params }: Ctx) {
       if (!(mayRecord(u) || isMelOwner(u))) return NextResponse.json({ error: "Only field staff and MEL can add proof." }, { status: 403 });
       const done = await addProof(code, a.id, { files: a.files, links: a.links, captions: a.captions, by: u.id });
       if (!done) return NextResponse.json({ error: "No such result." }, { status: 404 });
+      return NextResponse.json(await view(code, u));
+    }
+    if (a.action === "import") {
+      if (!mayRecord(u)) return NextResponse.json({ error: "Only staff who record field activities can import results." }, { status: 403 });
+      const project = await projectByCode(code);
+      const allowed = new Set((await db.select({ code: s.indicators.code }).from(s.indicators).where(and(eq(s.indicators.projectId, project.id), eq(s.indicators.source, "results")))).map((r) => r.code));
+      const today = new Date().toISOString().slice(0, 10);
+      const existing = await loadResults(code);
+      // All or none: one bad row refuses the file, with every row's reason.
+      const problems: string[] = [];
+      a.results.forEach((r, i) => {
+        if (!allowed.has(r.indicator)) problems.push(`Row ${i + 1}: ${r.indicator} is not one this project records results for`);
+        if (r.date > today) problems.push(`Row ${i + 1}: the date is in the future`);
+        if (existing.some((x) => sameResult(x, r))) problems.push(`Row ${i + 1}: already recorded (${r.indicator}, ${r.date}, ${r.value})`);
+        if (a.results.some((x, j) => j < i && sameResult(x, r))) problems.push(`Row ${i + 1}: the same as an earlier row`);
+      });
+      if (problems.length) return NextResponse.json({ error: `Nothing imported. ${problems.slice(0, 8).join("; ")}${problems.length > 8 ? `; and ${problems.length - 8} more` : ""}.` }, { status: 400 });
+      for (const r of a.results) await addResult(code, r, u.id);
+      await logAudit(db, project.id, { entity: "result", entityId: project.id, action: "results_imported", by: u.id, detail: { file: a.file, count: a.results.length } });
       return NextResponse.json(await view(code, u));
     }
     if (a.action === "record") {

@@ -46,6 +46,8 @@ export const resultSchema = z
     value: z.number().positive().max(1e9),
     female: z.number().int().min(0).max(1e7).optional(),
     male: z.number().int().min(0).max(1e7).optional(),
+    /** Of the people, how many are young (see YOUTH). */
+    youth: z.number().int().min(0).max(1e7).optional(),
     womenLed: z.number().int().min(0).max(1e6).optional(),
     menLed: z.number().int().min(0).max(1e6).optional(),
     province: z.string().trim().max(60).optional(),
@@ -61,7 +63,11 @@ export const resultSchema = z
     /** Why there is no file yet, when there is none. */
     noFile: z.string().trim().max(300).optional(),
   })
-  .refine((r) => r.files.length > 0 || (r.links?.length ?? 0) > 0 || (r.noFile ?? "").length >= 5, "Attach or link the proof (attendance sheet, photos, report), or say why it is not attached yet.");
+  .refine((r) => r.files.length > 0 || (r.links?.length ?? 0) > 0 || (r.noFile ?? "").length >= 5, "Attach or link the proof (attendance sheet, photos, report), or say why it is not attached yet.")
+  .refine((r) => r.youth === undefined || r.youth <= (r.female ?? 0) + (r.male ?? 0) || (r.female === undefined && r.male === undefined), "There are more young people than people.");
+
+/** Who counts as young. Afghanistan's National Youth Policy uses 18 to 35; a donor may ask for another band. */
+export const YOUTH = { label: "Young people (18–35)", source: "Afghanistan National Youth Policy" };
 
 /** Files and links on a result: the proof behind it. */
 export const proofCount = (r: Pick<ResultInput, "files" | "links">) => r.files.length + (r.links?.length ?? 0);
@@ -77,6 +83,7 @@ export const correctionSchema = z.object({
   value: z.number().positive().max(1e9),
   female: z.number().int().min(0).max(1e7).optional(),
   male: z.number().int().min(0).max(1e7).optional(),
+  youth: z.number().int().min(0).max(1e7).optional(),
   womenLed: z.number().int().min(0).max(1e6).optional(),
   menLed: z.number().int().min(0).max(1e6).optional(),
   province: z.string().trim().max(60).optional(),
@@ -115,6 +122,8 @@ export type UpdateRecord = UpdateInput & { id: string; quarter: string; by: stri
 
 export const resultActionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("record"), result: resultSchema }),
+  /** Many results at once from a spreadsheet: each is checked as if recorded by hand, all or none. */
+  z.object({ action: z.literal("import"), results: z.array(resultSchema).min(1).max(300), file: z.string().trim().max(200) }),
   z.object({ action: z.literal("update"), update: updateSchema }),
   z.object({ action: z.literal("accept"), id: z.string().uuid() }),
   /** Adds proof to a recorded result, at any stage: it never changes the figure. */
@@ -136,9 +145,9 @@ export type ResultAction = z.infer<typeof resultActionSchema>;
 /** Totals from accepted results, overall and for a date range. */
 export function totalsOf(list: ResultRecord[], from?: string, to?: string) {
   const counted = list.filter((r) => r.status === "accepted" && (!from || r.date >= from) && (!to || r.date <= to));
-  const sum = (k: "value" | "female" | "male" | "womenLed" | "menLed") => counted.reduce((s, r) => s + (r[k] ?? 0), 0);
+  const sum = (k: "value" | "female" | "male" | "youth" | "womenLed" | "menLed") => counted.reduce((s, r) => s + (r[k] ?? 0), 0);
   const provinces = [...new Set(counted.map((r) => r.province).filter(Boolean))] as string[];
-  return { value: sum("value"), female: sum("female"), male: sum("male"), womenLed: sum("womenLed"), menLed: sum("menLed"), provinces, records: counted.length, files: counted.reduce((s, r) => s + proofCount(r), 0) };
+  return { value: sum("value"), female: sum("female"), male: sum("male"), youth: sum("youth"), womenLed: sum("womenLed"), menLed: sum("menLed"), provinces, records: counted.length, files: counted.reduce((s, r) => s + proofCount(r), 0) };
 }
 
 export type { Receipt };

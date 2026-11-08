@@ -250,6 +250,7 @@ function startGroups(user: AppUser, project: ProjectInfo, stage: Stage, sources:
           ]
         : [],
     },
+    { key: "execute", title: "work.group.execute", items: project.saved && user.kind === "employee" ? [{ key: "activities", title: "work.new.activities", hint: "work.new.activitiesHint", href: "/work/activities" } as StartItem] : [] },
     { key: "report", title: "work.group.report", items: [{ key: "qpr", title: "work.new.report", hint: "work.new.reportHint", href: "/progress/report" }] },
   ];
   return groups.filter((g) => g.items.length > 0);

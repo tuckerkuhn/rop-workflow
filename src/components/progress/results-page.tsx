@@ -8,7 +8,9 @@ import { useRequireUser, useSession } from "@/components/app/session";
 import { openReceipt, shrink } from "@/components/people/expense-page";
 import { Pill, SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import type { Receipt } from "@/lib/expense";
-import { PROVINCES, proofCount, proofLinkSchema, quarterOf, quarterRange, totalsOf, type ProofLink, type ResultAction, type ResultInput, type UpdateInput } from "@/lib/results";
+import { readWorkbook } from "@/lib/read-sheet";
+import { TEMPLATE_CSV, parseCsv, readResults, type ImportRow } from "@/lib/results-import";
+import { PROVINCES, YOUTH, proofCount, proofLinkSchema, quarterOf, quarterRange, totalsOf, type ProofLink, type ResultAction, type ResultInput, type UpdateInput } from "@/lib/results";
 import type { ResultsView } from "@/app/api/projects/[code]/results/route";
 
 /**
@@ -191,6 +193,7 @@ export function ResultsPage() {
             </section>
           ))}
 
+        {v?.mayRecord && v.indicators.length > 0 && <ImportResults indicators={v.indicators} act={act} />}
         {v && v.activities.length > 0 && (
           <section className="mt-10 border-t border-line pt-6">
             <h2 className="font-display text-2xl">Activity updates</h2>
@@ -654,7 +657,7 @@ function RecordForm({ ind, add, onClose }: { ind: Ind; add: (r: ResultInput) => 
   const bySex = d.includes("sex");
   const byLead = d.includes("women-led or men-led");
   const byCrop = d.includes("crop");
-  const [f, setF] = useState({ date: new Date().toISOString().slice(0, 10), value: "", female: "", male: "", womenLed: "", menLed: "", province: "", district: "", crop: "", note: "", noFile: "" });
+  const [f, setF] = useState({ date: new Date().toISOString().slice(0, 10), value: "", female: "", male: "", youth: "", womenLed: "", menLed: "", province: "", district: "", crop: "", note: "", noFile: "" });
   const [files, setFiles] = useState<Receipt[]>([]);
   const [captions, setCaptions] = useState<Record<string, string>>({});
   const [links, setLinks] = useState<ProofLink[]>([]);
@@ -677,6 +680,7 @@ function RecordForm({ ind, add, onClose }: { ind: Ind; add: (r: ResultInput) => 
         value,
         female: bySex ? opt(f.female) : undefined,
         male: bySex ? opt(f.male) : undefined,
+        youth: bySex ? opt(f.youth) : undefined,
         womenLed: byLead ? opt(f.womenLed) : undefined,
         menLed: byLead ? opt(f.menLed) : undefined,
         province: f.province || undefined,
@@ -729,6 +733,10 @@ function RecordForm({ ind, add, onClose }: { ind: Ind; add: (r: ResultInput) => 
               Men
               <input inputMode="numeric" className={input} value={f.male} onChange={set("male")} />
             </label>
+            <label className="text-sm">
+              Of them, {YOUTH.label.toLowerCase()} (optional)
+              <input inputMode="numeric" className={input} value={f.youth} onChange={set("youth")} />
+            </label>
           </>
         )}
         {byLead && (
@@ -779,5 +787,102 @@ function RecordForm({ ind, add, onClose }: { ind: Ind; add: (r: ResultInput) => 
         </button>
       </div>
     </div>
+  );
+}
+
+/** Many results at once from a spreadsheet: checked row by row here, then all saved as pending for MEL. */
+function ImportResults({ indicators, act }: { indicators: { code: string; donorCode: string | null; name: string }[]; act: (a: ResultAction, msg: string) => Promise<void> }) {
+  const [open, setOpen] = useState(false);
+  const [file, setFile] = useState("");
+  const [rows, setRows] = useState<ImportRow[] | null>(null);
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+  const read = async (f: File) => {
+    setErr("");
+    setRows(null);
+    setFile(f.name);
+    try {
+      const grid = /\.csv$/i.test(f.name) ? parseCsv(await f.text()) : ((await readWorkbook(await f.arrayBuffer()))[0]?.grid ?? []);
+      const out = readResults(grid, indicators, new Date().toISOString().slice(0, 10));
+      if (out.missing.length) return setErr(`The sheet needs columns for: ${out.missing.join(", ")}. Use the template.`);
+      if (!out.rows.length) return setErr("No result rows found under the header.");
+      setRows(out.rows);
+    } catch (e) {
+      setErr(`Could not read ${f.name}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+  const bad = rows?.filter((r) => r.errors.length) ?? [];
+  const good = rows?.filter((r) => r.result) ?? [];
+  const template = `data:text/csv;charset=utf-8,${encodeURIComponent(TEMPLATE_CSV)}`;
+  if (!open)
+    return (
+      <p className="mt-6 text-sm">
+        <button type="button" className="font-semibold text-forest hover:underline" onClick={() => setOpen(true)}>
+          Import many results from a spreadsheet
+        </button>{" "}
+        <span className="text-muted">for a backlog of past quarters</span>
+      </p>
+    );
+  return (
+    <section className="mt-6 rounded-2xl border border-line bg-surface p-4">
+      <h2 className="font-display text-xl">Import results</h2>
+      <p className="mt-1 text-sm text-muted">
+        One row per result. The indicator may be the app&rsquo;s code (IND-7) or the donor&rsquo;s (1.2.1.4). Each row is checked as if typed in, and nothing is saved until every row passes. Imported results wait for MEL like any other.{" "}
+        <a href={template} download="results-template.csv" className="font-semibold text-forest hover:underline">
+          Download the template
+        </a>
+      </p>
+      <input type="file" accept=".xlsx,.csv" className="mt-3 block text-sm" onChange={(e) => e.target.files?.[0] && void read(e.target.files[0])} aria-label="Spreadsheet of results" />
+      {err && <p className="mt-2 text-sm text-clay">{err}</p>}
+      {rows && (
+        <>
+          <p className="mt-3 text-sm">
+            {good.length} of {rows.length} rows ready{bad.length ? `; fix ${bad.length} in the sheet and choose it again` : ""}.
+          </p>
+          {bad.length > 0 && (
+            <ul className="mt-2 max-h-48 space-y-0.5 overflow-auto text-xs text-clay">
+              {bad.map((r) => (
+                <li key={r.row}>
+                  Row {r.row}: {r.errors.join("; ")}
+                </li>
+              ))}
+            </ul>
+          )}
+          {good.length > 0 && !bad.length && (
+            <ul className="mt-2 max-h-48 space-y-0.5 overflow-auto text-xs">
+              {good.map((r) => (
+                <li key={r.row}>
+                  Row {r.row}: {r.result!.indicator} · {r.result!.date} · {r.result!.value.toLocaleString("en-US")}
+                  {r.result!.district ? ` · ${r.result!.district}` : ""}
+                  {proofCount(r.result!) ? "" : " · proof to link"}
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+      <div className="mt-3 flex gap-2">
+        <button
+          type="button"
+          className={primaryBtn}
+          disabled={busy || !good.length || bad.length > 0}
+          onClick={() => {
+            setBusy(true);
+            void act({ action: "import", results: good.map((r) => r.result!), file }, `${good.length} results imported. MEL will check them.`)
+              .then(() => {
+                setOpen(false);
+                setRows(null);
+              })
+              .catch(() => undefined)
+              .finally(() => setBusy(false));
+          }}
+        >
+          Import {good.length || ""} results
+        </button>
+        <button type="button" className={quietBtn} onClick={() => setOpen(false)}>
+          Cancel
+        </button>
+      </div>
+    </section>
   );
 }
