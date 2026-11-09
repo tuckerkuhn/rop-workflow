@@ -8,6 +8,13 @@ import { proofCount } from "@/lib/results";
 
 export type Indicator = { code: string; unit: string; disaggregation: string[] | null };
 
+/** The last day of the quarter a date falls in. */
+const quarterEnd = (date: string) => {
+  const y = Number(date.slice(0, 4));
+  const q = Math.floor((Number(date.slice(5, 7)) - 1) / 3);
+  return new Date(Date.UTC(y, q * 3 + 3, 0)).toISOString().slice(0, 10);
+};
+
 const median = (xs: number[]) => {
   const s = [...xs].sort((a, b) => a - b);
   const m = Math.floor(s.length / 2);
@@ -38,5 +45,9 @@ export function dataChecks(r: ResultRecord, all: ResultRecord[], ind: Indicator 
   if (by.includes("province") && !r.province) out.push("The indicator is reported by province, but the record has none.");
   if (by.includes("district") && !r.district) out.push("The indicator is reported by district, but the record has none.");
   if (!proofCount(r)) out.push(r.noFile ? `No proof attached (${r.noFile}).` : "No proof attached.");
+  // Every dated photo taken after the quarter the result is counted in: was it done then?
+  const dates = Object.values(r.taken ?? {}).sort();
+  const qEnd = quarterEnd(r.date);
+  if (dates.length && dates[0] > qEnd) out.push(`Its photos are dated ${dates[0] === dates[dates.length - 1] ? dates[0] : `${dates[0]} to ${dates[dates.length - 1]}`}, after the quarter it is counted in (ends ${qEnd}): was the work done by then?`);
   return out;
 }

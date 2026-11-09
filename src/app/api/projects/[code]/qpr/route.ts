@@ -8,7 +8,8 @@ import { handle } from "@/server/guard";
 import { aiAllowed } from "@/server/limits";
 import { holdsRole } from "@/server/hr-store";
 import { draftQpr } from "@/server/qpr-drafts";
-import { qprData, saveQpr } from "@/server/qpr-store";
+import { addCopy, copyOf, loadCopies, qprData, reportWork, saveQpr } from "@/server/qpr-store";
+import { differences } from "@/lib/report-copy";
 import { logAudit } from "@/server/audit";
 import { projectByCode } from "@/server/field-store";
 
@@ -22,14 +23,37 @@ export const maxDuration = 120;
 
 const mayEdit = (u: AppUser) => u.kind === "employee" && (u.admin || u.project.some((r) => ["mel-owner", "report-release", "plan-approver", "monthly-review"].includes(r)));
 const mayRelease = (u: AppUser) => u.kind === "employee" && u.project.includes("report-release");
+const copyAtOf = (req: Request) => new URL(req.url).searchParams.get("copy");
 const quarterOf = (req: Request) => {
   const q = new URL(req.url).searchParams.get("q") ?? "";
   return /^\d{4}-Q[1-4]$/.test(q) ? q : null;
 };
 
-async function view(code: string, quarter: string, u: AppUser) {
+/**
+ * The report for a quarter. Once released it is the frozen copy made at release, with what has
+ * changed since; ?copy=<time> opens a practice copy the same way. Otherwise the live report.
+ */
+async function view(code: string, quarter: string, u: AppUser, copyAt: string | null = null) {
   const d = await qprData(code, quarter);
-  return { ...d, mayEdit: mayEdit(u) && !d.saved.released, mayRelease: mayRelease(u) && !d.saved.released, aiReady: !!process.env.ANTHROPIC_API_KEY, mayImport: u.kind === "employee" && (u.project.includes("finance-import") || (await holdsRole(u.id, "finance"))) };
+  const copies = await loadCopies(code, quarter);
+  const release = copies.find((c) => c.kind === "release");
+  const shown = d.saved.released && release ? release : copyAt ? (copies.find((c) => c.kind === "practice" && c.at === copyAt) ?? null) : null;
+  const live = copyOf(d);
+  const base = shown ? { ...d, ...shown.data } : d;
+  const editable = !d.saved.released && !shown;
+  return {
+    ...base,
+    mayEdit: mayEdit(u) && editable,
+    mayRelease: mayRelease(u) && editable,
+    mayPractice: mayEdit(u) && editable,
+    aiReady: !!process.env.ANTHROPIC_API_KEY,
+    mayImport: editable && u.kind === "employee" && (u.project.includes("finance-import") || (await holdsRole(u.id, "finance"))),
+    /** The frozen copy shown, if any, and how it differs from the report as it would be now. */
+    frozen: shown ? { kind: shown.kind, by: shown.by, at: shown.at } : null,
+    changes: shown ? differences(shown.data, live) : [],
+    copies: copies.map((c) => ({ kind: c.kind, by: c.by, at: c.at, minutes: c.work.minutes })),
+    work: shown ? shown.work : await reportWork(code, quarter),
+  };
 }
 export type QprView = Awaited<ReturnType<typeof view>>;
 
@@ -40,7 +64,7 @@ export async function GET(req: Request, { params }: Ctx) {
     if (v instanceof NextResponse) return v;
     const q = quarterOf(req);
     if (!q) return NextResponse.json({ error: "Choose a quarter, e.g. ?q=2026-Q3." }, { status: 400 });
-    return NextResponse.json(await view(code, q, v.user));
+    return NextResponse.json(await view(code, q, v.user, copyAtOf(req)));
   });
 }
 
@@ -61,11 +85,20 @@ export async function POST(req: Request, { params }: Ctx) {
     const next: Qpr = structuredClone(d.saved);
     const validKey = (k: string) => SECTIONS.some((s) => s.key === k) || d.activities.some((x) => `act.${x.code}` === k);
 
+    if (a.action === "practice") {
+      if (!mayEdit(u)) return NextResponse.json({ error: "Only the MEL owner and programme leads can do a practice release." }, { status: 403 });
+      await addCopy(code, q, { kind: "practice", by: u.id, at: now, work: await reportWork(code, q), data: copyOf(d) });
+      const project = await projectByCode(code);
+      await logAudit(db, project.id, { entity: "qpr", entityId: project.id, action: "qpr_practice", by: u.id, detail: { quarter: q } });
+      return NextResponse.json({ ...(await view(code, q, u, now)), copyAt: now });
+    }
     if (a.action === "release") {
       if (!mayRelease(u)) return NextResponse.json({ error: "Only the person who releases reports can mark it final." }, { status: 403 });
       const stops = d.checks.filter((c) => c.level === "stop");
       if (stops.length) return NextResponse.json({ error: `Fix these first: ${stops.map((c) => c.text).join(" ")}` }, { status: 409 });
       next.released = { by: u.id, at: now };
+      // The copy the donor receives: shown and downloaded from now on, whatever changes later.
+      await addCopy(code, q, { kind: "release", by: u.id, at: now, work: await reportWork(code, q), data: copyOf({ ...d, saved: next }) });
     } else {
       if (!mayEdit(u)) return NextResponse.json({ error: "Only the MEL owner and programme leads can write the report." }, { status: 403 });
       if (a.action === "section") {

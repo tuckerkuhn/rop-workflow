@@ -57,6 +57,7 @@ export const fa: Messages = {
   "work.group.develop": "یافتن کار تازه",
   "new.button": "+ جدید",
   "new.result": "ثبت نتیجه",
+  "new.weekly": "مورد گزارش هفته‌وار",
   "new.kobo": "ثبت دهقان",
   "new.opportunity": "ثبت فرصت",
   "new.empty": "اکنون چیزی منتظر شما نیست",

@@ -126,7 +126,7 @@ export async function reopenResult(code: string, id: string, by: string, note: s
  * Adds proof to a recorded result. Files and links are appended (the same file or link once);
  * the figure, date and review status stay as they are.
  */
-export async function addProof(code: string, id: string, add: { files: ResultInput["files"]; links: NonNullable<ResultInput["links"]>; captions?: ResultInput["captions"]; by: string }) {
+export async function addProof(code: string, id: string, add: { files: ResultInput["files"]; links: NonNullable<ResultInput["links"]>; captions?: ResultInput["captions"]; taken?: ResultInput["taken"]; by: string }) {
   const project = await projectByCode(code);
   const where = and(eq(s.evidence.id, id), eq(s.evidence.projectId, project.id), eq(s.evidence.form, "result"));
   const [row] = await db.select().from(s.evidence).where(where);
@@ -135,7 +135,8 @@ export async function addProof(code: string, id: string, add: { files: ResultInp
   const files = [...p.files, ...add.files.filter((f) => !p.files.some((x) => x.hash === f.hash))].slice(0, 20);
   const links = [...(p.links ?? []), ...add.links.filter((l) => !(p.links ?? []).some((x) => x.url === l.url))].slice(0, 20);
   const captions = { ...(p.captions ?? {}), ...(add.captions ?? {}) };
-  const payload: ResultInput = { ...p, files, links, ...(Object.keys(captions).length ? { captions } : {}) };
+  const taken = { ...(p.taken ?? {}), ...(add.taken ?? {}) };
+  const payload: ResultInput = { ...p, files, links, ...(Object.keys(captions).length ? { captions } : {}), ...(Object.keys(taken).length ? { taken } : {}) };
   const updated = await db.transaction(async (tx) => {
     const [r] = await tx.update(s.evidence).set({ payload, updatedAt: new Date() }).where(where).returning();
     await logAudit(tx, project.id, { entity: "result", entityId: r.id, action: "proof_added", by: add.by, detail: { indicator: p.indicator, date: p.date, files: add.files.map((f) => f.name), links: add.links } });
@@ -184,6 +185,33 @@ export async function loadUpdates(code: string): Promise<UpdateRecord[]> {
       return { ...p, id: r.id, quarter: quarterOf(p.date), by: r.completedBy ?? "", at: r.createdAt.toISOString() };
     })
     .sort((a, b) => b.date.localeCompare(a.date));
+}
+
+/** One activity update, or null. */
+export async function updateById(code: string, id: string) {
+  return (await loadUpdates(code)).find((u) => u.id === id) ?? null;
+}
+
+/** Replaces an update's text and photos. The caller checks that its week has not been sent. */
+export async function editUpdate(code: string, id: string, input: UpdateInput, by: string) {
+  const project = await projectByCode(code);
+  const where = and(eq(s.evidence.id, id), eq(s.evidence.projectId, project.id), eq(s.evidence.form, "update"));
+  return db.transaction(async (tx) => {
+    const [r] = await tx.update(s.evidence).set({ payload: input, completedAt: new Date(`${input.date}T12:00:00Z`), updatedAt: new Date() }).where(where).returning({ id: s.evidence.id });
+    if (r) await logAudit(tx, project.id, { entity: "update", entityId: r.id, action: "update_edited", by, detail: { activity: input.activity, date: input.date } });
+    return !!r;
+  });
+}
+
+/** Removes an update that was never sent. */
+export async function removeUpdate(code: string, id: string, by: string) {
+  const project = await projectByCode(code);
+  const where = and(eq(s.evidence.id, id), eq(s.evidence.projectId, project.id), eq(s.evidence.form, "update"));
+  return db.transaction(async (tx) => {
+    const [r] = await tx.delete(s.evidence).where(where).returning({ id: s.evidence.id, payload: s.evidence.payload });
+    if (r) await logAudit(tx, project.id, { entity: "update", entityId: r.id, action: "update_removed", by, detail: { activity: (r.payload as UpdateInput).activity, date: (r.payload as UpdateInput).date } });
+    return !!r;
+  });
 }
 
 export async function addUpdate(code: string, input: UpdateInput, by: string) {

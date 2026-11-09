@@ -127,6 +127,8 @@ export const qprPatchSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("overspend"), line: z.string().trim().min(1).max(60), text: z.string().trim().max(1000) }),
   z.object({ action: z.literal("draft"), keys: z.array(z.string().regex(/^[a-z0-9.]{1,40}$/)).min(1).max(20) }),
   z.object({ action: z.literal("release") }),
+  /** Saves a frozen copy as if released, without locking anything: to rehearse and compare. */
+  z.object({ action: z.literal("practice") }),
 ]);
 export type QprPatch = z.infer<typeof qprPatchSchema>;
 
@@ -388,10 +390,10 @@ export function photosFor(rows: Row[], results: ResultRecord[], updates: UpdateR
   const out: Photo[] = [];
   for (const r of results.filter((x) => x.status === "accepted" && x.date >= from && x.date <= to)) {
     const activity = rows.find((x) => x.code === r.indicator)?.activity ?? "";
-    for (const f of r.files) if (f.type.startsWith("image/") && r.captions?.[f.hash]) out.push({ hash: f.hash, name: f.name, type: f.type, caption: r.captions[f.hash], activity, date: r.date });
+    for (const f of r.files) if (f.type.startsWith("image/") && r.captions?.[f.hash]) out.push({ hash: f.hash, name: f.name, type: f.type, caption: r.captions[f.hash], activity, date: r.taken?.[f.hash] ?? r.date });
   }
   for (const u of updates.filter((x) => x.date >= from && x.date <= to))
-    for (const f of u.files) if (f.type.startsWith("image/") && u.captions?.[f.hash]) out.push({ hash: f.hash, name: f.name, type: f.type, caption: u.captions[f.hash], activity: u.activity, date: u.date });
+    for (const f of u.files) if (f.type.startsWith("image/") && u.captions?.[f.hash]) out.push({ hash: f.hash, name: f.name, type: f.type, caption: u.captions[f.hash], activity: u.activity, date: u.taken?.[f.hash] ?? u.date });
   const seen = new Set<string>();
   return out.filter((p) => !seen.has(p.hash) && !!seen.add(p.hash)).sort((a, b) => a.activity.localeCompare(b.activity) || a.date.localeCompare(b.date));
 }

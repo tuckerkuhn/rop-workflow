@@ -31,6 +31,7 @@ export function useNewActions(): Action[] {
   const out: (Action | false)[] = [
     !!project.saved && { key: "task", label: "work.new.task", href: "/work?new=task" },
     !!project.saved && user.fieldAccess === "edit" && (project.handRecorded ?? 0) > 0 && { key: "result", label: "new.result", href: "/progress/results?record=1" },
+    !!project.saved && (user.fieldAccess === "edit" || user.project.includes("mel-owner")) && { key: "weekly", label: "new.weekly", href: "/progress/weekly?new=1" },
     field && { key: "finding", label: "work.new.field", href: taskHref("field", "new=1") },
     field && { key: "step", label: "work.new.farmerStep", href: taskHref("field") },
     field && { key: "kobo", label: "new.kobo", href: kobo, external: true },

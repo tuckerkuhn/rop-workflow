@@ -6,6 +6,9 @@ import { quarterRange } from "@/lib/results";
 import { loadActuals } from "@/server/actuals-store";
 import { projectByCode } from "@/server/field-store";
 import { loadResults, loadUpdates } from "@/server/results-store";
+import { MAX_PRACTICE, workTime, type CopyData, type ReportCopy, type WorkTime } from "@/lib/report-copy";
+import { auditTrail } from "@/server/audit";
+import { loadProjectState, saveProjectState } from "@/server/project-state";
 
 /** One saved quarterly report per project and quarter, as project_state "qpr:2026-Q3". */
 
@@ -151,3 +154,47 @@ export async function qprData(code: string, quarter: string) {
   };
 }
 export type QprData = Awaited<ReturnType<typeof qprData>>;
+
+// ---------- Frozen copies and time spent (lib/report-copy) ----------
+
+/** The report as it stands, reduced to what a frozen copy keeps. */
+export function copyOf(d: QprData): CopyData {
+  const { to } = quarterRange(d.quarter);
+  const yearStart = `${d.quarter.slice(0, 4)}-01-01`;
+  return {
+    project: d.project,
+    quarter: d.quarter,
+    saved: d.saved,
+    rows: d.rows,
+    photos: d.photos,
+    breakdowns: d.breakdowns,
+    spend: d.spend,
+    activities: d.activities,
+    checks: d.checks,
+    counted: d.results.filter((r) => r.status === "accepted" && r.date >= yearStart && r.date <= to).map((r) => ({ id: r.id, indicator: r.indicator, date: r.date, value: r.value })),
+  };
+}
+
+const copiesKey = (quarter: string) => `qpr-copies:${quarter}`;
+
+export async function loadCopies(code: string, quarter: string): Promise<ReportCopy[]> {
+  const project = await projectByCode(code);
+  return (await loadProjectState<{ copies: ReportCopy[] }>(project.id, copiesKey(quarter), { copies: [] })).copies;
+}
+
+/** Keeps the release copy and the latest practice copies. */
+export async function addCopy(code: string, quarter: string, copy: ReportCopy) {
+  const project = await projectByCode(code);
+  const list = [...(await loadCopies(code, quarter)), copy];
+  const practice = list.filter((c) => c.kind === "practice").slice(-MAX_PRACTICE);
+  // One release copy: a release that did not complete is replaced by the next.
+  const release = list.filter((c) => c.kind === "release").slice(-1);
+  await saveProjectState(project.id, copiesKey(quarter), { copies: [...release, ...practice] });
+}
+
+/** Time spent writing the report, from the times of its edits in the audit trail. */
+export async function reportWork(code: string, quarter: string, until?: string): Promise<WorkTime> {
+  const today = new Date().toISOString().slice(0, 10);
+  const rows = await auditTrail(code, quarterRange(quarter).from, today);
+  return workTime(rows.filter((r) => r.entity === "qpr" && r.detail.quarter === quarter && r.action !== "qpr_practice" && (!until || r.at <= until)).map((r) => r.at));
+}

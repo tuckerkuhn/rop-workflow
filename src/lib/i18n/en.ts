@@ -55,6 +55,7 @@ export const en = {
   "work.group.develop": "Find new work",
   "new.button": "+ New",
   "new.result": "Record a result",
+  "new.weekly": "Weekly update item",
   "new.kobo": "Register a farmer",
   "new.opportunity": "Record an opportunity",
   "new.empty": "Nothing needs you right now",
