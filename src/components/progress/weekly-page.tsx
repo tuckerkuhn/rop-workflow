@@ -14,6 +14,7 @@ import { exifDate, longDate, periodLabel, weekOf, type WeeklyPatch } from "@/lib
 import { addToOutbox, isOffline, localHash } from "@/lib/outbox";
 import { captionWithDate, weeklyDocx, type WeeklyImages } from "@/lib/weekly-docx";
 import type { WeeklyView } from "@/server/weekly-store";
+import { NamesWarning } from "@/components/progress/names-warning";
 
 /**
  * The weekly update: what happened this week, item by item, with dated photos, written in the
@@ -161,6 +162,7 @@ function ItemForm({ v, start, onSave, onQueue, onClose }: { v: WeeklyView; start
           onChange={(e) => setF({ ...f, note: e.target.value })}
           placeholder="Trellis systems were installed across 6 jeribs of vineyards: 2 in Musa Qala (Helmand), 1 in Maiwand and 3 in Nesh (Kandahar)."
         />
+        <NamesWarning text={f.note} />
       </label>
       <div className="mt-3 text-sm">
         Photos

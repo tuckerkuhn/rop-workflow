@@ -6,6 +6,7 @@ import { quarterRange } from "@/lib/results";
 import { DRAFT_MODEL, DraftingUnavailable } from "@/server/ai-drafts";
 import type { QprData } from "@/server/qpr-store";
 import { ROP_VOICE } from "@/lib/voice";
+import { withoutNames } from "@/lib/personal-text";
 
 /**
  * Drafts the quarterly report's text from accepted results and their notes. Drafts only: the
@@ -63,8 +64,8 @@ export async function draftQpr(d: QprData, keys: string[]): Promise<{ sections: 
     })),
     results_this_quarter: d.results
       .filter((r) => r.status === "accepted" && r.date >= from && r.date <= to)
-      .map((r) => ({ indicator: d.rows.find((x) => x.code === r.indicator)?.donorCode, date: r.date, value: r.value, province: r.province, district: r.district, crop: r.crop, women: r.female, men: r.male, women_led: r.womenLed, men_led: r.menLed, note: r.note })),
-    activity_updates_this_quarter: d.updates.map((u) => ({ activity: u.activity, date: u.date, ...(u.title ? { title: u.title } : {}), note: u.note })),
+      .map((r) => ({ indicator: d.rows.find((x) => x.code === r.indicator)?.donorCode, date: r.date, value: r.value, province: r.province, district: r.district, crop: r.crop, women: r.female, men: r.male, women_led: r.womenLed, men_led: r.menLed, note: withoutNames(r.note) })),
+    activity_updates_this_quarter: d.updates.map((u) => ({ activity: u.activity, date: u.date, ...(u.title ? { title: u.title } : {}), note: withoutNames(u.note) })),
   };
   const client = new Anthropic({ maxRetries: 1 });
   const stream = client.beta.messages.stream({

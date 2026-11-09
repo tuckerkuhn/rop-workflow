@@ -1,6 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { and, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
+import { protectSubmission } from "@/server/kobo-protect";
 import type { AutoSyncSecret, FormPurpose, KoboMapping, KoboState, MappingMethod, SyncCounts } from "@/lib/kobo-setup";
 import { KoboError, checkServerUrl, formQuestions, formSubmissions, listForms, submissionRefs, type KoboSubmission } from "@/server/kobo-client";
 import { MissingKeyError, decryptSecret, encryptSecret } from "@/server/secrets";
@@ -201,6 +202,9 @@ export async function sync(code: string): Promise<SyncCounts> {
   const c = await credentials(code);
   const forms = await db.select().from(s.koboForms).where(eq(s.koboForms.projectId, c.project.id));
   const counts: SyncCounts = { fetched: 0, added: 0, already: 0, updated: 0, removed: 0, forms: forms.length };
+  // Questions indicators count from: their personal answers become fingerprints, not removed (kobo-protect).
+  const counted = new Set((await db.select({ q: s.koboMappings.question }).from(s.koboMappings).innerJoin(s.indicators, eq(s.indicators.id, s.koboMappings.indicatorId)).where(eq(s.indicators.projectId, c.project.id))).map((r) => r.q));
+  const keep = (x: KoboSubmission) => protectSubmission(x, c.project.id, counted);
   for (const f of forms) {
     const readiness = f.purpose === "readiness";
     const ours = (x: object) => {
@@ -263,7 +267,7 @@ export async function sync(code: string): Promise<SyncCounts> {
 
       const rows = fresh.flatMap((n) => {
         const x = full.get(n);
-        return x ? [{ organizationId: c.project.organizationId, projectId: c.project.id, source: "kobo" as const, koboAssetUid: f.assetUid, koboSubmissionId: n, koboSubmissionUuid: x._uuid!, completedAt: completedAt(x), payload: x, ...kind(x) }] : [];
+        return x ? [{ organizationId: c.project.organizationId, projectId: c.project.id, source: "kobo" as const, koboAssetUid: f.assetUid, koboSubmissionId: n, koboSubmissionUuid: x._uuid!, completedAt: completedAt(x), payload: keep(x), ...kind(x) }] : [];
       });
       for (const part of chunks(rows, 500))
         await tx
@@ -279,9 +283,10 @@ export async function sync(code: string): Promise<SyncCounts> {
           // Already decided (and, if accepted, applied to the farmer): keep what was decided and
           // record the edit for the audit trail.
           await tx.update(s.evidence).set({ koboSubmissionId: e.num, koboSubmissionUuid: x._uuid!, koboRemovedAt: null, updatedAt: now }).where(eq(s.evidence.id, e.row.id));
-          await tx.insert(s.auditLog).values({ projectId: c.project.id, entity: "evidence", entityId: e.row.id, action: "edited_in_kobo_after_review", detail: { review: e.row.review, payload: x } });
+          // The edit is recorded, not the answers: a copy here could keep personal data the submission no longer holds.
+          await tx.insert(s.auditLog).values({ projectId: c.project.id, entity: "evidence", entityId: e.row.id, action: "edited_in_kobo_after_review", detail: { review: e.row.review, submission: e.num } });
         } else {
-          await tx.update(s.evidence).set({ koboSubmissionId: e.num, koboSubmissionUuid: x._uuid!, completedAt: completedAt(x), payload: x, ...(readiness ? { farmerCode: str(x.farmer), completedBy: str(x._submitted_by), location: str(x.location) } : {}), koboRemovedAt: null, updatedAt: now }).where(eq(s.evidence.id, e.row.id));
+          await tx.update(s.evidence).set({ koboSubmissionId: e.num, koboSubmissionUuid: x._uuid!, completedAt: completedAt(x), payload: keep(x), ...(readiness ? { farmerCode: str(x.farmer), completedBy: str(x._submitted_by), location: str(x.location) } : {}), koboRemovedAt: null, updatedAt: now }).where(eq(s.evidence.id, e.row.id));
         }
         counts.updated += 1;
       }

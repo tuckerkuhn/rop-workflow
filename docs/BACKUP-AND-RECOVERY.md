@@ -9,7 +9,8 @@ What protects ROP Workflow's records, and what to do when something goes wrong.
 | The whole database (projects, results, procurement, HR book, participants) | Supabase backups for project `ntqkwucgmcyvtgjcacff` | Daily on the Pro plan, kept 7 days. Point-in-time recovery is an add-on; turn it on before the pilot ends. | Automatic; check in Supabase → Database → Backups |
 | Project records as a file (no personal records) | Downloaded from Settings → Health → Download the records, saved in SharePoint | Monthly, after the monthly review is signed off | An administrator |
 | HR book integrity | The daily HR seal (cron at 02:00 UTC) emails a hash of the book to HR_SEAL_TO | Daily | Automatic |
-| Evidence documents | SharePoint (results and procurements link to them; the app does not hold copies) | SharePoint's own retention | ROP IT |
+| Proof files: attendance sheets, photos, consent forms, HR files | In the app's database (since SharePoint ran out of space in November 2026), each checked against its fingerprint and locked against change | Included in the database backups above | Automatic |
+| Older evidence documents | SharePoint (procurements and older results link to them) | SharePoint's own retention | ROP IT |
 | Code | GitHub, tuckerkuhn/rop-workflow | Every save | Automatic |
 
 ## Before the pilot demo (10 December 2026)

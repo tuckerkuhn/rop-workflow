@@ -13,6 +13,7 @@ import { readWorkbook } from "@/lib/read-sheet";
 import { TEMPLATE_CSV, parseCsv, readResults, type ImportRow } from "@/lib/results-import";
 import { PROVINCES, YOUTH, proofCount, proofLinkSchema, quarterOf, quarterRange, totalsOf, type ProofLink, type ResultAction, type ResultInput, type UpdateInput } from "@/lib/results";
 import type { ResultsView } from "@/app/api/projects/[code]/results/route";
+import { NamesWarning } from "@/components/progress/names-warning";
 
 /**
  * Results recorded with their proof. Field staff record what was achieved (10 ha of drip
@@ -398,6 +399,7 @@ function UpdateForm({ activities, add, onClose }: { activities: { code: string; 
           onChange={(e) => setF({ ...f, note: e.target.value })}
           placeholder="10 of the 15 planned water reservoirs completed in Nesh, Maiwand, Musa Qala and Sangin (about 121 m³ each)."
         />
+        <NamesWarning text={f.note} />
       </label>
       <div className="mt-3 text-sm">
         Photos or documents (optional)
@@ -922,6 +924,7 @@ function RecordForm({ ind, add, onClose }: { ind: Ind; add: (r: ResultInput) => 
           onChange={set("note")}
           placeholder="Drip irrigation installed on 10 ha for 20 farmers in Nahr-e Saraj and Arghandab; 6 women-headed households."
         />
+        <NamesWarning text={f.note} />
       </label>
       <div className="mt-3 text-sm">
         Proof{ind.verification ? ` (${ind.verification})` : ""}
