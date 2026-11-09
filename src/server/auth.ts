@@ -69,12 +69,18 @@ async function signedInStaff(): Promise<StaffRow | null> {
 }
 
 /** Whether this session still owes its second step (see Viewer.twoStep). */
-async function twoStepState(organizationId: string): Promise<Viewer["twoStep"]> {
+async function twoStepState(organizationId: string, person: AppUser): Promise<Viewer["twoStep"]> {
   const { data } = await (await supabaseServer()).auth.mfa.getAuthenticatorAssuranceLevel();
   if (!data || data.currentLevel === "aal2") return undefined;
   if (data.nextLevel === "aal2") return "verify";
-  const required = withSettings(await loadOrgSettings(organizationId)).values.twoStepRequired?.value === true;
-  return required ? "enroll" : undefined;
+  const values = withSettings(await loadOrgSettings(organizationId)).values;
+  if (values.twoStepRequired?.value === true) return "enroll";
+  // People who see personal data: administrators, HR role holders and anyone who sees participants' names.
+  if (values.twoStepSensitive?.value === true) {
+    const holders = await roleHolders();
+    if (person.admin || person.pii || HR_ACCESS_ROLES.some((r) => holders[r]?.includes(person.id))) return "enroll";
+  }
+  return undefined;
 }
 
 /** Who holds each role type, read from the HR record at most once a minute per server. */
@@ -108,7 +114,7 @@ async function viewerAsStored(req: Request): Promise<Viewer | null> {
   const row = await signedInStaff();
   if (!row) return null;
   const actor = toAppUser(row);
-  const twoStep = await twoStepState(row.organizationId);
+  const twoStep = await twoStepState(row.organizationId, actor);
   if (twoStep) return { user: actor, actor, actorStaffId: row.id, viewingAs: false, twoStep };
   const asId = (await cookies()).get(VIEW_AS_COOKIE)?.value;
   if (actor.admin && asId && asId !== actor.id) {

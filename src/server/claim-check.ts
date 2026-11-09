@@ -3,6 +3,7 @@ import { SECTIONS, type ClaimCheck, type ClaimIssue } from "@/lib/qpr";
 import { quarterRange, type UpdateRecord } from "@/lib/results";
 import { draftStructured } from "@/server/ai-structured";
 import type { QprData } from "@/server/qpr-store";
+import { withoutNames } from "@/lib/personal-text";
 
 /**
  * The text checked against the evidence before a report goes out. Figures are checked by code:
@@ -49,10 +50,10 @@ export async function checkClaims(d: QprData, updates: UpdateRecord[], by: strin
     quarter: `${d.quarter} (${from} to ${to})`,
     sections,
     indicators: d.rows.map((r) => ({ code: r.donorCode, name: r.name, unit: r.unit })),
-    results: accepted.map((r) => ({ id: `r:${r.id}`, indicator: d.rows.find((x) => x.code === r.indicator)?.donorCode, date: r.date, value: r.value, district: r.district, province: r.province, photoDates: Object.values(r.taken ?? {}), note: r.note.slice(0, 300) })),
+    results: accepted.map((r) => ({ id: `r:${r.id}`, indicator: d.rows.find((x) => x.code === r.indicator)?.donorCode, date: r.date, value: r.value, district: r.district, province: r.province, photoDates: Object.values(r.taken ?? {}), note: withoutNames(r.note).slice(0, 300) })),
     weeklyUpdates: updates
       .filter((u) => u.date >= from && u.date <= until)
-      .map((u) => ({ id: `u:${u.id}`, date: u.date, activity: u.activity, title: u.title, note: u.note.slice(0, 600), photoDates: Object.values(u.taken ?? {}) })),
+      .map((u) => ({ id: `u:${u.id}`, date: u.date, activity: u.activity, title: u.title, note: withoutNames(u.note).slice(0, 600), photoDates: Object.values(u.taken ?? {}) })),
   };
   const { out, model } = await draftStructured({ system: SYSTEM, task: "List the claims and the contradictions.", facts, schema, effort: "low", maxTokens: 32000 });
 
