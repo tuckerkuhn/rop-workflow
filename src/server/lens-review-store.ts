@@ -6,6 +6,7 @@ import { LENSES, lensDraftSchema, type LensAction, type LensReview } from "@/lib
 import { draftStructured } from "@/server/ai-structured";
 import { logAudit } from "@/server/audit";
 import { projectByCode } from "@/server/field-store";
+import { ROP_VOICE } from "@/lib/voice";
 
 /** The project's latest lens review (project_state "lens-review"). See lib/lens-review.ts. */
 
@@ -41,7 +42,9 @@ Rules:
 - Never invent facts about the place, the donor or the partners. Where a judgement needs a fact the plan does not give, ask for it in questions instead of assuming.
 - Suggestions are concrete changes to the plan (a target, an indicator, a disaggregation, a budget line, a step in the workplan), small enough to act on.
 - Severity: high when the gap could stop the project delivering or being funded; medium when it weakens results or reporting; low for improvements.
-- Plain English, short sentences, no marketing language.`;
+- Plain English, short sentences, no marketing language.
+
+${ROP_VOICE}`;
 
 /** What the lens review reads: the plan as stored. */
 export async function lensFacts(project: Awaited<ReturnType<typeof projectByCode>>) {

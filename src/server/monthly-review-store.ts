@@ -10,6 +10,7 @@ import { logAudit } from "@/server/audit";
 import { loadBudgetView } from "@/server/budget-view-store";
 import { projectByCode } from "@/server/field-store";
 import { qprData } from "@/server/qpr-store";
+import { ROP_VOICE } from "@/lib/voice";
 
 /** Whether a quarter ("2026-Q4") has ended as of today. */
 const quarterEnded = (q: string) => {
@@ -251,7 +252,9 @@ Rules:
 - "summary": 3 to 5 plain sentences: results against this year's targets (what is done, on track, not started, delayed, citing indicator codes), then money (spent against approved, against the time gone, forecast).
 - "attention": one line per item, most urgent first: delayed or not-implemented indicators, budget lines flagged, results waiting for MEL, decisions pending on proposed changes. Say what someone should do about each. No more than eight lines.
 - A status of not_started means the work is not due yet or not begun; only call work late when its status is delayed or not_implemented.
-- Plain English, no marketing language, no headings.`;
+- Plain English, no marketing language, no headings.
+
+${ROP_VOICE}`;
 
 /** Runs one action on the month's review. Returns an error message for the person, or null. */
 export async function actOnReview(code: string, month: string, a: ReviewAction, u: AppUser): Promise<string | null> {
