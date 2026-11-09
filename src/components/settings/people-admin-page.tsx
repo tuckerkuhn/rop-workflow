@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { Pill, SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn } from "@/components/workspace/ui";
-import { ACCESS_LABEL, FIELD_ROLES, LANGS, PROC_ROLES, PROJECT_ROLES, type PersonInput, type StaffAction } from "@/lib/access";
+import { ACCESS_LABEL, FIELD_ROLES, LANGS, PROC_ROLES, PROJECT_ROLES, ROLE_PRESETS, presetOf, type PersonInput, type StaffAction } from "@/lib/access";
 import type { PeopleView } from "@/app/api/staff/route";
 
 /**
@@ -22,22 +22,36 @@ async function call<T>(user: string | undefined, init?: RequestInit): Promise<T>
 
 type Person = PeopleView["people"][number];
 const input = "mt-1 block w-full rounded-xl border border-line bg-paper px-3 py-2 text-base";
-const blank: PersonInput = { name: "", title: "", email: null, kind: "employee", org: "Roots of Peace", reportsTo: null, lang: "en", project: [], field: [], fieldAccess: "none", procurement: [], procurementAccess: "none", pii: false, admin: false, leads: [], projects: [] };
+const blank: PersonInput = {
+  name: "",
+  title: "",
+  email: null,
+  kind: "employee",
+  org: "Roots of Peace",
+  reportsTo: null,
+  lang: "en",
+  project: [],
+  field: [],
+  fieldAccess: "none",
+  procurement: [],
+  procurementAccess: "none",
+  pii: false,
+  admin: false,
+  leads: [],
+  projects: [],
+};
 const strip = (p: Person): PersonInput => {
-  const { id: _id, active: _a, signedIn: _s, ...rest } = p;
+  const { id: _id, active: _a, signedIn: _s, invitedAt: _i, ...rest } = p;
   void _id;
   void _a;
+  void _i;
   void _s;
   return rest;
 };
 
 function rolesSummary(p: Person) {
   const label = (l: { id: string; label: string }[], id: string) => l.find((x) => x.id === id)?.label ?? id;
-  const parts = [
-    ...p.project.map((r) => label(PROJECT_ROLES, r)),
-    ...p.field.map((r) => label(FIELD_ROLES, r)),
-    ...p.procurement.map((r) => label(PROC_ROLES, r)),
-  ];
+  const parts = [...p.project.map((r) => label(PROJECT_ROLES, r)), ...p.field.map((r) => label(FIELD_ROLES, r)), ...p.procurement.map((r) => label(PROC_ROLES, r))];
   return parts.length ? parts.join(" · ") : "No roles";
 }
 
@@ -64,7 +78,10 @@ export function PeopleAdminPage() {
     if (ready && user) void load();
   }, [ready, user, load]);
 
-  const shown = useMemo(() => (v?.people ?? []).filter((p) => (showOff || p.active) && (!q.trim() || `${p.name} ${p.title} ${p.email ?? ""}`.toLowerCase().includes(q.trim().toLowerCase()))), [v, showOff, q]);
+  const shown = useMemo(
+    () => (v?.people ?? []).filter((p) => (showOff || p.active) && (!q.trim() || `${p.name} ${p.title} ${p.email ?? ""}`.toLowerCase().includes(q.trim().toLowerCase()))),
+    [v, showOff, q],
+  );
   if (!user) return null;
 
   const act = async (a: StaffAction) => {
@@ -152,17 +169,32 @@ export function PeopleAdminPage() {
                     <span className="flex flex-wrap gap-1">
                       {!p.active && <Pill tone="muted">Access off</Pill>}
                       {p.admin && <Pill tone="plum">Administrator</Pill>}
-                      {p.email ? p.signedIn ? <Pill tone="forest">Has signed in</Pill> : <Pill tone="ochre">Not signed in yet</Pill> : <Pill tone="clay">No email</Pill>}
+                      {p.email ? (
+                        p.signedIn ? (
+                          <Pill tone="forest">Has signed in</Pill>
+                        ) : (
+                          <Pill tone="ochre">{p.invitedAt ? `Invited ${p.invitedAt.slice(0, 10)}, not signed in yet` : "Not signed in yet"}</Pill>
+                        )
+                      ) : (
+                        <Pill tone="clay">No email</Pill>
+                      )}
                     </span>
                   </button>
                   {open === p.id && (
                     <div className="mt-4 space-y-3">
-                      <PersonForm v={v} initial={strip(p)} self={p.id === v.me} email={p.email} onCancel={() => setOpen(null)} onSave={(np) => act({ action: "update", id: p.id, person: np }).then(() => undefined)} />
+                      <PersonForm
+                        v={v}
+                        initial={strip(p)}
+                        self={p.id === v.me}
+                        email={p.email}
+                        onCancel={() => setOpen(null)}
+                        onSave={(np) => act({ action: "update", id: p.id, person: np }).then(() => undefined)}
+                      />
                       {p.id !== v.me && (
                         <div className="flex flex-wrap gap-2 border-t border-line pt-3">
-                          {p.email && !p.signedIn && v.canCreateAccounts && (
-                            <button type="button" className={quietBtn} onClick={() => void act({ action: "account", id: p.id })}>
-                              Create sign-in account
+                          {p.email && !p.signedIn && p.active && v.canCreateAccounts && (
+                            <button type="button" className={primaryBtn} onClick={() => void act({ action: "invite", id: p.id })}>
+                              {p.invitedAt ? "Send the invitation again" : "Send an invitation"}
                             </button>
                           )}
                           {p.active ? (
@@ -228,7 +260,19 @@ export function PeopleAdminPage() {
   );
 }
 
-function Checks<T extends string>({ label, options, value, onChange, disabled }: { label: string; options: { id: T; label: string; help?: string }[]; value: T[]; onChange: (v: T[]) => void; disabled?: boolean }) {
+function Checks<T extends string>({
+  label,
+  options,
+  value,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  options: { id: T; label: string; help?: string }[];
+  value: T[];
+  onChange: (v: T[]) => void;
+  disabled?: boolean;
+}) {
   return (
     <fieldset className="text-sm" disabled={disabled}>
       <legend className="font-semibold">{label}</legend>
@@ -247,7 +291,21 @@ function Checks<T extends string>({ label, options, value, onChange, disabled }:
   );
 }
 
-function PersonForm({ v, initial, self, email, onSave, onCancel }: { v: PeopleView; initial: PersonInput; self?: boolean; email?: string | null; onSave: (p: PersonInput) => Promise<unknown>; onCancel: () => void }) {
+function PersonForm({
+  v,
+  initial,
+  self,
+  email,
+  onSave,
+  onCancel,
+}: {
+  v: PeopleView;
+  initial: PersonInput;
+  self?: boolean;
+  email?: string | null;
+  onSave: (p: PersonInput) => Promise<unknown>;
+  onCancel: () => void;
+}) {
   const [p, setP] = useState<PersonInput>(initial);
   const [leads, setLeads] = useState(initial.leads.join(", "));
   const [projects, setProjects] = useState((initial.projects ?? []).join(", "));
@@ -263,7 +321,18 @@ function PersonForm({ v, initial, self, email, onSave, onCancel }: { v: PeopleVi
   const save = async () => {
     setBusy(true);
     try {
-      await onSave({ ...p, email: p.email?.trim() ? p.email.trim() : null, leads: leads.split(",").map((x) => x.trim()).filter(Boolean), projects: projects.split(",").map((x) => x.trim().toUpperCase()).filter(Boolean) });
+      await onSave({
+        ...p,
+        email: p.email?.trim() ? p.email.trim() : null,
+        leads: leads
+          .split(",")
+          .map((x) => x.trim())
+          .filter(Boolean),
+        projects: projects
+          .split(",")
+          .map((x) => x.trim().toUpperCase())
+          .filter(Boolean),
+      });
     } finally {
       setBusy(false);
     }
@@ -332,35 +401,61 @@ function PersonForm({ v, initial, self, email, onSave, onCancel }: { v: PeopleVi
       </div>
 
       {p.kind === "employee" && (
-        <div className="mt-4 grid gap-4 sm:grid-cols-3">
-          <Checks label="Project" options={PROJECT_ROLES} value={p.project} onChange={(x) => set("project", x)} disabled={locked} />
-          <div className="space-y-3">
-            <label className="block text-sm font-semibold">
-              Field work
-              <select className={input} value={p.fieldAccess} disabled={locked} onChange={(e) => set("fieldAccess", e.target.value as PersonInput["fieldAccess"])}>
-                {(["edit", "view", "none"] as const).map((x) => (
-                  <option key={x} value={x}>
-                    {ACCESS_LABEL[x]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <Checks label="Field roles" options={FIELD_ROLES} value={p.field} onChange={(x) => set("field", x)} disabled={locked} />
+        <div className="mt-4">
+          <p className="text-sm font-semibold">Role</p>
+          <div role="radiogroup" aria-label="Role" className="mt-1 grid gap-2 sm:grid-cols-4">
+            {ROLE_PRESETS.map((r) => (
+              <button
+                key={r.id}
+                type="button"
+                role="radio"
+                aria-checked={presetOf(p) === r.id}
+                disabled={locked}
+                onClick={() => setP({ ...p, ...r.set, project: [...r.set.project] })}
+                className={`rounded-xl border px-3 py-2 text-start text-sm ${presetOf(p) === r.id ? "border-forest bg-surface font-semibold" : "border-line bg-paper hover:border-forest"}`}
+              >
+                {r.label}
+                <span className="mt-0.5 block text-xs font-normal text-muted">{r.help}</span>
+              </button>
+            ))}
           </div>
-          <div className="space-y-3">
-            <label className="block text-sm font-semibold">
-              Procurement
-              <select className={input} value={p.procurementAccess} disabled={locked} onChange={(e) => set("procurementAccess", e.target.value as PersonInput["procurementAccess"])}>
-                {(["edit", "view", "none"] as const).map((x) => (
-                  <option key={x} value={x}>
-                    {ACCESS_LABEL[x]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <Checks label="Procurement roles" options={PROC_ROLES} value={p.procurement} onChange={(x) => set("procurement", x)} disabled={locked} />
-          </div>
+          {!presetOf(p) && <p className="mt-1 text-xs text-muted">Custom access: set below.</p>}
         </div>
+      )}
+
+      {p.kind === "employee" && (
+        <details className="mt-3" open={!presetOf(initial)}>
+          <summary className="cursor-pointer text-sm font-semibold text-muted">Fine-tune access</summary>
+          <div className="mt-3 grid gap-4 sm:grid-cols-3">
+            <Checks label="Project" options={PROJECT_ROLES} value={p.project} onChange={(x) => set("project", x)} disabled={locked} />
+            <div className="space-y-3">
+              <label className="block text-sm font-semibold">
+                Field work
+                <select className={input} value={p.fieldAccess} disabled={locked} onChange={(e) => set("fieldAccess", e.target.value as PersonInput["fieldAccess"])}>
+                  {(["edit", "view", "none"] as const).map((x) => (
+                    <option key={x} value={x}>
+                      {ACCESS_LABEL[x]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <Checks label="Field roles" options={FIELD_ROLES} value={p.field} onChange={(x) => set("field", x)} disabled={locked} />
+            </div>
+            <div className="space-y-3">
+              <label className="block text-sm font-semibold">
+                Procurement
+                <select className={input} value={p.procurementAccess} disabled={locked} onChange={(e) => set("procurementAccess", e.target.value as PersonInput["procurementAccess"])}>
+                  {(["edit", "view", "none"] as const).map((x) => (
+                    <option key={x} value={x}>
+                      {ACCESS_LABEL[x]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <Checks label="Procurement roles" options={PROC_ROLES} value={p.procurement} onChange={(x) => set("procurement", x)} disabled={locked} />
+            </div>
+          </div>
+        </details>
       )}
 
       <div className="mt-4 space-y-2 text-sm">

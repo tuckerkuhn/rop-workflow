@@ -11,6 +11,16 @@ export const fa: Messages = {
   "nav.work": "کار",
   "nav.progress": "پیشرفت",
   "nav.resources": "منابع",
+  "nav.record": "ثبت",
+  "nav.check": "بررسی",
+  "nav.report": "گزارش",
+  "nav.organization": "سازمان",
+  "nav.results": "نتایج و شواهد",
+  "nav.review": "بررسی ماهانه",
+  "nav.budget": "بودجه و مصارف",
+  "nav.weekly": "گزارش هفته‌وار",
+  "nav.quarterly": "گزارش ربعوار",
+  "nav.annual": "سالانه و نهایی",
 
   "project.label": "پروژه",
 

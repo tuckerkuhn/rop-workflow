@@ -76,7 +76,9 @@ export async function spendFor(code: string, quarter: string, lines: LineRow[]):
   const last = [...covered].sort().at(-1) ?? "";
   // A combined column (Jan-Feb) is filed under its last month, so a quarter counts as covered by its last month.
   const qMonths = [0, 1, 2].map((k) => `${quarter.slice(0, 4)}-${String(Number(fm.slice(5)) + k).padStart(2, "0")}`);
-  const missing = qMonths.filter((m) => m > last).map(label);
+  // Only a month that is over can be in Finance's workbook: the current and later months are not missing yet.
+  const thisMonth = new Date().toISOString().slice(0, 7);
+  const missing = qMonths.filter((m) => m > last && m < thisMonth).map(label);
   const withOverhead = imports.every((i) => !!i.totals.grand);
   return {
     currency: phase.currency,

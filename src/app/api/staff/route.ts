@@ -4,7 +4,7 @@ import { ROLE_LABEL } from "@/lib/hr";
 import { requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
 import { loadHr } from "@/server/hr-store";
-import { addPerson, canCreateAccounts, changeLog, createAccount, listPeople, PeopleError, setActive, updatePerson } from "@/server/people-admin";
+import { addPerson, canCreateAccounts, changeLog, createAccount, invitePerson, listPeople, PeopleError, setActive, updatePerson } from "@/server/people-admin";
 
 /**
  * People and roles: administrators add people, give and take away roles, turn access off, and
@@ -69,6 +69,9 @@ export async function POST(req: Request) {
         if (a.id === v.actor.id) return NextResponse.json({ error: "You cannot turn off your own access." }, { status: 403 });
         await setActive(a.id, a.active, by);
         notice = a.active ? "Access turned back on." : "Access turned off. Their records and history stay.";
+      } else if (a.action === "invite") {
+        if (a.id === v.actor.id) return NextResponse.json({ error: "You are already signed in." }, { status: 400 });
+        notice = `Done: ${await invitePerson(a.id, { ...by, name: v.actor.name }, new URL(req.url).origin)}.`;
       } else {
         notice = `Done: ${await createAccount(a.id, by)}.`;
       }

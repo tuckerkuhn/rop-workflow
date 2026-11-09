@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { db, schema } from "@/db";
 import { z } from "zod";
 import { DEPARTMENTS, PARAMS, ROP, paramByKey, show, type Value } from "@/lib/policy";
 import { PROFILES, compareProfile, fits, keepsToPolicy, profileById } from "@/lib/presets";
@@ -105,6 +106,7 @@ export async function POST(req: Request) {
     }
     const next: OrgSettings = { values, history: [...settings.history, ...made] };
     await saveOrgSettings(orgId, next);
+    await db.insert(schema.auditLog).values({ projectId: null, entity: "org_settings", entityId: orgId, action: `rules_${a.action}`, detail: { by: v.user.id, reason: a.reason, rules: made.map((c) => c.key) } });
     return NextResponse.json(view(next, true));
   });
 }

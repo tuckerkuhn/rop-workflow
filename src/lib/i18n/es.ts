@@ -11,6 +11,16 @@ export const es: Messages = {
   "nav.work": "Trabajo",
   "nav.progress": "Avance",
   "nav.resources": "Recursos",
+  "nav.record": "Registrar",
+  "nav.check": "Revisar",
+  "nav.report": "Informar",
+  "nav.organization": "Organización",
+  "nav.results": "Resultados y pruebas",
+  "nav.review": "Revisión mensual",
+  "nav.budget": "Presupuesto vs. gasto",
+  "nav.weekly": "Informe semanal",
+  "nav.quarterly": "Informe trimestral",
+  "nav.annual": "Anual y final",
 
   "project.label": "Proyecto",
 

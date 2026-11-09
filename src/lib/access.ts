@@ -69,6 +69,8 @@ export const staffActionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("update"), id: z.string().min(1).max(60), person: personSchema }),
   z.object({ action: z.literal("active"), id: z.string().min(1).max(60), active: z.boolean() }),
   z.object({ action: z.literal("account"), id: z.string().min(1).max(60) }),
+  /** Creates the sign-in account if needed and emails the person how to sign in. */
+  z.object({ action: z.literal("invite"), id: z.string().min(1).max(60) }),
 ]);
 export type StaffAction = z.infer<typeof staffActionSchema>;
 
@@ -111,3 +113,16 @@ export function selfChangeProblem(before: PersonInput, after: PersonInput): stri
   const changed = locked.filter((k) => JSON.stringify(before[k]) !== JSON.stringify(after[k]));
   return changed.length ? "You cannot change your own roles, access or email: ask another administrator. You can change your own name, title and language." : null;
 }
+
+/**
+ * The four roles most people need, as presets over the detailed access settings: picking one fills
+ * them in, and the details stay adjustable. MEL also records results so it can fix small errors.
+ */
+export const ROLE_PRESETS: { id: string; label: string; help: string; set: Pick<PersonInput, "project" | "fieldAccess" | "procurementAccess"> }[] = [
+  { id: "field", label: "Field officer", help: "Records results, proof and weekly items; requests purchases.", set: { project: [], fieldAccess: "edit", procurementAccess: "edit" } },
+  { id: "mel", label: "MEL", help: "Checks results (accept, query, reopen) and writes reports.", set: { project: ["mel-owner"], fieldAccess: "edit", procurementAccess: "view" } },
+  { id: "lead", label: "Programme lead", help: "Runs the monthly review, writes and releases donor reports.", set: { project: ["plan-approver", "monthly-review", "report-release"], fieldAccess: "view", procurementAccess: "view" } },
+  { id: "finance", label: "Finance", help: "Imports spending and follows the budget.", set: { project: ["finance-import"], fieldAccess: "view", procurementAccess: "view" } },
+];
+export const presetOf = (p: Pick<PersonInput, "project" | "fieldAccess" | "procurementAccess">) =>
+  ROLE_PRESETS.find((r) => r.set.fieldAccess === p.fieldAccess && r.set.procurementAccess === p.procurementAccess && [...r.set.project].sort().join() === [...p.project].sort().join())?.id ?? null;
