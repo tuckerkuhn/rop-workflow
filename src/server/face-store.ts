@@ -1,4 +1,5 @@
 import { and, eq, isNotNull } from "drizzle-orm";
+import { draftMark } from "@/lib/preflight";
 import ExcelJS from "exceljs";
 import { db, schema as s } from "@/db";
 import { spentIn } from "@/lib/bva";
@@ -84,9 +85,10 @@ export async function faceView(code: string, month: string): Promise<FaceViewDat
 export type FaceView = FaceViewData;
 
 /** The form as an Excel workbook, laid out like UNDP's FACE template. */
-export async function faceWorkbook(v: FaceView): Promise<Buffer> {
+export async function faceWorkbook(v: FaceView, draft = 0): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("FACE Form", { pageSetup: { orientation: "landscape", fitToPage: true } });
+  if (draft) ws.addRow([draftMark(draft)]).font = { bold: true, color: { argb: "FFAA3333" } };
   const h = v.header;
   const bold = { bold: true };
   const date = new Date(Date.UTC(Number(v.month.slice(0, 4)), Number(v.month.slice(5, 7)), 0)).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "2-digit", timeZone: "UTC" }).replace(/ /g, "-");

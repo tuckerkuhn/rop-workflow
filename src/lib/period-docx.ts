@@ -1,4 +1,5 @@
 import { AlignmentType, BorderStyle, Document, ExternalHyperlink, HeadingLevel, Packer, PageBreak, Paragraph, ShadingType, Table, TableCell, TableRow, TextRun, WidthType } from "docx";
+import { draftMark } from "@/lib/preflight";
 import { periodLabel } from "@/lib/period-report";
 import { YOUTH } from "@/lib/results";
 import type { PeriodReportView } from "@/server/period-report-store";
@@ -24,7 +25,7 @@ const cell = (text: string, o: { bold?: boolean; fill?: string; link?: string } 
     children: [new Paragraph({ children: [o.link ? new ExternalHyperlink({ link: o.link, children: [new TextRun({ text, style: "Hyperlink", font: FONT, size: 18 })] }) : new TextRun({ text, bold: o.bold, font: FONT, size: 18 })] })],
   });
 
-export async function periodDocx(v: PeriodReportView, origin: string): Promise<Blob> {
+export async function periodDocx(v: PeriodReportView, origin: string, draft = 0): Promise<Blob> {
   const annual = v.period.kind === "annual";
   const title = periodLabel(v.period).toUpperCase();
   const evidence = (code: string) => `${origin}/progress/results?indicator=${code}&from=${v.range.from}&to=${v.range.to}`;
@@ -64,6 +65,7 @@ export async function periodDocx(v: PeriodReportView, origin: string): Promise<B
     : null;
   const met = v.rows.filter((r) => r.verdict === "met").length;
   const children = [
+    ...(draft ? [p(draftMark(draft), { bold: true, size: 24, color: "AA3333" })] : []),
     p(v.project.name, { size: 28, color: GREEN }),
     p(title, { bold: true, size: 44 }),
     p(`${v.range.from} – ${v.range.to}`, { bold: true, size: 28 }),

@@ -1,3 +1,4 @@
+import { draftMark } from "@/lib/preflight";
 import {
   AlignmentType,
   BorderStyle,
@@ -37,7 +38,10 @@ export type DocxInput = {
   breakdowns: Breakdown[];
   /** e.g. https://rop-workflow.vercel.app, for the links to evidence. */
   origin: string;
+  /** Downloaded while pre-flight still lists this many blockers: marked as a draft, not checked. */
+  draft?: number;
 };
+
 /** Photos as JPEG, keyed by fingerprint, with their size in pixels. */
 export type Images = Map<string, { data: ArrayBuffer; width: number; height: number }>;
 
@@ -111,6 +115,7 @@ export async function qprDocx(d: DocxInput, images: Images): Promise<Blob> {
   // Cover: the first captioned photo, as ROP's reports have one.
   const cover = d.photos[0];
   const coverChildren = [
+    ...(d.draft ? [p(draftMark(d.draft), { bold: true, size: 24, color: "AA3333" })] : []),
     p(d.project.name, { size: 28, color: GREEN }),
     p("QUARTERLY PROGRESS REPORT", { bold: true, size: 44 }),
     p(`(${qn}: ${long(from)} – ${long(to)})`, { bold: true, size: 28 }),

@@ -26,8 +26,8 @@ export type Cited = { value: Value; source: string; confidence?: "documented" | 
 export type Merge = "min" | "max" | "any" | "union" | "common" | "same" | "donor";
 
 /** The department a rule belongs to, for grouping in settings. */
-export type Area = "Procurement" | "Finance" | "Travel" | "Grants" | "Records";
-export const DEPARTMENTS: Area[] = ["Procurement", "Finance", "Travel", "Grants", "Records"];
+export type Area = "Procurement" | "Finance" | "Travel" | "Grants" | "Reporting" | "Records";
+export const DEPARTMENTS: Area[] = ["Procurement", "Finance", "Travel", "Grants", "Reporting", "Records"];
 export type ParamDef = { key: string; label: string; area: Area; unit?: "USD" | "AFN" | "days" | "years" | "%" | "count" | "months"; merge: Merge; help: string };
 
 export const PARAMS: ParamDef[] = [
@@ -74,6 +74,9 @@ export const PARAMS: ParamDef[] = [
   { key: "costSharePct", label: "Grantee cost share, at least", area: "Grants", unit: "%", merge: "max", help: "" },
   { key: "grantAssetTransfer", label: "Assets given to grantees as in-kind grants", area: "Grants", merge: "same", help: "Who owns them once handed over. Grants build up the private sector, so this is separate from the project's own equipment." },
   { key: "projectEquipment", label: "The project's own equipment (vehicles, furniture, IT) when the project ends", area: "Records", merge: "same", help: "An administrative cost of running the project, separate from grants." },
+  { key: "quarterlyReportDays", label: "Quarterly report due, days after the quarter ends", area: "Reporting", unit: "days", merge: "donor", help: "The donor's deadline. A \"Report deadline\" milestone in Tasks, when there is one, takes its place for that quarter." },
+  { key: "annualReportDays", label: "Annual report due, days after the year ends", area: "Reporting", unit: "days", merge: "donor", help: "" },
+  { key: "reviewDays", label: "Internal review before a report is due, at least", area: "Reporting", unit: "days", merge: "max", help: "Days kept free before the donor's deadline for the internal check: the team aims for this earlier date." },
   { key: "retentionYears", label: "Keep records for", area: "Records", unit: "years", merge: "max", help: "" },
   { key: "twoStepRequired", label: "Everyone signs in with a second step (an authenticator app code)", area: "Records", merge: "any", help: "Turn on only after the administrators have set up their own in Settings: until then it would lock them out. People who set one up use it either way." },
   { key: "twoStepSensitive", label: "People who see personal data sign in with a second step: administrators, HR roles and anyone who sees participants' names", area: "Records", merge: "any", help: "The data protection review's recommendation, before the income panel starts. Each of those people sets up an authenticator first; until they do, they are asked to at their next sign-in." },
@@ -133,6 +136,7 @@ export const ROP: Profile = {
     costSharePct: { value: 50, source: "CBARD Grants Manual 2023, p8 (25% for women-owned businesses)" },
     twoStepRequired: { value: false, source: "Not in the written policy: set by an administrator" },
     twoStepSensitive: { value: false, source: "Not in the written policy: recommended by the data protection review (November 2026)" },
+    reviewDays: { value: 5, source: "ROP Workflow starting value (9 Nov 2026): time for the internal check before a donor deadline. Set ROP's own in Settings.", confidence: "to verify" },
     retentionYears: { value: 5, source: "Afghan Ministry of Finance requirement, cited in ROP's document management guidance", confidence: "to verify" },
   },
 };

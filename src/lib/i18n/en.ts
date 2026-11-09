@@ -1,5 +1,6 @@
 import { tsEn } from "./hr/timesheet";
 import { actEn } from "./activities";
+import { pfEn } from "./preflight";
 import { lvEn } from "./hr/leave";
 import { expEn } from "./hr/expense";
 /** English: the source strings. Every other language falls back to these. */
@@ -571,6 +572,7 @@ export const en = {
   ...tsEn,
   ...lvEn,
   ...actEn,
+  ...pfEn,
   ...expEn,
 } as const;
 

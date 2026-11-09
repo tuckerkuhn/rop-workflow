@@ -1,6 +1,7 @@
 import type { Messages } from "./en";
 import { tsPs } from "./hr/timesheet";
 import { actPs } from "./activities";
+import { pfPs } from "./preflight";
 import { lvPs } from "./hr/leave";
 import { expPs } from "./hr/expense";
 
@@ -476,5 +477,6 @@ export const ps: Messages = {
   ...tsPs,
   ...lvPs,
   ...actPs,
+  ...pfPs,
   ...expPs,
 };

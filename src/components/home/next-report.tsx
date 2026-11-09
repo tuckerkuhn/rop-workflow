@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useT } from "@/components/app/i18n";
+import { itemText } from "@/components/progress/preflight-page";
+import { preflightHref, urgency } from "@/lib/preflight";
 import type { LoopOwner, NextReport } from "@/server/next-report";
 
 /**
@@ -9,10 +12,11 @@ import type { LoopOwner, NextReport } from "@/server/next-report";
  * The same figures and checks as the report itself, so the two never disagree.
  */
 
-const OWNER: Record<LoopOwner, string> = { field: "Field", mel: "MEL", writers: "Writing", finance: "Finance" };
+const OWNER: Record<LoopOwner, string> = { lead: "Programme lead", field: "Field", mel: "MEL", writers: "Writing", finance: "Finance" };
 const day = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "long", timeZone: "UTC" });
 
 export function NextReportPanel({ project, user, owners }: { project: string; user: string; owners?: LoopOwner[] }) {
+  const { t } = useT();
   const [loaded, setV] = useState<NextReport | null>(null);
   let v = loaded;
   const [open, setOpen] = useState<boolean | null>(null);
@@ -38,15 +42,22 @@ export function NextReportPanel({ project, user, owners }: { project: string; us
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <h2 className="font-display text-xl">Next report: {v.quarter.replace("-", " ")}</h2>
         <p className="text-sm text-muted">
-          due about {day(v.due)} ({v.daysLeft} days)
+          {v.deadline.aim && v.deadline.due ? (
+            <>
+              ready by {day(v.deadline.aim)} ({v.daysLeft} days), due to the donor {day(v.deadline.due)}
+              {!v.released && urgency(v.deadline, new Date().toISOString().slice(0, 10)) && <span className="ms-1 font-semibold text-clay">⚠</span>}
+            </>
+          ) : (
+            "no deadline set"
+          )}
         </p>
         {!v.released && v.items.length > 0 && (
           <button type="button" onClick={() => setOpen(!shown)} aria-expanded={shown} className="text-sm font-semibold text-forest hover:underline">
             {blocking ? `${blocking} ${blocking === 1 ? "thing blocks" : "things block"} it` : "nothing blocks it"} · {v.items.length - blocking} to do {shown ? "▴" : "▾"}
           </button>
         )}
-        <Link href="/progress/report" className="ms-auto text-sm font-semibold text-forest hover:underline">
-          Open the report →
+        <Link href={preflightHref({ kind: "qpr", quarter: v.quarter })} className="ms-auto text-sm font-semibold text-forest hover:underline">
+          Pre-flight →
         </Link>
       </div>
       {v.released ? (
@@ -67,7 +78,7 @@ export function NextReportPanel({ project, user, owners }: { project: string; us
                       <li key={i.text}>
                         <Link href={i.href} className="hover:text-forest">
                           {i.blocks && <span className="me-1 font-semibold text-clay">Blocks:</span>}
-                          {i.text}
+                          {itemText(t, i)}
                         </Link>
                       </li>
                     ))}
