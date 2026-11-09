@@ -32,7 +32,7 @@ export async function familiesView(code: string) {
     .filter((r) => r.quarter > 0)
     .sort((a, b) => Number(b.women + b.men > 0) - Number(a.women + a.men > 0) || b.records.quarter - a.records.quarter)
     .slice(0, 3)
-    .map((r) => ({ code: r.donorCode || r.code, value: r.quarter, unit: r.unit, what: short(r.name), women: r.women, men: r.men, womenLed: r.womenLed, menLed: r.menLed }));
+    .map((r) => ({ indicator: r.code, records: r.records.quarter, proof: r.records.files, code: r.donorCode || r.code, value: r.quarter, unit: r.unit, what: short(r.name), women: r.women, men: r.men, womenLed: r.womenLed, menLed: r.menLed }));
   const project = await projectByCode(code);
   const stories = (await loadProjectState<{ stories: Story[] }>(project.id, "stories", { stories: [] })).stories.filter((s) => s.status === "approved");
   const latest = stories.sort((a, b) => (b.approved?.at ?? b.at).localeCompare(a.approved?.at ?? a.at))[0] ?? null;

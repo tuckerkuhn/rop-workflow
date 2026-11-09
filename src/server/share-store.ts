@@ -1,3 +1,4 @@
+import { ROLE_FOR } from "@/lib/evidence";
 import { randomBytes } from "node:crypto";
 import { db, schema as s } from "@/db";
 import { STATUS_LABEL, SECTIONS } from "@/lib/qpr";
@@ -95,6 +96,8 @@ export async function sharedReport(code: string, token: string, opts: { log: boo
           date: x.date,
           value: x.value,
           place: [x.district, x.province].filter(Boolean).join(", "),
+          // To a donor, people appear by role (lib/evidence); the audit pack and the audit log keep the names.
+          accepted: x.reviewedAt ? { by: ROLE_FOR.accepted, on: x.reviewedAt.slice(0, 10) } : null,
           photos: x.files.filter((f) => f.type.startsWith("image/") && x.captions?.[f.hash]).map((f) => ({ hash: f.hash, caption: x.captions![f.hash] })),
           documents: [...x.files.filter((f) => !(f.type.startsWith("image/") && x.captions?.[f.hash])).map((f) => f.name), ...(x.links ?? []).map((l) => l.title)],
         })),

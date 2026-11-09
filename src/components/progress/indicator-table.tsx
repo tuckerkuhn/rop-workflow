@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { ProofNumber } from "@/components/progress/proof-panel";
 import { Pill } from "@/components/workspace/ui";
 import type { FrameworkView, TreeNode } from "@/server/framework-store";
 
@@ -64,15 +65,17 @@ export function IndicatorTable({ projectId, userId }: { projectId: string; userI
               const st = indicatorStatus(i);
               const pct = i.yearTarget > 0 ? Math.min(100, Math.round((i.year / i.yearTarget) * 100)) : 0;
               return (
-                <li key={i.code}>
-                  <Link href={`/progress/results?indicator=${i.code}`} className="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1 px-4 py-2.5 hover:bg-sunken sm:grid-cols-[1fr_9rem_7rem]">
-                    <span className="line-clamp-2 min-w-0 text-sm leading-snug sm:line-clamp-none" title={i.name}>
+                <li key={i.code} className="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1 px-4 py-2.5 sm:grid-cols-[1fr_9rem_7rem]">
+                    <Link href={`/progress/results?indicator=${i.code}`} className="line-clamp-2 min-w-0 text-sm leading-snug hover:text-forest sm:line-clamp-none" title={i.name}>
                       <span className="me-1.5 font-mono text-xs text-muted">{i.donorCode}</span>
                       {i.name}
-                    </span>
+                    </Link>
                     <span className="order-3 col-span-2 sm:order-none sm:col-span-1">
                       <span className="block text-end text-sm tabular-nums">
-                        {n(i.year)} <span className="text-muted">of {n(i.yearTarget)} {i.unit}</span>
+                        <ProofNumber project={projectId} user={userId} indicator={i.code} from={`${v.year}-01-01`} to={`${v.year}-12-31`} value={i.year} records={i.year ? 1 : 0} className="tabular-nums">
+                          {n(i.year)}
+                        </ProofNumber>{" "}
+                        <span className="text-muted">of {n(i.yearTarget)} {i.unit}</span>
                       </span>
                       <span className="mt-1 block h-1 overflow-hidden rounded-full bg-sunken" aria-hidden>
                         <span className={`block h-full rounded-full ${pct >= 100 ? "bg-leaf" : "bg-forest"}`} style={{ width: `${pct}%` }} />
@@ -81,7 +84,6 @@ export function IndicatorTable({ projectId, userId }: { projectId: string; userI
                     <span className="justify-self-end">
                       <Pill tone={st.tone}>{st.text}</Pill>
                     </span>
-                  </Link>
                 </li>
               );
             })}

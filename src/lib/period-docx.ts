@@ -1,4 +1,5 @@
 import { AlignmentType, BorderStyle, Document, ExternalHyperlink, HeadingLevel, Packer, PageBreak, Paragraph, ShadingType, Table, TableCell, TableRow, TextRun, WidthType } from "docx";
+import { periodFigures, refOf, withRef } from "@/lib/evidence";
 import { draftMark } from "@/lib/preflight";
 import { periodLabel } from "@/lib/period-report";
 import { YOUTH } from "@/lib/results";
@@ -28,7 +29,11 @@ const cell = (text: string, o: { bold?: boolean; fill?: string; link?: string } 
 export async function periodDocx(v: PeriodReportView, origin: string, draft = 0): Promise<Blob> {
   const annual = v.period.kind === "annual";
   const title = periodLabel(v.period).toUpperCase();
-  const evidence = (code: string) => `${origin}/progress/results?indicator=${code}&from=${v.range.from}&to=${v.range.to}`;
+  // Each figure carries its reference in the evidence pack (lib/evidence); a figure has one when accepted results stand behind it.
+  const figs = periodFigures(v.rows, v.range.from, v.range.to, annual ? String((v.period as { year: number }).year) : "Final", (c, f) => {
+    const r = v.rows.find((x) => x.code === c);
+    return f ? (r?.records ?? 0) : r?.cumulative ? 1 : 0;
+  });
   const head = annual
     ? ["Code", "Indicator", "Baseline", `${(v.period as { year: number }).year} target`, "Q1", "Q2", "Q3", "Q4", "Achieved", "%", "Cumulative / life target"]
     : ["Code", "Indicator", "Baseline", "Target", ...(v.rows[0]?.parts.map((x) => x.label) ?? []), "Achieved", "%"];
@@ -45,9 +50,9 @@ export async function periodDocx(v: PeriodReportView, origin: string, draft = 0)
               cell(n(r.baseline)),
               cell(n(r.target)),
               ...r.parts.map((x) => cell(n(x.value))),
-              cell(n(r.achieved), { link: r.records ? evidence(r.code) : undefined }),
+              cell(withRef(n(r.achieved), refOf(figs, r.code, "q"), r.achieved)),
               cell(r.pct === null ? "—" : `${r.pct}%`),
-              ...(annual ? [cell(`${n(r.cumulative)} / ${n(r.lifeTarget)}`)] : []),
+              ...(annual ? [cell(`${withRef(n(r.cumulative), refOf(figs, r.code, "y"), r.cumulative)} / ${n(r.lifeTarget)}`)] : []),
             ],
           }),
       ),
@@ -72,7 +77,7 @@ export async function periodDocx(v: PeriodReportView, origin: string, draft = 0)
     p(v.info?.partner ?? "Roots of Peace", { bold: true, size: 28 }),
     new Paragraph({ children: [new PageBreak()] }),
     h("Summary of results"),
-    p(`${met} of ${v.rows.length} indicators met their ${annual ? "targets for the year" : "life-of-project targets"}. Figures are from results checked by MEL; each achieved figure links to the records and proof behind it.${v.open ? ` ${v.open} results from the period are still waiting for MEL and are not counted.` : ""}`),
+    p(`${met} of ${v.rows.length} indicators met their ${annual ? "targets for the year" : "life-of-project targets"}. Figures are from results checked by MEL; each figure's reference, e.g. [E-01], is its entry in the evidence pack, with the results behind it and their proof.${v.open ? ` ${v.open} results from the period are still waiting for MEL and are not counted.` : ""}`),
     table,
     ...(gender ? [h("Women, men and young people"), p(`${YOUTH.label}: ${YOUTH.source}. Shown where the results record it.`, { size: 16, italics: true }), gender] : []),
     ...v.narrative.flatMap((sec) => [h(sec.heading), ...sec.parts.flatMap((x) => [p(`${x.quarter.replace("-", " ")}${x.released ? "" : " (draft)"}`, { bold: true, size: 18, color: "555555" }), ...x.text.split(/\n{2,}/).map((t) => p(t))])]),

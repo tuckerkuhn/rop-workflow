@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
+import { MoneySourceLink } from "@/components/progress/proof-panel";
 import { useRequireUser } from "@/components/app/session";
 import { Pill, TopBar } from "@/components/workspace/ui";
 import type { PortfolioView } from "@/server/portfolio-store";
@@ -54,7 +55,8 @@ export function PortfolioPage() {
                   <p className="mt-1 text-sm text-muted">
                     {pct(p.budget.spentPct)} of {p.budget.currency} {p.budget.approved.toLocaleString("en-US", { maximumFractionDigits: 0 })} spent with {pct(p.budget.timePct)} of the time gone
                     {p.budget.ahead ? " (spending ahead of time)" : ""}
-                    {p.budget.overspent ? ` · ${p.budget.overspent} overspent ${p.budget.overspent === 1 ? "line" : "lines"}` : ""}.
+                    {p.budget.overspent ? ` · ${p.budget.overspent} overspent ${p.budget.overspent === 1 ? "line" : "lines"}` : ""}.{" "}
+                    {user && <MoneySourceLink project={p.code} user={user.id} />}
                   </p>
                   {p.topConcern && (
                     <p className="mt-2 text-sm">

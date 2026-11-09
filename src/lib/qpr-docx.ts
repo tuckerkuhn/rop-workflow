@@ -1,9 +1,9 @@
+import { qprFigures, refOf, withRef } from "@/lib/evidence";
 import { draftMark } from "@/lib/preflight";
 import {
   AlignmentType,
   BorderStyle,
   Document,
-  ExternalHyperlink,
   HeadingLevel,
   ImageRun,
   Packer,
@@ -87,9 +87,6 @@ const table = (columns: string[], rows: (string | number)[][], widths?: number[]
     ],
   });
 
-const link = (text: string, url: string) =>
-  new Paragraph({ alignment: AlignmentType.RIGHT, children: [new ExternalHyperlink({ link: url, children: [new TextRun({ text, style: "Hyperlink", font: FONT, size: 18 })] })] });
-
 export async function qprDocx(d: DocxInput, images: Images): Promise<Blob> {
   const { from, to } = quarterRange(d.quarter);
   const qn = d.quarter.slice(5);
@@ -98,7 +95,8 @@ export async function qprDocx(d: DocxInput, images: Images): Promise<Blob> {
   const heading = (key: string) => SECTIONS.find((s) => s.key === key)!.heading;
   const i = d.saved.info;
   const money = (v: number | null) => (v === null ? "[to be entered]" : `${d.spend.currency} ${n(v)}`);
-  const evidence = (code: string, f: string, text: string) => link(text, `${d.origin}/progress/results?indicator=${code}&from=${f}&to=${to}`);
+  // Each figure carries its reference in the evidence pack (lib/evidence), e.g. [E-07].
+  const figs = qprFigures(d.rows, d.quarter, from, to);
   let figure = 0;
   const photo = (ph: Photo) => {
     const img = images.get(ph.hash);
@@ -158,8 +156,8 @@ export async function qprDocx(d: DocxInput, images: Images): Promise<Blob> {
               ...(k === 0 ? [cell(`Activity ${a}: ${name}`, { rowSpan: list.length, width: 16 })] : []),
               cell(`${r.donorCode} ${r.name} (${r.unit})`, { width: 28 }),
               cell(n(r.yearTarget), { width: 8 }),
-              cell([evidence(r.code, from, n(r.quarter))], { width: 8 }),
-              cell([evidence(r.code, `${year}-01-01`, n(r.year))], { width: 10 }),
+              cell(withRef(n(r.quarter), refOf(figs, r.code, "q"), r.quarter), { width: 8 }),
+              cell(withRef(n(r.year), refOf(figs, r.code, "y"), r.year), { width: 10 }),
               cell(r.comment, { width: 30 }),
             ],
           }),
@@ -183,7 +181,7 @@ export async function qprDocx(d: DocxInput, images: Images): Promise<Blob> {
     return [
       h(`Activity ${a.code}: ${a.name}`, 2),
       ...paras(sec(`act.${a.code}`)),
-      ...d.breakdowns.filter((b) => codes.includes(b.indicator)).flatMap((b) => [p(b.title, { bold: true, size: 18 }), table(b.columns, b.rows), p("")]),
+      ...d.breakdowns.filter((b) => codes.includes(b.indicator)).flatMap((b) => [p(withRef(b.title, refOf(figs, b.indicator, "q"), 1), { bold: true, size: 18 }), table(b.columns, b.rows), p("")]),
       ...d.photos.filter((ph) => ph.activity === a.code && ph !== cover).flatMap(photo),
     ];
   });
@@ -217,7 +215,7 @@ export async function qprDocx(d: DocxInput, images: Images): Promise<Blob> {
           ...paras(sec("background")),
           h("II. Progress Towards Results", 1),
           indicatorTable,
-          p("Figures are from results checked by MEL. Each figure links to the records and proof behind it.", { size: 16, color: "555555" }),
+          p("Figures are from results checked by MEL. Each figure's reference, e.g. [E-01], is its entry in the evidence pack, which lists the results behind it and their proof.", { size: 16, color: "555555" }),
           h("Narrative Description", 1),
           ...narrative,
           h("III. Cross-cutting Issues", 1),

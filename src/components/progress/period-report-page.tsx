@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useT } from "@/components/app/i18n";
 import { beforeDownload, PreflightButton, usePreflight } from "@/components/progress/preflight-page";
+import { ProofNumber } from "@/components/progress/proof-panel";
 import { useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser, useSession } from "@/components/app/session";
@@ -147,18 +148,17 @@ export function PeriodReportPage() {
                         </td>
                       ))}
                       <td className="px-2 py-2 text-right font-semibold tabular-nums">
-                        {r.records ? (
-                          <Link href={`/progress/results?indicator=${r.code}&from=${v.range.from}&to=${v.range.to}`} className="text-forest hover:underline">
-                            {n(r.achieved)}
-                          </Link>
-                        ) : (
-                          n(r.achieved)
-                        )}
+                        <ProofNumber project={project.id} user={user.id} indicator={r.code} from={v.range.from} to={v.range.to} value={r.achieved} records={r.records} className="font-semibold tabular-nums">
+                          {n(r.achieved)}
+                        </ProofNumber>
                         {r.pct !== null && <span className="block text-xs font-normal text-muted">{r.pct}%</span>}
                       </td>
                       {annual && (
                         <td className="px-2 py-2 text-right tabular-nums text-muted">
-                          {n(r.cumulative)} / {n(r.lifeTarget)}
+                          <ProofNumber project={project.id} user={user.id} indicator={r.code} from={null} to={v.range.to} value={r.cumulative} records={r.cumulative ? 1 : 0} className="tabular-nums">
+                            {n(r.cumulative)}
+                          </ProofNumber>{" "}
+                          / {n(r.lifeTarget)}
                         </td>
                       )}
                       <td className="px-3 py-2">

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { MoneySourceLink } from "@/components/progress/proof-panel";
 import { useT } from "@/components/app/i18n";
 import { beforeDownload, PreflightButton, usePreflight } from "@/components/progress/preflight-page";
 import { useCallback, useEffect, useState } from "react";
@@ -181,6 +182,9 @@ export function FacePage() {
                   </tr>
                 </tbody>
               </table>
+              <p className="mt-2">
+                <MoneySourceLink project={project.id} user={user.id} />
+              </p>
               <div className="mt-3 flex flex-wrap items-end gap-3 text-sm">
                 <label>
                   Authorised period

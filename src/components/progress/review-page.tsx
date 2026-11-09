@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { ProofNumber } from "@/components/progress/proof-panel";
+import { quarterRange } from "@/lib/results";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser } from "@/components/app/session";
 import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
@@ -125,7 +127,10 @@ export function ReviewPage() {
                               <span className="font-mono text-xs text-muted">{i.donorCode}</span> {i.name}
                             </td>
                             <td className="whitespace-nowrap px-3 py-2 text-end tabular-nums">
-                              {i.year.toLocaleString("en-US")} / {i.yearTarget.toLocaleString("en-US")} {i.unit}
+                              <ProofNumber project={project.id} user={user?.id ?? ""} indicator={i.code} from={`${v.year}-01-01`} to={quarterRange(v.quarter).to} value={i.year} records={i.year ? 1 : 0} className="tabular-nums">
+                                {i.year.toLocaleString("en-US")}
+                              </ProofNumber>{" "}
+                              / {i.yearTarget.toLocaleString("en-US")} {i.unit}
                             </td>
                             <td className="px-3 py-2">
                               <Pill tone={TONE[i.status]}>{STATUS_LABEL[i.status]}</Pill>
