@@ -5,6 +5,7 @@ import { STATUS_LABEL } from "@/lib/qpr";
 import { quarterRange } from "@/lib/results";
 import { DRAFT_MODEL, DraftingUnavailable } from "@/server/ai-drafts";
 import type { QprData } from "@/server/qpr-store";
+import { ROP_VOICE } from "@/lib/voice";
 
 /**
  * Drafts the quarterly report's text from accepted results and their notes. Drafts only: the
@@ -24,13 +25,15 @@ Rules:
 - Every figure you use must match the facts exactly, with its unit.
 - Plain, factual report English, in short paragraphs. Past tense for what happened in the quarter. No marketing language, no bullet lists unless asked.
 - Refer to indicators by their UNDP code in brackets after the result, e.g. "(1.1.1.4)".
-- Do not name individual beneficiaries.
+- Do not name individual farmers or business owners: names belong in consented success stories, not the report.
 
 What each key means:
 - "summary": the Executive Summary: one short paragraph per output (1.1, 1.2, 2.1) with the quarter's headline results and the year's progress against target. About 250 to 350 words in all.
 - "act.X.Y.Z": the narrative for activity X.Y.Z: what was done this quarter under each of its indicators, where, for how many women and men or women-led and men-led businesses, and what is next; from the result notes and that activity's updates. If nothing was achieved, say so in one or two sentences and what is planned, with a placeholder for the reason.
 - "gender": 3.1 Gender Equality: women reached and women-led businesses this quarter, indicator by indicator, with figures; what the notes say about how women were included. Never add women across indicators into one total: the same person can be counted under more than one indicator.
-- "next": VII. Way Forward: priorities for next quarter, led by the indicators that are delayed or not implemented, and the remaining annual targets.`;
+- "next": VII. Way Forward: priorities for next quarter, led by the indicators that are delayed or not implemented, and the remaining annual targets.
+
+${ROP_VOICE}`;
 
 export async function draftQpr(d: QprData, keys: string[]): Promise<{ sections: { key: string; text: string }[]; questions: string[] }> {
   if (!process.env.ANTHROPIC_API_KEY) throw new DraftingUnavailable("AI drafting is not set up on this server: add ANTHROPIC_API_KEY.");

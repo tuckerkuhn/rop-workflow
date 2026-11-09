@@ -107,7 +107,7 @@ export const workflowSteps: WorkflowStep[] = [
 
 export const lifecycle = [
   { title: "Opportunity & go/no-go", detail: "A donor RFP/RFA, an open call, or a self-funded opportunity. Decide whether to pursue it." },
-  { title: "Design foundation", detail: "Regions, beneficiaries, value-chain and net-income analysis, selection criteria, and development logic." },
+  { title: "Design foundation", detail: "Regions, the farmers and businesses to reach, value-chain and net-income analysis, selection criteria, and development logic." },
   { title: "Proposal & scope", detail: "Develop the proposal and agree the scope, shaped by donor requirements." },
   { title: "Funding & mobilization", detail: "Hire staff, obtain approvals, set up offices, and localize workflows." },
   { title: "Prepare delivery", detail: "Train trainers, select farmers, collect contributions, and run the baseline survey." },

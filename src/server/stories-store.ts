@@ -10,6 +10,7 @@ import { aiAllowed } from "@/server/limits";
 import { loadProjectState, saveProjectState } from "@/server/project-state";
 import { loadQpr, saveQpr } from "@/server/qpr-store";
 import { loadResults, loadUpdates } from "@/server/results-store";
+import { ROP_VOICE } from "@/lib/voice";
 
 /** Success stories, in project_state ("stories"). Every change is in the audit trail. */
 
@@ -34,10 +35,11 @@ export async function storiesView(code: string, u: AppUser) {
 }
 
 const SYSTEM = [
-  "You write short human interest stories for Roots of Peace, an NGO helping Afghan farmers and businesses, for a donor's quarterly report.",
+  "You write short human interest stories for Roots of Peace, which builds the agricultural trade systems Afghan farmers and agribusinesses work in, for a donor's quarterly report.",
   "Use only the facts given: the staff's interview notes and the linked records. Invent nothing: no quotes, numbers, feelings or outcomes that are not in the notes.",
-  "About 200 to 260 words, plain English, present the person with dignity, as someone acting, not a victim. Use the first name given; if none, write 'a farmer' or similar. Never a family name.",
-  "Name the district and province, not the village. Lead with what changed for the person, then what the project did, then a closing line from the notes.",
+  "About 200 to 260 words. Present the person with dignity, as an economic actor who invests, decides and builds, never as a victim or a recipient. Set the numbers beside the person: what they earn, grow or sell now, and what it means at home, only as far as the notes say. Use the first name given; if none, write 'a farmer' or similar. Never a family name.",
+  "Name the district and province, not the village. Lead with what changed for the person, then what was built with them, then a closing line from the notes.",
+  ROP_VOICE,
 ].join(" ");
 const draftSchema = z.object({ title: z.string(), story: z.string(), questions: z.array(z.string()).describe("Facts to confirm with the field team before use. Empty if none.") });
 

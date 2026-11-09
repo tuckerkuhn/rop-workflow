@@ -10,6 +10,7 @@ import { loadFramework } from "@/server/framework-store";
 import { loadHome } from "@/server/home-store";
 import { loadProcurements } from "@/server/procurement-store";
 import { loadProgressSummary } from "@/server/progress-summary-store";
+import { ROP_VOICE } from "@/lib/voice";
 
 /**
  * The AI assistant: answers a staff member's question about one project from the same records
@@ -52,7 +53,9 @@ Rules:
 - Say "accepted results" when you give counts: only results MEL accepted count. Mention results still waiting for MEL when it changes the picture.
 - Be brief and plain: short sentences, no jargon, no headings. A list only when the answer is a list.
 - When asked to draft text (for a report or an email), draft it from the facts, mark anything that needs checking in [square brackets], and remind them a person checks it before it goes out.
-- You do not change anything in the app. If asked to, say which page to do it on.`;
+- You do not change anything in the app. If asked to, say which page to do it on.
+
+${ROP_VOICE}`;
 
 export async function factsFor(code: string, u: AppUser) {
   const project = await projectByCode(code);
