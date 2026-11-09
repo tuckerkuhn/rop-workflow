@@ -2,7 +2,7 @@ import { and, asc, eq } from "drizzle-orm";
 import ExcelJS from "exceljs";
 import { db, schema as s } from "@/db";
 import { activityOf, yearShare } from "@/lib/qpr";
-import { proofCount, quarterOf, quarterRange } from "@/lib/results";
+import { proofCount, quarterOf } from "@/lib/results";
 import { projectByCode } from "@/server/field-store";
 import { loadResults } from "@/server/results-store";
 
@@ -77,26 +77,4 @@ export async function trackingTable(code: string, year: number): Promise<Buffer>
   return Buffer.from(await wb.xlsx.writeBuffer());
 }
 
-/** The evidence annex's index for a quarter: every accepted result, by indicator, with its files and links. */
-export async function evidenceIndex(code: string, quarter: string) {
-  const { project, rows } = await indicatorsOf(code);
-  const { from, to } = quarterRange(quarter);
-  const results = (await loadResults(code)).filter((r) => r.status === "accepted" && r.date >= from && r.date <= to);
-  return {
-    project: { code: project.code, name: project.name },
-    quarter,
-    indicators: rows
-      .map((i) => ({
-        code: i.code,
-        donorCode: i.donorCode ?? i.code,
-        name: i.name,
-        unit: i.unit,
-        results: results
-          .filter((r) => r.indicator === i.code)
-          .sort((a, b) => a.date.localeCompare(b.date))
-          .map((r) => ({ id: r.id, date: r.date, value: r.value, province: r.province ?? "", district: r.district ?? "", note: r.note, files: r.files.map((f) => ({ hash: f.hash, name: f.name, type: f.type, caption: r.captions?.[f.hash] ?? "" })), links: r.links ?? [] })),
-      }))
-      .filter((i) => i.results.length),
-  };
-}
-export type EvidenceIndex = Awaited<ReturnType<typeof evidenceIndex>>;
+

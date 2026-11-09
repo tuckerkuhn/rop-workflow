@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { MoneySourceLink } from "@/components/progress/proof-panel";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser } from "@/components/app/session";
 import { Pill, TopBar } from "@/components/workspace/ui";
@@ -80,6 +81,11 @@ export function BudgetPage() {
                 </div>
               ))}
             </dl>
+            {user && (
+              <p className="mt-2">
+                <MoneySourceLink project={project.id} user={user.id} />
+              </p>
+            )}
 
             {flagged > 0 && (
               <p className="mt-4 rounded-xl bg-sunken px-4 py-3 text-sm">

@@ -58,6 +58,11 @@ export default async function Page({ params }: { params: Promise<{ code: string;
                       <span className="font-semibold tabular-nums">{n(x.value)}</span> {r.unit} · {x.date}
                       {x.place ? ` · ${x.place}` : ""}
                     </p>
+                    {x.accepted && (
+                      <p className="text-xs text-muted">
+                        Accepted by {x.accepted.by} on {day(x.accepted.on)}
+                      </p>
+                    )}
                     {x.photos.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-3">
                         {x.photos.map((p) => (

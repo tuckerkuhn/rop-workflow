@@ -3,6 +3,7 @@
 /* eslint-disable @next/next/no-img-element */
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { ProofNumber } from "@/components/progress/proof-panel";
 import type { FamiliesView } from "@/server/families";
 
 /**
@@ -51,7 +52,9 @@ export function Families({ project, user, mayWriteStory }: { project: string; us
             {v.results.map((r) => (
               <li key={r.code}>
                 <p className="text-base leading-snug">
-                  <span className="font-display text-2xl tabular-nums">{n(r.value)}</span> <span className="font-semibold">{r.unit}</span>
+                  <ProofNumber project={project} user={user} indicator={r.indicator} from={v.range.from} to={v.range.to} value={r.value} records={r.records} proof={r.proof} className="font-display text-2xl tabular-nums">
+                    {n(r.value)}
+                  </ProofNumber> <span className="font-semibold">{r.unit}</span>
                   <span className="text-muted"> · {r.what}</span>
                 </p>
                 {(r.women > 0 || r.men > 0) && (

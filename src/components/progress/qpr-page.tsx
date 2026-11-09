@@ -14,6 +14,7 @@ import { ShareLinks } from "@/components/progress/share-links";
 import { ClaimCheckPanel } from "@/components/progress/claim-check";
 import { ReportDownloads } from "@/components/progress/downloads";
 import { beforeDownload, PreflightButton, usePreflight } from "@/components/progress/preflight-page";
+import { MoneySourceLink, ProofNumber } from "@/components/progress/proof-panel";
 import { useT } from "@/components/app/i18n";
 import { quarterOf, quarterRange } from "@/lib/results";
 import type { QprView } from "@/app/api/projects/[code]/qpr/route";
@@ -293,7 +294,7 @@ export function QprPage() {
               </p>
             )}
 
-            <ReportDownloads project={project.id} quarter={quarter} user={user.id} mayEvidence={!!user.admin || user.project.some((r) => ["mel-owner", "report-release", "plan-approver", "monthly-review"].includes(r))} />
+            <ReportDownloads project={project.id} quarter={quarter} user={user.id} mayEvidence={!!user.admin || user.project.some((r) => ["mel-owner", "report-release", "plan-approver", "monthly-review"].includes(r))} mayAudit={!!user.admin || user.project.includes("mel-owner")} />
             <ClaimCheckPanel
               check={v.saved.claimCheck}
               sections={Object.fromEntries(Object.entries(v.saved.sections).map(([k, t]) => [k, t?.text ?? ""]))}
@@ -374,6 +375,8 @@ export function QprPage() {
 type Act = (a: QprPatch, msg: string) => Promise<void>;
 
 function InfoBox({ v, act, onImported }: { v: QprView; act: Act; onImported: () => void }) {
+  const { user } = useRequireUser();
+  const { project } = useCurrentProject();
   const to = quarterRange(v.quarter).to;
   const [f, setF] = useState(v.saved.info);
   const [spend, setSpend] = useState(v.saved.quarterSpend === null ? "" : String(v.saved.quarterSpend));
@@ -404,6 +407,9 @@ function InfoBox({ v, act, onImported }: { v: QprView; act: Act; onImported: () 
           <dt className="text-muted">Cumulative to {to}</dt>
           <dd className="font-semibold tabular-nums">
             {num(v.spend.cumulative)} {c}
+          </dd>
+          <dd>
+            <MoneySourceLink project={project.id} user={user?.id ?? ""} />
           </dd>
         </div>
         <div>
@@ -587,10 +593,13 @@ function IndicatorRow({ r, v, act }: { r: Row; v: QprView; act: Act }) {
   }, [r.status, r.comment]);
   const { from, to } = quarterRange(v.quarter);
   const yearFrom = `${v.quarter.slice(0, 4)}-01-01`;
-  const evidence = (f: string, text: string, records: number) => (
-    <Link href={`/progress/results?indicator=${r.code}&from=${f}&to=${to}`} className="font-semibold tabular-nums text-forest underline decoration-dotted underline-offset-4 hover:decoration-solid" title={`${records} accepted record${records === 1 ? "" : "s"}: open them`}>
-      {text}
-    </Link>
+  const { user } = useRequireUser();
+  const { project } = useCurrentProject();
+  // One tap opens the accepted results behind the figure and their proof (lib/evidence).
+  const evidence = (f: string, value: number, records: number, proof?: number) => (
+    <ProofNumber project={project.id} user={user?.id ?? ""} indicator={r.code} from={f} to={to} value={value} records={records} proof={proof}>
+      {num(value)}
+    </ProofNumber>
   );
   return (
     <tr className="align-top">
@@ -604,9 +613,9 @@ function IndicatorRow({ r, v, act }: { r: Row; v: QprView; act: Act }) {
         )}
       </td>
       <td className="py-2 pe-3 text-end tabular-nums">{num(r.yearTarget)}</td>
-      <td className="py-2 pe-3 text-end">{evidence(from, num(r.quarter), r.records.quarter)}</td>
+      <td className="py-2 pe-3 text-end">{evidence(from, r.quarter, r.records.quarter, r.records.files)}</td>
       <td className="py-2 pe-3 text-end">
-        {evidence(yearFrom, num(r.year), r.records.year)}
+        {evidence(yearFrom, r.year, r.records.year)}
         {r.yearTarget > 0 && <span className="block text-xs text-muted">{Math.round((r.year / r.yearTarget) * 100)}%</span>}
       </td>
       <td className="py-2 pe-3">
