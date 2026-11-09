@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Pill } from "@/components/workspace/ui";
 import { NextReportPanel } from "@/components/home/next-report";
+import { Families } from "@/components/home/families";
 import { GettingStarted } from "@/components/home/getting-started";
 import { HrHome } from "@/components/home/hr-home";
 import { useEffect, useState } from "react";
@@ -123,6 +124,8 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
 
   const lens: Lens = chosen && v.lenses.includes(chosen) ? chosen : v.lenses[0];
   const mine = v.actions.filter((a) => a.for === lens || (lens === "field" && a.for === "field")).sort((a, b) => Number(b.urgent) - Number(a.urgent));
+  // With nothing assigned, a field officer's next step is to record what happened this week.
+  const next = mine[0] ?? (lens === "field" ? { href: "/progress/weekly?new=1", text: "Add what happened this week to the weekly update" } : null);
   const s = v.schedule;
   const onTrack = s.counts.completed + s.counts.on_track;
   const late = s.counts.delayed + s.counts.not_implemented;
@@ -158,7 +161,9 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
       <div key="budget">{budgetTile}</div>,
       // What is waiting for the lead is listed beside the tiles; this tile is about evidence.
       <Tile key="count" label="Waiting to count" value={String(v.mel.pending + v.mel.queried)} level={v.mel.pending + v.mel.queried ? "warning" : "good"} href="/progress/results">
-        {v.mel.pending + v.mel.queried ? `${v.mel.pending} results waiting for MEL${v.mel.queried ? `, ${v.mel.queried} queried` : ""}: they count once accepted.` : "Every recorded result is checked."}
+        {v.mel.pending + v.mel.queried
+          ? `${v.mel.pending} results waiting for MEL${v.mel.queried ? `, ${v.mel.queried} queried` : ""}: they count once accepted.`
+          : "Every recorded result is checked."}
       </Tile>,
       <div key="deadline">{deadlineTile}</div>,
     ],
@@ -166,7 +171,13 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
       <Tile key="check" clear label="Results to check" value={String(v.mel.toCheck)} level={v.mel.toCheck ? "critical" : "good"} href="/progress/results">
         Recorded by others, waiting for you to accept or query.
       </Tile>,
-      <Tile key="ready" label={`${v.mel.quarter} report`} value={v.mel.stops ? `${v.mel.stops} to fix` : "Ready"} level={v.mel.stops ? "critical" : v.mel.checks ? "warning" : "good"} href="/progress/report">
+      <Tile
+        key="ready"
+        label={`${v.mel.quarter} report`}
+        value={v.mel.stops ? `${v.mel.stops} to fix` : "Ready"}
+        level={v.mel.stops ? "critical" : v.mel.checks ? "warning" : "good"}
+        href="/progress/report"
+      >
         {v.mel.stops} stop and {v.mel.checks} check items before release.
       </Tile>,
       <Tile key="proof" clear label="Missing proof" value={String(v.mel.noProof)} level={v.mel.noProof ? "warning" : "good"} href="/progress/results">
@@ -217,7 +228,9 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
   const headline: Record<Lens, string> = {
     hr: "",
     lead: `${v.project.short} is ${late ? `behind on ${late} ${late === 1 ? "indicator" : "indicators"}` : "on schedule"}: ${onTrack} of ${s.total} indicators done or on track${late ? "" : ", none late"}. It has spent ${pct(b.spentPct)} of its budget with ${pct(b.timePct)} of the time gone${b.overspent.length ? `, and ${b.overspent.length} ${b.overspent.length === 1 ? "line is" : "lines are"} overspent` : ""}.`,
-    mel: v.mel.toCheck ? `${v.mel.toCheck} ${v.mel.toCheck === 1 ? "result is" : "results are"} waiting for you to check, and the ${v.mel.quarter} report has ${v.mel.stops} ${v.mel.stops === 1 ? "item" : "items"} to fix before release.` : `No results are waiting for you; the ${v.mel.quarter} report has ${v.mel.stops} ${v.mel.stops === 1 ? "item" : "items"} to fix before release.`,
+    mel: v.mel.toCheck
+      ? `${v.mel.toCheck} ${v.mel.toCheck === 1 ? "result is" : "results are"} waiting for you to check, and the ${v.mel.quarter} report has ${v.mel.stops} ${v.mel.stops === 1 ? "item" : "items"} to fix before release.`
+      : `No results are waiting for you; the ${v.mel.quarter} report has ${v.mel.stops} ${v.mel.stops === 1 ? "item" : "items"} to fix before release.`,
     finance: `Spending is imported to ${monthWord(b.importedTo)}: ${pct(b.spentPct)} spent with ${pct(b.timePct)} of the time gone, ${b.flagged} budget ${b.flagged === 1 ? "line" : "lines"} to explain.`,
     procurement: `${v.season.purchases.length} ${v.season.purchases.length === 1 ? "purchase starts" : "purchases start"} in the next 60 days; spending is at ${pct(b.spentPct)} of the budget.`,
     field: (() => {
@@ -233,7 +246,14 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
     v.lenses.length > 1 ? (
       <div role="radiogroup" aria-label="View Home as" className="flex rounded-full bg-sunken p-1 text-sm">
         {v.lenses.map((l) => (
-          <button key={l} type="button" role="radio" aria-checked={l === lens} onClick={() => setChosen(l)} className={`rounded-full px-3 py-1 ${l === lens ? "bg-surface font-semibold shadow-sm" : "text-muted hover:text-ink"}`}>
+          <button
+            key={l}
+            type="button"
+            role="radio"
+            aria-checked={l === lens}
+            onClick={() => setChosen(l)}
+            className={`rounded-full px-3 py-1 ${l === lens ? "bg-surface font-semibold shadow-sm" : "text-muted hover:text-ink"}`}
+          >
             {LENS_LABEL[l]}
           </button>
         ))}
@@ -250,7 +270,6 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
   return (
     <section aria-label="Where things stand" className="space-y-5">
       <GettingStarted project={project.id} user={user.id} />
-      <NextReportPanel project={project.id} user={user.id} />
       <div className="flex flex-wrap items-start gap-3">
         <p className="min-w-0 flex-1 text-lg leading-snug">
           {headline[lens]}
@@ -263,130 +282,162 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
         {switcher}
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{tiles[lens]}</div>
+      <Families
+        project={project.id}
+        user={user.id}
+        mayWriteStory={user.fieldAccess === "edit" || !!user.admin || user.project.some((r) => ["mel-owner", "plan-approver", "monthly-review", "report-release"].includes(r))}
+      />
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-        <section className={`min-w-0 rounded-2xl border border-line bg-surface p-4 ${mine.length || (lens === "lead" && (late > 0 || b.overspent.length > 0)) ? "" : "self-start"}`} aria-labelledby="needs-you">
-          <h2 id="needs-you" className="font-display text-xl">
-            Needs you
-          </h2>
-          {mine.length === 0 ? (
-            <p className="mt-2 text-sm text-muted">Nothing is waiting for you in this view.</p>
-          ) : (
-            <ul className="mt-2 divide-y divide-line">
-              {mine.map((a) => (
-                <li key={a.key}>
-                  <Link href={a.href} className="flex items-center gap-3 py-2.5 text-sm hover:text-forest">
-                    <span aria-hidden className={`h-2 w-2 shrink-0 rounded-full ${a.urgent ? "bg-clay" : "bg-ochre"}`} />
-                    <span className="flex-1">{a.text}</span>
-                    {a.urgent && <span className="rounded-full bg-clay-soft px-2 py-0.5 text-xs font-semibold text-clay">Now</span>}
-                    <span aria-hidden className="text-muted rtl:rotate-180">
-                      ›
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-          {lens === "lead" && (late > 0 || b.overspent.length > 0) && (
-            <div className="mt-3 space-y-1 border-t border-line pt-3 text-sm">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Off plan</p>
-              {s.late.map((i) => (
-                <p key={i.code} className="flex gap-2">
-                  <span className="shrink-0 font-mono text-xs text-muted">{i.code}</span>
-                  <span className="min-w-0 truncate" title={i.name}>
-                    {i.name}
-                  </span>
-                  <span className="shrink-0 tabular-nums text-clay">
-                    {i.achieved} of {i.target}
-                  </span>
-                </p>
-              ))}
-              {b.overspent.map((l) => (
-                <Link key={l.code} href="/progress/budget" className="flex gap-2 hover:text-forest">
-                  <span className="shrink-0 font-mono text-xs text-muted">{l.code}</span>
-                  <span className="min-w-0 truncate" title={l.description}>
-                    {l.description}
-                  </span>
-                  <span className="shrink-0 tabular-nums text-clay">{pct(l.spentPct)} spent</span>
-                </Link>
-              ))}
-            </div>
-          )}
-        </section>
+      {/* The one thing to do next; the rest of the list is under More. */}
+      {next && (
+        <Link href={next.href} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl border border-forest/40 bg-mist px-4 py-3 hover:border-forest">
+          <span className="w-full text-xs font-semibold uppercase tracking-wide text-forest sm:w-auto">Your next step</span>
+          <span className="min-w-0 flex-1 font-semibold">{next.text}</span>
+          {mine.length > 1 && <span className="hidden text-xs text-muted sm:inline">and {mine.length - 1} more below</span>}
+          <span aria-hidden className="text-forest rtl:rotate-180">
+            →
+          </span>
+        </Link>
+      )}
 
-        <section className="min-w-0 rounded-2xl border border-line bg-surface p-4" aria-labelledby="season">
-          {(() => {
-            const now = v.season.now;
-            const done = now.filter((a) => a.status === "done").length;
-            const moving = now.filter((a) => a.status === "in_progress").length;
-            const idle = now.filter((a) => a.status === "not_started").length;
-            const held = now.filter((a) => a.status === "on_hold").length;
-            const unowned = now.filter((a) => !a.owner && a.status !== "done" && a.status !== "cancelled").length;
-            const parts = [moving && `${moving} under way`, done && `${done} done`, idle && `${idle} not started`, held && `${held} on hold`].filter(Boolean).join(", ");
-            return (
-              <>
-                <h2 id="season" className="font-display text-xl">
-                  This quarter&rsquo;s work
-                </h2>
-                {now.length === 0 ? (
-                  <p className="mt-2 text-sm text-muted">The workplan schedules nothing for {v.season.quarter}.</p>
-                ) : (
-                  <>
-                    <p className="mt-1 text-sm">
-                      <span className="font-semibold">
-                        {now.length} {now.length === 1 ? "activity" : "activities"} due by {dayWord(v.season.quarterEnd)}, {v.season.weeksLeft} {v.season.weeksLeft === 1 ? "week" : "weeks"} left.
-                      </span>{" "}
-                      {parts}
-                      {unowned ? `; ${unowned === now.length ? "none has an owner" : `${unowned} ${unowned === 1 ? "has" : "have"} no owner`}` : ""}.
+      <NextReportPanel project={project.id} user={user.id} owners={lens === "lead" ? undefined : lens === "mel" ? ["mel", "writers"] : lens === "field" ? ["field"] : lens === "finance" ? ["finance"] : []} />
+
+      <div className="grid gap-3 sm:grid-cols-2">{tiles[lens].slice(0, 2)}</div>
+
+      <details className="group rounded-2xl border border-line bg-surface">
+        <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-forest">
+          <span className="group-open:hidden">More: everything waiting for you, and this quarter&rsquo;s work ▾</span>
+          <span className="hidden group-open:inline">Less ▴</span>
+        </summary>
+        <div className="space-y-4 px-4 pb-4">
+          {tiles[lens].length > 2 && <div className="grid gap-3 sm:grid-cols-2">{tiles[lens].slice(2)}</div>}
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+            <section
+              className={`min-w-0 rounded-2xl border border-line bg-surface p-4 ${mine.length || (lens === "lead" && (late > 0 || b.overspent.length > 0)) ? "" : "self-start"}`}
+              aria-labelledby="needs-you"
+            >
+              <h2 id="needs-you" className="font-display text-xl">
+                Needs you
+              </h2>
+              {mine.length === 0 ? (
+                <p className="mt-2 text-sm text-muted">Nothing is waiting for you in this view.</p>
+              ) : (
+                <ul className="mt-2 divide-y divide-line">
+                  {mine.map((a) => (
+                    <li key={a.key}>
+                      <Link href={a.href} className="flex items-center gap-3 py-2.5 text-sm hover:text-forest">
+                        <span aria-hidden className={`h-2 w-2 shrink-0 rounded-full ${a.urgent ? "bg-clay" : "bg-ochre"}`} />
+                        <span className="flex-1">{a.text}</span>
+                        {a.urgent && <span className="rounded-full bg-clay-soft px-2 py-0.5 text-xs font-semibold text-clay">Now</span>}
+                        <span aria-hidden className="text-muted rtl:rotate-180">
+                          ›
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {lens === "lead" && (late > 0 || b.overspent.length > 0) && (
+                <div className="mt-3 space-y-1 border-t border-line pt-3 text-sm">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Off plan</p>
+                  {s.late.map((i) => (
+                    <p key={i.code} className="flex gap-2">
+                      <span className="shrink-0 font-mono text-xs text-muted">{i.code}</span>
+                      <span className="min-w-0 truncate" title={i.name}>
+                        {i.name}
+                      </span>
+                      <span className="shrink-0 tabular-nums text-clay">
+                        {i.achieved} of {i.target}
+                      </span>
                     </p>
-                    <ul className="mt-3 divide-y divide-line">
-                      {now.map((a) => {
-                        const st =
-                          a.status === "done"
-                            ? { tone: "forest" as const, text: "Done" }
-                            : a.status === "in_progress"
-                              ? { tone: "sky" as const, text: "Under way" }
-                              : a.status === "on_hold"
-                                ? { tone: "clay" as const, text: "On hold" }
-                                : a.status === "cancelled"
-                                  ? { tone: "muted" as const, text: "Cancelled" }
-                                  : { tone: "ochre" as const, text: "Not started" };
-                        return (
-                          <li key={a.code} className="py-2">
-                            <p className="line-clamp-2 text-sm leading-snug" title={a.title}>
-                              {a.title}
-                            </p>
-                            <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
-                              <Pill tone={st.tone}>{st.text}</Pill>
-                              <span className={a.owner ? "" : "text-clay"}>{a.owner ?? "No owner"}</span>
-                              {a.result && (
-                                <span className="tabular-nums">
-                                  · {compact(a.result.achieved)} of {compact(a.result.target)} {a.result.unit} this year
-                                </span>
-                              )}
-                            </p>
-                          </li>
-                        );
-                      })}
-                    </ul>
+                  ))}
+                  {b.overspent.map((l) => (
+                    <Link key={l.code} href="/progress/budget" className="flex gap-2 hover:text-forest">
+                      <span className="shrink-0 font-mono text-xs text-muted">{l.code}</span>
+                      <span className="min-w-0 truncate" title={l.description}>
+                        {l.description}
+                      </span>
+                      <span className="shrink-0 tabular-nums text-clay">{pct(l.spentPct)} spent</span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section className="min-w-0 rounded-2xl border border-line bg-surface p-4" aria-labelledby="season">
+              {(() => {
+                const now = v.season.now;
+                const done = now.filter((a) => a.status === "done").length;
+                const moving = now.filter((a) => a.status === "in_progress").length;
+                const idle = now.filter((a) => a.status === "not_started").length;
+                const held = now.filter((a) => a.status === "on_hold").length;
+                const unowned = now.filter((a) => !a.owner && a.status !== "done" && a.status !== "cancelled").length;
+                const parts = [moving && `${moving} under way`, done && `${done} done`, idle && `${idle} not started`, held && `${held} on hold`].filter(Boolean).join(", ");
+                return (
+                  <>
+                    <h2 id="season" className="font-display text-xl">
+                      This quarter&rsquo;s work
+                    </h2>
+                    {now.length === 0 ? (
+                      <p className="mt-2 text-sm text-muted">The workplan schedules nothing for {v.season.quarter}.</p>
+                    ) : (
+                      <>
+                        <p className="mt-1 text-sm">
+                          <span className="font-semibold">
+                            {now.length} {now.length === 1 ? "activity" : "activities"} due by {dayWord(v.season.quarterEnd)}, {v.season.weeksLeft} {v.season.weeksLeft === 1 ? "week" : "weeks"} left.
+                          </span>{" "}
+                          {parts}
+                          {unowned ? `; ${unowned === now.length ? "none has an owner" : `${unowned} ${unowned === 1 ? "has" : "have"} no owner`}` : ""}.
+                        </p>
+                        <ul className="mt-3 divide-y divide-line">
+                          {now.map((a) => {
+                            const st =
+                              a.status === "done"
+                                ? { tone: "forest" as const, text: "Done" }
+                                : a.status === "in_progress"
+                                  ? { tone: "sky" as const, text: "Under way" }
+                                  : a.status === "on_hold"
+                                    ? { tone: "clay" as const, text: "On hold" }
+                                    : a.status === "cancelled"
+                                      ? { tone: "muted" as const, text: "Cancelled" }
+                                      : { tone: "ochre" as const, text: "Not started" };
+                            return (
+                              <li key={a.code} className="py-2">
+                                <p className="line-clamp-2 text-sm leading-snug" title={a.title}>
+                                  {a.title}
+                                </p>
+                                <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
+                                  <Pill tone={st.tone}>{st.text}</Pill>
+                                  <span className={a.owner ? "" : "text-clay"}>{a.owner ?? "No owner"}</span>
+                                  {a.result && (
+                                    <span className="tabular-nums">
+                                      · {compact(a.result.achieved)} of {compact(a.result.target)} {a.result.unit} this year
+                                    </span>
+                                  )}
+                                </p>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </>
+                    )}
+                    <p className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                      <Link href="/work/activities" className="font-semibold text-forest hover:underline">
+                        {unowned && v.lenses.includes("lead") ? "Assign owners" : "Open activities"} →
+                      </Link>
+                      {v.season.next.length > 0 && (
+                        <span className="text-muted">
+                          {v.season.next.length} more start in {v.season.nextQuarter}
+                        </span>
+                      )}
+                    </p>
                   </>
-                )}
-                <p className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-                  <Link href="/work/activities" className="font-semibold text-forest hover:underline">
-                    {unowned && v.lenses.includes("lead") ? "Assign owners" : "Open activities"} →
-                  </Link>
-                  {v.season.next.length > 0 && (
-                    <span className="text-muted">
-                      {v.season.next.length} more start in {v.season.nextQuarter}
-                    </span>
-                  )}
-                </p>
-              </>
-            );
-          })()}
-        </section>
-      </div>
+                );
+              })()}
+            </section>
+          </div>
+        </div>
+      </details>
     </section>
   );
 }
