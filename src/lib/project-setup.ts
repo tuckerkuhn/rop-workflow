@@ -11,6 +11,8 @@ const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 export const indicatorInputSchema = z.object({
   /** Present for indicators that already exist; new ones get the next IND-n. */
   code: z.string().max(20).optional(),
+  /** The donor's own number for it, e.g. "1.1.1.3": its first three parts give the activity. */
+  donorCode: z.string().trim().max(30).optional(),
   name: z.string().trim().min(1).max(200),
   unit: z.string().trim().min(1).max(50),
   target: z.number().positive().max(1e12),

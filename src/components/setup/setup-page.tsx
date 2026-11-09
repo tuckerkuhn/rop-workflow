@@ -14,6 +14,7 @@ import { TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { canEditProject } from "@/lib/demo";
 import { localeOf, type MessageKey } from "@/lib/i18n";
 import { SignedOffBanner, changeReasonHeader } from "@/components/setup/change-reason";
+import { FromDocuments } from "@/components/setup/from-documents";
 import { LIBRARY, THEMES, THEME_LABEL } from "@/lib/indicator-library";
 import { COUNTRIES, projectDesignSchema, type IndicatorInput, type ProjectDesign } from "@/lib/project-setup";
 import { projectYears } from "@/lib/progress";
@@ -82,6 +83,7 @@ function Wizard({ code: initialCode, first }: { code: string | null; first: Step
   const [step, setStep] = useState<Step>(first);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [fromDocs, setFromDocs] = useState<string[] | null>(null);
 
   // Editing: start from the saved design.
   useEffect(() => {
@@ -162,6 +164,30 @@ function Wizard({ code: initialCode, first }: { code: string | null; first: Step
       <p className="mt-2 text-xs text-muted">{t("setup.stepOf", { n: index + 1, total: steps.length })}</p>
 
       <div className="mt-6">
+        {step === "name" && !code && user && (
+          <FromDocuments
+            user={user.id}
+            onProposal={(patch, questions) => {
+              set(patch);
+              setFromDocs(questions);
+            }}
+          />
+        )}
+        {fromDocs && (
+          <div className="mb-6 rounded-2xl border border-line bg-surface p-4 text-sm">
+            <p className="font-semibold">Filled in from the documents: check each step before saving.</p>
+            {fromDocs.length > 0 && (
+              <>
+                <p className="mt-2 text-muted">To settle:</p>
+                <ul className="mt-1 list-disc ps-5">
+                  {fromDocs.map((q) => (
+                    <li key={q}>{q}</li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </div>
+        )}
         {step === "name" && (
           <Question title={t("setup.q.name")} help={t("setup.h.name")}>
             <input value={draft.name} onChange={(e) => set({ name: e.target.value })} maxLength={200} autoFocus className={field} aria-label={t("setup.q.name")} />

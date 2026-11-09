@@ -21,6 +21,8 @@ export const es: Messages = {
   "nav.weekly": "Informe semanal",
   "nav.quarterly": "Informe trimestral",
   "nav.annual": "Anual y final",
+  "nav.face": "Formulario FACE",
+  "nav.stories": "Historias de éxito",
 
   "project.label": "Proyecto",
 

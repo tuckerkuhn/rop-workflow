@@ -21,6 +21,8 @@ export const fa: Messages = {
   "nav.weekly": "گزارش هفته‌وار",
   "nav.quarterly": "گزارش ربعوار",
   "nav.annual": "سالانه و نهایی",
+  "nav.face": "فورم FACE",
+  "nav.stories": "داستان های موفقیت",
 
   "project.label": "پروژه",
 
