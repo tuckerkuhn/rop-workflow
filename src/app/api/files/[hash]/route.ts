@@ -9,6 +9,8 @@ import { onProject, requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
 import { loadFile } from "@/server/hr-files";
 import { loadHr } from "@/server/hr-store";
+import type { Story } from "@/lib/stories";
+import { mayApproveStory } from "@/server/stories-store";
 
 /**
  * A receipt, for the person who uploaded it, anyone holding an HR role, the person whose report
@@ -61,6 +63,23 @@ export async function GET(req: Request, { params }: { params: Promise<{ hash: st
             .where(and(inArray(s.evidence.form, ["result", "update"]), sql`${s.evidence.payload}::text like ${`%${hash}%`}`))
             .limit(5);
           ok = rows.some((r) => !!r.code && onProject(v.user, r.code));
+        }
+        // A success story's photo: staff on that project. Its signed consent form (a name and a
+        // signature): only the story's author, MEL and programme leads.
+        if (!ok) {
+          const found = await db
+            .select({ code: s.projects.code, data: s.projectState.data })
+            .from(s.projectState)
+            .innerJoin(s.projects, eq(s.projects.id, s.projectState.projectId))
+            .where(and(eq(s.projectState.key, "stories"), sql`${s.projectState.data}::text like ${`%${hash}%`}`))
+            .limit(5);
+          for (const row of found) {
+            if (!row.code || !onProject(v.user, row.code)) continue;
+            const stories = ((row.data as { stories?: Story[] }).stories ?? []);
+            const asForm = stories.find((st) => st.consent?.form === hash);
+            if (asForm) ok ||= asForm.by === me || mayApproveStory(v.user);
+            else ok ||= stories.some((st) => st.photos.some((ph) => ph.hash === hash));
+          }
         }
       }
     }

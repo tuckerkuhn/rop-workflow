@@ -6,6 +6,7 @@ import { useRequireUser, useSession } from "@/components/app/session";
 import { Pill, TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { SOURCES, type OppAction, type Opportunity } from "@/lib/opportunities";
 import type { OpportunitiesView } from "@/server/opportunities-store";
+import { TrackRecordButton } from "@/components/work/track-record-button";
 
 /** Develop: opportunities, their framing and match brief, and the match call. */
 
@@ -272,6 +273,7 @@ export function OpportunitiesPage() {
         </Link>
         <div className="mt-2 flex flex-wrap items-end gap-3">
           <h1 className="min-w-0 flex-1 font-display text-4xl tracking-tight">Opportunities</h1>
+          {v && <TrackRecordButton user={user.id} />}
           {v?.can.add && !adding && (
             <button type="button" className={primaryBtn} onClick={() => setAdding(true)}>
               + Record an opportunity

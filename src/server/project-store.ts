@@ -26,7 +26,7 @@ export async function projectDesign(code: string) {
   const inds = await db.select().from(s.indicators).where(eq(s.indicators.projectId, p.id)).orderBy(asc(s.indicators.position));
   return {
     ...summary(p),
-    indicators: inds.map((i) => ({ code: i.code, name: i.name, unit: i.unit, target: Number(i.target), level: i.level, frequency: i.frequency, forecast: i.forecast, theme: (THEMES as readonly string[]).includes(i.theme ?? "") ? (i.theme as ImpactTheme) : null })),
+    indicators: inds.map((i) => ({ code: i.code, ...(i.donorCode ? { donorCode: i.donorCode } : {}), name: i.name, unit: i.unit, target: Number(i.target), level: i.level, frequency: i.frequency, forecast: i.forecast, theme: (THEMES as readonly string[]).includes(i.theme ?? "") ? (i.theme as ImpactTheme) : null })),
   };
 }
 
@@ -53,10 +53,11 @@ async function syncIndicators(tx: Parameters<Parameters<typeof db.transaction>[0
   let next = Math.max(0, ...existing.map((e) => Number(e.code.replace(/^IND-/, "")) || 0)) + 1;
   for (const [position, i] of list.entries()) {
     // A theme left out (older clients) keeps what is stored; null clears it.
-    const fields = { name: i.name, unit: i.unit, target: String(i.target), forecast: i.forecast ?? {}, level: i.level, frequency: i.frequency, position, updatedAt: new Date(), ...(i.theme !== undefined ? { theme: i.theme } : {}) };
+    const fields = { name: i.name, unit: i.unit, target: String(i.target), forecast: i.forecast ?? {}, level: i.level, frequency: i.frequency, position, updatedAt: new Date(), ...(i.theme !== undefined ? { theme: i.theme } : {}), ...(i.donorCode !== undefined ? { donorCode: i.donorCode || null } : {}) };
     if (i.code && keep.includes(i.code)) await tx.update(s.indicators).set(fields).where(and(mine, eq(s.indicators.code, i.code)));
-    // New indicators count from a KoboToolbox question once one is mapped.
-    else await tx.insert(s.indicators).values({ ...fields, projectId, code: `IND-${next++}`, source: "kobo" });
+    // New indicators take results with proof, checked by MEL; a KoboToolbox question mapped to one
+    // turns its submissions into those results (server/kobo-results.ts).
+    else await tx.insert(s.indicators).values({ ...fields, projectId, code: `IND-${next++}`, source: "results" });
   }
 }
 

@@ -21,6 +21,8 @@ export const ps: Messages = {
   "nav.weekly": "اونیز راپور",
   "nav.quarterly": "درې میاشتنی راپور",
   "nav.annual": "کلنی او وروستی",
+  "nav.face": "د FACE فورمه",
+  "nav.stories": "د بریالیتوب کیسې",
 
   "project.label": "پروژه",
 

@@ -19,6 +19,8 @@ export const en = {
   "nav.weekly": "Weekly update",
   "nav.quarterly": "Quarterly report",
   "nav.annual": "Annual and final",
+  "nav.face": "FACE form",
+  "nav.stories": "Success stories",
 
   "project.label": "Project",
 
