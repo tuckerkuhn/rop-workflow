@@ -6,6 +6,8 @@ import { logAudit } from "@/server/audit";
 import { requireViewer } from "@/server/auth";
 import { projectByCode } from "@/server/field-store";
 import { handle } from "@/server/guard";
+import { blockers } from "@/lib/preflight";
+import { preflight } from "@/server/preflight";
 import { holdsRole } from "@/server/hr-store";
 import { faceView, faceWorkbook, loadFace, saveFace } from "@/server/face-store";
 
@@ -32,8 +34,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
     }
     const view = await faceView(code, month);
     if (q.get("download") === "1") {
-      const buf = await faceWorkbook(view);
-      return new NextResponse(new Uint8Array(buf), { headers: { "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "Content-Disposition": `attachment; filename="FACE ${view.project.name.replace(/[^\w ()-]/g, "")} ${month}.xlsx"` } });
+      // Marked as a draft while pre-flight still lists blockers (the page asks first and records it).
+      const draft = blockers(await preflight(code, { kind: "face", month }));
+      const buf = await faceWorkbook(view, draft);
+      return new NextResponse(new Uint8Array(buf), { headers: { "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "Content-Disposition": `attachment; filename="FACE ${view.project.name.replace(/[^\w ()-]/g, "")} ${month}${draft ? " DRAFT not checked" : ""}.xlsx"` } });
     }
     return NextResponse.json(view);
   });

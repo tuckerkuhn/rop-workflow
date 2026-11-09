@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useT } from "@/components/app/i18n";
+import { beforeDownload, PreflightButton, usePreflight } from "@/components/progress/preflight-page";
 import { useCallback, useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser, useSession } from "@/components/app/session";
@@ -64,6 +66,8 @@ export function FacePage() {
   useEffect(() => {
     if (ready && user && project.saved) void load("");
   }, [ready, user, project.saved, load]);
+  const { t } = useT();
+  const pf = usePreflight(project.id, user?.id, /^\d{4}-\d{2}$/.test(month) ? { kind: "face", month } : null, v);
   if (!user) return null;
   const post = async (body: FacePatch, msg: string) => {
     setError("");
@@ -214,6 +218,7 @@ export function FacePage() {
                   href={`${url}?month=${month}&download=1`}
                   onClick={async (e) => {
                     e.preventDefault();
+                    if ((await beforeDownload(project.id, user.id, pf, (n) => t("pf.draftConfirm", { n }))) === null) return;
                     const r = await fetch(`${url}?month=${month}&download=1`, { headers: { "x-demo-user": user.id } });
                     if (!r.ok) return setError("Could not make the file.");
                     const link = document.createElement("a");
@@ -224,6 +229,7 @@ export function FacePage() {
                 >
                   Download for Excel
                 </a>
+                <PreflightButton p={pf} report={{ kind: "face", month }} className={quietBtn} />
                 <span className="text-xs text-muted">The download uses what is saved: save first.</span>
               </div>
             </section>

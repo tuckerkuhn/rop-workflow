@@ -1,6 +1,7 @@
 import type { Messages } from "./en";
 import { tsFa } from "./hr/timesheet";
 import { actFa } from "./activities";
+import { pfFa } from "./preflight";
 import { lvFa } from "./hr/leave";
 import { expFa } from "./hr/expense";
 
@@ -476,5 +477,6 @@ export const fa: Messages = {
   ...tsFa,
   ...lvFa,
   ...actFa,
+  ...pfFa,
   ...expFa,
 };

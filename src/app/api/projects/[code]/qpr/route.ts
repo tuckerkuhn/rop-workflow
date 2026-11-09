@@ -5,6 +5,7 @@ import { mergeQuestions, qprPatchSchema, SECTIONS, type Qpr } from "@/lib/qpr";
 import { requireViewer } from "@/server/auth";
 import { DraftingUnavailable } from "@/server/ai-drafts";
 import { handle } from "@/server/guard";
+import { preflight } from "@/server/preflight";
 import { aiAllowed } from "@/server/limits";
 import { holdsRole } from "@/server/hr-store";
 import { draftQpr } from "@/server/qpr-drafts";
@@ -111,8 +112,9 @@ export async function POST(req: Request, { params }: Ctx) {
     }
     if (a.action === "release") {
       if (!mayRelease(u)) return NextResponse.json({ error: "Only the person who releases reports can mark it final." }, { status: 403 });
-      const stops = d.checks.filter((c) => c.level === "stop");
-      if (stops.length) return NextResponse.json({ error: `Fix these first: ${stops.map((c) => c.text).join(" ")}` }, { status: 409 });
+      // Pre-flight (server/preflight) includes every "stop" in the report's own checks, and more.
+      const blocks = (await preflight(code, { kind: "qpr", quarter: q })).items.filter((i) => i.group === "blocks");
+      if (blocks.length) return NextResponse.json({ error: `Pre-flight lists what blocks the report; fix these first: ${blocks.map((c) => c.text).join("; ")}.` }, { status: 409 });
       next.released = { by: u.id, at: now };
       // The copy the donor receives: shown and downloaded from now on, whatever changes later.
       await addCopy(code, q, { kind: "release", by: u.id, at: now, work: await reportWork(code, q), data: copyOf({ ...d, saved: next }) });

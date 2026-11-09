@@ -13,6 +13,8 @@ import { formatMinutes } from "@/lib/report-copy";
 import { ShareLinks } from "@/components/progress/share-links";
 import { ClaimCheckPanel } from "@/components/progress/claim-check";
 import { ReportDownloads } from "@/components/progress/downloads";
+import { beforeDownload, PreflightButton, usePreflight } from "@/components/progress/preflight-page";
+import { useT } from "@/components/app/i18n";
 import { quarterOf, quarterRange } from "@/lib/results";
 import type { QprView } from "@/app/api/projects/[code]/qpr/route";
 
@@ -70,6 +72,10 @@ export function QprPage() {
   const [questions, setQuestions] = useState<string[]>([]);
   const copyAt = params.get("copy");
   const url = `/api/projects/${project.id}/qpr?q=${quarter}${copyAt ? `&copy=${encodeURIComponent(copyAt)}` : ""}`;
+  const { t } = useT();
+  // Pre-flight: refreshed every time the report changes, so the count on the buttons is current.
+  const pf = usePreflight(project.id, user?.id, { kind: "qpr", quarter }, v);
+  const blocking = pf && !pf.released ? pf.items.filter((i) => i.group === "blocks").length : 0;
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -129,14 +135,17 @@ export function QprPage() {
     return out;
   };
   const download = async () => {
-    if (!v) return;
+    if (!v || !user) return;
+    // A copy (released or practice) is downloaded as it was; the live draft goes through pre-flight first.
+    const draft = v.frozen ? 0 : await beforeDownload(project.id, user.id, pf, (n) => t("pf.draftConfirm", { n }));
+    if (draft === null) return;
     setBusy("download");
     setError("");
     try {
-      const blob = await qprDocx({ ...v, origin: window.location.origin }, await loadImages(v.photos));
+      const blob = await qprDocx({ ...v, origin: window.location.origin, draft }, await loadImages(v.photos));
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      a.download = `${v.project.code}-QPR-${v.quarter}${v.frozen?.kind === "practice" ? `-practice-${v.frozen.at.slice(0, 10)}` : ""}.docx`;
+      a.download = `${v.project.code}-QPR-${v.quarter}${v.frozen?.kind === "practice" ? `-practice-${v.frozen.at.slice(0, 10)}` : ""}${draft ? "-DRAFT-not-checked" : ""}.docx`;
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     } catch (e) {
@@ -218,6 +227,7 @@ export function QprPage() {
                   {busy === "draft" ? "Drafting… (up to 2 minutes)" : `Draft ${emptyDraftable.length} empty section${emptyDraftable.length === 1 ? "" : "s"} with Claude`}
                 </button>
               )}
+              {!v.frozen && <PreflightButton p={pf} report={{ kind: "qpr", quarter }} className={quietBtn} />}
               <button type="button" className={quietBtn} disabled={busy === "download"} onClick={() => void download()}>
                 {busy === "download" ? "Making the Word file…" : "Download for Word"}
               </button>
@@ -233,8 +243,8 @@ export function QprPage() {
                 </button>
               )}
               {v.mayRelease && (
-                <button type="button" className={primaryBtn} disabled={!!busy || stops.length > 0} title={stops.length ? "Fix the items marked to fix first." : ""} onClick={() => window.confirm(`Mark the ${quarter} report final? It is locked for good: this copy is what the donor receives. To rehearse, use Practice release instead.`) && quiet(act({ action: "release" }, "Released: the report is final and can no longer be changed."))}>
-                  Mark final
+                <button type="button" className={primaryBtn} disabled={!!busy || stops.length > 0 || blocking > 0} title={stops.length || blocking ? `Pre-flight lists ${Math.max(blocking, stops.length)} ${Math.max(blocking, stops.length) === 1 ? "thing" : "things"} that block the report: fix ${Math.max(blocking, stops.length) === 1 ? "it" : "them"} first.` : ""} onClick={() => window.confirm(`Mark the ${quarter} report final? It is locked for good: this copy is what the donor receives. To rehearse, use Practice release instead.`) && quiet(act({ action: "release" }, "Released: the report is final and can no longer be changed."))}>
+                  Mark final{blocking ? ` (${blocking} blocking)` : ""}
                 </button>
               )}
             </div>

@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useT } from "@/components/app/i18n";
+import { beforeDownload, PreflightButton, usePreflight } from "@/components/progress/preflight-page";
 import { useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser, useSession } from "@/components/app/session";
@@ -23,6 +25,7 @@ export function PeriodReportPage() {
   const { ready } = useSession();
   const { project } = useCurrentProject();
   const thisYear = new Date().getFullYear();
+  const { t } = useT();
   const [period, setPeriod] = useState<Period>({ kind: "annual", year: thisYear });
   const [v, setV] = useState<PeriodReportView | null>(null);
   const [error, setError] = useState("");
@@ -43,18 +46,21 @@ export function PeriodReportPage() {
       live = false;
     };
   }, [ready, user, project.saved, project.id, period]);
+  const pf = usePreflight(project.id, user?.id, period.kind === "annual" ? { kind: "annual", year: period.year } : null, v);
   if (!user) return null;
   const startYear = Number((v?.project.start ?? `${thisYear}`).slice(0, 4));
   const years = Array.from({ length: Math.max(1, thisYear - startYear + 1) }, (_, k) => startYear + k);
   const download = async () => {
     if (!v) return;
+    const draft = period.kind === "annual" ? await beforeDownload(project.id, user.id, pf, (n) => t("pf.draftConfirm", { n })) : 0;
+    if (draft === null) return;
     setBusy(true);
     try {
       const { periodDocx } = await import("@/lib/period-docx");
-      const blob = await periodDocx(v, window.location.origin);
+      const blob = await periodDocx(v, window.location.origin, draft);
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      a.download = `${v.project.code}-${period.kind === "annual" ? `annual-${period.year}` : "final"}.docx`;
+      a.download = `${v.project.code}-${period.kind === "annual" ? `annual-${period.year}` : "final"}${draft ? "-DRAFT-not-checked" : ""}.docx`;
       a.click();
       URL.revokeObjectURL(a.href);
     } finally {
@@ -89,6 +95,7 @@ export function PeriodReportPage() {
               ))}
               <option value="final">Final (whole project)</option>
             </select>
+            {period.kind === "annual" && <PreflightButton p={pf} report={{ kind: "annual", year: period.year }} className={quietBtn} />}
             <button type="button" className={primaryBtn} disabled={!v || busy} onClick={() => void download()}>
               Download Word
             </button>

@@ -1,6 +1,7 @@
 import type { Messages } from "./en";
 import { tsEs } from "./hr/timesheet";
 import { actEs } from "./activities";
+import { pfEs } from "./preflight";
 import { lvEs } from "./hr/leave";
 import { expEs } from "./hr/expense";
 
@@ -501,5 +502,6 @@ export const es: Messages = {
   ...tsEs,
   ...lvEs,
   ...actEs,
+  ...pfEs,
   ...expEs,
 };
