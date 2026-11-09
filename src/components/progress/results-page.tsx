@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { openReceipt, shrink } from "@/components/people/expense-page";
+import { OriginalText } from "@/components/progress/original-text";
 import { Pill, SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import type { Receipt } from "@/lib/expense";
 import { readWorkbook } from "@/lib/read-sheet";
@@ -133,6 +134,7 @@ export function ResultsPage() {
           <WhatNeedsDoing
             v={v}
             me={v.me}
+            act={act}
             onRecord={(code) => {
               setOpen(code);
               setAdding(code);
@@ -652,6 +654,7 @@ function ResultCard({ r, ind, act, mayAddProof, me }: { r: Res; ind?: Ind; act: 
             </p>
           )}
       <p className="mt-2 whitespace-pre-line text-sm">{r.note}</p>
+      <OriginalText original={r.original} />
       {(r.female !== undefined || r.male !== undefined || r.womenLed !== undefined || r.menLed !== undefined) && (
         <p className="mt-1 text-xs text-muted">
           {r.female !== undefined && `${r.female} women`}
@@ -686,8 +689,17 @@ function ResultCard({ r, ind, act, mayAddProof, me }: { r: Res; ind?: Ind; act: 
       </div>
       {adding && <AddProof r={r} act={act} onClose={() => setAdding(false)} />}
       <p className="mt-2 text-xs text-muted">
-        Recorded by {r.by}
+        {r.kobo ? `From KoboToolbox${r.kobo.id ? `, submission ${r.kobo.id}` : ""}` : `Recorded by ${r.by}`}
         {r.reviewedBy && ` · ${r.status === "accepted" ? "accepted" : "queried"} by ${r.reviewedBy}`}
+        {/* A field's exact location is personal data: only for people who see participants' names. */}
+        {r.gps && user?.pii && (
+          <>
+            {" · "}
+            <a href={`https://www.openstreetmap.org/?mlat=${r.gps.lat}&mlon=${r.gps.lon}#map=15/${r.gps.lat}/${r.gps.lon}`} target="_blank" rel="noopener noreferrer" className="text-forest hover:underline">
+              where it was recorded ↗
+            </a>
+          </>
+        )}
       </p>
       {r.query && <p className="mt-1 rounded-lg bg-clay-soft px-3 py-2 text-sm text-clay">MEL asked: {r.query}</p>}
       {r.status === "queried" && r.by === me && !correcting && (
@@ -1041,7 +1053,8 @@ function ImportResults({ indicators, act }: { indicators: { code: string; donorC
  * The top of Results, by who is looking: record a result (field staff), what is waiting for MEL,
  * what MEL queried of yours, and accepted results still without proof.
  */
-function WhatNeedsDoing({ v, me, onRecord }: { v: ResultsView; me: string; onRecord: (code: string) => void }) {
+function WhatNeedsDoing({ v, me, onRecord, act }: { v: ResultsView; me: string; onRecord: (code: string) => void; act: (a: ResultAction, msg: string) => Promise<void> }) {
+  const clean = v.results.filter((r) => r.canReview && r.checks.length === 0);
   const [pick, setPick] = useState("");
   const pending = v.results.filter((r) => r.status === "pending").length;
   const queriedMine = v.results.filter((r) => r.status === "queried" && r.by === me).length;
@@ -1083,6 +1096,21 @@ function WhatNeedsDoing({ v, me, onRecord }: { v: ResultsView; me: string; onRec
           <span className={`font-semibold tabular-nums ${noProof ? "text-clay" : ""}`}>{noProof}</span> accepted this year with no proof attached
         </li>
       </ul>
+      {clean.length > 1 && (
+        <div className="mt-3 flex flex-wrap items-center gap-3 rounded-xl bg-paper px-3 py-2 text-sm">
+          <span>
+            {clean.length} results waiting for you have nothing flagged by the data checker
+            {clean.some((r) => r.kobo) ? `, ${clean.filter((r) => r.kobo).length} of them from KoboToolbox` : ""}.
+          </span>
+          <button
+            type="button"
+            className={`${quietBtn} ms-auto`}
+            onClick={() => window.confirm(`Accept these ${clean.length} results? Each counts in Progress and the report from now on. Flagged results still need a look one by one.`) && void act({ action: "accept-many", ids: clean.map((r) => r.id) }, `Accepted ${clean.length} results.`).catch(() => undefined)}
+          >
+            Accept all {clean.length}
+          </button>
+        </div>
+      )}
     </section>
   );
 }

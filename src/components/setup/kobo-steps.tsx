@@ -363,7 +363,14 @@ export function KoboDone({ code, name }: { code: string; name: string }) {
         </button>
       )}
       {result && <p className="mt-3 text-sm text-forest">{t("kobo.synced", { added: result.added, fetched: result.fetched, forms: result.forms })}
-          {(result.updated > 0 || result.removed > 0) && ` ${t("kobo.syncedChanges", { updated: result.updated, removed: result.removed })}`}</p>}
+          {(result.updated > 0 || result.removed > 0) && ` ${t("kobo.syncedChanges", { updated: result.updated, removed: result.removed })}`}
+          {result.results && (result.results.added > 0 || result.results.updated > 0 || result.results.flagged > 0) && (
+            <span className="mt-1 block">
+              {`${result.results.added} new ${result.results.added === 1 ? "result" : "results"} for MEL to check (${result.results.photos} photos as proof)`}
+              {result.results.updated ? `, ${result.results.updated} updated` : ""}
+              {result.results.flagged ? `; ${result.results.flagged} already accepted changed in KoboToolbox: see the audit trail` : ""}.
+            </span>
+          )}</p>}
       <Alert text={error} />
       {connected && <KoboAutoSync code={code} />}
       <div className="mt-8 flex flex-wrap gap-3">

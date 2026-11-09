@@ -6,10 +6,12 @@ import { useCallback, useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { openReceipt, shrink } from "@/components/people/expense-page";
+import { OriginalText } from "@/components/progress/original-text";
 import { Pill, SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import type { Receipt } from "@/lib/expense";
 import type { ResultAction, UpdateInput } from "@/lib/results";
 import { exifDate, longDate, periodLabel, weekOf, type WeeklyPatch } from "@/lib/weekly";
+import { addToOutbox, isOffline, localHash } from "@/lib/outbox";
 import { captionWithDate, weeklyDocx, type WeeklyImages } from "@/lib/weekly-docx";
 import type { WeeklyView } from "@/server/weekly-store";
 
@@ -31,11 +33,15 @@ const addDays = (iso: string, n: number) => new Date(Date.parse(`${iso}T00:00:00
 type Item = WeeklyView["items"][number];
 
 /** A photo from the app's file store, shown small. */
-function Thumb({ hash, user, alt }: { hash: string; user: string; alt: string }) {
+function Thumb({ hash, user, alt, blob }: { hash: string; user: string; alt: string; blob?: Blob }) {
   const [src, setSrc] = useState("");
   useEffect(() => {
     let url = "";
     let live = true;
+    if (blob) {
+      setSrc((url = URL.createObjectURL(blob)));
+      return () => URL.revokeObjectURL(url);
+    }
     fetch(`/api/files/${hash}`, { headers: { "x-demo-user": user } })
       .then((r) => (r.ok ? r.blob() : null))
       .then((b) => {
@@ -46,7 +52,7 @@ function Thumb({ hash, user, alt }: { hash: string; user: string; alt: string })
       live = false;
       if (url) URL.revokeObjectURL(url);
     };
-  }, [hash, user]);
+  }, [hash, user, blob]);
   return src ? (
     // eslint-disable-next-line @next/next/no-img-element
     <img src={src} alt={alt} className="h-28 w-40 rounded-lg object-cover" />
@@ -56,13 +62,16 @@ function Thumb({ hash, user, alt }: { hash: string; user: string; alt: string })
 }
 
 /** Adds or changes one item: activity, title, date, what happened, and photos with caption and date taken. */
-function ItemForm({ v, start, onSave, onClose }: { v: WeeklyView; start?: Item; onSave: (u: UpdateInput) => Promise<void>; onClose: () => void }) {
+type Local = Record<string, { blob: Blob; name: string; type: string }>;
+function ItemForm({ v, start, onSave, onQueue, onClose }: { v: WeeklyView; start?: Item; onSave: (u: UpdateInput) => Promise<void>; onQueue?: (u: UpdateInput, local: Local) => Promise<void>; onClose: () => void }) {
   const { user } = useSession();
   const lastDay = v.week.to < v.today ? v.week.to : v.today;
   const [f, setF] = useState({ activity: start?.activity ?? v.activities[0]?.code ?? "", title: start?.title ?? "", date: start?.date ?? lastDay, note: start?.note ?? "" });
   const [files, setFiles] = useState<Receipt[]>(start?.files ?? []);
   const [captions, setCaptions] = useState<Record<string, string>>(start?.captions ?? {});
   const [taken, setTaken] = useState<Record<string, string>>(start?.taken ?? {});
+  // Photos picked without a connection: kept on the phone until the item is sent.
+  const [local, setLocal] = useState<Local>({});
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const upload = async (list: FileList | null) => {
@@ -73,12 +82,20 @@ function ItemForm({ v, start, onSave, onClose }: { v: WeeklyView; start?: Item; 
       for (const file of Array.from(list)) {
         // The date taken is in the original file; shrinking it for upload drops it.
         const when = file.type === "image/jpeg" ? exifDate(await file.arrayBuffer()) : null;
+        const small = await shrink(file);
         const body = new FormData();
-        body.append("file", await shrink(file));
-        const res = await fetch("/api/files", { method: "POST", body, headers: { "x-demo-user": user?.id ?? "" } });
-        const out = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error((out as { error?: string }).error ?? `Upload failed (${res.status})`);
-        const r = out as Receipt;
+        body.append("file", small);
+        let r: Receipt;
+        try {
+          const res = await fetch("/api/files", { method: "POST", body, headers: { "x-demo-user": user?.id ?? "" } });
+          const out = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error((out as { error?: string }).error ?? `Upload failed (${res.status})`);
+          r = out as Receipt;
+        } catch (e) {
+          if (!onQueue || !isOffline(e)) throw e;
+          r = { hash: localHash(), name: file.name, type: small.type || file.type, size: small.size };
+          setLocal((cur) => ({ ...cur, [r.hash]: { blob: small, name: file.name, type: small.type || file.type } }));
+        }
         setFiles((cur) => [...cur.filter((x) => x.hash !== r.hash), r].slice(0, 20));
         if (when) setTaken((cur) => ({ ...cur, [r.hash]: when }));
       }
@@ -96,9 +113,17 @@ function ItemForm({ v, start, onSave, onClose }: { v: WeeklyView; start?: Item; 
     if (photos.some((x) => !captions[x.hash]?.trim())) return setErr("Give every photo a caption: what, where (village, district).");
     if (photos.some((x) => !taken[x.hash])) return setErr("Give every photo the date it was taken.");
     const keep = (m: Record<string, string>) => Object.fromEntries(Object.entries(m).filter(([h, t]) => files.some((x) => x.hash === h) && t.trim()));
+    const item: UpdateInput = { activity: f.activity, date: f.date, ...(f.title.trim() ? { title: f.title.trim() } : {}), note: f.note.trim(), files, captions: keep(captions), taken: keep(taken) };
+    const mine: Local = Object.fromEntries(Object.entries(local).filter(([h]) => files.some((x) => x.hash === h)));
     setBusy(true);
     try {
-      await onSave({ activity: f.activity, date: f.date, ...(f.title.trim() ? { title: f.title.trim() } : {}), note: f.note.trim(), files, captions: keep(captions), taken: keep(taken) });
+      // Without a connection, or with photos still on the phone: into the outbox, sent later.
+      if (onQueue && (!navigator.onLine || Object.keys(mine).length)) await onQueue(item, mine);
+      else
+        await onSave(item).catch(async (e) => {
+          if (onQueue && isOffline(e)) await onQueue(item, mine);
+          else throw e;
+        });
     } catch {
       /* shown above */
     } finally {
@@ -145,7 +170,7 @@ function ItemForm({ v, start, onSave, onClose }: { v: WeeklyView; start?: Item; 
             {files.map((x) => (
               <li key={x.hash} className="rounded-lg border border-line bg-paper p-2 text-xs">
                 <div className="flex gap-3">
-                  {user && <Thumb hash={x.hash} user={user.id} alt={captions[x.hash] ?? x.name} />}
+                  {user && <Thumb hash={x.hash} user={user.id} alt={captions[x.hash] ?? x.name} blob={local[x.hash]?.blob} />}
                   <div className="min-w-0 flex-1 space-y-2">
                     <input className={input} placeholder="Caption: what, where (village, district)" value={captions[x.hash] ?? ""} onChange={(e) => setCaptions({ ...captions, [x.hash]: e.target.value })} aria-label="Caption" />
                     <label className="flex items-center gap-2">
@@ -194,6 +219,7 @@ function ItemCard({ it, v, user, act }: { it: Item; v: WeeklyView; user: string;
         {it.title && <span className="font-semibold">{it.title}: </span>}
         {it.note}
       </p>
+      <OriginalText original={it.original} />
       {photos.length > 0 && (
         <ul className="mt-2 flex flex-wrap gap-3">
           {photos.map((f) => (
@@ -303,15 +329,34 @@ export function WeeklyPage() {
   const [busy, setBusy] = useState(false);
   const url = `/api/projects/${project.id}/weekly${from ? `?from=${from}` : ""}`;
 
+  // Offline, the form opens from the week's dates and activity names kept from the last visit:
+  // never anyone's items, which stay on the server.
+  const shellKey = `rop-weekly-shell:${project.id}`;
+  const [offline, setOffline] = useState(false);
   const load = useCallback(async () => {
     if (!user) return;
     try {
-      setV(await call<WeeklyView>(url, user.id));
+      const got = await call<WeeklyView>(url, user.id);
+      setV(got);
       setError("");
+      setOffline(false);
+      try {
+        if (got.week.saved && !got.week.sent) localStorage.setItem(shellKey, JSON.stringify({ ...got, items: [], weeks: [], region: "" }));
+      } catch {}
     } catch (e) {
+      if (isOffline(e)) {
+        try {
+          const shell = JSON.parse(localStorage.getItem(shellKey) ?? "null") as WeeklyView | null;
+          if (shell) {
+            setV({ ...shell, today: new Date().toISOString().slice(0, 10) });
+            setOffline(true);
+            return;
+          }
+        } catch {}
+      }
       setError(e instanceof Error ? e.message : String(e));
     }
-  }, [user, url]);
+  }, [user, url, shellKey]);
   useEffect(() => {
     if (ready && user && project.saved) void load();
   }, [ready, user, project.saved, load]);
@@ -401,6 +446,7 @@ export function WeeklyPage() {
         </div>
         <p className="mt-1 text-sm text-muted">What happened this week, activity by activity, with dated photos. Download it for Word and send it as now; the quarterly report uses the same items and photos.</p>
         {!project.saved && <p className="mt-6 text-sm text-muted">Choose a project first.</p>}
+        {offline && <p className="mt-4 rounded-xl bg-ochre-soft px-4 py-3 text-sm">No connection. You can add items to this week; they wait on this phone and are sent when the connection is back. The week&rsquo;s other items show once you are online.</p>}
         {error && <p className="mt-4 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">{error}</p>}
         {notice && <p className="mt-4 rounded-xl bg-mist px-4 py-3 text-sm text-forest">{notice}</p>}
         {!v && !error && project.saved && <p className="mt-6 text-sm text-muted">Loading…</p>}
@@ -453,7 +499,26 @@ export function WeeklyPage() {
                     + Add an item
                   </button>
                 )}
-                {adding && v.may.add && <ItemForm v={v} onClose={() => setAdding(false)} onSave={(u) => act({ action: "update", update: u }, "Added.").then(() => setAdding(false))} />}
+                {adding && v.may.add && (
+                  <ItemForm
+                    v={v}
+                    onClose={() => setAdding(false)}
+                    onSave={(u) => act({ action: "update", update: u }, "Added.").then(() => setAdding(false))}
+                    onQueue={async (u, local) => {
+                      await addToOutbox({
+                        user: user.id,
+                        project: project.id,
+                        url: `/api/projects/${project.id}/results`,
+                        label: `Weekly item: ${(u.title || u.note).slice(0, 40)}`,
+                        action: { action: "update", update: u },
+                        photos: Object.entries(local).map(([h, x]) => ({ local: h, ...x })),
+                      });
+                      setError("");
+                      setNotice("Saved on this phone. It is sent, photos and all, when the connection is back.");
+                      setAdding(false);
+                    }}
+                  />
+                )}
               </section>
             )}
 

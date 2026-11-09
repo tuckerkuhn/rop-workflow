@@ -5,7 +5,7 @@ import { NextResponse, type NextRequest } from "next/server";
  * Live mode: keeps the Supabase sign-in cookie fresh and sends signed-out visitors to the
  * sign-in page. API routes check sign-in themselves and answer 401. Demo mode skips this.
  */
-const OPEN = ["/", "/about", "/auth/callback"];
+const OPEN = ["/", "/about", "/auth/callback", "/offline.html", "/sw.js", "/manifest.webmanifest"];
 
 /**
  * A ceiling on changes per address per minute, against runaway scripts and loops. Kept in each
