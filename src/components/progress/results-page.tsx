@@ -710,7 +710,7 @@ function ResultCard({ r, ind, act, mayAddProof, me }: { r: Res; ind?: Ind; act: 
           </ul>
         </details>
       )}
-      {r.status === "pending" && r.checks.length > 0 && (
+      {(r.status === "pending" || r.canReopen) && r.checks.length > 0 && (
         <ul className="mt-2 space-y-1 rounded-lg bg-ochre-soft px-3 py-2 text-xs">
           {r.checks.map((c) => (
             <li key={c}>Check: {c}</li>

@@ -66,6 +66,8 @@ export const resultSchema = z
     links: z.array(proofLinkSchema).max(20).optional(),
     /** Photo captions by file fingerprint; a captioned photo goes into the donor report. */
     captions: z.record(z.string().regex(/^[0-9a-f]{64}$/), z.string().trim().max(300)).optional(),
+    /** When each photo was taken, by file fingerprint: read from the photo, or typed in. */
+    taken: z.record(z.string().regex(/^[0-9a-f]{64}$/), z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),
     /** Why there is no file yet, when there is none. */
     noFile: z.string().trim().max(300).optional(),
   })
@@ -119,9 +121,12 @@ export const updateSchema = z.object({
   /** The activity's code, e.g. "1.1.1". */
   activity: z.string().regex(/^\d+\.\d+\.\d+$/),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  /** A short heading for the weekly update, e.g. "Trellis installation". */
+  title: z.string().trim().max(120).optional(),
   note: z.string().trim().min(10).max(4000),
   files: z.array(receiptSchema).max(20),
   captions: z.record(z.string().regex(/^[0-9a-f]{64}$/), z.string().trim().max(300)).optional(),
+  taken: z.record(z.string().regex(/^[0-9a-f]{64}$/), z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),
 });
 export type UpdateInput = z.infer<typeof updateSchema>;
 export type UpdateRecord = UpdateInput & { id: string; quarter: string; by: string; at: string };
@@ -131,6 +136,9 @@ export const resultActionSchema = z.discriminatedUnion("action", [
   /** Many results at once from a spreadsheet: each is checked as if recorded by hand, all or none. */
   z.object({ action: z.literal("import"), results: z.array(resultSchema).min(1).max(300), file: z.string().trim().max(200) }),
   z.object({ action: z.literal("update"), update: updateSchema }),
+  /** Changes or removes an activity update, until the week it is dated in has been sent. */
+  z.object({ action: z.literal("update-edit"), id: z.string().uuid(), update: updateSchema }),
+  z.object({ action: z.literal("update-remove"), id: z.string().uuid() }),
   z.object({ action: z.literal("accept"), id: z.string().uuid() }),
   /** Adds proof to a recorded result, at any stage: it never changes the figure. */
   z
@@ -140,6 +148,7 @@ export const resultActionSchema = z.discriminatedUnion("action", [
       files: z.array(receiptSchema).max(20),
       links: z.array(proofLinkSchema).max(20),
       captions: z.record(z.string().regex(/^[0-9a-f]{64}$/), z.string().trim().max(300)).optional(),
+      taken: z.record(z.string().regex(/^[0-9a-f]{64}$/), z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),
     })
     .refine((a) => a.files.length + a.links.length > 0, "Add a file or a link."),
   z.object({ action: z.literal("query"), id: z.string().uuid(), note: z.string().trim().min(3).max(1000) }),

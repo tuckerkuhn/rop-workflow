@@ -150,7 +150,7 @@ export function ProgressPage() {
                 [
                   ["Steer the work", [["/progress/review", "Monthly review"], ["/progress/budget", "Budget vs actual"], ["/progress/framework", "Results framework"], ["/setup/lens", "Lens review"]]],
                   ["Prove it", [["/progress/results", "Results and proof"], ["/progress/records", t("progress.records")], ["/progress/audit", "Audit trail"]]],
-                  ["Report and learn", [["/progress/report", "Quarterly report"], ["/progress/annual", "Annual and final reports"], ["/progress/learning", "Lessons and close-out"]]],
+                  ["Report and learn", [["/progress/weekly", "Weekly update"], ["/progress/report", "Quarterly report"], ["/progress/annual", "Annual and final reports"], ["/progress/learning", "Lessons and close-out"]]],
                 ] as [string, [string, string][]][]
               ).map(([head, links]) => (
                 <span key={head} className="block">

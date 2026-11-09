@@ -57,6 +57,7 @@ export const ps: Messages = {
   "work.group.develop": "نوی کار موندل",
   "new.button": "+ نوی",
   "new.result": "پایله ثبتول",
+  "new.weekly": "د اونیز راپور توکی",
   "new.kobo": "بزګر ثبتول",
   "new.opportunity": "فرصت ثبتول",
   "new.empty": "اوس هېڅ شی ستاسو انتظار نه کوي",

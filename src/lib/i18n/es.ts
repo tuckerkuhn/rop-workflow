@@ -57,6 +57,7 @@ export const es: Messages = {
   "work.group.develop": "Buscar nuevo trabajo",
   "new.button": "+ Nuevo",
   "new.result": "Registrar un resultado",
+  "new.weekly": "Elemento del informe semanal",
   "new.kobo": "Registrar un agricultor",
   "new.opportunity": "Registrar una oportunidad",
   "new.empty": "Nada te necesita ahora",

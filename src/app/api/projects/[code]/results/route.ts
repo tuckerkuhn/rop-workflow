@@ -9,9 +9,11 @@ import { FROM_KOBO, koboFedCodes } from "@/server/kobo-fed";
 import { isMelOwner, requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
 import { projectByCode } from "@/server/field-store";
-import { addProof, addResult, addResults, addUpdate, correctResult, loadResults, loadUpdates, reopenResult, reviewResult } from "@/server/results-store";
+import { addProof, addResult, addResults, addUpdate, correctResult, editUpdate, loadResults, loadUpdates, removeUpdate, reopenResult, reviewResult, updateById } from "@/server/results-store";
 import { activityOf } from "@/lib/qpr";
 import { loadQpr } from "@/server/qpr-store";
+import { sentWeekFor } from "@/lib/weekly";
+import { loadWeekly } from "@/server/weekly-store";
 import { dataChecks } from "@/lib/data-checks";
 
 type Ctx = { params: Promise<{ code: string }> };
@@ -74,7 +76,23 @@ export async function POST(req: Request, { params }: Ctx) {
     if (a.action === "update") {
       if (!(mayRecord(u) || isMelOwner(u))) return NextResponse.json({ error: "Only field staff and MEL can add activity updates." }, { status: 403 });
       if (a.update.date > new Date().toISOString().slice(0, 10)) return NextResponse.json({ error: "The date is in the future." }, { status: 400 });
+      const sent = sentWeekFor(await loadWeekly(code), a.update.date);
+      if (sent) return NextResponse.json({ error: `Weekly update #${sent.n} (${sent.from} to ${sent.to}) has been sent: date this in a week that is still open.` }, { status: 409 });
       await addUpdate(code, a.update, u.id);
+      return NextResponse.json(await view(code, u));
+    }
+    if (a.action === "update-edit" || a.action === "update-remove") {
+      if (!(mayRecord(u) || isMelOwner(u))) return NextResponse.json({ error: "Only field staff and MEL can change activity updates." }, { status: 403 });
+      const old = await updateById(code, a.id);
+      if (!old) return NextResponse.json({ error: "No such update." }, { status: 404 });
+      if (old.by !== u.id && !isMelOwner(u)) return NextResponse.json({ error: "Only the person who wrote it, or MEL, can change it." }, { status: 403 });
+      const weekly = await loadWeekly(code);
+      const sent = sentWeekFor(weekly, old.date) ?? (a.action === "update-edit" ? sentWeekFor(weekly, a.update.date) : null);
+      if (sent) return NextResponse.json({ error: `Weekly update #${sent.n} has been sent, so this can no longer be changed.` }, { status: 409 });
+      if (a.action === "update-edit") {
+        if (a.update.date > new Date().toISOString().slice(0, 10)) return NextResponse.json({ error: "The date is in the future." }, { status: 400 });
+        await editUpdate(code, a.id, a.update, u.id);
+      } else await removeUpdate(code, a.id, u.id);
       return NextResponse.json(await view(code, u));
     }
     if (a.action === "correct") {
@@ -100,7 +118,7 @@ export async function POST(req: Request, { params }: Ctx) {
     }
     if (a.action === "proof") {
       if (!(mayRecord(u) || isMelOwner(u))) return NextResponse.json({ error: "Only field staff and MEL can add proof." }, { status: 403 });
-      const done = await addProof(code, a.id, { files: a.files, links: a.links, captions: a.captions, by: u.id });
+      const done = await addProof(code, a.id, { files: a.files, links: a.links, captions: a.captions, taken: a.taken, by: u.id });
       if (!done) return NextResponse.json({ error: "No such result." }, { status: 404 });
       return NextResponse.json(await view(code, u));
     }
