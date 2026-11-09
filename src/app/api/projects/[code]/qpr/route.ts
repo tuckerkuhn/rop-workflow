@@ -10,6 +10,8 @@ import { holdsRole } from "@/server/hr-store";
 import { draftQpr } from "@/server/qpr-drafts";
 import { addCopy, copyOf, loadCopies, qprData, reportWork, saveQpr } from "@/server/qpr-store";
 import { differences } from "@/lib/report-copy";
+import { checkClaims } from "@/server/claim-check";
+import { loadUpdates } from "@/server/results-store";
 import { logAudit } from "@/server/audit";
 import { projectByCode } from "@/server/field-store";
 
@@ -85,6 +87,21 @@ export async function POST(req: Request, { params }: Ctx) {
     const next: Qpr = structuredClone(d.saved);
     const validKey = (k: string) => SECTIONS.some((s) => s.key === k) || d.activities.some((x) => `act.${x.code}` === k);
 
+    if (a.action === "check-claims") {
+      if (!mayEdit(u)) return NextResponse.json({ error: "Only the MEL owner and programme leads check the report." }, { status: 403 });
+      const limit = await aiAllowed(u.id);
+      if (limit) return limit;
+      try {
+        next.claimCheck = await checkClaims(d, await loadUpdates(code), u.id);
+      } catch (e) {
+        if (e instanceof DraftingUnavailable) return NextResponse.json({ error: e.message }, { status: 503 });
+        return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 502 });
+      }
+      await saveQpr(code, q, next);
+      const project = await projectByCode(code);
+      await logAudit(db, project.id, { entity: "qpr", entityId: project.id, action: "qpr_claims_checked", by: u.id, detail: { quarter: q, issues: next.claimCheck.issues.length } });
+      return NextResponse.json(await view(code, q, u));
+    }
     if (a.action === "practice") {
       if (!mayEdit(u)) return NextResponse.json({ error: "Only the MEL owner and programme leads can do a practice release." }, { status: 403 });
       await addCopy(code, q, { kind: "practice", by: u.id, at: now, work: await reportWork(code, q), data: copyOf(d) });
