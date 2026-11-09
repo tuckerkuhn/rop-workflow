@@ -127,6 +127,8 @@ export const qprPatchSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("overspend"), line: z.string().trim().min(1).max(60), text: z.string().trim().max(1000) }),
   z.object({ action: z.literal("draft"), keys: z.array(z.string().regex(/^[a-z0-9.]{1,40}$/)).min(1).max(20) }),
   z.object({ action: z.literal("release") }),
+  /** Saves a frozen copy as if released, without locking anything: to rehearse and compare. */
+  z.object({ action: z.literal("practice") }),
 ]);
 export type QprPatch = z.infer<typeof qprPatchSchema>;
 

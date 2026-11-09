@@ -9,6 +9,7 @@ import { useRequireUser, useSession } from "@/components/app/session";
 import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { SECTIONS, STATUSES, STATUS_LABEL, overspentLines, quarterSpendOf, type QprPatch, type Row, type Status } from "@/lib/qpr";
 import { qprDocx, type Images } from "@/lib/qpr-docx";
+import { formatMinutes } from "@/lib/report-copy";
 import { quarterOf, quarterRange } from "@/lib/results";
 import type { QprView } from "@/app/api/projects/[code]/qpr/route";
 
@@ -64,7 +65,8 @@ export function QprPage() {
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState("");
   const [questions, setQuestions] = useState<string[]>([]);
-  const url = `/api/projects/${project.id}/qpr?q=${quarter}`;
+  const copyAt = params.get("copy");
+  const url = `/api/projects/${project.id}/qpr?q=${quarter}${copyAt ? `&copy=${encodeURIComponent(copyAt)}` : ""}`;
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -85,8 +87,9 @@ export function QprPage() {
     setNotice("");
     setBusy(a.action);
     try {
-      const out = await call<QprView & { questions?: string[] }>(url, user.id, { method: "POST", body: JSON.stringify(a) });
+      const out = await call<QprView & { questions?: string[]; copyAt?: string }>(url, user.id, { method: "POST", body: JSON.stringify(a) });
       setV(out);
+      if (out.copyAt) router.replace(`/progress/report?q=${quarter}&copy=${encodeURIComponent(out.copyAt)}`);
       if (out.questions) setQuestions(out.questions);
       setNotice(msg);
     } catch (e) {
@@ -130,7 +133,7 @@ export function QprPage() {
       const blob = await qprDocx({ ...v, origin: window.location.origin }, await loadImages(v.photos));
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      a.download = `${v.project.code}-QPR-${v.quarter}.docx`;
+      a.download = `${v.project.code}-QPR-${v.quarter}${v.frozen?.kind === "practice" ? `-practice-${v.frozen.at.slice(0, 10)}` : ""}.docx`;
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     } catch (e) {
@@ -185,12 +188,20 @@ export function QprPage() {
         {v && (
           <>
             <div className="sticky top-0 z-10 -mx-4 mt-4 flex flex-wrap items-center gap-2 border-b border-line bg-paper/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
-              {v.saved.released ? (
+              {v.frozen?.kind === "practice" ? (
+                <Pill tone="sky">Practice copy · {v.frozen.at.slice(0, 16).replace("T", " ")} UTC · {v.frozen.by}</Pill>
+              ) : v.saved.released ? (
                 <Pill tone="forest">Released {v.saved.released.at.slice(0, 10)} by {v.saved.released.by}</Pill>
               ) : (
                 <Pill tone={stops.length ? "clay" : "ochre"}>
                   Draft · {stops.length} to fix · {v.checks.length - stops.length} to check
                 </Pill>
+              )}
+              {v.work.sittings > 0 && (
+                <span className="text-xs text-muted" title="Edits less than 30 minutes apart count as one sitting, from its first edit to its last, plus 5 minutes.">
+                  {formatMinutes(v.work.minutes)} of work over {v.work.sittings} {v.work.sittings === 1 ? "sitting" : "sittings"}
+                  {v.frozen ? " before this copy" : ""}
+                </span>
               )}
               <span className="flex-1" />
               {v.mayEdit && emptyDraftable.length > 0 && (
@@ -207,12 +218,67 @@ export function QprPage() {
               <button type="button" className={quietBtn} disabled={busy === "download"} onClick={() => void download()}>
                 {busy === "download" ? "Making the Word file…" : "Download for Word"}
               </button>
+              {v.mayPractice && (
+                <button
+                  type="button"
+                  className={quietBtn}
+                  disabled={!!busy}
+                  title="Saves a copy as if released, without locking anything, so you can see what would go out and compare it later."
+                  onClick={() => quiet(act({ action: "practice" }, "Practice copy saved. Nothing is locked: go back to the report to keep working."))}
+                >
+                  Practice release
+                </button>
+              )}
               {v.mayRelease && (
-                <button type="button" className={primaryBtn} disabled={!!busy || stops.length > 0} title={stops.length ? "Fix the items marked to fix first." : ""} onClick={() => quiet(act({ action: "release" }, "Released: the report is final and can no longer be changed."))}>
+                <button type="button" className={primaryBtn} disabled={!!busy || stops.length > 0} title={stops.length ? "Fix the items marked to fix first." : ""} onClick={() => window.confirm(`Mark the ${quarter} report final? It is locked for good: this copy is what the donor receives. To rehearse, use Practice release instead.`) && quiet(act({ action: "release" }, "Released: the report is final and can no longer be changed."))}>
                   Mark final
                 </button>
               )}
             </div>
+
+            {v.frozen && (
+              <section className="mt-4 rounded-xl border border-line bg-surface px-4 py-3 text-sm">
+                <p className="font-semibold">
+                  {v.frozen.kind === "release"
+                    ? `This is the report as released on ${v.frozen.at.slice(0, 10)}: what the donor received. It stays as it was.`
+                    : "This is a practice copy: the report as it would have gone out at that moment. Nothing was locked."}
+                </p>
+                {v.changes.length ? (
+                  <>
+                    <p className="mt-2 text-muted">Since then:</p>
+                    <ul className="mt-1 list-disc ps-5">
+                      {v.changes.map((c) => (
+                        <li key={c}>{c}</li>
+                      ))}
+                    </ul>
+                    {v.frozen.kind === "release" && <p className="mt-2 text-muted">Report these corrections to the donor in the next report.</p>}
+                  </>
+                ) : (
+                  <p className="mt-2 text-muted">Nothing has changed since.</p>
+                )}
+                {v.frozen.kind === "practice" && (
+                  <Link href={`/progress/report?q=${quarter}`} className="mt-2 inline-block font-semibold text-forest hover:underline">
+                    ← Back to the report
+                  </Link>
+                )}
+              </section>
+            )}
+            {!v.frozen && v.copies.some((c) => c.kind === "practice") && (
+              <p className="mt-3 text-xs text-muted">
+                Practice copies:{" "}
+                {v.copies
+                  .filter((c) => c.kind === "practice")
+                  .reverse()
+                  .map((c, k) => (
+                    <span key={c.at}>
+                      {k > 0 && " · "}
+                      <Link href={`/progress/report?q=${quarter}&copy=${encodeURIComponent(c.at)}`} className="hover:text-ink hover:underline">
+                        {c.at.slice(0, 16).replace("T", " ")} ({formatMinutes(c.minutes)})
+                      </Link>
+                    </span>
+                  ))}
+              </p>
+            )}
 
             {questions.length > 0 && (
               <section className="mt-4 rounded-xl border border-ochre/40 bg-ochre-soft px-4 py-3 text-sm">
