@@ -16,7 +16,7 @@ import {
   TextRun,
   WidthType,
 } from "docx";
-import { SECTIONS, STATUS_LABEL, quarterSpendOf, type Breakdown, type Photo, type Qpr, type Row, type Spend } from "@/lib/qpr";
+import { SECTIONS, STATUS_LABEL, overspentLines, quarterSpendOf, type Breakdown, type Photo, type Qpr, type Row, type Spend } from "@/lib/qpr";
 import { quarterRange } from "@/lib/results";
 
 /**
@@ -199,6 +199,9 @@ export async function qprDocx(d: DocxInput, images: Images): Promise<Blob> {
           h("Project Information", 1),
           info,
           p(`Spending from ${spendNote}.`, { size: 16, color: "555555" }),
+          ...overspentLines(d.spend, d.saved)
+            .filter((l) => l.explanation)
+            .flatMap((l, k) => [...(k === 0 ? [p("Budget lines above budget", { bold: true })] : []), p(`${l.code}: ${money(l.actual)} spent of ${money(l.budget)} (${l.pct}%). ${l.explanation}`)]),
           ...acronyms,
           new Paragraph({ children: [new PageBreak()] }),
           new TableOfContents("Table of Contents", { hyperlink: true, headingStyleRange: "1-2" }),

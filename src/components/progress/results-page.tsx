@@ -616,6 +616,7 @@ function CorrectForm({ r, act, onClose }: { r: Res; act: (a: ResultAction, msg: 
 function ResultCard({ r, ind, act, mayAddProof, me }: { r: Res; ind?: Ind; act: (a: ResultAction, msg: string) => Promise<void>; mayAddProof: boolean; me: string }) {
   const { user } = useSession();
   const [query, setQuery] = useState<string | null>(null);
+  const [reopen, setReopen] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [correcting, setCorrecting] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -750,6 +751,32 @@ function ResultCard({ r, ind, act, mayAddProof, me }: { r: Res; ind?: Ind; act: 
           )}
         </div>
       )}
+      {r.canReopen &&
+        (reopen === null ? (
+          <button type="button" className="mt-2 text-xs text-muted hover:text-ink" onClick={() => setReopen("")}>
+            Reopen: something is wrong with this result
+          </button>
+        ) : (
+          <div className="mt-3">
+            <label className="text-sm">
+              What is wrong? It goes back to {r.by} and stops counting until you accept it again.
+              <textarea className={input} rows={2} value={reopen} onChange={(e) => setReopen(e.target.value)} placeholder="The weekly update shows this installed on 7 October, not in Q3." />
+            </label>
+            <div className="mt-2 flex gap-2">
+              <button
+                type="button"
+                disabled={busy || reopen.trim().length < 10}
+                className={dangerBtn}
+                onClick={() => run(() => act({ action: "reopen", id: r.id, note: reopen }, "Reopened: it goes back to the person who recorded it.").then(() => setReopen(null)))}
+              >
+                Reopen
+              </button>
+              <button type="button" className={quietBtn} onClick={() => setReopen(null)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        ))}
     </article>
   );
 }

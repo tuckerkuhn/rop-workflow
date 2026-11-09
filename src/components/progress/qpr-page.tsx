@@ -7,7 +7,7 @@ import { useCurrentProject } from "@/components/app/current-project";
 import { openReceipt } from "@/components/people/expense-page";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
-import { SECTIONS, STATUSES, STATUS_LABEL, quarterSpendOf, type QprPatch, type Row, type Status } from "@/lib/qpr";
+import { SECTIONS, STATUSES, STATUS_LABEL, overspentLines, quarterSpendOf, type QprPatch, type Row, type Status } from "@/lib/qpr";
 import { qprDocx, type Images } from "@/lib/qpr-docx";
 import { quarterOf, quarterRange } from "@/lib/results";
 import type { QprView } from "@/app/api/projects/[code]/qpr/route";
@@ -352,6 +352,7 @@ function InfoBox({ v, act, onImported }: { v: QprView; act: Act; onImported: () 
           <input inputMode="decimal" className={input} value={spend} placeholder={v.spend.quarter === null ? "" : `${num(v.spend.quarter)} from the import`} onChange={(e) => setSpend(e.target.value)} />
         </label>
       )}
+      <Overspend v={v} act={act} />
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         {field("title", "Project title", true)}
         {field("agreement", "Agreement number")}
@@ -374,6 +375,32 @@ function InfoBox({ v, act, onImported }: { v: QprView; act: Act; onImported: () 
         </button>
       )}
     </section>
+  );
+}
+
+/** One explanation per budget line spent above its budget; it goes in the report under the project information. */
+function Overspend({ v, act }: { v: QprView; act: Act }) {
+  const lines = overspentLines(v.spend, v.saved);
+  const [text, setText] = useState<Record<string, string>>({});
+  if (!lines.length) return null;
+  return (
+    <div className="mt-3 space-y-3 rounded-xl bg-paper p-3">
+      <p className="text-sm font-semibold">Budget lines above budget</p>
+      {lines.map((l) => {
+        const t = text[l.code] ?? l.explanation;
+        return (
+          <label key={l.code} className="block text-sm">
+            {l.code}: {num(l.actual)} spent of {num(l.budget)} {v.spend.currency} ({l.pct}%). Why?
+            <textarea className={input} rows={2} disabled={!v.mayEdit} value={t} placeholder="UNDP approved the realignment on …, or prices rose because …" onChange={(e) => setText({ ...text, [l.code]: e.target.value })} />
+            {v.mayEdit && t !== l.explanation && (
+              <button type="button" className={`${primaryBtn} mt-2`} disabled={t.trim().length > 0 && t.trim().length < 10} onClick={() => void act({ action: "overspend", line: l.code, text: t.trim() }, "Saved.").catch(() => undefined)}>
+                Save
+              </button>
+            )}
+          </label>
+        );
+      })}
+    </div>
   );
 }
 

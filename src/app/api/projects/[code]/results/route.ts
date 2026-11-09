@@ -2,15 +2,16 @@ import { and, asc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db, schema as s } from "@/db";
 import type { AppUser } from "@/lib/demo";
-import { resultActionSchema } from "@/lib/results";
+import { quarterOf, resultActionSchema } from "@/lib/results";
 import { sameResult } from "@/lib/results-import";
 import { logAudit } from "@/server/audit";
 import { FROM_KOBO, koboFedCodes } from "@/server/kobo-fed";
 import { isMelOwner, requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
 import { projectByCode } from "@/server/field-store";
-import { addProof, addResult, addResults, addUpdate, correctResult, loadResults, loadUpdates, reviewResult } from "@/server/results-store";
+import { addProof, addResult, addResults, addUpdate, correctResult, loadResults, loadUpdates, reopenResult, reviewResult } from "@/server/results-store";
 import { activityOf } from "@/lib/qpr";
+import { loadQpr } from "@/server/qpr-store";
 import { dataChecks } from "@/lib/data-checks";
 
 type Ctx = { params: Promise<{ code: string }> };
@@ -42,7 +43,7 @@ async function view(code: string, u: AppUser) {
     mayReview: mel,
     indicators: indicators.map((i) => ({ ...i, target: Number(i.target), fromKobo: kobo.has(i.code) })),
     // The data checker's flags, for MEL before accepting (and for the recorder to fix first).
-    results: results.map((r) => ({ ...r, canReview: mel && r.status === "pending" && r.by !== u.id, checks: dataChecks(r, results, indicators.find((i) => i.code === r.indicator)) })),
+    results: results.map((r) => ({ ...r, canReview: mel && r.status === "pending" && r.by !== u.id, canReopen: mel && r.status === "accepted" && r.by !== u.id, checks: dataChecks(r, results, indicators.find((i) => i.code === r.indicator)) })),
     activities,
     updates,
     mayUpdate: mayRecord(u) || mel,
@@ -82,6 +83,19 @@ export async function POST(req: Request, { params }: Ctx) {
       if (a.changes.female !== undefined && a.changes.male !== undefined && a.changes.female + a.changes.male === 0) return NextResponse.json({ error: "Women and men are both 0: leave them blank if the result is not about people." }, { status: 400 });
       const err = await correctResult(code, a.id, a.changes, a.reply, u.id);
       if (err) return NextResponse.json({ error: err }, { status: 400 });
+      return NextResponse.json(await view(code, u));
+    }
+    if (a.action === "reopen") {
+      if (!isMelOwner(u)) return NextResponse.json({ error: "Only the MEL owner can reopen a result." }, { status: 403 });
+      const r = (await loadResults(code)).find((x) => x.id === a.id);
+      if (!r) return NextResponse.json({ error: "No such result." }, { status: 404 });
+      if (r.by === u.id) return NextResponse.json({ error: "You recorded this result, so someone else must check it." }, { status: 403 });
+      if (r.status !== "accepted") return NextResponse.json({ error: "Only an accepted result can be reopened." }, { status: 409 });
+      // A released report is computed from accepted results: reopening one would change what the donor has.
+      const q = quarterOf(r.date);
+      if ((await loadQpr(code, q)).released) return NextResponse.json({ error: `The ${q} report has been released with this result in it. Correct it in the next report instead.` }, { status: 409 });
+      const done = await reopenResult(code, a.id, u.id, a.note);
+      if (!done) return NextResponse.json({ error: "Someone else has just changed this result. Reload to see it." }, { status: 409 });
       return NextResponse.json(await view(code, u));
     }
     if (a.action === "proof") {

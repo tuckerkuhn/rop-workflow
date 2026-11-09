@@ -143,6 +143,8 @@ export const resultActionSchema = z.discriminatedUnion("action", [
     })
     .refine((a) => a.files.length + a.links.length > 0, "Add a file or a link."),
   z.object({ action: z.literal("query"), id: z.string().uuid(), note: z.string().trim().min(3).max(1000) }),
+  /** MEL sends an accepted result back to its recorder, with the reason; it stops counting until accepted again. */
+  z.object({ action: z.literal("reopen"), id: z.string().uuid(), note: z.string().trim().min(10, "Say what is wrong, so the recorder can fix it.").max(1000) }),
   /** The recorder answers MEL's query: corrected figures and what changed. It goes back to MEL. */
   z.object({ action: z.literal("correct"), id: z.string().uuid(), changes: correctionSchema, reply: z.string().trim().min(5, "Say what you changed, for MEL.").max(1000) }),
 ]);

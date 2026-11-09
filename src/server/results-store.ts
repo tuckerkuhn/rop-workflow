@@ -104,6 +104,25 @@ export async function reviewResult(code: string, id: string, status: "accepted" 
 }
 
 /**
+ * MEL reopens an accepted result: it goes back to its recorder as queried, with MEL's reason,
+ * and stops counting until it is accepted again. Only while still accepted.
+ */
+export async function reopenResult(code: string, id: string, by: string, note: string) {
+  const project = await projectByCode(code);
+  return db.transaction(async (tx) => {
+    const [r] = await tx
+      .update(s.evidence)
+      .set({ reviewStatus: "queried", reviewedBy: by, reviewedAt: new Date(), queryNote: note, updatedAt: new Date() })
+      .where(and(eq(s.evidence.id, id), eq(s.evidence.projectId, project.id), eq(s.evidence.form, "result"), eq(s.evidence.reviewStatus, "accepted")))
+      .returning();
+    if (!r) return null;
+    const p = r.payload as ResultInput;
+    await logAudit(tx, project.id, { entity: "result", entityId: r.id, action: "result_reopened", by, detail: { indicator: p.indicator, value: p.value, date: p.date, note } });
+    return toRecord(r);
+  });
+}
+
+/**
  * Adds proof to a recorded result. Files and links are appended (the same file or link once);
  * the figure, date and review status stay as they are.
  */

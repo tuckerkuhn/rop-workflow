@@ -48,6 +48,8 @@ export type Qpr = {
   rows: Record<string, { status?: Status; comment?: string; by: string; at: string }>;
   risks: { risk: string; mitigation: string }[];
   grm: { received: number | null; resolved: number | null };
+  /** Per overspent budget line: why it is over (an approved realignment, a price rise...). Goes in the report under the project information. */
+  overspend?: Record<string, { text: string; by: string; at: string }>;
   released?: { by: string; at: string };
 };
 
@@ -59,6 +61,42 @@ export const emptyQpr = (projectName: string): Qpr => ({
   risks: [],
   grm: { received: null, resolved: null },
 });
+
+/**
+ * The drafting questions without repeats: sections are drafted two at a time, so the same gap is
+ * often asked about twice in different words. Two questions that share most of their words are
+ * one question; the fuller wording is kept.
+ */
+export function mergeQuestions(list: string[]): string[] {
+  const STOP = new Set(["the", "and", "for", "are", "was", "were", "which", "what", "when", "how", "this", "that", "with", "from", "under", "will", "does", "did", "any", "many", "into", "there", "their", "they", "been", "being", "these", "those", "toward", "towards", "given", "also"]);
+  const words = (q: string) => new Set(q.toLowerCase().replace(/[^a-z0-9.\s-]/g, " ").split(/\s+/).map((w) => w.replace(/^[.-]+|[.-]+$/g, "")).filter((w) => w.length > 2 && !STOP.has(w)));
+  // About the same indicator (e.g. both name 1.2.1.3), fewer shared words are needed.
+  const isCode = (w: string) => /^\d+(\.\d+){2,}(-[a-z])?$/.test(w);
+  const same = (a: Set<string>, b: Set<string>) => {
+    let both = 0;
+    let code = false;
+    for (const w of a)
+      if (b.has(w)) {
+        both++;
+        if (isCode(w)) code = true;
+      }
+    return both / Math.min(a.size, b.size) >= (code ? 0.35 : 0.6);
+  };
+  const kept: { q: string; w: Set<string> }[] = [];
+  for (const q of list.map((x) => x.trim()).filter(Boolean)) {
+    const w = words(q);
+    const twin = kept.find((k) => same(k.w, w));
+    if (!twin) kept.push({ q, w });
+    else if (q.length > twin.q.length) Object.assign(twin, { q, w });
+  }
+  return kept.map((k) => k.q);
+}
+
+/** Budget lines spent above their budget to the quarter's end, with the explanation saved for each. */
+export const overspentLines = (spend: Spend, saved: Qpr) =>
+  Object.entries(spend.byLine)
+    .filter(([, l]) => l.budget > 0 && l.actual > l.budget + 1)
+    .map(([code, l]) => ({ code, budget: l.budget, actual: l.actual, pct: Math.round((l.actual / l.budget) * 100), explanation: saved.overspend?.[code]?.text ?? "" }));
 
 /** Starts a quarter from the one before: the info box, risks and slow-changing sections, marked for review. */
 export function carryForward(prev: Qpr | null, projectName: string, prevQuarter: string): Qpr {
@@ -86,6 +124,7 @@ export const qprPatchSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("acronyms"), acronyms: z.array(z.tuple([z.string().trim().min(1).max(20), z.string().trim().min(1).max(200)])).max(80) }),
   z.object({ action: z.literal("risks"), risks: z.array(z.object({ risk: z.string().trim().max(600), mitigation: z.string().trim().max(1200) })).max(20) }),
   z.object({ action: z.literal("grm"), received: z.number().int().min(0).max(1e6).nullable(), resolved: z.number().int().min(0).max(1e6).nullable() }),
+  z.object({ action: z.literal("overspend"), line: z.string().trim().min(1).max(60), text: z.string().trim().max(1000) }),
   z.object({ action: z.literal("draft"), keys: z.array(z.string().regex(/^[a-z0-9.]{1,40}$/)).min(1).max(20) }),
   z.object({ action: z.literal("release") }),
 ]);
@@ -311,7 +350,7 @@ export function checksFor(rows: Row[], results: ResultRecord[], quarter: string,
   if (qs !== null && qs > spend.cumulative) out.push({ level: "stop", text: "This quarter's spending is more than cumulative spending." });
   if (qs === null) out.push({ level: "check", text: "This quarter's spending is not entered: import Finance's budget-against-actual workbook, or type it in (Project information)." });
   const over = Object.entries(spend.byLine).filter(([, l]) => l.budget > 0 && l.actual > l.budget + 1);
-  for (const [code, l] of over) out.push({ level: "check", text: `Budget line ${code} has spent ${n(l.actual)} of ${n(l.budget)} ${spend.currency} (${Math.round((l.actual / l.budget) * 100)}%): explain the overspend or the budget revision.` });
+  for (const [code, l] of over.filter(([c]) => (saved.overspend?.[c]?.text.length ?? 0) < 10)) out.push({ level: "check", text: `Budget line ${code} has spent ${n(l.actual)} of ${n(l.budget)} ${spend.currency} (${Math.round((l.actual / l.budget) * 100)}%): explain the overspend or the budget revision under Project information.` });
   if (spend.source.kind === "import" && spend.missingMonths.length) out.push({ level: "stop", text: `The spending import does not include ${spend.missingMonths.join(", ")}: import the latest workbook from Finance.` });
   if (saved.quarterSpend !== null && spend.quarter !== null && Math.abs(saved.quarterSpend - spend.quarter) > 1) out.push({ level: "check", text: `This quarter's spending is typed in as ${n(saved.quarterSpend)}, but the import says ${n(spend.quarter)}.` });
   for (const s of SECTIONS) if (s.key !== "story" && !saved.sections[s.key]?.text.trim()) out.push({ level: "check", text: `${s.heading} is empty.` });

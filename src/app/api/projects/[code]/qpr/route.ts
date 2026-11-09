@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import type { AppUser } from "@/lib/demo";
-import { qprPatchSchema, SECTIONS, type Qpr } from "@/lib/qpr";
+import { mergeQuestions, qprPatchSchema, SECTIONS, type Qpr } from "@/lib/qpr";
 import { requireViewer } from "@/server/auth";
 import { DraftingUnavailable } from "@/server/ai-drafts";
 import { handle } from "@/server/guard";
@@ -86,6 +86,12 @@ export async function POST(req: Request, { params }: Ctx) {
       } else if (a.action === "grm") {
         if (a.received !== null && a.resolved !== null && a.resolved > a.received) return NextResponse.json({ error: "More cases resolved than received." }, { status: 400 });
         next.grm = { received: a.received, resolved: a.resolved };
+      } else if (a.action === "overspend") {
+        if (!(d.spend.byLine[a.line] && d.spend.byLine[a.line].actual > d.spend.byLine[a.line].budget)) return NextResponse.json({ error: "That budget line is not overspent." }, { status: 400 });
+        const o = { ...(next.overspend ?? {}) };
+        if (a.text) o[a.line] = { text: a.text, by: u.id, at: now };
+        else delete o[a.line];
+        next.overspend = o;
       } else if (a.action === "draft") {
         const limit = await aiAllowed(u.id);
         if (limit) return limit;
@@ -95,7 +101,7 @@ export async function POST(req: Request, { params }: Ctx) {
           // Two sections per request, all at once: each finishes well inside the server's time limit.
           const groups = Array.from({ length: Math.ceil(a.keys.length / 2) }, (_, i) => a.keys.slice(i * 2, i * 2 + 2));
           const parts = await Promise.all(groups.map((g) => draftQpr(d, g)));
-          const out = { sections: parts.flatMap((x) => x.sections), questions: [...new Set(parts.flatMap((x) => x.questions))] };
+          const out = { sections: parts.flatMap((x) => x.sections), questions: mergeQuestions(parts.flatMap((x) => x.questions)) };
           for (const s of out.sections) next.sections[s.key] = { text: s.text, by: u.id, at: now, drafted: true };
           await saveQpr(code, q, next);
           const project = await projectByCode(code);
@@ -114,7 +120,7 @@ export async function POST(req: Request, { params }: Ctx) {
       entityId: project.id,
       action: a.action === "release" ? "qpr_released" : "qpr_edited",
       by: u.id,
-      detail: { quarter: q, part: a.action, ...(a.action === "section" ? { key: a.key, cleared: !a.text.trim() } : a.action === "row" ? { key: a.indicator, status: a.status, comment: a.comment } : {}) },
+      detail: { quarter: q, part: a.action, ...(a.action === "section" ? { key: a.key, cleared: !a.text.trim() } : a.action === "row" ? { key: a.indicator, status: a.status, comment: a.comment } : a.action === "overspend" ? { key: a.line, cleared: !a.text } : {}) },
     });
     return NextResponse.json(await view(code, q, u));
   });
