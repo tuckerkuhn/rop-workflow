@@ -23,6 +23,7 @@ export const ps: Messages = {
   "nav.annual": "کلنی او وروستی",
   "nav.face": "د FACE فورمه",
   "nav.stories": "د بریالیتوب کیسې",
+  "nav.photos": "انځورونه او پوسټونه",
 
   "project.label": "پروژه",
 

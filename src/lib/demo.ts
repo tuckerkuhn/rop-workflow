@@ -6,7 +6,7 @@
 export type FieldRole = "extension" | "mel" | "store" | "manager";
 export type ProcRole = "holder" | "procurement" | "committee" | "ho" | "approver" | "finance";
 /** Project-level sign-offs and jobs from the build spec. */
-export type ProjectRole = "plan-approver" | "monthly-review" | "report-release" | "mel-owner" | "finance-import";
+export type ProjectRole = "plan-approver" | "monthly-review" | "report-release" | "mel-owner" | "finance-import" | "comms";
 export type Access = "edit" | "view" | "none";
 export type Lang = "en" | "es" | "fa" | "ps";
 

@@ -1,5 +1,5 @@
 import { and, asc, eq } from "drizzle-orm";
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { db, schema as s } from "@/db";
 import type { AppUser } from "@/lib/demo";
 import { quarterOf, resultActionSchema } from "@/lib/results";
@@ -16,6 +16,7 @@ import { sentWeekFor } from "@/lib/weekly";
 import { loadWeekly } from "@/server/weekly-store";
 import { toEnglish } from "@/server/translate";
 import { dataChecks } from "@/lib/data-checks";
+import { coachNew } from "@/server/photos-store";
 
 type Ctx = { params: Promise<{ code: string }> };
 
@@ -83,6 +84,8 @@ export async function POST(req: Request, { params }: Ctx) {
     if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Check the form." }, { status: 400 });
     const a = parsed.data;
     const u = v.user;
+    // New photos get their coaching once the answer has gone back.
+    if (["update", "update-edit", "record", "proof"].includes(a.action)) after(() => coachNew(code, 3).catch(() => 0));
     if (a.action === "update") {
       if (!(mayRecord(u) || isMelOwner(u))) return NextResponse.json({ error: "Only field staff and MEL can add activity updates." }, { status: 403 });
       if (a.update.date > new Date().toISOString().slice(0, 10)) return NextResponse.json({ error: "The date is in the future." }, { status: 400 });

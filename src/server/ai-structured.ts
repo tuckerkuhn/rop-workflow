@@ -8,7 +8,7 @@ import { DRAFT_MODEL, DraftingUnavailable } from "@/server/ai-drafts";
  * answer must match. Drafts only: people read, correct and decide. Errors come back in plain
  * language so the screen can show them. Returns the model that answered, for the audit trail.
  */
-export async function draftStructured<T extends z.ZodType>(opts: { system: string; task: string; facts: unknown; schema: T; effort?: "low" | "medium" | "high"; maxTokens?: number }): Promise<{ out: z.infer<T>; model: string }> {
+export async function draftStructured<T extends z.ZodType>(opts: { system: string; task: string; facts: unknown; schema: T; effort?: "low" | "medium" | "high"; maxTokens?: number; images?: { type: "image/jpeg" | "image/png" | "image/webp"; data: Buffer }[] }): Promise<{ out: z.infer<T>; model: string }> {
   if (!process.env.ANTHROPIC_API_KEY) throw new DraftingUnavailable("AI drafting is not set up on this server: add ANTHROPIC_API_KEY.");
   const client = new Anthropic({ maxRetries: 1 });
   const stream = client.beta.messages.stream({
@@ -18,7 +18,15 @@ export async function draftStructured<T extends z.ZodType>(opts: { system: strin
     fallbacks: "default",
     output_config: { effort: opts.effort ?? "medium", format: betaZodOutputFormat(opts.schema) },
     system: opts.system,
-    messages: [{ role: "user", content: `${opts.task}\n\nThe facts (JSON):\n${JSON.stringify(opts.facts, null, 2)}` }],
+    messages: [
+      {
+        role: "user",
+        content: [
+          ...(opts.images ?? []).map((im) => ({ type: "image" as const, source: { type: "base64" as const, media_type: im.type, data: im.data.toString("base64") } })),
+          { type: "text" as const, text: `${opts.task}\n\nThe facts (JSON):\n${JSON.stringify(opts.facts, null, 2)}` },
+        ],
+      },
+    ],
   });
   let timedOut = false;
   const timer = setTimeout(() => {

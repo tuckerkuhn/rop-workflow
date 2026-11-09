@@ -23,6 +23,7 @@ export const es: Messages = {
   "nav.annual": "Anual y final",
   "nav.face": "Formulario FACE",
   "nav.stories": "Historias de éxito",
+  "nav.photos": "Fotos y publicaciones",
 
   "project.label": "Proyecto",
 
