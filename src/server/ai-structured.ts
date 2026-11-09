@@ -36,6 +36,7 @@ export async function draftStructured<T extends z.ZodType>(opts: { system: strin
     if (e instanceof Anthropic.RateLimitError) throw new Error("Too many drafts at once. Wait a minute and try again.");
     if (e instanceof Anthropic.AuthenticationError) throw new Error("The AI key on this server was not accepted. An administrator needs to replace ANTHROPIC_API_KEY.");
     if (e instanceof Anthropic.APIConnectionError) throw new Error("Could not reach the AI service. Try again.");
+    if (e instanceof Anthropic.AnthropicError && /parse structured output/i.test(e.message)) throw new Error("The answer came back cut short. Try again; if it repeats, try with less text at once.");
     throw e;
   } finally {
     clearTimeout(timer);

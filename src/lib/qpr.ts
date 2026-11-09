@@ -50,8 +50,14 @@ export type Qpr = {
   grm: { received: number | null; resolved: number | null };
   /** Per overspent budget line: why it is over (an approved realignment, a price rise...). Goes in the report under the project information. */
   overspend?: Record<string, { text: string; by: string; at: string }>;
+  /** The last check of the written text against the evidence (server/claim-check.ts). */
+  claimCheck?: ClaimCheck;
   released?: { by: string; at: string };
 };
+
+/** One finding of the evidence check: a sentence the records do not bear out, and the records that say so. */
+export type ClaimIssue = { section: string; sentence: string; kind: "figure" | "place" | "timing" | "contradiction"; problem: string; evidence: string[] };
+export type ClaimCheck = { at: string; by: string; model: string; checked: number; issues: ClaimIssue[]; sections: Record<string, string> };
 
 export const emptyQpr = (projectName: string): Qpr => ({
   info: { title: projectName, agreement: "", locations: "", partner: "Roots of Peace", director: "" },
@@ -129,6 +135,8 @@ export const qprPatchSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("release") }),
   /** Saves a frozen copy as if released, without locking anything: to rehearse and compare. */
   z.object({ action: z.literal("practice") }),
+  /** Checks the written sections against the quarter's records and the dated evidence. */
+  z.object({ action: z.literal("check-claims") }),
 ]);
 export type QprPatch = z.infer<typeof qprPatchSchema>;
 

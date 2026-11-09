@@ -11,6 +11,7 @@ import { SECTIONS, STATUSES, STATUS_LABEL, overspentLines, quarterSpendOf, type 
 import { qprDocx, type Images } from "@/lib/qpr-docx";
 import { formatMinutes } from "@/lib/report-copy";
 import { ShareLinks } from "@/components/progress/share-links";
+import { ClaimCheckPanel } from "@/components/progress/claim-check";
 import { ReportDownloads } from "@/components/progress/downloads";
 import { quarterOf, quarterRange } from "@/lib/results";
 import type { QprView } from "@/app/api/projects/[code]/qpr/route";
@@ -283,6 +284,14 @@ export function QprPage() {
             )}
 
             <ReportDownloads project={project.id} quarter={quarter} user={user.id} mayEvidence={!!user.admin || user.project.some((r) => ["mel-owner", "report-release", "plan-approver", "monthly-review"].includes(r))} />
+            <ClaimCheckPanel
+              check={v.saved.claimCheck}
+              sections={Object.fromEntries(Object.entries(v.saved.sections).map(([k, t]) => [k, t?.text ?? ""]))}
+              headings={Object.fromEntries([...SECTIONS.map((x) => [x.key, x.heading]), ...v.activities.map((x) => [`act.${x.code}`, `Activity ${x.code}`])])}
+              busy={busy === "check-claims"}
+              mayRun={v.mayEdit}
+              onRun={() => quiet(act({ action: "check-claims" }, "Checked. Look at each finding against its records; nothing has been changed."))}
+            />
             {!v.frozen?.kind || v.frozen.kind === "release" ? <ShareLinks project={project.id} quarter={quarter} user={user.id} ready={v.copies.length > 0} /> : null}
 
             {questions.length > 0 && (
