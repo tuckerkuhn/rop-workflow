@@ -10,6 +10,8 @@ import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn } from "@/components/w
 import { SECTIONS, STATUSES, STATUS_LABEL, overspentLines, quarterSpendOf, type QprPatch, type Row, type Status } from "@/lib/qpr";
 import { qprDocx, type Images } from "@/lib/qpr-docx";
 import { formatMinutes } from "@/lib/report-copy";
+import { ShareLinks } from "@/components/progress/share-links";
+import { ReportDownloads } from "@/components/progress/downloads";
 import { quarterOf, quarterRange } from "@/lib/results";
 import type { QprView } from "@/app/api/projects/[code]/qpr/route";
 
@@ -279,6 +281,9 @@ export function QprPage() {
                   ))}
               </p>
             )}
+
+            <ReportDownloads project={project.id} quarter={quarter} user={user.id} mayEvidence={!!user.admin || user.project.some((r) => ["mel-owner", "report-release", "plan-approver", "monthly-review"].includes(r))} />
+            {!v.frozen?.kind || v.frozen.kind === "release" ? <ShareLinks project={project.id} quarter={quarter} user={user.id} ready={v.copies.length > 0} /> : null}
 
             {questions.length > 0 && (
               <section className="mt-4 rounded-xl border border-ochre/40 bg-ochre-soft px-4 py-3 text-sm">

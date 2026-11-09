@@ -13,7 +13,7 @@ import type { AppUser } from "@/lib/demo";
 type Row = typeof s.staff.$inferSelect;
 type Profile = Partial<Omit<AppUser, "id" | "name">>;
 
-export function personOf(r: Row): PersonInput & { id: string; active: boolean; signedIn: boolean } {
+export function personOf(r: Row): PersonInput & { id: string; active: boolean; signedIn: boolean; invitedAt: string | null } {
   const p = (r.profile ?? {}) as Profile;
   return {
     id: r.personId ?? r.id,
@@ -35,6 +35,7 @@ export function personOf(r: Row): PersonInput & { id: string; active: boolean; s
     projects: p.projects ?? [],
     active: r.active,
     signedIn: !!r.authUserId,
+    invitedAt: ((r.profile ?? {}) as { invitedAt?: string }).invitedAt ?? null,
   };
 }
 
@@ -146,6 +147,52 @@ export async function createAccount(id: string, by: { id: string; staffId: strin
   if (error && !already) throw new PeopleError(`Supabase did not create the account: ${error.message}`);
   await log(r.id, "account", by, { person: id, changes: [already ? "Sign-in account already existed" : "Sign-in account created"] });
   return already ? "already had a sign-in account" : "sign-in account created";
+}
+
+/** What a person can do, in words, for their invitation. */
+function canDo(p: ReturnType<typeof personOf>): string[] {
+  const out: string[] = [];
+  if (p.fieldAccess === "edit") out.push("record results, with their proof, and items for the weekly update");
+  if (p.project.includes("mel-owner")) out.push("check results as MEL: accept, query or reopen them");
+  if (p.project.some((r) => ["plan-approver", "monthly-review"].includes(r))) out.push("run the monthly review and write the donor reports");
+  if (p.project.includes("report-release")) out.push("release donor reports");
+  if (p.procurementAccess === "edit") out.push("request and follow purchases");
+  if (p.admin) out.push("manage people's access as an administrator");
+  return out.length ? out : ["see the project's work and results"];
+}
+
+/**
+ * Invites someone: makes sure they have a sign-in account, then emails them how to sign in and
+ * what they can do. Recorded in the change log, and on their record as the date invited.
+ */
+export async function invitePerson(id: string, by: { id: string; staffId: string | null; name: string }, origin: string) {
+  const r = await rowOf(id);
+  if (!r?.email) throw new PeopleError("Add an email first.");
+  const p = personOf(r);
+  if (!p.active) throw new PeopleError("Turn their access back on first.");
+  await createAccount(id, by);
+  const first = r.fullName.split(" ")[0];
+  const lines = canDo(p);
+  const text = [
+    `Hello ${first},`,
+    "",
+    `${by.name} has invited you to ROP Workflow, Roots of Peace's app for project results, evidence and donor reports.`,
+    "",
+    "You can:",
+    ...lines.map((l) => `- ${l}`),
+    "",
+    `Sign in at ${origin} with this email address (${r.email}). You will get a code by email; there is no password.`,
+    "",
+    "When you first sign in, Home shows a short Getting started list for your role.",
+  ].join("\n");
+  const html = `<p>Hello ${first},</p><p>${by.name} has invited you to <strong>ROP Workflow</strong>, Roots of Peace's app for project results, evidence and donor reports.</p><p>You can:</p><ul>${lines.map((l) => `<li>${l}</li>`).join("")}</ul><p><a href="${origin}">Sign in</a> with this email address (${r.email}). You will get a code by email; there is no password.</p><p>When you first sign in, Home shows a short Getting started list for your role.</p>`;
+  if (!process.env.RESEND_API_KEY) throw new PeopleError("This server cannot send email: set RESEND_API_KEY.");
+  const { send } = await import("@/server/notify-store");
+  await send(r.email, { subject: `${by.name} invited you to ROP Workflow`, html, text });
+  const at = new Date().toISOString();
+  await db.update(s.staff).set({ profile: { ...((r.profile ?? {}) as Profile), invitedAt: at } as Profile, updatedAt: new Date() }).where(eq(s.staff.id, r.id));
+  await log(r.id, "invite", by, { person: id, changes: [`Invitation emailed to ${r.email}`] });
+  return `invitation sent to ${r.email}`;
 }
 
 /** The latest changes to people, newest first. */

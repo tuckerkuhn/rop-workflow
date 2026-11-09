@@ -11,6 +11,16 @@ export const ps: Messages = {
   "nav.work": "کار",
   "nav.progress": "پرمختګ",
   "nav.resources": "سرچینې",
+  "nav.record": "ثبت",
+  "nav.check": "کتنه",
+  "nav.report": "راپور",
+  "nav.organization": "سازمان",
+  "nav.results": "پایلې او شواهد",
+  "nav.review": "میاشتنۍ کتنه",
+  "nav.budget": "بودیجه او لګښت",
+  "nav.weekly": "اونیز راپور",
+  "nav.quarterly": "درې میاشتنی راپور",
+  "nav.annual": "کلنی او وروستی",
 
   "project.label": "پروژه",
 

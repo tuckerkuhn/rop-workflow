@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { Pill } from "@/components/workspace/ui";
+import { NextReportPanel } from "@/components/home/next-report";
+import { GettingStarted } from "@/components/home/getting-started";
 import { HrHome } from "@/components/home/hr-home";
 import { useEffect, useState } from "react";
 import { usePersistentState } from "@/components/workspace/ui";
@@ -247,6 +249,8 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
 
   return (
     <section aria-label="Where things stand" className="space-y-5">
+      <GettingStarted project={project.id} user={user.id} />
+      <NextReportPanel project={project.id} user={user.id} />
       <div className="flex flex-wrap items-start gap-3">
         <p className="min-w-0 flex-1 text-lg leading-snug">
           {headline[lens]}

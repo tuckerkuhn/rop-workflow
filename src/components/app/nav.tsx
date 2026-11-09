@@ -7,7 +7,7 @@ import { useT } from "@/components/app/i18n";
 import { Assistant } from "@/components/app/assistant";
 import { LogoMark } from "@/components/logo";
 import type { MessageKey } from "@/lib/i18n";
-import { HR_ACCESS_ROLES } from "@/lib/hr";
+import { orgAreasFor } from "@/lib/org-areas";
 import { holdsType } from "@/lib/authority";
 
 /**
@@ -15,7 +15,7 @@ import { holdsType } from "@/lib/authority";
  * Field activities and procurement live inside Work; project design opens from Home.
  */
 
-type Section = { id: string; href: string; label: MessageKey; also: string[]; icon: React.ReactNode; staffOnly?: boolean; hrOnly?: boolean; places?: { href: string; label: MessageKey }[] };
+type Section = { id: string; href: string; label: MessageKey; also: string[]; icon: React.ReactNode; staffOnly?: boolean; orgOnly?: boolean; wideOnly?: boolean; places?: { href: string; label: MessageKey }[] };
 
 const icon = (d: string) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden className="h-6 w-6 shrink-0">
@@ -23,31 +23,63 @@ const icon = (d: string) => (
   </svg>
 );
 
+/**
+ * The reporting loop first: Record what happened, Check it, Report it. Running the organization
+ * (HR, pay, procurement, suppliers) sits apart, for the people whose role needs it.
+ */
 const SECTIONS: Section[] = [
-  { id: "home", href: "/home", label: "nav.home", also: ["/design", "/settings", "/setup", "/people", "/timesheets", "/payroll", "/expenses", "/onboarding", "/offboarding", "/leave", "/portfolio"], icon: icon("M3 10.5 12 3l9 7.5M5 9v11h5v-6h4v6h5V9") },
+  { id: "home", href: "/home", label: "nav.home", also: ["/design", "/settings", "/setup", "/people/me", "/timesheets", "/expenses", "/leave"], icon: icon("M3 10.5 12 3l9 7.5M5 9v11h5v-6h4v6h5V9") },
   {
-    id: "work",
+    id: "record",
     href: "/work",
-    label: "nav.work",
+    label: "nav.record",
     also: ["/field", "/procurement"],
-    // Places within Work, as opposed to actions (those are under "+ New").
+    places: [{ href: "/work/activities", label: "nav.activities" }],
+    icon: icon("M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"),
+    staffOnly: true,
+  },
+  {
+    id: "check",
+    href: "/progress",
+    label: "nav.check",
+    also: [],
     places: [
-      { href: "/work/activities", label: "nav.activities" },
-      { href: "/work/plan", label: "nav.procCalendar" },
-      { href: "/work/opportunities", label: "nav.opportunities" },
+      { href: "/progress/results", label: "nav.results" },
+      { href: "/progress/review", label: "nav.review" },
+      { href: "/progress/budget", label: "nav.budget" },
     ],
-    icon: icon("M6 3v12M6 15a3 3 0 1 0 0 6 3 3 0 0 0 0-6ZM18 3a3 3 0 1 0 0 6 3 3 0 0 0 0-6ZM18 9a9 9 0 0 1-9 9"), staffOnly: true },
-  { id: "progress", href: "/progress", label: "nav.progress", also: [], icon: icon("M4 20V10M10 20V4M16 20v-7M22 20H2") },
-  // The HR record, for anyone holding an HR role, so HR never needs Home to reach it.
-  { id: "people", href: "/people", label: "nav.people", also: ["/payroll", "/onboarding", "/offboarding"], icon: icon("M16 19v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1M9 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM22 19v-1a4 4 0 0 0-3-3.87M16 4.13a3 3 0 0 1 0 5.74"), staffOnly: true, hrOnly: true },
-  { id: "resources", href: "/resources", label: "nav.resources", also: [], icon: icon("M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2V5Zm0 16a2 2 0 0 1 2-2h13v2"), staffOnly: true },
+    icon: icon("M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"),
+  },
+  {
+    id: "report",
+    href: "/progress/report",
+    label: "nav.report",
+    also: ["/progress/weekly", "/progress/annual", "/progress/learning"],
+    places: [
+      { href: "/progress/weekly", label: "nav.weekly" },
+      { href: "/progress/report", label: "nav.quarterly" },
+      { href: "/progress/annual", label: "nav.annual" },
+    ],
+    icon: icon("M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8ZM14 2v6h6M8 13h8M8 17h5"),
+    staffOnly: true,
+  },
+  {
+    id: "organization",
+    href: "/organization",
+    label: "nav.organization",
+    also: ["/people", "/payroll", "/onboarding", "/offboarding", "/work/plan", "/work/suppliers", "/work/bills", "/work/opportunities", "/work/closeout", "/portfolio", "/settings/organization", "/settings/people", "/settings/policy", "/settings/health"],
+    icon: icon("M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6M9 10h.01M15 10h.01"),
+    staffOnly: true,
+    orgOnly: true,
+  },
+  { id: "resources", href: "/resources", label: "nav.resources", also: [], icon: icon("M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2V5Zm0 16a2 2 0 0 1 2-2h13v2"), staffOnly: true, wideOnly: true },
 ];
 
 function useSections() {
   const { user } = useSession();
   const path = usePathname();
-  const hr = !!user && HR_ACCESS_ROLES.some((r) => holdsType(user.id, r));
-  const shown = SECTIONS.filter((s) => (!s.staffOnly || user?.kind === "employee") && (!s.hrOnly || hr));
+  const org = orgAreasFor(user ?? null, (r) => !!user && holdsType(user.id, r)).length > 0;
+  const shown = SECTIONS.filter((s) => (!s.staffOnly || user?.kind === "employee") && (!s.orgOnly || org));
   // The section with the longest matching path wins, so /people opens People, not Home, for HR.
   const score = (s: Section) => Math.max(-1, ...[s.href, ...s.also].filter((p) => path === p || path.startsWith(`${p}/`)).map((p) => p.length));
   const best = Math.max(...shown.map(score));
@@ -110,8 +142,8 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
         aria-label={t("nav.label")}
         className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-paper/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden"
       >
-        <ul className="grid" style={{ gridTemplateColumns: `repeat(${shown.length}, minmax(0, 1fr))` }}>
-          {shown.map((s) => {
+        <ul className="grid" style={{ gridTemplateColumns: `repeat(${shown.filter((x) => !x.wideOnly).length}, minmax(0, 1fr))` }}>
+          {shown.filter((x) => !x.wideOnly).map((s) => {
             const on = isActive(s);
             return (
               <li key={s.id}>

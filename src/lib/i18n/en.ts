@@ -9,6 +9,16 @@ export const en = {
   "nav.work": "Work",
   "nav.progress": "Progress",
   "nav.resources": "Resources",
+  "nav.record": "Record",
+  "nav.check": "Check",
+  "nav.report": "Report",
+  "nav.organization": "Organization",
+  "nav.results": "Results and proof",
+  "nav.review": "Monthly review",
+  "nav.budget": "Budget vs actual",
+  "nav.weekly": "Weekly update",
+  "nav.quarterly": "Quarterly report",
+  "nav.annual": "Annual and final",
 
   "project.label": "Project",
 

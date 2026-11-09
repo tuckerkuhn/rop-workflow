@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { db, schema } from "@/db";
 import { z } from "zod";
 import { seesAll } from "@/lib/hr";
 import { runLayoutSchema } from "@/lib/payroll";
@@ -37,6 +38,7 @@ export async function POST(req: Request) {
     const org = await orgIdForPerson(v.user.id);
     if (!org) return NextResponse.json({ error: "No organization." }, { status: 400 });
     await saveRunLayout(org, parsed.data.run, { id: v.user.id, name: v.user.name }, parsed.data.reason);
+    await db.insert(schema.auditLog).values({ projectId: null, entity: "payroll_settings", entityId: org, action: "run_layout_changed", detail: { by: v.user.id, reason: parsed.data.reason } });
     return NextResponse.json({ ...(await loadPayrollSettings(org)), mayEdit: true });
   });
 }

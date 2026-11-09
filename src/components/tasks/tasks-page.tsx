@@ -74,8 +74,7 @@ const CHIPS: { id: Chip; label: MessageKey }[] = [
 ];
 const PLACES: { href: string; label: MessageKey }[] = [
   { href: "/work/activities", label: "nav.activities" },
-  { href: "/work/plan", label: "nav.procCalendar" },
-  { href: "/work/opportunities", label: "nav.opportunities" },
+  { href: "/progress/weekly", label: "nav.weekly" },
 ];
 
 const VIEWS: { id: View; label: MessageKey }[] = [

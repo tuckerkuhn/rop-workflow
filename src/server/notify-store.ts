@@ -149,7 +149,8 @@ ${workflow.length ? `<p style="margin-bottom:6px;color:#555"><strong>Also waitin
   return { subject, html, text };
 }
 
-async function send(to: string, mail: { subject: string; html: string; text: string }) {
+/** Sends one email through Resend (RESEND_API_KEY). */
+export async function send(to: string, mail: { subject: string; html: string; text: string }) {
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
