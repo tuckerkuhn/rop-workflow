@@ -11,6 +11,7 @@ import { loadFile } from "@/server/hr-files";
 import { loadHr } from "@/server/hr-store";
 import type { Story } from "@/lib/stories";
 import { mayApproveStory } from "@/server/stories-store";
+import { commsMayOpen, mayComms } from "@/server/photos-store";
 
 /**
  * A receipt, for the person who uploaded it, anyone holding an HR role, the person whose report
@@ -82,6 +83,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ hash: st
           }
         }
       }
+    }
+    // Communications: photos of the work (never documents) on their projects, for the photo library.
+    if (!ok && mayComms(v.user) && f.type.startsWith("image/")) {
+      const found = await db
+        .select({ code: s.projects.code, id: s.projects.id })
+        .from(s.projectState)
+        .innerJoin(s.projects, eq(s.projects.id, s.projectState.projectId))
+        .where(and(eq(s.projectState.key, "photos"), sql`${s.projectState.data}::text like ${`%${hash}%`}`))
+        .limit(5);
+      for (const row of found) if (row.code && onProject(v.user, row.code) && (await commsMayOpen(row.id, hash))) ok = true;
     }
     if (!ok) return NextResponse.json({ error: "You cannot open this file." }, { status: 403 });
     return new NextResponse(new Uint8Array(f.data), {

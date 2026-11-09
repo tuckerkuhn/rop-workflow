@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
+import { coachNew } from "@/server/photos-store";
 import { storyActionSchema } from "@/lib/stories";
 import { requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
@@ -25,6 +26,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
     if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Check the form." }, { status: 400 });
     try {
       const out = await storyAction(code, v.user, parsed.data);
+      if (parsed.data.action === "save") after(() => coachNew(code, 3).catch(() => 0));
       if (out.error) return NextResponse.json({ error: out.error }, { status: 400 });
       return NextResponse.json({ ...(await storiesView(code, v.user)), id: out.id });
     } catch (e) {

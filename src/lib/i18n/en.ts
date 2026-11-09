@@ -21,6 +21,7 @@ export const en = {
   "nav.annual": "Annual and final",
   "nav.face": "FACE form",
   "nav.stories": "Success stories",
+  "nav.photos": "Photos and posts",
 
   "project.label": "Project",
 

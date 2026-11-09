@@ -23,6 +23,7 @@ export const fa: Messages = {
   "nav.annual": "سالانه و نهایی",
   "nav.face": "فورم FACE",
   "nav.stories": "داستان های موفقیت",
+  "nav.photos": "عکس ها و پست ها",
 
   "project.label": "پروژه",
 
