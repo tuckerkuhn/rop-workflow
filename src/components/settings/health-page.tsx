@@ -52,6 +52,16 @@ export function HealthPage() {
                 <p className="font-display text-xl">{h.email.configured ? "Switched on" : "Not set up"}</p>
                 {!h.email.configured && <p className="text-xs text-muted">Needs RESEND_API_KEY and CRON_SECRET on the server.</p>}
               </li>
+              <li className="rounded-2xl border border-line bg-surface p-4 sm:col-span-3">
+                <p className="text-xs text-muted">Database space</p>
+                <p className={`font-display text-3xl ${h.storage.level === "critical" ? "text-clay" : h.storage.level === "warning" ? "text-ochre" : ""}`}>
+                  {h.storage.usedMb} MB <span className="text-base text-muted">of {h.storage.limitMb} MB</span>
+                </p>
+                <p className="text-xs text-muted">
+                  Proof files: {h.storage.filesMb} MB in {h.storage.files} files, kept in the database so they can never be altered.
+                  {h.storage.level !== "good" && " Nearing the limit: decide whether to move photos to file storage or raise the plan."}
+                </p>
+              </li>
             </ul>
             <section className="mt-8">
               <h2 className="font-display text-2xl">Errors this week</h2>

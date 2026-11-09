@@ -90,8 +90,10 @@ function fromResults(r: IndicatorRow, list: ResultRecord[], dates: Dates): Indic
 }
 
 function withValues(r: IndicatorRow, subs: Submission[], span: Dates, mapped?: Mapped, results?: ResultRecord[]): IndicatorProgress {
-  if (mapped) return fromMapping(r, mapped, span);
+  // A results indicator counts its results, including those made from Kobo submissions, so
+  // Progress, MEL's review and the report all count the same records.
   if (r.source === "results") return fromResults(r, results ?? [], span);
+  if (mapped) return fromMapping(r, mapped, span);
   // Added in setup and not mapped to a question yet: nothing to count.
   if (!BUILT_IN_SOURCES.includes(r.source)) return { ...base(r), total: null, period: null, pending: 0, byGender: null, lastDate: null, dataSource: "none", ...forecastOf(r, span, null, () => null) };
   const ind = asIndicator(r);

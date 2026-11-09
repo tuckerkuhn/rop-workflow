@@ -14,6 +14,7 @@ import { activityOf } from "@/lib/qpr";
 import { loadQpr } from "@/server/qpr-store";
 import { sentWeekFor } from "@/lib/weekly";
 import { loadWeekly } from "@/server/weekly-store";
+import { toEnglish } from "@/server/translate";
 import { dataChecks } from "@/lib/data-checks";
 
 type Ctx = { params: Promise<{ code: string }> };
@@ -64,6 +65,15 @@ export async function GET(req: Request, { params }: Ctx) {
   });
 }
 
+/** Text written in Dari or Pashto is saved in English for the report, with the original kept beside it. */
+async function inEnglish<T extends { title?: string; note: string; captions?: Record<string, string>; original?: unknown }>(item: T, by: string, maxNote: number): Promise<T> {
+  const { original: _forged, ...rest } = item;
+  void _forged;
+  const t = await toEnglish(by, { title: rest.title, note: rest.note, captions: rest.captions });
+  if (!t) return rest as T;
+  return { ...rest, ...(t.title !== undefined ? { title: t.title } : {}), note: (t.note ?? rest.note).slice(0, maxNote), ...(t.captions ? { captions: t.captions } : {}), original: t.original } as T;
+}
+
 export async function POST(req: Request, { params }: Ctx) {
   const { code } = await params;
   return handle(async () => {
@@ -78,7 +88,7 @@ export async function POST(req: Request, { params }: Ctx) {
       if (a.update.date > new Date().toISOString().slice(0, 10)) return NextResponse.json({ error: "The date is in the future." }, { status: 400 });
       const sent = sentWeekFor(await loadWeekly(code), a.update.date);
       if (sent) return NextResponse.json({ error: `Weekly update #${sent.n} (${sent.from} to ${sent.to}) has been sent: date this in a week that is still open.` }, { status: 409 });
-      await addUpdate(code, a.update, u.id);
+      await addUpdate(code, await inEnglish(a.update, u.id, 4000), u.id);
       return NextResponse.json(await view(code, u));
     }
     if (a.action === "update-edit" || a.action === "update-remove") {
@@ -91,7 +101,7 @@ export async function POST(req: Request, { params }: Ctx) {
       if (sent) return NextResponse.json({ error: `Weekly update #${sent.n} has been sent, so this can no longer be changed.` }, { status: 409 });
       if (a.action === "update-edit") {
         if (a.update.date > new Date().toISOString().slice(0, 10)) return NextResponse.json({ error: "The date is in the future." }, { status: 400 });
-        await editUpdate(code, a.id, a.update, u.id);
+        await editUpdate(code, a.id, await inEnglish(a.update, u.id, 4000), u.id);
       } else await removeUpdate(code, a.id, u.id);
       return NextResponse.json(await view(code, u));
     }
@@ -102,6 +112,21 @@ export async function POST(req: Request, { params }: Ctx) {
       const err = await correctResult(code, a.id, a.changes, a.reply, u.id);
       if (err) return NextResponse.json({ error: err }, { status: 400 });
       return NextResponse.json(await view(code, u));
+    }
+    if (a.action === "accept-many") {
+      if (!isMelOwner(u)) return NextResponse.json({ error: "Only the MEL owner can accept results." }, { status: 403 });
+      const project = await projectByCode(code);
+      const all = await loadResults(code);
+      const indicators = await db.select().from(s.indicators).where(eq(s.indicators.projectId, project.id));
+      let accepted = 0;
+      for (const id of a.ids) {
+        const r = all.find((x) => x.id === id);
+        if (!r || r.status !== "pending" || r.by === u.id) continue;
+        const ind = indicators.find((i) => i.code === r.indicator);
+        if (dataChecks(r, all, ind ? { code: ind.code, unit: ind.unit, disaggregation: ind.disaggregation } : undefined).length) continue;
+        if (await reviewResult(code, id, "accepted", u.id, null)) accepted++;
+      }
+      return NextResponse.json({ ...(await view(code, u)), accepted });
     }
     if (a.action === "reopen") {
       if (!isMelOwner(u)) return NextResponse.json({ error: "Only the MEL owner can reopen a result." }, { status: 403 });
@@ -139,7 +164,8 @@ export async function POST(req: Request, { params }: Ctx) {
         if (a.results.some((x, j) => j < i && sameResult(x, r))) problems.push(`Row ${i + 1}: the same as an earlier row`);
       });
       if (problems.length) return NextResponse.json({ error: `Nothing imported. ${problems.slice(0, 8).join("; ")}${problems.length > 8 ? `; and ${problems.length - 8} more` : ""}.` }, { status: 400 });
-      await addResults(code, a.results, u.id);
+      // Only a KoboToolbox sync may say a result came from Kobo, with its location.
+      await addResults(code, a.results.map(({ kobo: _k, gps: _g, ...r }) => (void [_k, _g], r)), u.id);
       await logAudit(db, project.id, { entity: "result", entityId: project.id, action: "results_imported", by: u.id, detail: { file: a.file, count: a.results.length } });
       return NextResponse.json(await view(code, u));
     }
@@ -152,7 +178,11 @@ export async function POST(req: Request, { params }: Ctx) {
       if (a.result.date > new Date().toISOString().slice(0, 10)) return NextResponse.json({ error: "The date is in the future." }, { status: 400 });
       const { female, male } = a.result;
       if (female !== undefined && male !== undefined && female + male === 0) return NextResponse.json({ error: "Women and men are both 0: leave them blank if the result is not about people." }, { status: 400 });
-      await addResult(code, a.result, u.id);
+      {
+        const { kobo: _k, gps: _g, original: _o, ...typed } = a.result;
+        void [_k, _g, _o];
+        await addResult(code, await inEnglish(typed, u.id, 2000), u.id);
+      }
     } else {
       if (!isMelOwner(u)) return NextResponse.json({ error: "Only the MEL owner can accept or query results." }, { status: 403 });
       const r = (await loadResults(code)).find((x) => x.id === a.id);

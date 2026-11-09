@@ -8,6 +8,7 @@
  * forms that are not linked to the project.
  */
 import { NextResponse } from "next/server";
+import { koboToResults } from "@/server/kobo-results";
 import { handle } from "@/server/guard";
 import { hookAllowed, isProjectForm, sync } from "@/server/kobo-link";
 
@@ -23,7 +24,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
     if (!(await isProjectForm(code, form))) return NextResponse.json({ ok: true, ignored: "form not linked to this project" });
 
     try {
-      return NextResponse.json({ ok: true, result: await sync(code) });
+      const result = await sync(code);
+      return NextResponse.json({ ok: true, result, results: await koboToResults(code) });
     } catch (e) {
       // Not a 2xx, so KoboToolbox retries later.
       console.error(e);

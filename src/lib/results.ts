@@ -68,6 +68,12 @@ export const resultSchema = z
     captions: z.record(z.string().regex(/^[0-9a-f]{64}$/), z.string().trim().max(300)).optional(),
     /** When each photo was taken, by file fingerprint: read from the photo, or typed in. */
     taken: z.record(z.string().regex(/^[0-9a-f]{64}$/), z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),
+    /** Where it was recorded (a KoboToolbox submission's location): for checks inside ROP, never shown to donors. */
+    gps: z.object({ lat: z.number().min(-90).max(90), lon: z.number().min(-180).max(180) }).optional(),
+    /** What was written in Dari or Pashto, kept beside its English translation (set by the server). */
+    original: z.object({ lang: z.enum(["fa", "ps", "other"]), title: z.string().max(400).optional(), note: z.string().max(8000).optional(), captions: z.record(z.string(), z.string().max(600)).optional(), pending: z.boolean().optional(), model: z.string().max(80).optional() }).optional(),
+    /** The KoboToolbox submission it came from, when it came from one. */
+    kobo: z.object({ asset: z.string().max(80), uuid: z.string().max(80), id: z.number().int().optional() }).optional(),
     /** Why there is no file yet, when there is none. */
     noFile: z.string().trim().max(300).optional(),
   })
@@ -127,6 +133,8 @@ export const updateSchema = z.object({
   files: z.array(receiptSchema).max(20),
   captions: z.record(z.string().regex(/^[0-9a-f]{64}$/), z.string().trim().max(300)).optional(),
   taken: z.record(z.string().regex(/^[0-9a-f]{64}$/), z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),
+  /** What was written in Dari or Pashto, kept beside its English translation (set by the server). */
+  original: z.object({ lang: z.enum(["fa", "ps", "other"]), title: z.string().max(400).optional(), note: z.string().max(8000).optional(), captions: z.record(z.string(), z.string().max(600)).optional(), pending: z.boolean().optional(), model: z.string().max(80).optional() }).optional(),
 });
 export type UpdateInput = z.infer<typeof updateSchema>;
 export type UpdateRecord = UpdateInput & { id: string; quarter: string; by: string; at: string };
@@ -140,6 +148,8 @@ export const resultActionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("update-edit"), id: z.string().uuid(), update: updateSchema }),
   z.object({ action: z.literal("update-remove"), id: z.string().uuid() }),
   z.object({ action: z.literal("accept"), id: z.string().uuid() }),
+  /** MEL accepts many at once: only those waiting, not their own, and with nothing flagged by the data checker. */
+  z.object({ action: z.literal("accept-many"), ids: z.array(z.string().uuid()).min(1).max(300) }),
   /** Adds proof to a recorded result, at any stage: it never changes the figure. */
   z
     .object({

@@ -60,5 +60,19 @@ export async function health() {
     ai: { lastDay: ai?.n ?? 0, perDay: AI_PER_DAY, perPersonHour: AI_PER_PERSON_HOUR },
     email: { configured: !!process.env.RESEND_API_KEY && !!process.env.CRON_SECRET },
     monitoring: { sentry: false },
+    storage: await storage(),
   };
+}
+
+/**
+ * Database size against the plan's limit (DB_LIMIT_MB, default 500 MB for Supabase's free plan).
+ * Proof files live in the database, where it guarantees they are never altered; when the database
+ * nears its limit, a warning shows here well before uploads would fail.
+ */
+async function storage() {
+  const [r] = (await db.execute(sql`select pg_database_size(current_database())::bigint as db, coalesce((select sum(size) from hr_files), 0)::bigint as files, (select count(*) from hr_files)::int as n`)) as unknown as { db: string | number; files: string | number; n: number }[];
+  const mb = (v: string | number) => Math.round((Number(v) / 1_048_576) * 10) / 10;
+  const limit = Number(process.env.DB_LIMIT_MB) || 500;
+  const used = mb(r?.db ?? 0);
+  return { usedMb: used, filesMb: mb(r?.files ?? 0), files: r?.n ?? 0, limitMb: limit, level: used > limit * 0.85 ? "critical" : used > limit * 0.6 ? "warning" : "good" };
 }

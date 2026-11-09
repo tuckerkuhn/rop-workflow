@@ -127,3 +127,25 @@ async function pages<T>(server: string, token: string, first: string) {
   }
   return out;
 }
+
+/**
+ * Downloads one photo attached to a submission, as bytes. The address must be on the project's own
+ * KoboToolbox server; Kobo may then hand the file over from its storage (a redirect, on which the
+ * token is not sent on). Files over `max` bytes are skipped (null).
+ */
+export async function attachmentBytes(server: string, token: string, url: string, max = 4_000_000): Promise<{ bytes: Buffer; type: string } | null> {
+  const u = new URL(url, server);
+  if (u.origin !== server) throw new KoboError("A photo's address is on another server; it was not downloaded.");
+  let res: Response;
+  try {
+    res = await fetch(u, { headers: { Authorization: `Token ${token}` }, redirect: "follow", cache: "no-store", signal: AbortSignal.timeout(30000) });
+  } catch {
+    return null;
+  }
+  if (!res.ok) return null;
+  const len = Number(res.headers.get("content-length") ?? 0);
+  if (len > max) return null;
+  const bytes = Buffer.from(await res.arrayBuffer());
+  if (bytes.length > max) return null;
+  return { bytes, type: (res.headers.get("content-type") ?? "").split(";")[0].trim() };
+}

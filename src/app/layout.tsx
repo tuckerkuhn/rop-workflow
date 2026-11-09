@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import "./globals.css";
 import { I18nProvider } from "@/components/app/i18n";
 import { SessionProvider } from "@/components/app/session";
+import { OfflineSupport } from "@/components/app/offline-support";
 import { LANG_COOKIE, dirOf, isLang } from "@/lib/i18n";
 
 const fraunces = Fraunces({
@@ -32,6 +33,8 @@ export const metadata: Metadata = {
   title: "ROP Workflow",
   description:
     "Field activities, procurement, documents and approvals for Roots of Peace projects, in one record.",
+  icons: { icon: "/icon.svg", apple: "/apple-touch-icon.png" },
+  appleWebApp: { capable: true, title: "ROP Workflow", statusBarStyle: "default" },
 };
 
 export default async function RootLayout({
@@ -45,7 +48,10 @@ export default async function RootLayout({
     <html lang={lang} dir={dirOf(lang)}>
       <body className={`${fraunces.variable} ${inter.variable} ${jetbrains.variable} ${vazirmatn.variable} font-sans antialiased`}>
         <I18nProvider initial={lang}>
-          <SessionProvider>{children}</SessionProvider>
+          <SessionProvider>
+            {children}
+            <OfflineSupport />
+          </SessionProvider>
         </I18nProvider>
       </body>
     </html>

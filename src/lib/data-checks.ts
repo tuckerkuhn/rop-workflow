@@ -45,6 +45,7 @@ export function dataChecks(r: ResultRecord, all: ResultRecord[], ind: Indicator 
   if (by.includes("province") && !r.province) out.push("The indicator is reported by province, but the record has none.");
   if (by.includes("district") && !r.district) out.push("The indicator is reported by district, but the record has none.");
   if (!proofCount(r)) out.push(r.noFile ? `No proof attached (${r.noFile}).` : "No proof attached.");
+  if (r.original?.pending) out.push("Written in Dari or Pashto and not yet translated: the report needs it in English. Translate it before accepting.");
   // Every dated photo taken after the quarter the result is counted in: was it done then?
   const dates = Object.values(r.taken ?? {}).sort();
   const qEnd = quarterEnd(r.date);

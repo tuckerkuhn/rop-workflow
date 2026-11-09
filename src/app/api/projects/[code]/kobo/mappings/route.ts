@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { koboToResults } from "@/server/kobo-results";
 import { canEditProject } from "@/lib/demo";
 import { mappingsSchema } from "@/lib/kobo-setup";
 import { requireViewer } from "@/server/auth";
@@ -15,6 +16,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ code: st
     if (!parsed.success) return NextResponse.json({ error: "Invalid mappings." }, { status: 400 });
     return readable(async () => {
       await saveMappings(code, parsed.data.mappings);
+      // A new or changed mapping turns the submissions it counts into results for MEL.
+      await koboToResults(code);
       return NextResponse.json(await koboState(code));
     });
   });
