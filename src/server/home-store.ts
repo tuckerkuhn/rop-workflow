@@ -20,7 +20,13 @@ import { loadActivities } from "@/server/activities-store";
  * role sees first.
  */
 
-export type HomeAction = { key: string; for: Lens; urgent: boolean; text: string; href: string };
+/**
+ * Something waiting on a person. `bucket` says what kind of thing it is, for Home's three groups:
+ * approve (a sign-off or acceptance only they can give), fix (something wrong to put right), due
+ * (something to hand in by a date).
+ */
+export type Bucket = "approve" | "fix" | "due";
+export type HomeAction = { key: string; for: Lens; bucket: Bucket; urgent: boolean; text: string; href: string };
 export type Lens = "lead" | "hr" | "mel" | "field" | "finance" | "procurement";
 
 const monthOf = (d: Date) => d.toISOString().slice(0, 7);
@@ -159,26 +165,26 @@ export async function loadHome(code: string, u: AppUser) {
   const actions: HomeAction[] = [];
   const lenses = lensesFor(u, await holdsHrRole(u.id));
   if (lenses.includes("lead")) {
-    if (project.stage === "Design") actions.push({ key: "signoff", for: "lead", urgent: true, text: "Sign off the plan and budget to start Execute", href: "/home" });
+    if (project.stage === "Design") actions.push({ key: "signoff", for: "lead", bucket: "approve", urgent: true, text: "Sign off the plan and budget to start Execute", href: "/home" });
     for (const r of [lastReview, review]) {
       const waiting = r.review.changes.filter((c) => c.status === "proposed" && c.proposedBy !== u.id).length;
-      if (waiting) actions.push({ key: `decide-${r.month}`, for: "lead", urgent: true, text: `Decide ${waiting} proposed plan ${waiting === 1 ? "change" : "changes"} in the ${monthName(r.month)} review`, href: "/progress/review" });
+      if (waiting) actions.push({ key: `decide-${r.month}`, for: "lead", bucket: "approve", urgent: true, text: `Decide ${waiting} proposed plan ${waiting === 1 ? "change" : "changes"} in the ${monthName(r.month)} review`, href: "/progress/review" });
     }
-    if (!lastReview.review.signedOff) actions.push({ key: "review-signoff", for: "lead", urgent: false, text: `Sign off the ${monthName(lastReview.month)} monthly review`, href: "/progress/review" });
-    if (!lastReport.released) actions.push({ key: "release", for: "lead", urgent: false, text: `Release the ${qLabel(lastQ).replace("-", " ")} report in the app`, href: "/progress/report" });
+    if (!lastReview.review.signedOff) actions.push({ key: "review-signoff", for: "lead", bucket: "approve", urgent: false, text: `Sign off the ${monthName(lastReview.month)} monthly review`, href: "/progress/review" });
+    if (!lastReport.released) actions.push({ key: "release", for: "lead", bucket: "approve", urgent: false, text: `Release the ${qLabel(lastQ).replace("-", " ")} report in the app`, href: "/progress/report" });
   }
   if (lenses.includes("mel")) {
     const toCheck = allResults.filter((r) => r.status === "pending" && r.by !== u.id).length;
-    if (toCheck) actions.push({ key: "accept", for: "mel", urgent: true, text: `Accept or query ${toCheck} ${toCheck === 1 ? "result" : "results"} waiting for you`, href: "/progress/results" });
-    const stops = report.checks.filter((c) => c.level === "stop").length;
-    if (stops) actions.push({ key: "report-stops", for: "mel", urgent: false, text: `Clear ${stops} stop ${stops === 1 ? "item" : "items"} in the ${qLabel(thisQ).replace("-", " ")} report`, href: "/progress/report" });
+    if (toCheck) actions.push({ key: "accept", for: "mel", bucket: "approve", urgent: true, text: `Accept or query ${toCheck} ${toCheck === 1 ? "result" : "results"} waiting for you`, href: "/progress/results" });
+    // What blocks the report is listed from pre-flight itself (Home reads /next-report), so the
+    // count here can never differ from the pre-flight screen's.
   }
   const myQueried = allResults.filter((r) => r.status === "queried" && r.by === u.id);
-  if (myQueried.length) actions.push({ key: "queried", for: "field", urgent: true, text: `Fix ${myQueried.length} ${myQueried.length === 1 ? "result" : "results"} MEL queried`, href: "/progress/results" });
+  if (myQueried.length) actions.push({ key: "queried", for: "field", bucket: "fix", urgent: true, text: `Fix ${myQueried.length} ${myQueried.length === 1 ? "result" : "results"} MEL queried`, href: "/progress/results" });
   if (lenses.includes("finance")) {
     const wanted = prevMonth(month);
-    if (!budget.importedTo || budget.importedTo < wanted) actions.push({ key: "import", for: "finance", urgent: true, text: `Import Finance's workbook for ${monthName(wanted)} (imported to ${budget.importedTo ? monthName(budget.importedTo) : "nothing yet"})`, href: "/progress/report" });
-    if (overspent.length) actions.push({ key: "overspent", for: "finance", urgent: false, text: `Explain ${overspent.length} overspent budget ${overspent.length === 1 ? "line" : "lines"}`, href: "/progress/budget" });
+    if (!budget.importedTo || budget.importedTo < wanted) actions.push({ key: "import", for: "finance", bucket: "due", urgent: true, text: `Import Finance's workbook for ${monthName(wanted)} (imported to ${budget.importedTo ? monthName(budget.importedTo) : "nothing yet"})`, href: "/progress/report" });
+    if (overspent.length) actions.push({ key: "overspent", for: "finance", bucket: "fix", urgent: false, text: `Explain ${overspent.length} overspent budget ${overspent.length === 1 ? "line" : "lines"}`, href: "/progress/budget" });
   }
 
   // Accepted this quarter with no file or link behind it.
