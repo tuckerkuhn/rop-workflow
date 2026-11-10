@@ -1,6 +1,7 @@
 import { tsEn } from "./hr/timesheet";
 import { actEn } from "./activities";
 import { pfEn } from "./preflight";
+import { rqEn } from "./review-queue";
 import { ksEn } from "./kobo-suggest";
 import { agEn } from "./agreement";
 import { evEn } from "./evidence";
@@ -576,6 +577,7 @@ export const en = {
   ...lvEn,
   ...actEn,
   ...pfEn,
+  ...rqEn,
   ...ksEn,
   ...agEn,
   ...evEn,

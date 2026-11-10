@@ -7,8 +7,8 @@ The order agreed on 9 Nov 2026, from the four-additions, five-streamlines, six-U
 | A1 | Report pre-flight check | `feature/report-preflight` | Merged 9 Nov |
 | A2 | Click any number, see its proof | `feature/number-to-proof` | Merged 9 Nov |
 | A3 | Three uploads to a running project | `feature/setup-three-uploads` | Merged 9 Nov |
-| A4 | Kobo question-to-indicator suggestions | `feature/kobo-mapping-suggest` | Built, waiting for review |
-| B1 | Review queue: accept the clean, review the flagged | `feature/review-queue-batch` | |
+| A4 | Kobo question-to-indicator suggestions | `feature/kobo-mapping-suggest` | Merged 9 Nov |
+| B1 | Review queue: accept the clean, review the flagged | `feature/review-queue-batch` | Merged |
 | B2 | Solo mode for sign-offs | `feature/solo-signoff` | |
 | B3 | Spend import from any spreadsheet | `feature/spend-import-generic` | |
 | B4 | Kobo nightly reconcile | `feature/kobo-nightly-reconcile` | |
