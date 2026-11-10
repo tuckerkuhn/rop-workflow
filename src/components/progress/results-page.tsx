@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser, useSession } from "@/components/app/session";
+import { useT } from "@/components/app/i18n";
 import { openReceipt, shrink } from "@/components/people/expense-page";
 import { OriginalText } from "@/components/progress/original-text";
 import { Pill, SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn } from "@/components/workspace/ui";
@@ -50,6 +51,8 @@ export function ResultsPage() {
   const [notice, setNotice] = useState("");
   const [adding, setAdding] = useState<string | null>(null);
   const [addingUpdate, setAddingUpdate] = useState(false);
+  // The flagged results being reviewed one at a time (ids fixed when the review starts), or null.
+  const [reviewing, setReviewing] = useState<string[] | null>(null);
   const [open, setOpen] = useState<string | null>(params.get("indicator"));
   const quarter = params.get("q");
   // From "+ New → Record a result": once loaded, put the person on the indicator picker.
@@ -131,11 +134,17 @@ export function ResultsPage() {
           <p className="mt-6 rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">This project has no indicators that take recorded results.</p>
         )}
 
-        {v && v.indicators.length > 0 && !range && (
+        {v && reviewing && <ReviewQueue ids={reviewing} v={v} act={act} onClose={() => setReviewing(null)} />}
+
+        {v && v.indicators.length > 0 && !range && !reviewing && (
           <WhatNeedsDoing
             v={v}
             me={v.me}
             act={act}
+            onReview={(ids) => {
+              setReviewing(ids);
+              window.scrollTo({ top: 0 });
+            }}
             onRecord={(code) => {
               setOpen(code);
               setAdding(code);
@@ -153,7 +162,7 @@ export function ResultsPage() {
           </p>
         )}
 
-        {v && waiting.length > 0 && (
+        {v && waiting.length > 0 && !reviewing && (
           <section className="mt-6">
             <SectionLabel>To check ({waiting.length})</SectionLabel>
             <div className="mt-3 space-y-3">
@@ -1056,8 +1065,10 @@ function ImportResults({ indicators, act }: { indicators: { code: string; donorC
  * The top of Results, by who is looking: record a result (field staff), what is waiting for MEL,
  * what MEL queried of yours, and accepted results still without proof.
  */
-function WhatNeedsDoing({ v, me, onRecord, act }: { v: ResultsView; me: string; onRecord: (code: string) => void; act: (a: ResultAction, msg: string) => Promise<void> }) {
+function WhatNeedsDoing({ v, me, onRecord, act, onReview }: { v: ResultsView; me: string; onRecord: (code: string) => void; act: (a: ResultAction, msg: string) => Promise<void>; onReview: (ids: string[]) => void }) {
+  const { t } = useT();
   const clean = v.results.filter((r) => r.canReview && r.checks.length === 0);
+  const flagged = v.results.filter((r) => r.canReview && r.checks.length > 0);
   const [pick, setPick] = useState("");
   const pending = v.results.filter((r) => r.status === "pending").length;
   const queriedMine = v.results.filter((r) => r.status === "queried" && r.by === me).length;
@@ -1099,20 +1110,132 @@ function WhatNeedsDoing({ v, me, onRecord, act }: { v: ResultsView; me: string; 
           <span className={`font-semibold tabular-nums ${noProof ? "text-clay" : ""}`}>{noProof}</span> accepted this year with no proof attached
         </li>
       </ul>
-      {clean.length > 1 && (
-        <div className="mt-3 flex flex-wrap items-center gap-3 rounded-xl bg-paper px-3 py-2 text-sm">
-          <span>
-            {clean.length} results waiting for you have nothing flagged by the data checker
-            {clean.some((r) => r.kobo) ? `, ${clean.filter((r) => r.kobo).length} of them from KoboToolbox` : ""}.
+      {/* MEL's queue in one line: accept what the data checker found nothing in, review the rest one at a time. */}
+      {clean.length + flagged.length > 0 && (
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl bg-paper px-3 py-2 text-sm">
+          <span className="font-semibold">{t("rq.line", { clean: clean.length, flagged: flagged.length })}</span>
+          <span className="flex flex-wrap gap-2 sm:ms-auto">
+            {clean.length > 0 && (
+              <button
+                type="button"
+                className={`${primaryBtn} min-h-12`}
+                onClick={() => window.confirm(t("rq.confirm", { n: clean.length })) && void act({ action: "accept-many", ids: clean.map((r) => r.id) }, t("rq.accepted", { n: clean.length })).catch(() => undefined)}
+              >
+                {t("rq.accept", { n: clean.length })}
+              </button>
+            )}
+            {flagged.length > 0 && (
+              <button type="button" className={`${quietBtn} min-h-12`} onClick={() => onReview(flagged.map((r) => r.id))}>
+                {t("rq.review", { n: flagged.length })}
+              </button>
+            )}
           </span>
-          <button
-            type="button"
-            className={`${quietBtn} ms-auto`}
-            onClick={() => window.confirm(`Accept these ${clean.length} results? Each counts in Progress and the report from now on. Flagged results still need a look one by one.`) && void act({ action: "accept-many", ids: clean.map((r) => r.id) }, `Accepted ${clean.length} results.`).catch(() => undefined)}
-          >
-            Accept all {clean.length}
-          </button>
         </div>
+      )}
+    </section>
+  );
+}
+
+/** Flagged results, one at a time: the reason in a line, Accept and Query as large buttons, then the next. */
+function ReviewQueue({ ids, v, act, onClose }: { ids: string[]; v: ResultsView; act: (a: ResultAction, msg: string) => Promise<void>; onClose: () => void }) {
+  const { t } = useT();
+  const { user } = useRequireUser();
+  const [more, setMore] = useState(false);
+  const [query, setQuery] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  // The next still waiting for a decision; decided ones drop out as the view refreshes.
+  const left = ids.filter((id) => v.results.some((r) => r.id === id && r.canReview));
+  const r = v.results.find((x) => x.id === left[0]);
+  const k = ids.length - left.length + 1;
+  const ind = r && v.indicators.find((i) => i.code === r.indicator);
+  const decide = async (a: ResultAction, msg: string) => {
+    setBusy(true);
+    try {
+      await act(a, msg);
+      setQuery(null);
+      setMore(false);
+    } catch {
+      /* the error shows at the top */
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="mt-5 rounded-2xl border border-ochre bg-surface p-4" aria-live="polite">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-ochre">{r ? t("rq.of", { k, n: ids.length }) : ""}</p>
+        <button type="button" className="min-h-11 text-sm font-semibold text-forest hover:underline" onClick={onClose}>
+          {t("rq.back")}
+        </button>
+      </div>
+      {!r ? (
+        <p className="mt-2 text-sm text-leaf">{t("rq.done")}</p>
+      ) : (
+        <>
+          <p className="mt-2 text-xs text-muted">
+            {ind ? `${ind.donorCode ?? ind.code}: ${ind.name}` : r.indicator}
+          </p>
+          <p className="mt-1 text-lg">
+            <span className="font-semibold tabular-nums">{num(r.value)}</span> {ind?.unit} · {r.date}
+            {r.district || r.province ? ` · ${[r.district, r.province].filter(Boolean).join(", ")}` : ""}
+          </p>
+          <p className="mt-1 line-clamp-3 text-sm">{r.note}</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {r.files.map((f) => (
+              <button key={f.hash} type="button" onClick={() => void openReceipt(f.hash, user?.id)} className="min-h-9 rounded-lg border border-line px-2 py-1 text-xs font-semibold text-forest hover:bg-sunken">
+                {f.name}
+              </button>
+            ))}
+            {(r.links ?? []).map((l) => (
+              <a key={l.url} href={l.url} target="_blank" rel="noopener noreferrer" className="min-h-9 rounded-lg border border-line px-2 py-1 text-xs font-semibold text-forest hover:bg-sunken">
+                {l.title} <span aria-hidden>↗</span>
+              </a>
+            ))}
+          </div>
+          <div className="mt-3 rounded-lg bg-ochre-soft px-3 py-2 text-sm">
+            <p>
+              <span aria-hidden>⚠ </span>
+              {r.checks[0]}
+              {r.checks.length > 1 && !more && (
+                <button type="button" className="ms-2 font-semibold text-forest hover:underline" onClick={() => setMore(true)}>
+                  {t("rq.more", { n: r.checks.length - 1 })}
+                </button>
+              )}
+            </p>
+            {more && (
+              <ul className="mt-1 list-disc ps-5">
+                {r.checks.slice(1).map((c) => (
+                  <li key={c}>{c}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+          {query === null ? (
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <button type="button" disabled={busy} className={`${primaryBtn} min-h-14 text-base`} onClick={() => void decide({ action: "accept", id: r.id }, "Accepted: it now counts.")}>
+                {t("rq.acceptOne")}
+              </button>
+              <button type="button" disabled={busy} className={`${quietBtn} min-h-14 text-base`} onClick={() => setQuery("")}>
+                {t("rq.query")}
+              </button>
+            </div>
+          ) : (
+            <div className="mt-4">
+              <label className="text-sm">
+                {t("rq.what")}
+                <textarea className={input} rows={2} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="The attendance sheet shows 38 names, not 45." autoFocus />
+              </label>
+              <div className="mt-2 grid grid-cols-2 gap-3">
+                <button type="button" disabled={busy || query.trim().length < 3} className={`${dangerBtn} min-h-12`} onClick={() => void decide({ action: "query", id: r.id, note: query }, "Queried: it goes back to the person who recorded it.")}>
+                  {t("rq.send")}
+                </button>
+                <button type="button" className={`${quietBtn} min-h-12`} onClick={() => setQuery(null)}>
+                  {t("rq.cancel")}
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </section>
   );
