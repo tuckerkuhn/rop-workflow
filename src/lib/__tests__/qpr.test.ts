@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { breakdownsFor, buildRows, checksFor, emptyQpr, prevQuarterOf, suggestStatus, yearShare, type IndicatorInfo, type Spend } from "@/lib/qpr";
+import { breakdownsFor, buildRows, durationOf, checksFor, emptyQpr, prevQuarterOf, suggestStatus, yearShare, type IndicatorInfo, type Spend } from "@/lib/qpr";
 import { result } from "./fixtures";
 
 const ind = (over: Partial<IndicatorInfo> = {}): IndicatorInfo => ({ code: "IND-1", donorCode: "1.1.1-A", name: "Farmers trained", unit: "farmers", target: 300, yearTargets: { "2026": 100, "2027": 300 }, result: "Output 1.1", disaggregation: ["sex"], budgetRef: null, ...over });
@@ -150,6 +150,13 @@ describe("breakdownsFor: by place and sex", () => {
     const r2 = [result({ date: "2026-08-11", value: 4 })];
     expect(breakdownsFor(buildRows([ind()], r2, Q, emptyQpr("Sandbox")), r2, Q)).toEqual([]);
   });
+});
+
+describe("durationOf: the project duration the report prints", () => {
+  const project = { start: "2025-03-01", end: "2027-06-30" };
+  it("uses what the person typed", () => expect(durationOf(" 24 months ", project)).toBe("24 months"));
+  it("falls back to the project's dates", () => expect(durationOf("", project)).toBe("1 March 2025 – 30 June 2027"));
+  it("is nothing when a date is missing", () => expect(durationOf(undefined, { start: "2025-03-01", end: null })).toBeNull());
 });
 
 describe("prevQuarterOf", () => {
