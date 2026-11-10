@@ -5,7 +5,7 @@ import { DEPARTMENTS, PARAMS, ROP, paramByKey, show, type Value } from "@/lib/po
 import { PROFILES, compareProfile, fits, keepsToPolicy, profileById } from "@/lib/presets";
 import { requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
-import { loadOrgSettings, orgIdForPerson, saveOrgSettings, withSettings, type OrgChange, type OrgSettings } from "@/server/org-settings-store";
+import { loadOrgSettings, orgIdForPerson, sampleOf, saveOrgSettings, withSettings, type OrgChange, type OrgSettings } from "@/server/org-settings-store";
 
 /**
  * The organization's own rules, by department. The written policy is the floor: everyone signed
@@ -13,7 +13,7 @@ import { loadOrgSettings, orgIdForPerson, saveOrgSettings, withSettings, type Or
  * own or the gaps a requirement profile shows, always with a reason, and every change is kept.
  */
 
-function view(settings: OrgSettings, admin: boolean) {
+function view(settings: OrgSettings, admin: boolean, sample: { code: string; name: string } | null) {
   const profile = withSettings(settings);
   const current = Object.fromEntries(Object.entries(profile.values).map(([k, c]) => [k, c.value])) as Record<string, Value>;
   return {
@@ -29,6 +29,10 @@ function view(settings: OrgSettings, admin: boolean) {
     /** Solo mode (server/solo.ts): who turned it on or off, when and why. */
     solo: settings.solo ?? null,
     soloHistory: [...(settings.soloHistory ?? [])].reverse(),
+    /** The sample project (C5), if the organization has one: who hid or showed it, when and why. */
+    sampleProject: sample ? { ...sample, hidden: !!settings.sample?.hidden } : null,
+    sampleChange: settings.sample ?? null,
+    sampleHistory: [...(settings.sampleHistory ?? [])].reverse(),
     profiles: PROFILES.map((p) => ({ id: p.id, name: p.name, summary: p.summary, comparison: compareProfile(p, current) })),
     admin,
   };
@@ -45,7 +49,8 @@ export async function GET(req: Request) {
   return handle(async () => {
     const v = await requireViewer(req);
     if (v instanceof NextResponse) return v;
-    return NextResponse.json(view(await loadOrgSettings(await orgOf(v.user.id)), !!v.user.admin));
+    const orgId = await orgOf(v.user.id);
+    return NextResponse.json(view(await loadOrgSettings(orgId), !!v.user.admin, await sampleOf(orgId)));
   });
 }
 
@@ -60,6 +65,8 @@ const bodySchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("reset"), keys: z.array(z.string()).min(1).max(PARAMS.length), reason }),
   /** Solo mode for a small team: one person may prepare and approve, confirming it each time. */
   z.object({ action: z.literal("solo"), on: z.boolean(), reason }),
+  /** Hide the sample project from everyone's project picker and Getting started, or show it again. */
+  z.object({ action: z.literal("sample"), hidden: z.boolean(), reason }),
 ]);
 
 export async function POST(req: Request) {
@@ -72,6 +79,7 @@ export async function POST(req: Request) {
     const a = parsed.data;
     const orgId = await orgOf(v.user.id);
     const settings = await loadOrgSettings(orgId);
+    const sample = await sampleOf(orgId);
     const current = Object.fromEntries(Object.entries(withSettings(settings).values).map(([k, c]) => [k, c.value])) as Record<string, Value>;
     // Real dates: these are records of decisions, not demo data.
     const at = new Date().toISOString().slice(0, 10);
@@ -84,7 +92,17 @@ export async function POST(req: Request) {
       const next: OrgSettings = { ...settings, solo: change, soloHistory: [...(settings.soloHistory ?? []), change] };
       await saveOrgSettings(orgId, next);
       await db.insert(schema.auditLog).values({ projectId: null, entity: "org_settings", entityId: orgId, action: a.on ? "solo_mode_on" : "solo_mode_off", detail: { by: v.user.id, reason: a.reason } });
-      return NextResponse.json(view(next, true));
+      return NextResponse.json(view(next, true, sample));
+    }
+
+    if (a.action === "sample") {
+      if (!sample) return fail("This organization has no sample project.");
+      if (!!settings.sample?.hidden === a.hidden) return fail(a.hidden ? "The sample project is already hidden." : "The sample project is already shown.");
+      const change = { hidden: a.hidden, ...who };
+      const next: OrgSettings = { ...settings, sample: change, sampleHistory: [...(settings.sampleHistory ?? []), change] };
+      await saveOrgSettings(orgId, next);
+      await db.insert(schema.auditLog).values({ projectId: null, entity: "org_settings", entityId: orgId, action: a.hidden ? "sample_hidden" : "sample_shown", detail: { by: v.user.id, reason: a.reason, project: sample.code } });
+      return NextResponse.json(view(next, true, sample));
     }
 
     let made: OrgChange[] = [];
@@ -121,6 +139,6 @@ export async function POST(req: Request) {
     const next: OrgSettings = { ...settings, values, history: [...settings.history, ...made] };
     await saveOrgSettings(orgId, next);
     await db.insert(schema.auditLog).values({ projectId: null, entity: "org_settings", entityId: orgId, action: `rules_${a.action}`, detail: { by: v.user.id, reason: a.reason, rules: made.map((c) => c.key) } });
-    return NextResponse.json(view(next, true));
+    return NextResponse.json(view(next, true, sample));
   });
 }

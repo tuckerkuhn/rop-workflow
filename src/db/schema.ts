@@ -140,6 +140,12 @@ export const projects = pgTable("projects", {
   goal: text("goal"),
   /** Develop, Design, Execute, Verify or Report. Moves forward only with a plan approver's sign-off, recorded in audit_log. */
   stage: text("stage").notNull().default("Design"),
+  /**
+   * real | sample | sandbox. A sample is a finished, fictional project every organization gets to
+   * look at: read-only for everyone. A sandbox is fictional too but writable, for testing. Neither
+   * counts in portfolio totals, track record or notifications (server/project-store listProjects).
+   */
+  kind: text("kind").notNull().default("real"),
   ...timestamps,
 });
 

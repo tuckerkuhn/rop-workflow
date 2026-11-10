@@ -1,0 +1,88 @@
+/**
+ * The sample project (C5): its banner, the Getting started links and the administrator's switch.
+ * English is the source; Spanish, Dari and Pashto are drafts that need review by a native speaker.
+ */
+
+export const spEn = {
+  "sample.banner": "Sample project with fictional data, to show a finished report. Nothing here can be changed.",
+  "sample.see": "See a finished report",
+  "sample.setUp": "Set up your project",
+  "sample.title": "Sample project",
+  "sample.help": "A finished project with fictional data: targets, accepted results with proof, a budget with spending and a released quarterly report. Everyone can open it; nobody can change it, and it is left out of every total.",
+  "sample.shown": "Shown to everyone",
+  "sample.hidden": "Hidden",
+  "sample.hide": "Hide it",
+  "sample.show": "Show it again",
+  "sample.reason": "Why (kept with the change)",
+  "sample.since": "Since {date}, by {who}: {reason}",
+  "sample.adminOnly": "Only an administrator hides or shows it.",
+  "sample.history": "Earlier changes",
+  "sample.changed": "{date}: {state} by {who}. {reason}",
+  "sample.stateHidden": "hidden",
+  "sample.stateShown": "shown",
+  "sample.doneHidden": "The sample project is hidden",
+  "sample.doneShown": "The sample project is shown",
+};
+
+export const spEs: Record<keyof typeof spEn, string> = {
+  "sample.banner": "Proyecto de muestra con datos ficticios, para ver un informe terminado. Aquí no se puede cambiar nada.",
+  "sample.see": "Ver un informe terminado",
+  "sample.setUp": "Configurar tu proyecto",
+  "sample.title": "Proyecto de muestra",
+  "sample.help": "Un proyecto terminado con datos ficticios: metas, resultados aceptados con pruebas, un presupuesto con gastos y un informe trimestral publicado. Todos pueden abrirlo; nadie puede cambiarlo, y no cuenta en ningún total.",
+  "sample.shown": "Visible para todos",
+  "sample.hidden": "Oculto",
+  "sample.hide": "Ocultarlo",
+  "sample.show": "Mostrarlo de nuevo",
+  "sample.reason": "Por qué (se guarda con el cambio)",
+  "sample.since": "Desde el {date}, por {who}: {reason}",
+  "sample.adminOnly": "Solo un administrador lo oculta o lo muestra.",
+  "sample.history": "Cambios anteriores",
+  "sample.changed": "{date}: {state} por {who}. {reason}",
+  "sample.stateHidden": "ocultado",
+  "sample.stateShown": "mostrado",
+  "sample.doneHidden": "El proyecto de muestra está oculto",
+  "sample.doneShown": "El proyecto de muestra está visible",
+};
+
+export const spFa: Record<keyof typeof spEn, string> = {
+  "sample.banner": "پروژهٔ نمونه با معلومات ساختگی، برای دیدن یک گزارش تکمیل‌شده. اینجا چیزی تغییر داده نمی‌شود.",
+  "sample.see": "دیدن یک گزارش تکمیل‌شده",
+  "sample.setUp": "پروژهٔ خود را تنظیم کنید",
+  "sample.title": "پروژهٔ نمونه",
+  "sample.help": "یک پروژهٔ تکمیل‌شده با معلومات ساختگی: اهداف، نتایج پذیرفته‌شده با اسناد، بودجه با مصارف و یک گزارش ربعوار نشرشده. همه می‌توانند آن را باز کنند؛ هیچ‌کس نمی‌تواند آن را تغییر دهد و در هیچ مجموعه‌ای حساب نمی‌شود.",
+  "sample.shown": "برای همه نمایش داده می‌شود",
+  "sample.hidden": "پنهان",
+  "sample.hide": "پنهان کردن",
+  "sample.show": "دوباره نمایش دادن",
+  "sample.reason": "چرا (با تغییر نگه داشته می‌شود)",
+  "sample.since": "از {date}، توسط {who}: {reason}",
+  "sample.adminOnly": "فقط مدیر سیستم آن را پنهان یا نمایان می‌کند.",
+  "sample.history": "تغییرات قبلی",
+  "sample.changed": "{date}: {state} توسط {who}. {reason}",
+  "sample.stateHidden": "پنهان شد",
+  "sample.stateShown": "نمایان شد",
+  "sample.doneHidden": "پروژهٔ نمونه پنهان است",
+  "sample.doneShown": "پروژهٔ نمونه نمایان است",
+};
+
+export const spPs: Record<keyof typeof spEn, string> = {
+  "sample.banner": "د بېلګې پروژه له جوړو معلوماتو سره، د یو بشپړ راپور د لیدو لپاره. دلته هېڅ نه بدلېږي.",
+  "sample.see": "یو بشپړ راپور وګورئ",
+  "sample.setUp": "خپله پروژه جوړه کړئ",
+  "sample.title": "د بېلګې پروژه",
+  "sample.help": "یوه بشپړه پروژه له جوړو معلوماتو سره: موخې، د اسنادو سره منل شوې پایلې، د لګښتونو سره بودجه او یو خپور شوی درې‌میاشتنی راپور. هرڅوک یې پرانیستلی شي؛ هېڅوک یې نه شي بدلولی، او په هېڅ ټولګه کې نه شمېرل کېږي.",
+  "sample.shown": "ټولو ته ښکاري",
+  "sample.hidden": "پټ",
+  "sample.hide": "پټ یې کړئ",
+  "sample.show": "بیا یې وښایئ",
+  "sample.reason": "ولې (له بدلون سره ساتل کېږي)",
+  "sample.since": "له {date} راهیسې، د {who} له خوا: {reason}",
+  "sample.adminOnly": "یوازې اداره کوونکی یې پټولی یا ښودلی شي.",
+  "sample.history": "پخواني بدلونونه",
+  "sample.changed": "{date}: د {who} له خوا {state}. {reason}",
+  "sample.stateHidden": "پټ شو",
+  "sample.stateShown": "وښودل شو",
+  "sample.doneHidden": "د بېلګې پروژه پټه ده",
+  "sample.doneShown": "د بېلګې پروژه ښکاري",
+};

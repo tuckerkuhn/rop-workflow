@@ -499,6 +499,7 @@ export function TopBar({ active, children }: { active?: "design" | "project" | "
           </button>
         </div>
       )}
+      <SampleBanner />
       <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-x-5 gap-y-3 px-4 py-3 sm:px-6">
         <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
           <Link href="/home" aria-label={t("nav.home")} className="lg:hidden">
@@ -740,5 +741,17 @@ export function BackLink({ onClick }: { onClick: () => void }) {
     <button type="button" onClick={onClick} className="text-sm text-muted hover:text-ink lg:hidden">
       ← Back to queue
     </button>
+  );
+}
+
+/** On every page of the sample project (C5): what it is, and that it cannot be changed. */
+function SampleBanner() {
+  const { project } = useCurrentProject();
+  const { t } = useT();
+  if (project.kind !== "sample") return null;
+  return (
+    <div role="status" className="bg-sky-soft px-4 py-2 text-center text-sm">
+      {t("sample.banner")}
+    </div>
   );
 }

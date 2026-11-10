@@ -1,7 +1,7 @@
 import { and, asc, eq, notInArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { THEMES, type ImpactTheme } from "@/lib/indicator-library";
-import type { IndicatorInput, ProjectDesign, ProjectSummary } from "@/lib/project-setup";
+import type { IndicatorInput, ProjectDesign, ProjectKind, ProjectSummary } from "@/lib/project-setup";
 
 /** Projects and their design (goal, dates, indicators) in Postgres, written by project setup. */
 
@@ -14,10 +14,17 @@ const summary = (p: typeof s.projects.$inferSelect): ProjectSummary => ({
   startDate: p.startDate,
   endDate: p.endDate,
   stage: p.stage,
+  kind: (["sample", "sandbox"].includes(p.kind) ? p.kind : "real") as ProjectKind,
 });
 
-export async function listProjects() {
-  return (await db.select().from(s.projects).orderBy(asc(s.projects.createdAt))).map(summary);
+/**
+ * The projects there are. Real projects only, unless `all`: the sample and the sandboxes hold
+ * fictional data, so portfolio totals, track record and notifications never count them. The
+ * project picker asks for all.
+ */
+export async function listProjects(opts: { all?: boolean } = {}) {
+  const all = (await db.select().from(s.projects).orderBy(asc(s.projects.createdAt))).map(summary);
+  return opts.all ? all : all.filter((p) => p.kind === "real");
 }
 
 export async function projectDesign(code: string) {

@@ -11,6 +11,7 @@ import { soEn } from "./solo";
 import { smEn } from "./spend";
 import { haEn } from "./home-actions";
 import { osEn } from "./overspend";
+import { spEn } from "./sample";
 import { ksEn } from "./kobo-suggest";
 import { agEn } from "./agreement";
 import { evEn } from "./evidence";
@@ -600,6 +601,7 @@ export const en = {
   ...smEn,
   ...haEn,
   ...osEn,
+  ...spEn,
   ...ksEn,
   ...agEn,
   ...evEn,

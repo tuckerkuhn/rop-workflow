@@ -3,11 +3,15 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { FirstStep } from "@/app/api/projects/[code]/first-run/route";
+import { useT } from "@/components/app/i18n";
 
 /** The first steps for this person's role, ticked from what they have done; gone once all are done or hidden. */
 export function GettingStarted({ project, user }: { project: string; user: string }) {
   const key = `rop-getting-started-hidden:${user}:${project}`;
+  const { t } = useT();
   const [steps, setSteps] = useState<FirstStep[] | null>(null);
+  const [sample, setSample] = useState<{ code: string; quarter: string } | null>(null);
+  const [mayCreate, setMayCreate] = useState(false);
   const [hidden, setHidden] = useState(true);
   useEffect(() => {
     try {
@@ -18,7 +22,12 @@ export function GettingStarted({ project, user }: { project: string; user: strin
     let live = true;
     fetch(`/api/projects/${project}/first-run`, { cache: "no-store", headers: { "x-demo-user": user } })
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => live && d && setSteps(d.steps))
+      .then((d) => {
+        if (!live || !d) return;
+        setSteps(d.steps);
+        setSample(d.sample ?? null);
+        setMayCreate(!!d.mayCreate);
+      })
       .catch(() => undefined);
     return () => {
       live = false;
@@ -47,6 +56,20 @@ export function GettingStarted({ project, user }: { project: string; user: strin
           Hide
         </button>
       </div>
+      {(sample || mayCreate) && (
+        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+          {sample && (
+            <Link href={`/progress/report?project=${sample.code}&q=${sample.quarter}`} className="font-semibold text-forest hover:underline">
+              {t("sample.see")}
+            </Link>
+          )}
+          {mayCreate && (
+            <Link href="/setup?new=1" className="font-semibold text-forest hover:underline">
+              {t("sample.setUp")}
+            </Link>
+          )}
+        </div>
+      )}
       <ol className="mt-2 space-y-1 text-sm">
         {steps.map((s) => (
           <li key={s.key} className="flex gap-2">

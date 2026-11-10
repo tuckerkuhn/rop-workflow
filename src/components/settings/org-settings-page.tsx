@@ -128,6 +128,7 @@ export function OrgSettingsPage() {
         {v && (
           <>
             <SoloPanel v={v} post={post} />
+            {v.sampleProject && <SamplePanel v={v} post={post} />}
             <section className="mt-6">
               <SectionLabel>Requirement profiles</SectionLabel>
               <div className="mt-2 grid gap-3 sm:grid-cols-2">
@@ -436,6 +437,56 @@ function SoloPanel({ v, post }: { v: OrgSettingsView; post: (body: object, msg: 
           <ul className="mt-1 space-y-1">
             {v.soloHistory.slice(1, 30).map((h, i) => (
               <li key={i}>{t("so.changed", { date: day(h.at), state: h.on ? t("so.stateOn") : t("so.stateOff"), who: h.name, reason: h.reason })}</li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </section>
+  );
+}
+
+/** The sample project (C5): shown to everyone unless an administrator hides it, with a reason; every change is kept. */
+function SamplePanel({ v, post }: { v: OrgSettingsView; post: (body: object, msg: string) => Promise<void> }) {
+  const { t, date } = useT();
+  const [why, setWhy] = useState("");
+  const [busy, setBusy] = useState(false);
+  const hidden = !!v.sampleProject?.hidden;
+  const day = (d: string) => date(d, { day: "numeric", month: "short", year: "numeric" });
+  const turn = async () => {
+    setBusy(true);
+    try {
+      await post({ action: "sample", hidden: !hidden, reason: why }, hidden ? t("sample.doneShown") : t("sample.doneHidden"));
+      setWhy("");
+    } catch {
+      /* shown above */
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="mt-6 rounded-2xl border border-line bg-surface p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="font-display text-xl">{t("sample.title")}</h2>
+        <Pill tone={hidden ? "muted" : "forest"}>{hidden ? t("sample.hidden") : t("sample.shown")}</Pill>
+      </div>
+      <p className="mt-1 max-w-3xl text-sm text-muted">{t("sample.help")}</p>
+      {v.sampleChange && <p className="mt-2 text-xs text-muted">{t("sample.since", { date: day(v.sampleChange.at), who: v.sampleChange.name, reason: v.sampleChange.reason })}</p>}
+      {v.admin ? (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <input value={why} onChange={(e) => setWhy(e.target.value)} placeholder={t("sample.reason")} aria-label={t("sample.reason")} className={`${field} min-w-0 flex-1`} />
+          <button type="button" disabled={busy || why.trim().length < 5} onClick={() => void turn()} className={`${hidden ? primaryBtn : quietBtn} min-h-12`}>
+            {hidden ? t("sample.show") : t("sample.hide")}
+          </button>
+        </div>
+      ) : (
+        <p className="mt-2 text-xs text-muted">{t("sample.adminOnly")}</p>
+      )}
+      {v.sampleHistory.length > 1 && (
+        <details className="mt-2 text-xs text-muted">
+          <summary className="cursor-pointer">{t("sample.history")}</summary>
+          <ul className="mt-1 space-y-1">
+            {v.sampleHistory.slice(1, 30).map((h, i) => (
+              <li key={i}>{t("sample.changed", { date: day(h.at), state: h.hidden ? t("sample.stateHidden") : t("sample.stateShown"), who: h.name, reason: h.reason })}</li>
             ))}
           </ul>
         </details>
