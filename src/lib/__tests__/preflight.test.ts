@@ -66,3 +66,13 @@ describe("report references", () => {
     expect(draftMark(3)).toContain("Not for the donor");
   });
 });
+
+describe("a file made when pre-flight could not be read", () => {
+  it("is still marked a draft, and says why", async () => {
+    const { UNCHECKED } = await import("@/lib/preflight");
+    expect(draftMark(UNCHECKED)).toContain("DRAFT, NOT CHECKED");
+    expect(draftMark(UNCHECKED)).toContain("could not be run");
+    // Callers test the number for truth to decide whether to mark the file: it must not be zero.
+    expect(Boolean(UNCHECKED)).toBe(true);
+  });
+});

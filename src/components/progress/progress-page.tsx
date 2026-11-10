@@ -36,6 +36,7 @@ export function ProgressPage() {
   const kobo = useKobo(project.id);
   const [syncing, setSyncing] = useState(false);
   const [syncNote, setSyncNote] = useState("");
+  const [syncFailed, setSyncFailed] = useState(false);
   const [exporting, setExporting] = useState(false);
   const closeExport = useCallback(() => setExporting(false), []);
 
@@ -50,11 +51,13 @@ export function ProgressPage() {
   const sync = async () => {
     setSyncing(true);
     setSyncNote("");
+    setSyncFailed(false);
     try {
       const r = await kobo.sync();
       setSyncNote(t("kobo.synced", { added: r.added, fetched: r.fetched, forms: r.forms }) + (r.updated || r.removed ? ` ${t("kobo.syncedChanges", { updated: r.updated, removed: r.removed })}` : ""));
       await progress.reload();
     } catch (e) {
+      setSyncFailed(true);
       setSyncNote(e instanceof Error ? e.message : String(e));
     } finally {
       setSyncing(false);
@@ -93,7 +96,7 @@ export function ProgressPage() {
           )}
         </div>
         {syncNote && (
-          <p role="status" className="mt-2 text-sm text-forest">
+          <p role={syncFailed ? "alert" : "status"} className={`mt-2 text-sm ${syncFailed ? "text-clay" : "text-forest"}`}>
             {syncNote}
           </p>
         )}

@@ -56,19 +56,23 @@ function useHrWork(user: AppUser): Row[] {
  * A database project's own work for this person, from the same view as Home: what needs them,
  * the activities they own this quarter, and (for leads) the activities nobody owns yet.
  */
-function useProjectWork(user: AppUser, project: ProjectInfo): Row[] {
+function useProjectWork(user: AppUser, project: ProjectInfo): { rows: Row[]; failed: boolean } {
   const [home, setHome] = useState<HomeView | null>(null);
+  // A failed load is not the same as nothing to do: the page says which.
+  const [failed, setFailed] = useState(false);
   useEffect(() => {
+    setFailed(false);
     if (!project.saved || user.kind !== "employee") return setHome(null);
     let live = true;
     fetch(`/api/projects/${project.id}/home`, { cache: "no-store", headers: { "x-demo-user": user.id } })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => live && setHome(d));
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((d) => live && setHome(d))
+      .catch(() => live && setFailed(true));
     return () => {
       live = false;
     };
   }, [project.saved, project.id, user.id, user.kind]);
-  return useMemo(() => {
+  const rows = useMemo(() => {
     if (!home) return [];
     const today = new Date().toISOString().slice(0, 10);
     const rows: Row[] = home.actions.map((a) => ({ key: `home:${a.key}`, kind: "task", title: a.text, date: a.urgent ? today : null, done: false, late: false, source: "project", step: "Needs you", href: a.href }));
@@ -79,6 +83,7 @@ function useProjectWork(user: AppUser, project: ProjectInfo): Row[] {
       rows.push({ key: "act:unowned", kind: "task", title: `Assign owners to ${unowned} ${unowned === 1 ? "activity" : "activities"} due this quarter`, date: today, done: false, late: false, source: "project", step: "Needs you", href: "/work/activities" });
     return rows;
   }, [home, user.name]);
+  return { rows, failed };
 }
 
 /**
@@ -95,7 +100,7 @@ export function useTaskRows(user: AppUser, project: ProjectInfo) {
   const plan = usePlan(project.saved ? project.id : null);
   const closeouts = useCloseouts(project.saved && procRolesFor(user).includes("finance") ? project.id : null);
   const [local] = usePersistentState<ProjectState>(PROJECT_KEY, seedProject);
-  const projectWork = useProjectWork(user, project);
+  const { rows: projectWork, failed: projectWorkFailed } = useProjectWork(user, project);
   const hrWork = useHrWork(user);
 
   const rows = useMemo<Row[]>(() => {
@@ -126,5 +131,5 @@ export function useTaskRows(user: AppUser, project: ProjectInfo) {
     return [...hrWork, ...projectWork, ...stored, ...steps].sort((a, b) => (a.date ?? "9999").localeCompare(b.date ?? "9999"));
   }, [hrWork, projectWork, work.items, hasWorkflows, user, field, procs, local, submissions, plan.items, project.workflows, closeouts.months]);
 
-  return { rows, work };
+  return { rows, work, projectWorkFailed };
 }

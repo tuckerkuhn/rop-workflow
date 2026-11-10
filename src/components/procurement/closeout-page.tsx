@@ -20,18 +20,23 @@ export function CloseoutPage() {
   const { user } = useRequireUser();
   const { project } = useCurrentProject();
   const { money } = useSession();
-  const { date } = useT();
+  const { date, t } = useT();
   const procs = useProcurements(project.id);
   const closeouts = useCloseouts(project.saved ? project.id : null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [bills, setBills] = useState<Bill[]>([]);
+  const [billsFailed, setBillsFailed] = useState(false);
   useEffect(() => {
     if (!user || !project.saved) return;
     fetch(`/api/projects/${project.id}/bills`, { cache: "no-store", headers: { "x-demo-user": user.id } })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((v: { items: Bill[] } | null) => setBills(v?.items ?? []))
-      .catch(() => setBills([]));
+      .then((r) => (r.ok ? (r.json() as Promise<{ items: Bill[] }>) : Promise.reject(new Error(String(r.status)))))
+      .then((v) => {
+        setBills(v.items ?? []);
+        setBillsFailed(false);
+      })
+      // A failed load is said, never shown as an empty list.
+      .catch(() => setBillsFailed(true));
   }, [user, project.id, project.saved]);
 
   if (!user) return null;
@@ -63,7 +68,12 @@ export function CloseoutPage() {
             {error || closeouts.error}
           </p>
         )}
-        {!months.length && <p className="mt-10 rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">No expense vouchers yet. They appear here once Finance prepares them.</p>}
+        {billsFailed && (
+          <p role="alert" className="mt-4 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">
+            {t("closeout.loadFailed")}
+          </p>
+        )}
+        {!months.length && !billsFailed && !closeouts.error && <p className="mt-10 rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">No expense vouchers yet. They appear here once Finance prepares them.</p>}
         {months.map(([m, list]) => {
           const closed = closeouts.months[m];
           const open = blockers(list);

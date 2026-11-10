@@ -90,7 +90,7 @@ const VIEWS: { id: View; label: MessageKey }[] = [
 function AllTasks({ user }: { user: AppUser }) {
   const { t } = useT();
   const { project } = useCurrentProject();
-  const { rows, work } = useTaskRows(user, project);
+  const { rows, work, projectWorkFailed } = useTaskRows(user, project);
   const timeline = useFeature("timeline");
   const [saved, setSaved] = usePersistentState<View>("rop-tasks-view", () => "list");
   // Picking the locked timeline shows the upgrade prompt without remembering it as the choice.
@@ -176,6 +176,14 @@ function AllTasks({ user }: { user: AppUser }) {
             {t("tasks.loadError", { error: work.error })}
           </p>
         )}
+        {projectWorkFailed && (
+          <div role="alert" className="mt-4 flex flex-wrap items-center gap-3 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">
+            <p className="min-w-0 flex-1">{t("tasks.loadFailed")}</p>
+            <button type="button" className="min-h-11 rounded-xl border border-clay px-4 font-semibold" onClick={() => window.location.reload()}>
+              {t("err.retry")}
+            </button>
+          </div>
+        )}
 
         <div className="mt-6">
           {work.status === "loading" ? (
@@ -184,7 +192,7 @@ function AllTasks({ user }: { user: AppUser }) {
             <LockedFeature feature={t("tasks.view.timeline")} why={t("plan.timelineWhy")} onBack={() => setPrompt(false)} />
           ) : empty ? (
             <div className="flex flex-wrap items-center gap-3 py-10">
-              <p className="text-muted">{t("new.empty")}</p>
+              {!projectWorkFailed && !work.error && <p className="text-muted">{t("new.empty")}</p>}
               <NewMenu align="start" />
             </div>
           ) : shown === "calendar" ? (

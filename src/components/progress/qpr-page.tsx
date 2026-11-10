@@ -17,6 +17,7 @@ import { SpreadsheetImport } from "@/components/progress/spend-map";
 import { beforeDownload, PreflightButton, usePreflight } from "@/components/progress/preflight-page";
 import { MoneySourceLink, ProofNumber } from "@/components/progress/proof-panel";
 import { useT } from "@/components/app/i18n";
+import { ErrorNote } from "@/components/app/error-note";
 import { quarterOf, quarterRange } from "@/lib/results";
 import type { QprView } from "@/app/api/projects/[code]/qpr/route";
 
@@ -139,7 +140,7 @@ export function QprPage() {
   const download = async () => {
     if (!v || !user) return;
     // A copy (released or practice) is downloaded as it was; the live draft goes through pre-flight first.
-    const draft = v.frozen ? 0 : await beforeDownload(project.id, user.id, pf, (n) => t("pf.draftConfirm", { n }));
+    const draft = v.frozen ? 0 : await beforeDownload(project.id, user.id, pf, (n) => t("pf.draftConfirm", { n }), { kind: "qpr", quarter }, t("pf.uncheckedConfirm"));
     if (draft === null) return;
     setBusy("download");
     setError("");
@@ -189,11 +190,8 @@ export function QprPage() {
           </Link>
         </p>
         {!project.saved && <p className="mt-6 rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">Choose a project saved in the database (for example ACRP).</p>}
-        {error && (
-          <p role="alert" className="mt-4 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">
-            {error}
-          </p>
-        )}
+        {error && <ErrorNote>{error}</ErrorNote>}
+        {project.saved && !v && !error && <p className="mt-10 text-center text-sm text-muted">{t("report.loading")}</p>}
         {notice && (
           <p role="status" className="mt-4 rounded-xl bg-mist px-4 py-3 text-sm text-leaf">
             {notice}
@@ -251,6 +249,15 @@ export function QprPage() {
               )}
             </div>
 
+            {/* Why "Mark final" is off, in words a phone shows (a tooltip is not enough), with the way on. */}
+            {v.mayRelease && !v.frozen && !v.saved.released && Math.max(blocking, stops.length) > 0 && (
+              <p className="mt-3 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">
+                {Math.max(blocking, stops.length) === 1 ? t("report.blockedOne") : t("report.blocked", { n: Math.max(blocking, stops.length) })}{" "}
+                <Link href={`/progress/preflight?report=qpr&period=${quarter}`} className="font-semibold underline">
+                  {t("pf.button")}
+                </Link>
+              </p>
+            )}
             {v.frozen && (
               <section className="mt-4 rounded-xl border border-line bg-surface px-4 py-3 text-sm">
                 <p className="font-semibold">
