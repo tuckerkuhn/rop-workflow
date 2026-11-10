@@ -4,6 +4,7 @@ import { db, schema as s } from "@/db";
 import type { AppUser } from "@/lib/demo";
 import { briefSchema, MATCH_ROLE_TYPES, type OppAction, type Opportunity } from "@/lib/opportunities";
 import { draftStructured } from "@/server/ai-structured";
+import { asIs } from "@/server/ai";
 import { loadHr } from "@/server/hr-store";
 import { listProjects } from "@/server/project-store";
 
@@ -72,9 +73,11 @@ export async function actOnOpportunity(orgId: string, a: OppAction, u: AppUser):
   } else if (a.action === "brief") {
     if (o.status !== "tracking") return "Decided already.";
     const { out, model } = await draftStructured({
+      job: "opportunityBrief",
+      by: u.id,
       system: "You draft the match brief for Roots of Peace's match call on a funding opportunity. Use only the facts given; where a fact is missing, say so plainly rather than guessing. You inform the decision; you do not make it. Plain, short sentences.",
       task: "Draft the match brief for this opportunity.",
-      facts: await briefFacts(o, b.items),
+      facts: asIs(await briefFacts(o, b.items), "the opportunity's details, project names and stages, and earlier no-match reasons; no record about a person"),
       schema: briefSchema,
       effort: "medium",
       maxTokens: 8000,

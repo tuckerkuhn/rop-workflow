@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { workplanFor, type BudgetLine, type WorkplanItem } from "@/lib/budget";
 import { AFN_PER_USD, type AppUser } from "@/lib/demo";
-import { levelFor, type Level } from "@/lib/procurement";
+import { levelFor, rulesInForce, type Level } from "@/lib/procurement";
 
 /**
  * The procurement calendar: one planned purchase per budget line marked to procure, built from
@@ -51,12 +51,40 @@ export const toUsd = (value: number, currency: string) => value * (USD_PER[curre
 /** Typical days from starting a procurement to having the goods, per level. A starting guess; change it per item. */
 export const LEAD_DAYS: Record<Level, number> = { Micro: 7, Small: 21, Medium: 45, Large: 90 };
 
-/** How each level is bought (ROP procurement policy Draft 1.0; thresholds in USD). */
-export const METHOD: Record<Level, { title: string; detail: string }> = {
-  Micro: { title: "Direct purchase", detail: "Up to $500: buy at a fair price after checking prices from three suppliers." },
-  Small: { title: "Request for quotation", detail: "$500 to $5,000: three written quotations; the lowest that meets the specification wins." },
-  Medium: { title: "Open competition", detail: "$5,000 to $25,000: an advertised RFQ (lowest price) or RFP (best value), evaluated by a bid committee." },
-  Large: { title: "Open competition with Home Office review", detail: "Over $25,000: advertised solicitation, bid plan and committee, and Home Office reviews the package before award." },
+/** A threshold from the rules in force (the organization's policy with the donor's layered on), as "$5,000". */
+const dollars = (key: string, fallback: number) => {
+  const v = rulesInForce()[key];
+  return "$" + (typeof v === "number" ? v : fallback).toLocaleString("en-US");
+};
+/**
+ * How each level is bought (ROP procurement policy; thresholds in USD). The amounts are read from
+ * the rules in force each time, so the words on screen always match the level the app works out.
+ */
+export const METHOD: Record<Level, { title: string; readonly detail: string }> = {
+  Micro: {
+    title: "Direct purchase",
+    get detail() {
+      return "Up to " + dollars("microMaxUsd", 500) + ": buy at a fair price after checking prices from three suppliers.";
+    },
+  },
+  Small: {
+    title: "Request for quotation",
+    get detail() {
+      return dollars("microMaxUsd", 500) + " to " + dollars("smallMaxUsd", 5000) + ": three written quotations; the lowest that meets the specification wins.";
+    },
+  },
+  Medium: {
+    title: "Open competition",
+    get detail() {
+      return dollars("smallMaxUsd", 5000) + " to " + dollars("largeAboveUsd", 25000) + ": an advertised RFQ (lowest price) or RFP (best value), evaluated by a bid committee.";
+    },
+  },
+  Large: {
+    title: "Open competition with Home Office review",
+    get detail() {
+      return "Over " + dollars("largeAboveUsd", 25000) + ": advertised solicitation, bid plan and committee, and Home Office reviews the package before award.";
+    },
+  },
 };
 
 export const addDays = (d: string, n: number) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 86400000).toISOString().slice(0, 10);

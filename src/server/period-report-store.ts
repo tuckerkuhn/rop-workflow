@@ -3,7 +3,7 @@ import { db, schema as s } from "@/db";
 import { EMPTY_LEARNING, type Learning } from "@/lib/learning";
 import { buildPeriodRows, periodRange, type Period, type PeriodIndicator } from "@/lib/period-report";
 import { activityOf, photosFor, SECTIONS, type Row } from "@/lib/qpr";
-import { projectByCode } from "@/server/field-store";
+import { projectByCode, donorNameOf } from "@/server/field-store";
 import { donorPhotoRule } from "@/server/photo-consent";
 import { loadProjectState } from "@/server/project-state";
 import { rawQpr, spendFor } from "@/server/qpr-store";
@@ -65,7 +65,7 @@ export async function periodReport(code: string, p: Period) {
   const lessons = learning.lessons.filter((l) => l.date >= from && l.date <= to).sort((a, b) => a.date.localeCompare(b.date));
   const open = results.filter((r) => r.status !== "accepted" && r.date >= from && r.date <= to).length;
   return {
-    project: { code, name: project.name, donor: project.donor, start: project.startDate, end: project.endDate },
+    project: { code, name: project.name, donor: await donorNameOf(project), start: project.startDate, end: project.endDate },
     period: p,
     range: { from, to },
     info: latest?.info ?? null,

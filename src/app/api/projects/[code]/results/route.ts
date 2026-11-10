@@ -202,7 +202,10 @@ export async function POST(req: Request, { params }: Ctx) {
         self = ok.detail;
       }
       if (r.status !== "pending") return NextResponse.json({ error: "This result has already been checked." }, { status: 409 });
-      const done = await reviewResult(code, a.id, a.action === "accept" ? "accepted" : "queried", u.id, a.action === "query" ? a.note : null, self);
+      // What the data checker had flagged when the person decided: kept with their choice on the audit trail.
+      const [ind] = await db.select().from(s.indicators).where(and(eq(s.indicators.projectId, (await projectByCode(code)).id), eq(s.indicators.code, r.indicator))).limit(1);
+      const flags = dataChecks(r, await loadResults(code), ind ? { code: ind.code, unit: ind.unit, disaggregation: ind.disaggregation } : undefined);
+      const done = await reviewResult(code, a.id, a.action === "accept" ? "accepted" : "queried", u.id, a.action === "query" ? a.note : null, { ...(self ?? {}), ...(flags.length ? { flags } : {}) });
       if (!done) return NextResponse.json({ error: "Someone else has just decided this result. Reload to see it." }, { status: 409 });
     }
     return NextResponse.json(await view(code, u));

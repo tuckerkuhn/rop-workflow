@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash(git push origin main:*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git checkout main:*)",
+      "Bash(git merge:* main)",
+      "Bash(git clean:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git branch -D:*)",
+      "Bash(npm run db:migrate:*)",
+      "Bash(npm run db:seed:*)",
+      "Bash(npm run staff:*)",
+      "Bash(npm run plan:*)",
+      "Bash(npx drizzle-kit migrate:*)",
+      "Bash(npx drizzle-kit push:*)",
+      "Bash(vercel:*)",
+      "Read(./.env.local)",
+      "Edit(./.env.local)"
+    ]
+  }
+}

@@ -1,7 +1,10 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { EMPTY_FRAMEWORK, FRAMEWORK_KEY, type Framework } from "@/lib/framework";
+import { loadProjectState } from "@/server/project-state";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { canSeePII, type AppUser } from "@/lib/demo";
 import { type FieldItem, type Stock } from "@/lib/field";
+import { HttpError } from "@/server/guard";
 
 /**
  * Field activities state in Postgres. Each farmer or MEL finding is one `field_items` row.
@@ -11,8 +14,30 @@ import { type FieldItem, type Stock } from "@/lib/field";
 
 export async function projectByCode(code: string) {
   const [p] = await db.select().from(s.projects).where(eq(s.projects.code, code)).limit(1);
-  if (!p) throw new Error(`Project ${code} is not in the database. Run npm run db:seed.`);
+  if (!p) throw new HttpError(404, `There is no project ${code} here. Check the address, or choose the project again from Home.`);
   return p;
+}
+
+/**
+ * The donor's name as reports print it. One source: the donor entered in setup and Settings (the
+ * `donors` table). `projects.donor` is an older column no screen writes; it is read only when a
+ * project has no donor entered, or to say which of several donors a single-donor report is for.
+ */
+export async function donorNameOf(project: { id: string; donor: string | null }): Promise<string | null> {
+  const rows = await db.select({ name: s.donors.name }).from(s.donors).where(eq(s.donors.projectId, project.id)).orderBy(asc(s.donors.createdAt));
+  const names = [...new Set(rows.map((r) => r.name.trim()).filter(Boolean))];
+  if (names.length === 1) return names[0];
+  return project.donor ?? (names.length ? names.join(" and ") : null);
+}
+
+/**
+ * The project's goal as reports and AI drafts read it. One reader: the wording a plan approver
+ * gave on the results framework (it carries its source and who worded it); until then, the goal
+ * entered in setup.
+ */
+export async function goalOf(project: { id: string; goal: string | null }): Promise<string | null> {
+  const fw = await loadProjectState<Framework>(project.id, FRAMEWORK_KEY, EMPTY_FRAMEWORK);
+  return fw.goal?.text?.trim() || project.goal;
 }
 
 /** Copy of an item safe to store: no name. */

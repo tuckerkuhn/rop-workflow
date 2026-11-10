@@ -5,6 +5,7 @@ import { termSchema } from "@/lib/agreement";
 import { canEditProject } from "@/lib/demo";
 import { paramByKey } from "@/lib/policy";
 import { personName } from "@/lib/project";
+import { fits } from "@/lib/presets";
 import { logAudit } from "@/server/audit";
 import { requireViewer } from "@/server/auth";
 import { projectByCode } from "@/server/field-store";
@@ -70,6 +71,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
 
     const bad = a.values.filter((x) => !paramByKey[x.key]).map((x) => x.key);
     if (bad.length) return NextResponse.json({ error: `Not a policy setting: ${bad.join(", ")}.` }, { status: 400 });
+    // A value must be the kind its rule takes (a number for a threshold, yes or no for a requirement), as in Settings.
+    const unfit = a.values.find((x) => !fits(paramByKey[x.key], x.value));
+    if (unfit) return NextResponse.json({ error: `${paramByKey[unfit.key].label}: that value does not fit this rule. Correct it, or leave the rule out.` }, { status: 400 });
     for (const x of a.values) layer.values[x.key] = { value: x.value, source: x.source, by, at };
     const known = new Set(layer.terms.map((x) => x.text));
     for (const x of a.terms) if (!known.has(x.text)) layer.terms.push({ ...x, by, at });

@@ -31,7 +31,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ code: st
   return handle(async () => {
     const v = await requireViewer(req, { write: true, allow: (u) => u.procurementAccess === "edit", why: "You can view Procurement but not change it." });
     if (v instanceof NextResponse) return v;
-    const parsed = bodySchema.safeParse(await req.json());
+    const parsed = bodySchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return NextResponse.json({ error: "That procurement could not be saved: the record is incomplete." }, { status: 400 });
     const items = parsed.data.items as unknown as Procurement[];
     // The server decides what is allowed (the same rules as the screen), then records each save.

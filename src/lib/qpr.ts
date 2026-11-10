@@ -1,4 +1,7 @@
+import { spentOver } from "@/lib/budget-view";
+import { lineReasonFields, reasonText, type LineReason, type OverspendReason } from "@/lib/overspend";
 import { z } from "zod";
+import { longDate } from "@/lib/weekly";
 import { proofCount, quarterRange, totalsOf, type ResultRecord, type UpdateRecord } from "@/lib/results";
 
 /**
@@ -48,15 +51,29 @@ export type Qpr = {
   rows: Record<string, { status?: Status; comment?: string; by: string; at: string }>;
   risks: { risk: string; mitigation: string }[];
   grm: { received: number | null; resolved: number | null };
-  /** Per overspent budget line: why it is over (an approved realignment, a price rise...). Goes in the report under the project information. */
-  overspend?: Record<string, { text: string; by: string; at: string }>;
+  /**
+   * Per overspent budget line: why it is over (lib/overspend.ts). Goes in the report under the project
+   * information. Until release it mirrors the line's own reason (server/overspend-store); a released
+   * report keeps what it said. Older reports hold free text only.
+   */
+  overspend?: Record<string, { text: string; reason?: OverspendReason; note?: string; by: string; at: string }>;
   /** The last check of the written text against the evidence (server/claim-check.ts). */
   claimCheck?: ClaimCheck;
   released?: { by: string; at: string };
 };
 
 /** One finding of the evidence check: a sentence the records do not bear out, and the records that say so. */
-export type ClaimIssue = { section: string; sentence: string; kind: "figure" | "place" | "timing" | "contradiction"; problem: string; evidence: string[] };
+export type ClaimIssue = {
+  section: string;
+  sentence: string;
+  kind: "figure" | "place" | "timing" | "contradiction";
+  problem: string;
+  evidence: string[];
+  /** What a person decided about this finding: they will fix the text, or the text stands. Kept on the audit trail too. */
+  decided?: { choice: "fix" | "keep"; by: string; name: string; at: string };
+};
+/** Findings still to look at: a finding someone decided to keep as written no longer counts. */
+export const openClaims = (c: ClaimCheck | undefined) => (c?.issues ?? []).filter((i) => i.decided?.choice !== "keep");
 export type ClaimCheck = { at: string; by: string; model: string; checked: number; issues: ClaimIssue[]; sections: Record<string, string> };
 
 export const emptyQpr = (projectName: string): Qpr => ({
@@ -101,8 +118,14 @@ export function mergeQuestions(list: string[]): string[] {
 /** Budget lines spent above their budget to the quarter's end, with the explanation saved for each. */
 export const overspentLines = (spend: Spend, saved: Qpr) =>
   Object.entries(spend.byLine)
-    .filter(([, l]) => l.budget > 0 && l.actual > l.budget + 1)
-    .map(([code, l]) => ({ code, budget: l.budget, actual: l.actual, pct: Math.round((l.actual / l.budget) * 100), explanation: saved.overspend?.[code]?.text ?? "" }));
+    .filter(([, l]) => l.budget > 0 && spentOver(l.actual, l.budget))
+    .map(([code, l]) => ({ code, budget: l.budget, actual: l.actual, pct: Math.round((l.actual / l.budget) * 100), explanation: saved.overspend?.[code]?.text ?? "", reason: saved.overspend?.[code]?.reason ?? null, note: saved.overspend?.[code]?.note ?? "" }));
+
+/** A report not yet released, with each line's current reason in place of what it held before. */
+export const withLineReasons = (saved: Qpr, reasons: Record<string, LineReason>): Qpr =>
+  saved.released || !Object.keys(reasons).length
+    ? saved
+    : { ...saved, overspend: { ...saved.overspend, ...Object.fromEntries(Object.entries(reasons).map(([k, r]) => [k, { text: reasonText(r), reason: r.reason, note: r.note, by: r.by, at: r.at }])) } };
 
 /** Starts a quarter from the one before: the info box, risks and slow-changing sections, marked for review. */
 export function carryForward(prev: Qpr | null, projectName: string, prevQuarter: string): Qpr {
@@ -118,6 +141,28 @@ export function carryForward(prev: Qpr | null, projectName: string, prevQuarter:
   return q;
 }
 
+/**
+ * The project duration the report prints: what the person typed, else the project's own start and
+ * end dates, else nothing. One rule for the page and the Word file.
+ */
+export function durationOf(typed: string | undefined, project: { start: string | null; end: string | null }): string | null {
+  if (typed?.trim()) return typed.trim();
+  return project.start && project.end ? `${longDate(project.start)} – ${longDate(project.end)}` : null;
+}
+
+/**
+ * What a person's roles do not let them do on the way to a released report, so the page can say
+ * it once at the top instead of refusing part-way. The flags come from the report's own route.
+ */
+/** Who writes the quarterly report's text, here and wherever a part of it is typed (the reason for an overspent line on Budget). */
+export const mayWriteReport = (u: { kind: string; admin?: boolean; project: string[] }) => u.kind === "employee" && (!!u.admin || u.project.some((r) => ["mel-owner", "report-release", "plan-approver", "monthly-review"].includes(r)));
+
+export const REPORT_STEPS = ["edit", "accept", "import", "release"] as const;
+export type ReportStep = (typeof REPORT_STEPS)[number];
+export function cannotOnReport(may: { edit: boolean; accept: boolean; import: boolean; release: boolean }): ReportStep[] {
+  return REPORT_STEPS.filter((k) => !may[k]);
+}
+
 export const prevQuarterOf = (q: string) => {
   const [y, n] = [Number(q.slice(0, 4)), Number(q.slice(6))];
   return n === 1 ? `${y - 1}-Q4` : `${y}-Q${n - 1}`;
@@ -130,13 +175,16 @@ export const qprPatchSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("acronyms"), acronyms: z.array(z.tuple([z.string().trim().min(1).max(20), z.string().trim().min(1).max(200)])).max(80) }),
   z.object({ action: z.literal("risks"), risks: z.array(z.object({ risk: z.string().trim().max(600), mitigation: z.string().trim().max(1200) })).max(20) }),
   z.object({ action: z.literal("grm"), received: z.number().int().min(0).max(1e6).nullable(), resolved: z.number().int().min(0).max(1e6).nullable() }),
-  z.object({ action: z.literal("overspend"), line: z.string().trim().min(1).max(60), text: z.string().trim().max(1000) }),
+  /** The reason a budget line is over budget: saved on the line (server/overspend-store), so it is the same on Budget. */
+  z.object({ action: z.literal("overspend"), ...lineReasonFields }),
   z.object({ action: z.literal("draft"), keys: z.array(z.string().regex(/^[a-z0-9.]{1,40}$/)).min(1).max(20) }),
   z.object({ action: z.literal("release") }),
   /** Saves a frozen copy as if released, without locking anything: to rehearse and compare. */
   z.object({ action: z.literal("practice") }),
   /** Checks the written sections against the quarter's records and the dated evidence. */
   z.object({ action: z.literal("check-claims") }),
+  /** A person's decision on one finding of the claim check: fix the text, or keep it as written. Null takes the decision back. */
+  z.object({ action: z.literal("claim-decide"), index: z.number().int().min(0).max(500), choice: z.enum(["fix", "keep"]).nullable() }),
 ]);
 export type QprPatch = z.infer<typeof qprPatchSchema>;
 
@@ -359,8 +407,7 @@ export function checksFor(rows: Row[], results: ResultRecord[], quarter: string,
   const qs = quarterSpendOf(saved, spend);
   if (qs !== null && qs > spend.cumulative) out.push({ level: "stop", text: "This quarter's spending is more than cumulative spending." });
   if (qs === null) out.push({ level: "check", text: "This quarter's spending is not entered: import Finance's budget-against-actual workbook, or type it in (Project information)." });
-  const over = Object.entries(spend.byLine).filter(([, l]) => l.budget > 0 && l.actual > l.budget + 1);
-  for (const [code, l] of over.filter(([c]) => (saved.overspend?.[c]?.text.length ?? 0) < 10)) out.push({ level: "check", text: `Budget line ${code} has spent ${n(l.actual)} of ${n(l.budget)} ${spend.currency} (${Math.round((l.actual / l.budget) * 100)}%): explain the overspend or the budget revision under Project information.` });
+  for (const { code, ...l } of overspentLines(spend, saved).filter((x) => x.explanation.length < 10)) out.push({ level: "check", text: `Budget line ${code} has spent ${n(l.actual)} of ${n(l.budget)} ${spend.currency} (${Math.round((l.actual / l.budget) * 100)}%): explain the overspend or the budget revision under Project information.` });
   if (spend.source.kind === "import" && spend.missingMonths.length) out.push({ level: "stop", text: `The spending import does not include ${spend.missingMonths.join(", ")}: import the latest workbook from Finance.` });
   if (saved.quarterSpend !== null && spend.quarter !== null && Math.abs(saved.quarterSpend - spend.quarter) > 1) out.push({ level: "check", text: `This quarter's spending is typed in as ${n(saved.quarterSpend)}, but the import says ${n(spend.quarter)}.` });
   for (const s of SECTIONS) if (s.key !== "story" && !saved.sections[s.key]?.text.trim()) out.push({ level: "check", text: `${s.heading} is empty.` });

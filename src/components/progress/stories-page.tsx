@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { shrink } from "@/components/people/expense-page";
+import { FieldHelp } from "@/components/app/field-help";
 import { Pill, TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import type { Receipt } from "@/lib/expense";
 import { CONSENT_HOW, CONSENT_USES, HOW_LABEL, USE_LABEL, type StoryAction, type StoryInput } from "@/lib/stories";
@@ -69,7 +70,10 @@ function Editor({ v, start, user, act, onClose }: { v: View; start: StoryRow | n
     <section className="mt-4 rounded-2xl border border-line bg-surface p-4">
       <h2 className="font-display text-xl">{start ? "Story" : "New story"}</h2>
       <fieldset className="mt-3 rounded-xl bg-paper p-3" disabled={approved}>
-        <legend className="px-1 text-sm font-semibold">1. Consent: before anything else</legend>
+        <legend className="px-1 text-sm font-semibold">
+          1. Consent: before anything else
+          <FieldHelp field="story.consent" />
+        </legend>
         {s.consent ? (
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="text-sm">
@@ -222,6 +226,8 @@ function Editor({ v, start, user, act, onClose }: { v: View; start: StoryRow | n
             className={quietBtn}
             disabled={!!busy || (!s.notes.trim() && !s.links.length)}
             onClick={async () => {
+              // A draft replaces the story text: ask first when someone has already written it.
+              if (s.text.trim() && !window.confirm("Replace the story text with a new draft? What is written now will be lost.")) return;
               const sid = await save();
               if (!sid) return;
               setBusy("draft");

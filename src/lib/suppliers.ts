@@ -86,6 +86,12 @@ const monthsBetween = (from: string, to: string) => {
   return (b.getUTCFullYear() - a.getUTCFullYear()) * 12 + (b.getUTCMonth() - a.getUTCMonth()) - (b.getUTCDate() < a.getUTCDate() ? 1 : 0);
 };
 
+/**
+ * The one rule for "screening is out of date": that many calendar months or more since the date.
+ * The supplier register and the procurement steps both call it.
+ */
+export const screeningStale = (screenedOn: string, today: string, rescreenMonths = 6) => monthsBetween(screenedOn, today) >= rescreenMonths;
+
 /** What stops this supplier being paid or awarded today, plain-language; empty when ready. */
 export function supplierGaps(s: Supplier, today: string, rescreenMonths = 6): string[] {
   const out: string[] = [];
@@ -93,7 +99,7 @@ export function supplierGaps(s: Supplier, today: string, rescreenMonths = 6): st
   const sc = lastScreening(s);
   if (!sc) out.push("Not screened yet");
   else if (sc.result === "match") out.push(`Screening on ${sc.date} found a match`);
-  else if (monthsBetween(sc.date, today) >= rescreenMonths) out.push(`Last screened ${sc.date}: more than ${rescreenMonths} months ago`);
+  else if (screeningStale(sc.date, today, rescreenMonths)) out.push(`Last screened ${sc.date}: more than ${rescreenMonths} months ago`);
   if (!s.licenceNo || !s.licenceEvidence) out.push("No licence on file");
   else if (!s.licenceExpiry || s.licenceExpiry < today) out.push(s.licenceExpiry ? `Licence expired ${s.licenceExpiry}` : "Licence expiry not recorded");
   if (!s.bank) out.push("Bank details not confirmed");

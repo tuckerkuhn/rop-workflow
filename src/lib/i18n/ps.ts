@@ -2,9 +2,16 @@ import type { Messages } from "./en";
 import { tsPs } from "./hr/timesheet";
 import { actPs } from "./activities";
 import { pfPs } from "./preflight";
+import { hbPs, hkPs, pmPs, prPs, sgPs } from "./surge";
+import { awPs } from "./ai-why";
+import { fhPs } from "./field-help";
+import { rpPs } from "./report-path";
+import { tdPs } from "./target-details";
 import { rqPs } from "./review-queue";
 import { soPs } from "./solo";
 import { smPs } from "./spend";
+import { haPs } from "./home-actions";
+import { osPs } from "./overspend";
 import { ksPs } from "./kobo-suggest";
 import { agPs } from "./agreement";
 import { evPs } from "./evidence";
@@ -484,9 +491,20 @@ export const ps: Messages = {
   ...lvPs,
   ...actPs,
   ...pfPs,
+  ...sgPs,
+  ...hbPs,
+  ...prPs,
+  ...pmPs,
+  ...hkPs,
+  ...awPs,
+  ...fhPs,
+  ...rpPs,
+  ...tdPs,
   ...rqPs,
   ...soPs,
   ...smPs,
+  ...haPs,
+  ...osPs,
   ...ksPs,
   ...agPs,
   ...evPs,

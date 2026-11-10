@@ -7,7 +7,8 @@ import { useCurrentProject } from "@/components/app/current-project";
 import { openReceipt } from "@/components/people/expense-page";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
-import { SECTIONS, STATUSES, STATUS_LABEL, overspentLines, quarterSpendOf, type QprPatch, type Row, type Status } from "@/lib/qpr";
+import { OverspendReasonPicker } from "@/components/progress/overspend-reason";
+import { SECTIONS, STATUSES, STATUS_LABEL, cannotOnReport, durationOf, overspentLines, quarterSpendOf, type QprPatch, type Row, type Status } from "@/lib/qpr";
 import { qprDocx, type Images } from "@/lib/qpr-docx";
 import { formatMinutes } from "@/lib/report-copy";
 import { ShareLinks } from "@/components/progress/share-links";
@@ -17,6 +18,7 @@ import { SpreadsheetImport } from "@/components/progress/spend-map";
 import { beforeDownload, PreflightButton, usePreflight } from "@/components/progress/preflight-page";
 import { MoneySourceLink, ProofNumber } from "@/components/progress/proof-panel";
 import { useT } from "@/components/app/i18n";
+import { ErrorNote } from "@/components/app/error-note";
 import { quarterOf, quarterRange } from "@/lib/results";
 import type { QprView } from "@/app/api/projects/[code]/qpr/route";
 
@@ -92,6 +94,18 @@ export function QprPage() {
     if (ready && user && project.saved) void load();
   }, [ready, user, project.saved, load]);
 
+  // A link from pre-flight or Home names the part to fix (#sec-summary, #claims, #info, #overspend): go there once the report is on screen.
+  const shown = !!v;
+  useEffect(() => {
+    if (!shown || !window.location.hash) return;
+    // The part's id is used as written: every id on this page is plain letters, digits, dots and dashes.
+    const go = () => document.getElementById(window.location.hash.slice(1))?.scrollIntoView({ block: "start" });
+    go();
+    // Once more after the panels above it have loaded and pushed it down.
+    const again = window.setTimeout(go, 900);
+    return () => window.clearTimeout(again);
+  }, [shown]);
+
   if (!user) return null;
   const act = async (a: QprPatch, msg: string) => {
     setError("");
@@ -139,7 +153,7 @@ export function QprPage() {
   const download = async () => {
     if (!v || !user) return;
     // A copy (released or practice) is downloaded as it was; the live draft goes through pre-flight first.
-    const draft = v.frozen ? 0 : await beforeDownload(project.id, user.id, pf, (n) => t("pf.draftConfirm", { n }));
+    const draft = v.frozen ? 0 : await beforeDownload(project.id, user.id, pf, (n) => t("pf.draftConfirm", { n }), { kind: "qpr", quarter }, t("pf.uncheckedConfirm"));
     if (draft === null) return;
     setBusy("download");
     setError("");
@@ -159,7 +173,11 @@ export function QprPage() {
 
   const emptyDraftable = v ? [...SECTIONS.filter((s) => s.draft).map((s) => s.key as string), ...v.activities.map((a) => `act.${a.code}`)].filter((k) => !v.saved.sections[k]?.text.trim()) : [];
   const stops = v?.checks.filter((c) => c.level === "stop") ?? [];
+  const cannot = v ? cannotOnReport({ edit: v.mayEdit, accept: user.project.includes("mel-owner"), import: v.mayImport, release: v.mayRelease }) : [];
   const { from, to } = quarterRange(quarter);
+  // Home's "Next report" is the quarter under way; this page opens on the last one that ended.
+  const nowQ = quarterOf(new Date().toISOString().slice(0, 10));
+  const qLabel = (q: string) => q.replace("-", " ");
 
   return (
     <div className="min-h-screen">
@@ -180,6 +198,18 @@ export function QprPage() {
         <p className="mt-1 max-w-2xl text-sm text-muted">
           {from} to {to}. Figures come from results MEL has accepted, and each one opens the records and proof behind it. Write or draft the text, fix what the checks list, then download it for Word.
         </p>
+        <p className="mt-3 rounded-xl bg-sunken px-4 py-3 text-sm font-semibold">
+          {quarter === nowQ ? (
+            t("rp.quarterNow", { q: qLabel(quarter), to })
+          ) : (
+            <>
+              {t("rp.quarterPast", { q: qLabel(quarter), from, to, now: qLabel(nowQ) })}{" "}
+              <Link href={`/progress/report?q=${nowQ}`} className="text-forest underline">
+                {t("rp.openQuarter", { q: qLabel(nowQ) })}
+              </Link>
+            </>
+          )}
+        </p>
         <p className="mt-2 flex flex-wrap gap-4 text-sm">
           <Link href="/progress/results" className="font-semibold text-forest hover:underline">
             Results and proof
@@ -189,11 +219,8 @@ export function QprPage() {
           </Link>
         </p>
         {!project.saved && <p className="mt-6 rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">Choose a project saved in the database (for example ACRP).</p>}
-        {error && (
-          <p role="alert" className="mt-4 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">
-            {error}
-          </p>
-        )}
+        {error && <ErrorNote>{error}</ErrorNote>}
+        {project.saved && !v && !error && <p className="mt-10 text-center text-sm text-muted">{t("report.loading")}</p>}
         {notice && (
           <p role="status" className="mt-4 rounded-xl bg-mist px-4 py-3 text-sm text-leaf">
             {notice}
@@ -202,6 +229,7 @@ export function QprPage() {
         {v && (
           <>
             <div className="sticky top-0 z-10 -mx-4 mt-4 flex flex-wrap items-center gap-2 border-b border-line bg-paper/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
+              <Pill tone="muted">{qLabel(quarter)}</Pill>
               {v.frozen?.kind === "practice" ? (
                 <Pill tone="sky">Practice copy · {v.frozen.at.slice(0, 16).replace("T", " ")} UTC · {v.frozen.by}</Pill>
               ) : v.saved.released ? (
@@ -251,6 +279,27 @@ export function QprPage() {
               )}
             </div>
 
+            {/* Why "Mark final" is off, in words a phone shows (a tooltip is not enough), with the way on. */}
+            {v.mayRelease && !v.frozen && !v.saved.released && Math.max(blocking, stops.length) > 0 && (
+              <p className="mt-3 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">
+                {Math.max(blocking, stops.length) === 1 ? t("report.blockedOne") : t("report.blocked", { n: Math.max(blocking, stops.length) })}{" "}
+                <Link href={`/progress/preflight?report=qpr&period=${quarter}`} className="font-semibold underline">
+                  {t("pf.button")}
+                </Link>
+              </p>
+            )}
+            {/* What this person's roles do not allow on this report, said once, before they start. */}
+            {!v.frozen && !v.saved.released && cannot.length > 0 && (
+              <div className="mt-3 rounded-xl border border-line bg-surface px-4 py-3 text-sm">
+                <p className="font-semibold">{t("rp.cannot")}</p>
+                <ul className="mt-1 list-disc ps-5">
+                  {cannot.map((k) => (
+                    <li key={k}>{t(`rp.cannot.${k}`)}</li>
+                  ))}
+                </ul>
+                <p className="mt-1 text-muted">{t("rp.cannot.ask")}</p>
+              </div>
+            )}
             {v.frozen && (
               <section className="mt-4 rounded-xl border border-line bg-surface px-4 py-3 text-sm">
                 <p className="font-semibold">
@@ -304,6 +353,7 @@ export function QprPage() {
               </p>
             )}
             <ReportDownloads project={project.id} quarter={quarter} user={user.id} mayEvidence={!!user.admin || user.project.some((r) => ["mel-owner", "report-release", "plan-approver", "monthly-review"].includes(r))} mayAudit={!!user.admin || user.project.includes("mel-owner")} />
+            <div id="claims" className="scroll-mt-24" />
             <ClaimCheckPanel
               check={v.saved.claimCheck}
               sections={Object.fromEntries(Object.entries(v.saved.sections).map(([k, t]) => [k, t?.text ?? ""]))}
@@ -311,6 +361,15 @@ export function QprPage() {
               busy={busy === "check-claims"}
               mayRun={v.mayEdit}
               onRun={() => quiet(act({ action: "check-claims" }, "Checked. Look at each finding against its records; nothing has been changed."))}
+              onDecide={(index, choice) => {
+                const section = v.saved.claimCheck?.issues[index]?.section;
+                void quiet(
+                  act({ action: "claim-decide", index, choice }, choice === "fix" ? t("ha.claimFix") : choice === "keep" ? t("ha.claimKeep") : t("ha.claimUndo")).then(() => {
+                    // "Fix the text" takes the person straight to the section the sentence is in.
+                    if (choice === "fix" && section) document.getElementById(`sec-${section}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }),
+                );
+              }}
             />
             {!v.frozen?.kind || v.frozen.kind === "release" ? <ShareLinks project={project.id} quarter={quarter} user={user.id} ready={v.copies.length > 0} /> : null}
 
@@ -394,6 +453,9 @@ function InfoBox({ v, act, onImported }: { v: QprView; act: Act; onImported: () 
     setSpend(v.saved.quarterSpend === null ? "" : String(v.saved.quarterSpend));
   }, [v.saved.info, v.saved.quarterSpend]);
   const c = v.spend.currency;
+  const { t } = useT();
+  // What the Word file prints when the field is left empty (lib/qpr durationOf).
+  const fromDates = durationOf(undefined, v.project);
   const dirty = JSON.stringify(f) !== JSON.stringify(v.saved.info) || spend !== (v.saved.quarterSpend === null ? "" : String(v.saved.quarterSpend));
   const field = (k: keyof typeof f, label: string, wide = false) => (
     <label className={`text-sm ${wide ? "sm:col-span-2" : ""}`}>
@@ -402,7 +464,7 @@ function InfoBox({ v, act, onImported }: { v: QprView; act: Act; onImported: () 
     </label>
   );
   return (
-    <section className="mt-6 rounded-2xl border border-line bg-surface p-4">
+    <section id="info" className="mt-6 scroll-mt-24 rounded-2xl border border-line bg-surface p-4">
       <SectionLabel>Project information</SectionLabel>
       <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
         <div>
@@ -427,6 +489,7 @@ function InfoBox({ v, act, onImported }: { v: QprView; act: Act; onImported: () 
           {v.saved.quarterSpend !== null && v.spend.quarter !== null && <dd className="text-xs text-ochre">Typed in; the import says {num(v.spend.quarter)}</dd>}
         </div>
       </dl>
+      <p className="mt-2 text-xs text-muted">{t("rp.totals.onReport")}</p>
       <p className="mt-2 text-xs text-muted">
         {v.spend.source.kind === "import" ? (
           <>
@@ -461,7 +524,10 @@ function InfoBox({ v, act, onImported }: { v: QprView; act: Act; onImported: () 
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         {field("title", "Project title", true)}
         {field("agreement", "Agreement number")}
-        {field("duration", "Project duration, as in the agreement (e.g. 1 March 2025 – 30 June 2027)")}
+        <div>
+          {field("duration", "Project duration, as in the agreement (e.g. 1 March 2025 – 30 June 2027)")}
+          {!f.duration?.trim() && fromDates && <p className="mt-1 text-xs text-muted">{t("rp.durationFromDates", { dates: fromDates })}</p>}
+        </div>
         {field("director", "Country director")}
         {field("locations", "Project locations (districts)", true)}
         {field("partner", "Responsible party")}
@@ -483,28 +549,20 @@ function InfoBox({ v, act, onImported }: { v: QprView; act: Act; onImported: () 
   );
 }
 
-/** One explanation per budget line spent above its budget; it goes in the report under the project information. */
+/** One reason per budget line spent above its budget, kept on the line; it goes in the report under the project information. */
 function Overspend({ v, act }: { v: QprView; act: Act }) {
+  const { t } = useT();
   const lines = overspentLines(v.spend, v.saved);
-  const [text, setText] = useState<Record<string, string>>({});
   if (!lines.length) return null;
   return (
-    <div className="mt-3 space-y-3 rounded-xl bg-paper p-3">
+    <div id="overspend" className="mt-3 scroll-mt-24 space-y-3 rounded-xl bg-paper p-3">
       <p className="text-sm font-semibold">Budget lines above budget</p>
-      {lines.map((l) => {
-        const t = text[l.code] ?? l.explanation;
-        return (
-          <label key={l.code} className="block text-sm">
-            {l.code}: {num(l.actual)} spent of {num(l.budget)} {v.spend.currency} ({l.pct}%). Why?
-            <textarea className={input} rows={2} disabled={!v.mayEdit} value={t} placeholder="UNDP approved the realignment on …, or prices rose because …" onChange={(e) => setText({ ...text, [l.code]: e.target.value })} />
-            {v.mayEdit && t !== l.explanation && (
-              <button type="button" className={`${primaryBtn} mt-2`} disabled={t.trim().length > 0 && t.trim().length < 10} onClick={() => void act({ action: "overspend", line: l.code, text: t.trim() }, "Saved.").catch(() => undefined)}>
-                Save
-              </button>
-            )}
-          </label>
-        );
-      })}
+      {lines.map((l) => (
+        <div key={l.code} className="text-sm">
+          {t("os.line", { code: l.code, spent: num(l.actual), budget: num(l.budget), currency: v.spend.currency, pct: l.pct })}
+          <OverspendReasonPicker saved={{ reason: l.reason, note: l.note, text: l.explanation }} mayWrite={v.mayEdit && !v.saved.released} onSave={(r) => act({ action: "overspend", line: l.code, ...r }, "Saved.")} />
+        </div>
+      ))}
     </div>
   );
 }
@@ -518,7 +576,7 @@ function Section({ v, k, heading, act, busy, draftable }: { v: QprView; k: strin
   const dirty = text !== (saved?.text ?? "");
   const rows = Math.min(18, Math.max(4, Math.ceil(text.length / 95) + text.split("\n").length));
   return (
-    <section className="mt-6">
+    <section className="mt-6 scroll-mt-24" id={`sec-${k}`}>
       <div className="flex flex-wrap items-baseline gap-2">
         <h3 className="font-display text-lg">{heading ?? def?.heading}</h3>
         {saved?.drafted && <Pill tone="ochre">Drafted by Claude: review</Pill>}
@@ -561,15 +619,32 @@ function IndicatorTable({ v, act }: { v: QprView; act: Act }) {
   const outputs = [...new Set(v.rows.map((r) => r.output))];
   const year = v.quarter.slice(0, 4);
   const qn = v.quarter.slice(5);
+  const { t } = useT();
   return (
-    <div className="mt-3 overflow-x-auto">
+    <>
+      {/* Below a wide screen: one block per target, stacked, so nothing scrolls sideways on a phone. */}
+      <div className="mt-3 space-y-4 lg:hidden">
+        {outputs.map((o) => (
+          <div key={o}>
+            <p className="rounded-lg bg-sunken px-2 py-2 text-sm font-semibold">{o}</p>
+            <div className="divide-y divide-line">
+              {v.rows
+                .filter((r) => r.output === o)
+                .map((r) => (
+                  <IndicatorRow key={r.code} r={r} v={v} act={act} card />
+                ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    <div className="mt-3 hidden overflow-x-auto lg:block">
       <table className="w-full min-w-[820px] text-sm">
         <thead className="text-start text-[11px] uppercase tracking-wide text-muted">
           <tr>
             <th className="py-2 pe-3 text-start">Output indicator</th>
-            <th className="py-2 pe-3 text-end">{year} target</th>
-            <th className="py-2 pe-3 text-end">{qn} achieved</th>
-            <th className="py-2 pe-3 text-end">This year</th>
+            <th className="py-2 pe-3 text-end">{t("rp.col.target", { year })}</th>
+            <th className="py-2 pe-3 text-end">{t("rp.col.quarter", { q: qn })}</th>
+            <th className="py-2 pe-3 text-end">{t("rp.col.year")}</th>
             <th className="py-2 pe-3 text-start">Status and comment</th>
           </tr>
         </thead>
@@ -589,10 +664,12 @@ function IndicatorTable({ v, act }: { v: QprView; act: Act }) {
         ))}
       </table>
     </div>
+    </>
   );
 }
 
-function IndicatorRow({ r, v, act }: { r: Row; v: QprView; act: Act }) {
+/** One target of the report: a table row on a wide screen, a stacked block (`card`) below that. */
+function IndicatorRow({ r, v, act, card }: { r: Row; v: QprView; act: Act; card?: boolean }) {
   const [editing, setEditing] = useState(false);
   const [status, setStatus] = useState<Status>(r.status);
   const [comment, setComment] = useState(r.comment);
@@ -610,9 +687,9 @@ function IndicatorRow({ r, v, act }: { r: Row; v: QprView; act: Act }) {
       {num(value)}
     </ProofNumber>
   );
-  return (
-    <tr className="align-top">
-      <td className="py-2 pe-3">
+  const { t } = useT();
+  const name = (
+    <>
         <span className="font-mono text-xs text-muted">{r.donorCode}</span> {r.name} <span className="text-muted">({r.unit})</span>
         {r.budgetRef && v.spend.byLine[r.budgetRef] && (
           <span className="mt-1 block text-xs text-muted" title="The budget line that pays for this indicator">
@@ -620,14 +697,16 @@ function IndicatorRow({ r, v, act }: { r: Row; v: QprView; act: Act }) {
             {v.spend.byLine[r.budgetRef].budget > 0 && ` (${Math.round((v.spend.byLine[r.budgetRef].actual / v.spend.byLine[r.budgetRef].budget) * 100)}%)`}
           </span>
         )}
-      </td>
-      <td className="py-2 pe-3 text-end tabular-nums">{num(r.yearTarget)}</td>
-      <td className="py-2 pe-3 text-end">{evidence(from, r.quarter, r.records.quarter, r.records.files)}</td>
-      <td className="py-2 pe-3 text-end">
+    </>
+  );
+  const yearCell = (
+    <>
         {evidence(yearFrom, r.year, r.records.year)}
         {r.yearTarget > 0 && <span className="block text-xs text-muted">{Math.round((r.year / r.yearTarget) * 100)}%</span>}
-      </td>
-      <td className="py-2 pe-3">
+    </>
+  );
+  const statusCell = (
+    <>
         {editing ? (
           <div>
             <select className={input} value={status} onChange={(e) => setStatus(e.target.value as Status)}>
@@ -673,7 +752,37 @@ function IndicatorRow({ r, v, act }: { r: Row; v: QprView; act: Act }) {
             )}
           </div>
         )}
-      </td>
+    </>
+  );
+  const head = "text-[11px] uppercase tracking-wide text-muted";
+  if (card)
+    return (
+      <div className="py-3 text-sm">
+        <p>{name}</p>
+        <dl className="mt-2 grid grid-cols-3 gap-2">
+          <div>
+            <dt className={head}>{t("rp.col.target", { year: v.quarter.slice(0, 4) })}</dt>
+            <dd className="tabular-nums">{num(r.yearTarget)}</dd>
+          </div>
+          <div>
+            <dt className={head}>{t("rp.col.quarter", { q: v.quarter.slice(5) })}</dt>
+            <dd>{evidence(from, r.quarter, r.records.quarter, r.records.files)}</dd>
+          </div>
+          <div>
+            <dt className={head}>{t("rp.col.year")}</dt>
+            <dd>{yearCell}</dd>
+          </div>
+        </dl>
+        <div className="mt-2">{statusCell}</div>
+      </div>
+    );
+  return (
+    <tr className="align-top">
+      <td className="py-2 pe-3">{name}</td>
+      <td className="py-2 pe-3 text-end tabular-nums">{num(r.yearTarget)}</td>
+      <td className="py-2 pe-3 text-end">{evidence(from, r.quarter, r.records.quarter, r.records.files)}</td>
+      <td className="py-2 pe-3 text-end">{yearCell}</td>
+      <td className="py-2 pe-3">{statusCell}</td>
     </tr>
   );
 }

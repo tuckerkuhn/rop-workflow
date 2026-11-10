@@ -10,6 +10,10 @@ import { useEffect, useState } from "react";
 import { usePersistentState } from "@/components/workspace/ui";
 import type { AppUser, ProjectInfo } from "@/lib/demo";
 import type { HomeView, Lens } from "@/server/home-store";
+import type { NextReport } from "@/server/next-report";
+import { WaitingOnYou } from "@/components/home/waiting";
+import { waitingCount, waitingRows } from "@/lib/home-buckets";
+import { useT } from "@/components/app/i18n";
 
 /**
  * Home for a database project, shaped by role. The eye goes, in order, to: one sentence that says
@@ -93,8 +97,11 @@ function StatusBar({ counts, total }: { counts: HomeView["schedule"]["counts"]; 
 }
 
 export function RoleHome({ user, project }: { user: AppUser; project: ProjectInfo }) {
+  const { t, date } = useT();
   const [v, setV] = useState<HomeView | null>(null);
   const [error, setError] = useState("");
+  // The next report from pre-flight, loaded once for the panel and for the Fix and Due groups.
+  const [nr, setNr] = useState<NextReport | null>(null);
   const [chosen, setChosen] = usePersistentState<Lens | "">("rop-home-lens", () => "");
 
   useEffect(() => {
@@ -107,6 +114,11 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
         if (live) setV(d);
       })
       .catch((e) => live && setError(e instanceof Error ? e.message : String(e)));
+    setNr(null);
+    fetch(`/api/projects/${project.id}/next-report`, { cache: "no-store", headers: { "x-demo-user": user.id } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => live && d && setNr(d))
+      .catch(() => undefined);
     return () => {
       live = false;
     };
@@ -130,6 +142,9 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
   const onTrack = s.counts.completed + s.counts.on_track;
   const late = s.counts.delayed + s.counts.not_implemented;
   const b = v.budget;
+  // One source for the report tile: pre-flight's quarter and counts when loaded, else the report's own checks.
+  const melBlocks = nr ? nr.blocking : v.mel.stops;
+  const melOther = nr ? nr.items.length - nr.blocking : v.mel.checks;
   const report = v.deadlines.find((d) => d.key === "qpr")!;
   const review = v.deadlines.find((d) => d.key === "review")!;
   const deadlineLevel: Level = report.days <= 14 ? "warning" : "good";
@@ -173,12 +188,12 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
       </Tile>,
       <Tile
         key="ready"
-        label={`${v.mel.quarter} report`}
-        value={v.mel.stops ? `${v.mel.stops} to fix` : "Ready"}
-        level={v.mel.stops ? "critical" : v.mel.checks ? "warning" : "good"}
+        label={t("ha.tile.label", { quarter: (nr?.quarter ?? v.mel.quarter).replace("-", " ") })}
+        value={melBlocks ? t("ha.tile.fix", { n: melBlocks }) : t("ha.tile.ready")}
+        level={melBlocks ? "critical" : melOther ? "warning" : "good"}
         href="/progress/report"
       >
-        {v.mel.stops} stop and {v.mel.checks} check items before release.
+        {t("ha.tile.body", { blocks: melBlocks, other: melOther })}
       </Tile>,
       <Tile key="proof" clear label="Missing proof" value={String(v.mel.noProof)} level={v.mel.noProof ? "warning" : "good"} href="/progress/results">
         Results accepted this quarter with no file or link.
@@ -267,6 +282,44 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
       </div>
     );
 
+  const waiting = waitingRows({ actions: v.actions, lenses: v.lenses, report: nr, deadlines: v.deadlines });
+  // Field staff whose project collects everything in KoboCollect get a short Home: it tells them
+  // so, shows what has arrived, and lists anything MEL has sent back. No tiles, no data entry.
+  if (lens === "field" && v.lenses.length === 1 && v.kobo.only)
+    return (
+      <section aria-label={t("home.kobo.title")} className="space-y-5">
+        <div className="rounded-2xl border border-forest/40 bg-mist p-4">
+          <h2 className="font-display text-xl">{t("home.kobo.title")}</h2>
+          <p className="mt-1 text-sm">{t("home.kobo.body")}</p>
+        </div>
+        {waitingCount(waiting) > 0 && <WaitingOnYou rows={waiting} />}
+        <section className="rounded-2xl border border-line bg-surface p-4" aria-labelledby="kobo-recent">
+          <h2 id="kobo-recent" className="font-display text-xl">
+            {t("home.kobo.recent")}
+          </h2>
+          <p className="mt-1 text-xs text-muted">
+            {v.kobo.lastSyncedAt ? t("home.kobo.synced", { date: date(v.kobo.lastSyncedAt.slice(0, 10), { day: "numeric", month: "long" }) }) : t("home.kobo.neverSynced")} · {t("home.kobo.notYours")}
+          </p>
+          {v.kobo.recent.length === 0 ? (
+            <p className="mt-3 text-sm text-muted">{t("home.kobo.none")}</p>
+          ) : (
+            <ul className="mt-2 divide-y divide-line">
+              {v.kobo.recent.map((r) => (
+                <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5 text-sm">
+                  <span className="min-w-0 flex-1">
+                    <span className="font-semibold tabular-nums">{r.value.toLocaleString("en-US")}</span> {r.unit} · {r.target}
+                    <span className="block text-xs text-muted">{date(r.date, { day: "numeric", month: "long" })}</span>
+                  </span>
+                  <Pill tone={r.status === "accepted" ? "forest" : r.status === "queried" ? "clay" : "ochre"}>{t(`home.kobo.${r.status}`)}</Pill>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+        <Families project={project.id} user={user.id} mayWriteStory={false} />
+      </section>
+    );
+
   return (
     <section aria-label="Where things stand" className="space-y-5">
       <GettingStarted project={project.id} user={user.id} />
@@ -293,20 +346,22 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
         <Link href={next.href} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl border border-forest/40 bg-mist px-4 py-3 hover:border-forest">
           <span className="w-full text-xs font-semibold uppercase tracking-wide text-forest sm:w-auto">Your next step</span>
           <span className="min-w-0 flex-1 font-semibold">{next.text}</span>
-          {mine.length > 1 && <span className="hidden text-xs text-muted sm:inline">and {mine.length - 1} more below</span>}
-          <span aria-hidden className="text-forest rtl:rotate-180">
+                    <span aria-hidden className="text-forest rtl:rotate-180">
             →
           </span>
         </Link>
       )}
 
-      <NextReportPanel project={project.id} user={user.id} owners={lens === "lead" ? undefined : lens === "mel" ? ["mel", "writers"] : lens === "field" ? ["field"] : lens === "finance" ? ["finance"] : []} />
+      {/* Everything waiting on this person, across their roles: Approve, Fix, Due. */}
+      <WaitingOnYou rows={waiting} />
+
+      <NextReportPanel project={project.id} user={user.id} data={nr} owners={lens === "lead" ? undefined : lens === "mel" ? ["mel", "writers"] : lens === "field" ? ["field"] : lens === "finance" ? ["finance"] : []} />
 
       <div className="grid gap-3 sm:grid-cols-2">{tiles[lens].slice(0, 2)}</div>
 
       <details className="group rounded-2xl border border-line bg-surface">
         <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-forest">
-          <span className="group-open:hidden">More: everything waiting for you, and this quarter&rsquo;s work ▾</span>
+          <span className="group-open:hidden">More: the numbers, and this quarter&rsquo;s work ▾</span>
           <span className="hidden group-open:inline">Less ▴</span>
         </summary>
         <div className="space-y-4 px-4 pb-4">
@@ -317,30 +372,12 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
               aria-labelledby="needs-you"
             >
               <h2 id="needs-you" className="font-display text-xl">
-                Needs you
+                {t("ha.offPlan")}
               </h2>
-              {mine.length === 0 ? (
-                <p className="mt-2 text-sm text-muted">Nothing is waiting for you in this view.</p>
-              ) : (
-                <ul className="mt-2 divide-y divide-line">
-                  {mine.map((a) => (
-                    <li key={a.key}>
-                      <Link href={a.href} className="flex items-center gap-3 py-2.5 text-sm hover:text-forest">
-                        <span aria-hidden className={`h-2 w-2 shrink-0 rounded-full ${a.urgent ? "bg-clay" : "bg-ochre"}`} />
-                        <span className="flex-1">{a.text}</span>
-                        {a.urgent && <span className="rounded-full bg-clay-soft px-2 py-0.5 text-xs font-semibold text-clay">Now</span>}
-                        <span aria-hidden className="text-muted rtl:rotate-180">
-                          ›
-                        </span>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              {!(lens === "lead" && (late > 0 || b.overspent.length > 0)) && <p className="mt-2 text-sm text-muted">{t("ha.offPlanNone")}</p>}
               {lens === "lead" && (late > 0 || b.overspent.length > 0) && (
                 <div className="mt-3 space-y-1 border-t border-line pt-3 text-sm">
-                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Off plan</p>
-                  {s.late.map((i) => (
+                                    {s.late.map((i) => (
                     <p key={i.code} className="flex gap-2">
                       <span className="shrink-0 font-mono text-xs text-muted">{i.code}</span>
                       <span className="min-w-0 truncate" title={i.name}>

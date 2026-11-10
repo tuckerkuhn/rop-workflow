@@ -2,9 +2,16 @@ import type { Messages } from "./en";
 import { tsEs } from "./hr/timesheet";
 import { actEs } from "./activities";
 import { pfEs } from "./preflight";
+import { hbEs, hkEs, pmEs, prEs, sgEs } from "./surge";
+import { awEs } from "./ai-why";
+import { fhEs } from "./field-help";
+import { rpEs } from "./report-path";
+import { tdEs } from "./target-details";
 import { rqEs } from "./review-queue";
 import { soEs } from "./solo";
 import { smEs } from "./spend";
+import { haEs } from "./home-actions";
+import { osEs } from "./overspend";
 import { ksEs } from "./kobo-suggest";
 import { agEs } from "./agreement";
 import { evEs } from "./evidence";
@@ -509,9 +516,20 @@ export const es: Messages = {
   ...lvEs,
   ...actEs,
   ...pfEs,
+  ...sgEs,
+  ...hbEs,
+  ...prEs,
+  ...pmEs,
+  ...hkEs,
+  ...awEs,
+  ...fhEs,
+  ...rpEs,
+  ...tdEs,
   ...rqEs,
   ...soEs,
   ...smEs,
+  ...haEs,
+  ...osEs,
   ...ksEs,
   ...agEs,
   ...evEs,

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { canEditProject } from "@/lib/demo";
 import { DraftingUnavailable } from "@/server/ai-drafts";
-import { requireViewer } from "@/server/auth";
+import { inOwnOrganization, onProject, requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
 import { projectByCode } from "@/server/field-store";
 import { aiAllowed } from "@/server/limits";
@@ -39,10 +39,11 @@ export async function POST(req: Request) {
     if (limit) return limit;
     try {
       const { part, files, project } = parsed.data;
-      const r = part === "terms" ? await extractTerms(files) : part === "budget" ? await extractBudget(files) : await extractSetup(files);
+      const r = part === "terms" ? await extractTerms(files, v.actor.id) : part === "budget" ? await extractBudget(files, v.actor.id) : await extractSetup(files, v.actor.id);
       // Proposals are on the record (what was read, by whom); what is confirmed is logged where it is saved.
       if (project) {
-        const p = await projectOrNull(project);
+        // Only onto the trail of a project this person works on, in their own organization.
+        const p = onProject(v.user, project) && (await inOwnOrganization(v, project)) ? await projectOrNull(project) : null;
         if (p) await logAudit(db, p.id, { entity: "project", entityId: p.id, action: "setup_documents_read", by: v.actor.id, detail: { part, files: files.map((f) => f.name), model: r.model } });
       }
       return NextResponse.json(r);

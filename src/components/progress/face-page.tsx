@@ -222,7 +222,7 @@ export function FacePage() {
                   href={`${url}?month=${month}&download=1`}
                   onClick={async (e) => {
                     e.preventDefault();
-                    if ((await beforeDownload(project.id, user.id, pf, (n) => t("pf.draftConfirm", { n }))) === null) return;
+                    if ((await beforeDownload(project.id, user.id, pf, (n) => t("pf.draftConfirm", { n }), /^\d{4}-\d{2}$/.test(month) ? { kind: "face", month } : null, t("pf.uncheckedConfirm"))) === null) return;
                     const r = await fetch(`${url}?month=${month}&download=1`, { headers: { "x-demo-user": user.id } });
                     if (!r.ok) return setError("Could not make the file.");
                     const link = document.createElement("a");

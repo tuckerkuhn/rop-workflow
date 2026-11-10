@@ -36,6 +36,7 @@ export function ProgressPage() {
   const kobo = useKobo(project.id);
   const [syncing, setSyncing] = useState(false);
   const [syncNote, setSyncNote] = useState("");
+  const [syncFailed, setSyncFailed] = useState(false);
   const [exporting, setExporting] = useState(false);
   const closeExport = useCallback(() => setExporting(false), []);
 
@@ -50,11 +51,13 @@ export function ProgressPage() {
   const sync = async () => {
     setSyncing(true);
     setSyncNote("");
+    setSyncFailed(false);
     try {
       const r = await kobo.sync();
       setSyncNote(t("kobo.synced", { added: r.added, fetched: r.fetched, forms: r.forms }) + (r.updated || r.removed ? ` ${t("kobo.syncedChanges", { updated: r.updated, removed: r.removed })}` : ""));
       await progress.reload();
     } catch (e) {
+      setSyncFailed(true);
       setSyncNote(e instanceof Error ? e.message : String(e));
     } finally {
       setSyncing(false);
@@ -93,7 +96,7 @@ export function ProgressPage() {
           )}
         </div>
         {syncNote && (
-          <p role="status" className="mt-2 text-sm text-forest">
+          <p role={syncFailed ? "alert" : "status"} className={`mt-2 text-sm ${syncFailed ? "text-clay" : "text-forest"}`}>
             {syncNote}
           </p>
         )}
@@ -123,7 +126,7 @@ export function ProgressPage() {
                   </span>
                   <ul className="mt-3 grid gap-3 sm:grid-cols-2">
                     {g.list.map((i) => (
-                      <IndicatorCard key={i.code} i={i} donorCode={donor?.indicatorRefs[i.code]} canMap={editor} />
+                      <IndicatorCard key={i.code} i={i} donorCode={donor?.indicatorRefs[i.code] || i.donorCode || undefined} canMap={editor} />
                     ))}
                   </ul>
                 </section>
@@ -148,7 +151,7 @@ export function ProgressPage() {
             <span className="grid w-full gap-4 sm:grid-cols-3">
               {(
                 [
-                  ["Steer the work", [["/progress/review", "Monthly review"], ["/progress/budget", "Budget vs actual"], ["/progress/framework", "Results framework"], ["/setup/lens", "Lens review"]]],
+                  ["Steer the work", [["/progress/review", "Monthly review"], ["/progress/budget", "Budget vs actual"], ["/progress/framework", "Results framework"], ["/progress/targets", t("td.title")], ["/setup/lens", "Lens review"]]],
                   ["Prove it", [["/progress/results", "Results and proof"], ["/progress/records", t("progress.records")], ["/progress/audit", "Audit trail"]]],
                   ["Report and learn", [["/progress/weekly", "Weekly update"], ["/progress/report", "Quarterly report"], ["/progress/annual", "Annual and final reports"], ["/progress/learning", "Lessons and close-out"]]],
                 ] as [string, [string, string][]][]

@@ -1,3 +1,4 @@
+import { ourWork } from "@/lib/budget";
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { db, schema as s } from "@/db";
@@ -6,6 +7,7 @@ import { describeChange, emptyReview, quarterOfMonth, type Change, type ChangeIn
 import { suggestStatus, yearShare } from "@/lib/qpr";
 import { z } from "zod";
 import { draftStructured } from "@/server/ai-structured";
+import { scrubbed } from "@/server/ai";
 import { logAudit } from "@/server/audit";
 import { loadBudgetView } from "@/server/budget-view-store";
 import { selfApproval, soloFor } from "@/server/solo";
@@ -50,7 +52,7 @@ async function saveReview(exec: Tx, projectId: string, r: MonthlyReview) {
 /** ROP's rows when the workplan lists several partners. */
 async function ourWorkplan(projectId: string) {
   const rows = await db.select().from(s.workplanItems).where(eq(s.workplanItems.projectId, projectId));
-  return rows.some((w) => w.org === "ROP") ? rows.filter((w) => w.org === "ROP") : rows;
+  return ourWork(rows);
 }
 
 /** Everything the review screen needs: the saved review plus where results and money stand. */
@@ -106,6 +108,8 @@ export async function loadReview(code: string, month: string, u: AppUser) {
       status: r.status !== r.suggested ? r.status : suggestStatus(r.year, r.yearTarget, Number(quarter.slice(6)), r.year > 0 || r.records.open > 0, r.planned, quarterEnded(quarter)),
       planned: r.planned,
       workplanCode: r.workplanCode,
+      // The date of the latest accepted result, whenever it was.
+      lastAccepted: report.results.filter((x) => x.indicator === r.code && x.status === "accepted").reduce<string | null>((d, x) => (!d || x.date > d ? x.date : d), null),
     })),
     year,
     budget: {
@@ -231,7 +235,7 @@ export async function applyChange(tx: Tx, projectId: string, c: Change): Promise
     };
   }
   const all = await tx.select().from(s.workplanItems).where(eq(s.workplanItems.projectId, projectId));
-  const ours = all.some((w) => w.org === "ROP") ? all.filter((w) => w.org === "ROP") : all;
+  const ours = ourWork(all);
   const rows = ours.filter((w) => w.code === c.activity);
   if (!rows.length) throw new Error(`Activity ${c.activity} is not in the workplan.`);
   const before = [...new Set(rows.flatMap((w) => (w.active as string[]) ?? []))].sort();
@@ -318,9 +322,12 @@ export async function actOnReview(code: string, month: string, a: ReviewAction, 
     try {
       const v = await loadReview(code, month, u);
       const { out, model } = await draftStructured({
+        job: "monthlyReview",
+        by: u.id,
+        projectId: project.id,
         system: DRAFT_SYSTEM,
         task: `Draft the summary and the needs-attention note for the ${month} monthly review.`,
-        facts: {
+        facts: scrubbed({
           project: v.project.name,
           stage: v.project.stage,
           month,
@@ -329,7 +336,7 @@ export async function actOnReview(code: string, month: string, a: ReviewAction, 
           results_waiting_for_mel: v.open.pending,
           results_queried: v.open.queried,
           proposed_changes: review.changes.map((c) => ({ change: describeChange(c), reason: c.reason, status: c.status })),
-        },
+        }, ["reason"]),
         schema: draftSchema,
       });
       await db.transaction(async (tx) => {

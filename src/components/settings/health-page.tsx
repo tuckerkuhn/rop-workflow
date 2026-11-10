@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useT } from "@/components/app/i18n";
 import { useRequireUser } from "@/components/app/session";
 import { TopBar } from "@/components/workspace/ui";
 import type { health } from "@/server/limits";
@@ -11,6 +12,7 @@ type Health = Awaited<ReturnType<typeof health>>;
 /** Administrators: is the app healthy? Errors this week, AI use, email, and the records export. */
 export function HealthPage() {
   const { user } = useRequireUser();
+  const { t } = useT();
   const [h, setH] = useState<Health | null>(null);
   const [error, setError] = useState("");
   useEffect(() => {
@@ -63,6 +65,25 @@ export function HealthPage() {
                 </p>
               </li>
             </ul>
+            <section className="mt-8">
+              <h2 className="font-display text-2xl">{t("health.kobo.title")}</h2>
+              <p className="mt-1 text-sm text-muted">{t("health.kobo.help")}</p>
+              {h.kobo.length === 0 ? (
+                <p className="mt-2 text-sm text-muted">{t("health.kobo.none")}</p>
+              ) : (
+                <ul className="mt-2 divide-y divide-line rounded-2xl border border-line bg-surface px-4 text-sm">
+                  {h.kobo.map((r) => (
+                    <li key={r.project} className="py-2">
+                      <span className="font-semibold">{r.project}</span> <span className="text-xs text-muted">{r.at.replace("T", " ").slice(0, 16)} UTC</span>
+                      <p className={`break-words ${r.ok ? "" : "text-clay"}`}>
+                        {r.ok ? t(r.added + r.updated + r.removed ? "health.kobo.changed" : "health.kobo.same", { fetched: r.fetched, added: r.added, updated: r.updated, removed: r.removed }) : t("health.kobo.failed", { error: r.error ?? "" })}
+                        {r.ok && r.results.flagged > 0 && <span className="font-semibold text-ochre"> {t("health.kobo.flagged", { n: r.results.flagged })}</span>}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
             <section className="mt-8">
               <h2 className="font-display text-2xl">Errors this week</h2>
               {h.errors.length === 0 ? (

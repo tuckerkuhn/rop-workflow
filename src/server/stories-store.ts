@@ -4,6 +4,7 @@ import { db } from "@/db";
 import type { AppUser } from "@/lib/demo";
 import { reportBlock, type Story, type StoryAction } from "@/lib/stories";
 import { draftStructured } from "@/server/ai-structured";
+import { scrubbed } from "@/server/ai";
 import { logAudit } from "@/server/audit";
 import { projectByCode } from "@/server/field-store";
 import { aiAllowed } from "@/server/limits";
@@ -74,7 +75,7 @@ export async function storyAction(code: string, u: AppUser, a: StoryAction): Pro
     const results = await loadResults(code);
     const updates = await loadUpdates(code);
     const linked = [...results.filter((r) => s.links.includes(r.id)).map((r) => ({ date: r.date, indicator: r.indicator, value: r.value, place: [r.district, r.province].filter(Boolean).join(", "), note: r.note })), ...updates.filter((x) => s.links.includes(x.id)).map((x) => ({ date: x.date, title: x.title, note: x.note }))];
-    const { out, model } = await draftStructured({ system: SYSTEM, task: "Write the story.", facts: { firstName: s.consent ? s.firstName : undefined, woman: s.woman, district: s.district, province: s.province, interviewNotes: s.notes, linkedRecords: linked }, schema: draftSchema, effort: "medium", maxTokens: 4000 });
+    const { out, model } = await draftStructured({ job: "storyDraft", by: u.id, system: SYSTEM, task: "Write the story.", facts: scrubbed({ firstName: s.consent ? s.firstName : undefined, woman: s.woman, district: s.district, province: s.province, interviewNotes: s.notes, linkedRecords: linked }, ["interviewNotes", "note", "title"], { firstNames: !!s.consent }), schema: draftSchema, effort: "medium", maxTokens: 4000 });
     s.title = out.title.slice(0, 140);
     s.text = out.story.slice(0, 6000);
     s.questions = out.questions;

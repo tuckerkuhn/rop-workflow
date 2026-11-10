@@ -11,6 +11,8 @@ export type Frequency = "monthly" | "quarterly" | "end_of_season";
 
 export type IndicatorProgress = {
   code: string;
+  /** The donor's own code for it, as entered in setup (indicators.donor_code). */
+  donorCode: string | null;
   name: string;
   unit: string;
   target: number;

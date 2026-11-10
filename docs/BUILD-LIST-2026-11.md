@@ -11,15 +11,15 @@ The order agreed on 9 Nov 2026, from the four-additions, five-streamlines, six-U
 | B1 | Review queue: accept the clean, review the flagged | `feature/review-queue-batch` | Merged |
 | B2 | Solo mode for sign-offs | `feature/solo-signoff` | Merged |
 | B3 | Spend import from any spreadsheet | `feature/spend-import-generic` | Merged |
-| B4 | Kobo nightly reconcile | `feature/kobo-nightly-reconcile` | |
-| B5 | One source of truth for the docs | `feature/docs-current` | |
-| C1 | Home: Approve, Fix, Due | `feature/home-three-buckets` | |
-| C2 | Project manager first | `feature/pm-path` | |
-| C3 | Progress: one row per target | `feature/progress-rows` | |
-| C4 | Plain words | `feature/plain-words` | Also: move the quarterly report's older check sentences into the four languages (decided 9 Nov). |
-| C5 | A sample project for every new organization | `feature/sample-project` | |
-| C6 | Every AI flag says why | `feature/flag-reasons` | |
-| C7 | "Why we ask" help on sensitive fields | `feature/field-help` | |
+| B4 | Kobo nightly reconcile | `feature/kobo-nightly-reconcile` | Built on surge branch, not merged; never run |
+| B5 | One source of truth for the docs | `feature/docs-current` | Built on surge branch, not merged |
+| C1 | Home: Approve, Fix, Due | `feature/home-three-buckets` | Built on surge branch, not merged |
+| C2 | Project manager first | `feature/pm-path` | Built on surge branch, not merged |
+| C3 | Progress: one row per target | `feature/progress-rows` | Built on surge branch, not merged |
+| C4 | Plain words | `feature/plain-words` | The before and after list is written for review: `docs/PLAIN-WORDS-LIST.md` (10 Nov). No string changed yet. Also: move the quarterly report's older check sentences into the four languages (decided 9 Nov). |
+| C5 | A sample project for every new organization | `feature/sample-project` | Not started |
+| C6 | Every AI flag says why | `feature/flag-reasons` | Built on surge branch, not merged |
+| C7 | "Why we ask" help on sensitive fields | `feature/field-help` | Partly built on surge branch, not merged: Results and Stories only |
 
 ## Decisions, 9 Nov 2026
 

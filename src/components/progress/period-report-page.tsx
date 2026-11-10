@@ -53,7 +53,7 @@ export function PeriodReportPage() {
   const years = Array.from({ length: Math.max(1, thisYear - startYear + 1) }, (_, k) => startYear + k);
   const download = async () => {
     if (!v) return;
-    const draft = period.kind === "annual" ? await beforeDownload(project.id, user.id, pf, (n) => t("pf.draftConfirm", { n })) : 0;
+    const draft = period.kind === "annual" ? await beforeDownload(project.id, user.id, pf, (n) => t("pf.draftConfirm", { n }), { kind: "annual", year: period.year }, t("pf.uncheckedConfirm")) : 0;
     if (draft === null) return;
     setBusy(true);
     try {
@@ -169,7 +169,14 @@ export function PeriodReportPage() {
                 </tbody>
               </table>
             </div>
-            {v.rows.some((r) => r.baseline === null) && <p className="mt-2 text-xs text-muted">Baselines marked — are not recorded on the indicator; add them in setup.</p>}
+            {v.rows.some((r) => r.baseline === null) && (
+              <p className="mt-2 text-xs text-muted">
+                {t("td.baselineMissing")}{" "}
+                <Link href="/progress/targets" className="font-semibold text-forest hover:underline">
+                  {t("td.title")}
+                </Link>
+              </p>
+            )}
 
             {v.rows.some((r) => r.women + r.men > 0) && (
               <section className="mt-8">

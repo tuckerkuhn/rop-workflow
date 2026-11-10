@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { LookedAt } from "@/components/app/ai-why";
 import { primaryBtn } from "@/components/workspace/ui";
 import { currentInstalment } from "@/lib/payments";
 import { ROUTES, committeeNeeded, isSharePointUrl, levelFor, reviewKey, routesFor, rulesInForce, valueOf, type Draft, type Procurement } from "@/lib/procurement";
@@ -280,7 +281,10 @@ export function AiCheck({ p, editable, onCheck }: { p: Procurement; editable: bo
   if (!editable) return null;
   return (
     <div className="flex flex-wrap items-center gap-3 border-b border-line bg-plum-soft/40 px-5 py-3 text-sm">
-      <span className="min-w-0 flex-1">{done ? "AI check run. Its findings are listed below: read each one before you confirm." : "Have AI check the record before you continue. It flags problems; you decide."}</span>
+      <span className="min-w-0 flex-1">
+        {done ? "AI check run. Its findings are listed below: read each one before you confirm." : "Have AI check the record before you continue. It flags problems; you decide."}
+        <LookedAt what="procurementCheck" className="mt-1" />
+      </span>
       <button
         type="button"
         disabled={busy}

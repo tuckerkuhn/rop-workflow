@@ -1,4 +1,4 @@
-import type { KoboMapping, KoboQuestion, MappingMethod } from "@/lib/kobo-setup";
+import type { KoboMapping, KoboQuestion } from "@/lib/kobo-setup";
 
 /**
  * Suggested mappings from KoboToolbox questions to indicators (A4), and the risks code checks in
@@ -42,5 +42,3 @@ export function mappingRisks(mappings: KoboMapping[], questions: Record<string, 
   }
   return out;
 }
-
-export const methodNeeds = (m: MappingMethod) => (m === "count_answer" ? "value" : null);

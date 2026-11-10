@@ -1,15 +1,17 @@
+import { ourWork } from "@/lib/budget";
 import { and, asc, eq, isNotNull } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { spentIn } from "@/lib/bva";
-import { activityOf, breakdownsFor, buildRows, carryForward, checksFor, DEFAULT_ACRONYMS, photosFor, prevQuarterOf, type IndicatorInfo, type Qpr, type Spend } from "@/lib/qpr";
+import { activityOf, breakdownsFor, buildRows, carryForward, checksFor, DEFAULT_ACRONYMS, photosFor, prevQuarterOf, withLineReasons, type IndicatorInfo, type Qpr, type Spend } from "@/lib/qpr";
 import { quarterRange } from "@/lib/results";
 import { loadActuals } from "@/server/actuals-store";
 import { donorPhotoRule } from "@/server/photo-consent";
-import { projectByCode } from "@/server/field-store";
+import { projectByCode, donorNameOf, goalOf } from "@/server/field-store";
 import { loadResults, loadUpdates } from "@/server/results-store";
 import { MAX_PRACTICE, workTime, type CopyData, type ReportCopy, type WorkTime } from "@/lib/report-copy";
 import { auditTrail } from "@/server/audit";
 import { loadProjectState, saveProjectState } from "@/server/project-state";
+import { loadLineReasons } from "@/server/overspend-store";
 
 /** One saved quarterly report per project and quarter, as project_state "qpr:2026-Q3". */
 
@@ -24,10 +26,10 @@ export async function rawQpr(projectId: string, quarter: string) {
 
 export async function loadQpr(code: string, quarter: string): Promise<Qpr> {
   const project = await projectByCode(code);
-  const saved = await rawQpr(project.id, quarter);
-  if (saved) return saved;
   const prev = prevQuarterOf(quarter);
-  return carryForward(await rawQpr(project.id, prev), project.name, prev);
+  const saved = (await rawQpr(project.id, quarter)) ?? carryForward(await rawQpr(project.id, prev), project.name, prev);
+  // Each line's reason for being over budget lives on the line; a released report keeps its own.
+  return saved.released ? saved : withLineReasons(saved, await loadLineReasons(project.id));
 }
 
 export async function saveQpr(code: string, quarter: string, data: Qpr) {
@@ -124,7 +126,7 @@ export async function qprData(code: string, quarter: string) {
     .select({ code: s.workplanItems.code, org: s.workplanItems.org, active: s.workplanItems.active })
     .from(s.workplanItems)
     .where(eq(s.workplanItems.projectId, project.id));
-  const ours = plan.some((w) => w.org === "ROP") ? plan.filter((w) => w.org === "ROP") : plan;
+  const ours = ourWork(plan);
   const plans: Record<string, string[]> = {};
   for (const w of ours) plans[w.code] = [...new Set([...(plans[w.code] ?? []), ...((w.active as string[]) ?? [])])];
   const table = buildRows(indicators, results, quarter, saved, plans);
@@ -147,7 +149,7 @@ export async function qprData(code: string, quarter: string) {
   const captioned = photosFor(table, results, updates, quarter);
   const photos = captioned.filter((ph) => photoOk(ph.hash).ok);
   return {
-    project: { code, name: project.name, goal: project.goal, donor: project.donor, start: project.startDate, end: project.endDate },
+    project: { code, name: project.name, goal: await goalOf(project), donor: await donorNameOf(project), start: project.startDate, end: project.endDate },
     quarter,
     saved,
     rows: table,

@@ -1,10 +1,12 @@
 "use client";
 
+import { useT } from "@/components/app/i18n";
 import Link from "next/link";
 import { useState } from "react";
 import { stageOf } from "@/components/field/workspace";
 import { useFieldData } from "@/components/app/use-project-data";
-import { Initials, useRequireUser, useSession } from "@/components/app/session";
+import { Initials, useFeature, useRequireUser, useSession } from "@/components/app/session";
+import { PHOTO_QUALITY } from "@/lib/plans";
 import { Pill, SectionLabel, TODAY, TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { holderOf } from "@/lib/demo";
 import {
@@ -102,12 +104,15 @@ export function FarmerProfile({ id }: { id: string }) {
   const { user } = useRequireUser();
   const { money } = useSession();
   const { items, setItems, status, error } = useFieldData();
+  const { t } = useT();
   const [score, setScore] = useState(0);
   const [comment, setComment] = useState("");
   const [addingPhoto, setAddingPhoto] = useState(false);
   const [photoKind, setPhotoKind] = useState<PhotoKind>("visit");
   const [photoCaption, setPhotoCaption] = useState("");
   const [photoError, setPhotoError] = useState("");
+  // Photo quality follows the plan: a small copy on the free plan, normal phone quality on the paid one.
+  const fullPhotos = useFeature("full_photos");
   const [noteTitle, setNoteTitle] = useState("");
   const [noteText, setNoteText] = useState("");
 
@@ -147,6 +152,11 @@ export function FarmerProfile({ id }: { id: string }) {
   return (
     <div className="min-h-screen">
       <TopBar active="field" />
+      {error && (
+        <p role="alert" className="mx-auto mt-4 max-w-6xl rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">
+          {t("field.saveFailed", { error })}
+        </p>
+      )}
       <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6 lg:py-8">
         <Link href={`/work?source=field&open=${farmer.id}`} className="text-sm text-muted hover:text-ink">
           ← Field activities
@@ -278,31 +288,30 @@ export function FarmerProfile({ id }: { id: string }) {
                       className="sr-only"
                       onChange={(e) => {
                         const file = e.target.files?.[0];
+                        e.target.value = "";
                         if (!file) return;
-                        if (file.size > 1_500_000) {
-                          setPhotoError("That image is over 1.5 MB. This prototype keeps photos in your browser, so use a smaller one.");
+                        if (file.size > 25_000_000) {
+                          setPhotoError(t("fp.tooBig"));
                           return;
                         }
-                        const reader = new FileReader();
-                        reader.onload = () => {
-                          update((f) => ({
-                            ...f,
-                            photos: [
-                              ...f.photos,
-                              { id: `${f.id}-${Date.now()}`, activity: photoKind, date: TODAY, caption: photoCaption.trim() || `${photoLabels[photoKind]} · ${f.id}`, src: String(reader.result) },
-                            ],
-                          }));
-                          setAddingPhoto(false);
-                          setPhotoCaption("");
-                          setPhotoError("");
-                        };
-                        reader.readAsDataURL(file);
+                        void shrinkPhoto(file, fullPhotos ? PHOTO_QUALITY.full : PHOTO_QUALITY.small)
+                          .then((src) => {
+                            update((f) => ({
+                              ...f,
+                              photos: [...f.photos, { id: `${f.id}-${Date.now()}`, activity: photoKind, date: TODAY, caption: photoCaption.trim() || `${photoLabels[photoKind]} · ${f.id}`, src }],
+                            }));
+                            setAddingPhoto(false);
+                            setPhotoCaption("");
+                            setPhotoError("");
+                          })
+                          .catch(() => setPhotoError(t("fp.unreadable")));
                       }}
                     />
                   </label>
                   <button type="button" onClick={() => setAddingPhoto(false)} className="px-2 py-3 text-sm text-muted">
                     Cancel
                   </button>
+                  <p className="w-full text-xs text-muted">{fullPhotos ? t("fp.full") : t("fp.small")}</p>
                   {photoError && <p className="w-full text-sm text-clay">{photoError}</p>}
                 </div>
               )}
@@ -444,4 +453,18 @@ export function FarmerProfile({ id }: { id: string }) {
       </div>
     </div>
   );
+}
+
+/** The photo resized on the phone (long side at most `maxEdge` pixels) and kept as a JPEG data URL. */
+async function shrinkPhoto(file: File, q: { maxEdge: number; jpeg: number }): Promise<string> {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, q.maxEdge / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("No canvas");
+  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  return canvas.toDataURL("image/jpeg", q.jpeg);
 }

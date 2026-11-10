@@ -35,6 +35,10 @@ export const DONORS: Profile[] = [
       costSharePct: { value: 50, source: "ACRP Project Document: 50% for male-owned firms, 30% for female-owned" },
       retentionYears: { value: 7, source: `${RPA}, Art. 12.3` },
       quarterlyReportDays: { value: 15, source: `${RPA}: quarterly progress reports 15 days after each quarter (article to cite)`, confidence: "to verify" },
+      budgetRevisionPct: {
+        value: 20,
+        source: `${RPA}, Art. 3.5 (about p. 8): variations up to 20% on any one budget line, with UNDP notified and the total not exceeded; above 20%, UNDP's prior written approval. Amendment 1 leaves it unchanged`,
+      },
     },
   },
   {

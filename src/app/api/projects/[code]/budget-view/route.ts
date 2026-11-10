@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { mayWriteReport } from "@/lib/qpr";
 import { isEmployee, requireViewer } from "@/server/auth";
 import { loadBudgetView } from "@/server/budget-view-store";
 import { handle } from "@/server/guard";
@@ -11,6 +12,6 @@ export async function GET(req: Request, { params }: Ctx) {
   return handle(async () => {
     const v = await requireViewer(req, { allow: isEmployee });
     if (v instanceof NextResponse) return v;
-    return NextResponse.json(await loadBudgetView(code));
+    return NextResponse.json(await loadBudgetView(code, mayWriteReport(v.user)));
   });
 }

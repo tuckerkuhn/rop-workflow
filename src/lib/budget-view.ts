@@ -40,6 +40,8 @@ export type ActivityView = { code: string; name: string; approved: number; revis
 
 export type BudgetView = {
   currency: string;
+  /** The donor's budget flexibility (policy "budgetRevisionPct"): a forecast this far above approved needs its approval. */
+  revisionPct: number;
   period: { from: string; to: string } | null;
   /** Share of the phase's time gone at the end of the last imported month (0–1). */
   timeGone: number | null;
@@ -53,11 +55,22 @@ const pct = (a: number, b: number | null) => (b ? Math.round((a / b) * 1000) / 1
 const fmt = (n: number) => Math.round(n).toLocaleString("en-US");
 const monthEnd = (m: string) => new Date(Date.UTC(Number(m.slice(0, 4)), Number(m.slice(5, 7)), 0)).toISOString().slice(0, 10);
 
-/** Thresholds: a forecast or spend this far above approved, or pace this far from time, is flagged. */
+/**
+ * Thresholds: a forecast or spend this far above approved, or pace this far from time, is flagged.
+ * revisionPct is the default only: each project uses its donor's figure from policy (budgetRevisionPct).
+ */
 export const LIMITS = { overPct: 0.5, revisionPct: 10, behindPts: 25, aheadPts: 25 } as const;
 
-export function budgetView(args: { lines: BudgetLineIn[]; imported: ImportLineIn[]; months: string[]; currency: string; start: string | null; end: string | null; results: ResultIn[] }): BudgetView {
+/**
+ * The one rule for "spent above what was approved": more than the approved amount plus the
+ * tolerance (LIMITS.overPct, for rounding and exchange differences). The budget page, Home, the
+ * quarterly report's checks and pre-flight all call it, so a line is overspent everywhere or nowhere.
+ */
+export const spentOver = (spent: number, approved: number) => spent - approved > (approved * LIMITS.overPct) / 100;
+
+export function budgetView(args: { lines: BudgetLineIn[]; imported: ImportLineIn[]; months: string[]; currency: string; start: string | null; end: string | null; results: ResultIn[]; revisionPct?: number }): BudgetView {
   const { lines, imported, months, currency, start, end, results } = args;
+  const revisionPct = args.revisionPct ?? LIMITS.revisionPct;
   const last = months.at(-1) ?? null;
   const asOf = last ? monthEnd(last) : null;
   const timeGone = start && end && asOf ? Math.min(1, Math.max(0, (Date.parse(asOf) - Date.parse(start)) / (Date.parse(end) - Date.parse(start)))) : null;
@@ -73,9 +86,9 @@ export function budgetView(args: { lines: BudgetLineIn[]; imported: ImportLineIn
       .reduce((t, [, v]) => t + Number(v), 0);
     const forecast = spent + remainingPlanned;
     const flags: Flag[] = [];
-    if (approved !== null && spent > approved * (1 + LIMITS.overPct / 100))
+    if (approved !== null && spentOver(spent, approved))
       flags.push({ level: "stop", text: `Spent ${fmt(spent)} of ${fmt(approved)} approved (${pct(spent, approved)}%): explain the overspend or the approved realignment.` });
-    else if (approved !== null && forecast > approved * (1 + LIMITS.revisionPct / 100))
+    else if (approved !== null && forecast > approved * (1 + revisionPct / 100))
       flags.push({ level: "check", text: `Forecast ${fmt(forecast)} is ${pct(forecast - approved, approved)}% above the ${fmt(approved)} approved: check the donor has agreed the revision.` });
     const mine = results.filter((r) => r.budgetRef === l.code);
     // Spending ahead of time is expected when the work it pays for is done.
@@ -133,6 +146,7 @@ export function budgetView(args: { lines: BudgetLineIn[]; imported: ImportLineIn
   const known = new Set(lines.map((l) => l.code));
   return {
     currency,
+    revisionPct,
     period: months.length ? { from: months[0], to: months.at(-1)! } : null,
     timeGone,
     totals: {

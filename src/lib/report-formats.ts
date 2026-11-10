@@ -45,7 +45,8 @@ const baseline: ReportFormat = {
   build: ({ project, donor, period, indicators, periodValues, milestones, preparedOn, t, date }) => {
     // A donor's report covers the indicators it tracks, under its own codes.
     const tracked = donor && Object.keys(donor.indicatorRefs).length ? indicators.filter((i) => i.code in donor.indicatorRefs) : indicators;
-    const code = (i: IndicatorProgress) => donor?.indicatorRefs[i.code] || i.code;
+    // The donor's code as typed for that donor in Settings; else the one entered in setup; else the app's own.
+    const code = (i: IndicatorProgress) => donor?.indicatorRefs[i.code] || i.donorCode || i.code;
     const columns = [t("report.col.code"), t("report.col.indicator"), t("report.col.unit"), t("report.col.target"), t("report.col.period"), t("report.col.total"), t("report.col.pct"), t("report.col.gender")];
     const row = (i: IndicatorProgress) => [
       code(i),

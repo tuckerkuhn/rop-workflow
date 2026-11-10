@@ -4,7 +4,7 @@ import { canEditProject } from "@/lib/demo";
 import { DONORS, donorById } from "@/lib/donors";
 import { PARAMS, effective, paramByKey, type Profile } from "@/lib/policy";
 import { requireViewer } from "@/server/auth";
-import { handle } from "@/server/guard";
+import { audit, handle } from "@/server/guard";
 import { donorOf, loadPolicy, savePolicy, type PolicySetting } from "@/server/policy-store";
 import { orgProfile } from "@/server/org-settings-store";
 import { projectByCode } from "@/server/field-store";
@@ -73,6 +73,7 @@ export async function POST(req: Request, { params }: Ctx) {
       const decision = { value: a.value, by: u.id, name: u.name, at, reason: a.reason };
       const next = { ...setting, decisions: { ...setting.decisions, [a.key]: decision }, history: [...setting.history, { ...decision, key: a.key }] };
       await savePolicy(code, next);
+      await audit(code, { entity: "policy", entityId: crypto.randomUUID(), action: "policy_conflict_decided", by: u.id, detail: { key: a.key, value: a.value, reason: a.reason } });
       return NextResponse.json(view(next, org));
     }
     if (!canEditProject(u) && !u.admin) return NextResponse.json({ error: "The project manager or an administrator chooses the donor's rules." }, { status: 403 });
@@ -85,6 +86,7 @@ export async function POST(req: Request, { params }: Ctx) {
       const approvals = { ...(setting.approvals ?? {}), ...Object.fromEntries(a.keys.map((k) => [k, approval])) };
       const next: PolicySetting = { ...setting, approvals, history: [...setting.history, ...a.keys.map((k) => ({ ...approval, key: k, value: null, layered: true }))] };
       await savePolicy(code, next);
+      await audit(code, { entity: "policy", entityId: crypto.randomUUID(), action: "policy_donor_rules_layered", by: u.id, detail: { keys: a.keys, reason: a.reason } });
       return NextResponse.json(view(next, org));
     }
     if (a.action === "choose") {
@@ -94,11 +96,14 @@ export async function POST(req: Request, { params }: Ctx) {
       const same = a.donor === setting.donor;
       const next: PolicySetting = { ...setting, donor: a.donor, decisions: same ? setting.decisions : {}, approvals: same ? setting.approvals : {}, chosenBy: { by: u.id, name: u.name, at } };
       await savePolicy(code, next);
+      // Earlier decisions and approvals fall away with a different donor: the trail keeps what they were.
+      await audit(code, { entity: "policy", entityId: crypto.randomUUID(), action: "policy_donor_chosen", by: u.id, detail: { donor: a.donor, was: setting.donor ?? null, ...(same ? {} : { decisionsCleared: Object.keys(setting.decisions ?? {}), approvalsCleared: Object.keys(setting.approvals ?? {}) }) } });
       return NextResponse.json(view(next, org));
     }
     const values = Object.fromEntries(Object.entries(a.values).filter(([k]) => paramByKey[k]));
     const next: PolicySetting = { ...setting, donor: "custom", custom: { name: a.name, values }, decisions: setting.donor === "custom" ? setting.decisions : {}, approvals: setting.donor === "custom" ? setting.approvals : {}, chosenBy: { by: u.id, name: u.name, at } };
     await savePolicy(code, next);
+    await audit(code, { entity: "policy", entityId: crypto.randomUUID(), action: "policy_custom_donor_saved", by: u.id, detail: { name: a.name, values: Object.fromEntries(Object.entries(values).map(([k, c]) => [k, c.value])), was: setting.donor ?? null } });
     return NextResponse.json(view(next, org));
   });
 }

@@ -1,9 +1,16 @@
 import { tsEn } from "./hr/timesheet";
 import { actEn } from "./activities";
 import { pfEn } from "./preflight";
+import { hbEn, hkEn, pmEn, prEn, sgEn } from "./surge";
+import { awEn } from "./ai-why";
+import { fhEn } from "./field-help";
+import { rpEn } from "./report-path";
+import { tdEn } from "./target-details";
 import { rqEn } from "./review-queue";
 import { soEn } from "./solo";
 import { smEn } from "./spend";
+import { haEn } from "./home-actions";
+import { osEn } from "./overspend";
 import { ksEn } from "./kobo-suggest";
 import { agEn } from "./agreement";
 import { evEn } from "./evidence";
@@ -579,9 +586,20 @@ export const en = {
   ...lvEn,
   ...actEn,
   ...pfEn,
+  ...sgEn,
+  ...hbEn,
+  ...prEn,
+  ...pmEn,
+  ...hkEn,
+  ...awEn,
+  ...fhEn,
+  ...rpEn,
+  ...tdEn,
   ...rqEn,
   ...soEn,
   ...smEn,
+  ...haEn,
+  ...osEn,
   ...ksEn,
   ...agEn,
   ...evEn,

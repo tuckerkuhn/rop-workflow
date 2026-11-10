@@ -12,7 +12,6 @@ import { db, schema as s } from "@/db";
 
 /** The audit row written as each AI run starts; the limits count these. */
 export const AI_STARTED = "ai_run_started";
-export const AI_ACTIONS = ["assistant_asked", "opportunity_briefed", "qpr_ai_drafted", "review_ai_drafted", "ai_drafted", "ai_checked", "lens_review_run"];
 export const AI_PER_PERSON_HOUR = Number(process.env.AI_PER_PERSON_HOUR || 20);
 export const AI_PER_DAY = Number(process.env.AI_PER_DAY || 300);
 
@@ -61,6 +60,8 @@ export async function health() {
     email: { configured: !!process.env.RESEND_API_KEY && !!process.env.CRON_SECRET },
     monitoring: { sentry: false },
     storage: await storage(),
+    // The nightly KoboToolbox reconcile: the latest run for each connected project.
+    kobo: await (await import("@/server/kobo-reconcile")).lastReconciles(),
   };
 }
 

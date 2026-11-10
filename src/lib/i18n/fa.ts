@@ -2,9 +2,16 @@ import type { Messages } from "./en";
 import { tsFa } from "./hr/timesheet";
 import { actFa } from "./activities";
 import { pfFa } from "./preflight";
+import { hbFa, hkFa, pmFa, prFa, sgFa } from "./surge";
+import { awFa } from "./ai-why";
+import { fhFa } from "./field-help";
+import { rpFa } from "./report-path";
+import { tdFa } from "./target-details";
 import { rqFa } from "./review-queue";
 import { soFa } from "./solo";
 import { smFa } from "./spend";
+import { haFa } from "./home-actions";
+import { osFa } from "./overspend";
 import { ksFa } from "./kobo-suggest";
 import { agFa } from "./agreement";
 import { evFa } from "./evidence";
@@ -484,9 +491,20 @@ export const fa: Messages = {
   ...lvFa,
   ...actFa,
   ...pfFa,
+  ...sgFa,
+  ...hbFa,
+  ...prFa,
+  ...pmFa,
+  ...hkFa,
+  ...awFa,
+  ...fhFa,
+  ...rpFa,
+  ...tdFa,
   ...rqFa,
   ...soFa,
   ...smFa,
+  ...haFa,
+  ...osFa,
   ...ksFa,
   ...agFa,
   ...evFa,

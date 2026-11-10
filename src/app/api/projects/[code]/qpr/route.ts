@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import type { AppUser } from "@/lib/demo";
-import { mergeQuestions, qprPatchSchema, SECTIONS, type Qpr } from "@/lib/qpr";
+import { mayWriteReport, mergeQuestions, qprPatchSchema, SECTIONS, type Qpr } from "@/lib/qpr";
 import { requireViewer } from "@/server/auth";
 import { DraftingUnavailable } from "@/server/ai-drafts";
 import { handle } from "@/server/guard";
@@ -16,6 +16,9 @@ import { checkClaims } from "@/server/claim-check";
 import { loadUpdates } from "@/server/results-store";
 import { logAudit } from "@/server/audit";
 import { projectByCode } from "@/server/field-store";
+import { spentOver } from "@/lib/budget-view";
+import { otherHasNote, OTHER_ERROR } from "@/lib/overspend";
+import { saveLineReason } from "@/server/overspend-store";
 
 type Ctx = { params: Promise<{ code: string }> };
 export const maxDuration = 120;
@@ -25,7 +28,7 @@ export const maxDuration = 120;
  * owner and programme leads write it; the person who releases reports marks it final.
  */
 
-const mayEdit = (u: AppUser) => u.kind === "employee" && (u.admin || u.project.some((r) => ["mel-owner", "report-release", "plan-approver", "monthly-review"].includes(r)));
+const mayEdit = (u: AppUser) => mayWriteReport(u);
 const mayRelease = (u: AppUser) => u.kind === "employee" && u.project.includes("report-release");
 const copyAtOf = (req: Request) => new URL(req.url).searchParams.get("copy");
 const quarterOf = (req: Request) => {
@@ -132,6 +135,11 @@ export async function POST(req: Request, { params }: Ctx) {
         if (!d.rows.some((r) => r.code === a.indicator)) return NextResponse.json({ error: "No such indicator." }, { status: 400 });
         if (a.status === null && a.comment === null) delete next.rows[a.indicator];
         else next.rows[a.indicator] = { ...(a.status ? { status: a.status } : {}), ...(a.comment?.trim() ? { comment: a.comment.trim() } : {}), by: u.id, at: now };
+      } else if (a.action === "claim-decide") {
+        const issue = next.claimCheck?.issues[a.index];
+        if (!issue) return NextResponse.json({ error: "That finding is no longer there. Run the check again to see the current list." }, { status: 409 });
+        if (a.choice) issue.decided = { choice: a.choice, by: u.id, name: u.name, at: now };
+        else delete issue.decided;
       } else if (a.action === "info") {
         next.info = a.info;
         next.quarterSpend = a.quarterSpend;
@@ -143,11 +151,12 @@ export async function POST(req: Request, { params }: Ctx) {
         if (a.received !== null && a.resolved !== null && a.resolved > a.received) return NextResponse.json({ error: "More cases resolved than received." }, { status: 400 });
         next.grm = { received: a.received, resolved: a.resolved };
       } else if (a.action === "overspend") {
-        if (!(d.spend.byLine[a.line] && d.spend.byLine[a.line].actual > d.spend.byLine[a.line].budget)) return NextResponse.json({ error: "That budget line is not overspent." }, { status: 400 });
-        const o = { ...(next.overspend ?? {}) };
-        if (a.text) o[a.line] = { text: a.text, by: u.id, at: now };
-        else delete o[a.line];
-        next.overspend = o;
+        const l = d.spend.byLine[a.line];
+        if (!(l && l.budget > 0 && spentOver(l.actual, l.budget))) return NextResponse.json({ error: "That budget line is not overspent." }, { status: 400 });
+        if (!otherHasNote(a)) return NextResponse.json({ error: OTHER_ERROR }, { status: 400 });
+        // Saved on the line (logged there), so Budget and every later report show the same reason.
+        await saveLineReason(code, a.line, a.reason ? { reason: a.reason, note: a.note } : null, u.id);
+        return NextResponse.json(await view(code, q, u));
       } else if (a.action === "draft") {
         const limit = await aiAllowed(u.id);
         if (limit) return limit;
@@ -156,7 +165,7 @@ export async function POST(req: Request, { params }: Ctx) {
         try {
           // Two sections per request, all at once: each finishes well inside the server's time limit.
           const groups = Array.from({ length: Math.ceil(a.keys.length / 2) }, (_, i) => a.keys.slice(i * 2, i * 2 + 2));
-          const parts = await Promise.all(groups.map((g) => draftQpr(d, g)));
+          const parts = await Promise.all(groups.map((g) => draftQpr(d, g, u.id)));
           const out = { sections: parts.flatMap((x) => x.sections), questions: mergeQuestions(parts.flatMap((x) => x.questions)) };
           for (const s of out.sections) next.sections[s.key] = { text: s.text, by: u.id, at: now, drafted: true };
           await saveQpr(code, q, next);
@@ -174,9 +183,9 @@ export async function POST(req: Request, { params }: Ctx) {
     await logAudit(db, project.id, {
       entity: "qpr",
       entityId: project.id,
-      action: a.action === "release" ? "qpr_released" : "qpr_edited",
+      action: a.action === "release" ? "qpr_released" : a.action === "claim-decide" ? "qpr_claim_decided" : "qpr_edited",
       by: u.id,
-      detail: { quarter: q, part: a.action, ...(a.action === "section" ? { key: a.key, cleared: !a.text.trim() } : a.action === "row" ? { key: a.indicator, status: a.status, comment: a.comment } : a.action === "overspend" ? { key: a.line, cleared: !a.text } : {}) },
+      detail: { quarter: q, part: a.action, ...(a.action === "claim-decide" ? { choice: a.choice ?? "undone", section: next.claimCheck?.issues[a.index]?.section, kind: next.claimCheck?.issues[a.index]?.kind, sentence: next.claimCheck?.issues[a.index]?.sentence.slice(0, 300), why: next.claimCheck?.issues[a.index]?.problem.slice(0, 300) } : {}), ...(a.action === "section" ? { key: a.key, cleared: !a.text.trim() } : a.action === "row" ? { key: a.indicator, status: a.status, comment: a.comment } : {}) },
     });
     return NextResponse.json(await view(code, q, u));
   });

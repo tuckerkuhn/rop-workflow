@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { LABELS, PEOPLE, type Coaching } from "@/lib/photos";
 import { draftStructured } from "@/server/ai-structured";
+import { asIs } from "@/server/ai";
 import { loadFile } from "@/server/hr-files";
 
 /**
@@ -30,7 +31,7 @@ Be careful about recognisable people: say identifiable whenever a face could be 
 
 export const isDocumentName = (name: string, caption = "") => /attendance|\b(sheets?|lists?|forms?|receipts?|invoices?|signatures?|sign-?in|register|mou|contract|scan(ned)?|screenshot|id[-_ ]?card)\b|tazk[ie]ra/i.test(`${name.replace(/[_.-]+/g, " ")} ${caption}`);
 
-export async function coachPhoto(hash: string, lang: string): Promise<{ coaching?: Coaching; skipped?: string }> {
+export async function coachPhoto(hash: string, lang: string, by: string): Promise<{ coaching?: Coaching; skipped?: string }> {
   const f = await loadFile(hash);
   if (!f) return { skipped: "File not found." };
   if (!["image/jpeg", "image/png", "image/webp"].includes(f.type)) return { skipped: "Not a photo." };
@@ -39,7 +40,9 @@ export async function coachPhoto(hash: string, lang: string): Promise<{ coaching
   const { out, model } = await draftStructured({
     system: SYSTEM,
     task: `Coach this photo. ${local ? `The photographer reads ${local}: give tipsLocal in ${local}.` : "The photographer reads English: leave tipsLocal empty."}`,
-    facts: { photo: f.name },
+    job: "photoCoach",
+    by,
+    facts: asIs({ photo: f.name }, "the photo itself is what is coached; its file name goes with it"),
     schema,
     effort: "low",
     maxTokens: 4000,

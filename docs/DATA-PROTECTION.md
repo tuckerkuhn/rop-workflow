@@ -21,6 +21,21 @@ How ROP Workflow protects the people whose data it holds. The full review, with 
 | HR record | HR roles only; tamper-evident; "View as" never opens it |
 | Sign-in | Email code. With the Organization setting "People who see personal data sign in with a second step", administrators, HR role holders and anyone who sees names must also use an authenticator app |
 
+## What we collect and why
+
+The same words as the "?" beside each of these fields in the app. They come from one register, `src/lib/field-help.ts`; a test fails if this table and the register differ.
+
+<!-- field-help:start (generated from src/lib/field-help.ts; edit the register, then run UPDATE_DOCS=1 npm test) -->
+| Field | Why we ask | How we protect it | Source |
+|---|---|---|---|
+| Women and men | The donor reports this target by women and men, so they are entered as two counts and stay two counts in every table. | Counts only. No person's name is entered here. | The target's own breakdown, set from the project's results framework. |
+| Young people | Some donors ask how many of the people counted are young. | — | Afghanistan National Youth Policy: ages 18 to 35. |
+| Province and district | Reports say where the work happened, by province and district. | A form's GPS point is shown only to people allowed to see participants' names, and never on a donor link. Posts are drafted to name the province only. | — |
+| What was done | This sentence goes into the donor report's narrative. | Write no person's name and no village. The form warns when it sees one, and names written in English are replaced before the note goes to the AI. Names written in Dari or Pashto are not caught, so leave them out. | — |
+| Proof | Every reported number opens the record and the file that prove it. | Files are seen by project staff. A photo goes into a donor report only with a caption, and only once it has been checked for people who can be recognised. | — |
+| Consent | A story about a person is written only with their recorded consent, and used only for what they agreed to. | First name and district only. A photo in which someone can be recognised leaves the app only when consent covers that use. | — |
+<!-- field-help:end -->
+
 ## If data leaks or a phone is lost
 
 1. **Within the hour:** tell the data protection lead and the country director. Write down what happened, when, and what data may be exposed.

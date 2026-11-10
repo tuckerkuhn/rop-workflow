@@ -1,13 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { useT } from "@/components/app/i18n";
 import { MoneySourceLink } from "@/components/progress/proof-panel";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser } from "@/components/app/session";
-import { Pill, TopBar } from "@/components/workspace/ui";
+import { Pill, TopBar, primaryBtn } from "@/components/workspace/ui";
 import { LIMITS, type ActivityView, type LineView } from "@/lib/budget-view";
-import type { loadBudgetView } from "@/server/budget-view-store";
+import type { Explain, loadBudgetView } from "@/server/budget-view-store";
+import { OverspendReasonPicker } from "@/components/progress/overspend-reason";
+import type { OverspendReason } from "@/lib/overspend";
 
 /**
  * Budget against actual by activity, for the current phase: approved (Finance's workbook),
@@ -27,17 +30,28 @@ export function BudgetPage() {
   const [v, setV] = useState<View | null>(null);
   const [error, setError] = useState("");
   const [open, setOpen] = useState<string | null>(null);
+  const { t } = useT();
 
-  useEffect(() => {
-    if (!user || !project.saved) return;
-    fetch(`/api/projects/${project.id}/budget-view`, { cache: "no-store", headers: { "x-demo-user": user.id } })
+  const userId = user?.id;
+  const load = useCallback((quiet = false) => {
+    if (!userId || !project.saved) return;
+    fetch(`/api/projects/${project.id}/budget-view`, { cache: "no-store", headers: { "x-demo-user": userId } })
       .then(async (r) => {
         const d = await r.json();
         if (!r.ok) throw new Error(d.error ?? "Could not load the budget.");
         setV(d);
       })
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
-  }, [user, project.id, project.saved]);
+      // A refresh after a save that fails leaves the page as it is; the save itself went through.
+      .catch((e) => !quiet && setError(e instanceof Error ? e.message : String(e)));
+  }, [userId, project.id, project.saved]);
+  useEffect(() => load(), [load]);
+  /** Saves the reason a line is over budget: on the line, so each quarterly report prints it while the line is over. */
+  const saveReason = async (line: string, r: { reason: OverspendReason | null; note: string }) => {
+    if (!userId) return;
+    const res = await fetch(`/api/projects/${project.id}/overspend`, { method: "POST", headers: { "Content-Type": "application/json", "x-demo-user": userId }, body: JSON.stringify({ line, ...r }) });
+    if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? `Not saved (${res.status})`);
+    load(true);
+  };
 
   if (!user) return null;
   const flagged = v?.activities.reduce((t, a) => t + a.flags, 0) ?? 0;
@@ -63,10 +77,12 @@ export function BudgetPage() {
             page.
           </p>
         ) : (
-          <>
+          <ExplainCtx.Provider value={v.explain ? { ...v.explain, save: saveReason } : null}>
             <p className="mt-1 max-w-3xl text-sm text-muted">
               {project.name}, {monthLabel(v.period.from)} to {monthLabel(v.period.to)}, in {v.currency} before overhead, from {v.imported?.file}. Approved is Finance&rsquo;s budget; forecast is spent so far plus the revised plan for the quarters left.
             </p>
+
+            <p className="mt-1 max-w-3xl text-sm text-muted">{t("rp.totals.onBudget")}</p>
 
             <dl className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
               {[
@@ -89,11 +105,17 @@ export function BudgetPage() {
 
             {flagged > 0 && (
               <p className="mt-4 rounded-xl bg-sunken px-4 py-3 text-sm">
-                {flagged} {flagged === 1 ? "line needs" : "lines need"} a look: overspent (more than {LIMITS.overPct}% over approved), forecast more than {LIMITS.revisionPct}% over approved, or spending more than {LIMITS.behindPts} points behind or ahead of the time gone. Open an activity to see them.
+                {flagged} {flagged === 1 ? "line needs" : "lines need"} a look: overspent (more than {LIMITS.overPct}% over approved), forecast more than {v.revisionPct}% over approved (needs donor approval), or spending more than {LIMITS.behindPts} points behind or ahead of the time gone. Open an activity to see them.
               </p>
             )}
 
-            <div className="mt-5 overflow-x-auto rounded-2xl border border-line bg-surface">
+            {/* Below a wide screen: one block per activity, stacked, so nothing scrolls sideways on a phone. */}
+            <div className="mt-5 divide-y divide-line rounded-2xl border border-line bg-surface lg:hidden">
+              {v.activities.map((a) => (
+                <ActivityCard key={a.code} a={a} revisionPct={v.revisionPct} open={open === a.code} onToggle={() => setOpen(open === a.code ? null : a.code)} />
+              ))}
+            </div>
+            <div className="mt-5 hidden overflow-x-auto rounded-2xl border border-line bg-surface lg:block">
               <table className="w-full min-w-[720px] text-sm">
                 <thead className="text-xs uppercase tracking-[0.12em] text-muted">
                   <tr>
@@ -108,7 +130,7 @@ export function BudgetPage() {
                 </thead>
                 <tbody className="divide-y divide-line">
                   {v.activities.map((a) => (
-                    <ActivityRows key={a.code} a={a} open={open === a.code} onToggle={() => setOpen(open === a.code ? null : a.code)} />
+                    <ActivityRows key={a.code} a={a} revisionPct={v.revisionPct} open={open === a.code} onToggle={() => setOpen(open === a.code ? null : a.code)} />
                   ))}
                 </tbody>
               </table>
@@ -129,14 +151,25 @@ export function BudgetPage() {
                 {v.notInFile.length > 0 && <p className="mt-2">In the budget but not Finance&rsquo;s file (no spending shown): {v.notInFile.map((l) => l.code).join(", ")}.</p>}
               </section>
             )}
-          </>
+          </ExplainCtx.Provider>
         )}
       </main>
     </div>
   );
 }
 
-function ActivityRows({ a, open, onToggle }: { a: ActivityView; open: boolean; onToggle: () => void }) {
+/** The reasons for lines over budget, and how to save one. */
+const ExplainCtx = createContext<{ mayWrite: boolean; lines: Explain["lines"]; save: (line: string, r: { reason: OverspendReason | null; note: string }) => Promise<void> } | null>(null);
+
+/** Under a line the quarterly report will ask about: the reason, given here once, printed there. */
+function Reason({ line }: { line: string }) {
+  const x = useContext(ExplainCtx);
+  const saved = x?.lines[line];
+  if (!x || !saved) return null;
+  return <OverspendReasonPicker saved={saved} mayWrite={x.mayWrite} onSave={(r) => x.save(line, r)} />;
+}
+
+function ActivityRows({ a, revisionPct, open, onToggle }: { a: ActivityView; revisionPct: number; open: boolean; onToggle: () => void }) {
   return (
     <>
       <tr className="cursor-pointer hover:bg-sunken" onClick={onToggle}>
@@ -152,7 +185,7 @@ function ActivityRows({ a, open, onToggle }: { a: ActivityView; open: boolean; o
         <td className="px-3 py-3 text-end tabular-nums">{money(a.spent)}</td>
         <td className="px-3 py-3 text-end tabular-nums">{pctText(a.spentPct)}</td>
         <td className="px-3 py-3 text-end tabular-nums">{money(a.forecast)}</td>
-        <td className={`px-3 py-3 text-end tabular-nums ${a.forecastPct !== null && a.forecastPct > 100 + LIMITS.revisionPct ? "font-semibold text-clay" : ""}`}>{pctText(a.forecastPct)}</td>
+        <td className={`px-3 py-3 text-end tabular-nums ${a.forecastPct !== null && a.forecastPct > 100 + revisionPct ? "font-semibold text-clay" : ""}`}>{pctText(a.forecastPct)}</td>
         <td className="px-4 py-3 text-end">{a.flags > 0 ? <Pill tone="ochre">{a.flags}</Pill> : <span className="text-muted">—</span>}</td>
       </tr>
       {open && a.lines.map((l) => <LineRow key={l.code} l={l} />)}
@@ -160,21 +193,81 @@ function ActivityRows({ a, open, onToggle }: { a: ActivityView; open: boolean; o
   );
 }
 
+/** What a line is, what it pays for and what to check on it: the same words in the table and the stacked view. */
+function LineText({ l }: { l: LineView }) {
+  return (
+    <>
+      <span className="font-mono text-xs text-muted">{l.code}</span> <span className="text-sm">{l.description}</span>
+      {l.results.map((r) => (
+        <span key={r.indicator} className="mt-1 block text-xs text-muted">
+          Pays for {r.donorCode}: {r.achieved.toLocaleString("en-US")} of {r.target.toLocaleString("en-US")} {r.unit} this phase
+        </span>
+      ))}
+      {l.flags.map((f) => (
+        <span key={f.text} className={`mt-1 block text-xs ${f.level === "stop" ? "font-semibold text-clay" : "text-ochre"}`}>
+          {f.text}
+        </span>
+      ))}
+      <Reason line={l.code} />
+    </>
+  );
+}
+
+/** Approved, spent and forecast as three labelled figures, for the stacked view. */
+function Figures({ x, warn }: { x: { approved: number | null; spent: number | null; spentPct: number | null; forecast: number | null; forecastPct: number | null }; warn?: boolean }) {
+  const head = "text-[11px] uppercase tracking-wide text-muted";
+  return (
+    <dl className="mt-2 grid grid-cols-3 gap-2 text-sm tabular-nums">
+      <div>
+        <dt className={head}>Approved</dt>
+        <dd>{money(x.approved)}</dd>
+      </div>
+      <div>
+        <dt className={head}>Spent</dt>
+        <dd>{money(x.spent)}</dd>
+        <dd className="text-xs text-muted">{pctText(x.spentPct)}</dd>
+      </div>
+      <div>
+        <dt className={head}>Forecast</dt>
+        <dd>{money(x.forecast)}</dd>
+        <dd className={`text-xs ${warn ? "font-semibold text-clay" : "text-muted"}`}>{pctText(x.forecastPct)}</dd>
+      </div>
+    </dl>
+  );
+}
+
+function ActivityCard({ a, revisionPct, open, onToggle }: { a: ActivityView; revisionPct: number; open: boolean; onToggle: () => void }) {
+  return (
+    <div className="px-4 py-3">
+      <button type="button" aria-expanded={open} className="flex w-full items-start gap-2 text-start text-sm font-semibold" onClick={onToggle}>
+        <span aria-hidden className="inline-block w-3 text-muted">
+          {open ? "▾" : "▸"}
+        </span>
+        <span className="flex-1">
+          {a.code} {a.name}
+        </span>
+        {a.flags > 0 && <Pill tone="ochre">{a.flags}</Pill>}
+      </button>
+      <Figures x={a} warn={a.forecastPct !== null && a.forecastPct > 100 + revisionPct} />
+      {open && (
+        <div className="mt-3 space-y-3 border-s-2 border-line ps-3">
+          {a.lines.map((l) => (
+            <div key={l.code}>
+              <LineText l={l} />
+              <Figures x={l} />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function LineRow({ l }: { l: LineView }) {
   return (
     <tr className="bg-paper align-top">
       <td className="px-4 py-2 ps-10">
-        <span className="font-mono text-xs text-muted">{l.code}</span> <span className="text-sm">{l.description}</span>
-        {l.results.map((r) => (
-          <span key={r.indicator} className="mt-1 block text-xs text-muted">
-            Pays for {r.donorCode}: {r.achieved.toLocaleString("en-US")} of {r.target.toLocaleString("en-US")} {r.unit} this phase
-          </span>
-        ))}
-        {l.flags.map((f) => (
-          <span key={f.text} className={`mt-1 block text-xs ${f.level === "stop" ? "font-semibold text-clay" : "text-ochre"}`}>
-            {f.text}
-          </span>
-        ))}
+        <LineText l={l} />
       </td>
       <td className="px-3 py-2 text-end tabular-nums">{money(l.approved)}</td>
       <td className="px-3 py-2 text-end tabular-nums">{money(l.spent)}</td>

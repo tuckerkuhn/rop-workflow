@@ -11,7 +11,7 @@ import { holdersOfType, holdsType } from "@/lib/authority";
 import type { HrRole } from "@/lib/hr";
 import { ROP, type Value } from "@/lib/policy";
 import { DEMO_DATE, today } from "@/lib/clock";
-import { lastScreening, sameSupplierName, supplierGaps, type Supplier } from "@/lib/suppliers";
+import { lastScreening, sameSupplierName, supplierGaps, type Supplier, screeningStale } from "@/lib/suppliers";
 import {
   closeInstalment,
   contractCurrency,
@@ -47,11 +47,6 @@ export const roles: { id: Role; label: string; short: string }[] = [
 ];
 
 export const roleLabel = (r: Role) => roles.find((x) => x.id === r)!.label;
-/** "Karim Ahmadi (Approving authority)" for a role. */
-export const rolePerson = (r: Role) => {
-  const u = holderOf("procurement", r);
-  return u ? `${u.name} (${roleLabel(r)})` : roleLabel(r);
-};
 
 export type Level = "Micro" | "Small" | "Medium" | "Large";
 
@@ -1239,11 +1234,11 @@ export const steps: Step[] = [
             if (r.status === "suspended") return { ok: false, detail: `${r.name} is suspended: ${r.suspendedWhy}` };
             const months = rule("rescreenMonths", 6);
             const d = daysBetween(sc.date, today());
-            return { ok: sc.result === "clear" && d <= Math.round(months * 30.44), detail: `Last screened ${sc.date} by ${sc.byName}: ${sc.result} (${d} days ago; re-screen after ${months} months)` };
+            return { ok: sc.result === "clear" && !screeningStale(sc.date, today(), months), detail: `Last screened ${sc.date} by ${sc.byName}: ${sc.result} (${d} days ago; re-screen after ${months} months)` };
           }
           const d = daysBetween(p.supplier.screenedOn, today());
           const months = rule("rescreenMonths", 6);
-          return { ok: d <= Math.round(months * 30.44), detail: `Last screened ${p.supplier.screenedOn} (${d} days ago; re-screen after ${months} months)` };
+          return { ok: !screeningStale(p.supplier.screenedOn, today(), months), detail: `Last screened ${p.supplier.screenedOn} (${d} days ago; re-screen after ${months} months)` };
         },
       },
       {

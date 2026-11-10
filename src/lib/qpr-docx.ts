@@ -17,7 +17,7 @@ import {
   TextRun,
   WidthType,
 } from "docx";
-import { SECTIONS, STATUS_LABEL, overspentLines, quarterSpendOf, type Breakdown, type Photo, type Qpr, type Row, type Spend } from "@/lib/qpr";
+import { SECTIONS, STATUS_LABEL, overspentLines, quarterSpendOf, type Breakdown, type Photo, type Qpr, type Row, type Spend, durationOf } from "@/lib/qpr";
 import { quarterRange } from "@/lib/results";
 
 /**
@@ -122,7 +122,7 @@ export async function qprDocx(d: DocxInput, images: Images): Promise<Blob> {
     new Paragraph({ children: [new PageBreak()] }),
   ];
 
-  const duration = i.duration?.trim() || (d.project.start && d.project.end ? `${long(d.project.start)} – ${long(d.project.end)}` : "[to be entered]");
+  const duration = durationOf(i.duration, d.project) ?? "[to be entered]";
   const spendNote = d.spend.source.kind === "import" ? `Finance's budget against actual (${d.spend.source.files.map((f) => f.period).join("; ")})${d.spend.withOverhead ? ", overhead included" : ", overhead not included"}` : "the budget file";
   const info = new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },

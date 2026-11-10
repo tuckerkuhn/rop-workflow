@@ -88,4 +88,7 @@ export const periodOf = (r: ReportRef) => (r.kind === "qpr" ? r.quarter : r.kind
 export const preflightHref = (r: ReportRef) => `/progress/preflight?report=${r.kind}&period=${periodOf(r)}`;
 
 /** The mark on a file downloaded before pre-flight is clear. */
-export const draftMark = (n: number) => `DRAFT, NOT CHECKED: ${n} ${n === 1 ? "item blocks" : "items block"} this report in pre-flight. Not for the donor.`;
+/** What `beforeDownload` returns when pre-flight could not be read at all: the file is still marked a draft. */
+export const UNCHECKED = -1;
+export const draftMark = (n: number) =>
+  n === UNCHECKED ? "DRAFT, NOT CHECKED: pre-flight could not be run when this file was made. Not for the donor." : `DRAFT, NOT CHECKED: ${n} ${n === 1 ? "item blocks" : "items block"} this report in pre-flight. Not for the donor.`;

@@ -1,4 +1,4 @@
-import { overspentLines, SECTIONS } from "@/lib/qpr";
+import { openClaims, overspentLines, SECTIONS } from "@/lib/qpr";
 import { addDays, deadlineFor, type Deadline, type Preflight, type PreflightItem, type ReadyItem, type ReportRef } from "@/lib/preflight";
 import { proofCount, quarterOf, quarterRange, type ResultRecord } from "@/lib/results";
 import { weekOf } from "@/lib/weekly";
@@ -43,7 +43,12 @@ async function unmatchedSpend(c: Ctx) {
   else ok(c, "pf.ok.unmatched");
 }
 
-async function deadline(code: string, end: string, window: number, rule: "quarterlyReportDays" | "annualReportDays" | null): Promise<Deadline> {
+/**
+ * The deadline for a report on a period ending `end`: a "Report deadline" milestone in Tasks, else
+ * the donor's rule in policy. The one function for it: pre-flight, Home's next-report line and
+ * Home's deadline tile all call it.
+ */
+export async function reportDeadline(code: string, end: string, window: number, rule: "quarterlyReportDays" | "annualReportDays" | null): Promise<Deadline> {
   const rules = await projectRules(code);
   const line = (k: string) => rules.lines.find((l) => l.key === k);
   const reviewDays = Number(rules.values.reviewDays ?? 0) || 0;
@@ -69,10 +74,10 @@ async function qpr(c: Ctx, quarter: string): Promise<Omit<Preflight, "items" | "
   const pending = inQ.filter((r) => r.status === "pending").length;
   const queried = inQ.filter((r) => r.status === "queried").length;
   const noProof = inQ.filter((r) => r.status === "accepted" && !proofCount(r)).length;
-  if (pending) add(c, { group: "blocks", owner: "mel", text: `${n(pending, "result", "results")} waiting for MEL to accept or query; they do not count until then`, href: `/progress/results?${q}` });
+  if (pending) add(c, { group: "blocks", owner: "mel", text: `${n(pending, "result", "results")} waiting for MEL to accept or query; they do not count until then`, key: "pf.c.pending", vars: { n: pending }, href: `/progress/results?${q}` });
   else ok(c, "pf.ok.accepted");
-  if (queried) add(c, { group: "fix", owner: "field", text: `${n(queried, "result", "results")} queried by MEL, to correct`, href: `/progress/results?${q}` });
-  if (noProof) add(c, { group: "fix", owner: "mel", text: `${n(noProof, "accepted result", "accepted results")} with no proof attached`, href: `/progress/results?${q}` });
+  if (queried) add(c, { group: "fix", owner: "field", text: `${n(queried, "result", "results")} queried by MEL, to correct`, key: "pf.c.queried", vars: { n: queried }, href: `/progress/results?${q}` });
+  if (noProof) add(c, { group: "fix", owner: "mel", text: `${n(noProof, "accepted result", "accepted results")} with no proof attached`, key: "pf.c.noProof", vars: { n: noProof }, href: `/progress/results?${q}` });
   else if (inQ.length) ok(c, "pf.ok.proof");
 
   // Targets for the quarter: planned in the workplan for it, or (no workplan dates) a year target with nothing at all this year.
@@ -81,26 +86,32 @@ async function qpr(c: Ctx, quarter: string): Promise<Omit<Preflight, "items" | "
   noResult(c, due, d.results, from, to, quarter);
   await soloCount(c, from, to);
 
+  // Each row lands on the place in the report where it is fixed (the page scrolls to the #part once loaded).
   if (!d.saved.released) {
     const keys = [...SECTIONS.filter((s) => s.key !== "story").map((s) => ({ key: s.key as string, heading: s.heading as string })), ...d.activities.map((a) => ({ key: `act.${a.code}`, heading: `Activity ${a.code}` }))];
     const empty = keys.filter((k) => !d.saved.sections[k.key]?.text.trim());
     const drafted = keys.filter((k) => d.saved.sections[k.key]?.drafted);
     const copied = keys.filter((k) => d.saved.sections[k.key]?.from);
-    if (empty.length) add(c, { group: "fix", owner: "writers", text: `${n(empty.length, "section", "sections")} not written yet (${empty.slice(0, 3).map((k) => k.heading).join(", ")}${empty.length > 3 ? "…" : ""})`, href: `/progress/report?${q}` });
+    if (empty.length) add(c, { group: "fix", owner: "writers", text: `${n(empty.length, "section", "sections")} not written yet (${empty.slice(0, 3).map((k) => k.heading).join(", ")}${empty.length > 3 ? "…" : ""})`, key: "pf.c.empty", vars: { n: empty.length, names: `${empty.slice(0, 3).map((k) => k.heading).join(", ")}${empty.length > 3 ? "…" : ""}` }, href: `/progress/report?${q}#sec-${empty[0].key}` });
     else ok(c, "pf.ok.written");
-    if (drafted.length) add(c, { group: "fix", owner: "writers", text: `${n(drafted.length, "AI draft", "AI drafts")} to read and correct`, href: `/progress/report?${q}` });
-    if (copied.length) add(c, { group: "fix", owner: "writers", text: `${n(copied.length, "section", "sections")} copied from last quarter, to review`, href: `/progress/report?${q}` });
+    if (drafted.length) add(c, { group: "fix", owner: "writers", text: `${n(drafted.length, "AI draft", "AI drafts")} to read and correct`, key: "pf.c.drafted", vars: { n: drafted.length }, href: `/progress/report?${q}#sec-${drafted[0].key}` });
+    if (copied.length) add(c, { group: "fix", owner: "writers", text: `${n(copied.length, "section", "sections")} copied from last quarter, to review`, key: "pf.c.copied", vars: { n: copied.length }, href: `/progress/report?${q}#sec-${copied[0].key}` });
     // The claim check (lib/qpr ClaimCheck): its findings are worth a look; people decide.
     const cc = d.saved.claimCheck;
-    if (cc?.issues.length) add(c, { group: "fix", owner: "writers", text: `The claim check questioned ${n(cc.issues.length, "sentence", "sentences")} against the evidence`, key: "pf.c.claims", vars: { n: cc.issues.length }, href: `/progress/report?${q}` });
+    // Findings a person decided to keep as written are settled; the rest are still to look at.
+    const openCc = openClaims(cc);
+    if (openCc.length) add(c, { group: "fix", owner: "writers", text: `The claim check questioned ${n(openCc.length, "sentence", "sentences")} against the evidence`, key: "pf.c.claims", vars: { n: openCc.length }, href: `/progress/report?${q}#claims` });
     else if (cc) ok(c, "pf.ok.claims");
-    else if (!empty.length) add(c, { group: "fix", owner: "writers", text: "The text has not been checked against the evidence yet (claim check)", key: "pf.c.claimsNotRun", href: `/progress/report?${q}` });
+    else if (!empty.length) add(c, { group: "fix", owner: "writers", text: "The text has not been checked against the evidence yet (claim check)", key: "pf.c.claimsNotRun", href: `/progress/report?${q}#claims` });
   }
 
-  if (d.spend.source.kind === "import" && d.spend.missingMonths.length) add(c, { group: "blocks", owner: "finance", text: `Spending not imported for ${d.spend.missingMonths.join(", ")}`, href: "/progress/budget" });
+  if (d.spend.source.kind === "import" && d.spend.missingMonths.length) add(c, { group: "blocks", owner: "finance", text: `Spending not imported for ${d.spend.missingMonths.join(", ")}`, key: "pf.c.notImported", vars: { months: d.spend.missingMonths.join(", ") }, href: "/progress/budget" });
   else if (d.spend.source.kind === "import") ok(c, "pf.ok.spend");
+  // The report prints the typed figure in place of Finance's: say so before it goes out.
+  if (d.saved.quarterSpend !== null && d.spend.quarter !== null && Math.abs(d.saved.quarterSpend - d.spend.quarter) > 1)
+    add(c, { group: "fix", owner: "finance", text: `This quarter's spending is typed in as ${d.saved.quarterSpend.toLocaleString("en-US")}, but Finance's import says ${d.spend.quarter.toLocaleString("en-US")}: the report will print the typed figure`, key: "pf.c.typedSpend", vars: { typed: d.saved.quarterSpend.toLocaleString("en-US"), imported: d.spend.quarter.toLocaleString("en-US") }, href: `/progress/report?${q}#info` });
   const unexplained = overspentLines(d.spend, d.saved).filter((l) => l.explanation.length < 10);
-  if (unexplained.length) add(c, { group: "fix", owner: "finance", text: `${n(unexplained.length, "budget line", "budget lines")} over budget without an explanation (${unexplained.map((l) => l.code).join(", ")})`, href: `/progress/report?${q}` });
+  if (unexplained.length) add(c, { group: "fix", owner: "finance", text: `${n(unexplained.length, "budget line", "budget lines")} over budget without an explanation (${unexplained.map((l) => l.code).join(", ")})`, key: "pf.c.unexplained", vars: { n: unexplained.length, codes: unexplained.map((l) => l.code).join(", ") }, href: `/progress/report?${q}#overspend` });
   await unmatchedSpend(c);
 
   // Every other stop the report's own checks raise, so nothing that blocks release is missed.
@@ -117,15 +128,15 @@ async function qpr(c: Ctx, quarter: string): Promise<Omit<Preflight, "items" | "
     const lastWeek = weekOf(addDays(thisWeek.from, -2));
     const find = (w: { from: string; to: string }) => weekly.weeks.find((x) => x.from <= w.to && w.from <= x.to);
     const last = find(lastWeek);
-    if (weekly.weeks.length && (!last || !last.sent)) add(c, { group: "fix", owner: "field", text: `Last week's weekly update (${lastWeek.from} to ${lastWeek.to}) ${last ? "is not marked sent" : "was not written"}`, href: `/progress/weekly?from=${last?.from ?? lastWeek.from}` });
-    if (!find(thisWeek) && today <= thisWeek.to) add(c, { group: "fix", owner: "field", text: "This week's weekly update is not started", href: "/progress/weekly" });
+    if (weekly.weeks.length && (!last || !last.sent)) add(c, { group: "fix", owner: "field", text: `Last week's weekly update (${lastWeek.from} to ${lastWeek.to}) ${last ? "is not marked sent" : "was not written"}`, key: last ? "pf.c.lastWeekUnsent" : "pf.c.lastWeekMissing", vars: { from: lastWeek.from, to: lastWeek.to }, href: `/progress/weekly?from=${last?.from ?? lastWeek.from}` });
+    if (!find(thisWeek) && today <= thisWeek.to) add(c, { group: "fix", owner: "field", text: "This week's weekly update is not started", key: "pf.c.thisWeek", href: "/progress/weekly" });
   }
 
   return {
     report: { kind: "qpr", quarter },
     label: `Quarterly report ${quarter.replace("-", " ")}`,
     released: !!d.saved.released,
-    deadline: await deadline(c.code, to, 60, "quarterlyReportDays"),
+    deadline: await reportDeadline(c.code, to, 60, "quarterlyReportDays"),
     href: `/progress/report?${q}`,
   };
 }
@@ -159,7 +170,7 @@ async function annual(c: Ctx, year: number): Promise<Omit<Preflight, "items" | "
     report: { kind: "annual", year },
     label: `Annual report ${year}`,
     released: false,
-    deadline: await deadline(c.code, to, 120, "annualReportDays"),
+    deadline: await reportDeadline(c.code, to, 120, "annualReportDays"),
     href: "/progress/annual",
   };
 }
