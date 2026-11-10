@@ -16,12 +16,15 @@ The order agreed on 9 Nov 2026, from the four-additions, five-streamlines, six-U
 | C1 | Home: Approve, Fix, Due | `feature/home-three-buckets` | Merged 10 Nov (via surge) |
 | C2 | Project manager first | `feature/pm-path` | Merged 10 Nov (via surge) |
 | C3 | Progress: one row per target | `feature/progress-rows` | Merged 10 Nov (via surge) |
-| C4 | Plain words | `feature/plain-words` | The before and after list is written for review: `docs/PLAIN-WORDS-LIST.md` (10 Nov). No string changed yet. Also: move the quarterly report's older check sentences into the four languages (decided 9 Nov). |
+| C4 | Plain words | `feature/plain-words` | Merged 10 Nov: Target, Result, spending and "How many" in the app's own screens, in four languages; the report's checks translated. Left for later: MEL, Pre-flight, claim check, query |
 | C5 | A sample project for every new organization | `feature/sample-project` | Merged 10 Nov. SAMPLE-446CEE built for ROP (`npm run sample`) |
 | C6 | Every AI flag says why | `feature/flag-reasons` | Merged 10 Nov (via surge) |
 | C7 | "Why we ask" help on sensitive fields | `feature/field-help` | Merged 10 Nov: Results, Stories, Weekly and farmer photos. Left out (do-not-touch list): HR forms, the photo library's consent form |
 
 ## Decisions, 10 Nov 2026
+
+- **Plain words (C4):** one word, Target; "How many" for the number beside it; "market window" for the window a plan starts from; Approve for period and plan sign-offs, Accept for single results. Donor exports, AI prompts and lens review keep their words.
+- **Access:** Spencer Baird added as an administrator (programming support); listed in DATA-PROTECTION.md with Tucker and Daniel.
 
 - **Sample project (C5):** a fictional "Highland Apricot Value Chain" in an unnamed province, read-only for everyone, left out of every total, hidden by an administrator in Settings. Projects now have a kind (real, sample, sandbox); SFTP-2026 and SSOP-2027 are sandboxes, left out of totals but writable. Still to decide: leave the sample out of the time, expense, payroll and bill charge lists (on the do-not-touch list).
 - **Kobo results** are dated by the form's own date question (install_date, training_date...) when it has one, else the day KoboToolbox received the submission. An edit in KoboToolbox updates its result in place.
