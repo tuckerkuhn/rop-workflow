@@ -15,7 +15,8 @@
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx --env-file=.env.local src/db/seed.ts",
     "staff": "tsx --env-file=.env.local src/db/staff-cli.ts",
-    "plan": "tsx --env-file=.env.local src/db/plan-cli.ts"
+    "plan": "tsx --env-file=.env.local src/db/plan-cli.ts",
+    "test": "vitest run"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.4.0",
@@ -44,7 +45,8 @@
     "eslint-config-next": "^15.5.28",
     "tailwindcss": "^4",
     "tsx": "^4.23.15",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.12"
   },
   "overrides": {
     "postcss": "^8.5.23"
