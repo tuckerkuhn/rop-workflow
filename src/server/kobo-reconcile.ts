@@ -40,9 +40,13 @@ export function reconcileLine(r: Pick<ReconcileRun, "ok" | "fetched" | "added" |
   return changed ? `${r.fetched} submissions checked: ${r.added} new, ${r.updated} edited, ${r.removed} deleted in KoboToolbox.${flagged}` : `${r.fetched} submissions checked: nothing had changed.${flagged}`;
 }
 
-/** Runs the sync for every connected project, one after another; one project's failure does not stop the rest. */
-export async function reconcileAll(): Promise<ReconcileRun[]> {
-  const projects = await db.select({ id: s.projects.id, code: s.projects.code }).from(s.koboConnections).innerJoin(s.projects, eq(s.projects.id, s.koboConnections.projectId)).orderBy(asc(s.projects.code));
+/**
+ * Runs the sync for every connected project, one after another; one project's failure does not stop
+ * the rest. `only` limits it to the projects named (a run by hand, e.g. on a sandbox).
+ */
+export async function reconcileAll(opts: { only?: string[]; by?: string } = {}): Promise<ReconcileRun[]> {
+  const all = await db.select({ id: s.projects.id, code: s.projects.code }).from(s.koboConnections).innerJoin(s.projects, eq(s.projects.id, s.koboConnections.projectId)).orderBy(asc(s.projects.code));
+  const projects = opts.only ? all.filter((p) => p.code && opts.only!.includes(p.code)) : all;
   const runs: ReconcileRun[] = [];
   for (const p of projects) {
     if (!p.code) continue;
@@ -60,7 +64,7 @@ export async function reconcileAll(): Promise<ReconcileRun[]> {
     void _code;
     // The run row is the health page's only record; a failed write is logged and the loop goes on.
     try {
-      await db.insert(s.auditLog).values({ projectId: p.id, entity: "kobo", entityId: randomUUID(), action: run.ok ? RECONCILED : RECONCILE_FAILED, detail: { by: "nightly", ...detail } });
+      await db.insert(s.auditLog).values({ projectId: p.id, entity: "kobo", entityId: randomUUID(), action: run.ok ? RECONCILED : RECONCILE_FAILED, detail: { by: opts.by ?? "nightly", ...detail } });
     } catch (e) {
       console.error(`kobo reconcile: run row for ${p.code} not written`, e);
     }

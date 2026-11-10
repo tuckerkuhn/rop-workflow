@@ -1,5 +1,6 @@
 "use client";
 
+import { FieldHelp } from "@/components/app/field-help";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -155,6 +156,7 @@ function ItemForm({ v, start, onSave, onQueue, onClose }: { v: WeeklyView; start
       </label>
       <label className="mt-3 block text-sm">
         What happened
+        <FieldHelp field="weekly.note" />
         <textarea
           className={input}
           rows={4}
@@ -166,6 +168,7 @@ function ItemForm({ v, start, onSave, onQueue, onClose }: { v: WeeklyView; start
       </label>
       <div className="mt-3 text-sm">
         Photos
+        <FieldHelp field="weekly.photos" />
         <input type="file" multiple accept="image/jpeg,image/png,image/webp" className="mt-1 block text-sm" onChange={(e) => void upload(e.target.files)} />
         {files.length > 0 && (
           <ul className="mt-2 space-y-2">
