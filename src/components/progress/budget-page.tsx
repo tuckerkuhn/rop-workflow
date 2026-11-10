@@ -8,7 +8,9 @@ import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser } from "@/components/app/session";
 import { Pill, TopBar, primaryBtn } from "@/components/workspace/ui";
 import { LIMITS, type ActivityView, type LineView } from "@/lib/budget-view";
-import type { loadBudgetView } from "@/server/budget-view-store";
+import type { Explain, loadBudgetView } from "@/server/budget-view-store";
+import { OverspendReasonPicker } from "@/components/progress/overspend-reason";
+import type { OverspendReason } from "@/lib/overspend";
 
 /**
  * Budget against actual by activity, for the current phase: approved (Finance's workbook),
@@ -43,10 +45,10 @@ export function BudgetPage() {
       .catch((e) => !quiet && setError(e instanceof Error ? e.message : String(e)));
   }, [userId, project.id, project.saved]);
   useEffect(() => load(), [load]);
-  /** Saves the reason a line is over budget into the quarterly report it belongs to. */
-  const saveReason = async (line: string, text: string) => {
-    if (!v?.explain || !userId) return;
-    const res = await fetch(`/api/projects/${project.id}/qpr?q=${v.explain.quarter}`, { method: "POST", headers: { "Content-Type": "application/json", "x-demo-user": userId }, body: JSON.stringify({ action: "overspend", line, text }) });
+  /** Saves the reason a line is over budget: on the line, so each quarterly report prints it while the line is over. */
+  const saveReason = async (line: string, r: { reason: OverspendReason | null; note: string }) => {
+    if (!userId) return;
+    const res = await fetch(`/api/projects/${project.id}/overspend`, { method: "POST", headers: { "Content-Type": "application/json", "x-demo-user": userId }, body: JSON.stringify({ line, ...r }) });
     if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? `Not saved (${res.status})`);
     load(true);
   };
@@ -103,14 +105,14 @@ export function BudgetPage() {
 
             {flagged > 0 && (
               <p className="mt-4 rounded-xl bg-sunken px-4 py-3 text-sm">
-                {flagged} {flagged === 1 ? "line needs" : "lines need"} a look: overspent (more than {LIMITS.overPct}% over approved), forecast more than {LIMITS.revisionPct}% over approved, or spending more than {LIMITS.behindPts} points behind or ahead of the time gone. Open an activity to see them.
+                {flagged} {flagged === 1 ? "line needs" : "lines need"} a look: overspent (more than {LIMITS.overPct}% over approved), forecast more than {v.revisionPct}% over approved (needs donor approval), or spending more than {LIMITS.behindPts} points behind or ahead of the time gone. Open an activity to see them.
               </p>
             )}
 
             {/* Below a wide screen: one block per activity, stacked, so nothing scrolls sideways on a phone. */}
             <div className="mt-5 divide-y divide-line rounded-2xl border border-line bg-surface lg:hidden">
               {v.activities.map((a) => (
-                <ActivityCard key={a.code} a={a} open={open === a.code} onToggle={() => setOpen(open === a.code ? null : a.code)} />
+                <ActivityCard key={a.code} a={a} revisionPct={v.revisionPct} open={open === a.code} onToggle={() => setOpen(open === a.code ? null : a.code)} />
               ))}
             </div>
             <div className="mt-5 hidden overflow-x-auto rounded-2xl border border-line bg-surface lg:block">
@@ -128,7 +130,7 @@ export function BudgetPage() {
                 </thead>
                 <tbody className="divide-y divide-line">
                   {v.activities.map((a) => (
-                    <ActivityRows key={a.code} a={a} open={open === a.code} onToggle={() => setOpen(open === a.code ? null : a.code)} />
+                    <ActivityRows key={a.code} a={a} revisionPct={v.revisionPct} open={open === a.code} onToggle={() => setOpen(open === a.code ? null : a.code)} />
                   ))}
                 </tbody>
               </table>
@@ -156,70 +158,18 @@ export function BudgetPage() {
   );
 }
 
-/** The reasons for lines over budget: where they are saved (a quarter's report) and how to save one. */
-const ExplainCtx = createContext<{ quarter: string; released: boolean; mayWrite: boolean; lines: Record<string, string>; save: (line: string, text: string) => Promise<void> } | null>(null);
+/** The reasons for lines over budget, and how to save one. */
+const ExplainCtx = createContext<{ mayWrite: boolean; lines: Explain["lines"]; save: (line: string, r: { reason: OverspendReason | null; note: string }) => Promise<void> } | null>(null);
 
-/** Under a line the quarterly report will ask about: the reason, typed here once, printed there. */
+/** Under a line the quarterly report will ask about: the reason, given here once, printed there. */
 function Reason({ line }: { line: string }) {
   const x = useContext(ExplainCtx);
-  const { t } = useT();
   const saved = x?.lines[line];
-  const [text, setText] = useState(saved ?? "");
-  const [state, setState] = useState<"" | "saving" | "saved" | string>("");
-  // When the saved reason changes, the box follows it, unless the person has typed something else since.
-  const was = useRef(saved ?? "");
-  useEffect(() => {
-    const before = was.current;
-    was.current = saved ?? "";
-    setText((cur) => (cur.trim() === before ? (saved ?? "") : cur));
-  }, [saved]);
-  if (!x || saved === undefined) return null;
-  const q = x.quarter.replace("-", " ");
-  if (x.released) return saved ? <span className="mt-2 block text-xs">{t("rp.explain.released", { q })} {saved}</span> : null;
-  // Only the people who write the report can save a reason: everyone else reads it, and is told who writes it.
-  if (!x.mayWrite)
-    return (
-      <span className="mt-2 block text-xs text-muted">
-        {saved ? `${t("rp.explain.reads", { q })} ${saved}` : t("rp.explain.who", { q })}
-      </span>
-    );
-  const short = text.trim().length > 0 && text.trim().length < 10;
-  return (
-    <label className="mt-2 block text-xs">
-      {t("rp.explain", { q })}
-      <textarea className="mt-1 block w-full rounded-xl border border-line bg-paper px-3 py-2 text-base" rows={2} value={text} onChange={(e) => (setText(e.target.value), setState(""))} />
-      {text.trim() !== saved && (
-        <button
-          type="button"
-          className={`${primaryBtn} mt-1`}
-          disabled={short || state === "saving"}
-          onClick={() => {
-            setState("saving");
-            x.save(line, text.trim()).then(
-              () => setState("saved"),
-              (e) => setState(e instanceof Error ? e.message : String(e)),
-            );
-          }}
-        >
-          {t("rp.explain.save")}
-        </button>
-      )}
-      {short && <span className="mt-1 block text-muted">{t("rp.explain.short")}</span>}
-      {state === "saved" && (
-        <span role="status" className="mt-1 block text-forest">
-          {t("rp.explain.saved", { q })}
-        </span>
-      )}
-      {state && state !== "saving" && state !== "saved" && (
-        <span role="alert" className="mt-1 block text-clay">
-          {state}
-        </span>
-      )}
-    </label>
-  );
+  if (!x || !saved) return null;
+  return <OverspendReasonPicker saved={saved} mayWrite={x.mayWrite} onSave={(r) => x.save(line, r)} />;
 }
 
-function ActivityRows({ a, open, onToggle }: { a: ActivityView; open: boolean; onToggle: () => void }) {
+function ActivityRows({ a, revisionPct, open, onToggle }: { a: ActivityView; revisionPct: number; open: boolean; onToggle: () => void }) {
   return (
     <>
       <tr className="cursor-pointer hover:bg-sunken" onClick={onToggle}>
@@ -235,7 +185,7 @@ function ActivityRows({ a, open, onToggle }: { a: ActivityView; open: boolean; o
         <td className="px-3 py-3 text-end tabular-nums">{money(a.spent)}</td>
         <td className="px-3 py-3 text-end tabular-nums">{pctText(a.spentPct)}</td>
         <td className="px-3 py-3 text-end tabular-nums">{money(a.forecast)}</td>
-        <td className={`px-3 py-3 text-end tabular-nums ${a.forecastPct !== null && a.forecastPct > 100 + LIMITS.revisionPct ? "font-semibold text-clay" : ""}`}>{pctText(a.forecastPct)}</td>
+        <td className={`px-3 py-3 text-end tabular-nums ${a.forecastPct !== null && a.forecastPct > 100 + revisionPct ? "font-semibold text-clay" : ""}`}>{pctText(a.forecastPct)}</td>
         <td className="px-4 py-3 text-end">{a.flags > 0 ? <Pill tone="ochre">{a.flags}</Pill> : <span className="text-muted">—</span>}</td>
       </tr>
       {open && a.lines.map((l) => <LineRow key={l.code} l={l} />)}
@@ -286,7 +236,7 @@ function Figures({ x, warn }: { x: { approved: number | null; spent: number | nu
   );
 }
 
-function ActivityCard({ a, open, onToggle }: { a: ActivityView; open: boolean; onToggle: () => void }) {
+function ActivityCard({ a, revisionPct, open, onToggle }: { a: ActivityView; revisionPct: number; open: boolean; onToggle: () => void }) {
   return (
     <div className="px-4 py-3">
       <button type="button" aria-expanded={open} className="flex w-full items-start gap-2 text-start text-sm font-semibold" onClick={onToggle}>
@@ -298,7 +248,7 @@ function ActivityCard({ a, open, onToggle }: { a: ActivityView; open: boolean; o
         </span>
         {a.flags > 0 && <Pill tone="ochre">{a.flags}</Pill>}
       </button>
-      <Figures x={a} warn={a.forecastPct !== null && a.forecastPct > 100 + LIMITS.revisionPct} />
+      <Figures x={a} warn={a.forecastPct !== null && a.forecastPct > 100 + revisionPct} />
       {open && (
         <div className="mt-3 space-y-3 border-s-2 border-line ps-3">
           {a.lines.map((l) => (

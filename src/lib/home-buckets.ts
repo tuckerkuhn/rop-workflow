@@ -21,6 +21,8 @@ export type WaitingRow = {
   urgent: boolean;
   /** The row's words in English (from Home's actions), or a pre-flight item to be put in the reader's language. */
   text?: string;
+  /** The same words as a message key, put in the reader's language on screen. */
+  msg?: HomeAction["msg"];
   item?: LoopItem;
   /** A dated row: what is due and when. */
   due?: { what: "report" | "review"; label: string; date: string; days: number };
@@ -30,7 +32,7 @@ export type Deadline = { key: string; what: string; date: string; days: number; 
 
 export function waitingRows(a: { actions: HomeAction[]; lenses: Lens[]; report: NextReport | null; deadlines: Deadline[] }): Record<Bucket, WaitingRow[]> {
   const out: Record<Bucket, WaitingRow[]> = { approve: [], fix: [], due: [] };
-  for (const x of a.actions) out[x.bucket].push({ key: x.key, bucket: x.bucket, href: x.href, urgent: x.urgent, text: x.text });
+  for (const x of a.actions) out[x.bucket].push({ key: x.key, bucket: x.bucket, href: x.href, urgent: x.urgent, text: x.text, msg: x.msg });
 
   // What stands between this person and the next report, from pre-flight: theirs only, blockers first.
   const mine = new Set(a.lenses.flatMap((l) => OWNERS_FOR[l]));

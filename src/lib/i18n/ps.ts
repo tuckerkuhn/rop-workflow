@@ -10,6 +10,8 @@ import { tdPs } from "./target-details";
 import { rqPs } from "./review-queue";
 import { soPs } from "./solo";
 import { smPs } from "./spend";
+import { haPs } from "./home-actions";
+import { osPs } from "./overspend";
 import { ksPs } from "./kobo-suggest";
 import { agPs } from "./agreement";
 import { evPs } from "./evidence";
@@ -501,6 +503,8 @@ export const ps: Messages = {
   ...rqPs,
   ...soPs,
   ...smPs,
+  ...haPs,
+  ...osPs,
   ...ksPs,
   ...agPs,
   ...evPs,

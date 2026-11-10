@@ -20,6 +20,13 @@ const report = (over: Partial<NextReport> = {}): NextReport => ({
 const review = { key: "review", what: "November monthly review", date: "2026-11-30", days: 20, href: "/progress/review" };
 
 describe("Home: Approve, Fix, Due", () => {
+  it("keeps each action's message key so the row is put in the reader's language", () => {
+    const a = { ...action("accept", "approve"), msg: { key: "ha.accept", vars: { n: 3 } } };
+    const rows = waitingRows({ actions: [a], lenses: ["mel"], report: null, deadlines: [] });
+    expect(rows.approve[0].msg).toEqual({ key: "ha.accept", vars: { n: 3 } });
+    expect(rows.approve[0].text).toBe("accept");
+  });
+
   it("puts each action in its group", () => {
     const rows = waitingRows({ actions: [action("accept", "approve"), action("queried", "fix"), action("import", "due")], lenses: ["field"], report: null, deadlines: [] });
     expect(rows.approve.map((r) => r.key)).toEqual(["accept"]);

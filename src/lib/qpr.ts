@@ -1,4 +1,5 @@
 import { spentOver } from "@/lib/budget-view";
+import { lineReasonFields, reasonText, type LineReason, type OverspendReason } from "@/lib/overspend";
 import { z } from "zod";
 import { longDate } from "@/lib/weekly";
 import { proofCount, quarterRange, totalsOf, type ResultRecord, type UpdateRecord } from "@/lib/results";
@@ -50,8 +51,12 @@ export type Qpr = {
   rows: Record<string, { status?: Status; comment?: string; by: string; at: string }>;
   risks: { risk: string; mitigation: string }[];
   grm: { received: number | null; resolved: number | null };
-  /** Per overspent budget line: why it is over (an approved realignment, a price rise...). Goes in the report under the project information. */
-  overspend?: Record<string, { text: string; by: string; at: string }>;
+  /**
+   * Per overspent budget line: why it is over (lib/overspend.ts). Goes in the report under the project
+   * information. Until release it mirrors the line's own reason (server/overspend-store); a released
+   * report keeps what it said. Older reports hold free text only.
+   */
+  overspend?: Record<string, { text: string; reason?: OverspendReason; note?: string; by: string; at: string }>;
   /** The last check of the written text against the evidence (server/claim-check.ts). */
   claimCheck?: ClaimCheck;
   released?: { by: string; at: string };
@@ -114,7 +119,13 @@ export function mergeQuestions(list: string[]): string[] {
 export const overspentLines = (spend: Spend, saved: Qpr) =>
   Object.entries(spend.byLine)
     .filter(([, l]) => l.budget > 0 && spentOver(l.actual, l.budget))
-    .map(([code, l]) => ({ code, budget: l.budget, actual: l.actual, pct: Math.round((l.actual / l.budget) * 100), explanation: saved.overspend?.[code]?.text ?? "" }));
+    .map(([code, l]) => ({ code, budget: l.budget, actual: l.actual, pct: Math.round((l.actual / l.budget) * 100), explanation: saved.overspend?.[code]?.text ?? "", reason: saved.overspend?.[code]?.reason ?? null, note: saved.overspend?.[code]?.note ?? "" }));
+
+/** A report not yet released, with each line's current reason in place of what it held before. */
+export const withLineReasons = (saved: Qpr, reasons: Record<string, LineReason>): Qpr =>
+  saved.released || !Object.keys(reasons).length
+    ? saved
+    : { ...saved, overspend: { ...saved.overspend, ...Object.fromEntries(Object.entries(reasons).map(([k, r]) => [k, { text: reasonText(r), reason: r.reason, note: r.note, by: r.by, at: r.at }])) } };
 
 /** Starts a quarter from the one before: the info box, risks and slow-changing sections, marked for review. */
 export function carryForward(prev: Qpr | null, projectName: string, prevQuarter: string): Qpr {
@@ -164,7 +175,8 @@ export const qprPatchSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("acronyms"), acronyms: z.array(z.tuple([z.string().trim().min(1).max(20), z.string().trim().min(1).max(200)])).max(80) }),
   z.object({ action: z.literal("risks"), risks: z.array(z.object({ risk: z.string().trim().max(600), mitigation: z.string().trim().max(1200) })).max(20) }),
   z.object({ action: z.literal("grm"), received: z.number().int().min(0).max(1e6).nullable(), resolved: z.number().int().min(0).max(1e6).nullable() }),
-  z.object({ action: z.literal("overspend"), line: z.string().trim().min(1).max(60), text: z.string().trim().max(1000) }),
+  /** The reason a budget line is over budget: saved on the line (server/overspend-store), so it is the same on Budget. */
+  z.object({ action: z.literal("overspend"), ...lineReasonFields }),
   z.object({ action: z.literal("draft"), keys: z.array(z.string().regex(/^[a-z0-9.]{1,40}$/)).min(1).max(20) }),
   z.object({ action: z.literal("release") }),
   /** Saves a frozen copy as if released, without locking anything: to rehearse and compare. */

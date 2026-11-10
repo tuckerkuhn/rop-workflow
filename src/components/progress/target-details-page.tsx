@@ -63,7 +63,7 @@ export function TargetDetailsPage() {
       <TopBar />
       <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
         <Link href="/progress" className="text-sm text-muted hover:text-ink">
-          <span aria-hidden className="inline-block rtl:rotate-180">←</span> Progress
+          <span aria-hidden className="inline-block rtl:rotate-180">←</span> {t("ha.backProgress")}
         </Link>
         <h1 className="mt-2 font-display text-3xl tracking-tight">{t("td.title")}</h1>
         <p className="mt-1 text-sm text-muted">{t("td.intro")}</p>

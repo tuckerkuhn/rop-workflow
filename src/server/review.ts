@@ -22,7 +22,7 @@ export async function decide(code: string, evidenceId: string, status: "accepted
     if (!row) throw new HttpError(404, "That record is not in this project's review queue. Reload the queue.");
     // Results and updates recorded by hand are decided on the Results page, where the data checks
     // run and nobody accepts their own record unless solo mode allows it.
-    if (row.source === "manual") throw new HttpError(409, "This is a recorded result. Accept or query it on the Results page, where its checks are shown.");
+    if (row.source === "manual" && (row.form === "result" || row.form === "update")) throw new HttpError(409, "This is a recorded result. Accept or query it on the Results page, where its checks are shown.");
     if (row.reviewStatus !== "pending") return { already: row.reviewStatus, applied: null as string | null };
 
     await tx

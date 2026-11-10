@@ -142,6 +142,9 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
   const onTrack = s.counts.completed + s.counts.on_track;
   const late = s.counts.delayed + s.counts.not_implemented;
   const b = v.budget;
+  // One source for the report tile: pre-flight's quarter and counts when loaded, else the report's own checks.
+  const melBlocks = nr ? nr.blocking : v.mel.stops;
+  const melOther = nr ? nr.items.length - nr.blocking : v.mel.checks;
   const report = v.deadlines.find((d) => d.key === "qpr")!;
   const review = v.deadlines.find((d) => d.key === "review")!;
   const deadlineLevel: Level = report.days <= 14 ? "warning" : "good";
@@ -185,12 +188,12 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
       </Tile>,
       <Tile
         key="ready"
-        label={`${v.mel.quarter} report`}
-        value={(nr?.blocking ?? v.mel.stops) ? `${nr?.blocking ?? v.mel.stops} to fix` : "Ready"}
-        level={(nr?.blocking ?? v.mel.stops) ? "critical" : v.mel.checks ? "warning" : "good"}
+        label={t("ha.tile.label", { quarter: (nr?.quarter ?? v.mel.quarter).replace("-", " ") })}
+        value={melBlocks ? t("ha.tile.fix", { n: melBlocks }) : t("ha.tile.ready")}
+        level={melBlocks ? "critical" : melOther ? "warning" : "good"}
         href="/progress/report"
       >
-        {v.mel.stops} stop and {v.mel.checks} check items before release.
+        {t("ha.tile.body", { blocks: melBlocks, other: melOther })}
       </Tile>,
       <Tile key="proof" clear label="Missing proof" value={String(v.mel.noProof)} level={v.mel.noProof ? "warning" : "good"} href="/progress/results">
         Results accepted this quarter with no file or link.
@@ -369,9 +372,9 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
               aria-labelledby="needs-you"
             >
               <h2 id="needs-you" className="font-display text-xl">
-                Off plan
+                {t("ha.offPlan")}
               </h2>
-              {!(lens === "lead" && (late > 0 || b.overspent.length > 0)) && <p className="mt-2 text-sm text-muted">Nothing is off plan in this view.</p>}
+              {!(lens === "lead" && (late > 0 || b.overspent.length > 0)) && <p className="mt-2 text-sm text-muted">{t("ha.offPlanNone")}</p>}
               {lens === "lead" && (late > 0 || b.overspent.length > 0) && (
                 <div className="mt-3 space-y-1 border-t border-line pt-3 text-sm">
                                     {s.late.map((i) => (

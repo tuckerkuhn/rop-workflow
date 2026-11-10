@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useT } from "@/components/app/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import { itemText } from "@/components/progress/preflight-page";
 import { BUCKETS, waitingCount, type WaitingRow } from "@/lib/home-buckets";
 import type { Bucket } from "@/server/home-store";
@@ -27,6 +28,11 @@ export function WaitingOnYou({ rows }: { rows: Record<Bucket, WaitingRow[]> }) {
   const words = (r: WaitingRow) => {
     if (r.item) return itemText(t, r.item);
     if (r.due) return r.due.what === "report" ? t("home.b.reportDue", { report: r.due.label, date: date(r.due.date, { day: "numeric", month: "long" }) }) : t("home.b.reviewDue", { review: r.due.label, date: date(r.due.date, { day: "numeric", month: "long" }) });
+    if (r.msg) {
+      // Months come as "2026-10" and are written out in the reader's language.
+      const vars = Object.fromEntries(Object.entries(r.msg.vars ?? {}).map(([k, v]) => [k, (k === "month" || k === "to") && typeof v === "string" && /^\d{4}-\d{2}$/.test(v) ? date(`${v}-15`, { month: "long", year: "numeric" }) : v]));
+      return t(r.msg.key as MessageKey, vars);
+    }
     return r.text ?? "";
   };
   const when = (days: number) => (days < 0 ? t("home.b.late", { n: -days }) : days === 0 ? t("home.b.today") : t("home.b.days", { n: days }));
