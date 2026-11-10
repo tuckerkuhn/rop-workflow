@@ -14,7 +14,7 @@ How ROP Workflow protects the people whose data it holds. The full review, with 
 |---|---|
 | Farmers' names and phones | Own table, shown only with "Sees participant names" |
 | Kobo answers | Answers to questions that identify a person (names, phones, ID numbers) are not stored. If an indicator counts the question, a keyed fingerprint is kept instead, so counting still works. The submission lists what was removed. Edits after review are logged without a copy of the answers |
-| Notes and weekly updates | The form warns when a note seems to name someone or their village. Names and villages are replaced before notes go to the AI (English text only) |
+| Notes and weekly updates | The form warns when a note seems to name someone or their village. Names and villages are replaced before notes go to the AI (English text only); story and post drafts keep first names, and a story's only with recorded consent |
 | GPS | Shown only with "Sees participant names"; never on donor links |
 | Proof files | Visible to field staff and MEL on the project; fingerprint-checked; never on donor links except captioned photos |
 | Stories | Recorded consent first; first names and districts only |
@@ -41,6 +41,16 @@ The same words as the "?" beside each of these fields in the app. They come from
 | Photos | Dated photos show the work. A captioned photo can go into the donor report. | Files are seen by project staff. A photo goes into a donor report only with a caption, and only once it has been checked for people who can be recognised. | — |
 | Farmer photo | A photo of the farmer's plot or activity shows the work was done. | Kept in the app and seen only by staff with access to Field. On the free plan photos are saved small (800 pixels on the long side); full phone quality is part of the paid plan. | — |
 <!-- field-help:end -->
+
+## Who has full access
+
+Administrators see every project and manage people, roles and the organization's rules (Settings). Seeing farmers' names and GPS is a separate permission ("Sees participant names"), which none of them holds by default. The list is kept in Settings → People; this table says why each person has it.
+
+| Person | Access | Why | Since |
+|---|---|---|---|
+| Tucker Kuhn | Administrator | Pilot lead | Start of the pilot |
+| Daniel Sandoval | Administrator; all ROP projects | Director of Operations | Start of the pilot |
+| Spencer Baird | Administrator | Helps with the programming | 10 Nov 2026 |
 
 ## If data leaks or a phone is lost
 
