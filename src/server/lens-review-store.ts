@@ -4,6 +4,7 @@ import { db, schema as s } from "@/db";
 import type { AppUser } from "@/lib/demo";
 import { LENSES, lensDraftSchema, type LensAction, type LensReview } from "@/lib/lens-review";
 import { draftStructured } from "@/server/ai-structured";
+import { asIs } from "@/server/ai";
 import { logAudit } from "@/server/audit";
 import { projectByCode } from "@/server/field-store";
 import { ROP_VOICE } from "@/lib/voice";
@@ -86,7 +87,7 @@ export async function actOnLensReview(code: string, a: LensAction, u: AppUser): 
 
   const facts = await lensFacts(project);
   try {
-    const { out, model } = await draftStructured({ system: LENS_SYSTEM, task: "Review this plan through each lens, in the order given.", facts, schema: lensDraftSchema, effort: "medium", maxTokens: 32000 });
+    const { out, model } = await draftStructured({ job: "lensReview", by: u.id, projectId: project.id, system: LENS_SYSTEM, task: "Review this plan through each lens, in the order given.", facts: asIs(facts, "the plan, its indicators, budget by activity and workplan; no record about a person"), schema: lensDraftSchema, effort: "medium", maxTokens: 32000 });
     const review: LensReview = {
       at: now,
       by: u.id,

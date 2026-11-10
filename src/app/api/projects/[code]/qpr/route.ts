@@ -156,7 +156,7 @@ export async function POST(req: Request, { params }: Ctx) {
         try {
           // Two sections per request, all at once: each finishes well inside the server's time limit.
           const groups = Array.from({ length: Math.ceil(a.keys.length / 2) }, (_, i) => a.keys.slice(i * 2, i * 2 + 2));
-          const parts = await Promise.all(groups.map((g) => draftQpr(d, g)));
+          const parts = await Promise.all(groups.map((g) => draftQpr(d, g, u.id)));
           const out = { sections: parts.flatMap((x) => x.sections), questions: mergeQuestions(parts.flatMap((x) => x.questions)) };
           for (const s of out.sections) next.sections[s.key] = { text: s.text, by: u.id, at: now, drafted: true };
           await saveQpr(code, q, next);

@@ -180,7 +180,11 @@ export function ReviewPage() {
 
                 {v.mayEdit && (
                   <div className="mt-6 flex flex-wrap items-center gap-3">
-                    <button type="button" className={quietBtn} disabled={busy} onClick={() => void act({ action: "draft" })}>
+                    <button type="button" className={quietBtn} disabled={busy} onClick={() => {
+                      // A draft replaces both notes: ask first when someone has already written them.
+                      if ((v.review.summary?.trim() || v.review.attention?.trim()) && !window.confirm("Replace the summary and the needs-attention note with a new draft? What is written now will be lost.")) return;
+                      void act({ action: "draft" });
+                    }}>
                       {busy ? "Working…" : v.review.summary ? "Redraft summary and needs attention with AI" : "Draft summary and needs attention with AI"}
                     </button>
                     <span className="text-xs text-muted">AI writes from the figures on this page only; read and correct it before signing off.</span>

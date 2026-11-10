@@ -7,6 +7,7 @@ import { readWorkbook as readSheets } from "@/lib/read-sheet";
 import { COLUMN_ROLES, sampleForAi, signatureOf, type BudgetRef, type SavedMapping, type SpendMapping } from "@/lib/spend-map";
 import { ROP_VOICE } from "@/lib/voice";
 import { draftStructured } from "@/server/ai-structured";
+import { asIs } from "@/server/ai";
 import { logAudit } from "@/server/audit";
 import { projectByCode } from "@/server/field-store";
 
@@ -96,9 +97,12 @@ export async function proposeMapping(code: string, sheet: Sheet, file: string, b
   const project = await projectByCode(code);
   const rows = sampleForAi(sheet.grid);
   const { out, model } = await draftStructured({
+    job: "spendColumns",
+    by,
+    projectId: project.id,
     system: SYSTEM,
     task: "Propose the header row and the columns.",
-    facts: { sheet: sheet.name, rows: rows.map((cells, i) => ({ row: i + 1, cells: Object.fromEntries(cells.map((c, j) => [j, c]).filter(([, c]) => c !== "")) })) },
+    facts: asIs({ sheet: sheet.name, rows: rows.map((cells, i) => ({ row: i + 1, cells: Object.fromEntries(cells.map((c, j) => [j, c]).filter(([, c]) => c !== "")) })) }, "the first rows only, already through sampleForAi: columns that name people are blanked and names in other cells replaced"),
     schema: proposal,
     effort: "low",
     maxTokens: 4000,

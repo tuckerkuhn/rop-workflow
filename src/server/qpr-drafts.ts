@@ -1,9 +1,7 @@
-import Anthropic from "@anthropic-ai/sdk";
-import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
 import { STATUS_LABEL } from "@/lib/qpr";
 import { quarterRange } from "@/lib/results";
-import { DRAFT_MODEL, DraftingUnavailable } from "@/server/ai-drafts";
+import { askAi, scrubbed } from "@/server/ai";
 import type { QprData } from "@/server/qpr-store";
 import { ROP_VOICE } from "@/lib/voice";
 import { withoutNames } from "@/lib/personal-text";
@@ -36,8 +34,7 @@ What each key means:
 
 ${ROP_VOICE}`;
 
-export async function draftQpr(d: QprData, keys: string[]): Promise<{ sections: { key: string; text: string }[]; questions: string[] }> {
-  if (!process.env.ANTHROPIC_API_KEY) throw new DraftingUnavailable("AI drafting is not set up on this server: add ANTHROPIC_API_KEY.");
+export async function draftQpr(d: QprData, keys: string[], by: string): Promise<{ sections: { key: string; text: string }[]; questions: string[] }> {
   const { from, to } = quarterRange(d.quarter);
   const facts = {
     project: d.project.name,
@@ -67,35 +64,17 @@ export async function draftQpr(d: QprData, keys: string[]): Promise<{ sections: 
       .map((r) => ({ indicator: d.rows.find((x) => x.code === r.indicator)?.donorCode, date: r.date, value: r.value, province: r.province, district: r.district, crop: r.crop, women: r.female, men: r.male, women_led: r.womenLed, men_led: r.menLed, note: withoutNames(r.note) })),
     activity_updates_this_quarter: d.updates.map((u) => ({ activity: u.activity, date: u.date, ...(u.title ? { title: u.title } : {}), note: withoutNames(u.note) })),
   };
-  const client = new Anthropic({ maxRetries: 1 });
-  const stream = client.beta.messages.stream({
-    model: DRAFT_MODEL,
-    max_tokens: 20000,
-    betas: ["server-side-fallback-2026-07-01"],
-    fallbacks: "default",
-    output_config: { effort: "medium", format: betaZodOutputFormat(outSchema) },
+  // Notes are scrubbed above as before; the door also replaces names in update titles and row comments.
+  const { out } = await askAi({
+    job: "qprDraft",
+    by,
     system: SYSTEM,
-    messages: [{ role: "user", content: `Draft these sections: ${keys.join(", ")}. List only questions that these sections need answered, at most four, most important first.\n\nThe facts (JSON):\n${JSON.stringify(facts, null, 2)}` }],
+    task: `Draft these sections: ${keys.join(", ")}. List only questions that these sections need answered, at most four, most important first.`,
+    facts: scrubbed(facts, ["note", "title", "comment"]),
+    schema: outSchema,
+    maxTokens: 20000,
+    say: { refused: "The drafting model declined this request. Write these sections by hand.", cutOff: "The draft was cut off. Draft fewer sections at once.", empty: "The draft came back empty. Try again.", tooLong: "Drafting took too long. Draft fewer sections at once." },
   });
-  let timedOut = false;
-  const timer = setTimeout(() => {
-    timedOut = true;
-    stream.abort();
-  }, 110_000);
-  try {
-    const res = await stream.finalMessage();
-    if (res.stop_reason === "refusal") throw new Error("The drafting model declined this request. Write these sections by hand.");
-    if (res.stop_reason === "max_tokens") throw new Error("The draft was cut off. Draft fewer sections at once.");
-    const out = res.parsed_output;
-    if (!out?.sections.length) throw new Error("The draft came back empty. Try again.");
-    return { sections: out.sections.filter((s) => keys.includes(s.key)), questions: out.questions };
-  } catch (e) {
-    if (timedOut || e instanceof Anthropic.APIConnectionTimeoutError) throw new Error("Drafting took too long. Draft fewer sections at once.");
-    if (e instanceof Anthropic.RateLimitError) throw new Error("Too many drafts at once. Wait a minute and try again.");
-    if (e instanceof Anthropic.AuthenticationError) throw new Error("The AI key on this server was not accepted. An administrator needs to replace ANTHROPIC_API_KEY.");
-    if (e instanceof Anthropic.APIConnectionError) throw new Error("Could not reach the AI service. Try again.");
-    throw e;
-  } finally {
-    clearTimeout(timer);
-  }
+  if (!out.sections.length) throw new Error("The draft came back empty. Try again.");
+  return { sections: out.sections.filter((s) => keys.includes(s.key)), questions: out.questions };
 }

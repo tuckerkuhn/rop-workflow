@@ -29,7 +29,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
     const ok = v.user.procurement.includes(owner) || holderFor(p, owner)?.id === v.user.id || !!v.user.admin;
     if (!ok) return NextResponse.json({ error: "Only the person working on this step runs its AI check." }, { status: 403 });
     try {
-      const findings = await checkProcurement(p, p.step);
+      const findings = await checkProcurement(p, p.step, v.user.id);
       // Applied to the latest copy (the check took a while), and the version raised.
       const latest = (await loadProcurements(code)).find((x) => x.id === id) ?? p;
       const item = { ...latest, ai: { ...latest.ai, [p.step]: findings }, rev: (latest.rev ?? 0) + 1 };

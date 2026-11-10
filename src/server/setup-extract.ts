@@ -1,9 +1,8 @@
-import Anthropic from "@anthropic-ai/sdk";
-import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
 import { FREQUENCIES, RULE_KEYS } from "@/lib/agreement";
 import { COUNTRIES } from "@/lib/project-setup";
-import { DRAFT_MODEL, DraftingUnavailable } from "@/server/ai-drafts";
+import type { AiJobName } from "@/lib/ai-jobs";
+import { asIs, askAi } from "@/server/ai";
 
 /**
  * Project setup from the documents: the agreement (PDF or Word), the logframe or results framework
@@ -50,40 +49,24 @@ const SYSTEM = [
 ].join(" ");
 
 /** Reads the documents with one structured call. Any of the three readers below uses it. */
-async function readDocuments<T>(files: SetupFile[], system: string, task: string, out: z.ZodType<T>): Promise<{ out: T; model: string }> {
-  if (!process.env.ANTHROPIC_API_KEY) throw new DraftingUnavailable("AI is not set up on this server: add ANTHROPIC_API_KEY.");
-  const client = new Anthropic({ maxRetries: 1 });
-  const content: Anthropic.Beta.BetaContentBlockParam[] = [];
-  for (const f of files) {
-    if (f.kind === "pdf") content.push({ type: "document", title: f.name, source: { type: "base64", media_type: "application/pdf", data: f.data } });
-    else content.push({ type: "text", text: `Document: ${f.name}\n\n${f.text}` });
-  }
-  content.push({ type: "text", text: task });
-  const stream = client.beta.messages.stream({
-    model: DRAFT_MODEL,
-    max_tokens: 32000,
-    betas: ["server-side-fallback-2026-07-01"],
-    fallbacks: "default",
-    output_config: { effort: "medium", format: betaZodOutputFormat(out as z.ZodType<T> & z.ZodObject<z.ZodRawShape>) },
+async function readDocuments<T>(job: AiJobName, by: string, files: SetupFile[], system: string, task: string, out: z.ZodType<T>): Promise<{ out: T; model: string }> {
+  const r = await askAi({
+    job,
+    by,
     system,
-    messages: [{ role: "user", content }],
+    task,
+    // The documents are what the person asked to have read; nothing else goes with them.
+    facts: asIs(null, "the documents the person uploaded to be read (an agreement, logframe or budget)"),
+    documents: files,
+    schema: out,
+    maxTokens: 32000,
+    timeoutMs: 170_000,
+    say: { refused: "The model declined to read these documents. Enter the details by hand.", cutOff: "The documents are too long to read at once: upload them one at a time.", empty: "Nothing came back. Try again.", tooLong: "Reading the documents took too long. Try them one at a time." },
   });
-  const timer = setTimeout(() => stream.abort(), 170_000);
-  try {
-    const res = await stream.finalMessage();
-    if (res.stop_reason === "refusal") throw new Error("The model declined to read these documents.");
-    if (res.stop_reason === "max_tokens") throw new Error("The documents are too long to read at once: upload them one at a time.");
-    if (!res.parsed_output) throw new Error("Nothing came back. Try again.");
-    return { out: res.parsed_output as T, model: res.model };
-  } catch (e) {
-    if (e instanceof Anthropic.APIUserAbortError) throw new Error("Reading the documents took too long. Try them one at a time.");
-    throw e;
-  } finally {
-    clearTimeout(timer);
-  }
+  return { out: r.out, model: r.model };
 }
 
-export const extractSetup = (files: SetupFile[]) => readDocuments(files, SYSTEM, `Extract the project's design from these documents. Countries the app knows: ${COUNTRIES.join(", ")}.`, schema);
+export const extractSetup = (files: SetupFile[], by: string) => readDocuments("setupDesign", by, files, SYSTEM, `Extract the project's design from these documents. Countries the app knows: ${COUNTRIES.join(", ")}.`, schema);
 
 // ---------- The agreement's terms: reporting obligations and checkable donor rules (lib/agreement) ----------
 
@@ -123,8 +106,8 @@ const TERMS_SYSTEM = [
   "Take every value from the agreement; never invent or assume a donor's usual practice. Cite the clause for each. When something is unclear, leave it out and say so in questions.",
 ].join(" ");
 
-export const extractTerms = (files: SetupFile[]) =>
-  readDocuments(files, TERMS_SYSTEM, `List the reporting obligations, the rules that match these settings, and the other terms.\nSettings (key: what it means, unit):\n${RULE_KEYS.map((r) => `${r.key}: ${r.label} (${r.unit})`).join("\n")}`, termsSchema);
+export const extractTerms = (files: SetupFile[], by: string) =>
+  readDocuments("setupTerms", by, files, TERMS_SYSTEM, `List the reporting obligations, the rules that match these settings, and the other terms.\nSettings (key: what it means, unit):\n${RULE_KEYS.map((r) => `${r.key}: ${r.label} (${r.unit})`).join("\n")}`, termsSchema);
 
 // ---------- A budget in Word or PDF (Excel budgets are read without AI, lib/budget) ----------
 
@@ -145,5 +128,5 @@ const budgetSchema = z.object({
 });
 export type BudgetProposal = z.infer<typeof budgetSchema>;
 
-export const extractBudget = (files: SetupFile[]) =>
-  readDocuments(files, "You read a project budget for a project management app. Take every line and amount from the document; never invent. Leave out subtotal and total rows. Link a line to an activity only where the document does.", "List the budget lines.", budgetSchema);
+export const extractBudget = (files: SetupFile[], by: string) =>
+  readDocuments("setupBudget", by, files, "You read a project budget for a project management app. Take every line and amount from the document; never invent. Leave out subtotal and total rows. Link a line to an activity only where the document does.", "List the budget lines.", budgetSchema);

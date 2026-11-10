@@ -4,6 +4,7 @@ import { db, schema as s } from "@/db";
 import { MAPPING_METHODS, type KoboQuestion } from "@/lib/kobo-setup";
 import { CONFIDENCE, type Suggestion } from "@/lib/kobo-suggest";
 import { draftStructured } from "@/server/ai-structured";
+import { asIs } from "@/server/ai";
 import { projectByCode } from "@/server/field-store";
 import { isPersonalQuestion } from "@/server/kobo-protect";
 import { koboState, liveQuestions } from "@/server/kobo-link";
@@ -35,7 +36,7 @@ const SYSTEM = [
   "Match the unit: an indicator in hectares, kg or money adds up a number question (sum); one counting farmers, events or structures counts submissions, a given answer, or distinct IDs. Prefer a question about the result itself over one about the visit.",
 ].join(" ");
 
-export async function suggestMappings(code: string): Promise<{ suggestions: Suggestion[]; model: string; questions: Record<string, KoboQuestion[]> }> {
+export async function suggestMappings(code: string, by: string): Promise<{ suggestions: Suggestion[]; model: string; questions: Record<string, KoboQuestion[]> }> {
   const project = await projectByCode(code);
   const st = await koboState(code);
   const forms = st.forms.filter((f) => f.purpose !== "readiness");
@@ -52,7 +53,7 @@ export async function suggestMappings(code: string): Promise<{ suggestions: Sugg
     indicators: indicators.map((i) => ({ code: i.code, donorCode: i.donorCode ?? "", name: i.name, unit: i.unit })),
     forms: forms.map((f) => ({ uid: f.uid, name: f.name, questions: questions[f.uid].map((q) => ({ path: q.path, label: q.label, type: q.type, ...(q.choices.length ? { choices: q.choices.slice(0, 40).map((c) => ({ name: c.name, label: c.label })) } : {}) })) })),
   };
-  const { out, model } = await draftStructured({ system: SYSTEM, task: "Suggest one mapping per indicator, every indicator once.", facts, schema, effort: "low", maxTokens: 12000 });
+  const { out, model } = await draftStructured({ job: "koboSuggest", by, projectId: project.id, system: SYSTEM, task: "Suggest one mapping per indicator, every indicator once.", facts: asIs(facts, "form names, question labels and answer choices only; never a submission or an answer; questions that identify a person are left out"), schema, effort: "low", maxTokens: 12000 });
 
   const byCode = new Map(out.suggestions.map((x) => [x.indicator, x]));
   const suggestions: Suggestion[] = indicators.map((i) => {

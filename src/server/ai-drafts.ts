@@ -1,16 +1,20 @@
 import { currentInstalment, expectedUsd, invoiceUsd, scheduleOf, withholding } from "@/lib/payments";
-import Anthropic from "@anthropic-ai/sdk";
-import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
 import { holderFor, levelFor, valueOf, type Draft, type Procurement } from "@/lib/procurement";
 import { today } from "@/lib/clock";
+import { asIs, askAi, DRAFT_MODEL, DraftingUnavailable } from "@/server/ai";
+
+// Kept here for the routes that import them from this file.
+export { DRAFT_MODEL, DraftingUnavailable };
+
+/** Why the purchase record goes to the AI as it is. */
+const RECORD = "the purchase record; staff and supplier names are part of the document, and no farmer is named in it";
 
 /**
  * AI drafting of procurement documents with Claude. Drafts only: procurement reads and corrects
  * every draft, and nothing is approved, scored or decided by the model (blueprint, AI limits).
  */
 
-export const DRAFT_MODEL = "claude-opus-5-5";
 
 export const DRAFT_KINDS = {
   rfq: "Request for quotation",
@@ -20,7 +24,6 @@ export const DRAFT_KINDS = {
 } as const;
 export type DraftKind = keyof typeof DRAFT_KINDS;
 
-export class DraftingUnavailable extends Error {}
 
 const draftSchema = z.object({
   sections: z
@@ -97,43 +100,22 @@ const ASK: Record<DraftKind, string> = {
   sole: "Draft the sole source justification for the approving authority. Sections: what is being bought and why it is needed; the proposed supplier; the grounds for sole source (name which ground applies); why no other supplier can meet the need; market check done; why the price is reasonable without competition; risks and how they are managed; recommendation for the approver's decision. Base the grounds only on the sole_source facts given; if they do not support an acceptable ground, say so plainly in the draft and in questions.",
 };
 
-/** Drafts one document from the procurement record. Throws DraftingUnavailable when no API key is set. */
-export async function draftDocument(p: Procurement, kind: DraftKind, by: string): Promise<Draft> {
-  if (!process.env.ANTHROPIC_API_KEY) throw new DraftingUnavailable("AI drafting is not set up on this server: add ANTHROPIC_API_KEY.");
-  // Streamed, so the connection never sits idle while the model thinks; stopped at 100 s to stay
-  // within the server's 2-minute limit, with a clear message to try again.
-  const client = new Anthropic({ maxRetries: 1 });
-  const stream = client.beta.messages.stream({
-    model: DRAFT_MODEL,
-    max_tokens: 16000,
-    betas: ["server-side-fallback-2026-07-01"],
-    fallbacks: "default",
-    output_config: { effort: "medium", format: betaZodOutputFormat(draftSchema) },
+/** Drafts one document from the procurement record. Throws DraftingUnavailable when no API key is set. `by` is the person's name, kept on the draft; `byId` is who asked, for the audit row. */
+export async function draftDocument(p: Procurement, kind: DraftKind, by: string, byId: string = by): Promise<Draft> {
+  const { out, model } = await askAi({
+    job: "procurementDraft",
+    by: byId,
     system: POLICY,
-    messages: [{ role: "user", content: `${ASK[kind]}\n\nThe procurement record (JSON):\n${JSON.stringify(recordOf(p), null, 2)}` }],
+    task: ASK[kind],
+    facts: asIs(recordOf(p), RECORD),
+    factsLabel: "The procurement record (JSON)",
+    schema: draftSchema,
+    maxTokens: 16000,
+    timeoutMs: 100_000,
+    say: { refused: "The drafting model declined this request. Write this document by hand.", cutOff: "The draft was cut off. Try again.", empty: "The draft came back empty. Try again.", tooLong: "Drafting took too long. Try again." },
   });
-  let timedOut = false;
-  const timer = setTimeout(() => {
-    timedOut = true;
-    stream.abort();
-  }, 100_000);
-  let response;
-  try {
-    response = await stream.finalMessage();
-  } catch (e) {
-    if (timedOut || e instanceof Anthropic.APIConnectionTimeoutError) throw new Error("Drafting took too long. Try again.");
-    if (e instanceof Anthropic.RateLimitError) throw new Error("Too many drafts at once. Wait a minute and try again.");
-    if (e instanceof Anthropic.AuthenticationError) throw new Error("The AI key on this server was not accepted. An administrator needs to replace ANTHROPIC_API_KEY.");
-    if (e instanceof Anthropic.APIConnectionError) throw new Error("Could not reach the AI service. Try again.");
-    throw e;
-  } finally {
-    clearTimeout(timer);
-  }
-  if (response.stop_reason === "refusal") throw new Error("The drafting model declined this request. Write this document by hand.");
-  if (response.stop_reason === "max_tokens") throw new Error("The draft was cut off. Try again.");
-  const out = response.parsed_output;
-  if (!out || !out.sections.length) throw new Error("The draft came back empty. Try again.");
-  return { sections: out.sections, questions: out.questions, model: response.model, at: today(), by, edited: false };
+  if (!out.sections.length) throw new Error("The draft came back empty. Try again.");
+  return { sections: out.sections, questions: out.questions, model, at: today(), by, edited: false };
 }
 
 /* ---------------- AI checks ---------------- */
@@ -158,38 +140,20 @@ const findingsSchema = z.object({
 });
 
 /** Runs an AI check for one step. Returns the findings for a person to read; it decides nothing. */
-export async function checkProcurement(p: Procurement, step: string): Promise<string[]> {
-  if (!process.env.ANTHROPIC_API_KEY) throw new DraftingUnavailable("AI checks are not set up on this server: add ANTHROPIC_API_KEY.");
+export async function checkProcurement(p: Procurement, step: string, by: string): Promise<string[]> {
   const ask = CHECKS[step];
   if (!ask) throw new Error("This step has no AI check.");
-  const client = new Anthropic({ maxRetries: 1 });
-  const stream = client.beta.messages.stream({
-    model: DRAFT_MODEL,
-    max_tokens: 8000,
-    betas: ["server-side-fallback-2026-07-01"],
-    fallbacks: "default",
-    output_config: { effort: "medium", format: betaZodOutputFormat(findingsSchema) },
+  const { out } = await askAi({
+    job: "procurementCheck",
+    by,
     system: `${POLICY}\n\nYou are checking, not drafting. Report problems you can see in the record. Do not repeat what is fine. Never say a check passed on a person's behalf.`,
-    messages: [{ role: "user", content: `${ask}\n\nThe procurement record (JSON):\n${JSON.stringify(recordOf(p), null, 2)}` }],
+    task: ask,
+    facts: asIs(recordOf(p), RECORD),
+    factsLabel: "The procurement record (JSON)",
+    schema: findingsSchema,
+    maxTokens: 8000,
+    timeoutMs: 100_000,
+    say: { refused: "The model declined this check. Do it by hand.", empty: "The check came back empty. Try again.", tooLong: "The check took too long. Try again." },
   });
-  let timedOut = false;
-  const timer = setTimeout(() => {
-    timedOut = true;
-    stream.abort();
-  }, 100_000);
-  try {
-    const response = await stream.finalMessage();
-    if (response.stop_reason === "refusal") throw new Error("The model declined this check. Do it by hand.");
-    const out = response.parsed_output;
-    if (!out) throw new Error("The check came back empty. Try again.");
-    return out.findings.length ? out.findings : ["No problems found in the record. Check the documents themselves before you confirm."];
-  } catch (e) {
-    if (timedOut || e instanceof Anthropic.APIConnectionTimeoutError) throw new Error("The check took too long. Try again.");
-    if (e instanceof Anthropic.RateLimitError) throw new Error("Too many AI requests at once. Wait a minute and try again.");
-    if (e instanceof Anthropic.AuthenticationError) throw new Error("The AI key on this server was not accepted. An administrator needs to replace ANTHROPIC_API_KEY.");
-    if (e instanceof Anthropic.APIConnectionError) throw new Error("Could not reach the AI service. Try again.");
-    throw e;
-  } finally {
-    clearTimeout(timer);
-  }
+  return out.findings.length ? out.findings : ["No problems found in the record. Check the documents themselves before you confirm."];
 }

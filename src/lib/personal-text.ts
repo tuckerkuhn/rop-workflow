@@ -5,9 +5,9 @@
  * script are not caught by these rules. A guard, not a guarantee.
  */
 
-/** Places, organizations and words that look like names but are not people's. */
+/** Places, organizations and common words that look like names but are not people's ("Women's groups", "Today's training"). */
 const NOT_PEOPLE = new Set(
-  "ROP UNDP FAO IOM WFP AKDN ACRP ARLP Afghanistan Afghan Kandahar Helmand Kabul Herat Balkh Nangarhar Parwan Maiwand Nesh Sangin Musa Qala Grishk Arghandab Zhari Panjwai Dand Daman Lashkar Gah Nad Ali Nawa Monday Tuesday Wednesday Thursday Friday Saturday Sunday January February March April May June July August September October November December Roots Peace Saudi India China Dubai Expo Food Show Center Province District".split(" "),
+  "ROP UNDP FAO IOM WFP AKDN ACRP ARLP Afghanistan Afghan Kandahar Helmand Kabul Herat Balkh Nangarhar Parwan Maiwand Nesh Sangin Musa Qala Grishk Arghandab Zhari Panjwai Dand Daman Lashkar Gah Nad Ali Nawa Monday Tuesday Wednesday Thursday Friday Saturday Sunday January February March April May June July August September October November December Roots Peace Saudi India China Dubai Expo Food Show Center Province District Women Men Farmers Farmer People Children Youth Girls Boys Families Family Traders Trader Growers Grower Members Member Team Project Donor Government Ministry Company Cooperative Association Group Committee Today Yesterday Tomorrow Year Quarter Month Week Season".split(" "),
 );
 
 const POSSESSIVE = /\b((?:[A-Z][a-z]{2,})(?:[ -][A-Z][a-z]{2,})?)['’]s\b/g;
