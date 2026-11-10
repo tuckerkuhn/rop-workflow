@@ -129,10 +129,12 @@ function Editor({ v, start, user, act, onClose }: { v: View; start: StoryRow | n
         </label>
         <label className="text-sm">
           First name (only if they agreed to be named)
+          <FieldHelp field="story.firstName" />
           <input className={input} value={s.firstName ?? ""} onChange={(e) => set("firstName", e.target.value)} />
         </label>
         <label className="mt-6 flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={!!s.woman} onChange={(e) => set("woman", e.target.checked)} /> A woman (for the report&rsquo;s gender section)
+          <input type="checkbox" checked={!!s.woman} onChange={(e) => set("woman", e.target.checked)} /> A woman
+          <FieldHelp field="story.woman" />
         </label>
         <label className="text-sm">
           District
@@ -144,6 +146,7 @@ function Editor({ v, start, user, act, onClose }: { v: View; start: StoryRow | n
         </label>
         <label className="text-sm sm:col-span-2">
           Interview notes: what they said, in their words where possible (Dari and Pashto are fine)
+          <FieldHelp field="story.notes" />
           <textarea className={input} rows={5} value={s.notes} onChange={(e) => set("notes", e.target.value)} />
         </label>
         <div className="text-sm sm:col-span-2">

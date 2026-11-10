@@ -29,3 +29,20 @@ describe("nightly KoboToolbox reconcile", () => {
     expect(crons.find((c) => c.path === "/api/notify/digest")?.schedule).toBe("30 1 * * *");
   });
 });
+
+describe("the date of a result from KoboToolbox", async () => {
+  const { koboResultRules } = await import("@/server/kobo-results");
+  const { dateOf } = koboResultRules;
+  it("is the form's own date question, not the day Kobo received it", () => {
+    expect(dateOf({ install_date: "2026-11-10", _submission_time: "2026-11-12T08:00:00" }, "2026-11-12")).toBe("2026-11-10");
+    expect(dateOf({ "group_a/training_date": "2026-09-29" }, "2026-10-02")).toBe("2026-09-29");
+  });
+  it("falls back to the day received when the form has no date, a wrong one or one in the future", () => {
+    expect(dateOf({ area_ha: "1.5" }, "2026-11-12")).toBe("2026-11-12");
+    expect(dateOf({ install_date: "2026-02-30" }, "2026-11-12")).toBe("2026-11-12");
+    expect(dateOf({ install_date: "2026-12-01" }, "2026-11-12")).toBe("2026-11-12");
+  });
+  it("ignores Kobo's own start, end and today stamps", () => {
+    expect(dateOf({ today: "2026-11-01", start: "2026-11-01T09:00:00", end: "2026-11-01T09:10:00" }, "2026-11-12")).toBe("2026-11-12");
+  });
+});
