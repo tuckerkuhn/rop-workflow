@@ -53,7 +53,7 @@ export function PeriodReportPage() {
   const years = Array.from({ length: Math.max(1, thisYear - startYear + 1) }, (_, k) => startYear + k);
   const download = async () => {
     if (!v) return;
-    const draft = period.kind === "annual" ? await beforeDownload(project.id, user.id, pf, (n) => t("pf.draftConfirm", { n })) : 0;
+    const draft = period.kind === "annual" ? await beforeDownload(project.id, user.id, pf, (n) => t("pf.draftConfirm", { n }), { kind: "annual", year: period.year }, t("pf.uncheckedConfirm")) : 0;
     if (draft === null) return;
     setBusy(true);
     try {

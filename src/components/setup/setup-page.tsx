@@ -126,7 +126,7 @@ function Wizard({ code: initialCode, first }: { code: string | null; first: Step
         body: JSON.stringify(parsed.data),
       });
       const body = (await res.json().catch(() => ({}))) as { code?: string; error?: string };
-      if (!res.ok) throw new Error(body.error ?? `${res.status}`);
+      if (!res.ok) throw new Error(body.error ?? t("setup.saveFailed"));
       await reloadProjects();
       if (!code && body.code) {
         // Now an existing project: reopen setup on it, at the budget.

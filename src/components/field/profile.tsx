@@ -1,5 +1,6 @@
 "use client";
 
+import { useT } from "@/components/app/i18n";
 import Link from "next/link";
 import { useState } from "react";
 import { stageOf } from "@/components/field/workspace";
@@ -102,6 +103,7 @@ export function FarmerProfile({ id }: { id: string }) {
   const { user } = useRequireUser();
   const { money } = useSession();
   const { items, setItems, status, error } = useFieldData();
+  const { t } = useT();
   const [score, setScore] = useState(0);
   const [comment, setComment] = useState("");
   const [addingPhoto, setAddingPhoto] = useState(false);
@@ -147,6 +149,11 @@ export function FarmerProfile({ id }: { id: string }) {
   return (
     <div className="min-h-screen">
       <TopBar active="field" />
+      {error && (
+        <p role="alert" className="mx-auto mt-4 max-w-6xl rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">
+          {t("field.saveFailed", { error })}
+        </p>
+      )}
       <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6 lg:py-8">
         <Link href={`/work?source=field&open=${farmer.id}`} className="text-sm text-muted hover:text-ink">
           ← Field activities

@@ -8,7 +8,7 @@ import { useT } from "@/components/app/i18n";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { TopBar } from "@/components/workspace/ui";
 import type { MessageKey } from "@/lib/i18n";
-import { daysBetween, OWNERS, parseReport, periodOf, urgency, type Preflight, type PreflightItem, type ReportKind, type ReportRef } from "@/lib/preflight";
+import { daysBetween, OWNERS, parseReport, periodOf, urgency, type Preflight, type PreflightItem, type ReportKind, type ReportRef, UNCHECKED } from "@/lib/preflight";
 import { quarterOf } from "@/lib/results";
 
 /**
@@ -238,7 +238,15 @@ export function usePreflight(project: string, user: string | undefined, report: 
  * Before a download: with blockers left, the person confirms a file marked "Draft, not checked",
  * and the download goes on the record. Returns the number of blockers to mark, or null to stop.
  */
-export async function beforeDownload(project: string, user: string, p: Preflight | null, confirmText: (n: number) => string): Promise<number | null> {
+export async function beforeDownload(project: string, user: string, loaded: Preflight | null, confirmText: (n: number) => string, report?: ReportRef | null, uncheckedText?: string): Promise<number | null> {
+  // Pre-flight still loading, or its load failed: read it now. "Not known" is never treated as "nothing blocks".
+  let p = loaded;
+  if (!p && report) {
+    p = await fetch(`/api/projects/${project}/preflight?report=${report.kind}&period=${periodOf(report)}`, { cache: "no-store", headers: { "x-demo-user": user } })
+      .then((r) => (r.ok ? (r.json() as Promise<Preflight>) : null))
+      .catch(() => null);
+    if (!p) return window.confirm(uncheckedText ?? "Pre-flight could not be checked just now. The file will be marked \"Draft, not checked\". Download it anyway?") ? UNCHECKED : null;
+  }
   const n = p && !p.released ? p.items.filter((i) => i.group === "blocks").length : 0;
   if (!n || !p) return 0;
   if (!window.confirm(confirmText(n))) return null;

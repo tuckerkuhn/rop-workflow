@@ -61,6 +61,19 @@ Each pair was pinned by a test first (`one-number.test.ts`), then one function k
 - **Tracking table sums** (`server/outputs.ts`) now come from `totalsOf`, the function the reports use. Same figures as before.
 - **Not done, in the morning report:** "on track" still has two meanings (the report judges against the workplan, Progress cards against time gone in the year); the afghani rate is a constant 70 in three places; "today" is the server's UTC day in about 48 places, which is wrong near midnight in Kabul; the project spend total and the budget page total differ by design (overhead and phases) and neither says so. Each needs a decision or a stored value, not a refactor.
 
+## 23:50 Phase 3d. Errors that keep the person's work and say what to do next (branch `surge/errors-keep-work`)
+
+- **Report downloads never treat "pre-flight unknown" as "nothing blocks".** If pre-flight had not loaded or its load failed, the download went out with no warning and no DRAFT mark. Now the download reads pre-flight itself; if that fails too, the person is asked, and the file is marked "DRAFT, NOT CHECKED: pre-flight could not be run". Quarterly, annual and FACE.
+- **Work no longer says "Nothing needs you right now" when its load failed.** It says the list may be missing things, with a Try again button. Same for Closeout ("No expense vouchers yet" after a failed load).
+- **Quarterly report page:** a loading line (it was blank while loading); errors scroll into view (they sat at the top, out of sight from a save button far down); when "Mark final" is off, a visible line says how many things block and links to pre-flight (the reason was only in a tooltip, which a phone never shows).
+- **Farmer profile:** a failed save is now shown on the page (it was only shown when the farmer was missing).
+- **Kobo sync:** a failure is shown as an error, not in green.
+- **Setup:** a failed save no longer shows a bare "500".
+- **Every signed-in page** now has an error screen (what happened, saved work is safe, Try again, Go to Home) and a loading screen. There were none.
+- New text is in `src/lib/i18n/surge.ts` in all four languages. **The Spanish, Dari and Pashto are my drafts and need a native reader**, as the file says of the others. A test checks every new string exists in all four and that translations keep the same {placeholders}.
+- **Left alone (HR, on the do-not-touch list), in the morning report:** a failed "send back" clears the typed note on expenses, leave and people; onboarding lets a contract be signed that never opened; payroll's ADP download fails silently; Leave is blank for someone with no HR record.
+- **Working-method slip, corrected:** I made two one-line changes in files over 600 lines (`lib/procurement.ts`, `progress/qpr-page.tsx`) before reading all of them. I have since read both in full; the changes stand. From here I read first.
+
 ## Decisions
 
 Each is reversible. Listed as they are made.
