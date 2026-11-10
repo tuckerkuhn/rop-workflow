@@ -94,7 +94,7 @@ export async function readWorkbook(buf: Buffer): Promise<Bva> {
     if (!out.problems.length) return out;
     first ??= out;
   }
-  return first ?? { sheet: "", currency: "AFN", months: [], monthLabels: {}, lines: [], totals: { costs: null, overhead: null, grand: null }, rate: null, problems: ["No sheet with budget against actual (an \"ICE Report\" sheet) was found."], notes: [] };
+  return first ?? { sheet: "", currency: "AFN", months: [], monthLabels: {}, lines: [], totals: { costs: null, overhead: null, grand: null }, rate: null, problems: ["No budget and spending sheet (an \"ICE Report\" sheet) was found."], notes: [] };
 }
 
 export const fingerprint = (buf: Buffer) => createHash("sha256").update(buf).digest("hex");

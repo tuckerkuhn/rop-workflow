@@ -98,7 +98,7 @@ export function readResults(grid: Grid, indicators: { code: string; donorCode: s
     const errors: string[] = [];
     const indRaw = text(at(r, col.indicator)).toUpperCase().split(/\s/)[0];
     const indicator = byCode.get(indRaw);
-    if (!indicator) errors.push(`Indicator "${text(at(r, col.indicator))}" is not one this project records`);
+    if (!indicator) errors.push(`Target "${text(at(r, col.indicator))}" is not one this project records`);
     const date = isoDate(at(r, col.date));
     if (!date) errors.push("Date not understood (use 2026-09-30)");
     else if (date > today) errors.push("Date is in the future");

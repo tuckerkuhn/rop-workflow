@@ -36,8 +36,8 @@ describe("data checks before MEL accepts", () => {
   it("flags a missing breakdown the indicator is reported by", () => {
     const r = result({ value: 10 });
     const flags = dataChecks(r, [r], ind);
-    expect(flags).toContain("The indicator is reported by sex, but the record has no women and men.");
-    expect(flags).toContain("The indicator is reported by province, but the record has none.");
+    expect(flags).toContain("This target is reported by women and men, but the record has no women and men.");
+    expect(flags).toContain("This target is reported by province, but the record has none.");
   });
   it("flags no proof, with the reason given", () => {
     const r = result({ value: 10, female: 4, male: 6, province: "Kandahar", files: [], noFile: "Sheet at the office" });

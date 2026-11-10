@@ -5,7 +5,7 @@ import { db, schema as s } from "@/db";
  * One route per indicator: an indicator mapped to a KoboToolbox question gets its results from
  * Kobo only, never by hand, so the same achievement cannot be counted twice.
  */
-export const FROM_KOBO = "This indicator comes from Kobo";
+export const FROM_KOBO = "This target is counted from KoboToolbox";
 
 /** Codes of a project's indicators that are fed by a Kobo question. */
 export async function koboFedCodes(projectId: string): Promise<Set<string>> {

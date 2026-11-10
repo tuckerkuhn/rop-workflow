@@ -77,7 +77,7 @@ export async function loadProgressSummary(code: string, u: AppUser) {
     concerns.push({
       key: "due",
       level: "warning",
-      text: `${due.length} ${due.length === 1 ? "indicator is" : "indicators are"} due this quarter with nothing recorded: ${due.map((i) => i.donorCode).join(", ")}`,
+      text: `${due.length} ${due.length === 1 ? "target is" : "targets are"} due this quarter with nothing recorded: ${due.map((i) => i.donorCode).join(", ")}`,
       why: `Their workplan windows end in ${qLabel(today)}. Record progress, or re-plan them in the monthly review.`,
       href: "/progress/review",
     });

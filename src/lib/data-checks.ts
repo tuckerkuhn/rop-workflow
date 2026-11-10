@@ -29,21 +29,21 @@ export function dataChecks(r: ResultRecord, all: ResultRecord[], ind: Indicator 
   const norm = (t: string) => t.toLowerCase().replace(/\s+/g, " ").trim();
   const shares = (x: ResultRecord) => norm(x.note) === norm(r.note) || x.files.some((f) => r.files.some((g) => g.hash === f.hash)) || (x.links ?? []).some((l) => (r.links ?? []).some((m) => m.url === l.url));
   const twin = same.find((x) => x.date === r.date && x.value === r.value && (x.province ?? "") === (r.province ?? "") && (x.district ?? "") === (r.district ?? "") && shares(x));
-  if (twin) out.push(`Same indicator, date, value and place as a ${twin.status} record by ${twin.by}: is it counted twice?`);
+  if (twin) out.push(`Same target, date, value and place as a ${twin.status} record by ${twin.by}: is it counted twice?`);
   // Far above what this indicator usually records.
   const values = same.filter((x) => x.status === "accepted").map((x) => x.value);
   if (values.length >= 3) {
     const m = median(values);
-    if (m > 0 && r.value > m * 4) out.push(`${r.value.toLocaleString("en-US")} is more than four times the usual record for this indicator (median ${m.toLocaleString("en-US")}): check the figure and its unit.`);
+    if (m > 0 && r.value > m * 4) out.push(`${r.value.toLocaleString("en-US")} is more than four times the usual record for this target (median ${m.toLocaleString("en-US")}): check the figure and its unit.`);
   }
   // Women and men should add up to the total when both are given for people.
   if (r.female !== undefined && r.male !== undefined && r.female + r.male !== r.value && /person|people|farmer|trainee|beneficiar|participant|household/i.test(ind?.unit ?? ""))
     out.push(`${r.female} women and ${r.male} men make ${r.female + r.male}, not ${r.value}.`);
   // What the indicator is broken down by, and the record leaves out.
   const by = ind?.disaggregation ?? [];
-  if (by.includes("sex") && r.female === undefined && r.male === undefined && r.womenLed === undefined && r.menLed === undefined) out.push("The indicator is reported by sex, but the record has no women and men.");
-  if (by.includes("province") && !r.province) out.push("The indicator is reported by province, but the record has none.");
-  if (by.includes("district") && !r.district) out.push("The indicator is reported by district, but the record has none.");
+  if (by.includes("sex") && r.female === undefined && r.male === undefined && r.womenLed === undefined && r.menLed === undefined) out.push("This target is reported by women and men, but the record has no women and men.");
+  if (by.includes("province") && !r.province) out.push("This target is reported by province, but the record has none.");
+  if (by.includes("district") && !r.district) out.push("This target is reported by district, but the record has none.");
   if (!proofCount(r)) out.push(r.noFile ? `No proof attached (${r.noFile}).` : "No proof attached.");
   if (r.original?.pending) out.push("Written in Dari or Pashto and not yet translated: the report needs it in English. Translate it before accepting.");
   // Every dated photo taken after the quarter the result is counted in: was it done then?
