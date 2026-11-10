@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { canEditProject } from "@/lib/demo";
 import { projectDesignSchema } from "@/lib/project-setup";
 import { onProject, requireViewer } from "@/server/auth";
-import { handle } from "@/server/guard";
+import { audit, handle } from "@/server/guard";
 import { handRecordedCounts } from "@/server/kobo-fed";
 import { createProject, listProjects } from "@/server/project-store";
 
@@ -24,6 +24,8 @@ export async function POST(req: Request) {
     if (v instanceof NextResponse) return v;
     const parsed = projectDesignSchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid project." }, { status: 400 });
-    return NextResponse.json({ code: await createProject(parsed.data) }, { status: 201 });
+    const code = await createProject(parsed.data);
+    await audit(code, { entity: "project", entityId: crypto.randomUUID(), action: "project_created", by: v.user.id, detail: { name: parsed.data.name, startDate: parsed.data.startDate, endDate: parsed.data.endDate, indicators: parsed.data.indicators.length, donors: parsed.data.donors ?? [] } });
+    return NextResponse.json({ code }, { status: 201 });
   });
 }

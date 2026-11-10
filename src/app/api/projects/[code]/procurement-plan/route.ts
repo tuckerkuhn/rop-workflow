@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { canEditProject } from "@/lib/demo";
 import { isManager } from "@/lib/procurement-plan";
 import { isEmployee, requireViewer } from "@/server/auth";
-import { handle } from "@/server/guard";
+import { audit, handle } from "@/server/guard";
 import { loadBudget, loadWorkplan } from "@/server/plan-store";
 import { loadPlan, rebuildPlan } from "@/server/procurement-plan-store";
 
@@ -26,6 +26,7 @@ export async function POST(req: Request, { params }: Ctx) {
     const v = await requireViewer(req, { write: true, allow: (u) => isManager(u) || canEditProject(u) || !!u.admin, why: "Only the procurement manager or the project manager can build the procurement calendar." });
     if (v instanceof NextResponse) return v;
     const r = await rebuildPlan(code);
+    await audit(code, { entity: "procurement_plan", entityId: crypto.randomUUID(), action: "procurement_plan_rebuilt", by: v.user.id, detail: { added: r.added, removed: r.removed, total: r.items.length } });
     return NextResponse.json({ added: r.added, removed: r.removed, total: r.items.length });
   });
 }

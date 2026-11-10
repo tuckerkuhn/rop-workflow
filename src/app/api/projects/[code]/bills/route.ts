@@ -104,11 +104,13 @@ export async function POST(req: Request, { params }: Ctx) {
         timeline: [{ date: sign.at, who: u.name, what: `Recorded (${BILL_CATEGORIES[a.category].label}, GL ${BILL_CATEGORIES[a.category].gl})` }],
       };
       await saveBills(code, { items: [...book.items, bill], next: book.next + 1 });
+      await logAudit(db, (await projectByCode(code)).id, { entity: "bill", entityId: bill.id, action: "bill_recorded", by: u.id, detail: { bill: bill.id, usd: bill.usd, amount: bill.amount, currency: bill.currency, category: bill.category, budgetLine: bill.budgetLine, file: bill.file.hash } });
       return NextResponse.json(await view(code, u));
     }
     const b = book.items.find((x) => x.id === a.id);
     if (!b) return fail("No such bill.", 404);
     const roles = await rolesOf(u);
+    let voucherFiled: boolean | null = null;
     if (a.action === "approve" || a.action === "return") {
       if (!roles.approve) return fail("Programme management approves bills.");
       // Solo mode (server/solo.ts): a small team's approver may approve a bill they recorded, confirming it, up to the large threshold.
@@ -130,6 +132,7 @@ export async function POST(req: Request, { params }: Ctx) {
       if (b.status !== "approved") return fail("The bill must be approved before the voucher.", 409);
       if (a.sharepointUrl && !isSharePointUrl(a.sharepointUrl)) return fail("That is not a SharePoint link.", 400);
       const complete = !!a.number && !!a.month && isSharePointUrl(a.sharepointUrl) && !!a.netsuiteRef.trim();
+      voucherFiled = complete;
       Object.assign(b, {
         voucher: { number: a.number, month: a.month, sharepointUrl: a.sharepointUrl, netsuiteRef: a.netsuiteRef, ...sign },
         status: complete ? "filed" : "approved",
@@ -141,6 +144,7 @@ export async function POST(req: Request, { params }: Ctx) {
       const project = await projectByCode(code);
       await logAudit(db, project.id, { entity: "bill", entityId: b.id, action: a.action === "approve" ? "bill_approved" : "bill_returned", by: u.id, detail: { bill: b.id, usd: b.usd, recordedBy: b.raised.by, ...(a.action === "approve" && b.approval?.selfApproved ? { selfApproved: true, ...(b.approval.soloNote ? { soloNote: b.approval.soloNote } : {}) } : {}) } });
     }
+    if (a.action === "voucher") await logAudit(db, (await projectByCode(code)).id, { entity: "bill", entityId: b.id, action: voucherFiled ? "bill_voucher_filed" : "bill_voucher_started", by: u.id, detail: { bill: b.id, usd: b.usd, voucher: a.number, month: a.month, netsuiteRef: a.netsuiteRef } });
     return NextResponse.json(await view(code, u));
   });
 }

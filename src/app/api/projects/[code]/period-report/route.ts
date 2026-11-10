@@ -13,7 +13,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
     const kind = q.get("kind");
     const year = Number(q.get("year"));
     if (kind === "final") return NextResponse.json(await periodReport(code, { kind: "final" }));
-    if (kind === "annual" && year >= 2000 && year <= 2100) return NextResponse.json(await periodReport(code, { kind: "annual", year }));
+    if (kind === "annual" && Number.isInteger(year) && year >= 2000 && year <= 2100) return NextResponse.json(await periodReport(code, { kind: "annual", year }));
     return NextResponse.json({ error: "Choose ?kind=annual&year=2026 or ?kind=final." }, { status: 400 });
   });
 }
