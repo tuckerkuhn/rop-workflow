@@ -435,4 +435,4 @@ export function designGateMissing(state: ProjectState) {
   return missing;
 }
 
-export const personName = (id: string) => (id.startsWith("agent:") ? `${id.slice(6)} (AI)` : (userById(id)?.name ?? id));
+export const personName = (id: string) => (id.startsWith("agent:") ? `${id.slice(6)} (AI)` : id === "sample" ? "the sample team (fictional)" : (userById(id)?.name ?? id));

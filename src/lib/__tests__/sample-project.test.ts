@@ -17,6 +17,10 @@ describe("the sample project (C5)", () => {
     expect(onProject(someone, code)).toBe(true);
     expect(onProject(someone, "OTHER-2026")).toBe(false);
   });
+  it("names its fictional author plainly, not by the internal id", async () => {
+    const { personName } = await import("@/lib/project");
+    expect(personName("sample")).toBe("the sample team (fictional)");
+  });
   it("has exactly one line over budget, the one whose reason it gives", () => {
     const over = SAMPLE_LINES.filter((l) => spentOver(l.spent, l.amount)).map((l) => l.code);
     expect(over).toEqual(["S-1.1.B"]);
