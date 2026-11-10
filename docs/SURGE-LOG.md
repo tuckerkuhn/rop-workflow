@@ -218,6 +218,12 @@ Tucker, awake, asked for the fixes and improvements listed in chat, to 03:50. Sa
 - No string in the app was changed. The build list asks for the list first.
 - The count is 28, not the 54 the audit gave: the audit's figure included hardcoded text and the demo project's page.
 
+## 03:04 Second session. Two small follow-ons
+
+- **`fix/baseline-pointer`.** The annual report told people to add a missing baseline "in setup", which has no field for it. It now links to Target details, as does Progress.
+- **`fix/home-next-report-languages`.** Home's next-report panel is in four languages (12 strings, `nr.*`), with dates in the reader's language. **Not done:** the rest of Home (`src/components/home/role-home.tsx`) is about 60 English sentences built from counts; translating half of them would leave a screen in two languages, so none were changed.
+- A read-only review of everything changed in this session was started, because none of it has been seen running. Its findings, and what was done about them, are in the next entry.
+
 ## Decisions
 
 Each is reversible. Listed as they are made.
