@@ -47,6 +47,7 @@ One guard, extended (`src/server/guard.ts`): `handle` (failures become plain mes
 - Raw SDK errors (overloaded, too large, server error) no longer reach people; setup extraction no longer returns raw text.
 - The name scrub no longer treats "Women's", "Today's", "Cooperative's" and similar as a person's name.
 - Redrafting a story or the monthly review now asks before replacing text someone wrote.
+- **A slip, corrected within a minute:** the first merge of this branch into `surge/2026-11-09` (`ff928d6`) had a type error in `review-page.tsx`: my check command hid the failing typecheck behind a pipe. Fixed in the next commit and merged again. Every merge since runs one script that stops on the first red check. `main` was never involved.
 - **Not changed, for Tucker (morning report):** translation sends Dari and Pashto notes as written (it cannot translate otherwise, and the name rules read English only); photo coaching sends the photo itself, which `docs/DATA-PROTECTION.md` says never happens; the assistant sends staff names and the typed question; the opportunity brief has no voice rules; the lens review replaces earlier decisions on screen when run again. Each is on the do-not-touch list or needs a policy decision.
 
 ## Decisions
