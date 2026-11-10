@@ -11,13 +11,12 @@ import {
 import { periodRange } from "@/lib/period-report";
 import { withoutNames } from "@/lib/personal-text";
 import { personName } from "@/lib/project";
-import { rank, shareLimit, type PhotosState } from "@/lib/photos";
 import { quarterRange, type ResultRecord } from "@/lib/results";
 import { loadActuals } from "@/server/actuals-store";
 import { projectByCode } from "@/server/field-store";
+import { donorPhotoRule } from "@/server/photo-consent";
 import { periodReport } from "@/server/period-report-store";
 import { projectRules } from "@/server/policy-store";
-import { loadProjectState } from "@/server/project-state";
 import { loadCopies, qprData } from "@/server/qpr-store";
 import { loadResults } from "@/server/results-store";
 
@@ -173,23 +172,7 @@ export async function packIndex(
     );
     label = `Annual report ${report.year}`;
   }
-  const photos = await loadProjectState<PhotosState>(p.id, "photos", {
-    photos: {},
-    posts: [],
-  });
-  const stories = await loadProjectState<{
-    stories: {
-      status: string;
-      consent?: { uses: string[] };
-      photos: { hash: string }[];
-    }[];
-  }>(p.id, "stories", { stories: [] });
-  const storyUses = (hash: string) => {
-    const st = (stories.stories ?? []).find(
-      (x) => x.status === "approved" && x.photos.some((f) => f.hash === hash),
-    );
-    return st ? [...(st.consent?.uses ?? [])] : null;
-  };
+  const photoOk = await donorPhotoRule(p.id);
   const fileFor = (f: ProofFile): PackFile => {
     if (kind === "audit") return { ...f, include: true, why: "" };
     if (!isPhotoFile(f))
@@ -198,17 +181,8 @@ export async function packIndex(
         include: false,
         why: "A document (attendance sheets and forms can name people): held by Roots of Peace, available for verification.",
       };
-    const meta = photos.photos?.[f.hash];
-    if (!meta?.coach)
-      return {
-        ...f,
-        include: false,
-        why: "Held by Roots of Peace: not yet checked for people who can be recognised.",
-      };
-    const lim = shareLimit(meta, storyUses(f.hash));
-    return rank(lim.max) >= rank("comms")
-      ? { ...f, include: true, why: "" }
-      : { ...f, include: false, why: `Held by Roots of Peace: ${lim.why}` };
+    const ok = photoOk(f.hash);
+    return ok.ok ? { ...f, include: true, why: "" } : { ...f, include: false, why: `Held by Roots of Peace: ${ok.why}` };
   };
   const units = new Map(figures.map((f) => [f.indicator, f.unit]));
   const entries = figures

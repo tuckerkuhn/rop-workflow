@@ -4,6 +4,7 @@ import { spentIn } from "@/lib/bva";
 import { activityOf, breakdownsFor, buildRows, carryForward, checksFor, DEFAULT_ACRONYMS, photosFor, prevQuarterOf, type IndicatorInfo, type Qpr, type Spend } from "@/lib/qpr";
 import { quarterRange } from "@/lib/results";
 import { loadActuals } from "@/server/actuals-store";
+import { donorPhotoRule } from "@/server/photo-consent";
 import { projectByCode } from "@/server/field-store";
 import { loadResults, loadUpdates } from "@/server/results-store";
 import { MAX_PRACTICE, workTime, type CopyData, type ReportCopy, type WorkTime } from "@/lib/report-copy";
@@ -141,6 +142,10 @@ export async function qprData(code: string, quarter: string) {
   for (const w of wp) if (w.code && w.name && !names.has(w.code)) names.set(w.code, w.name);
   const activityCodes = [...new Set(indicators.map((i) => activityOf(i.donorCode, i.code)))];
   const activities = activityCodes.map((a) => ({ code: a, name: names.get(a) ?? `Activity ${a}` }));
+  // Photos go to the donor only as far as the photo library's consent rule allows (server/photo-consent).
+  const photoOk = await donorPhotoRule(project.id);
+  const captioned = photosFor(table, results, updates, quarter);
+  const photos = captioned.filter((ph) => photoOk(ph.hash).ok);
   return {
     project: { code, name: project.name, goal: project.goal, donor: project.donor, start: project.startDate, end: project.endDate },
     quarter,
@@ -148,7 +153,9 @@ export async function qprData(code: string, quarter: string) {
     rows: table,
     results,
     updates: updates.filter((u) => u.date >= quarterRange(quarter).from && u.date <= quarterRange(quarter).to),
-    photos: photosFor(table, results, updates, quarter),
+    photos,
+    /** Captioned photos held back until they are checked for people who can be recognised, or consent covers them. */
+    photosHeld: captioned.length - photos.length,
     breakdowns: breakdownsFor(table, results, quarter),
     spend,
     activities,

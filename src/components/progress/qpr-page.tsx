@@ -294,6 +294,14 @@ export function QprPage() {
               </p>
             )}
 
+            {v.photosHeld > 0 && (
+              <p className="mt-3 rounded-xl bg-mist px-4 py-3 text-sm">
+                {v.photosHeld} captioned {v.photosHeld === 1 ? "photo is" : "photos are"} held back from the report until checked for people who can be recognised, or until consent covers them.{" "}
+                <Link href="/progress/photos" className="font-semibold text-forest hover:underline">
+                  Photos and posts
+                </Link>
+              </p>
+            )}
             <ReportDownloads project={project.id} quarter={quarter} user={user.id} mayEvidence={!!user.admin || user.project.some((r) => ["mel-owner", "report-release", "plan-approver", "monthly-review"].includes(r))} mayAudit={!!user.admin || user.project.includes("mel-owner")} />
             <ClaimCheckPanel
               check={v.saved.claimCheck}

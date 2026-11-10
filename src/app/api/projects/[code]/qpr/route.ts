@@ -5,6 +5,7 @@ import { mergeQuestions, qprPatchSchema, SECTIONS, type Qpr } from "@/lib/qpr";
 import { requireViewer } from "@/server/auth";
 import { DraftingUnavailable } from "@/server/ai-drafts";
 import { handle } from "@/server/guard";
+import { donorPhotoRule } from "@/server/photo-consent";
 import { preflight } from "@/server/preflight";
 import { aiAllowed } from "@/server/limits";
 import { holdsRole } from "@/server/hr-store";
@@ -42,7 +43,10 @@ async function view(code: string, quarter: string, u: AppUser, copyAt: string | 
   const release = copies.find((c) => c.kind === "release");
   const shown = d.saved.released && release ? release : copyAt ? (copies.find((c) => c.kind === "practice" && c.at === copyAt) ?? null) : null;
   const live = copyOf(d);
-  const base = shown ? { ...d, ...shown.data } : d;
+  // A frozen copy made before the consent rule keeps its text and figures; its photos follow the rule as it stands now.
+  const photoOk = await donorPhotoRule((await projectByCode(code)).id);
+  const frozen = shown ? { ...shown.data, photos: shown.data.photos.filter((ph) => photoOk(ph.hash).ok) } : null;
+  const base = frozen ? { ...d, ...frozen } : d;
   const editable = !d.saved.released && !shown;
   return {
     ...base,

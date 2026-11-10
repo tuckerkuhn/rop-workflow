@@ -1,4 +1,5 @@
 import { ROLE_FOR } from "@/lib/evidence";
+import { donorPhotoRule } from "@/server/photo-consent";
 import { randomBytes } from "node:crypto";
 import { db, schema as s } from "@/db";
 import { STATUS_LABEL, SECTIONS } from "@/lib/qpr";
@@ -66,6 +67,8 @@ export async function sharedReport(code: string, token: string, opts: { log: boo
   const copy = copies.find((c) => c.kind === "release") ?? copies.filter((c) => c.kind === "practice").at(-1);
   if (!copy) return { error: "This report is not ready to share yet." } as const;
   const d = copy.data;
+  // Photos follow the consent rule as it stands now (server/photo-consent), also in copies made before it existed.
+  const photoOk = await donorPhotoRule(project.id);
   const counted = new Set(d.counted.map((c) => c.id));
   const { from, to } = quarterRange(sh.quarter);
   const results = (await loadResults(code)).filter((r) => counted.has(r.id) && r.date >= from && r.date <= to);
@@ -98,12 +101,12 @@ export async function sharedReport(code: string, token: string, opts: { log: boo
           place: [x.district, x.province].filter(Boolean).join(", "),
           // To a donor, people appear by role (lib/evidence); the audit pack and the audit log keep the names.
           accepted: x.reviewedAt ? { by: ROLE_FOR.accepted, on: x.reviewedAt.slice(0, 10) } : null,
-          photos: x.files.filter((f) => f.type.startsWith("image/") && x.captions?.[f.hash]).map((f) => ({ hash: f.hash, caption: x.captions![f.hash] })),
+          photos: x.files.filter((f) => f.type.startsWith("image/") && x.captions?.[f.hash] && photoOk(f.hash).ok).map((f) => ({ hash: f.hash, caption: x.captions![f.hash] })),
           documents: [...x.files.filter((f) => !(f.type.startsWith("image/") && x.captions?.[f.hash])).map((f) => f.name), ...(x.links ?? []).map((l) => l.title)],
         })),
     })),
     sections,
-    photos: d.photos.map((p) => ({ hash: p.hash, caption: p.caption, activity: p.activity })),
+    photos: d.photos.filter((p) => photoOk(p.hash).ok).map((p) => ({ hash: p.hash, caption: p.caption, activity: p.activity })),
   };
 }
 export type SharedReport = Exclude<Awaited<ReturnType<typeof sharedReport>>, { error: string }>;
