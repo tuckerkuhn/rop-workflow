@@ -4,6 +4,7 @@ import { EMPTY_LEARNING, type Learning } from "@/lib/learning";
 import { buildPeriodRows, periodRange, type Period, type PeriodIndicator } from "@/lib/period-report";
 import { activityOf, photosFor, SECTIONS, type Row } from "@/lib/qpr";
 import { projectByCode } from "@/server/field-store";
+import { donorPhotoRule } from "@/server/photo-consent";
 import { loadProjectState } from "@/server/project-state";
 import { rawQpr, spendFor } from "@/server/qpr-store";
 import { loadResults, loadUpdates } from "@/server/results-store";
@@ -59,7 +60,8 @@ export async function periodReport(code: string, p: Period) {
   const lastQ = quarters.at(-1);
   const spend = lastQ ? await spendFor(code, lastQ, lines) : null;
   const pseudoRows = indicators.map((i) => ({ code: i.code, activity: activityOf(i.donorCode, i.code) })) as unknown as Row[];
-  const photos = quarters.flatMap((q) => photosFor(pseudoRows, results, updates, q));
+  const photoOk = await donorPhotoRule(project.id);
+  const photos = quarters.flatMap((q) => photosFor(pseudoRows, results, updates, q)).filter((ph) => photoOk(ph.hash).ok);
   const lessons = learning.lessons.filter((l) => l.date >= from && l.date <= to).sort((a, b) => a.date.localeCompare(b.date));
   const open = results.filter((r) => r.status !== "accepted" && r.date >= from && r.date <= to).length;
   return {
