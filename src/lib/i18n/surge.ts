@@ -132,3 +132,76 @@ export const hbPs: Partial<Record<keyof typeof hbEn, string>> = {
   "home.b.today": "نن",
   "home.b.late": "{n} ورځې ناوخته",
 };
+
+/** Progress: one row per target (C3). */
+export const prEn = {
+  "prog.title": "Targets in {year}",
+  "prog.target": "Target",
+  "prog.result": "Result so far",
+  "prog.w.on_track": "On track",
+  "prog.w.behind": "Behind",
+  "prog.w.no_data": "No data",
+  "prog.d.met": "target met",
+  "prog.d.notDue": "not due yet",
+  "prog.d.dueNow": "due this quarter",
+  "prog.d.notPlanned": "not in this year's workplan",
+  "prog.d.delayed": "delayed",
+  "prog.d.notDone": "not done",
+  "prog.last": "Last accepted result: {date}",
+  "prog.noLast": "No accepted result yet",
+  "prog.open": "Tap a row to see the records and proof behind it.",
+};
+
+export const prEs: Partial<Record<keyof typeof prEn, string>> = {
+  "prog.title": "Metas en {year}",
+  "prog.target": "Meta",
+  "prog.result": "Resultado hasta ahora",
+  "prog.w.on_track": "En marcha",
+  "prog.w.behind": "Atrasada",
+  "prog.w.no_data": "Sin datos",
+  "prog.d.met": "meta cumplida",
+  "prog.d.notDue": "todavía no toca",
+  "prog.d.dueNow": "toca este trimestre",
+  "prog.d.notPlanned": "no está en el plan de trabajo de este año",
+  "prog.d.delayed": "con retraso",
+  "prog.d.notDone": "no se hizo",
+  "prog.last": "Último resultado aceptado: {date}",
+  "prog.noLast": "Todavía no hay un resultado aceptado",
+  "prog.open": "Toca una fila para ver los registros y las pruebas.",
+};
+
+export const prFa: Partial<Record<keyof typeof prEn, string>> = {
+  "prog.title": "هدف‌ها در {year}",
+  "prog.target": "هدف",
+  "prog.result": "نتیجه تا حالا",
+  "prog.w.on_track": "در مسیر",
+  "prog.w.behind": "عقب‌مانده",
+  "prog.w.no_data": "بدون داده",
+  "prog.d.met": "هدف پوره شده",
+  "prog.d.notDue": "هنوز وقتش نرسیده",
+  "prog.d.dueNow": "وقتش همین ربع است",
+  "prog.d.notPlanned": "در پلان کاری امسال نیست",
+  "prog.d.delayed": "با تأخیر",
+  "prog.d.notDone": "انجام نشده",
+  "prog.last": "آخرین نتیجهٔ پذیرفته‌شده: {date}",
+  "prog.noLast": "هنوز نتیجهٔ پذیرفته‌شده‌ای نیست",
+  "prog.open": "روی یک ردیف بزنید تا ثبت‌ها و مدرک‌های آن را ببینید.",
+};
+
+export const prPs: Partial<Record<keyof typeof prEn, string>> = {
+  "prog.title": "په {year} کې هدفونه",
+  "prog.target": "هدف",
+  "prog.result": "تر اوسه پایله",
+  "prog.w.on_track": "په لاره",
+  "prog.w.behind": "وروسته پاتې",
+  "prog.w.no_data": "معلومات نشته",
+  "prog.d.met": "هدف پوره شوی",
+  "prog.d.notDue": "لا یې وخت نه دی رارسېدلی",
+  "prog.d.dueNow": "وخت یې همدا ربع دی",
+  "prog.d.notPlanned": "د سږ کال په کاري پلان کې نشته",
+  "prog.d.delayed": "ځنډېدلی",
+  "prog.d.notDone": "نه دی ترسره شوی",
+  "prog.last": "وروستۍ منل شوې پایله: {date}",
+  "prog.noLast": "لا منل شوې پایله نشته",
+  "prog.open": "په یوه کرښه کېکاږئ چې ثبتونه او ثبوتونه یې وګورئ.",
+};

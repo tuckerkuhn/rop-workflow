@@ -128,6 +128,18 @@ Plan, in place of "wait for my go": keep the family panel and the single next st
 - Under "More", the old list's place now holds only "Off plan" for leads.
 - Rows built by `waitingRows` (`src/lib/home-buckets.ts`), with tests. New text in four languages (my drafts for es, fa, ps). The action sentences from the server are still English, as before; they move in C4.
 
+## 00:45 Phase 5, C3. Progress: one row per target (branch `feature/progress-rows`)
+
+Plan: change the existing table's row only (`indicator-table.tsx`); keep its data source.
+
+- Each row, in this order: name, target for the year, result so far, a status word with a mark (**On track**, **Behind**, **No data**; never colour alone) and a short second word (target met, delayed, not due yet, due this quarter, not in this year's workplan), then the date of the last accepted result.
+- Tapping anywhere on the row opens the proof panel from A2 (before, only the number did, and the name went to Results).
+- On a phone the parts stack; nothing scrolls sideways.
+- The status is still the workplan judgment the reports use (`suggestStatus`), put into three words by `targetStatus` (`src/lib/target-status.ts`), with tests. A target with nothing accepted yet is "No data" even when results are waiting for MEL.
+- "Target for the period" is the year's target, the period this table already covered.
+- The cards that donor accounts and demo projects see were not changed: they judge "on track" against time gone in the year, the second meaning the audit found. Question in the morning report.
+- New text in four languages (my drafts for es, fa, ps).
+
 ## Decisions
 
 Each is reversible. Listed as they are made.

@@ -72,6 +72,7 @@ export function ProofNumber({
   records,
   proof,
   className = "font-semibold tabular-nums",
+  plain = false,
   children,
 }: {
   project: string;
@@ -86,6 +87,8 @@ export function ProofNumber({
   /** Files and links behind it, when known: zero shows "No proof yet". */
   proof?: number;
   className?: string;
+  /** A whole row as the thing to tap: no link styling is added to it. */
+  plain?: boolean;
   children?: React.ReactNode;
 }) {
   const { t, date } = useT();
@@ -112,7 +115,7 @@ export function ProofNumber({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className={`${className} text-forest underline decoration-dotted underline-offset-4 hover:decoration-solid`}
+        className={plain ? className : `${className} text-forest underline decoration-dotted underline-offset-4 hover:decoration-solid`}
         title={t("ev.show", { n: fmt(value) })}
       >
         {shown}
