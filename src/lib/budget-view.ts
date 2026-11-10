@@ -56,6 +56,13 @@ const monthEnd = (m: string) => new Date(Date.UTC(Number(m.slice(0, 4)), Number(
 /** Thresholds: a forecast or spend this far above approved, or pace this far from time, is flagged. */
 export const LIMITS = { overPct: 0.5, revisionPct: 10, behindPts: 25, aheadPts: 25 } as const;
 
+/**
+ * The one rule for "spent above what was approved": more than the approved amount plus the
+ * tolerance (LIMITS.overPct, for rounding and exchange differences). The budget page, Home, the
+ * quarterly report's checks and pre-flight all call it, so a line is overspent everywhere or nowhere.
+ */
+export const spentOver = (spent: number, approved: number) => spent - approved > (approved * LIMITS.overPct) / 100;
+
 export function budgetView(args: { lines: BudgetLineIn[]; imported: ImportLineIn[]; months: string[]; currency: string; start: string | null; end: string | null; results: ResultIn[] }): BudgetView {
   const { lines, imported, months, currency, start, end, results } = args;
   const last = months.at(-1) ?? null;
@@ -73,7 +80,7 @@ export function budgetView(args: { lines: BudgetLineIn[]; imported: ImportLineIn
       .reduce((t, [, v]) => t + Number(v), 0);
     const forecast = spent + remainingPlanned;
     const flags: Flag[] = [];
-    if (approved !== null && spent > approved * (1 + LIMITS.overPct / 100))
+    if (approved !== null && spentOver(spent, approved))
       flags.push({ level: "stop", text: `Spent ${fmt(spent)} of ${fmt(approved)} approved (${pct(spent, approved)}%): explain the overspend or the approved realignment.` });
     else if (approved !== null && forecast > approved * (1 + LIMITS.revisionPct / 100))
       flags.push({ level: "check", text: `Forecast ${fmt(forecast)} is ${pct(forecast - approved, approved)}% above the ${fmt(approved)} approved: check the donor has agreed the revision.` });

@@ -1,3 +1,4 @@
+import { spentOver } from "@/lib/budget-view";
 import { z } from "zod";
 import { proofCount, quarterRange, totalsOf, type ResultRecord, type UpdateRecord } from "@/lib/results";
 
@@ -101,7 +102,7 @@ export function mergeQuestions(list: string[]): string[] {
 /** Budget lines spent above their budget to the quarter's end, with the explanation saved for each. */
 export const overspentLines = (spend: Spend, saved: Qpr) =>
   Object.entries(spend.byLine)
-    .filter(([, l]) => l.budget > 0 && l.actual > l.budget + 1)
+    .filter(([, l]) => l.budget > 0 && spentOver(l.actual, l.budget))
     .map(([code, l]) => ({ code, budget: l.budget, actual: l.actual, pct: Math.round((l.actual / l.budget) * 100), explanation: saved.overspend?.[code]?.text ?? "" }));
 
 /** Starts a quarter from the one before: the info box, risks and slow-changing sections, marked for review. */
@@ -359,8 +360,7 @@ export function checksFor(rows: Row[], results: ResultRecord[], quarter: string,
   const qs = quarterSpendOf(saved, spend);
   if (qs !== null && qs > spend.cumulative) out.push({ level: "stop", text: "This quarter's spending is more than cumulative spending." });
   if (qs === null) out.push({ level: "check", text: "This quarter's spending is not entered: import Finance's budget-against-actual workbook, or type it in (Project information)." });
-  const over = Object.entries(spend.byLine).filter(([, l]) => l.budget > 0 && l.actual > l.budget + 1);
-  for (const [code, l] of over.filter(([c]) => (saved.overspend?.[c]?.text.length ?? 0) < 10)) out.push({ level: "check", text: `Budget line ${code} has spent ${n(l.actual)} of ${n(l.budget)} ${spend.currency} (${Math.round((l.actual / l.budget) * 100)}%): explain the overspend or the budget revision under Project information.` });
+  for (const { code, ...l } of overspentLines(spend, saved).filter((x) => x.explanation.length < 10)) out.push({ level: "check", text: `Budget line ${code} has spent ${n(l.actual)} of ${n(l.budget)} ${spend.currency} (${Math.round((l.actual / l.budget) * 100)}%): explain the overspend or the budget revision under Project information.` });
   if (spend.source.kind === "import" && spend.missingMonths.length) out.push({ level: "stop", text: `The spending import does not include ${spend.missingMonths.join(", ")}: import the latest workbook from Finance.` });
   if (saved.quarterSpend !== null && spend.quarter !== null && Math.abs(saved.quarterSpend - spend.quarter) > 1) out.push({ level: "check", text: `This quarter's spending is typed in as ${n(saved.quarterSpend)}, but the import says ${n(spend.quarter)}.` });
   for (const s of SECTIONS) if (s.key !== "story" && !saved.sections[s.key]?.text.trim()) out.push({ level: "check", text: `${s.heading} is empty.` });
