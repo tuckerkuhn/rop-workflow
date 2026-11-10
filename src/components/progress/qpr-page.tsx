@@ -475,6 +475,7 @@ function InfoBox({ v, act, onImported }: { v: QprView; act: Act; onImported: () 
           {v.saved.quarterSpend !== null && v.spend.quarter !== null && <dd className="text-xs text-ochre">Typed in; the import says {num(v.spend.quarter)}</dd>}
         </div>
       </dl>
+      <p className="mt-2 text-xs text-muted">{t("rp.totals.onReport")}</p>
       <p className="mt-2 text-xs text-muted">
         {v.spend.source.kind === "import" ? (
           <>

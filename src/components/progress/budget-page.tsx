@@ -28,6 +28,7 @@ export function BudgetPage() {
   const [v, setV] = useState<View | null>(null);
   const [error, setError] = useState("");
   const [open, setOpen] = useState<string | null>(null);
+  const { t } = useT();
 
   const userId = user?.id;
   const load = useCallback(() => {
@@ -77,6 +78,8 @@ export function BudgetPage() {
             <p className="mt-1 max-w-3xl text-sm text-muted">
               {project.name}, {monthLabel(v.period.from)} to {monthLabel(v.period.to)}, in {v.currency} before overhead, from {v.imported?.file}. Approved is Finance&rsquo;s budget; forecast is spent so far plus the revised plan for the quarters left.
             </p>
+
+            <p className="mt-1 max-w-3xl text-sm text-muted">{t("rp.totals.onBudget")}</p>
 
             <dl className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
               {[
