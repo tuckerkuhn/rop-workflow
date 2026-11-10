@@ -37,6 +37,9 @@ export async function loadBudget(code: string): Promise<Budget> {
  */
 export async function saveBudget(code: string, budget: Budget) {
   const project = await projectByCode(code);
+  // Once Finance's spending has been imported, that import is the one source of "spent to date":
+  // a "spent" column in a re-uploaded budget file is not allowed to put older figures back.
+  const [imported] = await db.select({ id: s.projectState.id }).from(s.projectState).where(and(eq(s.projectState.projectId, project.id), eq(s.projectState.key, "actuals"))).limit(1);
   await db.transaction(async (tx) => {
     const codes = budget.lines.map((l) => l.code);
     const gone = await tx
@@ -67,10 +70,11 @@ export async function saveBudget(code: string, budget: Budget) {
         procure: l.procure,
         sort: i,
       };
+      const { spent, ...rest } = values;
       await tx
         .insert(s.budgetLines)
-        .values({ projectId: project.id, code: l.code, ...values })
-        .onConflictDoUpdate({ target: [s.budgetLines.projectId, s.budgetLines.code], set: { ...values, updatedAt: new Date() } });
+        .values({ projectId: project.id, code: l.code, ...rest, spent: imported ? null : spent })
+        .onConflictDoUpdate({ target: [s.budgetLines.projectId, s.budgetLines.code], set: { ...rest, ...(imported ? {} : { spent }), updatedAt: new Date() } });
     }
   });
 }

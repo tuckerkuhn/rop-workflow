@@ -13,7 +13,7 @@ import { withoutNames } from "@/lib/personal-text";
 import { personName } from "@/lib/project";
 import { quarterRange, type ResultRecord } from "@/lib/results";
 import { loadActuals } from "@/server/actuals-store";
-import { projectByCode } from "@/server/field-store";
+import { projectByCode, donorNameOf } from "@/server/field-store";
 import { donorPhotoRule } from "@/server/photo-consent";
 import { periodReport } from "@/server/period-report-store";
 import { projectRules } from "@/server/policy-store";
@@ -288,7 +288,7 @@ export async function packIndex(
     : [];
 
   return {
-    project: { code: p.code, name: p.name, donor: p.donor },
+    project: { code: p.code, name: p.name, donor: await donorNameOf(p) },
     report,
     label,
     kind,

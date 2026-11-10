@@ -6,7 +6,7 @@ import { activityOf, breakdownsFor, buildRows, carryForward, checksFor, DEFAULT_
 import { quarterRange } from "@/lib/results";
 import { loadActuals } from "@/server/actuals-store";
 import { donorPhotoRule } from "@/server/photo-consent";
-import { projectByCode } from "@/server/field-store";
+import { projectByCode, donorNameOf, goalOf } from "@/server/field-store";
 import { loadResults, loadUpdates } from "@/server/results-store";
 import { MAX_PRACTICE, workTime, type CopyData, type ReportCopy, type WorkTime } from "@/lib/report-copy";
 import { auditTrail } from "@/server/audit";
@@ -148,7 +148,7 @@ export async function qprData(code: string, quarter: string) {
   const captioned = photosFor(table, results, updates, quarter);
   const photos = captioned.filter((ph) => photoOk(ph.hash).ok);
   return {
-    project: { code, name: project.name, goal: project.goal, donor: project.donor, start: project.startDate, end: project.endDate },
+    project: { code, name: project.name, goal: await goalOf(project), donor: await donorNameOf(project), start: project.startDate, end: project.endDate },
     quarter,
     saved,
     rows: table,

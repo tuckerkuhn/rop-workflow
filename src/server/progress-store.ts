@@ -36,6 +36,7 @@ type Mapped = Awaited<ReturnType<typeof mappedInputs>> extends Map<string, infer
 
 const base = (r: IndicatorRow) => ({
   code: r.code,
+  donorCode: r.donorCode ?? null,
   name: r.name,
   unit: r.unit,
   target: Number(r.target),
