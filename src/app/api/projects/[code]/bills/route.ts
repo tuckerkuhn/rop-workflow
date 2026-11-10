@@ -11,6 +11,9 @@ import { loadBills, saveBills } from "@/server/bills-store";
 import { handle } from "@/server/guard";
 import { hrBook, loadHr } from "@/server/hr-store";
 import { projectRules } from "@/server/policy-store";
+import { logAudit } from "@/server/audit";
+import { projectByCode } from "@/server/field-store";
+import { selfApproval, soloFor, type SoloState } from "@/server/solo";
 
 type Ctx = { params: Promise<{ code: string }> };
 
@@ -33,6 +36,10 @@ async function rolesOf(u: AppUser) {
 
 const today = () => new Date().toISOString().slice(0, 10);
 
+/** Solo mode never covers a large bill: above the large threshold a second person approves. */
+const largeAbove = (rules: Record<string, unknown>) => (typeof rules.largeAboveUsd === "number" ? rules.largeAboveUsd : 25000);
+const mayApproveOwn = (solo: SoloState, b: Bill, rules: Record<string, unknown>) => solo.on && !solo.blocked && b.usd <= largeAbove(rules);
+
 async function view(code: string, u: AppUser) {
   const book = await loadBills(code);
   const roles = await rolesOf(u);
@@ -40,12 +47,13 @@ async function view(code: string, u: AppUser) {
     .then((r) => r.values)
     .catch(() => ({}) as Record<string, unknown>);
   const micro = typeof rules.microMaxUsd === "number" ? rules.microMaxUsd : 500;
+  const solo = await soloFor(code).catch((): SoloState => ({ on: false, blocked: null }));
   const projects = await db.select({ code: s.projects.code, name: s.projects.name }).from(s.projects);
   return {
     me: u.id,
     ...roles,
     sources: [{ id: NON_CONTRACT, label: "General and admin (non-contract)" }, ...projects.filter((p) => p.code).map((p) => ({ id: p.code!, label: p.name }))],
-    items: [...book.items].reverse().map((b) => ({ ...b, flags: billFlags(b, book.items, micro), canApprove: roles.approve && b.status === "waiting" && b.raised.by !== u.id, canVoucher: roles.voucher && b.status === "approved" })),
+    items: [...book.items].reverse().map((b) => ({ ...b, flags: billFlags(b, book.items, micro), canApprove: roles.approve && b.status === "waiting" && b.raised.by !== u.id, canSelfApprove: roles.approve && b.status === "waiting" && b.raised.by === u.id && mayApproveOwn(solo, b, rules), canVoucher: roles.voucher && b.status === "approved" })),
   };
 }
 export type BillsView = Awaited<ReturnType<typeof view>>;
@@ -103,9 +111,19 @@ export async function POST(req: Request, { params }: Ctx) {
     const roles = await rolesOf(u);
     if (a.action === "approve" || a.action === "return") {
       if (!roles.approve) return fail("Programme management approves bills.");
-      if (b.raised.by === u.id) return fail("You recorded this bill, so someone else approves it.");
+      // Solo mode (server/solo.ts): a small team's approver may approve a bill they recorded, confirming it, up to the large threshold.
+      let self: { selfApproved: true; soloNote?: string } | null = null;
+      if (b.raised.by === u.id) {
+        const refusal = "You recorded this bill, so someone else approves it.";
+        if (a.action !== "approve") return fail(refusal);
+        const rules = (await projectRules(code)).values;
+        if (b.usd > largeAbove(rules)) return fail(`${refusal} Above $${largeAbove(rules).toLocaleString("en-US")}, a second person always approves.`);
+        const ok = selfApproval(await soloFor(code), a.self, refusal);
+        if (!ok.ok) return fail(ok.why);
+        self = ok.detail;
+      }
       if (b.status !== "waiting") return fail("This bill is not waiting for approval.", 409);
-      if (a.action === "approve") Object.assign(b, { status: "approved", approval: sign, timeline: [...b.timeline, { date: sign.at, who: u.name, what: "Approved for payment" }] });
+      if (a.action === "approve") Object.assign(b, { status: "approved", approval: { ...sign, ...(self ?? {}) }, timeline: [...b.timeline, { date: sign.at, who: u.name, what: self ? "Approved for payment by the person who recorded it (solo mode)" : "Approved for payment" }] });
       else Object.assign(b, { status: "returned", returned: { ...sign, note: a.note }, timeline: [...b.timeline, { date: sign.at, who: u.name, what: `Sent back: ${a.note}` }] });
     } else {
       if (!roles.voucher) return fail("Finance prepares the voucher.");
@@ -119,6 +137,10 @@ export async function POST(req: Request, { params }: Ctx) {
       });
     }
     await saveBills(code, book);
+    if (a.action === "approve" || a.action === "return") {
+      const project = await projectByCode(code);
+      await logAudit(db, project.id, { entity: "bill", entityId: b.id, action: a.action === "approve" ? "bill_approved" : "bill_returned", by: u.id, detail: { bill: b.id, usd: b.usd, recordedBy: b.raised.by, ...(a.action === "approve" && b.approval?.selfApproved ? { selfApproved: true, ...(b.approval.soloNote ? { soloNote: b.approval.soloNote } : {}) } : {}) } });
+    }
     return NextResponse.json(await view(code, u));
   });
 }

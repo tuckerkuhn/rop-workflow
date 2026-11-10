@@ -19,6 +19,7 @@ import { periodReport } from "@/server/period-report-store";
 import { projectRules } from "@/server/policy-store";
 import { loadCopies, qprData } from "@/server/qpr-store";
 import { loadResults } from "@/server/results-store";
+import { selfAcceptedResults, selfApprovedIn } from "@/server/solo";
 
 /**
  * The proof behind reported figures (lib/evidence): the accepted results behind a figure, the
@@ -193,6 +194,7 @@ export async function packIndex(
         const x = toProof(r, units.get(r.indicator) ?? "");
         return {
           ...x,
+          selfApproved: false,
           note: kind === "donor" ? withoutNames(x.note) : x.note,
           recordedBy:
             kind === "donor" ? ROLE_FOR.recorded : personName(x.recordedBy),
@@ -207,6 +209,9 @@ export async function packIndex(
 
   // The audit log for the period: what happened to these results, and to the report.
   const ids = [...new Set(entries.flatMap((e) => e.results.map((r) => r.id)))];
+  // Solo mode (server/solo.ts): results their recorder accepted themselves are marked in both packs.
+  const selfAccepted = await selfAcceptedResults(p.id, ids);
+  for (const e of entries) for (const r of e.results) Object.assign(r, { selfApproved: selfAccepted.has(r.id) });
   const until = asOf ? new Date(asOf) : new Date();
   const log = await db
     .select({
@@ -247,6 +252,7 @@ export async function packIndex(
       const by = (l.detail as { by?: string } | null)?.by ?? "";
       return {
         at: l.at.toISOString(),
+        self: (l.detail as { selfApproved?: boolean } | null)?.selfApproved === true,
         what: l.action.replace(/_/g, " "),
         record:
           l.entity === "result" || l.entity === "evidence" ? l.entityId : "",
@@ -292,6 +298,8 @@ export async function packIndex(
     audit,
     money,
     moneyHeld: !withMoney && a.imports.length > 0,
+    /** Sign-offs in the period approved by the person who prepared them (solo mode). */
+    selfApproved: await selfApprovedIn(code, from, to),
   };
 }
 export type PackIndex = Awaited<ReturnType<typeof packIndex>>;

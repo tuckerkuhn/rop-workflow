@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser, useSession } from "@/components/app/session";
+import { useT } from "@/components/app/i18n";
+import { SelfConfirmSheet } from "@/components/app/self-confirm";
 import { openReceipt, shrink } from "@/components/people/expense-page";
 import { Pill, SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { BILL_CATEGORIES, BILL_CATEGORY_KEYS, type BillAction, type BillCategory } from "@/lib/bills";
@@ -117,6 +119,8 @@ type Item = BillsView["items"][number];
 
 function BillCard({ b, v, act }: { b: Item; v: BillsView; act: (a: BillAction, msg: string) => Promise<void> }) {
   const { user } = useSession();
+  const { t } = useT();
+  const [selfing, setSelfing] = useState(false);
   const [back, setBack] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [voucher, setVoucher] = useState({ number: b.voucher?.number ?? "", month: b.voucher?.month ?? b.invoiceDate.slice(0, 7), sharepointUrl: b.voucher?.sharepointUrl ?? "", netsuiteRef: b.voucher?.netsuiteRef ?? "" });
@@ -157,7 +161,22 @@ function BillCard({ b, v, act }: { b: Item; v: BillsView; act: (a: BillAction, m
           ))}
         </ul>
       )}
-      {b.status === "waiting" && !b.canApprove && b.raised.by === v.me && <p className="mt-2 text-sm text-muted">Waiting for programme management; you recorded it, so someone else approves it.</p>}
+      {b.status === "waiting" && !b.canApprove && !b.canSelfApprove && b.raised.by === v.me && <p className="mt-2 text-sm text-muted">Waiting for programme management; you recorded it, so someone else approves it.</p>}
+      {b.canSelfApprove && (
+        <div className="mt-3">
+          <button type="button" disabled={busy} className={`${primaryBtn} min-h-12`} onClick={() => setSelfing(true)}>
+            Approve for payment
+          </button>
+          {selfing && (
+            <SelfConfirmSheet
+              what={`${b.id} · ${b.payee} · ${money(b.amount, b.currency)}`}
+              onCancel={() => setSelfing(false)}
+              onConfirm={(self) => run(() => act({ action: "approve", id: b.id, self }, `Approved ${b.id}, marked self-approved.`)).finally(() => setSelfing(false))}
+            />
+          )}
+        </div>
+      )}
+      {b.approval?.selfApproved && <p className="mt-2 text-xs font-semibold text-ochre">{t("so.self")}{b.approval.soloNote ? `: ${b.approval.soloNote}` : ""}</p>}
       {b.canApprove &&
         (back === null ? (
           <div className="mt-3 flex gap-2">

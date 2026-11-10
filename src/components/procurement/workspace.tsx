@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { useT } from "@/components/app/i18n";
+import { SelfConfirmSheet, useSolo } from "@/components/app/self-confirm";
 import { useDonors, usePlan, useProcurements } from "@/components/app/use-project-data";
 import type { BudgetLine as ProjectBudgetLine, WorkplanItem } from "@/lib/budget";
 import { METHOD, toUsd, type PlanItem } from "@/lib/procurement-plan";
@@ -69,6 +70,8 @@ import {
   receivedQty,
   isSharePointUrl,
   type DocLink,
+  requesterOf,
+  soloBarred,
 } from "@/lib/procurement";
 import { holdersOfType } from "@/lib/authority";
 import { ROLE_LABEL } from "@/lib/hr";
@@ -453,6 +456,9 @@ function Detail({
   const [raising, setRaising] = useState<string | null>(null);
   const [returning, setReturning] = useState(false);
   const [returnNote, setReturnNote] = useState("");
+  const { project: current } = useCurrentProject();
+  const solo = useSolo(current.saved ? current.id : null, user?.id);
+  const [selfing, setSelfing] = useState(false);
   const [viewing, setViewing] = useState<{ doc: string; confirm: boolean; paid?: PaymentRecord } | null>(null);
   const step = stepById[p.step];
   const owner = ownerOf(p);
@@ -462,6 +468,10 @@ function Detail({
   const mine = !!role && owner === role && maySign(user, p, role) && !checkedBySelf;
   // A step this person's role covers but whose signature needs another role type (a large award, a sole source).
   const needsOther = !!role && owner === role && !mine && !checkedBySelf ? typeFor(p, role) : null;
+  // The requester approving their own purchase: only in solo mode, confirmed, and never a large award, sole source or exception.
+  const ownApproval = mine && owner === "approver" && !!user && requesterOf(p) === user.name;
+  const ownBarred = ownApproval ? soloBarred(p) : null;
+  const mayOwn = ownApproval && solo && !ownBarred;
   const value = valueOf(p);
   const line = lineOf(p);
   const isReady = ready(p);
@@ -474,10 +484,10 @@ function Detail({
 
   const log = (q: Procurement, what: string): Procurement => ({ ...q, timeline: [...q.timeline, { date: today(), who: role ?? "procurement", what }] });
 
-  const complete = () =>
+  const complete = (self?: { note: string }) =>
     update((q) => {
       const s = stepById[q.step];
-      return log(completeStep(q, { name: user?.name ?? roleLabel(s.owner), date: today() }), s.signs ? `${s.done} · signed ${s.signs.doc.toLowerCase()}` : s.done);
+      return log(completeStep(q, { name: user?.name ?? roleLabel(s.owner), date: today(), ...(self ? { self } : {}) }), s.signs ? `${s.done} · signed ${s.signs.doc.toLowerCase()}${self ? " (self-approved, solo mode)" : ""}` : s.done);
     });
 
   return (
@@ -542,9 +552,23 @@ function Detail({
                     <p className="text-sm font-medium text-clay">{blocks.length === 1 ? "An open issue is" : `${blocks.length} open issues are`} holding this step.</p>
                   )}
                   <div className="flex flex-wrap items-center gap-2">
-                    <button type="button" disabled={!isReady} onClick={complete} className={primaryBtn}>
-                      {step.signs ? `Sign and ${lowerFirst(step.action)}` : step.action} →
-                    </button>
+                    {ownApproval && !mayOwn ? (
+                      <p className="text-sm text-ochre">The person who requested a purchase cannot approve it, so someone else signs here.{ownBarred && solo ? ` ${ownBarred}` : ""}</p>
+                    ) : (
+                      <button type="button" disabled={!isReady} onClick={() => (mayOwn ? setSelfing(true) : complete())} className={primaryBtn}>
+                        {step.signs ? `Sign and ${lowerFirst(step.action)}` : step.action} →
+                      </button>
+                    )}
+                    {selfing && (
+                      <SelfConfirmSheet
+                        what={`${p.id} · ${step.title}`}
+                        onCancel={() => setSelfing(false)}
+                        onConfirm={(self) => {
+                          complete({ note: self.note });
+                          setSelfing(false);
+                        }}
+                      />
+                    )}
                     {step.canReturn && !returning && (
                       <button type="button" onClick={() => setReturning(true)} className="rounded-full border border-line px-4 py-3 text-sm font-medium hover:border-clay hover:text-clay">
                         Return with comments

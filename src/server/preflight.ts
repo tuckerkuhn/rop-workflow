@@ -10,6 +10,7 @@ import { projectRules } from "@/server/policy-store";
 import { qprData } from "@/server/qpr-store";
 import { loadResults } from "@/server/results-store";
 import { loadWeekly } from "@/server/weekly-store";
+import { selfApprovedIn } from "@/server/solo";
 import { listWorkItems } from "@/server/work-store";
 
 /**
@@ -78,6 +79,7 @@ async function qpr(c: Ctx, quarter: string): Promise<Omit<Preflight, "items" | "
   const qn = Number(quarter.slice(-1));
   const due = d.rows.filter((r) => (r.planned ? r.planned.includes(qn) : r.yearTarget > 0 && r.year === 0 && r.records.open === 0));
   noResult(c, due, d.results, from, to, quarter);
+  await soloCount(c, from, to);
 
   if (!d.saved.released) {
     const keys = [...SECTIONS.filter((s) => s.key !== "story").map((s) => ({ key: s.key as string, heading: s.heading as string })), ...d.activities.map((a) => ({ key: `act.${a.code}`, heading: `Activity ${a.code}` }))];
@@ -127,6 +129,11 @@ async function qpr(c: Ctx, quarter: string): Promise<Omit<Preflight, "items" | "
     href: `/progress/report?${q}`,
   };
 }
+async function soloCount(c: Ctx, from: string, to: string) {
+  const k = await selfApprovedIn(c.code, from, to);
+  if (k) add(c, { group: "fix", owner: "lead", text: `${n(k, "sign-off", "sign-offs")} in the period ${k === 1 ? "was" : "were"} approved by the person who prepared ${k === 1 ? "it" : "them"} (solo mode): worth a second look before release`, key: "so.pf", vars: { n: k }, href: "/progress/audit" });
+}
+
 async function annual(c: Ctx, year: number): Promise<Omit<Preflight, "items" | "ready">> {
   const v = await periodReport(c.code, { kind: "annual", year });
   const { from, to } = v.range;
@@ -145,6 +152,7 @@ async function annual(c: Ctx, year: number): Promise<Omit<Preflight, "items" | "
   if (noProof) add(c, { group: "fix", owner: "mel", text: `${n(noProof, "accepted result", "accepted results")} this year with no proof attached`, key: "pf.c.noProofYear", vars: { n: noProof }, href: "/progress/results" });
   else if (inY.length) ok(c, "pf.ok.proof");
   noResult(c, v.rows.filter((r) => r.target > 0), results, from, to, null);
+  await soloCount(c, from, to);
   await unmatchedSpend(c);
   await signOff(c);
   return {

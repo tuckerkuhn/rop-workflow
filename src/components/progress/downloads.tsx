@@ -59,6 +59,7 @@ async function buildPack(
       "Recorded by",
       "Accepted by",
       "Accepted on",
+      "Self-approved (solo mode)",
       "Proof",
       "In this pack",
       "Caption or link",
@@ -80,6 +81,7 @@ async function buildPack(
         r.recordedBy,
         r.acceptedBy ?? "",
         (r.acceptedAt ?? "").slice(0, 10),
+        r.selfApproved ? "Yes" : "",
       ];
       if (!r.files.length && !r.links.length && !r.kobo)
         rows.push([
@@ -133,12 +135,13 @@ async function buildPack(
   zip.file(
     "audit-log.csv",
     csv([
-      ["When (UTC)", "What", "Result", "By"],
+      ["When (UTC)", "What", "Result", "By", "Self-approved (solo mode)"],
       ...idx.audit.map((a) => [
         a.at.slice(0, 16).replace("T", " "),
         a.what,
         a.record.slice(0, 8),
         a.by,
+        a.self ? "Yes" : "",
       ]),
     ]),
   );
@@ -174,6 +177,9 @@ async function buildPack(
       : idx.moneyHeld
         ? "Finance's budget against actual is held by Roots of Peace and available on request."
         : "",
+    idx.selfApproved
+      ? `${idx.selfApproved} ${idx.selfApproved === 1 ? "sign-off" : "sign-offs"} in the period ${idx.selfApproved === 1 ? "was" : "were"} approved by the person who prepared ${idx.selfApproved === 1 ? "it" : "them"} (solo mode, allowed for a small team where one person holds several roles). Results among them are marked in index.csv and audit-log.csv; the project's audit trail lists every one.`
+      : "",
     "",
     idx.released
       ? `The report was released on ${idx.released.slice(0, 10)}: this pack holds what was accepted by then.`

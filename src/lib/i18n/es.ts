@@ -3,6 +3,7 @@ import { tsEs } from "./hr/timesheet";
 import { actEs } from "./activities";
 import { pfEs } from "./preflight";
 import { rqEs } from "./review-queue";
+import { soEs } from "./solo";
 import { ksEs } from "./kobo-suggest";
 import { agEs } from "./agreement";
 import { evEs } from "./evidence";
@@ -508,6 +509,7 @@ export const es: Messages = {
   ...actEs,
   ...pfEs,
   ...rqEs,
+  ...soEs,
   ...ksEs,
   ...agEs,
   ...evEs,

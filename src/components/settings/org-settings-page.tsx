@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useRequireUser, useSession } from "@/components/app/session";
+import { useT } from "@/components/app/i18n";
 import { GapPanel } from "@/components/settings/gap-panel";
 import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { layerable, show, type Area, type ParamDef, type Value } from "@/lib/policy";
@@ -126,6 +127,7 @@ export function OrgSettingsPage() {
 
         {v && (
           <>
+            <SoloPanel v={v} post={post} />
             <section className="mt-6">
               <SectionLabel>Requirement profiles</SectionLabel>
               <div className="mt-2 grid gap-3 sm:grid-cols-2">
@@ -389,4 +391,55 @@ function Editor({ d, value, onChange }: { d: ParamDef; value: Value; onChange: (
       />
     );
   return <input defaultValue={typeof value === "string" ? value : ""} onChange={(e) => onChange(e.target.value.trim() ? e.target.value : null)} className={`${field} w-full sm:w-[28rem]`} aria-label={d.label} />;
+}
+
+/** Solo mode for sign-offs (server/solo.ts): off by default; an administrator turns it on or off with a reason, and every change is kept. */
+function SoloPanel({ v, post }: { v: OrgSettingsView; post: (body: object, msg: string) => Promise<void> }) {
+  const { t, date } = useT();
+  const [why, setWhy] = useState("");
+  const [busy, setBusy] = useState(false);
+  const on = !!v.solo?.on;
+  const day = (d: string) => date(d, { day: "numeric", month: "short", year: "numeric" });
+  const turn = async () => {
+    setBusy(true);
+    try {
+      await post({ action: "solo", on: !on, reason: why }, on ? t("so.off") : t("so.on"));
+      setWhy("");
+    } catch {
+      /* shown above */
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="mt-6 rounded-2xl border border-line bg-surface p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="font-display text-xl">{t("so.title")}</h2>
+        <Pill tone={on ? "ochre" : "muted"}>{on ? t("so.on") : t("so.off")}</Pill>
+      </div>
+      <p className="mt-1 max-w-3xl text-sm text-muted">{t("so.help")}</p>
+      <p className="mt-1 max-w-3xl text-sm font-semibold">{t("so.never")}</p>
+      {v.solo && <p className="mt-2 text-xs text-muted">{t("so.since", { date: day(v.solo.at), who: v.solo.name, reason: v.solo.reason })}</p>}
+      {v.admin ? (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <input value={why} onChange={(e) => setWhy(e.target.value)} placeholder={t("so.reason")} aria-label={t("so.reason")} className={`${field} min-w-0 flex-1`} />
+          <button type="button" disabled={busy || why.trim().length < 5} onClick={() => void turn()} className={`${on ? quietBtn : primaryBtn} min-h-12`}>
+            {on ? t("so.turnOff") : t("so.turnOn")}
+          </button>
+        </div>
+      ) : (
+        <p className="mt-2 text-xs text-muted">{t("so.adminOnly")}</p>
+      )}
+      {v.soloHistory.length > 1 && (
+        <details className="mt-2 text-xs text-muted">
+          <summary className="cursor-pointer">{t("so.history")}</summary>
+          <ul className="mt-1 space-y-1">
+            {v.soloHistory.slice(1, 30).map((h, i) => (
+              <li key={i}>{t("so.changed", { date: day(h.at), state: h.on ? t("so.stateOn") : t("so.stateOff"), who: h.name, reason: h.reason })}</li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </section>
+  );
 }

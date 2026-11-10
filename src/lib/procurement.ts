@@ -193,7 +193,8 @@ export type Issue = {
 
 export type TimelineEvent = { date: string; who: Role; what: string };
 
-export type Signature = { as: string; name: string; role: Role; date: string };
+/** `self`: solo mode, the person who requested the purchase approves it, having confirmed so (server/solo.ts). */
+export type Signature = { as: string; name: string; role: Role; date: string; self?: { note: string } };
 
 /** A quotation or bid as received: who, when, how much, the file, and how it was judged. */
 export type Bid = {
@@ -411,6 +412,20 @@ export function procRolesFor(u: { id: string; procurement: ProcRole[] } | null |
   if (holdsType(u.id, "management") || holdsType(u.id, "ceo")) out.add("approver");
   if (holdsType(u.id, "technical")) out.add("holder");
   return [...out];
+}
+
+/** The person who asked for the purchase. */
+export const requesterOf = (p: Procurement) => p.plan?.requestedBy ?? p.signatures["Purchase requisition"]?.find((s) => s.role === "holder")?.name ?? null;
+
+/**
+ * Why solo mode cannot cover this approval (server/solo.ts), or null when it can: an approval for
+ * the executive head (a large award or a sole source), or a policy exception or post-facto action
+ * on the record, always needs a second person.
+ */
+export function soloBarred(p: Procurement): string | null {
+  if (typeFor(p, "approver") === "ceo") return p.route === "sole" ? "A sole source always needs a second person to approve it." : `Above $${rule("largeAboveUsd", 25000).toLocaleString("en-US")}, a second person always approves.`;
+  if ((p.issues ?? []).some((i) => i.type === "Policy exception request" || i.type === "Post-facto action")) return "A policy exception or post-facto action always needs a second person to approve it.";
+  return null;
 }
 
 /** Whether this person may sign the step for this role on this procurement (an award may need the executive head). */
@@ -1399,10 +1414,10 @@ export function prevStep(p: Procurement): string {
  * Completes the step under way: signs its document, moves on, and when an instalment has just
  * been paid, files it away so the next one starts clean.
  */
-export function completeStep(p: Procurement, sig: { name: string; date: string }): Procurement {
+export function completeStep(p: Procurement, sig: { name: string; date: string; self?: { note: string } }): Procurement {
   const s = stepById[p.step];
   if (!s) return p;
-  const signatures = s.signs ? { ...p.signatures, [s.signs.doc]: [...(p.signatures[s.signs.doc] ?? []), { as: s.signs.as, name: sig.name, role: s.owner, date: sig.date }] } : p.signatures;
+  const signatures = s.signs ? { ...p.signatures, [s.signs.doc]: [...(p.signatures[s.signs.doc] ?? []), { as: s.signs.as, name: sig.name, role: s.owner, date: sig.date, ...(sig.self ? { self: sig.self } : {}) }] } : p.signatures;
   const signed = { ...p, signatures };
   const step = nextStep(signed);
   return s.id === "paid" ? { ...closeInstalment(signed), step } : { ...signed, step };

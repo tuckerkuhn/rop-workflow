@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { selfSchema } from "@/lib/solo";
 
 /**
  * The monthly project review: where results stand against targets and the workplan, where
@@ -48,6 +49,8 @@ export type Change = ChangeInput & {
   from: number | string[] | null;
   status: ChangeStatus;
   proposedBy: string;
+  /** Approved by the person who proposed it, in solo mode (server/solo.ts). */
+  selfApproved?: boolean;
   proposedAt: string;
   decidedBy?: string;
   decidedAt?: string;
@@ -78,6 +81,8 @@ export const reviewActionSchema = z.discriminatedUnion("action", [
     id: z.string().min(1),
     decision: z.enum(["approve", "reject"]),
     note: z.string().trim().max(1000).optional(),
+    /** Solo mode: the person who proposed it approves it, confirming that (server/solo.ts). */
+    self: selfSchema.optional(),
   }),
   z.object({ action: z.literal("withdraw"), id: z.string().min(1) }),
   /** AI drafts the summary and what needs attention from the month's figures. */

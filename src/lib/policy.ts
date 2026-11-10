@@ -80,6 +80,7 @@ export const PARAMS: ParamDef[] = [
   { key: "packFinancials", label: "The donor's evidence pack includes Finance's budget against actual, line by line and month by month", area: "Reporting", merge: "any", help: "For donors whose reporting requires full financials. Personnel lines show pay by position, and a position with one holder shows that person's pay: the audit pack always includes it, the donor pack only with this on." },
   { key: "reviewDays", label: "Internal review before a report is due, at least", area: "Reporting", unit: "days", merge: "max", help: "Days kept free before the donor's deadline for the internal check: the team aims for this earlier date." },
   { key: "retentionYears", label: "Keep records for", area: "Records", unit: "years", merge: "max", help: "" },
+  { key: "secondPersonRequired", label: "A second person approves every sign-off (no self-approval, even for a small team)", area: "Records", merge: "any", help: "For donors whose agreement requires two people on each approval. With it on, the organization's solo mode does not apply to this project: results, monthly review changes, bills and purchases each need someone other than the person who prepared them." },
   { key: "twoStepRequired", label: "Everyone signs in with a second step (an authenticator app code)", area: "Records", merge: "any", help: "Turn on only after the administrators have set up their own in Settings: until then it would lock them out. People who set one up use it either way." },
   { key: "twoStepSensitive", label: "People who see personal data sign in with a second step: administrators, HR roles and anyone who sees participants' names", area: "Records", merge: "any", help: "The data protection review's recommendation, before the income panel starts. Each of those people sets up an authenticator first; until they do, they are asked to at their next sign-in." },
 ];
@@ -136,6 +137,7 @@ export const ROP: Profile = {
     grantCapUsd: { value: 50000, source: "CBARD Grants Manual 2023, p8 (fixed-amount and simplified grants)" },
     grantCapCumulativeUsd: { value: 100000, source: "CBARD Grants Manual 2023, p8" },
     costSharePct: { value: 50, source: "CBARD Grants Manual 2023, p8 (25% for women-owned businesses)" },
+    secondPersonRequired: { value: false, source: "Not in the written policy: two people sign by default, and an administrator may allow solo sign-off for a small team (Settings → Organization). A donor rule turns it off for that donor's projects." },
     twoStepRequired: { value: false, source: "Not in the written policy: set by an administrator" },
     twoStepSensitive: { value: false, source: "Not in the written policy: recommended by the data protection review (November 2026)" },
     reviewDays: { value: 5, source: "ROP Workflow starting value (9 Nov 2026): time for the internal check before a donor deadline. Set ROP's own in Settings.", confidence: "to verify" },

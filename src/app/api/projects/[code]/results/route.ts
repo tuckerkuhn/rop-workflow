@@ -8,6 +8,7 @@ import { logAudit } from "@/server/audit";
 import { FROM_KOBO, koboFedCodes } from "@/server/kobo-fed";
 import { isMelOwner, requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
+import { selfApproval, soloFor } from "@/server/solo";
 import { projectByCode } from "@/server/field-store";
 import { addProof, addResult, addResults, addUpdate, correctResult, editUpdate, loadResults, loadUpdates, removeUpdate, reopenResult, reviewResult, updateById } from "@/server/results-store";
 import { activityOf } from "@/lib/qpr";
@@ -38,6 +39,7 @@ async function view(code: string, u: AppUser) {
   const results = await loadResults(code);
   const updates = await loadUpdates(code);
   const mel = isMelOwner(u);
+  const solo = mel ? await soloFor(code).catch(() => ({ on: false, blocked: null })) : { on: false, blocked: null };
   const names = new Map<string, string>();
   for (const l of await db.selectDistinct({ c: s.budgetLines.activityCode, n: s.budgetLines.activity }).from(s.budgetLines).where(eq(s.budgetLines.projectId, project.id))) if (l.c && l.n && !names.has(l.c)) names.set(l.c, l.n);
   const activities = [...new Set(indicators.map((i) => activityOf(i.donorCode, i.code)))].map((c) => ({ code: c, name: names.get(c) ?? `Activity ${c}` }));
@@ -47,7 +49,7 @@ async function view(code: string, u: AppUser) {
     mayReview: mel,
     indicators: indicators.map((i) => ({ ...i, target: Number(i.target), fromKobo: kobo.has(i.code) })),
     // The data checker's flags, for MEL before accepting (and for the recorder to fix first).
-    results: results.map((r) => ({ ...r, canReview: mel && r.status === "pending" && r.by !== u.id, canReopen: mel && r.status === "accepted" && r.by !== u.id, checks: dataChecks(r, results, indicators.find((i) => i.code === r.indicator)) })),
+    results: results.map((r) => ({ ...r, canReview: mel && r.status === "pending" && r.by !== u.id, canSelfAccept: mel && solo.on && !solo.blocked && r.status === "pending" && r.by === u.id, canReopen: mel && r.status === "accepted" && r.by !== u.id, checks: dataChecks(r, results, indicators.find((i) => i.code === r.indicator)) })),
     activities,
     updates,
     mayUpdate: mayRecord(u) || mel,
@@ -190,9 +192,17 @@ export async function POST(req: Request, { params }: Ctx) {
       if (!isMelOwner(u)) return NextResponse.json({ error: "Only the MEL owner can accept or query results." }, { status: 403 });
       const r = (await loadResults(code)).find((x) => x.id === a.id);
       if (!r) return NextResponse.json({ error: "No such result." }, { status: 404 });
-      if (r.by === u.id) return NextResponse.json({ error: "You recorded this result, so someone else must check it." }, { status: 403 });
+      // Solo mode (server/solo.ts): a small team's MEL may accept their own result, confirming it; never query it.
+      let self: Record<string, unknown> | undefined;
+      if (r.by === u.id) {
+        const refusal = "You recorded this result, so someone else must check it.";
+        if (a.action !== "accept") return NextResponse.json({ error: refusal }, { status: 403 });
+        const ok = selfApproval(await soloFor(code), a.self, refusal);
+        if (!ok.ok) return NextResponse.json({ error: ok.why }, { status: 403 });
+        self = ok.detail;
+      }
       if (r.status !== "pending") return NextResponse.json({ error: "This result has already been checked." }, { status: 409 });
-      const done = await reviewResult(code, a.id, a.action === "accept" ? "accepted" : "queried", u.id, a.action === "query" ? a.note : null);
+      const done = await reviewResult(code, a.id, a.action === "accept" ? "accepted" : "queried", u.id, a.action === "query" ? a.note : null, self);
       if (!done) return NextResponse.json({ error: "Someone else has just decided this result. Reload to see it." }, { status: 409 });
     }
     return NextResponse.json(await view(code, u));

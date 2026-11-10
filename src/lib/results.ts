@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { selfSchema } from "@/lib/solo";
 import { receiptSchema, type Receipt } from "@/lib/expense";
 
 /**
@@ -147,7 +148,8 @@ export const resultActionSchema = z.discriminatedUnion("action", [
   /** Changes or removes an activity update, until the week it is dated in has been sent. */
   z.object({ action: z.literal("update-edit"), id: z.string().uuid(), update: updateSchema }),
   z.object({ action: z.literal("update-remove"), id: z.string().uuid() }),
-  z.object({ action: z.literal("accept"), id: z.string().uuid() }),
+  /** `self`: solo mode, the MEL owner accepts a result they recorded, confirming that (server/solo.ts). */
+  z.object({ action: z.literal("accept"), id: z.string().uuid(), self: selfSchema.optional() }),
   /** MEL accepts many at once: only those waiting, not their own, and with nothing flagged by the data checker. */
   z.object({ action: z.literal("accept-many"), ids: z.array(z.string().uuid()).min(1).max(300) }),
   /** Adds proof to a recorded result, at any stage: it never changes the figure. */

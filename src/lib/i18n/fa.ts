@@ -3,6 +3,7 @@ import { tsFa } from "./hr/timesheet";
 import { actFa } from "./activities";
 import { pfFa } from "./preflight";
 import { rqFa } from "./review-queue";
+import { soFa } from "./solo";
 import { ksFa } from "./kobo-suggest";
 import { agFa } from "./agreement";
 import { evFa } from "./evidence";
@@ -483,6 +484,7 @@ export const fa: Messages = {
   ...actFa,
   ...pfFa,
   ...rqFa,
+  ...soFa,
   ...ksFa,
   ...agFa,
   ...evFa,
