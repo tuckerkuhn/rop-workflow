@@ -93,7 +93,13 @@ export function BudgetPage() {
               </p>
             )}
 
-            <div className="mt-5 overflow-x-auto rounded-2xl border border-line bg-surface">
+            {/* Below a wide screen: one block per activity, stacked, so nothing scrolls sideways on a phone. */}
+            <div className="mt-5 divide-y divide-line rounded-2xl border border-line bg-surface lg:hidden">
+              {v.activities.map((a) => (
+                <ActivityCard key={a.code} a={a} open={open === a.code} onToggle={() => setOpen(open === a.code ? null : a.code)} />
+              ))}
+            </div>
+            <div className="mt-5 hidden overflow-x-auto rounded-2xl border border-line bg-surface lg:block">
               <table className="w-full min-w-[720px] text-sm">
                 <thead className="text-xs uppercase tracking-[0.12em] text-muted">
                   <tr>
@@ -160,21 +166,80 @@ function ActivityRows({ a, open, onToggle }: { a: ActivityView; open: boolean; o
   );
 }
 
+/** What a line is, what it pays for and what to check on it: the same words in the table and the stacked view. */
+function LineText({ l }: { l: LineView }) {
+  return (
+    <>
+      <span className="font-mono text-xs text-muted">{l.code}</span> <span className="text-sm">{l.description}</span>
+      {l.results.map((r) => (
+        <span key={r.indicator} className="mt-1 block text-xs text-muted">
+          Pays for {r.donorCode}: {r.achieved.toLocaleString("en-US")} of {r.target.toLocaleString("en-US")} {r.unit} this phase
+        </span>
+      ))}
+      {l.flags.map((f) => (
+        <span key={f.text} className={`mt-1 block text-xs ${f.level === "stop" ? "font-semibold text-clay" : "text-ochre"}`}>
+          {f.text}
+        </span>
+      ))}
+    </>
+  );
+}
+
+/** Approved, spent and forecast as three labelled figures, for the stacked view. */
+function Figures({ x, warn }: { x: { approved: number | null; spent: number | null; spentPct: number | null; forecast: number | null; forecastPct: number | null }; warn?: boolean }) {
+  const head = "text-[11px] uppercase tracking-wide text-muted";
+  return (
+    <dl className="mt-2 grid grid-cols-3 gap-2 text-sm tabular-nums">
+      <div>
+        <dt className={head}>Approved</dt>
+        <dd>{money(x.approved)}</dd>
+      </div>
+      <div>
+        <dt className={head}>Spent</dt>
+        <dd>{money(x.spent)}</dd>
+        <dd className="text-xs text-muted">{pctText(x.spentPct)}</dd>
+      </div>
+      <div>
+        <dt className={head}>Forecast</dt>
+        <dd>{money(x.forecast)}</dd>
+        <dd className={`text-xs ${warn ? "font-semibold text-clay" : "text-muted"}`}>{pctText(x.forecastPct)}</dd>
+      </div>
+    </dl>
+  );
+}
+
+function ActivityCard({ a, open, onToggle }: { a: ActivityView; open: boolean; onToggle: () => void }) {
+  return (
+    <div className="px-4 py-3">
+      <button type="button" aria-expanded={open} className="flex w-full items-start gap-2 text-start text-sm font-semibold" onClick={onToggle}>
+        <span aria-hidden className="inline-block w-3 text-muted">
+          {open ? "▾" : "▸"}
+        </span>
+        <span className="flex-1">
+          {a.code} {a.name}
+        </span>
+        {a.flags > 0 && <Pill tone="ochre">{a.flags}</Pill>}
+      </button>
+      <Figures x={a} warn={a.forecastPct !== null && a.forecastPct > 100 + LIMITS.revisionPct} />
+      {open && (
+        <div className="mt-3 space-y-3 border-s-2 border-line ps-3">
+          {a.lines.map((l) => (
+            <div key={l.code}>
+              <LineText l={l} />
+              <Figures x={l} />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function LineRow({ l }: { l: LineView }) {
   return (
     <tr className="bg-paper align-top">
       <td className="px-4 py-2 ps-10">
-        <span className="font-mono text-xs text-muted">{l.code}</span> <span className="text-sm">{l.description}</span>
-        {l.results.map((r) => (
-          <span key={r.indicator} className="mt-1 block text-xs text-muted">
-            Pays for {r.donorCode}: {r.achieved.toLocaleString("en-US")} of {r.target.toLocaleString("en-US")} {r.unit} this phase
-          </span>
-        ))}
-        {l.flags.map((f) => (
-          <span key={f.text} className={`mt-1 block text-xs ${f.level === "stop" ? "font-semibold text-clay" : "text-ochre"}`}>
-            {f.text}
-          </span>
-        ))}
+        <LineText l={l} />
       </td>
       <td className="px-3 py-2 text-end tabular-nums">{money(l.approved)}</td>
       <td className="px-3 py-2 text-end tabular-nums">{money(l.spent)}</td>
