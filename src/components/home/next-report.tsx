@@ -58,9 +58,14 @@ export function NextReportPanel({ project, user, owners, data }: { project: stri
             {blocking ? `${blocking} ${blocking === 1 ? "thing blocks" : "things block"} it` : "nothing blocks it"} · {v.items.length - blocking} to do {shown ? "▴" : "▾"}
           </button>
         )}
-        <Link href={preflightHref({ kind: "qpr", quarter: v.quarter })} className="ms-auto text-sm font-semibold text-forest hover:underline">
-          Pre-flight →
-        </Link>
+        <span className="ms-auto flex flex-wrap gap-x-4 gap-y-1">
+          <Link href={`/progress/report?q=${v.quarter}`} className="text-sm font-semibold text-forest hover:underline">
+            {t("pf.openReport")} →
+          </Link>
+          <Link href={preflightHref({ kind: "qpr", quarter: v.quarter })} className="text-sm font-semibold text-forest hover:underline">
+            {t("pf.button")} →
+          </Link>
+        </span>
       </div>
       {v.released ? (
         <p className="mt-2 text-sm text-leaf">Released. Nothing stands in the way.</p>

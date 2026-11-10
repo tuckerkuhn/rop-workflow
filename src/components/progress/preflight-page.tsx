@@ -154,6 +154,14 @@ export function PreflightPage() {
               <p className="mt-5 rounded-xl bg-mist px-4 py-3 text-sm text-leaf">{t("pf.released")}</p>
             ) : (
               <>
+                {blocks.length === 0 && (
+                  <Link href={v.href} className="mt-5 flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl border border-forest/40 bg-mist px-4 py-3 text-sm font-semibold hover:border-forest">
+                    <span className="min-w-0 flex-1">{t("pf.clearNext")}</span>
+                    <span className="text-forest">
+                      {t("pf.openReport")} <span aria-hidden className="inline-block rtl:rotate-180">→</span>
+                    </span>
+                  </Link>
+                )}
                 <section className="mt-6">
                   <h2 className="flex items-center gap-2 font-display text-xl">
                     <span aria-hidden className={`inline-block h-2.5 w-2.5 rounded-full ${blocks.length ? "bg-clay" : "bg-leaf"}`} />

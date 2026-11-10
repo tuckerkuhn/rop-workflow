@@ -1,7 +1,7 @@
 import { tsEn } from "./hr/timesheet";
 import { actEn } from "./activities";
 import { pfEn } from "./preflight";
-import { hbEn, prEn, sgEn } from "./surge";
+import { hbEn, pmEn, prEn, sgEn } from "./surge";
 import { awEn } from "./ai-why";
 import { rqEn } from "./review-queue";
 import { soEn } from "./solo";
@@ -584,6 +584,7 @@ export const en = {
   ...sgEn,
   ...hbEn,
   ...prEn,
+  ...pmEn,
   ...awEn,
   ...rqEn,
   ...soEn,

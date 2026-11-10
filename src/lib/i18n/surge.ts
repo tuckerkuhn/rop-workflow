@@ -205,3 +205,60 @@ export const prPs: Partial<Record<keyof typeof prEn, string>> = {
   "prog.noLast": "لا منل شوې پایله نشته",
   "prog.open": "په یوه کرښه کېکاږئ چې ثبتونه او ثبوتونه یې وګورئ.",
 };
+
+/** Project manager's path and the short Home for field staff who only use KoboCollect (C2). */
+export const pmEn = {
+  "pf.clearNext": "Nothing blocks this report. Open it, read it through, then mark it final.",
+  "home.kobo.title": "Your data comes in through KoboCollect",
+  "home.kobo.body": "Keep filling in the forms on your phone as you do now. You do not need to enter anything here. What is sent shows below after the next sync, and MEL then checks it.",
+  "home.kobo.recent": "Latest submissions received for this project",
+  "home.kobo.notYours": "The app cannot yet tell which submissions are yours, so this list is the whole project's.",
+  "home.kobo.none": "No submissions have arrived yet. If you have sent some, they show here after the next sync.",
+  "home.kobo.synced": "Last synced {date}",
+  "home.kobo.neverSynced": "Not synced yet",
+  "home.kobo.pending": "Waiting for MEL",
+  "home.kobo.accepted": "Counted",
+  "home.kobo.queried": "MEL has a question",
+};
+
+export const pmEs: Partial<Record<keyof typeof pmEn, string>> = {
+  "pf.clearNext": "Nada bloquea este informe. Ábrelo, léelo completo y márcalo como final.",
+  "home.kobo.title": "Tus datos llegan por KoboCollect",
+  "home.kobo.body": "Sigue llenando los formularios en tu teléfono como hasta ahora. No tienes que escribir nada aquí. Lo enviado aparece abajo después de la próxima sincronización, y luego lo revisa MEL.",
+  "home.kobo.recent": "Últimos envíos recibidos para este proyecto",
+  "home.kobo.notYours": "La aplicación todavía no puede saber cuáles envíos son tuyos, así que esta lista es de todo el proyecto.",
+  "home.kobo.none": "Todavía no ha llegado ningún envío. Si ya enviaste alguno, aparecerá aquí después de la próxima sincronización.",
+  "home.kobo.synced": "Última sincronización: {date}",
+  "home.kobo.neverSynced": "Todavía sin sincronizar",
+  "home.kobo.pending": "Esperando a MEL",
+  "home.kobo.accepted": "Contado",
+  "home.kobo.queried": "MEL tiene una pregunta",
+};
+
+export const pmFa: Partial<Record<keyof typeof pmEn, string>> = {
+  "pf.clearNext": "چیزی جلوی این گزارش را نمی‌گیرد. آن را باز کنید، کامل بخوانید و سپس نهایی کنید.",
+  "home.kobo.title": "داده‌های شما از راه KoboCollect می‌آید",
+  "home.kobo.body": "مثل همیشه فورمه‌ها را در تلفون خود پر کنید. لازم نیست اینجا چیزی وارد کنید. آنچه فرستاده می‌شود پس از همگام‌سازی بعدی در پایین دیده می‌شود و سپس MEL آن را بررسی می‌کند.",
+  "home.kobo.recent": "آخرین فورمه‌های رسیده برای این پروژه",
+  "home.kobo.notYours": "برنامه هنوز نمی‌تواند بداند کدام فورمه‌ها از شماست، پس این فهرست از تمام پروژه است.",
+  "home.kobo.none": "هنوز فورمه‌ای نرسیده است. اگر فرستاده‌اید، پس از همگام‌سازی بعدی اینجا دیده می‌شود.",
+  "home.kobo.synced": "آخرین همگام‌سازی: {date}",
+  "home.kobo.neverSynced": "هنوز همگام نشده",
+  "home.kobo.pending": "منتظر MEL",
+  "home.kobo.accepted": "شمرده شد",
+  "home.kobo.queried": "MEL پرسشی دارد",
+};
+
+export const pmPs: Partial<Record<keyof typeof pmEn, string>> = {
+  "pf.clearNext": "هېڅ شی دا راپور نه دروي. خلاص یې کړئ، ټول یې ولولئ او بیا یې وروستی کړئ.",
+  "home.kobo.title": "ستاسو معلومات د KoboCollect له لارې راځي",
+  "home.kobo.body": "لکه د تل په څېر په خپل تلیفون کې فورمې ډکې کړئ. دلته د څه داخلولو اړتیا نشته. څه چې لېږل کېږي له راتلونکي همغږۍ وروسته لاندې ښکاري او بیا یې MEL ګوري.",
+  "home.kobo.recent": "د دې پروژې لپاره وروستۍ رارسېدلې فورمې",
+  "home.kobo.notYours": "اپلیکیشن لا نه شي پوهېدلی چې کومې فورمې ستاسو دي، نو دا لېست د ټولې پروژې دی.",
+  "home.kobo.none": "لا هېڅ فورمه نه ده رارسېدلې. که مو لېږلې وي، له راتلونکي همغږۍ وروسته به دلته ښکاره شي.",
+  "home.kobo.synced": "وروستۍ همغږي: {date}",
+  "home.kobo.neverSynced": "لا نه ده همغږې شوې",
+  "home.kobo.pending": "د MEL په تمه",
+  "home.kobo.accepted": "وشمېرل شوه",
+  "home.kobo.queried": "MEL پوښتنه لري",
+};

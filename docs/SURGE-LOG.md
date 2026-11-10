@@ -140,6 +140,25 @@ Plan: change the existing table's row only (`indicator-table.tsx`); keep its dat
 - The cards that donor accounts and demo projects see were not changed: they judge "on track" against time gone in the year, the second meaning the audit found. Question in the morning report.
 - New text in four languages (my drafts for es, fa, ps).
 
+## 00:48 Phase 5, C2. Project manager first (branch `feature/pm-path`)
+
+The walk was done by reading the code, not on a phone: nobody was awake to hold one. Taps are counted from Home.
+
+| Step | Taps before | What was in the way | Now |
+|---|---|---|---|
+| Home | 0 | nothing | same |
+| Accept results | 2 (Approve row, then "Accept N") | needs the MEL role: a manager without it is refused. Fine in solo mode | same |
+| Check budget | 1 (budget tile) | nothing | same |
+| Write the next report | 2 to 3: Home only linked to pre-flight, and the Report tab opens the last quarter that ended, not the one under way | no direct link | **1: "Open the report" on Home's next-report panel, for the right quarter** |
+| Pre-flight | 1 | nothing | same |
+| Release | pre-flight, scroll to the bottom, Open the report, Mark final | when nothing blocked, the way on was the last thing on the page | **the next step is at the top of pre-flight when nothing blocks: 2 taps** |
+| Explain an overspent line | Home sends you to Budget, but the explanation is typed on the report's Project information | a second screen | **not fixed**: in the morning report |
+| Import Finance's spending | on the report page or Budget; needs the Finance role | a screen meant for Finance | not fixed: it is Finance's step by the authority table |
+
+- **Field staff who only use KoboCollect** now land on a short Home: it says their data comes in through KoboCollect and nothing needs entering here, lists anything MEL sent back, and shows the latest submissions received with each one's status. No tiles and no data entry. It applies when the person's only view is Delivery, the project is connected to KoboToolbox and no target takes results by hand.
+- **Not as specified:** the list is the project's latest submissions, not the person's own. The app does not keep who sent a Kobo submission (it is recorded as "kobo"), so it cannot tell. The screen says so. To show a person's own, the app needs each person's KoboToolbox username: question in the morning report.
+- New text in four languages (my drafts for es, fa, ps).
+
 ## Decisions
 
 Each is reversible. Listed as they are made.
