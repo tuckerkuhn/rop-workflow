@@ -86,31 +86,32 @@ async function qpr(c: Ctx, quarter: string): Promise<Omit<Preflight, "items" | "
   noResult(c, due, d.results, from, to, quarter);
   await soloCount(c, from, to);
 
+  // Each row lands on the place in the report where it is fixed (the page scrolls to the #part once loaded).
   if (!d.saved.released) {
     const keys = [...SECTIONS.filter((s) => s.key !== "story").map((s) => ({ key: s.key as string, heading: s.heading as string })), ...d.activities.map((a) => ({ key: `act.${a.code}`, heading: `Activity ${a.code}` }))];
     const empty = keys.filter((k) => !d.saved.sections[k.key]?.text.trim());
     const drafted = keys.filter((k) => d.saved.sections[k.key]?.drafted);
     const copied = keys.filter((k) => d.saved.sections[k.key]?.from);
-    if (empty.length) add(c, { group: "fix", owner: "writers", text: `${n(empty.length, "section", "sections")} not written yet (${empty.slice(0, 3).map((k) => k.heading).join(", ")}${empty.length > 3 ? "…" : ""})`, href: `/progress/report?${q}` });
+    if (empty.length) add(c, { group: "fix", owner: "writers", text: `${n(empty.length, "section", "sections")} not written yet (${empty.slice(0, 3).map((k) => k.heading).join(", ")}${empty.length > 3 ? "…" : ""})`, href: `/progress/report?${q}#sec-${empty[0].key}` });
     else ok(c, "pf.ok.written");
-    if (drafted.length) add(c, { group: "fix", owner: "writers", text: `${n(drafted.length, "AI draft", "AI drafts")} to read and correct`, href: `/progress/report?${q}` });
-    if (copied.length) add(c, { group: "fix", owner: "writers", text: `${n(copied.length, "section", "sections")} copied from last quarter, to review`, href: `/progress/report?${q}` });
+    if (drafted.length) add(c, { group: "fix", owner: "writers", text: `${n(drafted.length, "AI draft", "AI drafts")} to read and correct`, href: `/progress/report?${q}#sec-${drafted[0].key}` });
+    if (copied.length) add(c, { group: "fix", owner: "writers", text: `${n(copied.length, "section", "sections")} copied from last quarter, to review`, href: `/progress/report?${q}#sec-${copied[0].key}` });
     // The claim check (lib/qpr ClaimCheck): its findings are worth a look; people decide.
     const cc = d.saved.claimCheck;
     // Findings a person decided to keep as written are settled; the rest are still to look at.
     const openCc = openClaims(cc);
-    if (openCc.length) add(c, { group: "fix", owner: "writers", text: `The claim check questioned ${n(openCc.length, "sentence", "sentences")} against the evidence`, key: "pf.c.claims", vars: { n: openCc.length }, href: `/progress/report?${q}` });
+    if (openCc.length) add(c, { group: "fix", owner: "writers", text: `The claim check questioned ${n(openCc.length, "sentence", "sentences")} against the evidence`, key: "pf.c.claims", vars: { n: openCc.length }, href: `/progress/report?${q}#claims` });
     else if (cc) ok(c, "pf.ok.claims");
-    else if (!empty.length) add(c, { group: "fix", owner: "writers", text: "The text has not been checked against the evidence yet (claim check)", key: "pf.c.claimsNotRun", href: `/progress/report?${q}` });
+    else if (!empty.length) add(c, { group: "fix", owner: "writers", text: "The text has not been checked against the evidence yet (claim check)", key: "pf.c.claimsNotRun", href: `/progress/report?${q}#claims` });
   }
 
   if (d.spend.source.kind === "import" && d.spend.missingMonths.length) add(c, { group: "blocks", owner: "finance", text: `Spending not imported for ${d.spend.missingMonths.join(", ")}`, href: "/progress/budget" });
   else if (d.spend.source.kind === "import") ok(c, "pf.ok.spend");
   // The report prints the typed figure in place of Finance's: say so before it goes out.
   if (d.saved.quarterSpend !== null && d.spend.quarter !== null && Math.abs(d.saved.quarterSpend - d.spend.quarter) > 1)
-    add(c, { group: "fix", owner: "finance", text: `This quarter's spending is typed in as ${d.saved.quarterSpend.toLocaleString("en-US")}, but Finance's import says ${d.spend.quarter.toLocaleString("en-US")}: the report will print the typed figure`, key: "pf.c.typedSpend", vars: { typed: d.saved.quarterSpend.toLocaleString("en-US"), imported: d.spend.quarter.toLocaleString("en-US") }, href: `/progress/report?${q}` });
+    add(c, { group: "fix", owner: "finance", text: `This quarter's spending is typed in as ${d.saved.quarterSpend.toLocaleString("en-US")}, but Finance's import says ${d.spend.quarter.toLocaleString("en-US")}: the report will print the typed figure`, key: "pf.c.typedSpend", vars: { typed: d.saved.quarterSpend.toLocaleString("en-US"), imported: d.spend.quarter.toLocaleString("en-US") }, href: `/progress/report?${q}#info` });
   const unexplained = overspentLines(d.spend, d.saved).filter((l) => l.explanation.length < 10);
-  if (unexplained.length) add(c, { group: "fix", owner: "finance", text: `${n(unexplained.length, "budget line", "budget lines")} over budget without an explanation (${unexplained.map((l) => l.code).join(", ")})`, href: `/progress/report?${q}` });
+  if (unexplained.length) add(c, { group: "fix", owner: "finance", text: `${n(unexplained.length, "budget line", "budget lines")} over budget without an explanation (${unexplained.map((l) => l.code).join(", ")})`, href: `/progress/report?${q}#overspend` });
   await unmatchedSpend(c);
 
   // Every other stop the report's own checks raise, so nothing that blocks release is missed.
