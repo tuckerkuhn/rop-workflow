@@ -2,6 +2,7 @@ import type { Messages } from "./en";
 import { tsFa } from "./hr/timesheet";
 import { actFa } from "./activities";
 import { pfFa } from "./preflight";
+import { ksFa } from "./kobo-suggest";
 import { agFa } from "./agreement";
 import { evFa } from "./evidence";
 import { lvFa } from "./hr/leave";
@@ -480,6 +481,7 @@ export const fa: Messages = {
   ...lvFa,
   ...actFa,
   ...pfFa,
+  ...ksFa,
   ...agFa,
   ...evFa,
   ...expFa,

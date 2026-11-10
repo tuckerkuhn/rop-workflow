@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useT } from "@/components/app/i18n";
 import { useKobo, useProgress } from "@/components/app/use-project-data";
+import { useSession } from "@/components/app/session";
+import { mappingRisks, type Suggestion } from "@/lib/kobo-suggest";
 import { Question, field } from "@/components/setup/question";
 import { primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { FORM_PURPOSES, MAPPING_METHODS, guessPurpose, type FormPurpose, type KoboFormInfo, type KoboMapping, type KoboQuestion, type MappingMethod, type AutoSyncSecret, type SyncCounts } from "@/lib/kobo-setup";
@@ -203,6 +205,7 @@ type Draft = Record<string, KoboMapping | undefined>;
 
 export function KoboMap({ code, onDone }: { code: string; onDone: () => void }) {
   const { t } = useT();
+  const { user } = useSession();
   const kobo = useKobo(code);
   const progress = useProgress(code);
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -229,7 +232,50 @@ export function KoboMap({ code, onDone }: { code: string; onDone: () => void }) 
     }
   }, [draft, questions, loadQuestions]);
 
-  const set = (code: string, m: KoboMapping | undefined) => setDraft((d) => ({ ...d, [code]: m }));
+  // A mapping keeps where it came from: accepting a suggestion marks it suggested; changing one afterwards marks it changed.
+  const set = (code: string, m: KoboMapping | undefined) =>
+    setDraft((d) => {
+      const prev = d?.[code]?.origin;
+      const origin = !m ? undefined : m.origin === "suggested" && !prev?.startsWith("suggested") ? "suggested" : prev?.startsWith("suggested") && m.origin !== "suggested" ? "suggested-edited" : (m.origin ?? prev ?? "manual");
+      return { ...d, [code]: m && { ...m, origin } };
+    });
+  const accept = (s: Suggestion) => {
+    if (!s.mapping) return;
+    setDraft((d) => ({ ...d, [s.indicatorCode]: { ...s.mapping!, indicatorCode: s.indicatorCode, origin: "suggested" } }));
+  };
+  const [ai, setAi] = useState(false);
+  const [suggestions, setSuggestions] = useState<Suggestion[] | null>(null);
+  const [suggesting, setSuggesting] = useState(false);
+  useEffect(() => {
+    if (!user) return;
+    fetch(`/api/projects/${code}/kobo/suggest`, { headers: { "x-demo-user": user.id } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setAi(!!d?.ai))
+      .catch(() => undefined);
+  }, [code, user]);
+  const suggest = async () => {
+    if (!user) return;
+    setSuggesting(true);
+    setError("");
+    try {
+      const r = await fetch(`/api/projects/${code}/kobo/suggest`, { method: "POST", headers: { "x-demo-user": user.id } });
+      const d = (await r.json().catch(() => ({}))) as { suggestions?: Suggestion[]; questions?: Record<string, KoboQuestion[]>; error?: string };
+      if (!r.ok || !d.suggestions) throw new Error(d.error ?? "Could not suggest mappings.");
+      setSuggestions(d.suggestions);
+      setQuestions((q) => ({ ...(d.questions ?? {}), ...Object.fromEntries(Object.entries(q).filter(([, v]) => Array.isArray(v))) }));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSuggesting(false);
+    }
+  };
+  const loadedQuestions = Object.fromEntries(Object.entries(questions).filter((e): e is [string, KoboQuestion[]] => Array.isArray(e[1])));
+  const risks = mappingRisks(Object.values(draft ?? {}).filter((m): m is KoboMapping => !!m && !!m.question), loadedQuestions, indicators);
+  const isAccepted = (s: Suggestion) => {
+    const m = draft?.[s.indicatorCode];
+    return !!s.mapping && m?.origin === "suggested" && m.question === s.mapping.question && m.assetUid === s.mapping.assetUid;
+  };
+  const high = (suggestions ?? []).filter((s) => s.mapping && s.confidence === "high" && !isAccepted(s));
   const ready = Object.values(draft ?? {}).every((m) => !m || (m.question && (m.method !== "count_answer" || m.value)));
   const submit = async () => {
     setBusy(true);
@@ -254,6 +300,69 @@ export function KoboMap({ code, onDone }: { code: string; onDone: () => void }) 
 
   return (
     <Question title={t("kobo.q.map")} help={t("kobo.h.map")}>
+      {ai && (
+        <section className="mb-4 rounded-2xl border border-forest/30 bg-mist p-4 text-sm">
+          <p className="text-muted">{t("ks.help")}</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button type="button" className={quietBtn} disabled={suggesting} onClick={() => void suggest()}>
+              {suggesting ? t("ks.suggesting") : t("ks.suggest")}
+            </button>
+            {high.length > 0 && (
+              <button type="button" className={primaryBtn} onClick={() => high.forEach(accept)}>
+                {t("ks.acceptHigh", { n: high.length })}
+              </button>
+            )}
+          </div>
+          {suggestions && (
+            <ul className="mt-3 space-y-2">
+              {suggestions.map((s) => {
+                const ind = indicators.find((i) => i.code === s.indicatorCode);
+                const qs = s.mapping ? loadedQuestions[s.mapping.assetUid] : undefined;
+                const q = qs?.find((x) => x.path === s.mapping?.question);
+                const form = forms.find((f) => f.uid === s.mapping?.assetUid);
+                return (
+                  <li key={s.indicatorCode} className="rounded-xl border border-line bg-surface p-3">
+                    <p className="font-medium">{ind?.name ?? s.indicatorCode}</p>
+                    {s.mapping ? (
+                      <>
+                        <p className="mt-1">
+                          {form?.name} › {q?.label ?? s.mapping.question} · {t(METHOD_LABEL[s.mapping.method])}
+                          {s.mapping.value ? ` (${q?.choices.find((c) => c.name === s.mapping!.value)?.label ?? s.mapping.value})` : ""}
+                        </p>
+                        <p className="text-xs text-muted">{s.reason}</p>
+                        <div className="mt-2 flex items-center gap-2">
+                          <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${s.confidence === "high" ? "bg-mist text-leaf" : s.confidence === "medium" ? "bg-ochre-soft text-ochre" : "bg-clay-soft text-clay"}`}>{t(`ks.conf.${s.confidence}`)}</span>
+                          {isAccepted(s) ? (
+                            <span className="text-xs font-semibold text-leaf">✓ {t("ks.accepted")}</span>
+                          ) : (
+                            <button type="button" className={`${quietBtn} min-h-11`} onClick={() => accept(s)}>
+                              {t("ks.accept")}
+                            </button>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <p className="mt-1 text-muted">{t("ks.none", { reason: s.reason })}</p>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      )}
+      {risks.length > 0 && (
+        <div role="status" className="mb-4 rounded-2xl border border-ochre bg-ochre-soft p-4 text-sm">
+          <p className="font-semibold">⚠ {t("ks.risks")}</p>
+          <ul className="mt-1 list-disc ps-5">
+            {risks.map((r) => (
+              <li key={`${r.indicatorCode}${r.kind}`}>
+                <span className="font-medium">{indicators.find((i) => i.code === r.indicatorCode)?.name ?? r.indicatorCode}:</span> {r.text}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <ul className="space-y-3">
         {indicators.map((i) => {
           const m = draft?.[i.code];
@@ -267,6 +376,7 @@ export function KoboMap({ code, onDone }: { code: string; onDone: () => void }) 
               <p className="text-xs text-muted">
                 {i.code} · {i.target} {i.unit}
                 {builtIn && ` · ${t("kobo.builtIn")}`}
+                {m?.origin && m.origin !== "manual" && ` · ${t(`ks.origin.${m.origin}`)}`}
               </p>
               <label className="mt-3 block text-xs text-muted">
                 {t("kobo.form")}

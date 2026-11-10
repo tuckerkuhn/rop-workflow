@@ -28,7 +28,11 @@ export type KoboFormInfo = { uid: string; name: string; submissions?: number; de
 
 export type KoboQuestion = { path: string; label: string; type: string; choices: { name: string; label: string }[] };
 
-export type KoboMapping = { indicatorCode: string; assetUid: string; question: string; method: MappingMethod; value: string | null };
+/** Where a mapping came from: chosen by hand, an AI suggestion accepted as is, or a suggestion the person changed. */
+export const MAPPING_ORIGINS = ["manual", "suggested", "suggested-edited"] as const;
+export type MappingOrigin = (typeof MAPPING_ORIGINS)[number];
+
+export type KoboMapping = { indicatorCode: string; assetUid: string; question: string; method: MappingMethod; value: string | null; origin?: MappingOrigin };
 
 export type KoboState = { connection: KoboConnectionInfo | null; forms: KoboFormInfo[]; mappings: KoboMapping[] };
 
@@ -50,6 +54,7 @@ export const mappingsSchema = z.object({
         question: z.string().min(1).max(300),
         method: z.enum(MAPPING_METHODS),
         value: z.string().max(300).nullable(),
+        origin: z.enum(MAPPING_ORIGINS).default("manual"),
       }),
     )
     .max(200),

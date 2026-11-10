@@ -1,0 +1,1 @@
+ALTER TABLE "kobo_mappings" ADD COLUMN "origin" text DEFAULT 'manual' NOT NULL;
