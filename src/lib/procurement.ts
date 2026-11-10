@@ -47,11 +47,6 @@ export const roles: { id: Role; label: string; short: string }[] = [
 ];
 
 export const roleLabel = (r: Role) => roles.find((x) => x.id === r)!.label;
-/** "Karim Ahmadi (Approving authority)" for a role. */
-export const rolePerson = (r: Role) => {
-  const u = holderOf("procurement", r);
-  return u ? `${u.name} (${roleLabel(r)})` : roleLabel(r);
-};
 
 export type Level = "Micro" | "Small" | "Medium" | "Large";
 

@@ -1,5 +1,5 @@
 import { DONORS } from "@/lib/donors";
-import { PARAMS, compare, layerable, layered, paramByKey, type ParamDef, type Value } from "@/lib/policy";
+import { compare, layerable, layered, paramByKey, type ParamDef, type Value } from "@/lib/policy";
 
 /**
  * Requirement profiles: sets of standards an organization may need to meet (a funder family's
@@ -111,5 +111,3 @@ export function keepsToPolicy(def: ParamDef, value: Value, written: Value): bool
   const c = compare(def, value, written);
   return c === "stricter" || c === "same";
 }
-
-export const PARAM_KEYS = new Set(PARAMS.map((p) => p.key));
