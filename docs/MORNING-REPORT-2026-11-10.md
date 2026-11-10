@@ -14,6 +14,8 @@ Done after you asked for the fixes and improvements in chat. All on `surge/2026-
 - **Totals.** The report and Budget each say why their totals differ.
 - **Pre-flight.** It already was the one readiness page. Its rows now open the report at the part to fix.
 
+- **Plain words (C4).** The before and after list is written for you to mark up: `docs/PLAIN-WORDS-LIST.md`. No string was changed.
+
 Short of what I listed:
 
 - **Retyping.** Only the duration is filled from the project (its dates). Agreement number, director, locations and partner are stored nowhere else, so they are still typed. They are carried from quarter to quarter.
