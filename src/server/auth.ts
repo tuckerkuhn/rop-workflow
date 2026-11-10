@@ -27,6 +27,8 @@ export type Viewer = {
   /** Who is actually signed in. */
   actor: AppUser;
   actorStaffId: string | null;
+  /** The signed-in person's organization. Null only in demo mode, where there is one fictional organization. */
+  organizationId: string | null;
   viewingAs: boolean;
   /**
    * Live sign-in only: the second step still to do. "verify": the person has an authenticator app
@@ -109,23 +111,24 @@ export async function getViewer(req: Request): Promise<Viewer | null> {
 async function viewerAsStored(req: Request): Promise<Viewer | null> {
   if (demoMode()) {
     const u = userById(req.headers.get("x-demo-user") ?? "");
-    return u ? { user: u, actor: u, actorStaffId: null, viewingAs: false } : null;
+    return u ? { user: u, actor: u, actorStaffId: null, organizationId: null, viewingAs: false } : null;
   }
   const row = await signedInStaff();
   if (!row) return null;
   const actor = toAppUser(row);
   const twoStep = await twoStepState(row.organizationId, actor);
-  if (twoStep) return { user: actor, actor, actorStaffId: row.id, viewingAs: false, twoStep };
+  if (twoStep) return { user: actor, actor, actorStaffId: row.id, organizationId: row.organizationId, viewingAs: false, twoStep };
   const asId = (await cookies()).get(VIEW_AS_COOKIE)?.value;
   if (actor.admin && asId && asId !== actor.id) {
     const [target] = await db.select().from(s.staff).where(eq(s.staff.personId, asId)).limit(1);
-    if (target?.active) {
+    // Only someone in the administrator's own organization.
+    if (target?.active && target.organizationId === row.organizationId) {
       const viewed = toAppUser(target);
       // View as never unlocks names the signed-in person may not see.
-      return { user: { ...viewed, pii: viewed.pii && actor.pii }, actor, actorStaffId: row.id, viewingAs: true };
+      return { user: { ...viewed, pii: viewed.pii && actor.pii }, actor, actorStaffId: row.id, organizationId: row.organizationId, viewingAs: true };
     }
   }
-  return { user: actor, actor, actorStaffId: row.id, viewingAs: false };
+  return { user: actor, actor, actorStaffId: row.id, organizationId: row.organizationId, viewingAs: false };
 }
 
 /** Everyone the app can name: the database staff list in live mode, the fictional cast in demo mode. */
@@ -135,7 +138,7 @@ export async function people(): Promise<AppUser[]> {
   return rows.filter((r) => r.personId && r.profile).map(toAppUser);
 }
 
-const deny = (status: 401 | 403, error: string) => NextResponse.json({ error }, { status });
+const deny = (status: 401 | 403 | 404, error: string) => NextResponse.json({ error }, { status });
 
 /**
  * Signed-in check for a route. Pass `allow` to require a role; `write` refuses "View as"
@@ -155,7 +158,36 @@ export async function requireViewer(req: Request, opts: { write?: boolean; allow
   // Per-project access: a person listed on projects has their roles only there.
   const code = new URL(req.url).pathname.match(/^\/api\/projects\/([^/]+)/)?.[1];
   if (code && !onProject(v.user, decodeURIComponent(code))) return deny(403, "You do not work on this project. An administrator can add it to your projects in Settings, People.");
+  // The project must belong to the person's own organization. Another organization's project
+  // answers exactly as a project that does not exist, so its code cannot be confirmed by guessing.
+  if (code && v.organizationId) {
+    const org = await organizationOfProject(decodeURIComponent(code));
+    if (org && org !== v.organizationId) return deny(404, NO_PROJECT(decodeURIComponent(code)));
+  }
   return v;
+}
+
+/** What a person is told when a project code leads nowhere. */
+export const NO_PROJECT = (code: string) => `There is no project ${code} here. Check the address, or choose the project again from Home.`;
+
+/** A project's organization by its code. A project never changes organization, so the answer is kept. */
+const orgOfProject = new Map<string, string>();
+async function organizationOfProject(code: string): Promise<string | null> {
+  const known = orgOfProject.get(code);
+  if (known) return known;
+  const [p] = await db.select({ org: s.projects.organizationId }).from(s.projects).where(eq(s.projects.code, code)).limit(1);
+  if (p?.org) orgOfProject.set(code, p.org);
+  return p?.org ?? null;
+}
+
+/**
+ * The same organization check for routes that take the project from somewhere other than the
+ * path (a query or a body): true when this person may act on that project.
+ */
+export async function inOwnOrganization(v: Viewer, code: string): Promise<boolean> {
+  if (!v.organizationId) return true;
+  const org = await organizationOfProject(code);
+  return !org || org === v.organizationId;
 }
 
 export const isEmployee = (u: AppUser) => u.kind === "employee";

@@ -18,7 +18,28 @@ One entry per item. Times are Guatemala time.
   - **Photo consent.** A recognisable person with consent for "Donor reports" only is still held back from the donor report (`lib/photos.ts` `shareLimit` needs "comms" or "social"). Safe side, but the consent form offers a choice that does nothing. Question in the morning report.
   - **Name scrub.** A capitalised word just before a name is swallowed with it ("Visited Zarmal's" becomes "a farmer's"). Safe side; left alone.
 
+## 23:15 Phase 2. Audit (`docs/AUDIT-2026-11-09.md`)
+
+- Five tables plus dead code, duplicate helpers and stale docs, from six read-only passes. The short list of what breaks trust is at the top of the file.
+- Written while Phase 1 ran; nothing was changed until it was in.
+
+## 23:20 Phase 3a. Route gaps (branch `surge/route-guard`)
+
+One guard, extended (`src/server/guard.ts`): `handle` (failures become plain messages), `guard` (who, organization, project, role), `readBody` (Zod on input), `audit` (one row per change). No second guard was written.
+
+- **Bug fixed: approving or returning a bill.** The audit row used the bill number where the database needs an id, so the entry was refused after the approval was saved: the person saw an error and the trail had no row. `logAudit` now files numbered things (a bill, a purchase) under their project with the number in `detail.ref`. Test added (`audit-row.test.ts`). **Tucker: check the live audit log for missing `bill_approved` rows since B2 merged.**
+- **Organization check.** `requireViewer` now refuses a project of another organization, answering as if it did not exist. "View as" only reaches people in the administrator's own organization.
+- **Review queue.** `decide` only touches a record of the project in the address, and refuses hand-recorded results (they go through Results, where the checks and the "not your own" rule are). Input checked with Zod.
+- **Field records.** `PUT /field` checks its input (was an unchecked cast) and writes `field_saved`.
+- **Audit rows added:** `month_closed`, `policy_donor_chosen`, `policy_custom_donor_saved`, `policy_conflict_decided`, `policy_donor_rules_layered`, `kobo_connected`, `kobo_disconnected`, `kobo_forms_saved`, `kobo_auto_sync_on/off`, `kobo_farmer_list_sent`, `donor_added/changed/removed`, `work_item_added/done/reopened/notes_changed/deleted`, `procurement_plan_rebuilt`, `project_created`, `bill_recorded`, `bill_voucher_started/filed`, `view_as_stopped`.
+- **Smaller:** agreement rules must fit their rule's type; setup's document read only lands on the trail of a project the person works on; malformed JSON on procurements is a 400, not a 500; annual report year must be a whole number.
+- **Errors.** An unknown project is a 404 with what to do, not a 500 saying "Run npm run db:seed". An unexpected failure no longer shows a driver's message or SQL: it says it was recorded, that nothing typed is lost, and to try again.
+- **Left alone, in the morning report:** opportunities and payroll export (on the do-not-touch list) still have audit gaps; `GET /policy` is readable by donor accounts because two screens load it for everyone; staff, session and timesheet routes are not yet organization-scoped (one organization today); the bill book is still read-modify-write with no lock.
+
 ## Decisions
 
 Each is reversible. Listed as they are made.
 - Tests: vitest 4, not 5, so no existing dependency had to change.
+- Another organization's project answers 404, the same as a project that does not exist, so a code cannot be confirmed by guessing.
+- Audit rows for the new gaps are written by the route after the save, not inside the store's transaction. Simpler and safe to revert; a crash between the two would lose the row, not the change.
+- Hand-recorded results can no longer be decided through the review-queue route. The Results page was already the only screen that did it.

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { newWorkItemSchema } from "@/lib/work-items";
 import { isEmployee, requireViewer } from "@/server/auth";
-import { handle } from "@/server/guard";
+import { audit, handle } from "@/server/guard";
 import { createWorkItem, listWorkItems } from "@/server/work-store";
 
 /** Tasks and milestones on a project. Staff only; donors follow progress, not to-dos. */
@@ -21,6 +21,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
     if (v instanceof NextResponse) return v;
     const parsed = newWorkItemSchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid item." }, { status: 400 });
-    return NextResponse.json({ item: await createWorkItem(code, parsed.data, v.user.id) }, { status: 201 });
+    const item = await createWorkItem(code, parsed.data, v.user.id);
+    await audit(code, { entity: "work_item", entityId: item.id, action: "work_item_added", by: v.user.id, detail: { type: item.type, title: item.title, date: item.date } });
+    return NextResponse.json({ item }, { status: 201 });
   });
 }

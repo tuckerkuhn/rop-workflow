@@ -84,7 +84,8 @@ export async function deleteWorkItem(code: string, id: string) {
   if (!row) return "missing" as const;
   if (row.sourceKey && !row.sourceKey.startsWith("demo:")) return "automatic" as const;
   await db.delete(s.workItems).where(eq(s.workItems.id, row.id));
-  return "deleted" as const;
+  // What was deleted, for the audit trail.
+  return { title: row.title, type: row.type, date: row.date };
 }
 
 /** Fictional tasks and milestones for demo project A-2027, around the demo date 2027-03-04. Report deadlines come with the demo donors. */

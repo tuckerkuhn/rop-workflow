@@ -4,7 +4,7 @@ import { blockers, fromBill, fromProcurement, monthsOf, total } from "@/lib/clos
 import { loadBills } from "@/server/bills-store";
 import { requireViewer } from "@/server/auth";
 import { loadCloseouts, saveCloseouts } from "@/server/closeout-store";
-import { handle } from "@/server/guard";
+import { audit, handle } from "@/server/guard";
 import { holdsRole } from "@/server/hr-store";
 import { loadProcurements } from "@/server/procurement-store";
 import { today } from "@/lib/clock";
@@ -41,6 +41,7 @@ export async function POST(req: Request, { params }: Ctx) {
     if (open.length) return NextResponse.json({ error: `Not yet: ${open.join("; ")}.` }, { status: 409 });
     closeouts[month] = { by: v.user.id, name: v.user.name, at: today(), count: list.length, totalUsd: total(list) };
     await saveCloseouts(code, closeouts);
+    await audit(code, { entity: "closeout", entityId: crypto.randomUUID(), action: "month_closed", by: v.user.id, detail: { month, vouchers: list.length, totalUsd: total(list) } });
     return NextResponse.json({ months: closeouts });
   });
 }

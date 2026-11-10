@@ -2,6 +2,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { canSeePII, type AppUser } from "@/lib/demo";
 import { type FieldItem, type Stock } from "@/lib/field";
+import { HttpError } from "@/server/guard";
 
 /**
  * Field activities state in Postgres. Each farmer or MEL finding is one `field_items` row.
@@ -11,7 +12,7 @@ import { type FieldItem, type Stock } from "@/lib/field";
 
 export async function projectByCode(code: string) {
   const [p] = await db.select().from(s.projects).where(eq(s.projects.code, code)).limit(1);
-  if (!p) throw new Error(`Project ${code} is not in the database. Run npm run db:seed.`);
+  if (!p) throw new HttpError(404, `There is no project ${code} here. Check the address, or choose the project again from Home.`);
   return p;
 }
 

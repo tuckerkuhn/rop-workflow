@@ -4,6 +4,8 @@ import { type AppUser } from "@/lib/demo";
 import { addDays, fieldSteps, type Farmer } from "@/lib/field";
 import { toSubmission } from "@/server/kobo";
 import { today } from "@/lib/clock";
+import { projectByCode } from "@/server/field-store";
+import { HttpError } from "@/server/guard";
 
 /**
  * MEL decisions on the review queue. Accepting a Kobo readiness check is what records the
@@ -12,10 +14,15 @@ import { today } from "@/lib/clock";
 
 const later = (a: string, b: string) => (a > b ? a : b);
 
-export async function decide(evidenceId: string, status: "accepted" | "queried", user: AppUser, note?: string) {
+export async function decide(code: string, evidenceId: string, status: "accepted" | "queried", user: AppUser, note?: string) {
+  const project = await projectByCode(code);
   return db.transaction(async (tx) => {
-    const [row] = await tx.select().from(s.evidence).where(eq(s.evidence.id, evidenceId)).limit(1);
-    if (!row) throw new Error("That submission is not in the database.");
+    // Only a record of this project: an id from another project answers as if it did not exist.
+    const [row] = await tx.select().from(s.evidence).where(and(eq(s.evidence.id, evidenceId), eq(s.evidence.projectId, project.id))).limit(1);
+    if (!row) throw new HttpError(404, "That record is not in this project's review queue. Reload the queue.");
+    // Results and updates recorded by hand are decided on the Results page, where the data checks
+    // run and nobody accepts their own record unless solo mode allows it.
+    if (row.source === "manual") throw new HttpError(409, "This is a recorded result. Accept or query it on the Results page, where its checks are shown.");
     if (row.reviewStatus !== "pending") return { already: row.reviewStatus, applied: null as string | null };
 
     await tx

@@ -17,8 +17,20 @@ export const mayViewAudit = (u: AppUser) => u.kind === "employee" && (u.admin ||
 
 export type AuditEvent = { entity: string; entityId: string; action: string; by: string; detail?: Record<string, unknown> };
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * The row for an event. The log's entity id is a database id; things numbered for people (a bill
+ * "BL-004", a purchase "PR-2027-016") are filed under their project with the number kept in
+ * `detail.ref`, so an entry is never refused for the shape of its id.
+ */
+export function auditRow(projectId: string, e: AuditEvent) {
+  const known = UUID.test(e.entityId);
+  return { projectId, entity: e.entity, entityId: known ? e.entityId : projectId, action: e.action, detail: { by: e.by, ...(known ? {} : { ref: e.entityId }), ...(e.detail ?? {}) } };
+}
+
 export async function logAudit(exec: Exec, projectId: string, e: AuditEvent) {
-  await exec.insert(s.auditLog).values({ projectId, entity: e.entity, entityId: e.entityId, action: e.action, detail: { by: e.by, ...(e.detail ?? {}) } });
+  await exec.insert(s.auditLog).values(auditRow(projectId, e));
 }
 
 export type AuditRow = { at: string; seq: number | null; entity: string; entityId: string; action: string; by: string | null; detail: Record<string, unknown> };
