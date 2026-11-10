@@ -74,6 +74,12 @@ Each pair was pinned by a test first (`one-number.test.ts`), then one function k
 - **Left alone (HR, on the do-not-touch list), in the morning report:** a failed "send back" clears the typed note on expenses, leave and people; onboarding lets a contract be signed that never opened; payroll's ADP download fails silently; Leave is blank for someone with no HR record.
 - **Working-method slip, corrected:** I made two one-line changes in files over 600 lines (`lib/procurement.ts`, `progress/qpr-page.tsx`) before reading all of them. I have since read both in full; the changes stand. From here I read first.
 
+## 23:55 Phase 3e. Dead code (branch `surge/dead-code`)
+
+- Removed six exports nothing uses, each checked by a search and then by the type checker and lint: `methodNeeds` (`lib/kobo-suggest.ts`), `PARAM_KEYS` (`lib/presets.ts`), `rolePerson` (`lib/procurement.ts`), `READINESS_FORM_ID` and `seedAll` (`lib/project.ts`), `AI_ACTIONS` (`server/limits.ts`).
+- Left: `RUN_CODES` (payroll) and `isWorkday` (timesheets) are unused too but sit in the HR area, which is not to be touched.
+- Not done: the 17 copies of the `call` fetch helper, 10 of `addDays` and 7 date formatters (audit, section 6). They agree today; folding them is a wide mechanical change better done with someone watching.
+
 ## Decisions
 
 Each is reversible. Listed as they are made.

@@ -7,7 +7,7 @@
 import { ORG_ID, PROJECT, TODAY, userById, type Stage } from "@/lib/demo";
 import { ALL_AREA, VALIDATION_ITEMS, windowById, type Crop } from "@/lib/market-windows";
 import { seedField, type Farmer, type FieldItem } from "@/lib/field";
-import { DONE, budgetLines, seedProcurements, stepById, type Procurement } from "@/lib/procurement";
+import { DONE, budgetLines, stepById, type Procurement } from "@/lib/procurement";
 
 const addDays = (d: string, n: number) => new Date(Date.parse(d) + n * 86400000).toISOString().slice(0, 10);
 
@@ -351,8 +351,6 @@ export type ProjectState = {
   audit: AuditEvent[];
 };
 
-/** Readiness check as filled in on the Kobo form. */
-export const READINESS_FORM_ID = "rop_readiness_check";
 
 export function seedProject(): ProjectState {
   const submissions = seedSubmissions();
@@ -438,7 +436,3 @@ export function designGateMissing(state: ProjectState) {
 }
 
 export const personName = (id: string) => (id.startsWith("agent:") ? `${id.slice(6)} (AI)` : (userById(id)?.name ?? id));
-
-export function seedAll() {
-  return { field: seedField(), procs: seedProcurements(), project: seedProject() };
-}
