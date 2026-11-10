@@ -143,6 +143,9 @@ export function durationOf(typed: string | undefined, project: { start: string |
  * What a person's roles do not let them do on the way to a released report, so the page can say
  * it once at the top instead of refusing part-way. The flags come from the report's own route.
  */
+/** Who writes the quarterly report's text, here and wherever a part of it is typed (the reason for an overspent line on Budget). */
+export const mayWriteReport = (u: { kind: string; admin?: boolean; project: string[] }) => u.kind === "employee" && (!!u.admin || u.project.some((r) => ["mel-owner", "report-release", "plan-approver", "monthly-review"].includes(r)));
+
 export const REPORT_STEPS = ["edit", "accept", "import", "release"] as const;
 export type ReportStep = (typeof REPORT_STEPS)[number];
 export function cannotOnReport(may: { edit: boolean; accept: boolean; import: boolean; release: boolean }): ReportStep[] {

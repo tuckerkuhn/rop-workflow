@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useT } from "@/components/app/i18n";
 import { MoneySourceLink } from "@/components/progress/proof-panel";
 import { useCurrentProject } from "@/components/app/current-project";
@@ -31,7 +31,7 @@ export function BudgetPage() {
   const { t } = useT();
 
   const userId = user?.id;
-  const load = useCallback(() => {
+  const load = useCallback((quiet = false) => {
     if (!userId || !project.saved) return;
     fetch(`/api/projects/${project.id}/budget-view`, { cache: "no-store", headers: { "x-demo-user": userId } })
       .then(async (r) => {
@@ -39,7 +39,8 @@ export function BudgetPage() {
         if (!r.ok) throw new Error(d.error ?? "Could not load the budget.");
         setV(d);
       })
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
+      // A refresh after a save that fails leaves the page as it is; the save itself went through.
+      .catch((e) => !quiet && setError(e instanceof Error ? e.message : String(e)));
   }, [userId, project.id, project.saved]);
   useEffect(() => load(), [load]);
   /** Saves the reason a line is over budget into the quarterly report it belongs to. */
@@ -47,7 +48,7 @@ export function BudgetPage() {
     if (!v?.explain || !userId) return;
     const res = await fetch(`/api/projects/${project.id}/qpr?q=${v.explain.quarter}`, { method: "POST", headers: { "Content-Type": "application/json", "x-demo-user": userId }, body: JSON.stringify({ action: "overspend", line, text }) });
     if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? `Not saved (${res.status})`);
-    load();
+    load(true);
   };
 
   if (!user) return null;
@@ -156,7 +157,7 @@ export function BudgetPage() {
 }
 
 /** The reasons for lines over budget: where they are saved (a quarter's report) and how to save one. */
-const ExplainCtx = createContext<{ quarter: string; released: boolean; lines: Record<string, string>; save: (line: string, text: string) => Promise<void> } | null>(null);
+const ExplainCtx = createContext<{ quarter: string; released: boolean; mayWrite: boolean; lines: Record<string, string>; save: (line: string, text: string) => Promise<void> } | null>(null);
 
 /** Under a line the quarterly report will ask about: the reason, typed here once, printed there. */
 function Reason({ line }: { line: string }) {
@@ -165,10 +166,23 @@ function Reason({ line }: { line: string }) {
   const saved = x?.lines[line];
   const [text, setText] = useState(saved ?? "");
   const [state, setState] = useState<"" | "saving" | "saved" | string>("");
-  useEffect(() => setText(saved ?? ""), [saved]);
+  // When the saved reason changes, the box follows it, unless the person has typed something else since.
+  const was = useRef(saved ?? "");
+  useEffect(() => {
+    const before = was.current;
+    was.current = saved ?? "";
+    setText((cur) => (cur.trim() === before ? (saved ?? "") : cur));
+  }, [saved]);
   if (!x || saved === undefined) return null;
   const q = x.quarter.replace("-", " ");
   if (x.released) return saved ? <span className="mt-2 block text-xs">{t("rp.explain.released", { q })} {saved}</span> : null;
+  // Only the people who write the report can save a reason: everyone else reads it, and is told who writes it.
+  if (!x.mayWrite)
+    return (
+      <span className="mt-2 block text-xs text-muted">
+        {saved ? `${t("rp.explain.reads", { q })} ${saved}` : t("rp.explain.who", { q })}
+      </span>
+    );
   const short = text.trim().length > 0 && text.trim().length < 10;
   return (
     <label className="mt-2 block text-xs">

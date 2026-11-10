@@ -24,12 +24,13 @@ export function TargetDetailsPage() {
   const { ready } = useSession();
   const { project } = useCurrentProject();
   const { t } = useT();
-  const [v, setV] = useState<TargetDetailsView | null>(null);
+  // What was loaded is kept with the address it came from, so one project's targets are never shown or saved under another.
+  const [got, setGot] = useState<{ url: string; view: TargetDetailsView } | null>(null);
   const [error, setError] = useState("");
-  // The target saved last, and a count that restarts every form from the saved facts after a save.
+  // The target saved last, for its "Saved." line.
   const [saved, setSaved] = useState<string | null>(null);
-  const [version, setVersion] = useState(0);
   const url = `/api/projects/${project.id}/targets`;
+  const v = got?.url === url ? got.view : null;
   const userId = user?.id;
 
   const load = useCallback(async () => {
@@ -38,7 +39,7 @@ export function TargetDetailsPage() {
       const res = await fetch(url, { cache: "no-store", headers: { "x-demo-user": userId } });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error((body as { error?: string }).error ?? `Request failed (${res.status})`);
-      setV(body as TargetDetailsView);
+      setGot({ url, view: body as TargetDetailsView });
       setError("");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -53,9 +54,8 @@ export function TargetDetailsPage() {
     const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json", "x-demo-user": user.id }, body: JSON.stringify(a) });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error((body as { error?: string }).error ?? `Not saved (${res.status})`);
-    setV(body as TargetDetailsView);
+    setGot({ url, view: body as TargetDetailsView });
     setSaved(a.indicator);
-    setVersion((n) => n + 1);
   };
 
   return (
@@ -75,7 +75,7 @@ export function TargetDetailsPage() {
         {v && (
           <div className="mt-4 space-y-4">
             {v.targets.map((x) => (
-              <TargetForm key={`${x.code}:${version}`} x={x} v={v} save={save} justSaved={saved === x.code} />
+              <TargetForm key={`${url}:${x.code}:${JSON.stringify([x.baseline, x.breakdown, x.verification, x.budgetRef, x.workplanCode, x.inQuarterlyReport])}`} x={x} v={v} save={save} justSaved={saved === x.code} />
             ))}
           </div>
         )}
@@ -86,14 +86,15 @@ export function TargetDetailsPage() {
 
 function TargetForm({ x, v, save, justSaved }: { x: Target; v: TargetDetailsView; save: (a: TargetDetailsPatch) => Promise<void>; justSaved: boolean }) {
   const { t } = useT();
-  // The form starts from the saved facts; the page gives it a new key after a save, so it starts again from them.
+  // The form starts from the saved facts. Its key holds them, so it starts again only when this target's own saved facts change; typing in other targets is left alone.
   const [f, setF] = useState({ baseline: x.baseline === null ? "" : String(x.baseline), breakdown: x.breakdown as Breakdown[], verification: x.verification, budgetRef: x.budgetRef, workplanCode: x.workplanCode, inQuarterlyReport: x.inQuarterlyReport });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const typed = f.baseline.trim().replace(/,/g, "");
-  const baseline = typed === "" ? null : Number(typed);
-  const badNumber = baseline !== null && !Number.isFinite(baseline);
-  const dirty = baseline !== x.baseline || JSON.stringify(BREAKDOWNS.filter((b) => f.breakdown.includes(b))) !== JSON.stringify(x.breakdown) || f.verification.trim() !== x.verification || f.budgetRef !== x.budgetRef || f.workplanCode !== x.workplanCode || f.inQuarterlyReport !== x.inQuarterlyReport;
+  // Digits with a point and at most two decimals. A comma is refused, not guessed at: "12,5" and "12,500" mean different things.
+  const typed = f.baseline.trim();
+  const badNumber = typed !== "" && !/^-?\d{1,12}(\.\d{1,2})?$/.test(typed);
+  const baseline = typed === "" || badNumber ? null : Number(typed);
+  const dirty = badNumber || baseline !== x.baseline || JSON.stringify(BREAKDOWNS.filter((b) => f.breakdown.includes(b))) !== JSON.stringify(x.breakdown) || f.verification.trim() !== x.verification || f.budgetRef !== x.budgetRef || f.workplanCode !== x.workplanCode || f.inQuarterlyReport !== x.inQuarterlyReport;
   const off = !v.can.edit;
   const help = "mt-1 block text-xs text-muted";
   return (
@@ -105,7 +106,7 @@ function TargetForm({ x, v, save, justSaved }: { x: Target; v: TargetDetailsView
         <label className="text-sm">
           {t("td.baseline")}
           <input inputMode="decimal" className={input} value={f.baseline} disabled={off} onChange={(e) => setF({ ...f, baseline: e.target.value })} aria-invalid={badNumber} />
-          <span className={help}>{t("td.baseline.help")}</span>
+          <span className={badNumber ? "mt-1 block text-xs text-clay" : help}>{badNumber ? t("td.baseline.bad") : t("td.baseline.help")}</span>
         </label>
         <fieldset className="text-sm">
           <legend>{t("td.breakdown")}</legend>

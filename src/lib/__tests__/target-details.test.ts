@@ -25,6 +25,17 @@ describe("target details: the six facts setup does not ask for", () => {
     const once = nextDetails(before, patch);
     expect(detailChanges(once, nextDetails(once, patch))).toEqual({});
   });
+  it("does not call the same breakdowns in another order a change", () => {
+    const stored: StoredDetails = { ...before, disaggregation: ["crop", "district", "sex"] };
+    const after = nextDetails(stored, { ...patch, baseline: null, verification: "", budgetRef: "", inQuarterlyReport: true });
+    expect(after.disaggregation).toEqual(["crop", "district", "sex"]);
+    expect(detailChanges(stored, after)).toEqual({});
+  });
+  it("refuses a baseline finer than the two decimals that are stored", () => {
+    expect(targetDetailsSchema.safeParse({ ...patch, baseline: 0.005 }).success).toBe(false);
+    expect(targetDetailsSchema.safeParse({ ...patch, baseline: 12.35 }).success).toBe(true);
+    expect(targetDetailsSchema.safeParse({ ...patch, baseline: 1e12 }).success).toBe(false);
+  });
   it("refuses a budget line or workplan step the project does not have", () => {
     expect(linkProblem(patch, ["PRG-1.1.1.A"], [])).toBeNull();
     expect(linkProblem(patch, ["PRG-2"], [])).toMatch(/not in this project's budget/);

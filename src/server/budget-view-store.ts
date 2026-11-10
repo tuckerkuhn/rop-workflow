@@ -9,9 +9,9 @@ import { loadQpr, spendFor } from "@/server/qpr-store";
 import { loadResults } from "@/server/results-store";
 
 /** Budget against actual for the project's current phase, from its budget lines and Finance's latest import. */
-export type Explain = { quarter: string; released: boolean; lines: Record<string, string> };
+export type Explain = { quarter: string; released: boolean; /** Whether this person may write the report's text. */ mayWrite: boolean; lines: Record<string, string> };
 
-export async function loadBudgetView(code: string): Promise<BudgetView & { imported: { file: string; by: string; at: string } | null; beforeOverhead: boolean; explain: Explain | null }> {
+export async function loadBudgetView(code: string, mayWrite = false): Promise<BudgetView & { imported: { file: string; by: string; at: string } | null; beforeOverhead: boolean; explain: Explain | null }> {
   const project = await projectByCode(code);
   const lines = await db.select().from(s.budgetLines).where(eq(s.budgetLines.projectId, project.id)).orderBy(asc(s.budgetLines.sort));
   const actuals = await loadActuals(code);
@@ -48,9 +48,14 @@ export async function loadBudgetView(code: string): Promise<BudgetView & { impor
   const last = current?.months.at(-1);
   let explain: Explain | null = null;
   if (last) {
-    const quarter = quarterOf(`${last}-15`);
-    const saved = await loadQpr(code, quarter);
-    explain = { quarter, released: !!saved.released, lines: Object.fromEntries(overspentLines(await spendFor(code, quarter, lines), saved).map((l) => [l.code, l.explanation])) };
+    // The reasons are an extra on this page: if they cannot be worked out, the budget still shows.
+    try {
+      const quarter = quarterOf(`${last}-15`);
+      const saved = await loadQpr(code, quarter);
+      explain = { quarter, released: !!saved.released, mayWrite, lines: Object.fromEntries(overspentLines(await spendFor(code, quarter, lines), saved).map((l) => [l.code, l.explanation])) };
+    } catch {
+      explain = null;
+    }
   }
   return { ...view, explain, imported: current ? { file: current.file.name, by: current.by, at: current.at } : null, beforeOverhead: true };
 }
