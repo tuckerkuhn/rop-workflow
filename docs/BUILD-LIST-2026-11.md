@@ -10,7 +10,7 @@ The order agreed on 9 Nov 2026, from the four-additions, five-streamlines, six-U
 | A4 | Kobo question-to-indicator suggestions | `feature/kobo-mapping-suggest` | Merged 9 Nov |
 | B1 | Review queue: accept the clean, review the flagged | `feature/review-queue-batch` | Merged |
 | B2 | Solo mode for sign-offs | `feature/solo-signoff` | Merged |
-| B3 | Spend import from any spreadsheet | `feature/spend-import-generic` | |
+| B3 | Spend import from any spreadsheet | `feature/spend-import-generic` | Built, tested on SSOP-2027 |
 | B4 | Kobo nightly reconcile | `feature/kobo-nightly-reconcile` | |
 | B5 | One source of truth for the docs | `feature/docs-current` | |
 | C1 | Home: Approve, Fix, Due | `feature/home-three-buckets` | |

@@ -4,6 +4,7 @@ import { actFa } from "./activities";
 import { pfFa } from "./preflight";
 import { rqFa } from "./review-queue";
 import { soFa } from "./solo";
+import { smFa } from "./spend";
 import { ksFa } from "./kobo-suggest";
 import { agFa } from "./agreement";
 import { evFa } from "./evidence";
@@ -485,6 +486,7 @@ export const fa: Messages = {
   ...pfFa,
   ...rqFa,
   ...soFa,
+  ...smFa,
   ...ksFa,
   ...agFa,
   ...evFa,

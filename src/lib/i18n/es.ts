@@ -4,6 +4,7 @@ import { actEs } from "./activities";
 import { pfEs } from "./preflight";
 import { rqEs } from "./review-queue";
 import { soEs } from "./solo";
+import { smEs } from "./spend";
 import { ksEs } from "./kobo-suggest";
 import { agEs } from "./agreement";
 import { evEs } from "./evidence";
@@ -510,6 +511,7 @@ export const es: Messages = {
   ...pfEs,
   ...rqEs,
   ...soEs,
+  ...smEs,
   ...ksEs,
   ...agEs,
   ...evEs,
