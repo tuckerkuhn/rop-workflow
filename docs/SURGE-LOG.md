@@ -92,6 +92,27 @@ Nothing was migrated or dropped. Where a fact had two stores, code now reads one
 - **Procurement thresholds in words.** The method descriptions on the procurement calendar and the instructions given to the AI stated $500 / $5,000 / $25,000 whatever rules were in force. Both now read the rules in force, the same source `levelFor` uses. The draft and check routes load the project's rules first; before, the AI was told ROP's defaults even on a project with a donor's stricter thresholds.
 - **Not done, with the reason, in the morning report:** report deadlines have one store but three doors (Settings donor form, setup's agreement step, Tasks); the quarterly report's info box (title, duration, agreement number, director, locations, partner) is typed on the report and carried forward; the afghani rate; "money left" copied into each request; photo consent held on the photo and on its story; people held in both `staff` and the HR record (HR is not to be touched); six indicator fields only a script can set.
 
+## 23:50 Phase 5, C6. Every AI flag says why (branch `feature/flag-reasons`)
+
+Plan, in place of "wait for my go": audit each place a flag or suggestion is raised against four things (a reason, what it looked at, two one-tap actions, the choice on the audit trail), then add only what is missing, with one shared component.
+
+What each place had and now has:
+
+| Place | Reason | What it looked at | Two actions | Choice on the trail |
+|---|---|---|---|---|
+| Data checks on a result (rules, not AI) | had | **added**, and says these are fixed rules | had: Accept, Query | had; **now with the flags the person saw** |
+| Claim check on the report text | had | **added** | **added: Fix the text, The text is right** | **added: `qpr_claim_decided`** |
+| Kobo question suggestions | had | **added** | had Accept; **added: Not this one** | accept had; **added: `kobo_suggestion_declined`** |
+| Spending file columns | had | had | confirm or change, had | had |
+| Setup from documents | had (source per value) | had | confirm or skip a section, had | had |
+| Monthly review draft | a draft, not a flag | had | edit or keep | had |
+| Procurement step check | had | **added** | tick "reviewed" or raise an issue, as before | saves were already logged |
+
+- One component, `src/components/app/ai-why.tsx` (`LookedAt`, `Why`), and one text file, `src/lib/i18n/ai-why.ts`, in four languages (Spanish, Dari and Pashto are my drafts).
+- A claim-check finding someone decided to keep as written no longer counts in pre-flight's "sentences questioned"; one marked to fix still does. "Fix the text" takes the person to the section. A decision can be taken back.
+- Results page: errors scroll into view and a loading line shows while it loads (it was blank), using the pieces from Phase 3d.
+- **Not done:** per-finding buttons on the procurement step check. The findings are a plain list on the purchase record; giving each its own decision means changing the record's shape inside the 1,000-line workspace. In the morning report as a follow-up.
+
 ## Decisions
 
 Each is reversible. Listed as they are made.

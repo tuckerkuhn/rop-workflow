@@ -3,6 +3,7 @@ import { tsPs } from "./hr/timesheet";
 import { actPs } from "./activities";
 import { pfPs } from "./preflight";
 import { sgPs } from "./surge";
+import { awPs } from "./ai-why";
 import { rqPs } from "./review-queue";
 import { soPs } from "./solo";
 import { smPs } from "./spend";
@@ -486,6 +487,7 @@ export const ps: Messages = {
   ...actPs,
   ...pfPs,
   ...sgPs,
+  ...awPs,
   ...rqPs,
   ...soPs,
   ...smPs,

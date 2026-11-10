@@ -4,7 +4,8 @@ import { canEditProject } from "@/lib/demo";
 import { logAudit } from "@/server/audit";
 import { requireViewer } from "@/server/auth";
 import { projectByCode } from "@/server/field-store";
-import { handle } from "@/server/guard";
+import { z } from "zod";
+import { audit, guard, handle, readBody } from "@/server/guard";
 import { readable } from "@/server/kobo-link";
 import { suggestMappings } from "@/server/kobo-suggest";
 import { aiAllowed } from "@/server/limits";
@@ -17,6 +18,28 @@ export async function GET(req: Request) {
     const v = await requireViewer(req, { allow: canEditProject });
     if (v instanceof NextResponse) return v;
     return NextResponse.json({ ai: !!process.env.ANTHROPIC_API_KEY });
+  });
+}
+
+const declineSchema = z.object({
+  indicatorCode: z.string().regex(/^IND-\d+$/),
+  question: z.string().max(300),
+  method: z.string().max(40),
+  confidence: z.enum(["high", "medium", "low"]),
+  reason: z.string().max(600),
+});
+
+/**
+ * A suggestion the person turned down. Accepted suggestions are on the record when the mappings
+ * are saved (each with where it came from); this puts the other choice on the record too.
+ */
+export async function PUT(req: Request, { params }: { params: Promise<{ code: string }> }) {
+  const { code } = await params;
+  return handle(async () => {
+    const v = await guard(req, { write: true, allow: canEditProject, why: "Only the project manager and plan approvers map questions." });
+    const d = await readBody(req, declineSchema, "Say which suggestion you are turning down.");
+    await audit(code, { entity: "project", entityId: crypto.randomUUID(), action: "kobo_suggestion_declined", by: v.actor.id, detail: { indicator: d.indicatorCode, question: d.question, method: d.method, confidence: d.confidence, why: d.reason } });
+    return NextResponse.json({ ok: true });
   });
 }
 

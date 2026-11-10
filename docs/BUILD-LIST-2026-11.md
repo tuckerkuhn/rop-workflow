@@ -18,7 +18,7 @@ The order agreed on 9 Nov 2026, from the four-additions, five-streamlines, six-U
 | C3 | Progress: one row per target | `feature/progress-rows` | |
 | C4 | Plain words | `feature/plain-words` | Also: move the quarterly report's older check sentences into the four languages (decided 9 Nov). |
 | C5 | A sample project for every new organization | `feature/sample-project` | |
-| C6 | Every AI flag says why | `feature/flag-reasons` | |
+| C6 | Every AI flag says why | `feature/flag-reasons` | Built on surge branch, not merged |
 | C7 | "Why we ask" help on sensitive fields | `feature/field-help` | |
 
 ## Decisions, 9 Nov 2026

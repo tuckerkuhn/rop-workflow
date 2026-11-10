@@ -57,7 +57,17 @@ export type Qpr = {
 };
 
 /** One finding of the evidence check: a sentence the records do not bear out, and the records that say so. */
-export type ClaimIssue = { section: string; sentence: string; kind: "figure" | "place" | "timing" | "contradiction"; problem: string; evidence: string[] };
+export type ClaimIssue = {
+  section: string;
+  sentence: string;
+  kind: "figure" | "place" | "timing" | "contradiction";
+  problem: string;
+  evidence: string[];
+  /** What a person decided about this finding: they will fix the text, or the text stands. Kept on the audit trail too. */
+  decided?: { choice: "fix" | "keep"; by: string; name: string; at: string };
+};
+/** Findings still to look at: a finding someone decided to keep as written no longer counts. */
+export const openClaims = (c: ClaimCheck | undefined) => (c?.issues ?? []).filter((i) => i.decided?.choice !== "keep");
 export type ClaimCheck = { at: string; by: string; model: string; checked: number; issues: ClaimIssue[]; sections: Record<string, string> };
 
 export const emptyQpr = (projectName: string): Qpr => ({
@@ -138,6 +148,8 @@ export const qprPatchSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("practice") }),
   /** Checks the written sections against the quarter's records and the dated evidence. */
   z.object({ action: z.literal("check-claims") }),
+  /** A person's decision on one finding of the claim check: fix the text, or keep it as written. Null takes the decision back. */
+  z.object({ action: z.literal("claim-decide"), index: z.number().int().min(0).max(500), choice: z.enum(["fix", "keep"]).nullable() }),
 ]);
 export type QprPatch = z.infer<typeof qprPatchSchema>;
 

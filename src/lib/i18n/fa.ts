@@ -3,6 +3,7 @@ import { tsFa } from "./hr/timesheet";
 import { actFa } from "./activities";
 import { pfFa } from "./preflight";
 import { sgFa } from "./surge";
+import { awFa } from "./ai-why";
 import { rqFa } from "./review-queue";
 import { soFa } from "./solo";
 import { smFa } from "./spend";
@@ -486,6 +487,7 @@ export const fa: Messages = {
   ...actFa,
   ...pfFa,
   ...sgFa,
+  ...awFa,
   ...rqFa,
   ...soFa,
   ...smFa,
