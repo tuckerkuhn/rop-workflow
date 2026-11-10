@@ -12,6 +12,7 @@ import { smEn } from "./spend";
 import { haEn } from "./home-actions";
 import { osEn } from "./overspend";
 import { spEn } from "./sample";
+import { qcEn } from "./qpr-checks";
 import { ksEn } from "./kobo-suggest";
 import { agEn } from "./agreement";
 import { evEn } from "./evidence";
@@ -602,6 +603,7 @@ export const en = {
   ...haEn,
   ...osEn,
   ...spEn,
+  ...qcEn,
   ...ksEn,
   ...agEn,
   ...evEn,

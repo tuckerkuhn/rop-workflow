@@ -1,6 +1,7 @@
 import { spentOver } from "@/lib/budget-view";
 import { lineReasonFields, reasonText, type LineReason, type OverspendReason } from "@/lib/overspend";
 import { z } from "zod";
+import { qcEn } from "@/lib/i18n/qpr-checks";
 import { longDate } from "@/lib/weekly";
 import { proofCount, quarterRange, totalsOf, type ResultRecord, type UpdateRecord } from "@/lib/results";
 
@@ -376,48 +377,55 @@ export function buildRows(indicators: IndicatorInfo[], results: ResultRecord[], 
   });
 }
 
-/** Things to fix before the report goes out. Each one names the indicator or section. */
+export type QprCheckKey = keyof typeof qcEn;
+/** A check before the report goes out: English `text` (Home, pre-flight and the audit log use it), and `key`/`vars` to show it in the reader's language. */
+export type QprCheck = { level: "stop" | "check"; text: string; key?: QprCheckKey; vars?: Record<string, string | number> };
+
+/** Things to fix before the report goes out. Each one names the target or section. */
 export function checksFor(rows: Row[], results: ResultRecord[], quarter: string, saved: Qpr, spend: Spend, activities: string[]) {
   const { from, to } = quarterRange(quarter);
   // Only the indicators in this report's table: others (annual-report-only) are checked elsewhere.
   const inTable = new Set(rows.map((r) => r.code));
   const inQ = results.filter((r) => r.date >= from && r.date <= to && inTable.has(r.indicator));
   const code = (ind: string) => rows.find((r) => r.code === ind)?.donorCode ?? ind;
-  const out: { level: "stop" | "check"; text: string }[] = [];
+  const out: QprCheck[] = [];
+  // The English text is built from the same sentence the other languages translate, so they never drift.
+  const push = (level: QprCheck["level"], key: QprCheckKey, vars: Record<string, string | number> = {}) =>
+    out.push({ level, text: qcEn[key].replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)), key, ...(Object.keys(vars).length ? { vars } : {}) });
   const pending = inQ.filter((r) => r.status === "pending");
-  for (const c of [...new Set(pending.map((r) => r.indicator))]) out.push({ level: "stop", text: `${code(c)}: ${pending.filter((r) => r.indicator === c).length} result(s) this quarter still waiting for MEL, so not counted.` });
+  for (const c of [...new Set(pending.map((r) => r.indicator))]) push("stop", "qc.pending", { code: code(c), n: pending.filter((r) => r.indicator === c).length });
   const queried = inQ.filter((r) => r.status === "queried");
-  for (const c of [...new Set(queried.map((r) => r.indicator))]) out.push({ level: "check", text: `${code(c)}: ${queried.filter((r) => r.indicator === c).length} result(s) this quarter were queried by MEL and are not counted.` });
+  for (const c of [...new Set(queried.map((r) => r.indicator))]) push("check", "qc.queried", { code: code(c), n: queried.filter((r) => r.indicator === c).length });
   const noProof = inQ.filter((x) => x.status === "accepted" && !proofCount(x));
   for (const c of [...new Set(noProof.map((r) => r.indicator))]) {
     const list = noProof.filter((r) => r.indicator === c);
-    out.push({ level: "check", text: `${code(c)}: ${list.length} result(s) this quarter have no proof attached${list[0].noFile ? ` (${list[0].noFile})` : ""}.` });
+    push("check", "qc.noProof", { code: code(c), n: list.length, note: list[0].noFile ? ` (${list[0].noFile})` : "" });
   }
   for (const r of rows) {
-    if (r.status === "completed" && r.year < r.yearTarget) out.push({ level: "stop", text: `${r.donorCode}: marked Completed, but ${n(r.year)} of ${n(r.yearTarget)} ${r.unit} have been achieved this year.` });
-    if (r.status === "not_implemented" && r.year > 0) out.push({ level: "stop", text: `${r.donorCode}: marked Not implemented, but ${n(r.year)} ${r.unit} were achieved this year.` });
+    if (r.status === "completed" && r.year < r.yearTarget) push("stop", "qc.completedShort", { code: r.donorCode, done: n(r.year), target: n(r.yearTarget), unit: r.unit });
+    if (r.status === "not_implemented" && r.year > 0) push("stop", "qc.notImplemented", { code: r.donorCode, done: n(r.year), unit: r.unit });
     if (r.edited) {
       const pcts = [...r.comment.matchAll(/(\d{1,3})\s?%/g)].map((m) => Number(m[1]));
       const real = r.yearTarget ? Math.round((r.year / r.yearTarget) * 100) : null;
-      if (real !== null && pcts.some((p) => Math.abs(p - real) > 1)) out.push({ level: "stop", text: `${r.donorCode}: the comment says ${pcts.join("%, ")}%, but the year's achievement is ${real}% of the target.` });
-      if (!r.comment.toLowerCase().startsWith(STATUS_LABEL[r.status].toLowerCase())) out.push({ level: "check", text: `${r.donorCode}: the comment does not start with its status (${STATUS_LABEL[r.status]}).` });
+      if (real !== null && pcts.some((p) => Math.abs(p - real) > 1)) push("stop", "qc.commentPct", { code: r.donorCode, pcts: pcts.join("%, "), real });
+      if (!r.comment.toLowerCase().startsWith(STATUS_LABEL[r.status].toLowerCase())) push("check", "qc.commentStatus", { code: r.donorCode, status: STATUS_LABEL[r.status] });
     }
   }
-  if (spend.cumulative > spend.budget && spend.budget > 0) out.push({ level: "stop", text: `Cumulative spending (${n(spend.cumulative)}) is more than the budget (${n(spend.budget)}).` });
+  if (spend.cumulative > spend.budget && spend.budget > 0) push("stop", "qc.overBudget", { spent: n(spend.cumulative), budget: n(spend.budget) });
   const qs = quarterSpendOf(saved, spend);
-  if (qs !== null && qs > spend.cumulative) out.push({ level: "stop", text: "This quarter's spending is more than cumulative spending." });
-  if (qs === null) out.push({ level: "check", text: "This quarter's spending is not entered: import Finance's budget-against-actual workbook, or type it in (Project information)." });
-  for (const { code, ...l } of overspentLines(spend, saved).filter((x) => x.explanation.length < 10)) out.push({ level: "check", text: `Budget line ${code} has spent ${n(l.actual)} of ${n(l.budget)} ${spend.currency} (${Math.round((l.actual / l.budget) * 100)}%): explain the overspend or the budget revision under Project information.` });
-  if (spend.source.kind === "import" && spend.missingMonths.length) out.push({ level: "stop", text: `The spending import does not include ${spend.missingMonths.join(", ")}: import the latest workbook from Finance.` });
-  if (saved.quarterSpend !== null && spend.quarter !== null && Math.abs(saved.quarterSpend - spend.quarter) > 1) out.push({ level: "check", text: `This quarter's spending is typed in as ${n(saved.quarterSpend)}, but the import says ${n(spend.quarter)}.` });
-  for (const s of SECTIONS) if (s.key !== "story" && !saved.sections[s.key]?.text.trim()) out.push({ level: "check", text: `${s.heading} is empty.` });
-  for (const s of SECTIONS) if (saved.sections[s.key]?.from) out.push({ level: "check", text: `${s.heading} is copied from ${saved.sections[s.key]!.from}: review it for this quarter.` });
+  if (qs !== null && qs > spend.cumulative) push("stop", "qc.quarterOverTotal");
+  if (qs === null) push("check", "qc.noQuarterSpend");
+  for (const { code, ...l } of overspentLines(spend, saved).filter((x) => x.explanation.length < 10)) push("check", "qc.lineOver", { code, spent: n(l.actual), budget: n(l.budget), currency: spend.currency, pct: Math.round((l.actual / l.budget) * 100) });
+  if (spend.source.kind === "import" && spend.missingMonths.length) push("stop", "qc.missingMonths", { months: spend.missingMonths.join(", ") });
+  if (saved.quarterSpend !== null && spend.quarter !== null && Math.abs(saved.quarterSpend - spend.quarter) > 1) push("check", "qc.typedSpend", { typed: n(saved.quarterSpend), imported: n(spend.quarter) });
+  for (const s of SECTIONS) if (s.key !== "story" && !saved.sections[s.key]?.text.trim()) push("check", "qc.sectionEmpty", { heading: s.heading });
+  for (const s of SECTIONS) if (saved.sections[s.key]?.from) push("check", "qc.sectionCopied", { heading: s.heading, from: saved.sections[s.key]!.from! });
   for (const a of activities) {
     const has = rows.some((r) => r.activity === a && r.quarter > 0);
-    if (has && !saved.sections[`act.${a}`]?.text.trim()) out.push({ level: "check", text: `Activity ${a} had results this quarter but no narrative.` });
+    if (has && !saved.sections[`act.${a}`]?.text.trim()) push("check", "qc.activityText", { code: a });
   }
-  if (!saved.risks.length) out.push({ level: "check", text: "The risk table is empty." });
-  if (saved.grm.received === null) out.push({ level: "check", text: "Complaints (GRM) numbers are not entered." });
+  if (!saved.risks.length) push("check", "qc.risks");
+  if (saved.grm.received === null) push("check", "qc.grm");
   return out;
 }
 

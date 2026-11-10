@@ -21,7 +21,7 @@ export type PreflightItem = {
   owner: Owner;
   /** English, always: Home and the audit log use it. */
   text: string;
-  /** A translated message for the checks pre-flight adds (`pf.c.*`); the report's older checks are English for now. */
+  /** A translated message: `pf.c.*` for the checks pre-flight adds, `qc.*` for the report's own checks. */
   key?: string;
   vars?: Vars;
   href: string;
