@@ -612,15 +612,32 @@ function IndicatorTable({ v, act }: { v: QprView; act: Act }) {
   const outputs = [...new Set(v.rows.map((r) => r.output))];
   const year = v.quarter.slice(0, 4);
   const qn = v.quarter.slice(5);
+  const { t } = useT();
   return (
-    <div className="mt-3 overflow-x-auto">
+    <>
+      {/* Below a wide screen: one block per target, stacked, so nothing scrolls sideways on a phone. */}
+      <div className="mt-3 space-y-4 lg:hidden">
+        {outputs.map((o) => (
+          <div key={o}>
+            <p className="rounded-lg bg-sunken px-2 py-2 text-sm font-semibold">{o}</p>
+            <div className="divide-y divide-line">
+              {v.rows
+                .filter((r) => r.output === o)
+                .map((r) => (
+                  <IndicatorRow key={r.code} r={r} v={v} act={act} card />
+                ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    <div className="mt-3 hidden overflow-x-auto lg:block">
       <table className="w-full min-w-[820px] text-sm">
         <thead className="text-start text-[11px] uppercase tracking-wide text-muted">
           <tr>
             <th className="py-2 pe-3 text-start">Output indicator</th>
-            <th className="py-2 pe-3 text-end">{year} target</th>
-            <th className="py-2 pe-3 text-end">{qn} achieved</th>
-            <th className="py-2 pe-3 text-end">This year</th>
+            <th className="py-2 pe-3 text-end">{t("rp.col.target", { year })}</th>
+            <th className="py-2 pe-3 text-end">{t("rp.col.quarter", { q: qn })}</th>
+            <th className="py-2 pe-3 text-end">{t("rp.col.year")}</th>
             <th className="py-2 pe-3 text-start">Status and comment</th>
           </tr>
         </thead>
@@ -640,10 +657,12 @@ function IndicatorTable({ v, act }: { v: QprView; act: Act }) {
         ))}
       </table>
     </div>
+    </>
   );
 }
 
-function IndicatorRow({ r, v, act }: { r: Row; v: QprView; act: Act }) {
+/** One target of the report: a table row on a wide screen, a stacked block (`card`) below that. */
+function IndicatorRow({ r, v, act, card }: { r: Row; v: QprView; act: Act; card?: boolean }) {
   const [editing, setEditing] = useState(false);
   const [status, setStatus] = useState<Status>(r.status);
   const [comment, setComment] = useState(r.comment);
@@ -661,9 +680,9 @@ function IndicatorRow({ r, v, act }: { r: Row; v: QprView; act: Act }) {
       {num(value)}
     </ProofNumber>
   );
-  return (
-    <tr className="align-top">
-      <td className="py-2 pe-3">
+  const { t } = useT();
+  const name = (
+    <>
         <span className="font-mono text-xs text-muted">{r.donorCode}</span> {r.name} <span className="text-muted">({r.unit})</span>
         {r.budgetRef && v.spend.byLine[r.budgetRef] && (
           <span className="mt-1 block text-xs text-muted" title="The budget line that pays for this indicator">
@@ -671,14 +690,16 @@ function IndicatorRow({ r, v, act }: { r: Row; v: QprView; act: Act }) {
             {v.spend.byLine[r.budgetRef].budget > 0 && ` (${Math.round((v.spend.byLine[r.budgetRef].actual / v.spend.byLine[r.budgetRef].budget) * 100)}%)`}
           </span>
         )}
-      </td>
-      <td className="py-2 pe-3 text-end tabular-nums">{num(r.yearTarget)}</td>
-      <td className="py-2 pe-3 text-end">{evidence(from, r.quarter, r.records.quarter, r.records.files)}</td>
-      <td className="py-2 pe-3 text-end">
+    </>
+  );
+  const yearCell = (
+    <>
         {evidence(yearFrom, r.year, r.records.year)}
         {r.yearTarget > 0 && <span className="block text-xs text-muted">{Math.round((r.year / r.yearTarget) * 100)}%</span>}
-      </td>
-      <td className="py-2 pe-3">
+    </>
+  );
+  const statusCell = (
+    <>
         {editing ? (
           <div>
             <select className={input} value={status} onChange={(e) => setStatus(e.target.value as Status)}>
@@ -724,7 +745,37 @@ function IndicatorRow({ r, v, act }: { r: Row; v: QprView; act: Act }) {
             )}
           </div>
         )}
-      </td>
+    </>
+  );
+  const head = "text-[11px] uppercase tracking-wide text-muted";
+  if (card)
+    return (
+      <div className="py-3 text-sm">
+        <p>{name}</p>
+        <dl className="mt-2 grid grid-cols-3 gap-2">
+          <div>
+            <dt className={head}>{t("rp.col.target", { year: v.quarter.slice(0, 4) })}</dt>
+            <dd className="tabular-nums">{num(r.yearTarget)}</dd>
+          </div>
+          <div>
+            <dt className={head}>{t("rp.col.quarter", { q: v.quarter.slice(5) })}</dt>
+            <dd>{evidence(from, r.quarter, r.records.quarter, r.records.files)}</dd>
+          </div>
+          <div>
+            <dt className={head}>{t("rp.col.year")}</dt>
+            <dd>{yearCell}</dd>
+          </div>
+        </dl>
+        <div className="mt-2">{statusCell}</div>
+      </div>
+    );
+  return (
+    <tr className="align-top">
+      <td className="py-2 pe-3">{name}</td>
+      <td className="py-2 pe-3 text-end tabular-nums">{num(r.yearTarget)}</td>
+      <td className="py-2 pe-3 text-end">{evidence(from, r.quarter, r.records.quarter, r.records.files)}</td>
+      <td className="py-2 pe-3 text-end">{yearCell}</td>
+      <td className="py-2 pe-3">{statusCell}</td>
     </tr>
   );
 }
