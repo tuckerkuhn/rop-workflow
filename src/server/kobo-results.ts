@@ -43,6 +43,22 @@ const gpsOf = (p: Record<string, unknown>) => {
   return undefined;
 };
 
+/**
+ * When the work happened: the form's own date question (install_date, training_date, date...) when
+ * it has one, else the day KoboToolbox received the submission. A form date after the submission
+ * arrived, or one that is not a real date, is not trusted. Kobo's own start, end and today stamps
+ * are when the form was filled, not when the work was done, so they are not used.
+ */
+function dateOf(p: Record<string, unknown>, received: string): string {
+  const key = Object.keys(p).find((k) => {
+    const last = k.split("/").at(-1)!.toLowerCase();
+    return !k.startsWith("_") && !["start", "end", "today"].includes(last) && /(^|_)date($|_)/.test(last);
+  });
+  const v = key ? text(p[key]).slice(0, 10) : "";
+  const real = /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(`${v}T00:00:00Z`)) && new Date(`${v}T00:00:00Z`).toISOString().slice(0, 10) === v;
+  return real && (!received || v <= received) ? v : received;
+}
+
 /** What one submission adds to its indicator; 0 = it does not count. `seen` tracks answers already counted for count_unique. */
 function addsUp(method: MappingMethod, value: string | null, a: string, seen: Set<string>) {
   if (!a) return 0;
@@ -104,7 +120,7 @@ export async function koboToResults(code: string): Promise<KoboResultCounts> {
       // Counted the same way as before: readiness submissions once accepted, and only approved ones when the project says so.
       const counts = !sub.removed && (sub.form === null || sub.review === "accepted") && (!approvedOnly || text((sub.payload._validation_status as { uid?: string } | undefined)?.uid) === "validation_status_approved");
       const value = counts ? addsUp(m.method as MappingMethod, m.value, answer(sub.payload, m.question), seen) : 0;
-      const date = (sub.at?.toISOString() ?? text(sub.payload._submission_time) ?? "").slice(0, 10);
+      const date = dateOf(sub.payload, (sub.at?.toISOString() ?? text(sub.payload._submission_time) ?? "").slice(0, 10));
       const where = and(eq(s.evidence.projectId, project.id), eq(s.evidence.form, "result"));
 
       if (!value) {
@@ -210,4 +226,4 @@ export async function koboToResults(code: string): Promise<KoboResultCounts> {
 }
 
 /** The pure rules above, for tests. */
-export const koboResultRules = { answer, placeOf, gpsOf, addsUp };
+export const koboResultRules = { answer, placeOf, gpsOf, addsUp, dateOf };
