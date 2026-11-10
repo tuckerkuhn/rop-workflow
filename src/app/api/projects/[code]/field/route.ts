@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { PHOTO_MAX_CHARS } from "@/lib/plans";
 import { z } from "zod";
 import type { FieldItem } from "@/lib/field";
 import { requireViewer } from "@/server/auth";
@@ -36,7 +37,7 @@ const farmer = z.looseObject({
   deadline: short.optional(),
   correction: z.string().max(4000).optional(),
   surveys: z.array(z.looseObject({ date: short, score: z.number(), comment: z.string().max(4000), by: short })).max(200),
-  photos: z.array(z.looseObject({ id: short, activity: z.enum(["training", "landprep", "visit", "distribution", "planting"]), date: short, caption: z.string().max(1000), src: z.string().max(500_000).optional() })).max(200),
+  photos: z.array(z.looseObject({ id: short, activity: z.enum(["training", "landprep", "visit", "distribution", "planting"]), date: short, caption: z.string().max(1000), src: z.string().max(PHOTO_MAX_CHARS).optional() })).max(200),
   stories: z.array(z.looseObject({ id: short, status: z.enum(["note", "completed"]), title: short, text: z.string().max(20000), date: short, by: short })).max(100),
 });
 const finding = z.looseObject({

@@ -363,7 +363,7 @@ export function QprPage() {
               onDecide={(index, choice) => {
                 const section = v.saved.claimCheck?.issues[index]?.section;
                 void quiet(
-                  act({ action: "claim-decide", index, choice }, choice === "fix" ? "Marked to fix. The section is below: correct the sentence, then save." : choice === "keep" ? "Kept as written. Your decision is on the record." : "Decision taken back.").then(() => {
+                  act({ action: "claim-decide", index, choice }, choice === "fix" ? t("ha.claimFix") : choice === "keep" ? t("ha.claimKeep") : t("ha.claimUndo")).then(() => {
                     // "Fix the text" takes the person straight to the section the sentence is in.
                     if (choice === "fix" && section) document.getElementById(`sec-${section}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
                   }),

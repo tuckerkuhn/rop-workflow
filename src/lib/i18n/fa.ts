@@ -10,6 +10,7 @@ import { tdFa } from "./target-details";
 import { rqFa } from "./review-queue";
 import { soFa } from "./solo";
 import { smFa } from "./spend";
+import { haFa } from "./home-actions";
 import { ksFa } from "./kobo-suggest";
 import { agFa } from "./agreement";
 import { evFa } from "./evidence";
@@ -501,6 +502,7 @@ export const fa: Messages = {
   ...rqFa,
   ...soFa,
   ...smFa,
+  ...haFa,
   ...ksFa,
   ...agFa,
   ...evFa,

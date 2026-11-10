@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, desc, eq, gte, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { sync } from "@/server/kobo-link";
 import { koboToResults } from "@/server/kobo-results";
@@ -42,7 +42,7 @@ export function reconcileLine(r: Pick<ReconcileRun, "ok" | "fetched" | "added" |
 
 /** Runs the sync for every connected project, one after another; one project's failure does not stop the rest. */
 export async function reconcileAll(): Promise<ReconcileRun[]> {
-  const projects = await db.select({ id: s.projects.id, code: s.projects.code }).from(s.koboConnections).innerJoin(s.projects, eq(s.projects.id, s.koboConnections.projectId));
+  const projects = await db.select({ id: s.projects.id, code: s.projects.code }).from(s.koboConnections).innerJoin(s.projects, eq(s.projects.id, s.koboConnections.projectId)).orderBy(asc(s.projects.code));
   const runs: ReconcileRun[] = [];
   for (const p of projects) {
     if (!p.code) continue;
@@ -58,7 +58,12 @@ export async function reconcileAll(): Promise<ReconcileRun[]> {
     runs.push(run);
     const { project: _code, ...detail } = run;
     void _code;
-    await db.insert(s.auditLog).values({ projectId: p.id, entity: "kobo", entityId: randomUUID(), action: run.ok ? RECONCILED : RECONCILE_FAILED, detail: { by: "nightly", ...detail } });
+    // The run row is the health page's only record; a failed write is logged and the loop goes on.
+    try {
+      await db.insert(s.auditLog).values({ projectId: p.id, entity: "kobo", entityId: randomUUID(), action: run.ok ? RECONCILED : RECONCILE_FAILED, detail: { by: "nightly", ...detail } });
+    } catch (e) {
+      console.error(`kobo reconcile: run row for ${p.code} not written`, e);
+    }
   }
   return runs;
 }

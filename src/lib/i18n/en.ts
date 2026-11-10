@@ -9,6 +9,7 @@ import { tdEn } from "./target-details";
 import { rqEn } from "./review-queue";
 import { soEn } from "./solo";
 import { smEn } from "./spend";
+import { haEn } from "./home-actions";
 import { ksEn } from "./kobo-suggest";
 import { agEn } from "./agreement";
 import { evEn } from "./evidence";
@@ -596,6 +597,7 @@ export const en = {
   ...rqEn,
   ...soEn,
   ...smEn,
+  ...haEn,
   ...ksEn,
   ...agEn,
   ...evEn,
