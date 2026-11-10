@@ -15,12 +15,14 @@ import type { LoopOwner, NextReport } from "@/server/next-report";
 const OWNER: Record<LoopOwner, string> = { lead: "Programme lead", field: "Field", mel: "MEL", writers: "Writing", finance: "Finance" };
 const day = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "long", timeZone: "UTC" });
 
-export function NextReportPanel({ project, user, owners }: { project: string; user: string; owners?: LoopOwner[] }) {
+/** `data`: the next report already loaded by Home (null while loading); without it the panel loads its own. */
+export function NextReportPanel({ project, user, owners, data }: { project: string; user: string; owners?: LoopOwner[]; data?: NextReport | null }) {
   const { t } = useT();
   const [loaded, setV] = useState<NextReport | null>(null);
-  let v = loaded;
+  let v = data === undefined ? loaded : data;
   const [open, setOpen] = useState<boolean | null>(null);
   useEffect(() => {
+    if (data !== undefined) return;
     let live = true;
     fetch(`/api/projects/${project}/next-report`, { cache: "no-store", headers: { "x-demo-user": user } })
       .then((r) => (r.ok ? r.json() : null))
@@ -29,7 +31,7 @@ export function NextReportPanel({ project, user, owners }: { project: string; us
     return () => {
       live = false;
     };
-  }, [project, user]);
+  }, [project, user, data]);
   if (!v) return null;
   // Each person sees their own part of what stands in the way; leads see all of it.
   if (owners) v = { ...v, items: v.items.filter((i) => owners.includes(i.owner)) };
