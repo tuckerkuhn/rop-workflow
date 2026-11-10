@@ -1,10 +1,8 @@
 import { NextResponse } from "next/server";
-import type { AppUser } from "@/lib/demo";
 import { isSharePointUrl } from "@/lib/procurement";
 import { requireViewer } from "@/server/auth";
-import { fingerprint, loadActuals, readWorkbook, saveActuals } from "@/server/actuals-store";
+import { fingerprint, loadActuals, mayImport, readWorkbook, saveActuals } from "@/server/actuals-store";
 import { handle } from "@/server/guard";
-import { holdsRole } from "@/server/hr-store";
 
 type Ctx = { params: Promise<{ code: string }> };
 
@@ -15,9 +13,6 @@ type Ctx = { params: Promise<{ code: string }> };
  */
 
 const MAX = 15 * 1024 * 1024;
-async function mayImport(u: AppUser) {
-  return u.kind === "employee" && (u.project.includes("finance-import") || (await holdsRole(u.id, "finance")));
-}
 
 export async function GET(req: Request, { params }: Ctx) {
   const { code } = await params;

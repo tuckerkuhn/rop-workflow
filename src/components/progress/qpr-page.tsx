@@ -13,6 +13,7 @@ import { formatMinutes } from "@/lib/report-copy";
 import { ShareLinks } from "@/components/progress/share-links";
 import { ClaimCheckPanel } from "@/components/progress/claim-check";
 import { ReportDownloads } from "@/components/progress/downloads";
+import { SpreadsheetImport } from "@/components/progress/spend-map";
 import { beforeDownload, PreflightButton, usePreflight } from "@/components/progress/preflight-page";
 import { MoneySourceLink, ProofNumber } from "@/components/progress/proof-panel";
 import { useT } from "@/components/app/i18n";
@@ -762,7 +763,11 @@ function Risks({ v, act }: { v: QprView; act: Act }) {
 /** Finance's monthly budget-against-actual workbook: checked first, then imported. */
 function SpendImport({ v, onDone }: { v: QprView; onDone: () => void }) {
   const { user } = useSession();
+  const { t } = useT();
   const [file, setFile] = useState<File | null>(null);
+  // Not Finance's ICE workbook: read with columns the person confirms (B3).
+  const [generic, setGeneric] = useState(false);
+  const [done, setDone] = useState(false);
   const [link, setLink] = useState("");
   const [preview, setPreview] = useState<{ months: string[]; monthLabels: Record<string, string>; lines: { code: string }[]; totals: { costs: { actual: number } | null }; problems: string[]; notes: string[]; sheet: string } | null>(null);
   const [err, setErr] = useState("");
@@ -770,6 +775,8 @@ function SpendImport({ v, onDone }: { v: QprView; onDone: () => void }) {
   if (!v.mayImport) return null;
   const send = async (check: boolean) => {
     if (!file) return;
+    setDone(false);
+    if (/\.csv$/i.test(file.name)) return setGeneric(true);
     setErr("");
     setBusy(true);
     try {
@@ -795,7 +802,8 @@ function SpendImport({ v, onDone }: { v: QprView; onDone: () => void }) {
     <span className="mt-3 block rounded-xl bg-sunken p-3 text-sm text-ink">
       <span className="block font-semibold">Import Finance&rsquo;s budget against actual</span>
       <span className="block text-xs text-muted">The FACE workbook sent to UNDP (.xlsx). Only its ICE Report sheet is read; the ledger sheets, which name staff, are not kept.</span>
-      <input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="mt-2 block text-sm" onChange={(e) => { setFile(e.target.files?.[0] ?? null); setPreview(null); }} />
+      <span className="block text-xs text-muted">{t("sm.otherHelp")}</span>
+      <input type="file" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="mt-2 block text-sm" onChange={(e) => { setFile(e.target.files?.[0] ?? null); setPreview(null); setGeneric(false); setDone(false); }} />
       <input className={input} placeholder="Link to the workbook in SharePoint (optional)" value={link} onChange={(e) => setLink(e.target.value)} />
       {preview && (
         <span className="mt-2 block text-xs">
@@ -810,14 +818,36 @@ function SpendImport({ v, onDone }: { v: QprView; onDone: () => void }) {
         </span>
       )}
       {err && <span role="alert" className="mt-1 block text-xs text-clay">{err}</span>}
-      <span className="mt-2 flex gap-2">
-        <button type="button" className={quietBtn} disabled={!file || busy} onClick={() => void send(true)}>
-          Check it
-        </button>
-        <button type="button" className={primaryBtn} disabled={!file || busy || !preview || preview.problems.length > 0} onClick={() => void send(false)}>
-          Import
-        </button>
-      </span>
+      {done && <span role="status" className="mt-1 block text-xs text-forest">{t("sm.imported")}</span>}
+      {file && generic ? (
+        <SpreadsheetImport
+          code={v.project.code}
+          file={file}
+          link={link}
+          onCancel={() => setGeneric(false)}
+          onDone={() => {
+            setGeneric(false);
+            setFile(null);
+            setPreview(null);
+            setDone(true);
+            onDone();
+          }}
+        />
+      ) : (
+        <span className="mt-2 flex flex-wrap gap-2">
+          <button type="button" className={quietBtn} disabled={!file || busy} onClick={() => void send(true)}>
+            Check it
+          </button>
+          <button type="button" className={primaryBtn} disabled={!file || busy || !preview || preview.problems.length > 0} onClick={() => void send(false)}>
+            Import
+          </button>
+          {file && preview && preview.problems.length > 0 && (
+            <button type="button" className={primaryBtn} onClick={() => { setErr(""); setPreview(null); setGeneric(true); }}>
+              {t("sm.other")}
+            </button>
+          )}
+        </span>
+      )}
     </span>
   );
 }

@@ -4,6 +4,7 @@ import { actPs } from "./activities";
 import { pfPs } from "./preflight";
 import { rqPs } from "./review-queue";
 import { soPs } from "./solo";
+import { smPs } from "./spend";
 import { ksPs } from "./kobo-suggest";
 import { agPs } from "./agreement";
 import { evPs } from "./evidence";
@@ -485,6 +486,7 @@ export const ps: Messages = {
   ...pfPs,
   ...rqPs,
   ...soPs,
+  ...smPs,
   ...ksPs,
   ...agPs,
   ...evPs,
