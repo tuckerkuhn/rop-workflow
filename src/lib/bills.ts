@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { selfSchema } from "@/lib/solo";
 import { receiptSchema, type Receipt } from "@/lib/expense";
 
 /**
@@ -51,7 +52,7 @@ export type Bill = {
   file: Receipt;
   raised: Sign;
   status: BillStatus;
-  approval?: Sign;
+  approval?: Sign & { selfApproved?: boolean; soloNote?: string };
   returned?: Sign & { note: string };
   voucher?: { number: string; month: string; sharepointUrl: string; netsuiteRef: string } & Sign;
   timeline: { date: string; who: string; what: string }[];
@@ -74,7 +75,8 @@ export const raiseSchema = z.object({
 });
 export const billActionSchema = z.discriminatedUnion("action", [
   raiseSchema,
-  z.object({ action: z.literal("approve"), id: z.string() }),
+  /** `self`: solo mode, the person who recorded it approves it, confirming that (server/solo.ts). */
+  z.object({ action: z.literal("approve"), id: z.string(), self: selfSchema.optional() }),
   z.object({ action: z.literal("return"), id: z.string(), note: z.string().trim().min(3).max(1000) }),
   z.object({ action: z.literal("voucher"), id: z.string(), number: z.string().trim().min(1).max(40), month: z.string().regex(/^\d{4}-\d{2}$/), sharepointUrl: z.string().trim().max(500), netsuiteRef: z.string().trim().max(80) }),
 ]);

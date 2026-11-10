@@ -85,7 +85,7 @@ export async function addResult(code: string, input: ResultInput, by: string) {
   return toRecord(row);
 }
 
-export async function reviewResult(code: string, id: string, status: "accepted" | "queried", by: string, note: string | null) {
+export async function reviewResult(code: string, id: string, status: "accepted" | "queried", by: string, note: string | null, extra?: Record<string, unknown>) {
   const project = await projectByCode(code);
   const row = await db.transaction(async (tx) => {
     const [r] = await tx
@@ -96,7 +96,7 @@ export async function reviewResult(code: string, id: string, status: "accepted" 
       .returning();
     if (r) {
       const p = r.payload as ResultInput;
-      await logAudit(tx, project.id, { entity: "result", entityId: r.id, action: status === "accepted" ? "result_accepted" : "result_queried", by, detail: { indicator: p.indicator, value: p.value, date: p.date, note } });
+      await logAudit(tx, project.id, { entity: "result", entityId: r.id, action: status === "accepted" ? "result_accepted" : "result_queried", by, detail: { indicator: p.indicator, value: p.value, date: p.date, note, ...(extra ?? {}) } });
     }
     return r;
   });

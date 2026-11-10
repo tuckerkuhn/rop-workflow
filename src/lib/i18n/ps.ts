@@ -3,6 +3,7 @@ import { tsPs } from "./hr/timesheet";
 import { actPs } from "./activities";
 import { pfPs } from "./preflight";
 import { rqPs } from "./review-queue";
+import { soPs } from "./solo";
 import { ksPs } from "./kobo-suggest";
 import { agPs } from "./agreement";
 import { evPs } from "./evidence";
@@ -483,6 +484,7 @@ export const ps: Messages = {
   ...actPs,
   ...pfPs,
   ...rqPs,
+  ...soPs,
   ...ksPs,
   ...agPs,
   ...evPs,

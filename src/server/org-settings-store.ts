@@ -9,7 +9,9 @@ import { profileById } from "@/lib/presets";
  * and why, and every change is kept in the history.
  */
 export type OrgChange = { key: string; value: Value; by: string; name: string; at: string; reason: string; preset?: string; reset?: boolean };
-export type OrgSettings = { values: Record<string, OrgChange>; history: OrgChange[] };
+/** Solo mode (B2): a small team's one person may prepare and approve, confirming it each time. Off unless an administrator turns it on. */
+export type SoloChange = { on: boolean; by: string; name: string; at: string; reason: string };
+export type OrgSettings = { values: Record<string, OrgChange>; history: OrgChange[]; solo?: SoloChange; soloHistory?: SoloChange[] };
 
 const EMPTY: OrgSettings = { values: {}, history: [] };
 

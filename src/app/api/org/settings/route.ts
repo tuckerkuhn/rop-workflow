@@ -26,6 +26,9 @@ function view(settings: OrgSettings, admin: boolean) {
     current: profile.values,
     changed: settings.values,
     history: [...settings.history].reverse(),
+    /** Solo mode (server/solo.ts): who turned it on or off, when and why. */
+    solo: settings.solo ?? null,
+    soloHistory: [...(settings.soloHistory ?? [])].reverse(),
     profiles: PROFILES.map((p) => ({ id: p.id, name: p.name, summary: p.summary, comparison: compareProfile(p, current) })),
     admin,
   };
@@ -55,6 +58,8 @@ const bodySchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("set"), changes: z.array(z.object({ key: z.string(), value })).min(1).max(PARAMS.length), reason }),
   /** Back to the written policy. */
   z.object({ action: z.literal("reset"), keys: z.array(z.string()).min(1).max(PARAMS.length), reason }),
+  /** Solo mode for a small team: one person may prepare and approve, confirming it each time. */
+  z.object({ action: z.literal("solo"), on: z.boolean(), reason }),
 ]);
 
 export async function POST(req: Request) {
@@ -72,6 +77,15 @@ export async function POST(req: Request) {
     const at = new Date().toISOString().slice(0, 10);
     const who = { by: v.user.id, name: v.user.name, at, reason: a.reason };
     const fail = (error: string) => NextResponse.json({ error }, { status: 400 });
+
+    if (a.action === "solo") {
+      if (!!settings.solo?.on === a.on) return fail(a.on ? "Solo mode is already on." : "Solo mode is already off.");
+      const change = { on: a.on, ...who };
+      const next: OrgSettings = { ...settings, solo: change, soloHistory: [...(settings.soloHistory ?? []), change] };
+      await saveOrgSettings(orgId, next);
+      await db.insert(schema.auditLog).values({ projectId: null, entity: "org_settings", entityId: orgId, action: a.on ? "solo_mode_on" : "solo_mode_off", detail: { by: v.user.id, reason: a.reason } });
+      return NextResponse.json(view(next, true));
+    }
 
     let made: OrgChange[] = [];
     if (a.action === "layer") {
@@ -104,7 +118,7 @@ export async function POST(req: Request) {
         c.reset = true;
       } else values[c.key] = c;
     }
-    const next: OrgSettings = { values, history: [...settings.history, ...made] };
+    const next: OrgSettings = { ...settings, values, history: [...settings.history, ...made] };
     await saveOrgSettings(orgId, next);
     await db.insert(schema.auditLog).values({ projectId: null, entity: "org_settings", entityId: orgId, action: `rules_${a.action}`, detail: { by: v.user.id, reason: a.reason, rules: made.map((c) => c.key) } });
     return NextResponse.json(view(next, true));

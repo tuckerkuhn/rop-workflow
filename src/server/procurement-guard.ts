@@ -1,7 +1,7 @@
 import { registerAuthority } from "@/lib/authority";
 import type { AppUser } from "@/lib/demo";
 import type { Value } from "@/lib/policy";
-import { DONE, setProcurementSet, setSupplierRegister, maySign, nextStep, ownerOf, prevStep, procRolesFor, ready, roleLabel, setProcurementRules, stepById, type Procurement, type Role } from "@/lib/procurement";
+import { DONE, requesterOf, soloBarred, setProcurementSet, setSupplierRegister, maySign, nextStep, ownerOf, prevStep, procRolesFor, ready, roleLabel, setProcurementRules, stepById, type Procurement, type Role } from "@/lib/procurement";
 import { closeInstalment } from "@/lib/payments";
 import type { Authority } from "@/lib/authority";
 import type { PlanItem } from "@/lib/procurement-plan";
@@ -9,6 +9,7 @@ import { loadHr } from "@/server/hr-store";
 import { loadSuppliers } from "@/server/suppliers-store";
 import type { Supplier } from "@/lib/suppliers";
 import { projectRules } from "@/server/policy-store";
+import { soloFor, type SoloState } from "@/server/solo";
 
 /**
  * Server-side enforcement of the procurement workflow. The screen builds each change, but the
@@ -26,11 +27,11 @@ import { projectRules } from "@/server/policy-store";
  */
 
 /** Everything the checks read, loaded first so they can then run without waiting on anything. */
-export type ProcurementContext = { rules: Record<string, Value>; holders: Authority; register: Supplier[] | null; set: Procurement[] };
+export type ProcurementContext = { rules: Record<string, Value>; holders: Authority; register: Supplier[] | null; set: Procurement[]; solo: SoloState };
 export async function loadProcurementContext(code: string, orgId: string | null | undefined, set: Procurement[]): Promise<ProcurementContext> {
-  const [eff, hr, reg] = await Promise.all([projectRules(code), loadHr().catch(() => null), code !== DEMO_PROJECT && orgId ? loadSuppliers(orgId) : Promise.resolve(null)]);
+  const [eff, hr, reg, solo] = await Promise.all([projectRules(code), loadHr().catch(() => null), code !== DEMO_PROJECT && orgId ? loadSuppliers(orgId) : Promise.resolve(null), code !== DEMO_PROJECT ? soloFor(code) : Promise.resolve({ on: false, blocked: null })]);
   // An undecided conflict leaves that rule at the organization's own value, as on screen.
-  return { rules: Object.fromEntries(eff.lines.filter((l) => !l.conflict || l.decision).map((l) => [l.key, l.value as Value])), holders: hr?.state.rules?.holders ?? {}, register: reg?.suppliers ?? null, set };
+  return { rules: Object.fromEntries(eff.lines.filter((l) => !l.conflict || l.decision).map((l) => [l.key, l.value as Value])), holders: hr?.state.rules?.holders ?? {}, register: reg?.suppliers ?? null, set, solo };
 }
 /**
  * Puts the context into the shared rules. The checks read module state, so call this immediately
@@ -41,7 +42,9 @@ export function applyProcurementContext(c: ProcurementContext) {
   registerAuthority(c.holders);
   setSupplierRegister(c.register);
   setProcurementSet(c.set);
+  solo = c.solo;
 }
+let solo: SoloState = { on: false, blocked: null };
 
 /** On a real project the supplier is a register record, copied as it stands there. */
 function checkSupplier(prev: Procurement, next: Procurement, register: Supplier[]): string | null {
@@ -126,7 +129,6 @@ function checkDistribution(prev: Procurement, next: Procurement, u: AppUser): st
   }
   return null;
 }
-const requesterOf = (p: Procurement) => p.plan?.requestedBy ?? p.signatures["Purchase requisition"]?.find((s) => s.role === "holder")?.name ?? null;
 
 /** The demo project keeps its sample budget lines; every real project buys from its calendar. */
 export const DEMO_PROJECT = "A-2027";
@@ -207,7 +209,15 @@ export function validateProcurementSave(prev: Procurement | undefined, next: Pro
     for (const sig of after.filter((s) => !before.some((b) => same(b, s)))) {
       if (sig.name !== u.name) return `A signature must be your own: “${sig.as}” on the ${doc.toLowerCase()} names ${sig.name}.`;
       if (!maySign(u, prev, sig.role as Role)) return `You cannot sign as ${roleLabel(sig.role as Role)} on this procurement.`;
-      if (sig.role === "approver" && requesterOf(prev) === u.name) return "The person who requested a purchase cannot approve it.";
+      if (sig.role === "approver" && requesterOf(prev) === u.name) {
+        // Solo mode (server/solo.ts): the requester may approve, confirming it, unless the approval needs a second person.
+        const refusal = "The person who requested a purchase cannot approve it.";
+        if (!solo.on) return refusal;
+        if (solo.blocked) return `${refusal} ${solo.blocked}`;
+        const barred = soloBarred(prev);
+        if (barred) return `${refusal} ${barred}`;
+        if (!sig.self) return "Confirm that you requested this and are approving it yourself.";
+      } else if (sig.self) return "Only the person who requested a purchase marks an approval as their own.";
     }
   }
 
@@ -262,5 +272,6 @@ export function describeProcurementSave(prev: Procurement | undefined, next: Pro
   const sigs = Object.entries(next.signatures ?? {}).flatMap(([doc, l]) => l.filter((s) => !(prev.signatures?.[doc] ?? []).some((b) => same(b, s))).map((s) => `${s.as} (${doc})`));
   const fields = [...new Set([...Object.keys(prev), ...Object.keys(next)])].filter((k) => !FREE.has(k) && !same((prev as Record<string, unknown>)[k], (next as Record<string, unknown>)[k]));
   const checks = [...new Set([...Object.keys(prev.checks ?? {}), ...Object.keys(next.checks ?? {})])].filter((k) => !!prev.checks?.[k] !== !!next.checks?.[k]);
-  return { procurement: next.id, title: next.title, step: prev.step === next.step ? next.step : { from: prev.step, to: next.step }, signed: sigs, checks: checks.length, fields, added: (next.timeline ?? []).slice(prev.timeline.length).map((t) => t.what) };
+  const own = Object.values(next.signatures ?? {}).flat().filter((x) => x.self && !Object.values(prev.signatures ?? {}).flat().some((b) => same(b, x)));
+  return { procurement: next.id, title: next.title, step: prev.step === next.step ? next.step : { from: prev.step, to: next.step }, signed: sigs, checks: checks.length, fields, added: (next.timeline ?? []).slice(prev.timeline.length).map((t) => t.what), ...(own.length ? { selfApproved: true, ...(own[0].self!.note ? { soloNote: own[0].self!.note } : {}) } : {}) };
 }

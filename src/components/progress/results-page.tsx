@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { SelfConfirmSheet } from "@/components/app/self-confirm";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
@@ -98,7 +99,8 @@ export function ResultsPage() {
       throw e;
     }
   };
-  const waiting = v?.results.filter((r) => r.canReview) ?? [];
+  // Solo mode adds MEL's own results, accepted one at a time with the statement (server/solo.ts).
+  const waiting = v?.results.filter((r) => r.canReview || r.canSelfAccept) ?? [];
   const iso = /^\d{4}-\d{2}-\d{2}$/;
   const [pf, pt] = [params.get("from") ?? "", params.get("to") ?? ""];
   const range = quarter && /^\d{4}-Q[1-4]$/.test(quarter) ? quarterRange(quarter) : iso.test(pf) && iso.test(pt) ? { from: pf, to: pt } : null;
@@ -627,6 +629,8 @@ function CorrectForm({ r, act, onClose }: { r: Res; act: (a: ResultAction, msg: 
 }
 
 function ResultCard({ r, ind, act, mayAddProof, me }: { r: Res; ind?: Ind; act: (a: ResultAction, msg: string) => Promise<void>; mayAddProof: boolean; me: string }) {
+  const { t } = useT();
+  const [selfing, setSelfing] = useState(false);
   const { user } = useSession();
   const [query, setQuery] = useState<string | null>(null);
   const [reopen, setReopen] = useState<string | null>(null);
@@ -739,6 +743,21 @@ function ResultCard({ r, ind, act, mayAddProof, me }: { r: Res; ind?: Ind; act: 
             <li key={c}>Check: {c}</li>
           ))}
         </ul>
+      )}
+      {r.canSelfAccept && (
+        <div className="mt-3">
+          <p className="text-xs text-muted">{t("so.yours")}</p>
+          <button type="button" disabled={busy} className={`${primaryBtn} mt-2 min-h-12`} onClick={() => setSelfing(true)}>
+            {t("rq.acceptOne")}
+          </button>
+          {selfing && (
+            <SelfConfirmSheet
+              what={`${num(r.value)} ${ind?.unit ?? ""} · ${r.date}`}
+              onCancel={() => setSelfing(false)}
+              onConfirm={(self) => run(() => act({ action: "accept", id: r.id, self }, "Accepted, marked self-approved: it now counts.")).finally(() => setSelfing(false))}
+            />
+          )}
+        </div>
       )}
       {r.canReview && (
         <div className="mt-3">

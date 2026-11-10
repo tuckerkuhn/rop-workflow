@@ -6,6 +6,8 @@ import { ProofNumber } from "@/components/progress/proof-panel";
 import { quarterRange } from "@/lib/results";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser } from "@/components/app/session";
+import { useT } from "@/components/app/i18n";
+import { SelfConfirmSheet, useSolo } from "@/components/app/self-confirm";
 import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { userById } from "@/lib/demo";
 import { describeChange, lastMonth, quartersLabel, type Change, type ChangeInput, type ReviewAction } from "@/lib/monthly-review";
@@ -27,6 +29,7 @@ const day = (iso?: string) => (iso ? iso.slice(0, 10) : "");
 export function ReviewPage() {
   const { user } = useRequireUser();
   const { project } = useCurrentProject();
+  const solo = useSolo(project.saved ? project.id : null, user?.id);
   const [month, setMonth] = useState(() => lastMonth(new Date().toISOString().slice(0, 10)));
   const [v, setV] = useState<ReviewView | null>(null);
   const [error, setError] = useState("");
@@ -196,7 +199,7 @@ export function ReviewPage() {
                   ) : (
                     <ul className="mt-2 space-y-2">
                       {v.review.changes.map((c) => (
-                        <ChangeItem key={c.id} c={c} me={v.me} mayDecide={v.mayDecide} busy={busy} label={describeChange(c, { indicator: indName })} act={act} />
+                        <ChangeItem key={c.id} c={c} me={v.me} mayDecide={v.mayDecide} solo={solo} busy={busy} label={describeChange(c, { indicator: indName })} act={act} />
                       ))}
                     </ul>
                   )}
@@ -258,8 +261,10 @@ function Note({ label, hint, value, editable, busy, onSave }: { label: string; h
   );
 }
 
-function ChangeItem({ c, me, mayDecide, busy, label, act }: { c: Change; me: string; mayDecide: boolean; busy: boolean; label: string; act: (a: ReviewAction) => Promise<boolean> }) {
+function ChangeItem({ c, me, mayDecide, solo, busy, label, act }: { c: Change; me: string; mayDecide: boolean; solo: boolean; busy: boolean; label: string; act: (a: ReviewAction) => Promise<boolean> }) {
+  const { t } = useT();
   const [note, setNote] = useState("");
+  const [selfing, setSelfing] = useState(false);
   const tone = c.status === "approved" ? "forest" : c.status === "rejected" ? "clay" : "ochre";
   return (
     <li className="rounded-xl border border-line bg-paper p-3 text-sm">
@@ -285,10 +290,29 @@ function ChangeItem({ c, me, mayDecide, busy, label, act }: { c: Change; me: str
         </div>
       )}
       {c.status === "proposed" && c.proposedBy === me && (
-        <button type="button" className={`${quietBtn} mt-2 py-1`} disabled={busy} onClick={() => void act({ action: "withdraw", id: c.id })}>
-          Withdraw
-        </button>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {/* Solo mode (server/solo.ts): a small team's reviewer approves their own change, confirming it. */}
+          {mayDecide && solo && (
+            <button type="button" className={`${primaryBtn} min-h-12`} disabled={busy} onClick={() => setSelfing(true)}>
+              Approve and apply
+            </button>
+          )}
+          <button type="button" className={`${quietBtn} py-1`} disabled={busy} onClick={() => void act({ action: "withdraw", id: c.id })}>
+            Withdraw
+          </button>
+        </div>
       )}
+      {selfing && (
+        <SelfConfirmSheet
+          what={label}
+          onCancel={() => setSelfing(false)}
+          onConfirm={async (self) => {
+            await act({ action: "decide", id: c.id, decision: "approve", self });
+            setSelfing(false);
+          }}
+        />
+      )}
+      {c.status === "approved" && c.selfApproved && <p className="mt-1 text-xs font-semibold text-ochre">{t("so.self")}</p>}
     </li>
   );
 }

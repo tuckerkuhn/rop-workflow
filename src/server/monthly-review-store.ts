@@ -8,6 +8,7 @@ import { z } from "zod";
 import { draftStructured } from "@/server/ai-structured";
 import { logAudit } from "@/server/audit";
 import { loadBudgetView } from "@/server/budget-view-store";
+import { selfApproval, soloFor } from "@/server/solo";
 import { projectByCode } from "@/server/field-store";
 import { qprData } from "@/server/qpr-store";
 import { ROP_VOICE } from "@/lib/voice";
@@ -276,7 +277,15 @@ export async function actOnReview(code: string, month: string, a: ReviewAction, 
     const c = review.changes.find((x) => x.id === a.id);
     if (!c) return "No such change.";
     if (c.status !== "proposed") return "This change has already been decided.";
-    if (c.proposedBy === u.id) return "You proposed this change, so someone else must decide it.";
+    // Solo mode (server/solo.ts): a small team's reviewer may approve their own change, confirming it. Rejecting it is withdrawing it.
+    let self: Record<string, unknown> = {};
+    if (c.proposedBy === u.id) {
+      const refusal = "You proposed this change, so someone else must decide it.";
+      if (a.decision !== "approve") return refusal;
+      const ok = selfApproval(await soloFor(code), a.self, refusal);
+      if (!ok.ok) return ok.why;
+      self = ok.detail;
+    }
     try {
       await db.transaction(async (tx) => {
         const applied = a.decision === "approve" ? await applyChange(tx, project.id, c) : null;
@@ -285,6 +294,7 @@ export async function actOnReview(code: string, month: string, a: ReviewAction, 
           decidedBy: u.id,
           decidedAt: now,
           ...(a.note ? { note: a.note } : {}),
+          ...(self.selfApproved ? { selfApproved: true } : {}),
         });
         await saveReview(tx, project.id, review);
         await log(tx, a.decision === "approve" ? "review_change_approved" : "review_change_rejected", {
@@ -294,6 +304,7 @@ export async function actOnReview(code: string, month: string, a: ReviewAction, 
           proposedBy: c.proposedBy,
           note: a.note ?? null,
           applied,
+          ...self,
         });
       });
     } catch (e) {
