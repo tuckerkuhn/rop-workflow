@@ -9,6 +9,8 @@ import { z } from "zod";
 export type Statement = { text: string; source: string; by: string; byName: string; at: string };
 export type Framework = { goal: Statement | null; nodes: Record<string, Statement> };
 export const EMPTY_FRAMEWORK: Framework = { goal: null, nodes: {} };
+/** The project_state key the framework's wording is saved under. */
+export const FRAMEWORK_KEY = "framework";
 
 export const frameworkAction = z.object({
   /** "goal", or a node code: "1" (outcome), "1.2" (output), "1.2.1" (activity). */

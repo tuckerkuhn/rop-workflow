@@ -4,7 +4,7 @@ import type { AppUser } from "@/lib/demo";
 import { activityOf } from "@/lib/qpr";
 import { emptyWeekly, weekOf, type Week, type WeeklyState } from "@/lib/weekly";
 import { isMelOwner } from "@/server/auth";
-import { projectByCode } from "@/server/field-store";
+import { projectByCode, donorNameOf } from "@/server/field-store";
 import { loadProjectState, saveProjectState } from "@/server/project-state";
 import { loadUpdates } from "@/server/results-store";
 
@@ -50,7 +50,7 @@ export async function weeklyView(code: string, u: AppUser, from: string | null) 
   const items = updates.sort((a, b) => order(a.activity) - order(b.activity) || a.date.localeCompare(b.date) || a.at.localeCompare(b.at));
   const write = mayWriteWeekly(u) && !current.sent;
   return {
-    project: { code: project.code, name: project.name, donor: project.donor },
+    project: { code: project.code, name: project.name, donor: await donorNameOf(project) },
     region: state.region,
     weeks: state.weeks.map((w) => ({ n: w.n, from: w.from, to: w.to, sent: !!w.sent })),
     week: current,

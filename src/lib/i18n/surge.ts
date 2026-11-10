@@ -6,6 +6,7 @@
 
 export const sgEn = {
   "pf.uncheckedConfirm": "Pre-flight could not be checked just now, so the app cannot tell whether anything blocks this report. The file will be marked \"Draft, not checked\". Download it anyway?",
+  "pf.c.typedSpend": "This quarter's spending is typed in as {typed}, but Finance's import says {imported}. The report will print the typed figure: clear it to use Finance's, or keep it and be ready to explain the difference.",
   "err.title": "This page could not load",
   "err.body": "Nothing you saved is lost. Check your connection and try again. If it keeps happening, tell an administrator.",
   "err.retry": "Try again",
@@ -22,6 +23,7 @@ export const sgEn = {
 
 export const sgEs: Partial<Record<keyof typeof sgEn, string>> = {
   "pf.uncheckedConfirm": "No se pudo hacer la revisión previa en este momento, así que la aplicación no sabe si algo bloquea este informe. El archivo llevará la marca \"Borrador, sin revisar\". ¿Descargarlo de todos modos?",
+  "pf.c.typedSpend": "El gasto de este trimestre está escrito a mano como {typed}, pero el archivo de Finanzas dice {imported}. El informe mostrará la cifra escrita: bórrala para usar la de Finanzas, o déjala y prepárate para explicar la diferencia.",
   "err.title": "No se pudo cargar esta página",
   "err.body": "No se perdió nada de lo que guardaste. Revisa tu conexión e inténtalo de nuevo. Si sigue pasando, avisa a un administrador.",
   "err.retry": "Intentar de nuevo",
@@ -38,6 +40,7 @@ export const sgEs: Partial<Record<keyof typeof sgEn, string>> = {
 
 export const sgFa: Partial<Record<keyof typeof sgEn, string>> = {
   "pf.uncheckedConfirm": "بررسی پیش از ارسال همین حالا انجام نشد، پس برنامه نمی‌داند چیزی جلوی این گزارش را می‌گیرد یا نه. فایل با نشان «پیش‌نویس، بررسی نشده» ساخته می‌شود. با این حال دانلود شود؟",
+  "pf.c.typedSpend": "مصرف این ربع با دست {typed} نوشته شده، اما فایل بخش مالی {imported} می‌گوید. گزارش رقم نوشته‌شده را نشان می‌دهد: آن را پاک کنید تا رقم بخش مالی به کار رود، یا نگه دارید و برای توضیح تفاوت آماده باشید.",
   "err.title": "این صفحه باز نشد",
   "err.body": "چیزی که ذخیره کرده‌اید از بین نرفته است. اتصال خود را ببینید و دوباره کوشش کنید. اگر تکرار شد، به مدیر سیستم بگویید.",
   "err.retry": "دوباره کوشش کنید",
@@ -54,6 +57,7 @@ export const sgFa: Partial<Record<keyof typeof sgEn, string>> = {
 
 export const sgPs: Partial<Record<keyof typeof sgEn, string>> = {
   "pf.uncheckedConfirm": "له لېږلو مخکې کتنه همدا اوس ونه شوه، نو اپلیکیشن نه پوهېږي چې کوم شی دا راپور دروي که نه. فایل به د «مسوده، نه ده کتل شوې» نښه ولري. بیا هم ښکته یې کړو؟",
+  "pf.c.typedSpend": "د دې ربع لګښت په لاس {typed} لیکل شوی، خو د مالي څانګې فایل {imported} وایي. راپور به لیکل شوی رقم وښيي: هغه پاک کړئ چې د مالي څانګې رقم وکارول شي، یا یې وساتئ او د توپیر تشریح ته چمتو اوسئ.",
   "err.title": "دا پاڼه خلاصه نه شوه",
   "err.body": "هغه څه چې تاسو خوندي کړي له منځه نه دي تللي. خپله اړیکه وګورئ او بیا هڅه وکړئ. که بیا هم وشوه، مدیر ته ووایاست.",
   "err.retry": "بیا هڅه وکړئ",

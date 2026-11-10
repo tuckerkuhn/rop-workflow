@@ -104,6 +104,9 @@ async function qpr(c: Ctx, quarter: string): Promise<Omit<Preflight, "items" | "
 
   if (d.spend.source.kind === "import" && d.spend.missingMonths.length) add(c, { group: "blocks", owner: "finance", text: `Spending not imported for ${d.spend.missingMonths.join(", ")}`, href: "/progress/budget" });
   else if (d.spend.source.kind === "import") ok(c, "pf.ok.spend");
+  // The report prints the typed figure in place of Finance's: say so before it goes out.
+  if (d.saved.quarterSpend !== null && d.spend.quarter !== null && Math.abs(d.saved.quarterSpend - d.spend.quarter) > 1)
+    add(c, { group: "fix", owner: "finance", text: `This quarter's spending is typed in as ${d.saved.quarterSpend.toLocaleString("en-US")}, but Finance's import says ${d.spend.quarter.toLocaleString("en-US")}: the report will print the typed figure`, key: "pf.c.typedSpend", vars: { typed: d.saved.quarterSpend.toLocaleString("en-US"), imported: d.spend.quarter.toLocaleString("en-US") }, href: `/progress/report?${q}` });
   const unexplained = overspentLines(d.spend, d.saved).filter((l) => l.explanation.length < 10);
   if (unexplained.length) add(c, { group: "fix", owner: "finance", text: `${n(unexplained.length, "budget line", "budget lines")} over budget without an explanation (${unexplained.map((l) => l.code).join(", ")})`, href: `/progress/report?${q}` });
   await unmatchedSpend(c);

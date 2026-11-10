@@ -1,6 +1,6 @@
 import { currentInstalment, expectedUsd, invoiceUsd, scheduleOf, withholding } from "@/lib/payments";
 import { z } from "zod";
-import { holderFor, levelFor, valueOf, type Draft, type Procurement } from "@/lib/procurement";
+import { holderFor, levelFor, rulesInForce, valueOf, type Draft, type Procurement } from "@/lib/procurement";
 import { today } from "@/lib/clock";
 import { asIs, askAi, DRAFT_MODEL, DraftingUnavailable } from "@/server/ai";
 
@@ -32,8 +32,18 @@ const draftSchema = z.object({
   questions: z.array(z.string()).describe("Facts the record does not settle that a person must fill in or confirm before the document is used. Empty if none."),
 });
 
-const POLICY = `You draft procurement documents for Roots of Peace (ROP), an international NGO, under its procurement policy (Afghanistan, April 2025). Rules that apply:
-- Levels by estimated value in USD: Micro up to $500; Small $500 to $5,000; Medium $5,000 to $25,000; Large over $25,000.
+/** A threshold from the rules in force for the project, as "$5,000". */
+const dollars = (key: string, fallback: number) => {
+  const v = rulesInForce()[key];
+  return "$" + (typeof v === "number" ? v : fallback).toLocaleString("en-US");
+};
+/**
+ * The rules the model is given. The level thresholds are read from the rules in force (the
+ * organization's policy with the donor's layered on), the same ones `levelFor` uses for the
+ * record's level, so the prompt and the record never state different amounts.
+ */
+export const policyText = () => `You draft procurement documents for Roots of Peace (ROP), an international NGO, under its procurement policy (Afghanistan, April 2025). Rules that apply:
+- Levels by estimated value in USD: Micro up to ${dollars("microMaxUsd", 500)}; Small ${dollars("microMaxUsd", 500)} to ${dollars("smallMaxUsd", 5000)}; Medium ${dollars("smallMaxUsd", 5000)} to ${dollars("largeAboveUsd", 25000)}; Large over ${dollars("largeAboveUsd", 25000)}.
 - A request for quotation (RFQ) is awarded to the lowest-priced quotation that meets every requirement (lowest price technically acceptable). An RFP is best value. Never mix the two.
 - Pass/fail requirements are listed separately from anything priced or scored; a price never stands in for a minimum requirement.
 - Submission terms are stated once: deadline (date and time), where and how to submit, bid validity period, currency. A quotation is only rejected on grounds the request states.
@@ -105,7 +115,7 @@ export async function draftDocument(p: Procurement, kind: DraftKind, by: string,
   const { out, model } = await askAi({
     job: "procurementDraft",
     by: byId,
-    system: POLICY,
+    system: policyText(),
     task: ASK[kind],
     facts: asIs(recordOf(p), RECORD),
     factsLabel: "The procurement record (JSON)",
@@ -146,7 +156,7 @@ export async function checkProcurement(p: Procurement, step: string, by: string)
   const { out } = await askAi({
     job: "procurementCheck",
     by,
-    system: `${POLICY}\n\nYou are checking, not drafting. Report problems you can see in the record. Do not repeat what is fine. Never say a check passed on a person's behalf.`,
+    system: `${policyText()}\n\nYou are checking, not drafting. Report problems you can see in the record. Do not repeat what is fine. Never say a check passed on a person's behalf.`,
     task: ask,
     facts: asIs(recordOf(p), RECORD),
     factsLabel: "The procurement record (JSON)",

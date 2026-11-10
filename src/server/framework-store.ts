@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { ancestors, EMPTY_FRAMEWORK, levelOf, SUGGESTED, type Framework, type FrameworkAction } from "@/lib/framework";
+import { ancestors, EMPTY_FRAMEWORK, FRAMEWORK_KEY, levelOf, SUGGESTED, type Framework, type FrameworkAction } from "@/lib/framework";
 import { ourWork } from "@/lib/budget";
 import type { AppUser } from "@/lib/demo";
 import { logAudit } from "@/server/audit";
@@ -9,7 +9,7 @@ import { loadReview } from "@/server/monthly-review-store";
 import { loadWorkplan } from "@/server/plan-store";
 import { loadProjectState, saveProjectState } from "@/server/project-state";
 
-const KEY = "framework";
+const KEY = FRAMEWORK_KEY;
 const today = () => new Date().toISOString().slice(0, 10);
 
 type Leaf = { code: string; donorCode: string; name: string; unit: string; year: number; yearTarget: number; status: string; /** Quarters of this year (1–4) with work planned; null when not linked to the workplan. */ planned: number[] | null };

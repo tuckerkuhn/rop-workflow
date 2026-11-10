@@ -126,7 +126,7 @@ export function ProgressPage() {
                   </span>
                   <ul className="mt-3 grid gap-3 sm:grid-cols-2">
                     {g.list.map((i) => (
-                      <IndicatorCard key={i.code} i={i} donorCode={donor?.indicatorRefs[i.code]} canMap={editor} />
+                      <IndicatorCard key={i.code} i={i} donorCode={donor?.indicatorRefs[i.code] || i.donorCode || undefined} canMap={editor} />
                     ))}
                   </ul>
                 </section>

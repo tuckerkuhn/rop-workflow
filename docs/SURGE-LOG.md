@@ -80,6 +80,18 @@ Each pair was pinned by a test first (`one-number.test.ts`), then one function k
 - Left: `RUN_CODES` (payroll) and `isWorkday` (timesheets) are unused too but sit in the HR area, which is not to be touched.
 - Not done: the 17 copies of the `call` fetch helper, 10 of `addDays` and 7 date formatters (audit, section 6). They agree today; folding them is a wide mechanical change better done with someone watching.
 
+## 00:05 Phase 4. Entered once (branch `surge/entered-once`)
+
+Nothing was migrated or dropped. Where a fact had two stores, code now reads one; the spare column or copy is listed in the morning report.
+
+- **Donor name.** Setup and Settings write the `donors` table, but the quarterly report, annual report, FACE form, weekly update and evidence pack read `projects.donor`, which no screen writes: a project made in setup printed no donor. They now call `donorNameOf` (`server/field-store.ts`): the donor entered in setup or Settings; the old column only when none is entered, or to say which of several donors a single-donor report is for.
+- **Project goal.** Reports and AI drafts read `goalOf`: the goal as a plan approver worded it on the results framework, else the goal from setup. Before, the framework wording never reached the report.
+- **Donor's code for a target.** Progress and the baseline report used the code typed per donor in Settings and showed the app's internal code when that was blank, while the quarterly report used the code entered in setup. Progress and the baseline report now fall back to the setup code.
+- **Spent to date.** Re-uploading a budget file with a "spent" column put old spending back over Finance's import, and the procurement calendar then showed the wrong amount left. Once an import exists, a budget re-upload no longer touches spent.
+- **Spent this quarter.** A typed figure replaces Finance's in the report. The report page already said so; pre-flight now lists it too, under Worth fixing, with both figures.
+- **Procurement thresholds in words.** The method descriptions on the procurement calendar and the instructions given to the AI stated $500 / $5,000 / $25,000 whatever rules were in force. Both now read the rules in force, the same source `levelFor` uses. The draft and check routes load the project's rules first; before, the AI was told ROP's defaults even on a project with a donor's stricter thresholds.
+- **Not done, with the reason, in the morning report:** report deadlines have one store but three doors (Settings donor form, setup's agreement step, Tasks); the quarterly report's info box (title, duration, agreement number, director, locations, partner) is typed on the report and carried forward; the afghani rate; "money left" copied into each request; photo consent held on the photo and on its story; people held in both `staff` and the HR record (HR is not to be touched); six indicator fields only a script can set.
+
 ## Decisions
 
 Each is reversible. Listed as they are made.
@@ -93,3 +105,6 @@ Each is reversible. Listed as they are made.
 - Overspent means more than 0.5% above approved, everywhere. Before, the quarterly report used budget + 1 (in the budget's currency). To go back, change `spentOver` in `src/lib/budget-view.ts`: one line.
 - Supplier screening goes out of date on the calendar-month rule (the stricter of the two by a day or two).
 - Home's "10th of the month" is kept only as a fallback, labelled as not a set date. It is in the code as ROP's practice but not in the policy file: question in the morning report.
+- When a project has one donor entered, reports print that name. With several donors and nothing in the old column, they print the names joined with "and".
+- When the results framework has a worded goal, reports and AI drafts use it rather than the goal typed in setup.
+- A budget re-upload leaves spent alone once Finance's spending has been imported. To change spent, import spending.

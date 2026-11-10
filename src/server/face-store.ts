@@ -5,7 +5,7 @@ import { db, schema as s } from "@/db";
 import { spentIn } from "@/lib/bva";
 import { activityOfLine, emptyFace, faceRows, monthShort, nextMonth, periodText, type FaceMonth, type FaceRow, type FaceState } from "@/lib/face";
 import { loadActuals } from "@/server/actuals-store";
-import { projectByCode } from "@/server/field-store";
+import { projectByCode, donorNameOf } from "@/server/field-store";
 import { loadProjectState, saveProjectState } from "@/server/project-state";
 
 /** The FACE form: header and each month's entries in project_state ("face"); figures from the spending import. */
@@ -68,7 +68,7 @@ export async function faceView(code: string, month: string): Promise<FaceViewDat
   const { rows, total } = faceRows(activities, spent, entries);
   const overheadUsd = Math.round(imp?.totals.overhead?.currency === "USD" ? (imp.totals.overhead.months[month] ?? 0) : 0);
   return {
-    project: { code: project.code, name: project.name, donor: project.donor },
+    project: { code: project.code, name: project.name, donor: await donorNameOf(project) },
     month,
     period: periodText(month),
     header: st.header,
