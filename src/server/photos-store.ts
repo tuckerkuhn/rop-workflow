@@ -3,7 +3,7 @@ import { eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db, schema as s } from "@/db";
 import type { AppUser } from "@/lib/demo";
-import { withoutNames } from "@/lib/personal-text";
+import { firstNamesOnly } from "@/lib/personal-text";
 import { AUDIENCE_TEXT, emptyPhotos, needs, PUBLIC_AUDIENCES, rank, SHARE_TEXT, shareLimit, type Audience, type PhotoAction, type PhotoMeta, type PhotosState, type Post, type Share } from "@/lib/photos";
 import type { Story } from "@/lib/stories";
 import { ROP_VOICE } from "@/lib/voice";
@@ -170,15 +170,15 @@ export async function draftPost(code: string, st: PhotosState, audience: Audienc
     project: p.name,
     donor: p.donor,
     audience: AUDIENCE_TEXT[audience],
-    photos: chosen.map((c) => ({ shows: st.photos[c.hash]?.coach?.shows ?? "", caption: withoutNames(c.caption), date: c.date, province: c.province })),
+    photos: chosen.map((c) => ({ shows: st.photos[c.hash]?.coach?.shows ?? "", caption: firstNamesOnly(c.caption), date: c.date, province: c.province })),
     records: chosen.map((c) => {
       if (c.source.kind === "result") {
         const r = results.find((x) => x.id === c.source.id);
-        return r && { result: c.source.title, date: r.date, province: r.province, women: r.female, men: r.male, note: withoutNames(r.note).slice(0, 400) };
+        return r && { result: c.source.title, date: r.date, province: r.province, women: r.female, men: r.male, note: firstNamesOnly(r.note).slice(0, 400) };
       }
       if (c.source.kind === "update") {
         const x = updates.find((y) => y.id === c.source.id);
-        return x && { update: x.title ?? "", date: x.date, note: withoutNames(x.note).slice(0, 600) };
+        return x && { update: x.title ?? "", date: x.date, note: firstNamesOnly(x.note).slice(0, 600) };
       }
       const story = stories.find((y) => y.id === c.source.id);
       // A story's text and first name only where its consent covers this use.
@@ -193,7 +193,7 @@ export async function draftPost(code: string, st: PhotosState, audience: Audienc
     "Credit the donor by name only for the Donor audience and where the facts name one. Write for the channel as described.",
     ROP_VOICE,
   ].join(" ");
-  const { out, model } = await draftStructured({ job: "postDraft", by, projectId: p.id, system, task: `Draft one ${AUDIENCE_TEXT[audience]} piece. ${CHANNEL[audience]}`, facts: scrubbed(facts, ["caption", "note", "request", "result", "update"]), schema: postSchema, effort: "low", maxTokens: 6000 });
+  const { out, model } = await draftStructured({ job: "postDraft", by, projectId: p.id, system, task: `Draft one ${AUDIENCE_TEXT[audience]} piece. ${CHANNEL[audience]}`, facts: scrubbed(facts, ["caption", "note", "request", "result", "update"], { firstNames: true }), schema: postSchema, effort: "low", maxTokens: 6000 });
   return { text: out.text.trim(), checks: out.checks, model };
 }
 

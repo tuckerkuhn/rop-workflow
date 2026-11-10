@@ -50,3 +50,21 @@ describe("names in free text", () => {
     expect(withoutNames(t)).toBe(t);
   });
 });
+
+/** Stories and posts keep first names (project lead, 10 Nov 2026). Invented names only. */
+describe("first names kept, last names and villages removed", () => {
+  it("keeps a one-word name and drops a last name", async () => {
+    const { firstNamesOnly } = await import("@/lib/personal-text");
+    expect(firstNamesOnly("We visited Zarmal's orchard.")).toBe("We visited Zarmal's orchard.");
+    expect(firstNamesOnly("We visited Baryal Noorzad's orchard.")).toBe("We visited Baryal's orchard.");
+    expect(firstNamesOnly("Met Haji Baryal Noorzad at the site.")).toBe("Met Haji Baryal at the site.");
+  });
+  it("still removes villages, and keeps provinces", async () => {
+    const { firstNamesOnly } = await import("@/lib/personal-text");
+    expect(firstNamesOnly("Zarmal's plot in Sorkhab Village, Kandahar's best.")).toBe("Zarmal's plot in a village, Kandahar's best.");
+  });
+  it("replaces a two-word name at the start of a sentence whole, since the first word may not be a name", async () => {
+    const { firstNamesOnly } = await import("@/lib/personal-text");
+    expect(firstNamesOnly("Visited Zarmal's orchard. Then Baryal Noorzad's.")).toBe("a farmer's orchard. Then Baryal's.");
+  });
+});
