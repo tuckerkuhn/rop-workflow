@@ -555,6 +555,8 @@ export const koboMappings = pgTable("kobo_mappings", {
   question: text("question").notNull(),
   method: text("method").notNull(),
   value: text("value"),
+  /** Where the mapping came from: "manual" (chosen by hand), "suggested" (an AI suggestion accepted as is) or "suggested-edited". */
+  origin: text("origin").notNull().default("manual"),
   ...timestamps,
 });
 

@@ -15,7 +15,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ code: st
     const parsed = mappingsSchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return NextResponse.json({ error: "Invalid mappings." }, { status: 400 });
     return readable(async () => {
-      await saveMappings(code, parsed.data.mappings);
+      await saveMappings(code, parsed.data.mappings, v.actor.id);
       // A new or changed mapping turns the submissions it counts into results for MEL.
       await koboToResults(code);
       return NextResponse.json(await koboState(code));

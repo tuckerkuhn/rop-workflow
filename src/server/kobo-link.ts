@@ -2,7 +2,8 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { and, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { protectSubmission } from "@/server/kobo-protect";
-import type { AutoSyncSecret, FormPurpose, KoboMapping, KoboState, MappingMethod, SyncCounts } from "@/lib/kobo-setup";
+import type { AutoSyncSecret, FormPurpose, KoboMapping, KoboState, MappingMethod, MappingOrigin, SyncCounts } from "@/lib/kobo-setup";
+import { logAudit } from "@/server/audit";
 import { KoboError, checkServerUrl, formQuestions, formSubmissions, listForms, submissionRefs, type KoboSubmission } from "@/server/kobo-client";
 import { MissingKeyError, decryptSecret, encryptSecret } from "@/server/secrets";
 
@@ -56,7 +57,7 @@ export async function koboState(code: string): Promise<KoboState> {
   return {
     connection: c && { serverUrl: c.serverUrl, tokenHint: c.tokenHint, countOnly: c.countOnly === "approved" ? "approved" : "all", lastSyncedAt: c.lastSyncedAt?.toISOString() ?? null, autoSyncSince: c.hookSecretHash ? (c.hookEnabledAt?.toISOString() ?? null) : null },
     forms: forms.map((f) => ({ uid: f.assetUid, name: f.name, purpose: purposeOf(f.purpose) })),
-    mappings: mappings.map(({ code, m }) => ({ indicatorCode: code, assetUid: m.assetUid, question: m.question, method: m.method as MappingMethod, value: m.value })),
+    mappings: mappings.map(({ code, m }) => ({ indicatorCode: code, assetUid: m.assetUid, question: m.question, method: m.method as MappingMethod, value: m.value, origin: (m.origin ?? "manual") as MappingOrigin })),
   };
 }
 
@@ -164,7 +165,7 @@ export async function saveForms(code: string, forms: { uid: string; name: string
 }
 
 /** Replaces every mapping on the project. Each indicator has at most one. */
-export async function saveMappings(code: string, mappings: KoboMapping[]) {
+export async function saveMappings(code: string, mappings: KoboMapping[], by: string) {
   const project = await projectRow(code);
   const inds = await db.select().from(s.indicators).where(eq(s.indicators.projectId, project.id));
   const forms = new Set((await db.select().from(s.koboForms).where(eq(s.koboForms.projectId, project.id))).map((f) => f.assetUid));
@@ -177,8 +178,10 @@ export async function saveMappings(code: string, mappings: KoboMapping[]) {
     if (inds.length) await tx.delete(s.koboMappings).where(inArray(s.koboMappings.indicatorId, inds.map((i) => i.id)));
     if (mappings.length)
       await tx.insert(s.koboMappings).values(
-        mappings.map((m) => ({ indicatorId: inds.find((i) => i.code === m.indicatorCode)!.id, assetUid: m.assetUid, question: m.question, method: m.method, value: m.method === "count_answer" ? m.value : null })),
+        mappings.map((m) => ({ indicatorId: inds.find((i) => i.code === m.indicatorCode)!.id, assetUid: m.assetUid, question: m.question, method: m.method, value: m.method === "count_answer" ? m.value : null, origin: m.origin ?? "manual" })),
       );
+    // Which question counts toward which indicator, and whether a person chose it or accepted a suggestion.
+    await logAudit(tx, project.id, { entity: "project", entityId: project.id, action: "kobo_mappings_saved", by, detail: { mappings: mappings.map((m) => ({ indicator: m.indicatorCode, form: m.assetUid, question: m.question, method: m.method, value: m.value, origin: m.origin ?? "manual" })) } });
   });
 }
 

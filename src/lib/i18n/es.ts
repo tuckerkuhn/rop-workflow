@@ -2,6 +2,7 @@ import type { Messages } from "./en";
 import { tsEs } from "./hr/timesheet";
 import { actEs } from "./activities";
 import { pfEs } from "./preflight";
+import { ksEs } from "./kobo-suggest";
 import { agEs } from "./agreement";
 import { evEs } from "./evidence";
 import { lvEs } from "./hr/leave";
@@ -505,6 +506,7 @@ export const es: Messages = {
   ...lvEs,
   ...actEs,
   ...pfEs,
+  ...ksEs,
   ...agEs,
   ...evEs,
   ...expEs,
