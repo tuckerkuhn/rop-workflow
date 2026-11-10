@@ -1,5 +1,6 @@
 "use client";
 
+import { FieldHelp } from "@/components/app/field-help";
 import { useT } from "@/components/app/i18n";
 import Link from "next/link";
 import { useState } from "react";
@@ -256,7 +257,10 @@ export function FarmerProfile({ id }: { id: string }) {
             {/* Photos */}
             <section>
               <div className="flex items-center justify-between">
-                <SectionLabel>Photos · {farmer.photos.length}</SectionLabel>
+                <div className="flex flex-wrap items-center">
+                  <SectionLabel>Photos · {farmer.photos.length}</SectionLabel>
+                  <FieldHelp field="farmer.photo" />
+                </div>
                 {canEdit && !addingPhoto && (
                   <button type="button" onClick={() => setAddingPhoto(true)} className="text-sm font-semibold text-forest hover:underline">
                     + Add photo

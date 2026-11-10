@@ -17,7 +17,8 @@
     "staff": "tsx --env-file=.env.local src/db/staff-cli.ts",
     "plan": "tsx --env-file=.env.local src/db/plan-cli.ts",
     "test": "vitest run",
-    "sample": "tsx --env-file=.env.local src/db/sample-cli.ts"
+    "sample": "tsx --env-file=.env.local src/db/sample-cli.ts",
+    "kobo:reconcile": "tsx --env-file=.env.local src/db/kobo-reconcile-cli.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.4.0",
