@@ -139,6 +139,16 @@ export function durationOf(typed: string | undefined, project: { start: string |
   return project.start && project.end ? `${longDate(project.start)} – ${longDate(project.end)}` : null;
 }
 
+/**
+ * What a person's roles do not let them do on the way to a released report, so the page can say
+ * it once at the top instead of refusing part-way. The flags come from the report's own route.
+ */
+export const REPORT_STEPS = ["edit", "accept", "import", "release"] as const;
+export type ReportStep = (typeof REPORT_STEPS)[number];
+export function cannotOnReport(may: { edit: boolean; accept: boolean; import: boolean; release: boolean }): ReportStep[] {
+  return REPORT_STEPS.filter((k) => !may[k]);
+}
+
 export const prevQuarterOf = (q: string) => {
   const [y, n] = [Number(q.slice(0, 4)), Number(q.slice(6))];
   return n === 1 ? `${y - 1}-Q4` : `${y}-Q${n - 1}`;
