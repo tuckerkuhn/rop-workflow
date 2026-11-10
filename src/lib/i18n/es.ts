@@ -4,6 +4,7 @@ import { actEs } from "./activities";
 import { pfEs } from "./preflight";
 import { hbEs, hkEs, pmEs, prEs, sgEs } from "./surge";
 import { awEs } from "./ai-why";
+import { fhEs } from "./field-help";
 import { rqEs } from "./review-queue";
 import { soEs } from "./solo";
 import { smEs } from "./spend";
@@ -517,6 +518,7 @@ export const es: Messages = {
   ...pmEs,
   ...hkEs,
   ...awEs,
+  ...fhEs,
   ...rqEs,
   ...soEs,
   ...smEs,

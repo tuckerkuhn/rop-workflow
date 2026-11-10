@@ -3,6 +3,7 @@ import { actEn } from "./activities";
 import { pfEn } from "./preflight";
 import { hbEn, hkEn, pmEn, prEn, sgEn } from "./surge";
 import { awEn } from "./ai-why";
+import { fhEn } from "./field-help";
 import { rqEn } from "./review-queue";
 import { soEn } from "./solo";
 import { smEn } from "./spend";
@@ -587,6 +588,7 @@ export const en = {
   ...pmEn,
   ...hkEn,
   ...awEn,
+  ...fhEn,
   ...rqEn,
   ...soEn,
   ...smEn,

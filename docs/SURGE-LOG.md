@@ -169,6 +169,14 @@ Plan: reuse the existing `sync` and `koboToResults` unchanged; add only the nigh
 - One audit row per project per run (`kobo_reconciled` or `kobo_reconcile_failed`, with the counts). Settings, Health has a new section showing each project's latest run.
 - `vercel.json` has a third scheduled job at 00:45 UTC, before the 01:30 daily email. **I could not check the Vercel plan's limit** (the Vercel CLI is blocked for this session, rightly). If the deploy refuses a third job: delete that entry from `vercel.json` and set `KOBO_RECONCILE_IN_DIGEST=1`; the daily email job then runs the reconcile first.
 
+## 00:53 Phase 6, C7. "Why we ask" help (branch `feature/field-help`)
+
+- One register, `src/lib/field-help.ts`, one component, `src/components/app/field-help.tsx` (a "?" with a phone-sized tap area), text in four languages in `src/lib/i18n/field-help.ts` (es, fa, ps are my drafts).
+- Six fields have their "?": on recording a result, women and men, young people, province and district, what was done, and proof; on a story, consent.
+- Each line was checked against the code. Where there was nothing real to say the line is absent: only two fields have a Source line (the target's own breakdown; the Afghan youth policy for the 18 to 35 band), because the repo holds no written source for the others.
+- `docs/DATA-PROTECTION.md` has a new section, "What we collect and why", generated from the register. A test fails when the two differ; `UPDATE_DOCS=1 npm test` rewrites the section.
+- **Short of "done when":** Photos and HR have no "?" (both are on the do-not-touch list), and the AI-proposed values rely on C6's "It looked at" line rather than this help. Question in the morning report: may the "?" be added to Photos and HR?
+
 ## Decisions
 
 Each is reversible. Listed as they are made.

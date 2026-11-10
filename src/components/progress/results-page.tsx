@@ -17,6 +17,7 @@ import { PROVINCES, YOUTH, proofCount, proofLinkSchema, quarterOf, quarterRange,
 import type { ResultsView } from "@/app/api/projects/[code]/results/route";
 import { NamesWarning } from "@/components/progress/names-warning";
 import { LookedAt } from "@/components/app/ai-why";
+import { FieldHelp } from "@/components/app/field-help";
 import { ErrorNote } from "@/components/app/error-note";
 
 /**
@@ -900,6 +901,7 @@ function RecordForm({ ind, add, onClose }: { ind: Ind; add: (r: ResultInput) => 
         </label>
         <label className="text-sm">
           Province
+          <FieldHelp field="result.place" />
           <select className={input} value={f.province} onChange={set("province")}>
             <option value="">—</option>
             {PROVINCES.map((p) => (
@@ -915,6 +917,7 @@ function RecordForm({ ind, add, onClose }: { ind: Ind; add: (r: ResultInput) => 
           <>
             <label className="text-sm">
               Women
+              <FieldHelp field="result.sex" />
               <input inputMode="numeric" className={input} value={f.female} onChange={set("female")} />
             </label>
             <label className="text-sm">
@@ -923,6 +926,7 @@ function RecordForm({ ind, add, onClose }: { ind: Ind; add: (r: ResultInput) => 
             </label>
             <label className="text-sm">
               Of them, {YOUTH.label.toLowerCase()} (optional)
+              <FieldHelp field="result.youth" />
               <input inputMode="numeric" className={input} value={f.youth} onChange={set("youth")} />
             </label>
           </>
@@ -948,6 +952,7 @@ function RecordForm({ ind, add, onClose }: { ind: Ind; add: (r: ResultInput) => 
       </div>
       <label className="mt-3 block text-sm">
         What was done
+        <FieldHelp field="result.note" />
         <textarea
           className={input}
           rows={3}
@@ -959,6 +964,7 @@ function RecordForm({ ind, add, onClose }: { ind: Ind; add: (r: ResultInput) => 
       </label>
       <div className="mt-3 text-sm">
         Proof{ind.verification ? ` (${ind.verification})` : ""}
+        <FieldHelp field="result.proof" />
         <ProofPicker files={files} setFiles={setFiles} captions={captions} setCaptions={setCaptions} setErr={setErr} setBusy={setBusy} />
         <LinkPicker links={links} setLinks={setLinks} />
         {!files.length && !links.length && (
