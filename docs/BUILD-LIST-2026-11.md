@@ -11,7 +11,7 @@ The order agreed on 9 Nov 2026, from the four-additions, five-streamlines, six-U
 | B1 | Review queue: accept the clean, review the flagged | `feature/review-queue-batch` | Merged |
 | B2 | Solo mode for sign-offs | `feature/solo-signoff` | Merged |
 | B3 | Spend import from any spreadsheet | `feature/spend-import-generic` | Merged |
-| B4 | Kobo nightly reconcile | `feature/kobo-nightly-reconcile` | Merged 10 Nov (via surge); not yet run on a schedule |
+| B4 | Kobo nightly reconcile | `feature/kobo-nightly-reconcile` | Merged 10 Nov (via surge). Tested by hand on SSOP-2027's sandbox form 10 Nov: new, edited and deleted submissions all caught, after fixing duplicates on edit. Run by hand: `npm run kobo:reconcile -- <code>` |
 | B5 | One source of truth for the docs | `feature/docs-current` | Merged 10 Nov (via surge) |
 | C1 | Home: Approve, Fix, Due | `feature/home-three-buckets` | Merged 10 Nov (via surge) |
 | C2 | Project manager first | `feature/pm-path` | Merged 10 Nov (via surge) |
@@ -19,11 +19,13 @@ The order agreed on 9 Nov 2026, from the four-additions, five-streamlines, six-U
 | C4 | Plain words | `feature/plain-words` | The before and after list is written for review: `docs/PLAIN-WORDS-LIST.md` (10 Nov). No string changed yet. Also: move the quarterly report's older check sentences into the four languages (decided 9 Nov). |
 | C5 | A sample project for every new organization | `feature/sample-project` | Merged 10 Nov. SAMPLE-446CEE built for ROP (`npm run sample`) |
 | C6 | Every AI flag says why | `feature/flag-reasons` | Merged 10 Nov (via surge) |
-| C7 | "Why we ask" help on sensitive fields | `feature/field-help` | Partly done, merged 10 Nov (via surge): Results and Stories only |
+| C7 | "Why we ask" help on sensitive fields | `feature/field-help` | Merged 10 Nov: Results, Stories, Weekly and farmer photos. Left out (do-not-touch list): HR forms, the photo library's consent form |
 
 ## Decisions, 10 Nov 2026
 
 - **Sample project (C5):** a fictional "Highland Apricot Value Chain" in an unnamed province, read-only for everyone, left out of every total, hidden by an administrator in Settings. Projects now have a kind (real, sample, sandbox); SFTP-2026 and SSOP-2027 are sandboxes, left out of totals but writable. Still to decide: leave the sample out of the time, expense, payroll and bill charge lists (on the do-not-touch list).
+- **Kobo results** are dated by the form's own date question (install_date, training_date...) when it has one, else the day KoboToolbox received the submission. An edit in KoboToolbox updates its result in place.
+- **Open:** the Weekly photo caption suggests naming the village, which the rest of the app says never to do.
 
 - **Surge branch reviewed and merged** to main (`09ca5a2`), with fixes: farmer photos by plan (800px free, 2000px paid), sample records reviewable again, the Kobo reconcile survives a failed run row, Home's report tile and rows translated.
 - **Overspend reason** is chosen from a list (prices or exchange rate, work brought forward, approved realignment, realignment waiting for the donor, coding error, other) with a note, and belongs to the budget line, not a quarter. A released report keeps its own.
