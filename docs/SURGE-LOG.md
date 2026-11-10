@@ -92,7 +92,7 @@ Nothing was migrated or dropped. Where a fact had two stores, code now reads one
 - **Procurement thresholds in words.** The method descriptions on the procurement calendar and the instructions given to the AI stated $500 / $5,000 / $25,000 whatever rules were in force. Both now read the rules in force, the same source `levelFor` uses. The draft and check routes load the project's rules first; before, the AI was told ROP's defaults even on a project with a donor's stricter thresholds.
 - **Not done, with the reason, in the morning report:** report deadlines have one store but three doors (Settings donor form, setup's agreement step, Tasks); the quarterly report's info box (title, duration, agreement number, director, locations, partner) is typed on the report and carried forward; the afghani rate; "money left" copied into each request; photo consent held on the photo and on its story; people held in both `staff` and the HR record (HR is not to be touched); six indicator fields only a script can set.
 
-## 23:50 Phase 5, C6. Every AI flag says why (branch `feature/flag-reasons`)
+## 23:40 Phase 5, C6. Every AI flag says why (branch `feature/flag-reasons`)
 
 Plan, in place of "wait for my go": audit each place a flag or suggestion is raised against four things (a reason, what it looked at, two one-tap actions, the choice on the audit trail), then add only what is missing, with one shared component.
 
