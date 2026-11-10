@@ -26,6 +26,7 @@ export const tdEn = {
   "td.none": "Not set",
   "td.inQpr": "In the donor's quarterly table",
   "td.inQpr.help": "Untick for a target tracked only for other reports.",
+  "td.baselineMissing": "Baselines marked — are not recorded. Add them in:",
   "td.save": "Save",
   "td.saved": "Saved.",
 };
@@ -53,6 +54,7 @@ export const tdEs: Partial<Record<keyof typeof tdEn, string>> = {
   "td.none": "Sin definir",
   "td.inQpr": "En la tabla trimestral del donante",
   "td.inQpr.help": "Desmarca si la meta se sigue solo para otros informes.",
+  "td.baselineMissing": "Las líneas de base marcadas con — no están registradas. Agrégalas en:",
   "td.save": "Guardar",
   "td.saved": "Guardado.",
 };
@@ -80,6 +82,7 @@ export const tdFa: Partial<Record<keyof typeof tdEn, string>> = {
   "td.none": "تعیین نشده",
   "td.inQpr": "در جدول ربعوار تمویل‌کننده",
   "td.inQpr.help": "اگر هدف فقط برای گزارش‌های دیگر پیگیری می‌شود، نشان را بردارید.",
+  "td.baselineMissing": "رقم‌های پایه‌ای که با — نشان شده ثبت نشده است. آن‌ها را اینجا اضافه کنید:",
   "td.save": "ذخیره",
   "td.saved": "ذخیره شد.",
 };
@@ -107,6 +110,7 @@ export const tdPs: Partial<Record<keyof typeof tdEn, string>> = {
   "td.none": "نه دی ټاکل شوی",
   "td.inQpr": "د تمویلوونکي په ربعوار جدول کې",
   "td.inQpr.help": "که هدف یوازې د نورو راپورونو لپاره څارل کېږي، نښه لرې کړئ.",
+  "td.baselineMissing": "هغه بنسټیز رقمونه چې په — نښه شوي ثبت شوي نه دي. دلته یې ورزیات کړئ:",
   "td.save": "خوندي کړئ",
   "td.saved": "خوندي شو.",
 };
