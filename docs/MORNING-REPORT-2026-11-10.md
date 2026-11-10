@@ -4,15 +4,17 @@ Everything is on `surge/2026-11-09`. `main` was not touched and still equals the
 
 ## Second session, 02:44 to 03:50
 
-Done after you asked for the fixes and improvements in chat. All on `surge/2026-11-09`, pushed, each on its own branch; the last full run passed with 249 tests. All of it is unseen on a screen.
+Done after you asked for the fixes and improvements in chat. All on `surge/2026-11-09`, pushed, each on its own branch; the last full run passed with 251 tests. All of it is unseen on a screen. A read-only review of the session's code found 12 defects before anyone saw a screen; ten are fixed (see the log).
 
 - **Quarter.** The report page says which quarter it shows and links to the one Home calls the next report.
 - **Roles.** An open report lists, once, what your roles do not let you do on it.
 - **Phone.** The report's target table and the Budget table stack below 1024px.
-- **Overspent lines.** The reason can be typed on Budget, beside the line. It is the same saved text the report prints.
+- **Overspent lines.** The people who write the report can type the reason on Budget, beside the line. It saves into the report for the quarter the latest spending import ends in, which the box names. Everyone else reads it there.
 - **Target details.** New page `/progress/targets` (linked from the results framework) sets a target's baseline, breakdown, proof documents, budget line, workplan step and place in the quarterly table. No script needed.
 - **Totals.** The report and Budget each say why their totals differ.
 - **Pre-flight.** It already was the one readiness page. Its rows now open the report at the part to fix.
+- **Home.** The next-report panel is in four languages. The rest of Home is still English.
+- **Baselines.** The annual report's hint about missing baselines now leads to Target details.
 
 - **Plain words (C4).** The before and after list is written for you to mark up: `docs/PLAIN-WORDS-LIST.md`. No string was changed.
 
@@ -28,6 +30,7 @@ New questions:
 
 11. Should the Report tab open on the quarter under way, or the last one that ended (as now)?
 12. May target details change after the plan is signed off?
+13. Finance is sent from Home to Budget to explain overspent lines, but only the MEL owner and programme leads may write the report's text. Should Finance be allowed to write that one reason?
 
 ## What is now true that was not yesterday
 

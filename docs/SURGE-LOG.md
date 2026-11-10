@@ -224,6 +224,18 @@ Tucker, awake, asked for the fixes and improvements listed in chat, to 03:50. Sa
 - **`fix/home-next-report-languages`.** Home's next-report panel is in four languages (12 strings, `nr.*`), with dates in the reader's language. **Not done:** the rest of Home (`src/components/home/role-home.tsx`) is about 60 English sentences built from counts; translating half of them would leave a screen in two languages, so none were changed.
 - A read-only review of everything changed in this session was started, because none of it has been seen running. Its findings, and what was done about them, are in the next entry.
 
+## 03:10 Second session. Review of the session's changes, and fixes (branch `fix/review-findings`)
+
+A read-only reviewer read every source change since `3e00f0c`. It found 12 defects, two of them suspected only. Ten are fixed; two are left and listed.
+
+- **Would have saved wrong data, fixed:** on Target details, switching project kept the old project's typed values under the new project's targets; saving one target wiped typing in the others; a baseline typed "12,5" was saved as 125. Forms now belong to one project and one target's saved facts, and a comma is refused with a line saying how to write the number.
+- **Fixed:** a baseline finer than two decimals, or too large for the column, is refused instead of being stored as a different number than the audit row says; the same breakdowns in another order are no longer logged as a change.
+- **Fixed:** the reason box on Budget was offered to people the server refuses. They now read the reason and are told who writes it. One rule, `mayWriteReport` in `src/lib/qpr.ts`, for the report route and Budget.
+- **Fixed:** typing in a reason box was overwritten just after a save; a failed refresh after a save replaced the whole Budget page with an error; a hand-edited `#part` in the address could break the report page; if the reasons cannot be worked out, Budget still loads.
+- **Fixed by taking it out:** the report told people they could also write reasons on Budget. Budget saves into the quarter the latest spending import ends in, which is not always the quarter the report is showing, so the line is gone. Budget's box names its quarter.
+- **Left:** the scroll to a part of the report may land a little off while panels above it load (it scrolls twice; needs a browser to judge). Dari and Pashto digits typed into the baseline are refused like a comma is.
+- Tests: 251.
+
 ## Decisions
 
 Each is reversible. Listed as they are made.
