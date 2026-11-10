@@ -6,6 +6,7 @@ import { hbEs, hkEs, pmEs, prEs, sgEs } from "./surge";
 import { awEs } from "./ai-why";
 import { fhEs } from "./field-help";
 import { rpEs } from "./report-path";
+import { tdEs } from "./target-details";
 import { rqEs } from "./review-queue";
 import { soEs } from "./solo";
 import { smEs } from "./spend";
@@ -521,6 +522,7 @@ export const es: Messages = {
   ...awEs,
   ...fhEs,
   ...rpEs,
+  ...tdEs,
   ...rqEs,
   ...soEs,
   ...smEs,
