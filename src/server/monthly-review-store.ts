@@ -108,6 +108,8 @@ export async function loadReview(code: string, month: string, u: AppUser) {
       status: r.status !== r.suggested ? r.status : suggestStatus(r.year, r.yearTarget, Number(quarter.slice(6)), r.year > 0 || r.records.open > 0, r.planned, quarterEnded(quarter)),
       planned: r.planned,
       workplanCode: r.workplanCode,
+      // The date of the latest accepted result, whenever it was.
+      lastAccepted: report.results.filter((x) => x.indicator === r.code && x.status === "accepted").reduce<string | null>((d, x) => (!d || x.date > d ? x.date : d), null),
     })),
     year,
     budget: {

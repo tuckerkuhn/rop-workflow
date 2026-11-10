@@ -3,12 +3,15 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ProofNumber } from "@/components/progress/proof-panel";
-import { Pill } from "@/components/workspace/ui";
+import { useT } from "@/components/app/i18n";
+import { today } from "@/lib/clock";
+import { quarterOfToday, targetStatus } from "@/lib/target-status";
 import type { FrameworkView, TreeNode } from "@/server/framework-store";
 
 /**
- * Every indicator this year, one row each, grouped under the output it serves: achieved against
- * the year's target and the workplan status, the same judgment as the summary above it.
+ * Every target this year, one row each, grouped under the output it serves. In order: name, the
+ * year's target, the result so far, a status word (never colour alone) and the date of the last
+ * accepted result. Tapping a row opens the records and proof behind it.
  */
 const STATUS: Record<string, { tone: "forest" | "sky" | "ochre" | "clay" | "muted"; text: string }> = {
   completed: { tone: "forest", text: "Target met" },
@@ -29,6 +32,7 @@ export function indicatorStatus(i: { status: string; planned: number[] | null; y
 }
 
 export function IndicatorTable({ projectId, userId }: { projectId: string; userId: string }) {
+  const { t, date } = useT();
   const [v, setV] = useState<FrameworkView | null>(null);
   useEffect(() => {
     let live = true;
@@ -44,16 +48,20 @@ export function IndicatorTable({ projectId, userId }: { projectId: string; userI
   const outputs: { key: string; text: string | null; rows: TreeNode["indicators"] }[] = v.outcomes.flatMap((o) =>
     o.children.map((out) => ({ key: out.key, text: out.text ?? out.suggested?.text ?? null, rows: [...out.indicators, ...out.children.flatMap((a) => a.indicators)] })).filter((x) => x.rows.length),
   );
+  const qNow = quarterOfToday(today());
+  const TONE = { forest: "bg-mist text-forest", clay: "bg-clay-soft text-clay", muted: "bg-sunken text-muted" } as const;
+  const ICON = { on_track: "✓", behind: "!", no_data: "–" } as const;
   return (
     <section className="mt-8" aria-labelledby="ind-year">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 id="ind-year" className="font-display text-2xl">
-          Indicators in {v.year}
+          {t("prog.title", { year: v.year })}
         </h2>
         <Link href="/progress/framework" className="text-sm font-semibold text-forest hover:underline">
           Results framework →
         </Link>
       </div>
+      <p className="mt-1 text-xs text-muted">{t("prog.open")}</p>
       {outputs.map((o) => (
         <div key={o.key} className="mt-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted">
@@ -62,28 +70,34 @@ export function IndicatorTable({ projectId, userId }: { projectId: string; userI
           </p>
           <ul className="mt-1 divide-y divide-line rounded-2xl border border-line bg-surface">
             {o.rows.map((i) => {
-              const st = indicatorStatus(i);
-              const pct = i.yearTarget > 0 ? Math.min(100, Math.round((i.year / i.yearTarget) * 100)) : 0;
+              const st = targetStatus(i, qNow);
               return (
-                <li key={i.code} className="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1 px-4 py-2.5 sm:grid-cols-[1fr_9rem_7rem]">
-                    <Link href={`/progress/results?indicator=${i.code}`} className="line-clamp-2 min-w-0 text-sm leading-snug hover:text-forest sm:line-clamp-none" title={i.name}>
-                      <span className="me-1.5 font-mono text-xs text-muted">{i.donorCode}</span>
-                      {i.name}
-                    </Link>
-                    <span className="order-3 col-span-2 sm:order-none sm:col-span-1">
-                      <span className="block text-end text-sm tabular-nums">
-                        <ProofNumber project={projectId} user={userId} indicator={i.code} from={`${v.year}-01-01`} to={`${v.year}-12-31`} value={i.year} records={i.year ? 1 : 0} className="tabular-nums">
-                          {n(i.year)}
-                        </ProofNumber>{" "}
-                        <span className="text-muted">of {n(i.yearTarget)} {i.unit}</span>
+                <li key={i.code}>
+                  {/* The whole row is the thing to tap: it opens the accepted results behind the figure and their proof. On a phone the parts stack; nothing scrolls sideways. */}
+                  <ProofNumber plain project={projectId} user={userId} indicator={i.code} from={`${v.year}-01-01`} to={`${v.year}-12-31`} value={i.year} records={1} className="block min-h-12 w-full px-4 py-3 text-start hover:bg-sunken">
+                    <span className="grid gap-x-4 gap-y-1 sm:grid-cols-[minmax(0,1fr)_7rem_8rem_9rem] sm:items-center">
+                      <span className="min-w-0 text-sm leading-snug">
+                        <span className="me-1.5 font-mono text-xs text-muted">{i.donorCode}</span>
+                        {i.name}
                       </span>
-                      <span className="mt-1 block h-1 overflow-hidden rounded-full bg-sunken" aria-hidden>
-                        <span className={`block h-full rounded-full ${pct >= 100 ? "bg-leaf" : "bg-forest"}`} style={{ width: `${pct}%` }} />
+                      <span className="text-sm tabular-nums">
+                        <span className="text-xs text-muted">{t("prog.target")} </span>
+                        {n(i.yearTarget)} <span className="text-xs text-muted">{i.unit}</span>
                       </span>
+                      <span className="text-sm tabular-nums">
+                        <span className="text-xs text-muted">{t("prog.result")} </span>
+                        <span className="font-semibold">{n(i.year)}</span>
+                      </span>
+                      <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 sm:justify-end">
+                        <span className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${TONE[st.tone]}`}>
+                          <span aria-hidden>{ICON[st.word]}</span>
+                          {t(`prog.w.${st.word}`)}
+                        </span>
+                        {st.detail && <span className="text-xs text-muted">{t(`prog.d.${st.detail}`)}</span>}
+                      </span>
+                      <span className="text-xs text-muted sm:col-span-4">{i.lastAccepted ? t("prog.last", { date: date(i.lastAccepted, { day: "numeric", month: "short", year: "numeric" }) }) : t("prog.noLast")}</span>
                     </span>
-                    <span className="justify-self-end">
-                      <Pill tone={st.tone}>{st.text}</Pill>
-                    </span>
+                  </ProofNumber>
                 </li>
               );
             })}
