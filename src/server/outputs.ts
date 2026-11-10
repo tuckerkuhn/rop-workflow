@@ -2,7 +2,7 @@ import { and, asc, eq } from "drizzle-orm";
 import ExcelJS from "exceljs";
 import { db, schema as s } from "@/db";
 import { activityOf, yearShare } from "@/lib/qpr";
-import { proofCount, quarterOf } from "@/lib/results";
+import { proofCount, quarterOf, quarterRange, totalsOf } from "@/lib/results";
 import { projectByCode } from "@/server/field-store";
 import { loadResults } from "@/server/results-store";
 
@@ -37,8 +37,10 @@ export async function trackingTable(code: string, year: number): Promise<Buffer>
   for (const i of rows) {
     const mine = results.filter((r) => r.indicator === i.code);
     const inYear = mine.filter((r) => r.date.startsWith(String(year)));
-    const q = (n: number) => inYear.filter((r) => quarterOf(r.date) === `${year}-Q${n}`).reduce((t, r) => t + r.value, 0);
-    const total = inYear.reduce((t, r) => t + r.value, 0);
+    // Every sum here is totalsOf (lib/results), the same function the reports use.
+    const q = (n: number) => totalsOf(mine, quarterRange(`${year}-Q${n}`).from, quarterRange(`${year}-Q${n}`).to).value;
+    const yr = totalsOf(mine, `${year}-01-01`, `${year}-12-31`);
+    const total = yr.value;
     // The same year share as the quarterly report: year targets are stored as running totals.
     const yearTargets = Object.fromEntries(Object.entries((i.forecast as Record<string, number> | null) ?? {}).map(([k, v]) => [k, Number(v)]));
     const target = yearShare({ target: Number(i.target), yearTargets }, year);
@@ -55,9 +57,9 @@ export async function trackingTable(code: string, year: number): Promise<Buffer>
       q(4),
       total,
       target ? Math.round((total / target) * 100) / 100 : "",
-      inYear.reduce((t, r) => t + (r.female ?? 0), 0),
-      inYear.reduce((t, r) => t + (r.male ?? 0), 0),
-      mine.reduce((t, r) => t + r.value, 0),
+      yr.female,
+      yr.male,
+      totalsOf(mine).value,
       Number(i.target),
       inYear.length,
       inYear.filter((r) => proofCount(r)).length,

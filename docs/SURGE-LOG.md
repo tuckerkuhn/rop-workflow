@@ -50,6 +50,17 @@ One guard, extended (`src/server/guard.ts`): `handle` (failures become plain mes
 - **A slip, corrected within a minute:** the first merge of this branch into `surge/2026-11-09` (`ff928d6`) had a type error in `review-page.tsx`: my check command hid the failing typecheck behind a pipe. Fixed in the next commit and merged again. Every merge since runs one script that stops on the first red check. `main` was never involved.
 - **Not changed, for Tucker (morning report):** translation sends Dari and Pashto notes as written (it cannot translate otherwise, and the name rules read English only); photo coaching sends the photo itself, which `docs/DATA-PROTECTION.md` says never happens; the assistant sends staff names and the typed question; the opportunity brief has no voice rules; the lens review replaces earlier decisions on screen when run again. Each is on the do-not-touch list or needs a policy decision.
 
+## 23:35 Phase 3c. One function per number (branch `surge/one-number`)
+
+Each pair was pinned by a test first (`one-number.test.ts`), then one function kept.
+
+- **Overspent budget line.** The report said overspent at budget + 1; the budget page and Home at approved + 0.5%. One rule now, `spentOver` in `lib/budget-view.ts`; the report's checks, `overspentLines`, pre-flight, Home and the budget page all call it.
+- **Report deadline on Home.** Home's tile always said the 10th of the month after the quarter; pre-flight read the deadline from Tasks or the donor's rule. Both now call `reportDeadline` (`server/preflight.ts`). Home falls back to the 10th only when no deadline is set anywhere, and says so.
+- **Our rows in a consortium workplan.** Four places matched the partner column to exactly "ROP"; the workplan reader also accepted "Roots of Peace" and "ROP/FAO". All call `ourWork` (`lib/budget.ts`) now. The lens review keeps its own copy (do-not-touch list).
+- **Supplier screening out of date.** The register counted calendar months; the procurement step counted days against months x 30.44, so a supplier screened 1 January passed one and failed the other on 1 July. One rule, `screeningStale` (`lib/suppliers.ts`), the register's.
+- **Tracking table sums** (`server/outputs.ts`) now come from `totalsOf`, the function the reports use. Same figures as before.
+- **Not done, in the morning report:** "on track" still has two meanings (the report judges against the workplan, Progress cards against time gone in the year); the afghani rate is a constant 70 in three places; "today" is the server's UTC day in about 48 places, which is wrong near midnight in Kabul; the project spend total and the budget page total differ by design (overhead and phases) and neither says so. Each needs a decision or a stored value, not a refactor.
+
 ## Decisions
 
 Each is reversible. Listed as they are made.
@@ -60,3 +71,6 @@ Each is reversible. Listed as they are made.
 - Story drafts no longer send interview notes with names in them. The first name still goes when consent is recorded. If stories read worse for it, change `scrubbed(...)` to `asIs(...)` in `src/server/stories-store.ts`.
 - Procurement drafts get ROP's voice rules. To undo, set `voice: false` for `procurementDraft` in `src/lib/ai-jobs.ts`.
 - The door writes its own `ai_run` audit row for every call, beside the rows each job already wrote. Nothing was removed from the trail.
+- Overspent means more than 0.5% above approved, everywhere. Before, the quarterly report used budget + 1 (in the budget's currency). To go back, change `spentOver` in `src/lib/budget-view.ts`: one line.
+- Supplier screening goes out of date on the calendar-month rule (the stricter of the two by a day or two).
+- Home's "10th of the month" is kept only as a fallback, labelled as not a set date. It is in the code as ROP's practice but not in the policy file: question in the morning report.

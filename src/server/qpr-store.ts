@@ -1,3 +1,4 @@
+import { ourWork } from "@/lib/budget";
 import { and, asc, eq, isNotNull } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { spentIn } from "@/lib/bva";
@@ -124,7 +125,7 @@ export async function qprData(code: string, quarter: string) {
     .select({ code: s.workplanItems.code, org: s.workplanItems.org, active: s.workplanItems.active })
     .from(s.workplanItems)
     .where(eq(s.workplanItems.projectId, project.id));
-  const ours = plan.some((w) => w.org === "ROP") ? plan.filter((w) => w.org === "ROP") : plan;
+  const ours = ourWork(plan);
   const plans: Record<string, string[]> = {};
   for (const w of ours) plans[w.code] = [...new Set([...(plans[w.code] ?? []), ...((w.active as string[]) ?? [])])];
   const table = buildRows(indicators, results, quarter, saved, plans);

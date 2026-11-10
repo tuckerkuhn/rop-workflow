@@ -318,8 +318,13 @@ export const workplanSchema = z.object({ items: z.array(workplanItemSchema).max(
 
 export type WorkplanParse = { items: WorkplanItem[]; relative: boolean; quarters: number; warnings: string[] };
 
-const isOurs = (org: string | null) => !!org && /\b(rop|roots of peace)\b/i.test(org);
-export const ourWork = (items: WorkplanItem[]) => (items.some((i) => isOurs(i.org)) ? items.filter((i) => isOurs(i.org)) : items);
+const isOurs = (org: string | null | undefined) => !!org && /\b(rop|roots of peace)\b/i.test(org);
+/**
+ * Our rows when a consortium workplan lists every partner ("ROP", "Roots of Peace", "ROP/FAO");
+ * every row when none is marked as ours. The one rule for this: reports, Home and the monthly
+ * review all call it.
+ */
+export const ourWork = <T extends { org?: string | null }>(items: T[]): T[] => (items.some((i) => isOurs(i.org)) ? items.filter((i) => isOurs(i.org)) : items);
 
 /**
  * Reads a workplan with quarterly columns. Quarters given as "Year 1 · Q1" are placed from

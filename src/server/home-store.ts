@@ -1,3 +1,6 @@
+import { quarterRange } from "@/lib/results";
+import { reportDeadline } from "@/server/preflight";
+import { ourWork } from "@/lib/budget";
 import { eq } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import type { AppUser } from "@/lib/demo";
@@ -108,15 +111,19 @@ export async function loadHome(code: string, u: AppUser) {
           : "good") as "good" | "warning" | "critical" | "unknown",
   };
 
-  // Deadlines: ROP sends UNDP the quarterly report about the 10th of the month after the quarter.
-  const reportDue = `${addQuarter(thisQ).slice(0, 7)}-10`;
+  // The report's deadline comes from the same function as pre-flight (a "Report deadline" in Tasks,
+  // else the donor's rule), so Home never shows a different date. Only when neither sets one does
+  // Home fall back to the 10th of the month after the quarter, and says that it is not a set date.
+  const set = await reportDeadline(code, quarterRange(qLabel(thisQ)).to, 60, "quarterlyReportDays");
+  const reportDue = set.due ?? `${addQuarter(thisQ).slice(0, 7)}-10`;
+  const dueNote = set.source?.kind === "milestone" ? `From Tasks: ${set.source.title}` : set.source?.kind === "policy" ? `${set.source.days} days after the quarter, from the donor's rules` : "No deadline is set in Tasks or in the donor's rules; ROP usually sends it about the 10th after each quarter";
   const deadlines = [
-    { key: "qpr", what: `${qLabel(thisQ).replace("-", " ")} report to the donor`, date: reportDue, days: days(today, reportDue), note: "ROP sends it about the 10th after each quarter", href: "/progress/report" },
+    { key: "qpr", what: `${qLabel(thisQ).replace("-", " ")} report to the donor`, date: reportDue, days: days(today, reportDue), note: dueNote, href: "/progress/report" },
     { key: "review", what: `${new Date(`${month}-15T00:00:00Z`).toLocaleDateString("en-GB", { month: "long", timeZone: "UTC" })} monthly review`, date: new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5)), 0)).toISOString().slice(0, 10), days: 0, note: "Signed off at the month's end", href: "/progress/review" },
   ].map((d) => ({ ...d, days: days(today, d.date) }));
 
   // In season: what the workplan schedules now and next quarter, and purchases due to start.
-  const ours = plan.some((w) => w.org === "ROP") ? plan.filter((w) => w.org === "ROP") : plan;
+  const ours = ourWork(plan);
   const nextQ = addQuarter(thisQ);
   const inQ = (q: string) => [...new Map(ours.filter((w) => ((w.active as string[]) ?? []).includes(q)).map((w) => [w.code, { code: w.code, title: w.title, quarters: quartersLabel(((w.active as string[]) ?? []).filter((d) => d.startsWith(q.slice(0, 4)))) }])).values()];
   const purchases = allPlan

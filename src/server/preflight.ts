@@ -43,7 +43,12 @@ async function unmatchedSpend(c: Ctx) {
   else ok(c, "pf.ok.unmatched");
 }
 
-async function deadline(code: string, end: string, window: number, rule: "quarterlyReportDays" | "annualReportDays" | null): Promise<Deadline> {
+/**
+ * The deadline for a report on a period ending `end`: a "Report deadline" milestone in Tasks, else
+ * the donor's rule in policy. The one function for it: pre-flight, Home's next-report line and
+ * Home's deadline tile all call it.
+ */
+export async function reportDeadline(code: string, end: string, window: number, rule: "quarterlyReportDays" | "annualReportDays" | null): Promise<Deadline> {
   const rules = await projectRules(code);
   const line = (k: string) => rules.lines.find((l) => l.key === k);
   const reviewDays = Number(rules.values.reviewDays ?? 0) || 0;
@@ -125,7 +130,7 @@ async function qpr(c: Ctx, quarter: string): Promise<Omit<Preflight, "items" | "
     report: { kind: "qpr", quarter },
     label: `Quarterly report ${quarter.replace("-", " ")}`,
     released: !!d.saved.released,
-    deadline: await deadline(c.code, to, 60, "quarterlyReportDays"),
+    deadline: await reportDeadline(c.code, to, 60, "quarterlyReportDays"),
     href: `/progress/report?${q}`,
   };
 }
@@ -159,7 +164,7 @@ async function annual(c: Ctx, year: number): Promise<Omit<Preflight, "items" | "
     report: { kind: "annual", year },
     label: `Annual report ${year}`,
     released: false,
-    deadline: await deadline(c.code, to, 120, "annualReportDays"),
+    deadline: await reportDeadline(c.code, to, 120, "annualReportDays"),
     href: "/progress/annual",
   };
 }
