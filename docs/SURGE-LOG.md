@@ -212,6 +212,12 @@ Tucker, awake, asked for the fixes and improvements listed in chat, to 03:50. Sa
 - **Slip:** I first wrote an `eslint-disable` line in the new target page. It was removed before any check ran or anything was committed.
 - **Not done:** the lock on the bill book. A safe fix needs a row lock inside a transaction on the approvals path, which I would not change without a database to try it on.
 
+## 03:00 Second session. C4: the before and after list (branch `feature/plain-words-list`)
+
+- `docs/PLAIN-WORDS-LIST.md`: the 28 dictionary strings that say "indicator", "actual" or "disaggregation", each with its proposed wording; the same strings as they read today in Spanish, Dari and Pashto; 21 places where the words are typed straight into a screen; what is kept because it goes to a donor; five questions.
+- No string in the app was changed. The build list asks for the list first.
+- The count is 28, not the 54 the audit gave: the audit's figure included hardcoded text and the demo project's page.
+
 ## Decisions
 
 Each is reversible. Listed as they are made.
