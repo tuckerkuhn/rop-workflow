@@ -378,7 +378,7 @@ function IndicatorsQuestion({ list, years, onChange }: { list: IndicatorInput[];
             <div className="flex items-start gap-2">
               <label className="min-w-0 flex-1 text-xs text-muted">
                 {i.code ?? t("setup.newIndicator")}
-                <input value={i.name} onChange={(e) => update(k, { name: e.target.value })} maxLength={200} className={field} aria-label={t("report.col.indicator")} />
+                <input value={i.name} onChange={(e) => update(k, { name: e.target.value })} maxLength={200} className={field} aria-label={t("setup.col.target")} />
               </label>
               <button
                 type="button"
@@ -391,7 +391,7 @@ function IndicatorsQuestion({ list, years, onChange }: { list: IndicatorInput[];
             </div>
             <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
               <label className="text-xs text-muted">
-                {t("report.col.target")}
+                {t("pw.howMany")}
                 <input type="number" min={0} step="any" value={Number.isFinite(i.target) ? i.target : ""} onChange={(e) => update(k, { target: Number(e.target.value) })} className={field} />
               </label>
               <label className="text-xs text-muted">

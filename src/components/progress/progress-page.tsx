@@ -151,7 +151,7 @@ export function ProgressPage() {
             <span className="grid w-full gap-4 sm:grid-cols-3">
               {(
                 [
-                  ["Steer the work", [["/progress/review", "Monthly review"], ["/progress/budget", "Budget vs actual"], ["/progress/framework", "Results framework"], ["/progress/targets", t("td.title")], ["/setup/lens", "Lens review"]]],
+                  ["Steer the work", [["/progress/review", "Monthly review"], ["/progress/budget", t("nav.budget")], ["/progress/framework", "Results framework"], ["/progress/targets", t("td.title")], ["/setup/lens", "Lens review"]]],
                   ["Prove it", [["/progress/results", "Results and proof"], ["/progress/records", t("progress.records")], ["/progress/audit", "Audit trail"]]],
                   ["Report and learn", [["/progress/weekly", "Weekly update"], ["/progress/report", "Quarterly report"], ["/progress/annual", "Annual and final reports"], ["/progress/learning", "Lessons and close-out"]]],
                 ] as [string, [string, string][]][]

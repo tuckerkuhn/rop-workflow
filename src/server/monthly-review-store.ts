@@ -183,7 +183,7 @@ export async function applyChange(tx: Tx, projectId: string, c: Change): Promise
       .select()
       .from(s.indicators)
       .where(and(eq(s.indicators.projectId, projectId), eq(s.indicators.code, c.indicator)));
-    if (!i) throw new Error(`Indicator ${c.indicator} no longer exists.`);
+    if (!i) throw new Error(`Target ${c.indicator} no longer exists.`);
     const forecast = Object.fromEntries(Object.entries((i.forecast as Record<string, number>) ?? {}).map(([k, v]) => [k, Number(v)]));
     const now = yearShare({ target: Number(i.target), yearTargets: forecast }, Number(c.year));
     const delta = c.to - now;

@@ -12,7 +12,7 @@ export const PROJECT_ROLES: { id: ProjectRole; label: string; help: string }[] =
   { id: "monthly-review", label: "Monthly review", help: "Reviews each month's progress; may write donor reports." },
   { id: "report-release", label: "Releases donor reports", help: "Marks a donor report final. Nobody can change it after that." },
   { id: "mel-owner", label: "MEL owner", help: "Accepts or queries the results field staff record; may write donor reports." },
-  { id: "finance-import", label: "Imports spending", help: "Imports Finance's monthly budget-against-actual workbook." },
+  { id: "finance-import", label: "Imports spending", help: "Imports Finance's monthly budget and spending workbook." },
   { id: "comms", label: "Communications", help: "Sees the photo library, clears photos for sharing within their consent, and drafts and approves posts for donors, traders, social media, the newsletter and the website." },
 ];
 

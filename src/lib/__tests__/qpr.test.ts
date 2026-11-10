@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { breakdownsFor, buildRows, cannotOnReport, durationOf, checksFor, emptyQpr, prevQuarterOf, suggestStatus, yearShare, type IndicatorInfo, type Spend } from "@/lib/qpr";
 import { result } from "./fixtures";
+import { translate } from "@/lib/i18n";
+import { en } from "@/lib/i18n/en";
+import { es } from "@/lib/i18n/es";
+import { fa } from "@/lib/i18n/fa";
+import { ps } from "@/lib/i18n/ps";
+import { qcEn, qcEs, qcFa, qcPs } from "@/lib/i18n/qpr-checks";
 
 const ind = (over: Partial<IndicatorInfo> = {}): IndicatorInfo => ({ code: "IND-1", donorCode: "1.1.1-A", name: "Farmers trained", unit: "farmers", target: 300, yearTargets: { "2026": 100, "2027": 300 }, result: "Output 1.1", disaggregation: ["sex"], budgetRef: null, ...over });
 const spend = (over: Partial<Spend> = {}): Spend => ({ currency: "USD", budget: 1000, cumulative: 400, quarter: 100, withOverhead: false, source: { kind: "budget", at: null }, phases: [], missingMonths: [], byLine: {}, ...over });
@@ -111,7 +117,7 @@ describe("checksFor: what stops a report", () => {
   });
   it("stops when spending is above the budget or the quarter above the total", () => {
     expect(stops(run(undefined, undefined, spend({ cumulative: 1200 }))).some((t) => /more than the budget/.test(t))).toBe(true);
-    expect(stops(run(undefined, undefined, spend({ quarter: 500 }))).some((t) => /more than cumulative/.test(t))).toBe(true);
+    expect(stops(run(undefined, undefined, spend({ quarter: 500 }))).some((t) => /more than all spending so far/.test(t))).toBe(true);
   });
   it("stops when the spending import misses a month of the quarter", () => {
     const s = spend({ source: { kind: "import", files: [] }, missingMonths: ["2026-09"] });
@@ -186,5 +192,28 @@ describe("claim check findings and the person's choice", () => {
     expect(qprPatchSchema.safeParse({ action: "claim-decide", index: 0, choice: null }).success).toBe(true);
     expect(qprPatchSchema.safeParse({ action: "claim-decide", index: 0, choice: "ignore" }).success).toBe(false);
     expect(qprPatchSchema.safeParse({ action: "claim-decide", index: -1, choice: "fix" }).success).toBe(false);
+  });
+});
+
+describe("checksFor: every check can be shown in each language", () => {
+  it("each check's key is in English, Spanish, Dari and Pashto, and its English text is that sentence filled in", () => {
+    const results = [result({ date: "2026-08-01", status: "pending" }), result({ date: "2026-08-02", status: "queried" }), result({ date: "2026-08-03", files: [], noFile: "On paper" })];
+    const at = { by: "t", at: "2026-10-01" };
+    const saved = {
+      ...emptyQpr("Sandbox"),
+      quarterSpend: 900,
+      rows: { "IND-1": { status: "completed" as const, comment: "On track: 80% of the annual target.", ...at } },
+      sections: { summary: { text: "Copied.", from: "2026-Q2", ...at } },
+    };
+    const s = spend({ cumulative: 1200, quarter: 1300, source: { kind: "import", files: [] }, missingMonths: ["2026-09"], byLine: { "PRG-1": { budget: 100, actual: 150, quarter: 50 } } });
+    const rows = buildRows([ind()], results, Q, saved);
+    const out = [...checksFor(rows, results, Q, saved, s, ["1.1.1"]), ...checksFor(rows, results, Q, emptyQpr("Sandbox"), spend({ quarter: null }), ["1.1.1"])];
+    expect(out.length).toBeGreaterThan(10);
+    for (const c of out) {
+      expect(c.key, c.text).toBeDefined();
+      for (const dict of [en, es, fa, ps] as Record<string, string>[]) expect(dict[c.key!], `${c.key} missing`).toBeTruthy();
+      expect(translate("en", c.key!, c.vars)).toBe(c.text);
+    }
+    for (const dict of [qcEs, qcFa, qcPs]) expect(Object.keys(dict).sort()).toEqual(Object.keys(qcEn).sort());
   });
 });

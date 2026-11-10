@@ -81,7 +81,7 @@ export function IndicatorTable({ projectId, userId }: { projectId: string; userI
                         {i.name}
                       </span>
                       <span className="text-sm tabular-nums">
-                        <span className="text-xs text-muted">{t("prog.target")} </span>
+                        <span className="text-xs text-muted">{t("pw.howMany")} </span>
                         {n(i.yearTarget)} <span className="text-xs text-muted">{i.unit}</span>
                       </span>
                       <span className="text-sm tabular-nums">

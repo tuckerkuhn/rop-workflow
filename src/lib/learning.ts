@@ -22,7 +22,7 @@ export type Lesson = {
 /** What closing a project needs, from the donor's and ROP's rules. */
 export const CLOSEOUT_ITEMS = [
   { id: "finalReport", label: "Final narrative report sent to the donor", who: "report-release", hint: "The completion report, with its indicator table and evidence links." },
-  { id: "finalFinancial", label: "Final financial report sent, and unspent funds returned or agreed", who: "finance", hint: "Budget against actual for the whole agreement." },
+  { id: "finalFinancial", label: "Final financial report sent, and unspent funds returned or agreed", who: "finance", hint: "Budget and spending for the whole agreement." },
   { id: "procurementsClosed", label: "Every procurement closed: nothing owed either way", who: "procurement", hint: "Checked automatically from Procurement." },
   { id: "assets", label: "Project equipment handed over or disposed of as the agreement says", who: "finance", hint: "Asset register with handover or disposal records." },
   { id: "results", label: "Every result accepted or withdrawn, none waiting for MEL", who: "mel", hint: "Checked automatically from Results." },

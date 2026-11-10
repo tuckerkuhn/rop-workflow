@@ -140,7 +140,7 @@ export function workFor(u: AppUser, data: Data, viewer: AppUser, opts: { project
     cards.push({ key, title, step, date: new Date(Date.parse(today()) + days * 86400000).toISOString().slice(0, 10), href: `/progress/records?project=${PROJECT.id}#${tab}`, space: "Project", now: true, late: false, note: "" });
   if (u.project.includes("mel-owner")) {
     if (pending) proj("pj-queue", `${pending} Kobo submissions to review`, "Accept or query in the review queue", "verify", 1);
-    if (unapproved) proj("pj-actuals", `${unapproved} actuals to approve`, "Approve this period's actuals", "verify", 3);
+    if (unapproved) proj("pj-actuals", `${unapproved} results to approve`, "Approve this period's results", "verify", 3);
   }
   if (u.project.includes("finance-import") && !project.importedOn) proj("pj-import", "March NetSuite export", "Import and map spend to budget lines", "budget", 2);
   if (u.project.includes("monthly-review")) {

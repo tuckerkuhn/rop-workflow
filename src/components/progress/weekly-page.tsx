@@ -2,6 +2,7 @@
 
 import { FieldHelp } from "@/components/app/field-help";
 import Link from "next/link";
+import { useT } from "@/components/app/i18n";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
@@ -321,6 +322,7 @@ function Region({ v, save }: { v: WeeklyView; save: (a: WeeklyPatch, msg: string
 }
 
 export function WeeklyPage() {
+  const { t } = useT();
   const { user } = useRequireUser();
   const { ready } = useSession();
   const { project } = useCurrentProject();
@@ -498,7 +500,7 @@ export function WeeklyPage() {
                     <ItemCard key={it.id} it={it} v={v} user={user.id} act={act} />
                   ))}
                 </ul>
-                {v.may.write && v.activities.length === 0 && <p className="mt-3 text-sm text-muted">This project&rsquo;s indicators have no activity numbers (such as 1.1.1) yet, so there is nothing to file items under. Add the donor codes in Results framework first.</p>}
+                {v.may.write && v.activities.length === 0 && <p className="mt-3 text-sm text-muted">{t("pw.noActivityNumbers")}</p>}
                 {v.may.add && !adding && (
                   <button type="button" className={`${primaryBtn} mt-3`} onClick={() => setAdding(true)}>
                     + Add an item

@@ -35,7 +35,7 @@ export async function changeStage(code: string, to: Stage, u: AppUser, note: str
   if (from === "Design" && to === "Execute") {
     const inds = await db.select({ id: s.indicators.id }).from(s.indicators).where(eq(s.indicators.projectId, project.id));
     const lines = await db.select({ amount: s.budgetLines.amount, currency: s.budgetLines.currency }).from(s.budgetLines).where(eq(s.budgetLines.projectId, project.id));
-    if (!inds.length) return { error: "Add the indicators and targets in setup before signing off the plan." };
+    if (!inds.length) return { error: "Add the targets in setup before signing off the plan." };
     if (!lines.length) return { error: "Add the budget in setup before signing off the plan." };
     const budget: Record<string, number> = {};
     for (const l of lines) budget[l.currency] = Math.round((budget[l.currency] ?? 0) + Number(l.amount));

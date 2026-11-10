@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useT } from "@/components/app/i18n";
 import { useState } from "react";
 import { MarketTargetCard, TargetLine } from "@/components/project/market-windows";
 import { SectionLabel, TODAY, primaryBtn } from "@/components/workspace/ui";
@@ -76,6 +77,7 @@ function Empty({ what, stage }: { what: string; stage: Stage }) {
 }
 
 export function GatedSections({ tab, state, stage, openTarget }: { tab: string; state: ProjectState; stage: Stage; openTarget: () => void }) {
+  const { t } = useT();
   const missing = designGateMissing(state);
   const trace = gatedTraceable(state);
 
@@ -112,7 +114,7 @@ export function GatedSections({ tab, state, stage, openTarget }: { tab: string; 
           <div className="rounded-2xl border border-line bg-surface p-4">
             <p className="font-semibold">Stage</p>
             <p className="mt-1 text-sm">{stage}</p>
-            <p className="mt-1 text-xs text-muted">Results, indicators and budget are drafted after the target is set.</p>
+            <p className="mt-1 text-xs text-muted">{t("pw.windowFirst")}</p>
           </div>
         </section>
       </div>
@@ -125,7 +127,7 @@ export function GatedSections({ tab, state, stage, openTarget }: { tab: string; 
         <section>
           <SectionLabel>Rest of the plan</SectionLabel>
           <p className="mt-2 rounded-2xl border border-dashed border-line bg-surface p-5 text-sm text-muted">
-            Results framework, activities, indicators and budget are not drafted yet. They are planned from the market target above.
+            {t("pw.notDrafted")}
           </p>
         </section>
       </div>

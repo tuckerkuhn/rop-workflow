@@ -165,7 +165,7 @@ export function FrameworkPage() {
           ← Progress
         </Link>
         <h1 className="mt-2 font-display text-4xl tracking-tight">Results framework</h1>
-        <p className="mt-1 text-sm text-muted">From the goal down to each indicator and ROP&rsquo;s activities, with this year&rsquo;s progress. The tree follows the donor&rsquo;s codes; each statement says where its wording comes from.</p>
+        <p className="mt-1 text-sm text-muted">{t("pw.frameworkIntro")}</p>
         <p className="mt-2 text-sm">
           <Link href="/progress/targets" className="font-semibold text-forest hover:underline">
             {t("td.title")} <span aria-hidden className="inline-block rtl:rotate-180">→</span>

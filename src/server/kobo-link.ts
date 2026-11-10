@@ -170,7 +170,7 @@ export async function saveMappings(code: string, mappings: KoboMapping[], by: st
   const inds = await db.select().from(s.indicators).where(eq(s.indicators.projectId, project.id));
   const forms = new Set((await db.select().from(s.koboForms).where(eq(s.koboForms.projectId, project.id))).map((f) => f.assetUid));
   for (const m of mappings) {
-    if (!inds.some((i) => i.code === m.indicatorCode)) throw new KoboError(`No indicator ${m.indicatorCode} on this project.`);
+    if (!inds.some((i) => i.code === m.indicatorCode)) throw new KoboError(`No target ${m.indicatorCode} on this project.`);
     if (!forms.has(m.assetUid)) throw new KoboError("A mapping uses a form that is not chosen for this project.");
     if (m.method === "count_answer" && !m.value) throw new KoboError(`Say which answer counts for ${m.indicatorCode}.`);
   }

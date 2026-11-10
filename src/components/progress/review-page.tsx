@@ -27,6 +27,7 @@ const who = (id?: string) => (id ? (userById(id)?.name ?? id) : "");
 const day = (iso?: string) => (iso ? iso.slice(0, 10) : "");
 
 export function ReviewPage() {
+  const { t } = useT();
   const { user } = useRequireUser();
   const { project } = useCurrentProject();
   const solo = useSolo(project.saved ? project.id : null, user?.id);
@@ -117,7 +118,7 @@ export function ReviewPage() {
                     <table className="w-full min-w-[640px] text-sm">
                       <thead className="text-xs uppercase tracking-[0.12em] text-muted">
                         <tr>
-                          <th className="px-4 py-2 text-start font-semibold">Indicator</th>
+                          <th className="px-4 py-2 text-start font-semibold">{t("pw.target")}</th>
                           <th className="px-3 py-2 text-end font-semibold">This year</th>
                           <th className="px-3 py-2 text-start font-semibold">Status</th>
                           <th className="px-4 py-2 text-start font-semibold">Workplan</th>

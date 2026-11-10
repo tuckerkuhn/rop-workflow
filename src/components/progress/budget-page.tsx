@@ -59,7 +59,7 @@ export function BudgetPage() {
     <div className="min-h-screen">
       <TopBar />
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
-        <h1 className="font-display text-4xl tracking-tight">Budget vs actual</h1>
+        <h1 className="font-display text-4xl tracking-tight">{t("nav.budget")}</h1>
         {!project.saved ? (
           <p className="mt-6 rounded-xl bg-sunken px-4 py-3 text-sm text-muted">This demo project is kept in this browser only; its budget is on the project page.</p>
         ) : error ? (
