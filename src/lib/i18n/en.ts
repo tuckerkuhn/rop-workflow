@@ -1,6 +1,7 @@
 import { tsEn } from "./hr/timesheet";
 import { actEn } from "./activities";
 import { pfEn } from "./preflight";
+import { agEn } from "./agreement";
 import { evEn } from "./evidence";
 import { lvEn } from "./hr/leave";
 import { expEn } from "./hr/expense";
@@ -574,6 +575,7 @@ export const en = {
   ...lvEn,
   ...actEn,
   ...pfEn,
+  ...agEn,
   ...evEn,
   ...expEn,
 } as const;

@@ -22,6 +22,7 @@ import {
   type WorkplanItem,
 } from "@/lib/budget";
 import type { MessageKey } from "@/lib/i18n";
+import { clearPending, getPending } from "@/components/setup/pending";
 import { readWorkbook } from "@/lib/read-sheet";
 
 /**
@@ -114,13 +115,25 @@ export function BudgetStep({ code, onDone }: { code: string; onDone: () => void 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [dirty, setDirty] = useState(false);
+  // Where each line came from (lib/agreement: every proposed value shows its source), by position.
+  const [sources, setSources] = useState<string[]>([]);
+  const [proposedFrom, setProposedFrom] = useState("");
+  const [proposedQuestions, setProposedQuestions] = useState<string[]>([]);
   const money = useMoney(budget?.currency ?? "USD");
 
   useEffect(() => {
     api<Budget>(`/api/projects/${code}/budget`, user?.id)
       .then((b) => {
-        setBudget(b);
         setSaved(b.lines.length);
+        // Read from the documents at the start of setup: proposed here, saved only when the person saves it.
+        const p = getPending().budget;
+        if (!b.lines.length && p?.lines.length) {
+          setBudget({ currency: p.currency, lines: p.lines });
+          setSources(p.sources);
+          setProposedFrom(p.file);
+          setProposedQuestions(p.questions);
+          setDirty(true);
+        } else setBudget(b);
       })
       .catch((e) => setError(String(e instanceof Error ? e.message : e)));
   }, [code, user?.id]);
@@ -134,6 +147,8 @@ export function BudgetStep({ code, onDone }: { code: string; onDone: () => void 
     setError("");
     setSource({ file, sheets, sheet: best, parse });
     setBudget({ currency: parse.currency, lines: parse.lines });
+    setSources(parse.rows.map((r) => `${file}, sheet "${sheets[best].name}", row ${r}`));
+    setProposedFrom("");
     setDirty(true);
   };
   const reparse = (patch: { sheet?: number; columns?: BudgetColumns; currency?: string }) => {
@@ -143,6 +158,7 @@ export function BudgetStep({ code, onDone }: { code: string; onDone: () => void 
     if (!parse) return setError(t("budget.noLines"));
     setSource({ ...source, sheet, parse });
     setBudget({ currency: parse.currency, lines: parse.lines });
+    setSources(parse.rows.map((r) => `${source.file}, sheet "${source.sheets[sheet].name}", row ${r}`));
     setDirty(true);
   };
 
@@ -164,6 +180,7 @@ export function BudgetStep({ code, onDone }: { code: string; onDone: () => void 
       await api(`/api/projects/${code}/budget`, user?.id, { method: "PUT", body: JSON.stringify(budget) });
       setDirty(false);
       setSaved(budget.lines.length);
+      clearPending("budget");
       onDone();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -185,6 +202,18 @@ export function BudgetStep({ code, onDone }: { code: string; onDone: () => void 
         {source && <span className="text-sm text-muted">{t("plan.readFrom", { file: source.file, n: lines.length })}</span>}
       </div>
       {source && saved > 0 && <p className="mt-2 text-sm text-ochre">{t("budget.replaces", { n: saved })}</p>}
+      {proposedFrom && (
+        <div className="mt-3 rounded-xl bg-mist px-4 py-3 text-sm">
+          <p>{t("ag.budgetFrom", { file: proposedFrom })}</p>
+          {proposedQuestions.length > 0 && (
+            <ul className="mt-1 list-disc ps-5 text-muted">
+              {proposedQuestions.map((q) => (
+                <li key={q}>{q}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {source && (
         <details className="mt-4 rounded-2xl border border-line bg-surface p-4" open={source.parse.warnings.length > 0}>
@@ -308,6 +337,7 @@ export function BudgetStep({ code, onDone }: { code: string; onDone: () => void 
                     </td>
                     <td className="px-1 py-1">
                       <textarea value={l.description} rows={2} onChange={(e) => setLine(i, { description: e.target.value })} className={`${cellInput} min-w-[16rem] resize-y`} aria-label={t("budget.col.description")} />
+                      {sources[i] && <span className="block px-1.5 text-[11px] text-muted">{t("ag.source", { source: sources[i] })}</span>}
                     </td>
                     <td className="px-1 py-1">
                       <select value={l.kind} onChange={(e) => setLine(i, { kind: e.target.value as BudgetKind })} className="w-32 rounded-lg border border-line bg-surface px-2 py-1 text-sm" aria-label={t("budget.kind")}>
@@ -345,6 +375,7 @@ export function BudgetStep({ code, onDone }: { code: string; onDone: () => void 
                         type="button"
                         onClick={() => {
                           setBudget((b) => b && { ...b, lines: b.lines.filter((_, k) => k !== i) });
+                          setSources((s) => s.filter((_, k) => k !== i));
                           setDirty(true);
                         }}
                         aria-label={t("budget.removeLine", { code: l.code })}

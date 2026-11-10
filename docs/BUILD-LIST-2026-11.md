@@ -5,8 +5,8 @@ The order agreed on 9 Nov 2026, from the four-additions, five-streamlines, six-U
 | # | Item | Branch | Status |
 |---|---|---|---|
 | A1 | Report pre-flight check | `feature/report-preflight` | Merged 9 Nov |
-| A2 | Click any number, see its proof | `feature/number-to-proof` | Built, waiting for review |
-| A3 | Three uploads to a running project | `feature/setup-three-uploads` | |
+| A2 | Click any number, see its proof | `feature/number-to-proof` | Merged 9 Nov |
+| A3 | Three uploads to a running project | `feature/setup-three-uploads` | Built, waiting for review |
 | A4 | Kobo question-to-indicator suggestions | `feature/kobo-mapping-suggest` | |
 | B1 | Review queue: accept the clean, review the flagged | `feature/review-queue-batch` | |
 | B2 | Solo mode for sign-offs | `feature/solo-signoff` | |

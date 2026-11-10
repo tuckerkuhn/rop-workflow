@@ -132,7 +132,7 @@ export const budgetSchema = z.object({
 });
 export type Budget = z.infer<typeof budgetSchema>;
 
-export type BudgetParse = { headerRow: number; headers: string[]; columns: BudgetColumns; currency: string; lines: BudgetLine[]; warnings: string[] };
+export type BudgetParse = { headerRow: number; headers: string[]; columns: BudgetColumns; currency: string; lines: BudgetLine[]; warnings: string[]; /** Each line's row in the sheet (1-based), for its source. */ rows: number[] };
 
 const BUDGET_GUESS: Record<Exclude<BudgetField, "activity">, RegExp[]> = {
   code: [/^item\s*(no|#|code|number)/i, /^(budget\s*)?line\s*(no|#|code)?$/i, /^(code|ref|no\.?|#)$/i, /\bcode\b/i],
@@ -212,6 +212,7 @@ export function parseBudget(grid: Grid, override?: { row?: number; columns?: Bud
   const currency = override?.currency ?? currencyIn(heads[columns.unitCost ?? -1] ?? "") ?? currencyIn(preamble) ?? "USD";
 
   const lines: BudgetLine[] = [];
+  const rows: number[] = [];
   let section = "";
   let activityCode: string | null = null;
   let activity: string | null = null;
@@ -229,6 +230,8 @@ export function parseBudget(grid: Grid, override?: { row?: number; columns?: Bud
 
     const act = text(at(r, "activity"));
     const m = act.match(/activity\s*([\d.]*\d)\s*:?\s*(.*)/i);
+    // An activity column of bare numbers ("1.1.1"): that row's own activity, not a section heading.
+    const bare = m ? null : act.match(/^(\d+(?:\.\d+)+)\s*:?\s*(.*)$/);
     if (m) {
       activityCode = m[1];
       activity = m[2] || null;
@@ -258,10 +261,11 @@ export function parseBudget(grid: Grid, override?: { row?: number; columns?: Bud
       const v = num(r[q.col]);
       if (v) schedule[q.start] = round2((schedule[q.start] ?? 0) + v);
     }
+    rows.push(i + 1);
     lines.push({
       code: (code || `L-${lines.length + 1}`).slice(0, 40),
-      activityCode: activityCode ?? code.match(/-(\d+\.\d+\.\d+)/)?.[1] ?? null,
-      activity,
+      activityCode: bare ? bare[1] : (activityCode ?? code.match(/-(\d+\.\d+\.\d+)/)?.[1] ?? null),
+      activity: bare ? bare[2] || null : activity,
       description: (description || code).slice(0, 500),
       unit,
       quantity: num(at(r, "quantity")),
@@ -286,7 +290,7 @@ export function parseBudget(grid: Grid, override?: { row?: number; columns?: Bud
     seen.add(l.code);
   }
   if (!columns.quarters.length) warnings.push("No quarterly columns were found, so the calendar will use the workplan dates.");
-  return { headerRow: row, headers: heads, columns, currency, lines, warnings };
+  return { headerRow: row, headers: heads, columns, currency, lines, warnings, rows };
 }
 
 /* ---------------- Workplan ---------------- */

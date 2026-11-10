@@ -127,6 +127,11 @@ export function PolicyPage() {
                 )}
                 {v.donor && <p className="mt-2 text-sm text-muted">{v.donor.summary}</p>}
                 {v.donor && <Docs docs={v.donor.documents} />}
+                {mayChoose && (
+                  <Link href="/setup?step=deadlines" className="mt-2 inline-block text-sm font-semibold text-forest hover:underline">
+                    Read the deadlines and rules from the signed agreement →
+                  </Link>
+                )}
                 {v.setting.chosenBy && (
                   <p className="mt-2 text-xs text-muted">
                     Chosen by {v.setting.chosenBy.name}, {v.setting.chosenBy.at}
@@ -139,6 +144,20 @@ export function PolicyPage() {
                 )}
               </div>
             </section>
+
+            {v.setting.agreement && v.setting.agreement.terms.length > 0 && (
+              <section className="mt-6 rounded-2xl border border-line bg-surface p-4">
+                <SectionLabel>Other agreement terms</SectionLabel>
+                <p className="mt-1 text-sm text-muted">From the signed agreement, confirmed in setup. The app does not check these: they are here for the team to follow.</p>
+                <ul className="mt-3 space-y-2 text-sm">
+                  {v.setting.agreement.terms.map((x) => (
+                    <li key={x.text}>
+                      {x.text} <span className="text-xs text-muted">({x.source})</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
 
             {customOpen && <CustomForm v={v} onClose={() => setCustomOpen(false)} save={(name, values) => post({ action: "custom", name, values }, "Custom donor rules saved.").then(() => setCustomOpen(false))} />}
 
