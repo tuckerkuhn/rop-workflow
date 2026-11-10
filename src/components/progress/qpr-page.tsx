@@ -161,6 +161,9 @@ export function QprPage() {
   const emptyDraftable = v ? [...SECTIONS.filter((s) => s.draft).map((s) => s.key as string), ...v.activities.map((a) => `act.${a.code}`)].filter((k) => !v.saved.sections[k]?.text.trim()) : [];
   const stops = v?.checks.filter((c) => c.level === "stop") ?? [];
   const { from, to } = quarterRange(quarter);
+  // Home's "Next report" is the quarter under way; this page opens on the last one that ended.
+  const nowQ = quarterOf(new Date().toISOString().slice(0, 10));
+  const qLabel = (q: string) => q.replace("-", " ");
 
   return (
     <div className="min-h-screen">
@@ -181,6 +184,18 @@ export function QprPage() {
         <p className="mt-1 max-w-2xl text-sm text-muted">
           {from} to {to}. Figures come from results MEL has accepted, and each one opens the records and proof behind it. Write or draft the text, fix what the checks list, then download it for Word.
         </p>
+        <p className="mt-3 rounded-xl bg-sunken px-4 py-3 text-sm font-semibold">
+          {quarter === nowQ ? (
+            t("rp.quarterNow", { q: qLabel(quarter), to })
+          ) : (
+            <>
+              {t("rp.quarterPast", { q: qLabel(quarter), from, to, now: qLabel(nowQ) })}{" "}
+              <Link href={`/progress/report?q=${nowQ}`} className="text-forest underline">
+                {t("rp.openQuarter", { q: qLabel(nowQ) })}
+              </Link>
+            </>
+          )}
+        </p>
         <p className="mt-2 flex flex-wrap gap-4 text-sm">
           <Link href="/progress/results" className="font-semibold text-forest hover:underline">
             Results and proof
@@ -200,6 +215,7 @@ export function QprPage() {
         {v && (
           <>
             <div className="sticky top-0 z-10 -mx-4 mt-4 flex flex-wrap items-center gap-2 border-b border-line bg-paper/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
+              <Pill tone="muted">{qLabel(quarter)}</Pill>
               {v.frozen?.kind === "practice" ? (
                 <Pill tone="sky">Practice copy · {v.frozen.at.slice(0, 16).replace("T", " ")} UTC · {v.frozen.by}</Pill>
               ) : v.saved.released ? (
