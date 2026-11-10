@@ -1,6 +1,7 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import type { Bva, BvaLine } from "@/lib/bva";
+import type { PhotosState } from "@/lib/photos";
 import { emptyQpr, type Qpr } from "@/lib/qpr";
 import type { ResultInput } from "@/lib/results";
 import { orchardPng, samplePdf } from "@/lib/sample-files";
@@ -9,6 +10,7 @@ import { SAMPLE_PREFIX } from "@/server/auth";
 import { saveActuals, loadActuals } from "@/server/actuals-store";
 import { saveFile } from "@/server/hr-files";
 import { loadLineReasons, saveLineReason } from "@/server/overspend-store";
+import { loadProjectState, saveProjectState } from "@/server/project-state";
 import { addCopy, copyOf, loadCopies, loadQpr, qprData, reportWork, saveQpr } from "@/server/qpr-store";
 
 /**
@@ -91,8 +93,12 @@ const SECTIONS: Record<string, string> = {
   next: "Next quarter: install the remaining drying units, finish winter pruning training for new members, and prepare the third collective sale for the winter market.",
 };
 
-/** Builds the organization's sample project, or finishes one that stopped part-way. Returns its code. */
-export async function createSampleProject(orgId: string, orgName: string, by: string): Promise<string> {
+/**
+ * Builds the organization's sample project, or finishes one that stopped part-way. Returns its code.
+ * `rebuildReport` makes the released report again (the sample's only: a real report is never
+ * remade), for when the sample's content changes.
+ */
+export async function createSampleProject(orgId: string, orgName: string, by: string, opts: { rebuildReport?: boolean } = {}): Promise<string> {
   const code = sampleCode(orgId);
   let [project] = await db.select().from(s.projects).where(and(eq(s.projects.organizationId, orgId), eq(s.projects.kind, "sample"))).limit(1);
   if (!project) {
@@ -160,6 +166,22 @@ export async function createSampleProject(orgId: string, orgName: string, by: st
 
   // The one line over budget, with its reason.
   if (!(await loadLineReasons(pid))["S-1.1.B"]) await saveLineReason(pcode, "S-1.1.B", { reason: "price", note: "printing costs rose in the second quarter" }, SAMPLE_BY);
+
+  // The pictures are drawn, with nobody in them: checked as such, so the report may carry them.
+  const photos = await loadProjectState<PhotosState>(pid, "photos", { photos: {}, posts: [] });
+  const evidence = await db.select({ payload: s.evidence.payload }).from(s.evidence).where(and(eq(s.evidence.projectId, pid), eq(s.evidence.form, "result")));
+  const drawn = evidence.flatMap((e) => Object.entries((e.payload as ResultInput).captions ?? {}));
+  if (drawn.some(([hash]) => !photos.photos[hash]?.coach)) {
+    const at = new Date().toISOString();
+    for (const [hash, caption] of drawn) photos.photos[hash] = { ...photos.photos[hash], coach: { isPhoto: true, label: "report", tips: [], shows: caption, people: "none", womenIdentifiable: false, model: "none: a drawn sample picture", at } };
+    await saveProjectState(pid, "photos", photos);
+  }
+
+  // A rebuild starts the report again: the sample's own, never a real project's.
+  if (opts.rebuildReport && project.kind === "sample") {
+    await db.delete(s.projectState).where(and(eq(s.projectState.projectId, pid), inArray(s.projectState.key, [`qpr:${QUARTER}`, `qpr-copies:${QUARTER}`])));
+    await logAudit(db, pid, { entity: "project", entityId: pid, action: "sample_report_rebuilt", by, detail: { quarter: QUARTER } });
+  }
 
   // The released quarterly report, with its frozen copy.
   if (!(await loadCopies(pcode, QUARTER)).some((c) => c.kind === "release")) {

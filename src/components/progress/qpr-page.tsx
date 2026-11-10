@@ -18,6 +18,7 @@ import { SpreadsheetImport } from "@/components/progress/spend-map";
 import { beforeDownload, PreflightButton, usePreflight } from "@/components/progress/preflight-page";
 import { MoneySourceLink, ProofNumber } from "@/components/progress/proof-panel";
 import { useT } from "@/components/app/i18n";
+import { personName } from "@/lib/project";
 import { ErrorNote } from "@/components/app/error-note";
 import { quarterOf, quarterRange } from "@/lib/results";
 import type { QprView } from "@/app/api/projects/[code]/qpr/route";
@@ -233,7 +234,7 @@ export function QprPage() {
               {v.frozen?.kind === "practice" ? (
                 <Pill tone="sky">Practice copy · {v.frozen.at.slice(0, 16).replace("T", " ")} UTC · {v.frozen.by}</Pill>
               ) : v.saved.released ? (
-                <Pill tone="forest">Released {v.saved.released.at.slice(0, 10)} by {v.saved.released.by}</Pill>
+                <Pill tone="forest">Released {v.saved.released.at.slice(0, 10)} by {personName(v.saved.released.by)}</Pill>
               ) : (
                 <Pill tone={stops.length ? "clay" : "ochre"}>
                   Draft · {stops.length} to fix · {v.checks.length - stops.length} to check
