@@ -1,5 +1,6 @@
 import { spentOver } from "@/lib/budget-view";
 import { z } from "zod";
+import { longDate } from "@/lib/weekly";
 import { proofCount, quarterRange, totalsOf, type ResultRecord, type UpdateRecord } from "@/lib/results";
 
 /**
@@ -127,6 +128,15 @@ export function carryForward(prev: Qpr | null, projectName: string, prevQuarter:
     if (t?.text.trim()) q.sections[k] = { ...t, from: prevQuarter };
   }
   return q;
+}
+
+/**
+ * The project duration the report prints: what the person typed, else the project's own start and
+ * end dates, else nothing. One rule for the page and the Word file.
+ */
+export function durationOf(typed: string | undefined, project: { start: string | null; end: string | null }): string | null {
+  if (typed?.trim()) return typed.trim();
+  return project.start && project.end ? `${longDate(project.start)} – ${longDate(project.end)}` : null;
 }
 
 export const prevQuarterOf = (q: string) => {

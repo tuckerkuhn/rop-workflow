@@ -7,7 +7,7 @@ import { useCurrentProject } from "@/components/app/current-project";
 import { openReceipt } from "@/components/people/expense-page";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
-import { SECTIONS, STATUSES, STATUS_LABEL, overspentLines, quarterSpendOf, type QprPatch, type Row, type Status } from "@/lib/qpr";
+import { SECTIONS, STATUSES, STATUS_LABEL, durationOf, overspentLines, quarterSpendOf, type QprPatch, type Row, type Status } from "@/lib/qpr";
 import { qprDocx, type Images } from "@/lib/qpr-docx";
 import { formatMinutes } from "@/lib/report-copy";
 import { ShareLinks } from "@/components/progress/share-links";
@@ -426,6 +426,9 @@ function InfoBox({ v, act, onImported }: { v: QprView; act: Act; onImported: () 
     setSpend(v.saved.quarterSpend === null ? "" : String(v.saved.quarterSpend));
   }, [v.saved.info, v.saved.quarterSpend]);
   const c = v.spend.currency;
+  const { t } = useT();
+  // What the Word file prints when the field is left empty (lib/qpr durationOf).
+  const fromDates = durationOf(undefined, v.project);
   const dirty = JSON.stringify(f) !== JSON.stringify(v.saved.info) || spend !== (v.saved.quarterSpend === null ? "" : String(v.saved.quarterSpend));
   const field = (k: keyof typeof f, label: string, wide = false) => (
     <label className={`text-sm ${wide ? "sm:col-span-2" : ""}`}>
@@ -493,7 +496,10 @@ function InfoBox({ v, act, onImported }: { v: QprView; act: Act; onImported: () 
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         {field("title", "Project title", true)}
         {field("agreement", "Agreement number")}
-        {field("duration", "Project duration, as in the agreement (e.g. 1 March 2025 – 30 June 2027)")}
+        <div>
+          {field("duration", "Project duration, as in the agreement (e.g. 1 March 2025 – 30 June 2027)")}
+          {!f.duration?.trim() && fromDates && <p className="mt-1 text-xs text-muted">{t("rp.durationFromDates", { dates: fromDates })}</p>}
+        </div>
         {field("director", "Country director")}
         {field("locations", "Project locations (districts)", true)}
         {field("partner", "Responsible party")}
