@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
+import { useT } from "@/components/app/i18n";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { Pill, TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import type { FrameworkAction } from "@/lib/framework";
@@ -131,6 +132,7 @@ export function FrameworkPage() {
   const { user } = useRequireUser();
   const { ready } = useSession();
   const { project } = useCurrentProject();
+  const { t } = useT();
   const [v, setV] = useState<FrameworkView | null>(null);
   const [error, setError] = useState("");
   const url = `/api/projects/${project.id}/framework`;
@@ -164,6 +166,11 @@ export function FrameworkPage() {
         </Link>
         <h1 className="mt-2 font-display text-4xl tracking-tight">Results framework</h1>
         <p className="mt-1 text-sm text-muted">From the goal down to each indicator and ROP&rsquo;s activities, with this year&rsquo;s progress. The tree follows the donor&rsquo;s codes; each statement says where its wording comes from.</p>
+        <p className="mt-2 text-sm">
+          <Link href="/progress/targets" className="font-semibold text-forest hover:underline">
+            {t("td.title")} <span aria-hidden className="inline-block rtl:rotate-180">→</span>
+          </Link>
+        </p>
         {error && (
           <p role="alert" className="mt-3 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">
             {error}

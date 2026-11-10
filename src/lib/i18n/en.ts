@@ -5,6 +5,7 @@ import { hbEn, hkEn, pmEn, prEn, sgEn } from "./surge";
 import { awEn } from "./ai-why";
 import { fhEn } from "./field-help";
 import { rpEn } from "./report-path";
+import { tdEn } from "./target-details";
 import { rqEn } from "./review-queue";
 import { soEn } from "./solo";
 import { smEn } from "./spend";
@@ -591,6 +592,7 @@ export const en = {
   ...awEn,
   ...fhEn,
   ...rpEn,
+  ...tdEn,
   ...rqEn,
   ...soEn,
   ...smEn,

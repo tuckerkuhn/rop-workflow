@@ -6,6 +6,7 @@ import { hbPs, hkPs, pmPs, prPs, sgPs } from "./surge";
 import { awPs } from "./ai-why";
 import { fhPs } from "./field-help";
 import { rpPs } from "./report-path";
+import { tdPs } from "./target-details";
 import { rqPs } from "./review-queue";
 import { soPs } from "./solo";
 import { smPs } from "./spend";
@@ -496,6 +497,7 @@ export const ps: Messages = {
   ...awPs,
   ...fhPs,
   ...rpPs,
+  ...tdPs,
   ...rqPs,
   ...soPs,
   ...smPs,
