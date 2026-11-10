@@ -1,15 +1,15 @@
 # Surge log, 9 to 10 Nov 2026
 
-One entry per item. Times are Guatemala time.
+One entry per item. Times are Guatemala time, taken from the merge commit of each item.
 
-## 23:05 Phase 0. Make it safe
+## 23:02 Phase 0. Make it safe
 
 - `main` was clean apart from `.claude/` and the surge plan. Both committed on `surge/2026-11-09`, not on `main`.
 - Tag `pre-surge-2026-11-09` set on `main` at `575641f` and pushed.
 - Branch `surge/2026-11-09` created and pushed.
 - Baseline on `575641f`: lint passes, typecheck passes, build passes. No tests exist.
 
-## 23:10 Phase 1. A safety net (branch `surge/tests`)
+## 23:09 Phase 1. A safety net (branch `surge/tests`)
 
 - Added `vitest` (4.x; 5.x wants newer Node types than the repo has), `npm test`, and a test step in CI between typecheck and build.
 - 183 tests in 13 files under `src/lib/__tests__/`, synthetic data only, on: results roll-up and women/men sums, progress and on-track, the quarterly table and its checks, breakdown tables, pre-flight deadlines, the name scrub, data checks, sign-off rules and solo mode, policy layering, photo consent, procurement thresholds, Finance's workbook reader, budget against spending, and B3's any-spreadsheet import.
@@ -18,12 +18,12 @@ One entry per item. Times are Guatemala time.
   - **Photo consent.** A recognisable person with consent for "Donor reports" only is still held back from the donor report (`lib/photos.ts` `shareLimit` needs "comms" or "social"). Safe side, but the consent form offers a choice that does nothing. Question in the morning report.
   - **Name scrub.** A capitalised word just before a name is swallowed with it ("Visited Zarmal's" becomes "a farmer's"). Safe side; left alone.
 
-## 23:15 Phase 2. Audit (`docs/AUDIT-2026-11-09.md`)
+## 23:14 Phase 2. Audit (`docs/AUDIT-2026-11-09.md`)
 
 - Five tables plus dead code, duplicate helpers and stale docs, from six read-only passes. The short list of what breaks trust is at the top of the file.
 - Written while Phase 1 ran; nothing was changed until it was in.
 
-## 23:20 Phase 3a. Route gaps (branch `surge/route-guard`)
+## 23:14 Phase 3a. Route gaps (branch `surge/route-guard`)
 
 One guard, extended (`src/server/guard.ts`): `handle` (failures become plain messages), `guard` (who, organization, project, role), `readBody` (Zod on input), `audit` (one row per change). No second guard was written.
 
@@ -36,7 +36,7 @@ One guard, extended (`src/server/guard.ts`): `handle` (failures become plain mes
 - **Errors.** An unknown project is a 404 with what to do, not a 500 saying "Run npm run db:seed". An unexpected failure no longer shows a driver's message or SQL: it says it was recorded, that nothing typed is lost, and to try again.
 - **Left alone, in the morning report:** opportunities and payroll export (on the do-not-touch list) still have audit gaps; `GET /policy` is readable by donor accounts because two screens load it for everyone; staff, session and timesheet routes are not yet organization-scoped (one organization today); the bill book is still read-modify-write with no lock.
 
-## 23:25 Phase 3b. One door for AI (branch `surge/ai-door`)
+## 23:20 Phase 3b. One door for AI (branch `surge/ai-door`)
 
 - **`src/server/ai.ts` is now the only file that imports the AI SDK** (was four files, five separate clients). All 18 jobs call `askAi` through it. A test fails if any other file imports the SDK or names a job that is not in the list.
 - **`src/lib/ai-jobs.ts`** lists every job: what it does, whether it writes for people, and what it looks at in plain words (ready for C6 to show).
@@ -50,7 +50,7 @@ One guard, extended (`src/server/guard.ts`): `handle` (failures become plain mes
 - **A slip, corrected within a minute:** the first merge of this branch into `surge/2026-11-09` (`ff928d6`) had a type error in `review-page.tsx`: my check command hid the failing typecheck behind a pipe. Fixed in the next commit and merged again. Every merge since runs one script that stops on the first red check. `main` was never involved.
 - **Not changed, for Tucker (morning report):** translation sends Dari and Pashto notes as written (it cannot translate otherwise, and the name rules read English only); photo coaching sends the photo itself, which `docs/DATA-PROTECTION.md` says never happens; the assistant sends staff names and the typed question; the opportunity brief has no voice rules; the lens review replaces earlier decisions on screen when run again. Each is on the do-not-touch list or needs a policy decision.
 
-## 23:35 Phase 3c. One function per number (branch `surge/one-number`)
+## 23:23 Phase 3c. One function per number (branch `surge/one-number`)
 
 Each pair was pinned by a test first (`one-number.test.ts`), then one function kept.
 
@@ -61,7 +61,7 @@ Each pair was pinned by a test first (`one-number.test.ts`), then one function k
 - **Tracking table sums** (`server/outputs.ts`) now come from `totalsOf`, the function the reports use. Same figures as before.
 - **Not done, in the morning report:** "on track" still has two meanings (the report judges against the workplan, Progress cards against time gone in the year); the afghani rate is a constant 70 in three places; "today" is the server's UTC day in about 48 places, which is wrong near midnight in Kabul; the project spend total and the budget page total differ by design (overhead and phases) and neither says so. Each needs a decision or a stored value, not a refactor.
 
-## 23:50 Phase 3d. Errors that keep the person's work and say what to do next (branch `surge/errors-keep-work`)
+## 23:28 Phase 3d. Errors that keep the person's work and say what to do next (branch `surge/errors-keep-work`)
 
 - **Report downloads never treat "pre-flight unknown" as "nothing blocks".** If pre-flight had not loaded or its load failed, the download went out with no warning and no DRAFT mark. Now the download reads pre-flight itself; if that fails too, the person is asked, and the file is marked "DRAFT, NOT CHECKED: pre-flight could not be run". Quarterly, annual and FACE.
 - **Work no longer says "Nothing needs you right now" when its load failed.** It says the list may be missing things, with a Try again button. Same for Closeout ("No expense vouchers yet" after a failed load).
@@ -74,13 +74,13 @@ Each pair was pinned by a test first (`one-number.test.ts`), then one function k
 - **Left alone (HR, on the do-not-touch list), in the morning report:** a failed "send back" clears the typed note on expenses, leave and people; onboarding lets a contract be signed that never opened; payroll's ADP download fails silently; Leave is blank for someone with no HR record.
 - **Working-method slip, corrected:** I made two one-line changes in files over 600 lines (`lib/procurement.ts`, `progress/qpr-page.tsx`) before reading all of them. I have since read both in full; the changes stand. From here I read first.
 
-## 23:55 Phase 3e. Dead code (branch `surge/dead-code`)
+## 23:29 Phase 3e. Dead code (branch `surge/dead-code`)
 
 - Removed six exports nothing uses, each checked by a search and then by the type checker and lint: `methodNeeds` (`lib/kobo-suggest.ts`), `PARAM_KEYS` (`lib/presets.ts`), `rolePerson` (`lib/procurement.ts`), `READINESS_FORM_ID` and `seedAll` (`lib/project.ts`), `AI_ACTIONS` (`server/limits.ts`).
 - Left: `RUN_CODES` (payroll) and `isWorkday` (timesheets) are unused too but sit in the HR area, which is not to be touched.
 - Not done: the 17 copies of the `call` fetch helper, 10 of `addDays` and 7 date formatters (audit, section 6). They agree today; folding them is a wide mechanical change better done with someone watching.
 
-## 00:05 Phase 4. Entered once (branch `surge/entered-once`)
+## 23:35 Phase 4. Entered once (branch `surge/entered-once`)
 
 Nothing was migrated or dropped. Where a fact had two stores, code now reads one; the spare column or copy is listed in the morning report.
 
