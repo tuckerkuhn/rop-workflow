@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { useT } from "@/components/app/i18n";
 import { MoneySourceLink } from "@/components/progress/proof-panel";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser } from "@/components/app/session";
-import { Pill, TopBar } from "@/components/workspace/ui";
+import { Pill, TopBar, primaryBtn } from "@/components/workspace/ui";
 import { LIMITS, type ActivityView, type LineView } from "@/lib/budget-view";
 import type { loadBudgetView } from "@/server/budget-view-store";
 
@@ -28,16 +29,25 @@ export function BudgetPage() {
   const [error, setError] = useState("");
   const [open, setOpen] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!user || !project.saved) return;
-    fetch(`/api/projects/${project.id}/budget-view`, { cache: "no-store", headers: { "x-demo-user": user.id } })
+  const userId = user?.id;
+  const load = useCallback(() => {
+    if (!userId || !project.saved) return;
+    fetch(`/api/projects/${project.id}/budget-view`, { cache: "no-store", headers: { "x-demo-user": userId } })
       .then(async (r) => {
         const d = await r.json();
         if (!r.ok) throw new Error(d.error ?? "Could not load the budget.");
         setV(d);
       })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
-  }, [user, project.id, project.saved]);
+  }, [userId, project.id, project.saved]);
+  useEffect(() => load(), [load]);
+  /** Saves the reason a line is over budget into the quarterly report it belongs to. */
+  const saveReason = async (line: string, text: string) => {
+    if (!v?.explain || !userId) return;
+    const res = await fetch(`/api/projects/${project.id}/qpr?q=${v.explain.quarter}`, { method: "POST", headers: { "Content-Type": "application/json", "x-demo-user": userId }, body: JSON.stringify({ action: "overspend", line, text }) });
+    if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? `Not saved (${res.status})`);
+    load();
+  };
 
   if (!user) return null;
   const flagged = v?.activities.reduce((t, a) => t + a.flags, 0) ?? 0;
@@ -63,7 +73,7 @@ export function BudgetPage() {
             page.
           </p>
         ) : (
-          <>
+          <ExplainCtx.Provider value={v.explain ? { ...v.explain, save: saveReason } : null}>
             <p className="mt-1 max-w-3xl text-sm text-muted">
               {project.name}, {monthLabel(v.period.from)} to {monthLabel(v.period.to)}, in {v.currency} before overhead, from {v.imported?.file}. Approved is Finance&rsquo;s budget; forecast is spent so far plus the revised plan for the quarters left.
             </p>
@@ -135,10 +145,60 @@ export function BudgetPage() {
                 {v.notInFile.length > 0 && <p className="mt-2">In the budget but not Finance&rsquo;s file (no spending shown): {v.notInFile.map((l) => l.code).join(", ")}.</p>}
               </section>
             )}
-          </>
+          </ExplainCtx.Provider>
         )}
       </main>
     </div>
+  );
+}
+
+/** The reasons for lines over budget: where they are saved (a quarter's report) and how to save one. */
+const ExplainCtx = createContext<{ quarter: string; released: boolean; lines: Record<string, string>; save: (line: string, text: string) => Promise<void> } | null>(null);
+
+/** Under a line the quarterly report will ask about: the reason, typed here once, printed there. */
+function Reason({ line }: { line: string }) {
+  const x = useContext(ExplainCtx);
+  const { t } = useT();
+  const saved = x?.lines[line];
+  const [text, setText] = useState(saved ?? "");
+  const [state, setState] = useState<"" | "saving" | "saved" | string>("");
+  useEffect(() => setText(saved ?? ""), [saved]);
+  if (!x || saved === undefined) return null;
+  const q = x.quarter.replace("-", " ");
+  if (x.released) return saved ? <span className="mt-2 block text-xs">{t("rp.explain.released", { q })} {saved}</span> : null;
+  const short = text.trim().length > 0 && text.trim().length < 10;
+  return (
+    <label className="mt-2 block text-xs">
+      {t("rp.explain", { q })}
+      <textarea className="mt-1 block w-full rounded-xl border border-line bg-paper px-3 py-2 text-base" rows={2} value={text} onChange={(e) => (setText(e.target.value), setState(""))} />
+      {text.trim() !== saved && (
+        <button
+          type="button"
+          className={`${primaryBtn} mt-1`}
+          disabled={short || state === "saving"}
+          onClick={() => {
+            setState("saving");
+            x.save(line, text.trim()).then(
+              () => setState("saved"),
+              (e) => setState(e instanceof Error ? e.message : String(e)),
+            );
+          }}
+        >
+          {t("rp.explain.save")}
+        </button>
+      )}
+      {short && <span className="mt-1 block text-muted">{t("rp.explain.short")}</span>}
+      {state === "saved" && (
+        <span role="status" className="mt-1 block text-forest">
+          {t("rp.explain.saved", { q })}
+        </span>
+      )}
+      {state && state !== "saving" && state !== "saved" && (
+        <span role="alert" className="mt-1 block text-clay">
+          {state}
+        </span>
+      )}
+    </label>
   );
 }
 
@@ -181,6 +241,7 @@ function LineText({ l }: { l: LineView }) {
           {f.text}
         </span>
       ))}
+      <Reason line={l.code} />
     </>
   );
 }

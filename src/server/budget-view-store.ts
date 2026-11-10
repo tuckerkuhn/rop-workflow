@@ -1,13 +1,17 @@
 import { asc, eq } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { budgetView, type BudgetView } from "@/lib/budget-view";
-import { totalsOf } from "@/lib/results";
+import { overspentLines } from "@/lib/qpr";
+import { quarterOf, totalsOf } from "@/lib/results";
 import { loadActuals } from "@/server/actuals-store";
 import { projectByCode } from "@/server/field-store";
+import { loadQpr, spendFor } from "@/server/qpr-store";
 import { loadResults } from "@/server/results-store";
 
 /** Budget against actual for the project's current phase, from its budget lines and Finance's latest import. */
-export async function loadBudgetView(code: string): Promise<BudgetView & { imported: { file: string; by: string; at: string } | null; beforeOverhead: boolean }> {
+export type Explain = { quarter: string; released: boolean; lines: Record<string, string> };
+
+export async function loadBudgetView(code: string): Promise<BudgetView & { imported: { file: string; by: string; at: string } | null; beforeOverhead: boolean; explain: Explain | null }> {
   const project = await projectByCode(code);
   const lines = await db.select().from(s.budgetLines).where(eq(s.budgetLines.projectId, project.id)).orderBy(asc(s.budgetLines.sort));
   const actuals = await loadActuals(code);
@@ -39,5 +43,14 @@ export async function loadBudgetView(code: string): Promise<BudgetView & { impor
         target: Number(i.target) - Number((i.forecast as Record<string, number>)?.[priorYear] ?? 0),
       })),
   });
-  return { ...view, imported: current ? { file: current.file.name, by: current.by, at: current.at } : null, beforeOverhead: true };
+  // The lines the quarterly report asks a reason for (lib/qpr overspentLines), with the reason saved so
+  // far, for the quarter the latest import ends in. Typed here or on the report, it is one saved text.
+  const last = current?.months.at(-1);
+  let explain: Explain | null = null;
+  if (last) {
+    const quarter = quarterOf(`${last}-15`);
+    const saved = await loadQpr(code, quarter);
+    explain = { quarter, released: !!saved.released, lines: Object.fromEntries(overspentLines(await spendFor(code, quarter, lines), saved).map((l) => [l.code, l.explanation])) };
+  }
+  return { ...view, explain, imported: current ? { file: current.file.name, by: current.by, at: current.at } : null, beforeOverhead: true };
 }

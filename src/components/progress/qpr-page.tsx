@@ -538,10 +538,17 @@ function InfoBox({ v, act, onImported }: { v: QprView; act: Act; onImported: () 
 function Overspend({ v, act }: { v: QprView; act: Act }) {
   const lines = overspentLines(v.spend, v.saved);
   const [text, setText] = useState<Record<string, string>>({});
+  const { t: tr } = useT();
   if (!lines.length) return null;
   return (
     <div className="mt-3 space-y-3 rounded-xl bg-paper p-3">
       <p className="text-sm font-semibold">Budget lines above budget</p>
+      <p className="text-xs text-muted">
+        {tr("rp.explain.onBudget")}{" "}
+        <Link href="/progress/budget" className="font-semibold text-forest hover:underline">
+          Budget
+        </Link>
+      </p>
       {lines.map((l) => {
         const t = text[l.code] ?? l.explanation;
         return (
