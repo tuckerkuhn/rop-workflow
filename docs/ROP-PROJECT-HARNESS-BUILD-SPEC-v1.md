@@ -1,5 +1,7 @@
 # ROP Project Harness: Build Spec v1
 
+> **Note, 10 Nov 2026:** this is the original design, kept as written. What exists today is in [CURRENT-STATE.md](CURRENT-STATE.md), which also lists where the code and this spec differ.
+
 Oct 28, 2026 · @Tucker Kuhn
 
 ## Summary

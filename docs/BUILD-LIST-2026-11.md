@@ -12,12 +12,12 @@ The order agreed on 9 Nov 2026, from the four-additions, five-streamlines, six-U
 | B2 | Solo mode for sign-offs | `feature/solo-signoff` | Merged |
 | B3 | Spend import from any spreadsheet | `feature/spend-import-generic` | Merged |
 | B4 | Kobo nightly reconcile | `feature/kobo-nightly-reconcile` | Built on surge branch, not merged; never run |
-| B5 | One source of truth for the docs | `feature/docs-current` | |
+| B5 | One source of truth for the docs | `feature/docs-current` | Built on surge branch, not merged |
 | C1 | Home: Approve, Fix, Due | `feature/home-three-buckets` | Built on surge branch, not merged |
 | C2 | Project manager first | `feature/pm-path` | Built on surge branch, not merged |
 | C3 | Progress: one row per target | `feature/progress-rows` | Built on surge branch, not merged |
-| C4 | Plain words | `feature/plain-words` | Also: move the quarterly report's older check sentences into the four languages (decided 9 Nov). |
-| C5 | A sample project for every new organization | `feature/sample-project` | |
+| C4 | Plain words | `feature/plain-words` | Not started. Also: move the quarterly report's older check sentences into the four languages (decided 9 Nov). |
+| C5 | A sample project for every new organization | `feature/sample-project` | Not started |
 | C6 | Every AI flag says why | `feature/flag-reasons` | Built on surge branch, not merged |
 | C7 | "Why we ask" help on sensitive fields | `feature/field-help` | Partly built on surge branch, not merged: Results and Stories only |
 

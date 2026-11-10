@@ -177,6 +177,18 @@ Plan: reuse the existing `sync` and `koboToResults` unchanged; add only the nigh
 - `docs/DATA-PROTECTION.md` has a new section, "What we collect and why", generated from the register. A test fails when the two differ; `UPDATE_DOCS=1 npm test` rewrites the section.
 - **Short of "done when":** Photos and HR have no "?" (both are on the do-not-touch list), and the AI-proposed values rely on C6's "It looked at" line rather than this help. Question in the morning report: may the "?" be added to Photos and HR?
 
+## 00:55 Phase 6, B5. Docs match the app (branch `feature/docs-current`)
+
+- `README.md` rewritten: what the app is and does today, where things are, how it is built, how to run it, and the warning that a push to `main` migrates the live database. The "untested prototype, saved in the browser" text is gone.
+- New `docs/CURRENT-STATE.md`: one table of every feature area with status, main files and open questions, written from the code. It says plainly that nothing was checked by running the app.
+- A dated note at the top of the v1 spec points to it. The spec itself is unchanged.
+- Three places where code and spec disagree are listed for Tucker, undecided. The list is not complete: I compared only what the audit touched.
+
+## 00:55 Phase 6, C5 and C4: not started, on purpose
+
+- **C5, sample project.** It needs a new column on projects, seed data written into the database for each new organization, and read-only handling across the app. None of it can be tried without a database, which tonight's rules rightly forbid. Too large to build blind.
+- **C4, plain words.** The item asks for the full before-and-after list of strings before anything changes, across four languages. 54 English strings use "indicator", "actual" or "disaggregation"; changing the Dari and Pashto words for them unseen is the kind of change a native reader should see first. Not started; the count and the files are in the audit (section 4, Jargon).
+
 ## Decisions
 
 Each is reversible. Listed as they are made.
