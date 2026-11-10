@@ -262,3 +262,44 @@ export const pmPs: Partial<Record<keyof typeof pmEn, string>> = {
   "home.kobo.accepted": "وشمېرل شوه",
   "home.kobo.queried": "MEL پوښتنه لري",
 };
+
+/** Health page: the nightly KoboToolbox reconcile (B4). */
+export const hkEn = {
+  "health.kobo.title": "KoboToolbox nightly check",
+  "health.kobo.help": "Each night the app reads every connected project's forms again, to catch answers edited or deleted in KoboToolbox after they first arrived. An accepted result is never changed by this: it is flagged for MEL.",
+  "health.kobo.none": "No run in the last week. It starts once the scheduled job is live and a project is connected to KoboToolbox.",
+  "health.kobo.same": "{fetched} submissions checked: nothing had changed.",
+  "health.kobo.changed": "{fetched} submissions checked: {added} new, {updated} edited, {removed} deleted in KoboToolbox.",
+  "health.kobo.flagged": "Accepted results changed in KoboToolbox and flagged for MEL: {n}.",
+  "health.kobo.failed": "Did not run: {error}",
+};
+
+export const hkEs: Partial<Record<keyof typeof hkEn, string>> = {
+  "health.kobo.title": "Revisión nocturna de KoboToolbox",
+  "health.kobo.help": "Cada noche la aplicación vuelve a leer los formularios de cada proyecto conectado, para detectar respuestas editadas o borradas en KoboToolbox después de llegar. Esto nunca cambia un resultado aceptado: lo marca para MEL.",
+  "health.kobo.none": "Ninguna revisión en la última semana. Empieza cuando la tarea programada esté activa y haya un proyecto conectado a KoboToolbox.",
+  "health.kobo.same": "{fetched} envíos revisados: nada había cambiado.",
+  "health.kobo.changed": "{fetched} envíos revisados: {added} nuevos, {updated} editados, {removed} borrados en KoboToolbox.",
+  "health.kobo.flagged": "Resultados aceptados que cambiaron en KoboToolbox y se marcaron para MEL: {n}.",
+  "health.kobo.failed": "No se ejecutó: {error}",
+};
+
+export const hkFa: Partial<Record<keyof typeof hkEn, string>> = {
+  "health.kobo.title": "بررسی شبانهٔ KoboToolbox",
+  "health.kobo.help": "هر شب برنامه فورمه‌های هر پروژهٔ وصل‌شده را دوباره می‌خواند تا پاسخ‌هایی را که پس از رسیدن در KoboToolbox ویرایش یا حذف شده پیدا کند. این کار هرگز یک نتیجهٔ پذیرفته‌شده را تغییر نمی‌دهد: آن را برای MEL نشانی می‌کند.",
+  "health.kobo.none": "در هفتهٔ گذشته بررسی‌ای انجام نشده است. وقتی کار زمان‌بندی‌شده فعال شود و پروژه‌ای به KoboToolbox وصل باشد آغاز می‌شود.",
+  "health.kobo.same": "{fetched} فورمه بررسی شد: چیزی تغییر نکرده بود.",
+  "health.kobo.changed": "{fetched} فورمه بررسی شد: {added} نو، {updated} ویرایش‌شده، {removed} حذف‌شده در KoboToolbox.",
+  "health.kobo.flagged": "نتیجه‌های پذیرفته‌شده که در KoboToolbox تغییر کرده و برای MEL نشانی شده: {n}.",
+  "health.kobo.failed": "اجرا نشد: {error}",
+};
+
+export const hkPs: Partial<Record<keyof typeof hkEn, string>> = {
+  "health.kobo.title": "د KoboToolbox شپنۍ کتنه",
+  "health.kobo.help": "هره شپه اپلیکیشن د هرې نښلول شوې پروژې فورمې بیا لولي، څو هغه ځوابونه ومومي چې له رارسېدو وروسته په KoboToolbox کې سم شوي یا ړنګ شوي. دا کار هېڅکله منل شوې پایله نه بدلوي: د MEL لپاره یې په نښه کوي.",
+  "health.kobo.none": "په تېره اونۍ کې هېڅ کتنه نه ده شوې. هغه وخت پیلېږي چې مهالوېش شوی کار فعال شي او یوه پروژه له KoboToolbox سره ونښلول شي.",
+  "health.kobo.same": "{fetched} فورمې وکتل شوې: هېڅ شی نه و بدل شوی.",
+  "health.kobo.changed": "{fetched} فورمې وکتل شوې: {added} نوې، {updated} سمې شوې، {removed} په KoboToolbox کې ړنګې شوې.",
+  "health.kobo.flagged": "منل شوې پایلې چې په KoboToolbox کې بدلې شوې او د MEL لپاره په نښه شوې: {n}.",
+  "health.kobo.failed": "ونه چلېده: {error}",
+};

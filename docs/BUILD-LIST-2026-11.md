@@ -11,7 +11,7 @@ The order agreed on 9 Nov 2026, from the four-additions, five-streamlines, six-U
 | B1 | Review queue: accept the clean, review the flagged | `feature/review-queue-batch` | Merged |
 | B2 | Solo mode for sign-offs | `feature/solo-signoff` | Merged |
 | B3 | Spend import from any spreadsheet | `feature/spend-import-generic` | Merged |
-| B4 | Kobo nightly reconcile | `feature/kobo-nightly-reconcile` | |
+| B4 | Kobo nightly reconcile | `feature/kobo-nightly-reconcile` | Built on surge branch, not merged; never run |
 | B5 | One source of truth for the docs | `feature/docs-current` | |
 | C1 | Home: Approve, Fix, Due | `feature/home-three-buckets` | Built on surge branch, not merged |
 | C2 | Project manager first | `feature/pm-path` | Built on surge branch, not merged |

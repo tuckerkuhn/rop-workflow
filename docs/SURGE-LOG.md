@@ -159,6 +159,16 @@ The walk was done by reading the code, not on a phone: nobody was awake to hold 
 - **Not as specified:** the list is the project's latest submissions, not the person's own. The app does not keep who sent a Kobo submission (it is recorded as "kobo"), so it cannot tell. The screen says so. To show a person's own, the app needs each person's KoboToolbox username: question in the morning report.
 - New text in four languages (my drafts for es, fa, ps).
 
+## 00:50 Phase 5, B4. Kobo nightly reconcile (branch `feature/kobo-nightly-reconcile`)
+
+Plan: reuse the existing `sync` and `koboToResults` unchanged; add only the nightly caller, its schedule and its record on the health page.
+
+- `GET /api/kobo/reconcile` (`src/server/kobo-reconcile.ts`): runs the same sync as the button and the webhook for every project connected to KoboToolbox, one after another; one project failing does not stop the rest. Protected by `CRON_SECRET`, compared in constant time; with no secret set it refuses to run. The check is `cronAllowed` in the shared guard.
+- **It was never run tonight.** Running it calls KoboToolbox, which the guardrails forbid. Only its pure parts are tested. It goes live when this is merged and deployed.
+- What happens to edits and deletions is the existing sync's behaviour, which I read but did not change: a result still waiting for MEL is updated; an accepted result is not changed, and the sync writes `kobo_changed_after_acceptance`. **I did not verify on a screen that MEL sees that flag**: worth one look on `SFTP-2026`.
+- One audit row per project per run (`kobo_reconciled` or `kobo_reconcile_failed`, with the counts). Settings, Health has a new section showing each project's latest run.
+- `vercel.json` has a third scheduled job at 00:45 UTC, before the 01:30 daily email. **I could not check the Vercel plan's limit** (the Vercel CLI is blocked for this session, rightly). If the deploy refuses a third job: delete that entry from `vercel.json` and set `KOBO_RECONCILE_IN_DIGEST=1`; the daily email job then runs the reconcile first.
+
 ## Decisions
 
 Each is reversible. Listed as they are made.

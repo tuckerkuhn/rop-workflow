@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import type { z } from "zod";
 import type { AppUser } from "@/lib/demo";
@@ -76,6 +77,18 @@ export async function readBody<T extends z.ZodType>(req: Request, schema: T, mes
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) throw new HttpError(400, message ?? parsed.error.issues[0]?.message ?? "That is not complete. Check what you entered and try again.");
   return parsed.data;
+}
+
+/**
+ * The check for a job the scheduler calls (vercel.json crons): the shared secret, compared in
+ * constant time. Null when allowed; otherwise what to answer. With no secret set on the server
+ * the job is refused, never run open.
+ */
+export function cronAllowed(authorization: string | null, secret: string | undefined): { status: 401 | 503; error: string } | null {
+  if (!secret) return { status: 503, error: "Set CRON_SECRET on the server to turn this job on." };
+  const got = Buffer.from(authorization ?? "");
+  const want = Buffer.from(`Bearer ${secret}`);
+  return got.length === want.length && timingSafeEqual(got, want) ? null : { status: 401, error: "Not allowed." };
 }
 
 /** One audit_log row for a change on a project, by its code. `e.by` is the person who made it. */
