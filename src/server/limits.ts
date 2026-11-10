@@ -60,6 +60,8 @@ export async function health() {
     email: { configured: !!process.env.RESEND_API_KEY && !!process.env.CRON_SECRET },
     monitoring: { sentry: false },
     storage: await storage(),
+    // The nightly KoboToolbox reconcile: the latest run for each connected project.
+    kobo: await (await import("@/server/kobo-reconcile")).lastReconciles(),
   };
 }
 

@@ -17,6 +17,9 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const dry = url.searchParams.get("dry") === "1";
     if (!dry && !process.env.RESEND_API_KEY) return NextResponse.json({ error: "Set RESEND_API_KEY to send the daily email." }, { status: 503 });
+    // On a plan that allows only two scheduled jobs, the KoboToolbox reconcile runs here instead of on its own
+    // schedule: set KOBO_RECONCILE_IN_DIGEST=1 and remove its entry from vercel.json. It runs first, so the email is current.
+    if (!dry && process.env.KOBO_RECONCILE_IN_DIGEST === "1") await (await import("@/server/kobo-reconcile")).reconcileAll().catch(() => undefined);
     return NextResponse.json(await runDigest(process.env.APP_ORIGIN || url.origin, dry));
   });
 }
