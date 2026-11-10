@@ -5,6 +5,18 @@
  */
 
 export const rpEn = {
+  "nr.title": "Next report: {q}",
+  "nr.dates": "ready by {aim} (days left: {n}), due to the donor {due}",
+  "nr.noDeadline": "no deadline set",
+  "nr.blocksOne": "1 thing blocks it",
+  "nr.blocks": "{n} things block it",
+  "nr.blocksNone": "nothing blocks it",
+  "nr.toDo": "{n} to do",
+  "nr.released": "Released. Nothing stands in the way.",
+  "nr.clear": "Nothing stands in the way yet: keep recording results and weekly updates as they happen.",
+  "nr.sumBlockedOne": "1 thing stops it going out; more to do before it does: {m}.",
+  "nr.sumBlocked": "{n} things stop it going out; more to do before it does: {m}.",
+  "nr.sumOpen": "To do before it goes out: {n}. Nothing blocks it.",
   "rp.quarterPast": "This is the report for {q}, {from} to {to}. Home's next report is {now}.",
   "rp.quarterNow": "This is the report for {q}, the quarter now under way. It ends on {to}.",
   "rp.openQuarter": "Open {q}",
@@ -29,6 +41,18 @@ export const rpEn = {
 };
 
 export const rpEs: Partial<Record<keyof typeof rpEn, string>> = {
+  "nr.title": "Próximo informe: {q}",
+  "nr.dates": "listo para el {aim} (días que quedan: {n}), se entrega al donante el {due}",
+  "nr.noDeadline": "sin fecha límite",
+  "nr.blocksOne": "1 cosa lo bloquea",
+  "nr.blocks": "{n} cosas lo bloquean",
+  "nr.blocksNone": "nada lo bloquea",
+  "nr.toDo": "{n} por hacer",
+  "nr.released": "Entregado. Nada lo impide.",
+  "nr.clear": "Por ahora nada lo impide: sigue registrando resultados y actualizaciones semanales a medida que ocurren.",
+  "nr.sumBlockedOne": "1 cosa impide que salga; por hacer antes de que salga: {m}.",
+  "nr.sumBlocked": "{n} cosas impiden que salga; por hacer antes de que salga: {m}.",
+  "nr.sumOpen": "Por hacer antes de que salga: {n}. Nada lo bloquea.",
   "rp.quarterPast": "Este es el informe de {q}, del {from} al {to}. El próximo informe en Inicio es {now}.",
   "rp.quarterNow": "Este es el informe de {q}, el trimestre en curso. Termina el {to}.",
   "rp.openQuarter": "Abrir {q}",
@@ -53,6 +77,18 @@ export const rpEs: Partial<Record<keyof typeof rpEn, string>> = {
 };
 
 export const rpFa: Partial<Record<keyof typeof rpEn, string>> = {
+  "nr.title": "گزارش بعدی: {q}",
+  "nr.dates": "تا {aim} آماده شود (روزهای مانده: {n})، موعد تسلیمی به تمویل‌کننده {due}",
+  "nr.noDeadline": "موعد تعیین نشده",
+  "nr.blocksOne": "۱ مورد جلوی آن را می‌گیرد",
+  "nr.blocks": "{n} مورد جلوی آن را می‌گیرد",
+  "nr.blocksNone": "چیزی جلوی آن را نمی‌گیرد",
+  "nr.toDo": "{n} کار مانده",
+  "nr.released": "نهایی شد. چیزی مانع نیست.",
+  "nr.clear": "فعلاً چیزی مانع نیست: نتایج و گزارش‌های هفته‌وار را همان وقت که انجام می‌شود ثبت کنید.",
+  "nr.sumBlockedOne": "۱ مورد جلوی فرستادن آن را می‌گیرد؛ کارهای دیگر پیش از فرستادن: {m}.",
+  "nr.sumBlocked": "{n} مورد جلوی فرستادن آن را می‌گیرد؛ کارهای دیگر پیش از فرستادن: {m}.",
+  "nr.sumOpen": "کارهای پیش از فرستادن: {n}. چیزی جلوی آن را نمی‌گیرد.",
   "rp.quarterPast": "این گزارش {q} است، از {from} تا {to}. گزارش بعدی در صفحهٔ اصلی {now} است.",
   "rp.quarterNow": "این گزارش {q} است، ربعی که اکنون جریان دارد. در {to} تمام می‌شود.",
   "rp.openQuarter": "باز کردن {q}",
@@ -77,6 +113,18 @@ export const rpFa: Partial<Record<keyof typeof rpEn, string>> = {
 };
 
 export const rpPs: Partial<Record<keyof typeof rpEn, string>> = {
+  "nr.title": "راتلونکی راپور: {q}",
+  "nr.dates": "تر {aim} پورې چمتو شي (پاتې ورځې: {n})، تمویلوونکي ته د سپارلو نېټه {due}",
+  "nr.noDeadline": "نېټه نه ده ټاکل شوې",
+  "nr.blocksOne": "۱ ټکی یې دروي",
+  "nr.blocks": "{n} ټکي یې دروي",
+  "nr.blocksNone": "هېڅ شی یې نه دروي",
+  "nr.toDo": "{n} کارونه پاتې",
+  "nr.released": "وروستی شو. هېڅ خنډ نشته.",
+  "nr.clear": "اوس لپاره هېڅ خنډ نشته: پایلې او اوونیز راپورونه هغه وخت ثبت کړئ چې کار کېږي.",
+  "nr.sumBlockedOne": "۱ ټکی یې لېږل دروي؛ له لېږلو مخکې نور کارونه: {m}.",
+  "nr.sumBlocked": "{n} ټکي یې لېږل دروي؛ له لېږلو مخکې نور کارونه: {m}.",
+  "nr.sumOpen": "له لېږلو مخکې کارونه: {n}. هېڅ شی یې نه دروي.",
   "rp.quarterPast": "دا د {q} راپور دی، له {from} تر {to}. په کور پاڼه کې راتلونکی راپور {now} دی.",
   "rp.quarterNow": "دا د {q} راپور دی، هغه ربع چې اوس روانه ده. په {to} پای ته رسېږي.",
   "rp.openQuarter": "{q} پرانیزئ",
