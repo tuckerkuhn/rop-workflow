@@ -128,6 +128,8 @@ export type ProjectInfo = {
   saved?: boolean;
   /** Indicators that take results recorded by hand, not fed by Kobo. */
   handRecorded?: number;
+  /** A fictional project: the read-only sample (C5) or a sandbox for testing. Real when absent. */
+  kind?: "real" | "sample" | "sandbox";
 };
 
 export const projects: ProjectInfo[] = [

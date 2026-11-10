@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
+import { canEditProject } from "@/lib/demo";
 import { quarterOf } from "@/lib/results";
-import { requireViewer } from "@/server/auth";
+import { isSampleProject, requireViewer } from "@/server/auth";
+import { orgIdForPerson, sampleOf } from "@/server/org-settings-store";
+import { SAMPLE_QUARTER } from "@/server/sample-project";
 import { handle } from "@/server/guard";
 import { loadCopies } from "@/server/qpr-store";
 import { loadResults, loadUpdates } from "@/server/results-store";
@@ -22,6 +25,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
     if (v instanceof NextResponse) return v;
     const u = v.user;
     const me = u.id;
+    // Nothing to do on the sample itself: it is there to look at.
+    if (await isSampleProject(code)) return NextResponse.json({ steps: [], sample: null });
+    // The organization's sample (C5), unless an administrator has hidden it: "See a finished report".
+    const orgId = await orgIdForPerson(me);
+    const found = orgId ? await sampleOf(orgId) : null;
+    const sample = found && !found.hidden ? { code: found.code, quarter: SAMPLE_QUARTER } : null;
     const writer = !!u.admin || u.project.some((r) => ["mel-owner", "report-release", "plan-approver", "monthly-review"].includes(r));
     const [results, updates] = await Promise.all([loadResults(code), loadUpdates(code)]);
     const steps: FirstStep[] = [{ key: "signin", text: "Sign in", href: "/home", done: true }];
@@ -36,6 +45,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
       steps.push({ key: "practice", text: "Open the quarterly report and do a practice release", href: "/progress/report", done: copies.some((c) => c.by === me) });
       steps.push({ key: "share", text: "Share a report with the donor through a read-only link", href: "/progress/report", done: (await loadShares(code)).some((s) => s.by === me) });
     }
-    return NextResponse.json({ steps });
+    return NextResponse.json({ steps, sample, mayCreate: canEditProject(u) });
   });
 }

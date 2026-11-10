@@ -16,7 +16,8 @@
     "db:seed": "tsx --env-file=.env.local src/db/seed.ts",
     "staff": "tsx --env-file=.env.local src/db/staff-cli.ts",
     "plan": "tsx --env-file=.env.local src/db/plan-cli.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "sample": "tsx --env-file=.env.local src/db/sample-cli.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.4.0",

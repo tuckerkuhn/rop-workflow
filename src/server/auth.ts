@@ -164,7 +164,23 @@ export async function requireViewer(req: Request, opts: { write?: boolean; allow
     const org = await organizationOfProject(decodeURIComponent(code));
     if (org && org !== v.organizationId) return deny(404, NO_PROJECT(decodeURIComponent(code)));
   }
+  // The sample project is a finished example: everyone can open it, nobody can change it.
+  if (code && opts.write && (await isSampleProject(decodeURIComponent(code)))) return deny(403, SAMPLE_READ_ONLY);
   return v;
+}
+
+export const SAMPLE_READ_ONLY = "This is the sample project, with fictional data: it can be looked at, not changed. Choose your own project to record or edit.";
+
+/** Whether a project is the sample (projects.kind). A project never changes kind, so the answer is kept. */
+const kindOf = new Map<string, string>();
+export async function isSampleProject(code: string): Promise<boolean> {
+  let kind = kindOf.get(code);
+  if (kind === undefined) {
+    const [p] = await db.select({ kind: s.projects.kind }).from(s.projects).where(eq(s.projects.code, code)).limit(1);
+    kind = p?.kind ?? "real";
+    if (p) kindOf.set(code, kind);
+  }
+  return kind === "sample";
 }
 
 /** What a person is told when a project code leads nowhere. */
@@ -191,6 +207,8 @@ export async function inOwnOrganization(v: Viewer, code: string): Promise<boolea
 }
 
 export const isEmployee = (u: AppUser) => u.kind === "employee";
-/** Whether a person works on a project: everyone without a project list does; administrators always do. */
-export const onProject = (u: AppUser, code: string) => !u.projects?.length || u.projects.includes(code) || !!u.admin;
+/** Sample project codes (C5) start with this; a project made in setup cannot (its letters are at most four). */
+export const SAMPLE_PREFIX = "SAMPLE-";
+/** Whether a person works on a project: everyone without a project list does; administrators always do. Everyone may open the sample. */
+export const onProject = (u: AppUser, code: string) => !u.projects?.length || u.projects.includes(code) || !!u.admin || code.startsWith(SAMPLE_PREFIX);
 export const isMelOwner = (u: AppUser) => u.project.includes("mel-owner");

@@ -12,6 +12,7 @@ import { soPs } from "./solo";
 import { smPs } from "./spend";
 import { haPs } from "./home-actions";
 import { osPs } from "./overspend";
+import { spPs } from "./sample";
 import { ksPs } from "./kobo-suggest";
 import { agPs } from "./agreement";
 import { evPs } from "./evidence";
@@ -505,6 +506,7 @@ export const ps: Messages = {
   ...smPs,
   ...haPs,
   ...osPs,
+  ...spPs,
   ...ksPs,
   ...agPs,
   ...evPs,

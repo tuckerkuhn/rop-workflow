@@ -11,7 +11,9 @@ import { profileById } from "@/lib/presets";
 export type OrgChange = { key: string; value: Value; by: string; name: string; at: string; reason: string; preset?: string; reset?: boolean };
 /** Solo mode (B2): a small team's one person may prepare and approve, confirming it each time. Off unless an administrator turns it on. */
 export type SoloChange = { on: boolean; by: string; name: string; at: string; reason: string };
-export type OrgSettings = { values: Record<string, OrgChange>; history: OrgChange[]; solo?: SoloChange; soloHistory?: SoloChange[] };
+/** The sample project (C5): shown to everyone unless an administrator hides it. */
+export type SampleChange = { hidden: boolean; by: string; name: string; at: string; reason: string };
+export type OrgSettings = { values: Record<string, OrgChange>; history: OrgChange[]; solo?: SoloChange; soloHistory?: SoloChange[]; sample?: SampleChange; sampleHistory?: SampleChange[] };
 
 const EMPTY: OrgSettings = { values: {}, history: [] };
 
@@ -58,4 +60,15 @@ export async function orgIdForPerson(personId: string): Promise<string | null> {
   if (me) return me.org;
   const [first] = await db.select({ id: s.organizations.id }).from(s.organizations).orderBy(s.organizations.createdAt).limit(1);
   return first?.id ?? null;
+}
+
+/** The organization's sample project (projects.kind "sample"), if it has one, and whether it is hidden. */
+export async function sampleOf(orgId: string): Promise<{ code: string; name: string; hidden: boolean } | null> {
+  const [p] = await db
+    .select({ code: s.projects.code, name: s.projects.name })
+    .from(s.projects)
+    .where(and(eq(s.projects.organizationId, orgId), eq(s.projects.kind, "sample")))
+    .limit(1);
+  if (!p?.code) return null;
+  return { code: p.code, name: p.name, hidden: !!(await loadOrgSettings(orgId)).sample?.hidden };
 }

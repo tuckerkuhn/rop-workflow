@@ -169,6 +169,13 @@
       "when": 1794270357710,
       "tag": "0023_kobo_mapping_origin",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1794346501945,
+      "tag": "0024_project_kind",
+      "breakpoints": true
     }
   ]
 }

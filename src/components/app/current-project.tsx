@@ -70,6 +70,7 @@ export function CurrentProjectProvider({ children }: { children: React.ReactNode
           crop: p.crop ?? undefined,
           saved: true,
           handRecorded: p.handRecorded ?? 0,
+          kind: p.kind,
         }),
       ),
     ];

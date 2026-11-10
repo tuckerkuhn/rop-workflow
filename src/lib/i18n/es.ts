@@ -12,6 +12,7 @@ import { soEs } from "./solo";
 import { smEs } from "./spend";
 import { haEs } from "./home-actions";
 import { osEs } from "./overspend";
+import { spEs } from "./sample";
 import { ksEs } from "./kobo-suggest";
 import { agEs } from "./agreement";
 import { evEs } from "./evidence";
@@ -530,6 +531,7 @@ export const es: Messages = {
   ...smEs,
   ...haEs,
   ...osEs,
+  ...spEs,
   ...ksEs,
   ...agEs,
   ...evEs,
