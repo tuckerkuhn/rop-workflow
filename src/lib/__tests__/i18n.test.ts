@@ -5,6 +5,7 @@ import { fa } from "@/lib/i18n/fa";
 import { ps } from "@/lib/i18n/ps";
 import { awEn, awEs, awFa, awPs } from "@/lib/i18n/ai-why";
 import { sgEn, sgEs, sgFa, sgPs } from "@/lib/i18n/surge";
+import { rpEn, rpEs, rpFa, rpPs } from "@/lib/i18n/report-path";
 import { translate } from "@/lib/i18n";
 
 describe("interface text", () => {
@@ -20,6 +21,11 @@ describe("interface text", () => {
       expect(awEs[k], `es:${k}`).toBeTruthy();
       expect(awFa[k], `fa:${k}`).toBeTruthy();
       expect(awPs[k], `ps:${k}`).toBeTruthy();
+    }
+    for (const k of Object.keys(rpEn) as (keyof typeof rpEn)[]) {
+      expect(rpEs[k], `es:${k}`).toBeTruthy();
+      expect(rpFa[k], `fa:${k}`).toBeTruthy();
+      expect(rpPs[k], `ps:${k}`).toBeTruthy();
     }
     for (const k of Object.keys(sgEn) as (keyof typeof sgEn)[]) {
       expect(sgEs[k], `es:${k}`).toBeTruthy();

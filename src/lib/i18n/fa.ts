@@ -5,6 +5,7 @@ import { pfFa } from "./preflight";
 import { hbFa, hkFa, pmFa, prFa, sgFa } from "./surge";
 import { awFa } from "./ai-why";
 import { fhFa } from "./field-help";
+import { rpFa } from "./report-path";
 import { rqFa } from "./review-queue";
 import { soFa } from "./solo";
 import { smFa } from "./spend";
@@ -494,6 +495,7 @@ export const fa: Messages = {
   ...hkFa,
   ...awFa,
   ...fhFa,
+  ...rpFa,
   ...rqFa,
   ...soFa,
   ...smFa,

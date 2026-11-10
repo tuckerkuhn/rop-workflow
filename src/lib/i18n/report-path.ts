@@ -1,0 +1,69 @@
+/**
+ * Text for the path to a quarterly report (10 Nov 2026): which quarter a person is in, what the
+ * app filled in, and what their roles do not let them do. English is the source; Spanish, Dari
+ * and Pashto are drafts that need review by a native speaker before field use.
+ */
+
+export const rpEn = {
+  "rp.quarterPast": "This is the report for {q}, {from} to {to}. Home's next report is {now}.",
+  "rp.quarterNow": "This is the report for {q}, the quarter now under way. It ends on {to}.",
+  "rp.openQuarter": "Open {q}",
+  "rp.durationFromDates": "Filled from the project's start and end dates. Check it against the agreement.",
+  "rp.cannot": "On this report you cannot:",
+  "rp.cannot.edit": "write or change the text (needs the MEL owner or a programme lead)",
+  "rp.cannot.release": "mark it final (needs the role \"Releases donor reports\")",
+  "rp.cannot.import": "import spending (needs Finance or the role \"Imports spending\")",
+  "rp.cannot.accept": "accept results (needs the MEL owner)",
+  "rp.cannot.ask": "An administrator can give you a role.",
+  "rp.col.target": "{year} target",
+  "rp.col.quarter": "{q} achieved",
+  "rp.col.year": "This year",
+};
+
+export const rpEs: Partial<Record<keyof typeof rpEn, string>> = {
+  "rp.quarterPast": "Este es el informe de {q}, del {from} al {to}. El próximo informe en Inicio es {now}.",
+  "rp.quarterNow": "Este es el informe de {q}, el trimestre en curso. Termina el {to}.",
+  "rp.openQuarter": "Abrir {q}",
+  "rp.durationFromDates": "Tomado de las fechas de inicio y fin del proyecto. Compáralo con el acuerdo.",
+  "rp.cannot": "En este informe no puedes:",
+  "rp.cannot.edit": "escribir ni cambiar el texto (hace falta ser responsable de MEL o líder de programa)",
+  "rp.cannot.release": "marcarlo como final (hace falta el rol \"Releases donor reports\")",
+  "rp.cannot.import": "importar el gasto (hace falta Finanzas o el rol \"Imports spending\")",
+  "rp.cannot.accept": "aceptar resultados (hace falta ser responsable de MEL)",
+  "rp.cannot.ask": "Un administrador puede darte un rol.",
+  "rp.col.target": "Meta {year}",
+  "rp.col.quarter": "Logrado en {q}",
+  "rp.col.year": "Este año",
+};
+
+export const rpFa: Partial<Record<keyof typeof rpEn, string>> = {
+  "rp.quarterPast": "این گزارش {q} است، از {from} تا {to}. گزارش بعدی در صفحهٔ اصلی {now} است.",
+  "rp.quarterNow": "این گزارش {q} است، ربعی که اکنون جریان دارد. در {to} تمام می‌شود.",
+  "rp.openQuarter": "باز کردن {q}",
+  "rp.durationFromDates": "از تاریخ شروع و ختم پروژه پر شده است. آن را با موافقت‌نامه مقایسه کنید.",
+  "rp.cannot": "در این گزارش شما نمی‌توانید:",
+  "rp.cannot.edit": "متن را بنویسید یا تغییر دهید (مسئول MEL یا رهبر برنامه لازم است)",
+  "rp.cannot.release": "آن را نهایی کنید (نقش «Releases donor reports» لازم است)",
+  "rp.cannot.import": "مصارف را وارد کنید (بخش مالی یا نقش «Imports spending» لازم است)",
+  "rp.cannot.accept": "نتایج را بپذیرید (مسئول MEL لازم است)",
+  "rp.cannot.ask": "مدیر سیستم می‌تواند به شما نقش بدهد.",
+  "rp.col.target": "هدف {year}",
+  "rp.col.quarter": "به‌دست‌آمده در {q}",
+  "rp.col.year": "امسال",
+};
+
+export const rpPs: Partial<Record<keyof typeof rpEn, string>> = {
+  "rp.quarterPast": "دا د {q} راپور دی، له {from} تر {to}. په کور پاڼه کې راتلونکی راپور {now} دی.",
+  "rp.quarterNow": "دا د {q} راپور دی، هغه ربع چې اوس روانه ده. په {to} پای ته رسېږي.",
+  "rp.openQuarter": "{q} پرانیزئ",
+  "rp.durationFromDates": "د پروژې د پیل او پای له نېټو ډک شوی. له تړون سره یې پرتله کړئ.",
+  "rp.cannot": "په دې راپور کې تاسو نه شئ کولی:",
+  "rp.cannot.edit": "متن ولیکئ یا بدل کړئ (د MEL مسئول یا د پروګرام مشر ته اړتیا ده)",
+  "rp.cannot.release": "وروستی یې کړئ (د «Releases donor reports» رول ته اړتیا ده)",
+  "rp.cannot.import": "لګښتونه داخل کړئ (مالي څانګې یا د «Imports spending» رول ته اړتیا ده)",
+  "rp.cannot.accept": "پایلې ومنئ (د MEL مسئول ته اړتیا ده)",
+  "rp.cannot.ask": "مدیر تاسو ته رول درکولی شي.",
+  "rp.col.target": "د {year} هدف",
+  "rp.col.quarter": "په {q} کې ترلاسه شوي",
+  "rp.col.year": "سږکال",
+};
