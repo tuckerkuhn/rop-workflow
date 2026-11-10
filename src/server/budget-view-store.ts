@@ -1,7 +1,10 @@
 import { asc, eq } from "drizzle-orm";
 import { db, schema as s } from "@/db";
-import { budgetView, type BudgetView } from "@/lib/budget-view";
-import { overspentLines } from "@/lib/qpr";
+import { budgetView, LIMITS, type BudgetView } from "@/lib/budget-view";
+import { projectRules } from "@/server/policy-store";
+import type { OverspendReason } from "@/lib/overspend";
+import { overspentLines, withLineReasons } from "@/lib/qpr";
+import { loadLineReasons } from "@/server/overspend-store";
 import { quarterOf, totalsOf } from "@/lib/results";
 import { loadActuals } from "@/server/actuals-store";
 import { projectByCode } from "@/server/field-store";
@@ -9,7 +12,7 @@ import { loadQpr, spendFor } from "@/server/qpr-store";
 import { loadResults } from "@/server/results-store";
 
 /** Budget against actual for the project's current phase, from its budget lines and Finance's latest import. */
-export type Explain = { quarter: string; released: boolean; /** Whether this person may write the report's text. */ mayWrite: boolean; lines: Record<string, string> };
+export type Explain = { quarter: string; /** Whether this person may give the reason (they write the report's text). */ mayWrite: boolean; lines: Record<string, { reason: OverspendReason | null; note: string; text: string }> };
 
 export async function loadBudgetView(code: string, mayWrite = false): Promise<BudgetView & { imported: { file: string; by: string; at: string } | null; beforeOverhead: boolean; explain: Explain | null }> {
   const project = await projectByCode(code);
@@ -23,7 +26,10 @@ export async function loadBudgetView(code: string, mayWrite = false): Promise<Bu
   const to = current?.months.at(-1) ? `${current.months.at(-1)}-31` : new Date().toISOString().slice(0, 10);
   const from = project.startDate ?? "0000-01-01";
   const priorYear = String(Number(from.slice(0, 4)) - 1);
+  // The donor's budget flexibility, from the agreement in policy; ROP's starting value when it sets none.
+  const revisionPct = Number((await projectRules(code)).values.budgetRevisionPct) || LIMITS.revisionPct;
   const view = budgetView({
+    revisionPct,
     lines: lines.map((l) => ({ code: l.code, description: l.description, activityCode: l.activityCode, activity: l.activity, kind: l.kind, currency: l.currency, amount: l.amount === null ? null : Number(l.amount), schedule: (l.schedule as Record<string, number>) ?? {} })),
     imported: (current?.lines ?? []).filter((l) => !l.currency).map((l) => ({ code: l.code, description: l.description, budget: l.budget, actual: l.actual, months: l.months })),
     months: current?.months ?? [],
@@ -43,8 +49,9 @@ export async function loadBudgetView(code: string, mayWrite = false): Promise<Bu
         target: Number(i.target) - Number((i.forecast as Record<string, number>)?.[priorYear] ?? 0),
       })),
   });
-  // The lines the quarterly report asks a reason for (lib/qpr overspentLines), with the reason saved so
-  // far, for the quarter the latest import ends in. Typed here or on the report, it is one saved text.
+  // The lines the quarterly report asks a reason for (lib/qpr overspentLines), to the end of the quarter
+  // the latest import ends in, with each line's reason. The reason belongs to the line (server/overspend-store):
+  // given here or on the report, it is the same one.
   const last = current?.months.at(-1);
   let explain: Explain | null = null;
   if (last) {
@@ -52,7 +59,8 @@ export async function loadBudgetView(code: string, mayWrite = false): Promise<Bu
     try {
       const quarter = quarterOf(`${last}-15`);
       const saved = await loadQpr(code, quarter);
-      explain = { quarter, released: !!saved.released, mayWrite, lines: Object.fromEntries(overspentLines(await spendFor(code, quarter, lines), saved).map((l) => [l.code, l.explanation])) };
+      const current = withLineReasons({ ...saved, released: undefined }, await loadLineReasons(project.id));
+      explain = { quarter, mayWrite, lines: Object.fromEntries(overspentLines(await spendFor(code, quarter, lines), current).map((l) => [l.code, { reason: l.reason, note: l.note, text: l.explanation }])) };
     } catch {
       explain = null;
     }

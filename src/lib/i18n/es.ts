@@ -11,6 +11,7 @@ import { rqEs } from "./review-queue";
 import { soEs } from "./solo";
 import { smEs } from "./spend";
 import { haEs } from "./home-actions";
+import { osEs } from "./overspend";
 import { ksEs } from "./kobo-suggest";
 import { agEs } from "./agreement";
 import { evEs } from "./evidence";
@@ -528,6 +529,7 @@ export const es: Messages = {
   ...soEs,
   ...smEs,
   ...haEs,
+  ...osEs,
   ...ksEs,
   ...agEs,
   ...evEs,

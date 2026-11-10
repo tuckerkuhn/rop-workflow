@@ -16,6 +16,9 @@ import { checkClaims } from "@/server/claim-check";
 import { loadUpdates } from "@/server/results-store";
 import { logAudit } from "@/server/audit";
 import { projectByCode } from "@/server/field-store";
+import { spentOver } from "@/lib/budget-view";
+import { otherHasNote, OTHER_ERROR } from "@/lib/overspend";
+import { saveLineReason } from "@/server/overspend-store";
 
 type Ctx = { params: Promise<{ code: string }> };
 export const maxDuration = 120;
@@ -148,11 +151,12 @@ export async function POST(req: Request, { params }: Ctx) {
         if (a.received !== null && a.resolved !== null && a.resolved > a.received) return NextResponse.json({ error: "More cases resolved than received." }, { status: 400 });
         next.grm = { received: a.received, resolved: a.resolved };
       } else if (a.action === "overspend") {
-        if (!(d.spend.byLine[a.line] && d.spend.byLine[a.line].actual > d.spend.byLine[a.line].budget)) return NextResponse.json({ error: "That budget line is not overspent." }, { status: 400 });
-        const o = { ...(next.overspend ?? {}) };
-        if (a.text) o[a.line] = { text: a.text, by: u.id, at: now };
-        else delete o[a.line];
-        next.overspend = o;
+        const l = d.spend.byLine[a.line];
+        if (!(l && l.budget > 0 && spentOver(l.actual, l.budget))) return NextResponse.json({ error: "That budget line is not overspent." }, { status: 400 });
+        if (!otherHasNote(a)) return NextResponse.json({ error: OTHER_ERROR }, { status: 400 });
+        // Saved on the line (logged there), so Budget and every later report show the same reason.
+        await saveLineReason(code, a.line, a.reason ? { reason: a.reason, note: a.note } : null, u.id);
+        return NextResponse.json(await view(code, q, u));
       } else if (a.action === "draft") {
         const limit = await aiAllowed(u.id);
         if (limit) return limit;
@@ -181,7 +185,7 @@ export async function POST(req: Request, { params }: Ctx) {
       entityId: project.id,
       action: a.action === "release" ? "qpr_released" : a.action === "claim-decide" ? "qpr_claim_decided" : "qpr_edited",
       by: u.id,
-      detail: { quarter: q, part: a.action, ...(a.action === "claim-decide" ? { choice: a.choice ?? "undone", section: next.claimCheck?.issues[a.index]?.section, kind: next.claimCheck?.issues[a.index]?.kind, sentence: next.claimCheck?.issues[a.index]?.sentence.slice(0, 300), why: next.claimCheck?.issues[a.index]?.problem.slice(0, 300) } : {}), ...(a.action === "section" ? { key: a.key, cleared: !a.text.trim() } : a.action === "row" ? { key: a.indicator, status: a.status, comment: a.comment } : a.action === "overspend" ? { key: a.line, cleared: !a.text } : {}) },
+      detail: { quarter: q, part: a.action, ...(a.action === "claim-decide" ? { choice: a.choice ?? "undone", section: next.claimCheck?.issues[a.index]?.section, kind: next.claimCheck?.issues[a.index]?.kind, sentence: next.claimCheck?.issues[a.index]?.sentence.slice(0, 300), why: next.claimCheck?.issues[a.index]?.problem.slice(0, 300) } : {}), ...(a.action === "section" ? { key: a.key, cleared: !a.text.trim() } : a.action === "row" ? { key: a.indicator, status: a.status, comment: a.comment } : {}) },
     });
     return NextResponse.json(await view(code, q, u));
   });

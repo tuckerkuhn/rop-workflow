@@ -7,6 +7,7 @@ import { useCurrentProject } from "@/components/app/current-project";
 import { openReceipt } from "@/components/people/expense-page";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
+import { OverspendReasonPicker } from "@/components/progress/overspend-reason";
 import { SECTIONS, STATUSES, STATUS_LABEL, cannotOnReport, durationOf, overspentLines, quarterSpendOf, type QprPatch, type Row, type Status } from "@/lib/qpr";
 import { qprDocx, type Images } from "@/lib/qpr-docx";
 import { formatMinutes } from "@/lib/report-copy";
@@ -548,28 +549,20 @@ function InfoBox({ v, act, onImported }: { v: QprView; act: Act; onImported: () 
   );
 }
 
-/** One explanation per budget line spent above its budget; it goes in the report under the project information. */
+/** One reason per budget line spent above its budget, kept on the line; it goes in the report under the project information. */
 function Overspend({ v, act }: { v: QprView; act: Act }) {
+  const { t } = useT();
   const lines = overspentLines(v.spend, v.saved);
-  const [text, setText] = useState<Record<string, string>>({});
   if (!lines.length) return null;
   return (
     <div id="overspend" className="mt-3 scroll-mt-24 space-y-3 rounded-xl bg-paper p-3">
       <p className="text-sm font-semibold">Budget lines above budget</p>
-      {lines.map((l) => {
-        const t = text[l.code] ?? l.explanation;
-        return (
-          <label key={l.code} className="block text-sm">
-            {l.code}: {num(l.actual)} spent of {num(l.budget)} {v.spend.currency} ({l.pct}%). Why?
-            <textarea className={input} rows={2} disabled={!v.mayEdit} value={t} placeholder="UNDP approved the realignment on …, or prices rose because …" onChange={(e) => setText({ ...text, [l.code]: e.target.value })} />
-            {v.mayEdit && t !== l.explanation && (
-              <button type="button" className={`${primaryBtn} mt-2`} disabled={t.trim().length > 0 && t.trim().length < 10} onClick={() => void act({ action: "overspend", line: l.code, text: t.trim() }, "Saved.").catch(() => undefined)}>
-                Save
-              </button>
-            )}
-          </label>
-        );
-      })}
+      {lines.map((l) => (
+        <div key={l.code} className="text-sm">
+          {t("os.line", { code: l.code, spent: num(l.actual), budget: num(l.budget), currency: v.spend.currency, pct: l.pct })}
+          <OverspendReasonPicker saved={{ reason: l.reason, note: l.note, text: l.explanation }} mayWrite={v.mayEdit && !v.saved.released} onSave={(r) => act({ action: "overspend", line: l.code, ...r }, "Saved.")} />
+        </div>
+      ))}
     </div>
   );
 }

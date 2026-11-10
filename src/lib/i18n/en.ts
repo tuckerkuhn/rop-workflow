@@ -10,6 +10,7 @@ import { rqEn } from "./review-queue";
 import { soEn } from "./solo";
 import { smEn } from "./spend";
 import { haEn } from "./home-actions";
+import { osEn } from "./overspend";
 import { ksEn } from "./kobo-suggest";
 import { agEn } from "./agreement";
 import { evEn } from "./evidence";
@@ -598,6 +599,7 @@ export const en = {
   ...soEn,
   ...smEn,
   ...haEn,
+  ...osEn,
   ...ksEn,
   ...agEn,
   ...evEn,
