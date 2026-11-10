@@ -4,6 +4,7 @@ import type { AppUser } from "@/lib/demo";
 import { DONE, stepById } from "@/lib/procurement";
 import { loadActivities } from "@/server/activities-store";
 import { draftStructured } from "@/server/ai-structured";
+import { asIs } from "@/server/ai";
 import { logAudit } from "@/server/audit";
 import { projectByCode } from "@/server/field-store";
 import { loadFramework } from "@/server/framework-store";
@@ -89,9 +90,11 @@ export async function ask(code: string, u: AppUser, question: string, history: {
   const facts = await factsFor(code, u);
   const earlier = history.slice(-4).map((h) => `Earlier question: ${h.q}\nYour answer: ${h.a}`).join("\n\n");
   const { out, model } = await draftStructured({
+    job: "assistant",
+    by: u.id,
     system: SYSTEM,
     task: `${earlier ? `${earlier}\n\n` : ""}Question from ${u.name}: ${question}`,
-    facts,
+    facts: asIs(facts, "the project's figures, tasks and deadlines with staff names; no farmer, HR or pay record is loaded"),
     schema: answerSchema,
     effort: "medium",
     maxTokens: 6000,

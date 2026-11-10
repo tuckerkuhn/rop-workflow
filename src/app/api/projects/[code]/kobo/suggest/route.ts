@@ -30,7 +30,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
     const limit = await aiAllowed(v.user.id);
     if (limit) return limit;
     return readable(async () => {
-      const r = await suggestMappings(code);
+      const r = await suggestMappings(code, v.user.id);
       const project = await projectByCode(code);
       await logAudit(db, project.id, { entity: "project", entityId: project.id, action: "kobo_mappings_suggested", by: v.actor.id, detail: { model: r.model, suggestions: r.suggestions.map((x) => ({ indicator: x.indicatorCode, question: x.mapping?.question ?? null, method: x.mapping?.method ?? null, confidence: x.confidence })) } });
       return NextResponse.json(r);

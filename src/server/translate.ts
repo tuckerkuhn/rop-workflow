@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { draftStructured } from "@/server/ai-structured";
+import { asIs } from "@/server/ai";
 import { aiAllowed } from "@/server/limits";
 
 /**
@@ -51,7 +52,7 @@ export async function toEnglish(by: string, fields: { title?: string; note?: str
   const limited = await aiAllowed(by).catch(() => null);
   if (limited || !process.env.ANTHROPIC_API_KEY) return { ...fields, original: { ...original, pending: true } };
   try {
-    const { out, model } = await translateTexts(todo);
+    const { out, model } = await translateTexts(todo, by);
     const en = new Map(out.items.map((i) => [i.key, i.english.trim()]));
     if ([...Object.keys(todo)].some((k) => !en.get(k))) return { ...fields, original: { ...original, pending: true } };
     const captions = { ...(fields.captions ?? {}) };
@@ -69,6 +70,6 @@ export async function toEnglish(by: string, fields: { title?: string; note?: str
 }
 
 /** The translation call itself: each keyed text into English, with the language detected. */
-export async function translateTexts(todo: Record<string, string>) {
-  return draftStructured({ system: SYSTEM, task: "Translate each item's text into English. Return every key you were given.", facts: Object.entries(todo).map(([key, text]) => ({ key, text })), schema, effort: "low", maxTokens: 4000 });
+export async function translateTexts(todo: Record<string, string>, by: string) {
+  return draftStructured({ job: "translate", by, system: SYSTEM, task: "Translate each item's text into English. Return every key you were given.", facts: asIs(Object.entries(todo).map(([key, text]) => ({ key, text })), "translation needs the words as written; the name rules read English only and cannot find names in Dari or Pashto"), schema, effort: "low", maxTokens: 4000 });
 }

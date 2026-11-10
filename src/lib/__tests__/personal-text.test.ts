@@ -27,6 +27,11 @@ describe("names in free text", () => {
     expect(namesIn(text)).toEqual([]);
     expect(withoutNames(text)).toBe(text);
   });
+  it("keeps common words that only look like a name", () => {
+    const text = "Women's groups met the Cooperative's board. Today's training covered pruning.";
+    expect(namesIn(text)).toEqual([]);
+    expect(withoutNames(text)).toBe(text);
+  });
   it("replaces every name in a note, not only the first", () => {
     const out = withoutNames("Zarmal's plot and Torpekai's plot are in Sorkhab Village and Spinkai Kalay.");
     expect(out).toBe("a farmer's plot and a farmer's plot are in a village and a village.");

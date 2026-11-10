@@ -39,7 +39,7 @@ export async function POST(req: Request) {
     if (limit) return limit;
     try {
       const { part, files, project } = parsed.data;
-      const r = part === "terms" ? await extractTerms(files) : part === "budget" ? await extractBudget(files) : await extractSetup(files);
+      const r = part === "terms" ? await extractTerms(files, v.actor.id) : part === "budget" ? await extractBudget(files, v.actor.id) : await extractSetup(files, v.actor.id);
       // Proposals are on the record (what was read, by whom); what is confirmed is logged where it is saved.
       if (project) {
         // Only onto the trail of a project this person works on, in their own organization.

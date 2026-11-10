@@ -2,6 +2,7 @@ import { z } from "zod";
 import { SECTIONS, type ClaimCheck, type ClaimIssue } from "@/lib/qpr";
 import { quarterRange, type UpdateRecord } from "@/lib/results";
 import { draftStructured } from "@/server/ai-structured";
+import { scrubbed } from "@/server/ai";
 import type { QprData } from "@/server/qpr-store";
 import { withoutNames } from "@/lib/personal-text";
 
@@ -55,7 +56,7 @@ export async function checkClaims(d: QprData, updates: UpdateRecord[], by: strin
       .filter((u) => u.date >= from && u.date <= until)
       .map((u) => ({ id: `u:${u.id}`, date: u.date, activity: u.activity, title: u.title, note: withoutNames(u.note).slice(0, 600), photoDates: Object.values(u.taken ?? {}) })),
   };
-  const { out, model } = await draftStructured({ system: SYSTEM, task: "List the claims and the contradictions.", facts, schema, effort: "low", maxTokens: 32000 });
+  const { out, model } = await draftStructured({ job: "claimCheck", by, system: SYSTEM, task: "List the claims and the contradictions.", facts: scrubbed(facts, ["note", "title"]), schema, effort: "low", maxTokens: 32000 });
 
   const issues: ClaimIssue[] = [];
   const byCode = new Map(d.rows.map((r) => [r.donorCode, r]));

@@ -8,6 +8,7 @@ import { AUDIENCE_TEXT, emptyPhotos, needs, PUBLIC_AUDIENCES, rank, SHARE_TEXT, 
 import type { Story } from "@/lib/stories";
 import { ROP_VOICE } from "@/lib/voice";
 import { draftStructured } from "@/server/ai-structured";
+import { scrubbed } from "@/server/ai";
 import { logAudit } from "@/server/audit";
 import { projectByCode } from "@/server/field-store";
 import { aiAllowed } from "@/server/limits";
@@ -92,7 +93,7 @@ export async function coachNew(code: string, limit = 3, only?: string[]) {
       continue;
     }
     try {
-      const r = await coachPhoto(t.hash, lang.get(t.by) ?? "en");
+      const r = await coachPhoto(t.hash, lang.get(t.by) ?? "en", t.by);
       done[t.hash] = r.coaching ? { coach: r.coaching } : { skipped: r.skipped ?? "Not looked at." };
     } catch {
       // Left for next time: a failed call is not a decision about the photo.
@@ -159,7 +160,7 @@ const CHANNEL: Record<Audience, string> = {
 
 const postSchema = z.object({ text: z.string(), checks: z.array(z.string()).describe("Facts to confirm before it goes out. Empty if none.") });
 
-export async function draftPost(code: string, st: PhotosState, audience: Audience, hashes: string[], ask: string | undefined) {
+export async function draftPost(code: string, st: PhotosState, audience: Audience, hashes: string[], ask: string | undefined, by: string) {
   const p = await projectByCode(code);
   const { items, stories } = await allPhotos(code);
   const chosen = hashes.map((h) => items.find((i) => i.hash === h)).filter((x): x is PhotoItem => !!x);
@@ -192,7 +193,7 @@ export async function draftPost(code: string, st: PhotosState, audience: Audienc
     "Credit the donor by name only for the Donor audience and where the facts name one. Write for the channel as described.",
     ROP_VOICE,
   ].join(" ");
-  const { out, model } = await draftStructured({ system, task: `Draft one ${AUDIENCE_TEXT[audience]} piece. ${CHANNEL[audience]}`, facts, schema: postSchema, effort: "low", maxTokens: 6000 });
+  const { out, model } = await draftStructured({ job: "postDraft", by, projectId: p.id, system, task: `Draft one ${AUDIENCE_TEXT[audience]} piece. ${CHANNEL[audience]}`, facts: scrubbed(facts, ["caption", "note", "request", "result", "update"]), schema: postSchema, effort: "low", maxTokens: 6000 });
   return { text: out.text.trim(), checks: out.checks, model };
 }
 
@@ -241,7 +242,7 @@ export async function photoAction(code: string, u: AppUser, a: PhotoAction): Pro
       const i = item(h);
       if (!i || rank(cleared(st.photos[h], i.storyUses)) < rank(need)) return { error: `Every photo must first be cleared for "${SHARE_TEXT[need]}".` };
     }
-    const d = await draftPost(code, st, a.audience, a.photos, a.ask);
+    const d = await draftPost(code, st, a.audience, a.photos, a.ask, u.id);
     const sources = [...new Set(a.photos.map((h) => item(h)?.source.id).filter((x): x is string => !!x))];
     const post: Post = { id: randomUUID(), audience: a.audience, photos: a.photos, text: d.text, sources, status: "draft", by: u.id, at: now, model: d.model, checks: d.checks };
     const fresh = await loadState(p.id);

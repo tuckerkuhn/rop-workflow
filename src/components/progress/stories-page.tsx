@@ -222,6 +222,8 @@ function Editor({ v, start, user, act, onClose }: { v: View; start: StoryRow | n
             className={quietBtn}
             disabled={!!busy || (!s.notes.trim() && !s.links.length)}
             onClick={async () => {
+              // A draft replaces the story text: ask first when someone has already written it.
+              if (s.text.trim() && !window.confirm("Replace the story text with a new draft? What is written now will be lost.")) return;
               const sid = await save();
               if (!sid) return;
               setBusy("draft");

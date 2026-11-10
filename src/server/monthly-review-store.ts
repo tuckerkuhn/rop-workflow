@@ -6,6 +6,7 @@ import { describeChange, emptyReview, quarterOfMonth, type Change, type ChangeIn
 import { suggestStatus, yearShare } from "@/lib/qpr";
 import { z } from "zod";
 import { draftStructured } from "@/server/ai-structured";
+import { scrubbed } from "@/server/ai";
 import { logAudit } from "@/server/audit";
 import { loadBudgetView } from "@/server/budget-view-store";
 import { selfApproval, soloFor } from "@/server/solo";
@@ -318,9 +319,12 @@ export async function actOnReview(code: string, month: string, a: ReviewAction, 
     try {
       const v = await loadReview(code, month, u);
       const { out, model } = await draftStructured({
+        job: "monthlyReview",
+        by: u.id,
+        projectId: project.id,
         system: DRAFT_SYSTEM,
         task: `Draft the summary and the needs-attention note for the ${month} monthly review.`,
-        facts: {
+        facts: scrubbed({
           project: v.project.name,
           stage: v.project.stage,
           month,
@@ -329,7 +333,7 @@ export async function actOnReview(code: string, month: string, a: ReviewAction, 
           results_waiting_for_mel: v.open.pending,
           results_queried: v.open.queried,
           proposed_changes: review.changes.map((c) => ({ change: describeChange(c), reason: c.reason, status: c.status })),
-        },
+        }, ["reason"]),
         schema: draftSchema,
       });
       await db.transaction(async (tx) => {
