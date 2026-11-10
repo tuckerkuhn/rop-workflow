@@ -1,7 +1,7 @@
 import { and, asc, eq } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import type { MappingMethod } from "@/lib/kobo-setup";
-import type { ResultInput } from "@/lib/results";
+import type { ResultInput, ResultRecord } from "@/lib/results";
 import { logAudit } from "@/server/audit";
 import { attachmentBytes } from "@/server/kobo-client";
 import { credentials } from "@/server/kobo-link";
@@ -58,6 +58,13 @@ function addsUp(method: MappingMethod, value: string | null, a: string, seen: Se
 
 export type KoboResultCounts = { added: number; updated: number; removed: number; flagged: number; photos: number };
 
+/** What is stored for a result: the record without the fields the store adds when reading it. */
+function stored(r: ResultRecord): ResultInput {
+  const { id: _id, quarter: _q, status: _s, by: _b, at: _a, reviewedBy: _rb, reviewedAt: _ra, query: _qu, history: _h, ...input } = r;
+  void [_id, _q, _s, _b, _a, _rb, _ra, _qu, _h];
+  return input;
+}
+
 export async function koboToResults(code: string): Promise<KoboResultCounts> {
   const out: KoboResultCounts = { added: 0, updated: 0, removed: 0, flagged: 0, photos: 0 };
   const c = await credentials(code);
@@ -82,8 +89,18 @@ export async function koboToResults(code: string): Promise<KoboResultCounts> {
       .filter((r) => r.koboSubmissionUuid)
       .map((r) => ({ id: r.id, uuid: r.koboSubmissionUuid!, num: r.koboSubmissionId, at: r.completedAt, payload: (r.payload as Record<string, unknown>) ?? {}, removed: !!r.koboRemovedAt, form: r.form, review: r.reviewStatus }));
     const seen = new Set<string>();
+    // Results matched to a submission on this form; any other result from this form and target is left over.
+    const matched = new Set<string>();
     for (const sub of subs) {
-      const mine = existing.find((r) => r.indicator === ind.code && r.kobo?.uuid === sub.uuid);
+      // An edit in KoboToolbox gives the submission a new _uuid but keeps its number: match either.
+      const mine = existing.find((r) => r.indicator === ind.code && !matched.has(r.id) && (r.kobo?.uuid === sub.uuid || (sub.num !== null && r.kobo?.asset === m.assetUid && r.kobo?.id === sub.num)));
+      if (mine) matched.add(mine.id);
+      // Keep the link to the submission's current _uuid (metadata only: the figure is handled below).
+      if (mine && mine.kobo && mine.kobo.uuid !== sub.uuid) {
+        const kobo = { ...mine.kobo, uuid: sub.uuid };
+        await db.update(s.evidence).set({ payload: { ...stored(mine), kobo }, updatedAt: new Date() }).where(and(eq(s.evidence.projectId, project.id), eq(s.evidence.id, mine.id)));
+        mine.kobo = kobo;
+      }
       // Counted the same way as before: readiness submissions once accepted, and only approved ones when the project says so.
       const counts = !sub.removed && (sub.form === null || sub.review === "accepted") && (!approvedOnly || text((sub.payload._validation_status as { uid?: string } | undefined)?.uid) === "validation_status_approved");
       const value = counts ? addsUp(m.method as MappingMethod, m.value, answer(sub.payload, m.question), seen) : 0;
@@ -119,9 +136,7 @@ export async function koboToResults(code: string): Promise<KoboResultCounts> {
           out.flagged++;
           continue;
         }
-        const { id: _id, quarter: _q, status: _s, by: _b, at: _a, reviewedBy: _rb, reviewedAt: _ra, query: _qu, history: _h, ...input } = mine;
-        void [_id, _q, _s, _b, _a, _rb, _ra, _qu, _h];
-        const payload: ResultInput = { ...input, value, date, province, district, gps };
+        const payload: ResultInput = { ...stored(mine), value, date, province, district, gps };
         await db.transaction(async (tx) => {
           await tx.update(s.evidence).set({ payload, completedAt: new Date(`${date}T12:00:00Z`), location: [district, province].filter(Boolean).join(", ") || null, updatedAt: new Date() }).where(and(where, eq(s.evidence.id, mine.id)));
           await logAudit(tx, project.id, { entity: "result", entityId: mine.id, action: "kobo_result_updated", by: KOBO_BY, detail: { indicator: ind.code, submission: sub.num, value, date } });
@@ -173,6 +188,22 @@ export async function koboToResults(code: string): Promise<KoboResultCounts> {
         await logAudit(tx, project.id, { entity: "result", entityId: r.id, action: "result_recorded", by: KOBO_BY, detail: { indicator: ind.code, value, date, proof: files.length, submission: sub.num } });
       });
       out.added++;
+    }
+
+    // Left over: a result from this form and target that no submission matches any more (a copy
+    // made by an edit before submission numbers were matched, or a submission gone from the
+    // records). Waiting for MEL, it is removed; accepted, it is flagged and kept.
+    for (const r of existing.filter((x) => x.indicator === ind.code && x.kobo?.asset === m.assetUid && !matched.has(x.id))) {
+      if (r.status === "accepted") {
+        await logAudit(db, project.id, { entity: "result", entityId: r.id, action: "kobo_changed_after_acceptance", by: KOBO_BY, detail: { indicator: ind.code, submission: r.kobo?.id ?? null, change: "no matching submission in KoboToolbox" } });
+        out.flagged++;
+        continue;
+      }
+      await db.transaction(async (tx) => {
+        await tx.delete(s.evidence).where(and(eq(s.evidence.projectId, project.id), eq(s.evidence.form, "result"), eq(s.evidence.id, r.id)));
+        await logAudit(tx, project.id, { entity: "result", entityId: r.id, action: "kobo_result_removed", by: KOBO_BY, detail: { indicator: ind.code, submission: r.kobo?.id ?? null, reason: "no matching submission in KoboToolbox" } });
+      });
+      out.removed++;
     }
   }
   return out;
