@@ -3,6 +3,7 @@ import { en } from "@/lib/i18n/en";
 import { es } from "@/lib/i18n/es";
 import { fa } from "@/lib/i18n/fa";
 import { ps } from "@/lib/i18n/ps";
+import { awEn, awEs, awFa, awPs } from "@/lib/i18n/ai-why";
 import { sgEn, sgEs, sgFa, sgPs } from "@/lib/i18n/surge";
 import { translate } from "@/lib/i18n";
 
@@ -15,6 +16,11 @@ describe("interface text", () => {
     for (const k of Object.keys(en) as (keyof typeof en)[]) for (const lang of ["es", "fa", "ps"] as const) expect(translate(lang, k).length, `${lang}:${k}`).toBeGreaterThan(0);
   });
   it("every string added in the clean-up is in all four languages", () => {
+    for (const k of Object.keys(awEn) as (keyof typeof awEn)[]) {
+      expect(awEs[k], `es:${k}`).toBeTruthy();
+      expect(awFa[k], `fa:${k}`).toBeTruthy();
+      expect(awPs[k], `ps:${k}`).toBeTruthy();
+    }
     for (const k of Object.keys(sgEn) as (keyof typeof sgEn)[]) {
       expect(sgEs[k], `es:${k}`).toBeTruthy();
       expect(sgFa[k], `fa:${k}`).toBeTruthy();

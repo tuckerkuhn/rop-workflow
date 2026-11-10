@@ -1,4 +1,4 @@
-import { overspentLines, SECTIONS } from "@/lib/qpr";
+import { openClaims, overspentLines, SECTIONS } from "@/lib/qpr";
 import { addDays, deadlineFor, type Deadline, type Preflight, type PreflightItem, type ReadyItem, type ReportRef } from "@/lib/preflight";
 import { proofCount, quarterOf, quarterRange, type ResultRecord } from "@/lib/results";
 import { weekOf } from "@/lib/weekly";
@@ -97,7 +97,9 @@ async function qpr(c: Ctx, quarter: string): Promise<Omit<Preflight, "items" | "
     if (copied.length) add(c, { group: "fix", owner: "writers", text: `${n(copied.length, "section", "sections")} copied from last quarter, to review`, href: `/progress/report?${q}` });
     // The claim check (lib/qpr ClaimCheck): its findings are worth a look; people decide.
     const cc = d.saved.claimCheck;
-    if (cc?.issues.length) add(c, { group: "fix", owner: "writers", text: `The claim check questioned ${n(cc.issues.length, "sentence", "sentences")} against the evidence`, key: "pf.c.claims", vars: { n: cc.issues.length }, href: `/progress/report?${q}` });
+    // Findings a person decided to keep as written are settled; the rest are still to look at.
+    const openCc = openClaims(cc);
+    if (openCc.length) add(c, { group: "fix", owner: "writers", text: `The claim check questioned ${n(openCc.length, "sentence", "sentences")} against the evidence`, key: "pf.c.claims", vars: { n: openCc.length }, href: `/progress/report?${q}` });
     else if (cc) ok(c, "pf.ok.claims");
     else if (!empty.length) add(c, { group: "fix", owner: "writers", text: "The text has not been checked against the evidence yet (claim check)", key: "pf.c.claimsNotRun", href: `/progress/report?${q}` });
   }

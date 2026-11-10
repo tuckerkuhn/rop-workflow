@@ -16,6 +16,8 @@ import { TEMPLATE_CSV, parseCsv, readResults, type ImportRow } from "@/lib/resul
 import { PROVINCES, YOUTH, proofCount, proofLinkSchema, quarterOf, quarterRange, totalsOf, type ProofLink, type ResultAction, type ResultInput, type UpdateInput } from "@/lib/results";
 import type { ResultsView } from "@/app/api/projects/[code]/results/route";
 import { NamesWarning } from "@/components/progress/names-warning";
+import { LookedAt } from "@/components/app/ai-why";
+import { ErrorNote } from "@/components/app/error-note";
 
 /**
  * Results recorded with their proof. Field staff record what was achieved (10 ha of drip
@@ -46,6 +48,7 @@ export function ResultsPage() {
   const { user } = useRequireUser();
   const { ready } = useSession();
   const { project } = useCurrentProject();
+  const { t } = useT();
   const params = useSearchParams();
   const [v, setV] = useState<ResultsView | null>(null);
   const [error, setError] = useState("");
@@ -122,11 +125,8 @@ export function ResultsPage() {
           </Link>
         </p>
         {!project.saved && <p className="mt-6 rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">Choose a project saved in the database (for example ACRP).</p>}
-        {error && (
-          <p role="alert" className="mt-4 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">
-            {error}
-          </p>
-        )}
+        {error && <ErrorNote>{error}</ErrorNote>}
+        {project.saved && !v && !error && <p className="mt-10 text-center text-sm text-muted">{t("load.wait")}</p>}
         {notice && (
           <p role="status" className="mt-4 rounded-xl bg-mist px-4 py-3 text-sm text-leaf">
             {notice}
@@ -742,6 +742,9 @@ function ResultCard({ r, ind, act, mayAddProof, me }: { r: Res; ind?: Ind; act: 
           {r.checks.map((c) => (
             <li key={c}>Check: {c}</li>
           ))}
+          <li>
+            <LookedAt what="dataChecks" />
+          </li>
         </ul>
       )}
       {r.canSelfAccept && (
@@ -1228,6 +1231,7 @@ function ReviewQueue({ ids, v, act, onClose }: { ids: string[]; v: ResultsView; 
                 ))}
               </ul>
             )}
+            <LookedAt what="dataChecks" className="mt-2" />
           </div>
           {query === null ? (
             <div className="mt-4 grid grid-cols-2 gap-3">

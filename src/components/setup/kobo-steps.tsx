@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { LookedAt, Why } from "@/components/app/ai-why";
 import { useT } from "@/components/app/i18n";
 import { useKobo, useProgress } from "@/components/app/use-project-data";
 import { useSession } from "@/components/app/session";
@@ -243,6 +244,17 @@ export function KoboMap({ code, onDone }: { code: string; onDone: () => void }) 
     if (!s.mapping) return;
     setDraft((d) => ({ ...d, [s.indicatorCode]: { ...s.mapping!, indicatorCode: s.indicatorCode, origin: "suggested" } }));
   };
+  // Suggestions the person turned down: left unmapped for them to do by hand, and put on the record.
+  const [declined, setDeclined] = useState<string[]>([]);
+  const decline = (s: Suggestion) => {
+    if (!s.mapping || !user) return;
+    setDeclined((d) => [...d, s.indicatorCode]);
+    void fetch(`/api/projects/${code}/kobo/suggest`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", "x-demo-user": user.id },
+      body: JSON.stringify({ indicatorCode: s.indicatorCode, question: s.mapping.question, method: s.mapping.method, confidence: s.confidence, reason: s.reason }),
+    }).catch(() => undefined);
+  };
   const [ai, setAi] = useState(false);
   const [suggestions, setSuggestions] = useState<Suggestion[] | null>(null);
   const [suggesting, setSuggesting] = useState(false);
@@ -262,6 +274,7 @@ export function KoboMap({ code, onDone }: { code: string; onDone: () => void }) 
       const d = (await r.json().catch(() => ({}))) as { suggestions?: Suggestion[]; questions?: Record<string, KoboQuestion[]>; error?: string };
       if (!r.ok || !d.suggestions) throw new Error(d.error ?? "Could not suggest mappings.");
       setSuggestions(d.suggestions);
+      setDeclined([]);
       setQuestions((q) => ({ ...(d.questions ?? {}), ...Object.fromEntries(Object.entries(q).filter(([, v]) => Array.isArray(v))) }));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -313,6 +326,7 @@ export function KoboMap({ code, onDone }: { code: string; onDone: () => void }) 
               </button>
             )}
           </div>
+          {suggestions && <LookedAt what="koboSuggest" className="mt-3" />}
           {suggestions && (
             <ul className="mt-3 space-y-2">
               {suggestions.map((s) => {
@@ -329,15 +343,24 @@ export function KoboMap({ code, onDone }: { code: string; onDone: () => void }) 
                           {form?.name} › {q?.label ?? s.mapping.question} · {t(METHOD_LABEL[s.mapping.method])}
                           {s.mapping.value ? ` (${q?.choices.find((c) => c.name === s.mapping!.value)?.label ?? s.mapping.value})` : ""}
                         </p>
-                        <p className="text-xs text-muted">{s.reason}</p>
+                        <p className="text-xs text-muted">
+                          <Why>{s.reason}</Why>
+                        </p>
                         <div className="mt-2 flex items-center gap-2">
                           <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${s.confidence === "high" ? "bg-mist text-leaf" : s.confidence === "medium" ? "bg-ochre-soft text-ochre" : "bg-clay-soft text-clay"}`}>{t(`ks.conf.${s.confidence}`)}</span>
                           {isAccepted(s) ? (
                             <span className="text-xs font-semibold text-leaf">✓ {t("ks.accepted")}</span>
+                          ) : declined.includes(s.indicatorCode) ? (
+                            <span className="text-xs font-semibold text-muted">{t("ks.declined")}</span>
                           ) : (
-                            <button type="button" className={`${quietBtn} min-h-11`} onClick={() => accept(s)}>
-                              {t("ks.accept")}
-                            </button>
+                            <>
+                              <button type="button" className={`${quietBtn} min-h-11`} onClick={() => accept(s)}>
+                                {t("ks.accept")}
+                              </button>
+                              <button type="button" className={`${quietBtn} min-h-11`} onClick={() => decline(s)}>
+                                {t("ks.decline")}
+                              </button>
+                            </>
                           )}
                         </div>
                       </>

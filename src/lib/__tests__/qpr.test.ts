@@ -158,3 +158,21 @@ describe("prevQuarterOf", () => {
     expect(prevQuarterOf("2026-Q1")).toBe("2025-Q4");
   });
 });
+
+describe("claim check findings and the person's choice", () => {
+  const issue = (decided?: "fix" | "keep") => ({ section: "summary", sentence: "s", kind: "figure" as const, problem: "p", evidence: [], ...(decided ? { decided: { choice: decided, by: "u", name: "Test Writer", at: "2026-10-05" } } : {}) });
+  it("a finding kept as written no longer counts as open; one to fix still does", async () => {
+    const { openClaims } = await import("@/lib/qpr");
+    const check = { at: "", by: "", model: "", checked: 3, sections: {}, issues: [issue(), issue("fix"), issue("keep")] };
+    expect(openClaims(check).length).toBe(2);
+    expect(openClaims(undefined)).toEqual([]);
+  });
+  it("accepts only the two choices, or null to take a choice back", async () => {
+    const { qprPatchSchema } = await import("@/lib/qpr");
+    expect(qprPatchSchema.safeParse({ action: "claim-decide", index: 0, choice: "fix" }).success).toBe(true);
+    expect(qprPatchSchema.safeParse({ action: "claim-decide", index: 0, choice: "keep" }).success).toBe(true);
+    expect(qprPatchSchema.safeParse({ action: "claim-decide", index: 0, choice: null }).success).toBe(true);
+    expect(qprPatchSchema.safeParse({ action: "claim-decide", index: 0, choice: "ignore" }).success).toBe(false);
+    expect(qprPatchSchema.safeParse({ action: "claim-decide", index: -1, choice: "fix" }).success).toBe(false);
+  });
+});

@@ -318,6 +318,15 @@ export function QprPage() {
               busy={busy === "check-claims"}
               mayRun={v.mayEdit}
               onRun={() => quiet(act({ action: "check-claims" }, "Checked. Look at each finding against its records; nothing has been changed."))}
+              onDecide={(index, choice) => {
+                const section = v.saved.claimCheck?.issues[index]?.section;
+                void quiet(
+                  act({ action: "claim-decide", index, choice }, choice === "fix" ? "Marked to fix. The section is below: correct the sentence, then save." : choice === "keep" ? "Kept as written. Your decision is on the record." : "Decision taken back.").then(() => {
+                    // "Fix the text" takes the person straight to the section the sentence is in.
+                    if (choice === "fix" && section) document.getElementById(`sec-${section}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }),
+                );
+              }}
             />
             {!v.frozen?.kind || v.frozen.kind === "release" ? <ShareLinks project={project.id} quarter={quarter} user={user.id} ready={v.copies.length > 0} /> : null}
 
@@ -525,7 +534,7 @@ function Section({ v, k, heading, act, busy, draftable }: { v: QprView; k: strin
   const dirty = text !== (saved?.text ?? "");
   const rows = Math.min(18, Math.max(4, Math.ceil(text.length / 95) + text.split("\n").length));
   return (
-    <section className="mt-6">
+    <section className="mt-6 scroll-mt-24" id={`sec-${k}`}>
       <div className="flex flex-wrap items-baseline gap-2">
         <h3 className="font-display text-lg">{heading ?? def?.heading}</h3>
         {saved?.drafted && <Pill tone="ochre">Drafted by Claude: review</Pill>}

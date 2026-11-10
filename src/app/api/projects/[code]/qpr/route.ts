@@ -132,6 +132,11 @@ export async function POST(req: Request, { params }: Ctx) {
         if (!d.rows.some((r) => r.code === a.indicator)) return NextResponse.json({ error: "No such indicator." }, { status: 400 });
         if (a.status === null && a.comment === null) delete next.rows[a.indicator];
         else next.rows[a.indicator] = { ...(a.status ? { status: a.status } : {}), ...(a.comment?.trim() ? { comment: a.comment.trim() } : {}), by: u.id, at: now };
+      } else if (a.action === "claim-decide") {
+        const issue = next.claimCheck?.issues[a.index];
+        if (!issue) return NextResponse.json({ error: "That finding is no longer there. Run the check again to see the current list." }, { status: 409 });
+        if (a.choice) issue.decided = { choice: a.choice, by: u.id, name: u.name, at: now };
+        else delete issue.decided;
       } else if (a.action === "info") {
         next.info = a.info;
         next.quarterSpend = a.quarterSpend;
@@ -174,9 +179,9 @@ export async function POST(req: Request, { params }: Ctx) {
     await logAudit(db, project.id, {
       entity: "qpr",
       entityId: project.id,
-      action: a.action === "release" ? "qpr_released" : "qpr_edited",
+      action: a.action === "release" ? "qpr_released" : a.action === "claim-decide" ? "qpr_claim_decided" : "qpr_edited",
       by: u.id,
-      detail: { quarter: q, part: a.action, ...(a.action === "section" ? { key: a.key, cleared: !a.text.trim() } : a.action === "row" ? { key: a.indicator, status: a.status, comment: a.comment } : a.action === "overspend" ? { key: a.line, cleared: !a.text } : {}) },
+      detail: { quarter: q, part: a.action, ...(a.action === "claim-decide" ? { choice: a.choice ?? "undone", section: next.claimCheck?.issues[a.index]?.section, kind: next.claimCheck?.issues[a.index]?.kind, sentence: next.claimCheck?.issues[a.index]?.sentence.slice(0, 300), why: next.claimCheck?.issues[a.index]?.problem.slice(0, 300) } : {}), ...(a.action === "section" ? { key: a.key, cleared: !a.text.trim() } : a.action === "row" ? { key: a.indicator, status: a.status, comment: a.comment } : a.action === "overspend" ? { key: a.line, cleared: !a.text } : {}) },
     });
     return NextResponse.json(await view(code, q, u));
   });
