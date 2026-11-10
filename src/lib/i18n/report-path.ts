@@ -5,6 +5,8 @@
  */
 
 export const rpEn = {
+  "rp.explain.who": "The {q} quarterly report asks why this line is over budget. The MEL owner or a programme lead writes the reason.",
+  "rp.explain.reads": "The {q} quarterly report gives this reason:",
   "nr.title": "Next report: {q}",
   "nr.dates": "ready by {aim} (days left: {n}), due to the donor {due}",
   "nr.noDeadline": "no deadline set",
@@ -32,7 +34,6 @@ export const rpEn = {
   "rp.explain.saved": "Saved. It is in the {q} quarterly report.",
   "rp.explain.short": "Write at least 10 characters, or clear the box.",
   "rp.explain.released": "The {q} report is released. It says:",
-  "rp.explain.onBudget": "You can also write these on the Budget page, beside each line.",
   "rp.totals.onReport": "The Budget page shows the current phase only, before overhead, so its totals are not the same as these.",
   "rp.totals.onBudget": "The quarterly report shows the whole agreement, with overhead when Finance's workbook gives it, so its totals are not the same as these.",
   "rp.col.target": "{year} target",
@@ -41,6 +42,8 @@ export const rpEn = {
 };
 
 export const rpEs: Partial<Record<keyof typeof rpEn, string>> = {
+  "rp.explain.who": "El informe trimestral de {q} pregunta por qué esta línea está por encima del presupuesto. El motivo lo escribe quien es responsable de MEL o líder de programa.",
+  "rp.explain.reads": "El informe trimestral de {q} da este motivo:",
   "nr.title": "Próximo informe: {q}",
   "nr.dates": "listo para el {aim} (días que quedan: {n}), se entrega al donante el {due}",
   "nr.noDeadline": "sin fecha límite",
@@ -68,7 +71,6 @@ export const rpEs: Partial<Record<keyof typeof rpEn, string>> = {
   "rp.explain.saved": "Guardado. Está en el informe trimestral de {q}.",
   "rp.explain.short": "Escribe al menos 10 caracteres, o deja el cuadro vacío.",
   "rp.explain.released": "El informe de {q} ya se entregó. Dice:",
-  "rp.explain.onBudget": "También puedes escribirlos en la página de Presupuesto, junto a cada línea.",
   "rp.totals.onReport": "La página de Presupuesto muestra solo la fase actual, antes de gastos generales, así que sus totales no son iguales a estos.",
   "rp.totals.onBudget": "El informe trimestral muestra todo el acuerdo, con gastos generales cuando el archivo de Finanzas los trae, así que sus totales no son iguales a estos.",
   "rp.col.target": "Meta {year}",
@@ -77,6 +79,8 @@ export const rpEs: Partial<Record<keyof typeof rpEn, string>> = {
 };
 
 export const rpFa: Partial<Record<keyof typeof rpEn, string>> = {
+  "rp.explain.who": "گزارش ربعوار {q} می‌پرسد چرا این قلم از بودجه بیشتر شده است. دلیل را مسئول MEL یا رهبر برنامه می‌نویسد.",
+  "rp.explain.reads": "گزارش ربعوار {q} این دلیل را آورده است:",
   "nr.title": "گزارش بعدی: {q}",
   "nr.dates": "تا {aim} آماده شود (روزهای مانده: {n})، موعد تسلیمی به تمویل‌کننده {due}",
   "nr.noDeadline": "موعد تعیین نشده",
@@ -104,7 +108,6 @@ export const rpFa: Partial<Record<keyof typeof rpEn, string>> = {
   "rp.explain.saved": "ذخیره شد. در گزارش ربعوار {q} است.",
   "rp.explain.short": "دست‌کم ۱۰ حرف بنویسید، یا خانه را خالی کنید.",
   "rp.explain.released": "گزارش {q} نهایی شده است. در آن آمده:",
-  "rp.explain.onBudget": "این‌ها را در صفحهٔ بودجه، کنار هر قلم، هم می‌توانید بنویسید.",
   "rp.totals.onReport": "صفحهٔ بودجه فقط مرحلهٔ جاری را، پیش از مصارف اداری، نشان می‌دهد؛ پس مجموع‌های آن با این‌ها یکی نیست.",
   "rp.totals.onBudget": "گزارش ربعوار تمام موافقت‌نامه را نشان می‌دهد، با مصارف اداری وقتی فایل بخش مالی آن را داشته باشد؛ پس مجموع‌های آن با این‌ها یکی نیست.",
   "rp.col.target": "هدف {year}",
@@ -113,6 +116,8 @@ export const rpFa: Partial<Record<keyof typeof rpEn, string>> = {
 };
 
 export const rpPs: Partial<Record<keyof typeof rpEn, string>> = {
+  "rp.explain.who": "د {q} ربعوار راپور پوښتي چې دا قلم ولې له بودجې پورته شوی. دلیل د MEL مسئول یا د پروګرام مشر لیکي.",
+  "rp.explain.reads": "د {q} ربعوار راپور دا دلیل راوړی:",
   "nr.title": "راتلونکی راپور: {q}",
   "nr.dates": "تر {aim} پورې چمتو شي (پاتې ورځې: {n})، تمویلوونکي ته د سپارلو نېټه {due}",
   "nr.noDeadline": "نېټه نه ده ټاکل شوې",
@@ -140,7 +145,6 @@ export const rpPs: Partial<Record<keyof typeof rpEn, string>> = {
   "rp.explain.saved": "خوندي شو. د {q} په ربعوار راپور کې دی.",
   "rp.explain.short": "لږ تر لږه ۱۰ توري ولیکئ، یا خانه تشه کړئ.",
   "rp.explain.released": "د {q} راپور وروستی شوی. پکې راغلي:",
-  "rp.explain.onBudget": "دا د بودجې په پاڼه کې، د هر قلم تر څنګ، هم لیکلی شئ.",
   "rp.totals.onReport": "د بودجې پاڼه یوازې روانه مرحله، له اداري لګښتونو مخکې، ښيي؛ نو د هغې مجموعې له دې سره یو شان نه دي.",
   "rp.totals.onBudget": "ربعوار راپور ټول تړون ښيي، له اداري لګښتونو سره کله چې د مالي څانګې فایل یې ولري؛ نو د هغه مجموعې له دې سره یو شان نه دي.",
   "rp.col.target": "د {year} هدف",

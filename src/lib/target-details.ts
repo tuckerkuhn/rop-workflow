@@ -13,7 +13,13 @@ export type Breakdown = (typeof BREAKDOWNS)[number];
 
 export const targetDetailsSchema = z.object({
   indicator: z.string().regex(/^IND-\d+$/, "Choose a target."),
-  baseline: z.number().min(-1e12).max(1e12).nullable(),
+  // The column holds 14 digits, two of them decimals: anything finer would be stored as a different number than the one logged.
+  baseline: z
+    .number()
+    .min(-999_999_999_999)
+    .max(999_999_999_999)
+    .refine((n) => Math.round(n * 100) / 100 === n, "Give the baseline with at most two decimals.")
+    .nullable(),
   breakdown: z.array(z.enum(BREAKDOWNS)).max(BREAKDOWNS.length),
   verification: z.string().trim().max(500),
   budgetRef: z.string().trim().max(60),
@@ -25,12 +31,15 @@ export type TargetDetailsPatch = z.infer<typeof targetDetailsSchema>;
 /** The six facts as the database holds them. */
 export type StoredDetails = { baseline: number | null; disaggregation: string[] | null; verification: string | null; budgetRef: string | null; workplanCode: string | null; inQuarterlyReport: boolean };
 
+const sameSet = (a: string[], b: string[]) => JSON.stringify([...a].sort()) === JSON.stringify([...b].sort());
 const known = (x: string): x is Breakdown => (BREAKDOWNS as readonly string[]).includes(x);
 
 /** What to store: empty text becomes "not set", and a breakdown this screen does not offer (e.g. "crop") stays. */
 export function nextDetails(before: StoredDetails, a: TargetDetailsPatch): StoredDetails {
   const others = (before.disaggregation ?? []).filter((x) => !known(x));
-  const by = [...BREAKDOWNS.filter((b) => a.breakdown.includes(b)), ...others];
+  const chosen = [...BREAKDOWNS.filter((b) => a.breakdown.includes(b)), ...others];
+  // The same breakdowns in another order are not a change: what was stored stays as it was.
+  const by = before.disaggregation && sameSet(before.disaggregation, chosen) ? before.disaggregation : chosen;
   return {
     baseline: a.baseline,
     disaggregation: by.length || before.disaggregation ? by : null,
@@ -46,7 +55,7 @@ export function detailChanges(before: StoredDetails, after: StoredDetails): Reco
   const out: Record<string, { from: unknown; to: unknown }> = {};
   for (const k of Object.keys(after) as (keyof StoredDetails)[]) {
     const [x, y] = [before[k], after[k]];
-    const same = Array.isArray(x) || Array.isArray(y) ? JSON.stringify(x ?? []) === JSON.stringify(y ?? []) : x === y;
+    const same = Array.isArray(x) || Array.isArray(y) ? sameSet((x as string[] | null) ?? [], (y as string[] | null) ?? []) : x === y;
     if (!same) out[k] = { from: x, to: y };
   }
   return out;

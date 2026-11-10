@@ -97,7 +97,12 @@ export function QprPage() {
   const shown = !!v;
   useEffect(() => {
     if (!shown || !window.location.hash) return;
-    document.getElementById(decodeURIComponent(window.location.hash.slice(1)))?.scrollIntoView({ block: "start" });
+    // The part's id is used as written: every id on this page is plain letters, digits, dots and dashes.
+    const go = () => document.getElementById(window.location.hash.slice(1))?.scrollIntoView({ block: "start" });
+    go();
+    // Once more after the panels above it have loaded and pushed it down.
+    const again = window.setTimeout(go, 900);
+    return () => window.clearTimeout(again);
   }, [shown]);
 
   if (!user) return null;
@@ -547,17 +552,10 @@ function InfoBox({ v, act, onImported }: { v: QprView; act: Act; onImported: () 
 function Overspend({ v, act }: { v: QprView; act: Act }) {
   const lines = overspentLines(v.spend, v.saved);
   const [text, setText] = useState<Record<string, string>>({});
-  const { t: tr } = useT();
   if (!lines.length) return null;
   return (
     <div id="overspend" className="mt-3 scroll-mt-24 space-y-3 rounded-xl bg-paper p-3">
       <p className="text-sm font-semibold">Budget lines above budget</p>
-      <p className="text-xs text-muted">
-        {tr("rp.explain.onBudget")}{" "}
-        <Link href="/progress/budget" className="font-semibold text-forest hover:underline">
-          Budget
-        </Link>
-      </p>
       {lines.map((l) => {
         const t = text[l.code] ?? l.explanation;
         return (

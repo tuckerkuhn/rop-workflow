@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import type { AppUser } from "@/lib/demo";
-import { mergeQuestions, qprPatchSchema, SECTIONS, type Qpr } from "@/lib/qpr";
+import { mayWriteReport, mergeQuestions, qprPatchSchema, SECTIONS, type Qpr } from "@/lib/qpr";
 import { requireViewer } from "@/server/auth";
 import { DraftingUnavailable } from "@/server/ai-drafts";
 import { handle } from "@/server/guard";
@@ -25,7 +25,7 @@ export const maxDuration = 120;
  * owner and programme leads write it; the person who releases reports marks it final.
  */
 
-const mayEdit = (u: AppUser) => u.kind === "employee" && (u.admin || u.project.some((r) => ["mel-owner", "report-release", "plan-approver", "monthly-review"].includes(r)));
+const mayEdit = (u: AppUser) => mayWriteReport(u);
 const mayRelease = (u: AppUser) => u.kind === "employee" && u.project.includes("report-release");
 const copyAtOf = (req: Request) => new URL(req.url).searchParams.get("copy");
 const quarterOf = (req: Request) => {
