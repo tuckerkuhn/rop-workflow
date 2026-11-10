@@ -35,8 +35,12 @@ const CLEARED = Symbol("cleared for AI");
 /** Facts that have been through `scrubbed` or `asIs`. Nothing else is accepted by the door. */
 export type Cleared = { readonly [CLEARED]: true; readonly value: unknown; readonly how: string };
 
-/** Facts with names and villages replaced in the free-text fields named (at any depth). */
-export const scrubbed = (value: unknown, freeText: readonly string[]): Cleared => ({ [CLEARED]: true, value: scrubKeys(value, freeText), how: `names replaced in: ${freeText.join(", ")}` });
+/** Facts with names and villages replaced in the free-text fields named (at any depth). `firstNames` keeps first names: stories and posts. */
+export const scrubbed = (value: unknown, freeText: readonly string[], opts: { firstNames?: boolean } = {}): Cleared => ({
+  [CLEARED]: true,
+  value: scrubKeys(value, freeText, false, !!opts.firstNames),
+  how: `${opts.firstNames ? "last names and villages" : "names"} replaced in: ${freeText.join(", ")}`,
+});
 
 /** Facts sent as they are. `why` says why that is right for this job; it is kept on the audit row. */
 export const asIs = (value: unknown, why: string): Cleared => ({ [CLEARED]: true, value, how: `as is: ${why}` });

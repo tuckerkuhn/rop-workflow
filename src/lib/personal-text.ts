@@ -32,3 +32,22 @@ export function withoutNames(text: string): string {
     .replace(VILLAGE, (all, name: string) => (isPlace(name) ? all : "a village"))
     .replace(POSSESSIVE, (all, name: string) => (isPlace(name) ? all : "a farmer's"));
 }
+
+/**
+ * The text with last names and villages removed but first names kept, for drafts that read better
+ * with a person in them (stories, posts; the project lead's choice, 10 Nov 2026). "Haji Baryal
+ * Noorzad" becomes "Haji Baryal", "Baryal Noorzad's" becomes "Baryal's". A two-word name at the start
+ * of a sentence may be a capitalised word and a name ("Visited Zarmal's"), so it is replaced whole.
+ */
+export function firstNamesOnly(text: string): string {
+  return text
+    .replace(TITLED, (_all, title: string, name: string) => `${title} ${name.split(" ")[0]}`)
+    .replace(VILLAGE, (all, name: string) => (isPlace(name) ? all : "a village"))
+    .replace(POSSESSIVE, (all, name: string, at: number, whole: string) => {
+      if (isPlace(name)) return all;
+      const words = name.split(/[ -]/);
+      if (words.length === 1) return all;
+      const start = at === 0 || /[.!?]\s*$/.test(whole.slice(0, at));
+      return start ? "a farmer's" : `${words[0]}'s`;
+    });
+}

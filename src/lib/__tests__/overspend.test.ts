@@ -49,3 +49,12 @@ describe("the donor's budget flexibility", () => {
     expect(LIMITS.overPct).toBe(0.5);
   });
 });
+
+describe("UNDP's budget flexibility for ACRP", () => {
+  it("is the agreement's 20% per line, over ROP's starting value", async () => {
+    const { effective, ROP } = await import("@/lib/policy");
+    const { DONORS } = await import("@/lib/donors");
+    expect(effective(ROP, DONORS.find((d) => d.id === "undp")!).values.budgetRevisionPct).toBe(20);
+    expect(effective(ROP, null).values.budgetRevisionPct).toBe(10);
+  });
+});

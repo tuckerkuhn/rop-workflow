@@ -73,7 +73,8 @@ export const PARAMS: ParamDef[] = [
     label: "Donor approval needed when a budget line's forecast passes approved by more than",
     area: "Finance",
     unit: "%",
-    merge: "min",
+    // The donor's own figure, higher or lower: ROP has no written figure of its own, only a starting value.
+    merge: "donor",
     help: "From the agreement's budget flexibility clause: below it, an overspent line is explained in the report; above it, check the donor has agreed the revision first. The flag for any line spent above approved (0.5%, for rounding) does not change.",
   },
   { key: "overheadMaxPct", label: "Indirect costs (overhead), at most, of direct costs", area: "Finance", unit: "%", merge: "min", help: "The donor's cap on the indirect cost rate, as the agreement states it." },

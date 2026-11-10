@@ -1,4 +1,4 @@
-import { withoutNames } from "@/lib/personal-text";
+import { firstNamesOnly, withoutNames } from "@/lib/personal-text";
 
 /**
  * Every AI job in the app, in one list. The one door for AI (server/ai.ts) refuses a job that is
@@ -41,13 +41,13 @@ export type AiJobName = keyof typeof AI_JOBS;
 
 /**
  * A copy of `value` with people's names and villages replaced in every string found under one of
- * `keys`, at any depth (a list of notes, a record with a `note`, a `note` inside a list of records).
+ * `keys`, at any depth. With `firstNames`, first names are kept and last names removed (lib/personal-text firstNamesOnly) (a list of notes, a record with a `note`, a `note` inside a list of records).
  * Other strings are left as they are: indicator names, places down to the province, codes.
  */
-export function scrubKeys(value: unknown, keys: readonly string[], inside = false): unknown {
-  if (typeof value === "string") return inside ? withoutNames(value) : value;
-  if (Array.isArray(value)) return value.map((v) => scrubKeys(v, keys, inside));
+export function scrubKeys(value: unknown, keys: readonly string[], inside = false, firstNames = false): unknown {
+  if (typeof value === "string") return inside ? (firstNames ? firstNamesOnly(value) : withoutNames(value)) : value;
+  if (Array.isArray(value)) return value.map((v) => scrubKeys(v, keys, inside, firstNames));
   if (value && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype)
-    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, scrubKeys(v, keys, inside || keys.includes(k))]));
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, scrubKeys(v, keys, inside || keys.includes(k), firstNames)]));
   return value;
 }
