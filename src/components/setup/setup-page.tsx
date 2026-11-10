@@ -8,6 +8,7 @@ import { useCurrentProject } from "@/components/app/current-project";
 import { useT } from "@/components/app/i18n";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { KoboConnect, KoboDone, KoboForms, KoboMap } from "@/components/setup/kobo-steps";
+import { DeadlinesStep, RulesStep } from "@/components/setup/agreement-steps";
 import { BudgetStep, WorkplanStep } from "@/components/setup/plan-steps";
 import { Question, field } from "@/components/setup/question";
 import { TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
@@ -27,7 +28,7 @@ import { realToday } from "@/lib/clock";
  */
 
 const DESIGN_STEPS = ["name", "country", "crop", "dates", "goal", "indicators", "donors", "review"] as const;
-const PLAN_STEPS = ["budget", "workplan"] as const;
+const PLAN_STEPS = ["budget", "deadlines", "rules", "workplan"] as const;
 const KOBO_STEPS = ["kobo-connect", "kobo-forms", "kobo-map", "done"] as const;
 type Step = (typeof DESIGN_STEPS)[number] | (typeof PLAN_STEPS)[number] | (typeof KOBO_STEPS)[number];
 
@@ -84,6 +85,7 @@ function Wizard({ code: initialCode, first }: { code: string | null; first: Step
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [fromDocs, setFromDocs] = useState<string[] | null>(null);
+  const [docSources, setDocSources] = useState<string[]>([]);
 
   // Editing: start from the saved design.
   useEffect(() => {
@@ -167,15 +169,26 @@ function Wizard({ code: initialCode, first }: { code: string | null; first: Step
         {step === "name" && !code && user && (
           <FromDocuments
             user={user.id}
-            onProposal={(patch, questions) => {
+            onProposal={(patch, questions, sources) => {
               set(patch);
               setFromDocs(questions);
+              setDocSources(sources);
             }}
           />
         )}
         {fromDocs && (
           <div className="mb-6 rounded-2xl border border-line bg-surface p-4 text-sm">
             <p className="font-semibold">Filled in from the documents: check each step before saving.</p>
+            {docSources.length > 0 && (
+              <details className="mt-2">
+                <summary className="cursor-pointer text-muted">{t("ag.sources")}</summary>
+                <ul className="mt-1 list-disc ps-5 text-xs text-muted">
+                  {docSources.map((s) => (
+                    <li key={s}>{s}</li>
+                  ))}
+                </ul>
+              </details>
+            )}
             {fromDocs.length > 0 && (
               <>
                 <p className="mt-2 text-muted">To settle:</p>
@@ -227,6 +240,8 @@ function Wizard({ code: initialCode, first }: { code: string | null; first: Step
         {step === "donors" && <DonorsQuestion list={draft.donors ?? []} onChange={(donors) => set({ donors })} />}
         {step === "review" && <Review draft={draft} editing={!!code} onEdit={go} />}
         {step === "budget" && code && <BudgetStep code={code} onDone={next} />}
+        {step === "deadlines" && code && <DeadlinesStep code={code} start={draft.startDate} end={draft.endDate} onDone={next} />}
+        {step === "rules" && code && <RulesStep code={code} onDone={next} />}
         {step === "workplan" && code && <WorkplanStep code={code} projectStart={draft.startDate} onDone={next} />}
         {step === "kobo-connect" && code && <KoboConnect code={code} onDone={next} onSkip={() => go("done")} />}
         {step === "kobo-forms" && code && <KoboForms code={code} onDone={next} />}

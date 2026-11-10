@@ -68,6 +68,7 @@ export const PARAMS: ParamDef[] = [
   { key: "taxUnlicensedPct", label: "Tax withheld from contractors without a valid licence", area: "Finance", unit: "%", merge: "same", help: "Including a licence that expired before the payment date." },
   { key: "taxThresholdAfn", label: "No contractor tax withheld on contracts under", area: "Finance", unit: "AFN", merge: "same", help: "Unless the supplier's payments in the year pass it." },
   { key: "advanceSettlementDays", label: "Settle travel advances within", area: "Travel", unit: "days", merge: "min", help: "" },
+  { key: "overheadMaxPct", label: "Indirect costs (overhead), at most, of direct costs", area: "Finance", unit: "%", merge: "min", help: "The donor's cap on the indirect cost rate, as the agreement states it." },
   { key: "expenseReportDays", label: "Expense report due, days after the month ends", area: "Finance", unit: "days", merge: "min", help: "" },
   { key: "grantCapUsd", label: "Sub-grant cap per grant", area: "Grants", unit: "USD", merge: "min", help: "" },
   { key: "grantCapCumulativeUsd", label: "Sub-grant cap per recipient, cumulative", area: "Grants", unit: "USD", merge: "min", help: "" },
