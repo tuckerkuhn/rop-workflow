@@ -2,7 +2,7 @@ import type { Messages } from "./en";
 import { tsPs } from "./hr/timesheet";
 import { actPs } from "./activities";
 import { pfPs } from "./preflight";
-import { hbPs, prPs, sgPs } from "./surge";
+import { hbPs, pmPs, prPs, sgPs } from "./surge";
 import { awPs } from "./ai-why";
 import { rqPs } from "./review-queue";
 import { soPs } from "./solo";
@@ -489,6 +489,7 @@ export const ps: Messages = {
   ...sgPs,
   ...hbPs,
   ...prPs,
+  ...pmPs,
   ...awPs,
   ...rqPs,
   ...soPs,

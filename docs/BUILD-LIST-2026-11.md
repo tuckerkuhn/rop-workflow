@@ -14,7 +14,7 @@ The order agreed on 9 Nov 2026, from the four-additions, five-streamlines, six-U
 | B4 | Kobo nightly reconcile | `feature/kobo-nightly-reconcile` | |
 | B5 | One source of truth for the docs | `feature/docs-current` | |
 | C1 | Home: Approve, Fix, Due | `feature/home-three-buckets` | Built on surge branch, not merged |
-| C2 | Project manager first | `feature/pm-path` | |
+| C2 | Project manager first | `feature/pm-path` | Built on surge branch, not merged |
 | C3 | Progress: one row per target | `feature/progress-rows` | Built on surge branch, not merged |
 | C4 | Plain words | `feature/plain-words` | Also: move the quarterly report's older check sentences into the four languages (decided 9 Nov). |
 | C5 | A sample project for every new organization | `feature/sample-project` | |

@@ -8,6 +8,7 @@ import { quartersLabel } from "@/lib/monthly-review";
 import { STATUS_LABEL, type Status } from "@/lib/qpr";
 import { procRolesFor } from "@/lib/procurement";
 import { projectByCode } from "@/server/field-store";
+import { handRecordedCounts } from "@/server/kobo-fed";
 import { loadReview, rawReview } from "@/server/monthly-review-store";
 import { loadPlan } from "@/server/procurement-plan-store";
 import { loadQpr } from "@/server/qpr-store";
@@ -187,6 +188,20 @@ export async function loadHome(code: string, u: AppUser) {
     if (overspent.length) actions.push({ key: "overspent", for: "finance", bucket: "fix", urgent: false, text: `Explain ${overspent.length} overspent budget ${overspent.length === 1 ? "line" : "lines"}`, href: "/progress/budget" });
   }
 
+  // Field staff who only use KoboCollect: is this project's data all collected there, and what has arrived lately.
+  const [conn] = await db.select({ at: s.koboConnections.lastSyncedAt }).from(s.koboConnections).where(eq(s.koboConnections.projectId, project.id)).limit(1);
+  const byHand = (await handRecordedCounts()).get(code) ?? 0;
+  const kobo = {
+    connected: !!conn,
+    // Every target is counted from a form: nobody on this project records results by hand.
+    only: !!conn && byHand === 0,
+    lastSyncedAt: conn?.at?.toISOString() ?? null,
+    recent: allResults
+      .filter((r) => !!r.kobo)
+      .sort((a, b2) => b2.at.localeCompare(a.at))
+      .slice(0, 5)
+      .map((r) => ({ id: r.id, date: r.date, value: r.value, status: r.status, target: review.indicators.find((i) => i.code === r.indicator)?.name ?? r.indicator, unit: review.indicators.find((i) => i.code === r.indicator)?.unit ?? "" })),
+  };
   // Accepted this quarter with no file or link behind it.
   const proof = report.results.filter((r) => r.status === "accepted" && r.date >= thisQ && !(r.files.length + (r.links?.length ?? 0))).length;
   return {
@@ -199,6 +214,7 @@ export async function loadHome(code: string, u: AppUser) {
     deadlines,
     season,
     actions,
+    kobo,
     mel: { pending: allResults.filter((r) => r.status === "pending").length, queried: allResults.filter((r) => r.status === "queried").length, toCheck: allResults.filter((r) => r.status === "pending" && r.by !== u.id).length, noProof: proof, stops: report.checks.filter((c) => c.level === "stop").length, checks: report.checks.filter((c) => c.level === "check").length, quarter: qLabel(thisQ).replace("-", " ") },
     field: { queried: myQueried.length, mine: allResults.filter((r) => r.by === u.id && r.date >= thisQ).length },
   };
