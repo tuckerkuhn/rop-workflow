@@ -14,6 +14,7 @@ import { haPs } from "./home-actions";
 import { osPs } from "./overspend";
 import { spPs } from "./sample";
 import { pwPs } from "./plain-words";
+import { qcPs } from "./qpr-checks";
 import { ksPs } from "./kobo-suggest";
 import { agPs } from "./agreement";
 import { evPs } from "./evidence";
@@ -511,6 +512,7 @@ export const ps: Messages = {
   ...osPs,
   ...spPs,
   ...pwPs,
+  ...qcPs,
   ...ksPs,
   ...agPs,
   ...evPs,

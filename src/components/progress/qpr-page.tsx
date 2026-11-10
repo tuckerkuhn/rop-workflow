@@ -392,7 +392,7 @@ export function QprPage() {
                   {v.checks.map((c) => (
                     <li key={c.text} className="flex gap-2">
                       <span className={c.level === "stop" ? "font-semibold text-clay" : "text-ochre"}>{c.level === "stop" ? "Fix" : "Check"}</span>
-                      <span>{c.text}</span>
+                      <span>{c.key ? t(c.key, c.vars) : c.text}</span>
                     </li>
                   ))}
                 </ul>

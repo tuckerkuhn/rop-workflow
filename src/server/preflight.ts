@@ -116,7 +116,7 @@ async function qpr(c: Ctx, quarter: string): Promise<Omit<Preflight, "items" | "
 
   // Every other stop the report's own checks raise, so nothing that blocks release is missed.
   const covered = /waiting for MEL|spending import does not include/;
-  for (const x of d.checks.filter((x) => x.level === "stop" && !covered.test(x.text))) add(c, { group: "blocks", owner: "writers", text: x.text, href: `/progress/report?${q}` });
+  for (const x of d.checks.filter((x) => x.level === "stop" && !covered.test(x.text))) add(c, { group: "blocks", owner: "writers", text: x.text, ...(x.key ? { key: x.key } : {}), ...(x.vars ? { vars: x.vars } : {}), href: `/progress/report?${q}` });
 
   await signOff(c);
 
