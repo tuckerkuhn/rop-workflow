@@ -166,7 +166,8 @@ export async function loadHome(code: string, u: AppUser) {
   const actions: HomeAction[] = [];
   const lenses = lensesFor(u, await holdsHrRole(u.id));
   if (lenses.includes("lead")) {
-    if (project.stage === "Design") actions.push({ key: "signoff", for: "lead", bucket: "approve", urgent: true, text: "Sign off the plan and budget to start Execute", href: "/home" });
+    if (project.stage === "Design") actions.push({ key: "signoff", for: "lead", bucket: "approve", urgent: true, // The sign-off control for a saved project is on Progress, not on Home.
+      text: "Sign off the plan and budget to start Execute", href: "/progress" });
     for (const r of [lastReview, review]) {
       const waiting = r.review.changes.filter((c) => c.status === "proposed" && c.proposedBy !== u.id).length;
       if (waiting) actions.push({ key: `decide-${r.month}`, for: "lead", bucket: "approve", urgent: true, text: `Decide ${waiting} proposed plan ${waiting === 1 ? "change" : "changes"} in the ${monthName(r.month)} review`, href: "/progress/review" });

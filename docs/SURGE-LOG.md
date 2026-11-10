@@ -189,6 +189,13 @@ Plan: reuse the existing `sync` and `koboToResults` unchanged; add only the nigh
 - **C5, sample project.** It needs a new column on projects, seed data written into the database for each new organization, and read-only handling across the app. None of it can be tried without a database, which tonight's rules rightly forbid. Too large to build blind.
 - **C4, plain words.** The item asks for the full before-and-after list of strings before anything changes, across four languages. 54 English strings use "indicator", "actual" or "disaggregation"; changing the Dari and Pashto words for them unseen is the kind of change a native reader should see first. Not started; the count and the files are in the audit (section 4, Jargon).
 
+## 00:56 Phase 7. Morning report
+
+- Walked Daniel's path from sign-in to a released quarterly report by reading the code. Top five sticking points are in `docs/MORNING-REPORT-2026-11-10.md`.
+- **One dead end found and fixed on the walk:** Home's "Sign off the plan and budget" row linked to Home itself, where a saved project has no sign-off control. It now links to Progress, where the control is.
+- The morning report written at the usage limit was replaced with the full one.
+- Final lint, typecheck, tests and build on `surge/2026-11-09`: all pass. Stopped.
+
 ## Decisions
 
 Each is reversible. Listed as they are made.
@@ -205,3 +212,7 @@ Each is reversible. Listed as they are made.
 - When a project has one donor entered, reports print that name. With several donors and nothing in the old column, they print the names joined with "and".
 - When the results framework has a worded goal, reports and AI drafts use it rather than the goal typed in setup.
 - A budget re-upload leaves spent alone once Finance's spending has been imported. To change spent, import spending.
+- Home shows everything waiting on a person across all their roles, not only the view chosen in the switcher.
+- On Progress, a target with nothing accepted yet reads "No data", even when results are waiting for MEL.
+- The KoboToolbox reconcile is scheduled for 00:45 UTC, before the daily email.
+- C4 and C5 were not started rather than built unseen.

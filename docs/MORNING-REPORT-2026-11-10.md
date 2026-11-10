@@ -1,38 +1,83 @@
 # Morning report, 10 Nov 2026
 
-The night stopped early, at about 23:45, because the usage limit was reached. Phases 0 to 4 and C6 are done and merged into `surge/2026-11-09`. `main` was never touched. Details for every item are in `docs/SURGE-LOG.md`; the audit is `docs/AUDIT-2026-11-09.md`.
+Everything is on `surge/2026-11-09`. `main` was not touched and still equals the tag `pre-surge-2026-11-09`. The last run of lint, typecheck, 237 tests and build on the surge branch passed. **Nothing was run against a database or an outside service**, so every screen change is unseen: read, type-checked and tested at the rule level only. Detail is in `docs/SURGE-LOG.md`; the audit is `docs/AUDIT-2026-11-09.md`.
 
 ## What is now true that was not yesterday
-- 219 tests guard the logic behind donor figures, and CI runs them.
-- Every project route checks the organization; every change that lacked an audit row has one; approving a bill no longer errors and loses its audit row.
-- All AI calls go through one module (`src/server/ai.ts`) with a named job, cleared facts, an audit row and plain failures.
-- Overspent, the report deadline, our workplan rows and supplier screening each have one rule; donor name, goal and thresholds each have one reader.
-- A report download never assumes pre-flight is clear; failed loads say so; every AI flag says what it looked at.
 
-## Look at first
-1. Quarterly report page on `SFTP-2026`: claim-check findings with "Fix the text" / "The text is right", and the line that says why "Mark final" is off.
-2. Work and Closeout with the network off: they now say the load failed.
-3. The live audit log: look for missing `bill_approved` rows since B2 merged.
+1. 237 tests guard the rules behind donor figures, and CI runs them.
+2. Every project route checks the organization, every change that lacked an audit row has one, and all AI calls go through one module that records each run.
+3. Each figure that had two rules has one (overspent, report deadline, our workplan rows, supplier screening); donor name, goal and procurement thresholds each have one reader.
+4. A report download never assumes pre-flight is clear, and screens say when a load failed instead of saying "nothing to do".
+5. Home lists what waits on you as Approve, Fix and Due; Progress is one row per target; every AI flag says what it looked at.
 
-## Failed or left unmerged
-- **C1 Home: Approve, Fix, Due** is half built on `feature/home-three-buckets` (one WIP commit, does not typecheck, not merged). Left: add the `home.b.*` text in four languages, wire `WaitingOnYou` into `role-home.tsx`, test.
-- **Not started:** C3, C2, B4, and all of Phase 6 (C7, C5, C4, B5).
-- **Phase 7's walk of Daniel's path was not done.** No top-five list; the audit's Screens and Decisions tables are the nearest thing.
-- One merge (`ff928d6`) briefly had a type error; fixed in the next commit.
+## Look at first (five minutes each, on `SFTP-2026`)
+
+1. **Home.** The "Waiting on you" list, and "Open the report" on the next-report panel.
+2. **Quarterly report.** Run the claim check, then "Fix the text" and "The text is right" on a finding; the line that says why "Mark final" is off.
+3. **Progress.** Tap a target's row: the proof panel should open.
+
+Also check the live audit log for missing `bill_approved` rows since B2 merged: the row was written with the bill number where the database needs an id, so from the code it was refused after the approval saved. Fixed here; I could not confirm it against the database.
+
+## Failed, unfinished or not as specified
+
+- **C4 plain words and C5 sample project: not started**, on purpose (see the log). C4's before-and-after list is not written.
+- **C7** covers six fields on Results and Stories. Photos and HR have no "?" (both are not to be touched).
+- **C2:** the short Home for KoboCollect-only field staff shows the project's latest submissions, not the person's own. The app does not keep who sent a submission.
+- **C6:** the procurement step check has no per-finding buttons.
+- **B4** was never run: running it calls KoboToolbox.
+- **The path walk was done by reading code**, not on a phone.
+- **The usage limit stopped the session** from about 23:45 to 00:41.
+- One merge (`ff928d6`) briefly carried a type error; fixed in the next commit.
+- The log's last entries for Phase 6 were merged without a separate full run after the merge; the branch itself was green and the final run below covers it.
 
 ## Migrations waiting
+
 None. No schema change was made.
 
-## Decisions made overnight
-Listed at the end of `docs/SURGE-LOG.md`, each one line and reversible.
+## Decisions made for you overnight (each reversible)
 
-## Questions only Tucker can answer
-- Translation sends Dari and Pashto notes to the AI as written, and photo coaching sends the photo; `docs/DATA-PROTECTION.md` says neither happens. Change the code or the document?
-- Consent for "Donor reports" alone still holds a recognisable photo out of the donor report. Intended?
-- Home's "10th of the month" report date is not in the policy file. Is it a rule?
-- The 21 decisions with no written ROP rule, at the end of section 5 of the audit.
-- The Spanish, Dari and Pashto text I added (`src/lib/i18n/surge.ts`, `ai-why.ts`) needs a native reader.
+They are listed, one line each, under Decisions at the end of `docs/SURGE-LOG.md`. The ones most worth a look:
 
-## How to accept or throw away
-Accept: `git checkout main && git merge --no-ff surge/2026-11-09 && git push` (CI then runs; there are no migrations).
-Throw away: leave `main` as it is; it still equals the tag `pre-surge-2026-11-09`.
+- Overspent means more than 0.5% above approved, everywhere (the report used budget + 1).
+- Story drafts and four other AI jobs no longer send names in free text; procurement drafts now carry ROP's voice rules.
+- Reports print the donor entered in setup or Settings, and use the framework's worded goal when there is one.
+- A budget re-upload no longer changes "spent" once Finance's spending is imported.
+- Hand-recorded results can only be accepted on the Results page.
+- A third scheduled job was added to `vercel.json`. If the plan refuses it: delete the entry and set `KOBO_RECONCILE_IN_DIGEST=1`.
+
+## Questions only you can answer
+
+1. **Data protection.** Translation sends Dari and Pashto notes to the AI as written, and photo coaching sends the photo. `docs/DATA-PROTECTION.md` says neither happens. Change the code or the document?
+2. **Photo consent.** Consent for "Donor reports" alone still keeps a recognisable photo out of the donor report. Intended?
+3. **"On track"** has two meanings: against the workplan (reports, Home, the new Progress rows) and against time gone in the year (the cards donors see). Keep one?
+4. **Report date.** Home falls back to "the 10th of the month after the quarter". Is that a written rule?
+5. **Afghani rate.** It is a fixed 70 in three places while Finance's workbook states its own. Where should the month's rate be entered?
+6. **Kobo usernames.** May the app store each person's KoboToolbox username, so field staff see their own submissions?
+7. **"?" help.** May it be added to Photos and HR?
+8. **Translations.** The Spanish, Dari and Pashto I wrote (`src/lib/i18n/surge.ts`, `ai-why.ts`, `field-help.ts`) need a native reader.
+9. **Decisions with no written ROP rule:** 21 of them, numbered at the end of section 5 of the audit. The sharpest: who may resolve a policy exception; whether purchases stop during a donor conflict; whether a share link may go out before release; the payment approval ladder above $25,000.
+10. **Left alone because they are not to be touched:** opportunities and payroll export write no audit row; HR screens lose a typed note on a failed "send back"; the lens review replaces earlier decisions when run again.
+
+## Daniel's top five sticking points
+
+From reading the path from sign-in to a released quarterly report. One was fixed tonight; the rest are open.
+
+1. **He needs three role types to finish alone.** Accepting results needs MEL, releasing needs programme management, importing spending needs Finance, and accepting his own result needs solo mode switched on by an administrator. Missing any one, he is refused part-way with no single place that shows what he lacks.
+2. **The plan must be signed off first, and Home sent him in a circle.** Pre-flight blocks the report while the project is in Design. Home's "Sign off the plan and budget" row linked to Home itself, where a saved project has no sign-off control. **Fixed: it now goes to Progress, where the control is.**
+3. **The report page is English only and its target table scrolls sideways on a phone** (820px wide), as does the Budget table (720px). Everything else on the path stacks.
+4. **He retypes what the app knows.** Project title, duration, agreement number, director, locations and partner are typed on the report; overspent lines are flagged on Budget but explained on the report.
+5. **The Report tab opens last quarter, Home talks about this quarter.** He can release the wrong quarter's view without noticing which one he is in; the quarter is only in a small select at the top.
+
+## How to accept the night
+
+```bash
+git checkout main
+git merge --no-ff surge/2026-11-09
+git push            # CI runs lint, typecheck, tests and build; there are no migrations to apply
+```
+
+To take only part of it, each item is its own branch, merged in the order the log lists.
+
+## How to throw it away
+
+Do nothing: `main` is unchanged. The surge branches can stay or be removed later. If something from the night ever reaches `main` by mistake, `pre-surge-2026-11-09` is the commit to go back to.
