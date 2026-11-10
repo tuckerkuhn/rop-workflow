@@ -134,7 +134,7 @@ export function ResultsPage() {
           </p>
         )}
         {v && !v.indicators.length && (
-          <p className="mt-6 rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">This project has no indicators that take recorded results.</p>
+          <p className="mt-6 rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">{t("pw.noTargets")}</p>
         )}
 
         {v && reviewing && <ReviewQueue ids={reviewing} v={v} act={act} onClose={() => setReviewing(null)} />}
@@ -179,7 +179,7 @@ export function ResultsPage() {
         {v &&
           groups.map(([output, list]) => (
             <section key={output} className="mt-8">
-              <SectionLabel>{output || "Indicators"}</SectionLabel>
+              <SectionLabel>{output || t("pw.targets")}</SectionLabel>
               <ul className="mt-3 space-y-3">
                 {list.map((i) => {
                   const mine = v.results.filter((r) => r.indicator === i.code && (!range || (r.date >= range.from && r.date <= range.to)));
@@ -212,7 +212,7 @@ export function ResultsPage() {
                       {isOpen && (
                         <div className="mt-4 space-y-3 border-t border-line pt-4">
                           {i.fromKobo ? (
-                            <p className="text-sm text-muted">This indicator comes from Kobo: its results are counted from the form, not recorded here.</p>
+                            <p className="text-sm text-muted">{t("pw.fromKobo")}</p>
                           ) : adding === i.code ? (
                             <RecordForm ind={i} onClose={() => setAdding(null)} add={(r) => act({ action: "record", result: r }, "Recorded. MEL will check it.").then(() => setAdding(null))} />
                           ) : (
@@ -1028,7 +1028,7 @@ function ImportResults({ indicators, act }: { indicators: { code: string; donorC
     <section className="mt-6 rounded-2xl border border-line bg-surface p-4">
       <h2 className="font-display text-xl">Import results</h2>
       <p className="mt-1 text-sm text-muted">
-        One row per result. The indicator may be the app&rsquo;s code (IND-7) or the donor&rsquo;s (1.2.1.4). Each row is checked as if typed in, and nothing is saved until every row passes. Imported
+        One row per result. The target may be the app&rsquo;s code (IND-7) or the donor&rsquo;s (1.2.1.4). Each row is checked as if typed in, and nothing is saved until every row passes. Imported
         results wait for MEL like any other.{" "}
         <a href={template} download="results-template.csv" className="font-semibold text-forest hover:underline">
           Download the template
@@ -1112,8 +1112,8 @@ function WhatNeedsDoing({ v, me, onRecord, act, onReview }: { v: ResultsView; me
             if (pick) onRecord(pick);
           }}
         >
-          <select id="record-pick" value={pick} onChange={(e) => setPick(e.target.value)} className="min-w-0 flex-1 rounded-xl border border-line bg-paper px-3 py-2.5 text-sm" aria-label="Indicator for the result">
-            <option value="">Which indicator is the result for?</option>
+          <select id="record-pick" value={pick} onChange={(e) => setPick(e.target.value)} className="min-w-0 flex-1 rounded-xl border border-line bg-paper px-3 py-2.5 text-sm" aria-label={t("pw.whichTarget")}>
+            <option value="">{t("pw.whichTarget")}</option>
             {v.indicators.filter((i) => !i.fromKobo).map((i) => (
               <option key={i.code} value={i.code}>
                 {i.donorCode ?? i.code} {i.name}

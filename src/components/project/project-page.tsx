@@ -95,11 +95,11 @@ function EvidencePanel({ ind, state, onClose }: { ind: Indicator; state: Project
               4.{" "}
               {appr ? (
                 <>
-                  Actual approved by {name(appr.by)} on {appr.date}
+                  Result accepted by {name(appr.by)} on {appr.date}
                   {appr.note && appr.note !== String(a.value) ? <span className="text-clay"> · value changed since approval ({appr.note})</span> : ""}.
                 </>
               ) : (
-                <span className="text-clay">Actual not yet approved by the MEL owner. It cannot be released.</span>
+                <span className="text-clay">Result not yet accepted by the MEL owner. It cannot be released.</span>
               )}
             </li>
           </ol>
@@ -146,7 +146,7 @@ function Overview({ u, state, setState, field, procs, roster, go }: SectionProps
         {[
           { k: "Review queue", v: `${pending.length}`, s: `${flagged.length} flagged by the data checker`, t: "Verify" as Tab },
           { k: "Late activities", v: `${late.length}`, s: late.map((a) => a.name).join(", ") || "None", t: "Execute" as Tab },
-          { k: "Actuals not approved", v: `${unapproved.length}`, s: "Block report release", t: "Verify" as Tab },
+          { k: "Results not accepted", v: `${unapproved.length}`, s: "Block report release", t: "Verify" as Tab },
           { k: "Spend to date", v: state.spend.length ? money(spend) : "Not imported", s: state.spend.length ? `${pct(spend, plannedToDate)}% of plan to date` : "NetSuite export due", t: "Budget" as Tab },
         ].map((c) => (
           <button key={c.k} type="button" onClick={() => go(c.t)} className="bg-surface px-5 py-4 text-left transition hover:bg-paper">
@@ -167,7 +167,7 @@ function Overview({ u, state, setState, field, procs, roster, go }: SectionProps
         </div>
         <div className="grid gap-6 px-5 py-5 md:grid-cols-3">
           <div>
-            <p className="text-sm font-semibold">Targets vs actuals</p>
+            <p className="text-sm font-semibold">Targets and results</p>
             <ul className="mt-2 space-y-2 text-sm">
               {indicators
                 .filter((i) => i.source !== "survey")
@@ -189,7 +189,7 @@ function Overview({ u, state, setState, field, procs, roster, go }: SectionProps
             <p className="mt-2 text-[11px] text-muted">Source: accepted Kobo submissions</p>
           </div>
           <div>
-            <p className="text-sm font-semibold">Budget vs actuals</p>
+            <p className="text-sm font-semibold">Budget and spending</p>
             {state.spend.length ? (
               <p className="mt-2 text-sm text-muted">
                 {money(spend)} spent against {money(plannedToDate)} planned to date. {varianceLines(state).length} lines vary by more than {state.varianceThreshold}%.
@@ -339,7 +339,7 @@ function Plan({ state, field, procs, openEvidence }: SectionProps & { openEviden
 
       <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div>
-          <SectionLabel>Impact indicator library</SectionLabel>
+          <SectionLabel>Library of impact targets</SectionLabel>
           <ul className="mt-3 grid gap-2 sm:grid-cols-2">
             {indicatorLibrary.map((l) => (
               <li key={l.theme} className={`rounded-xl border p-3 text-sm ${l.picked ? "border-forest/40 bg-mist" : "border-line bg-surface"}`}>
@@ -503,7 +503,7 @@ function Verify({ u, state, setState, roster, kobo, openEvidence }: SectionProps
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <SectionLabel>Review queue · {pending.length} from the daily Kobo pull</SectionLabel>
-            <p className="mt-1 text-sm text-muted">The data checker flags problems. {isMel ? "You" : name(projectRoleHolders("mel-owner")[0]?.id ?? "")} accept or query each record; accepted data becomes part of an Actual.</p>
+            <p className="mt-1 text-sm text-muted">The data checker flags problems. {isMel ? "You" : name(projectRoleHolders("mel-owner")[0]?.id ?? "")} accept or query each record; accepted data becomes part of a Result.</p>
           </div>
           {isMel && clean.length > 0 && (
             <button type="button" onClick={() => decide(clean, "accepted")} className={quietBtn}>
@@ -580,14 +580,14 @@ function Verify({ u, state, setState, roster, kobo, openEvidence }: SectionProps
       </section>
 
       <section>
-        <SectionLabel>Actuals for {PERIOD}</SectionLabel>
+        <SectionLabel>Results for {PERIOD}</SectionLabel>
         <div className="mt-3 overflow-x-auto rounded-2xl border border-line bg-surface">
           <table className="w-full min-w-[640px] text-sm">
             <thead className="border-b border-line text-left text-[11px] uppercase tracking-wide text-muted">
               <tr>
-                <th className="px-4 py-2 font-semibold">Indicator</th>
                 <th className="px-4 py-2 font-semibold">Target</th>
-                <th className="px-4 py-2 font-semibold">Actual</th>
+                <th className="px-4 py-2 font-semibold">How many</th>
+                <th className="px-4 py-2 font-semibold">Result</th>
                 <th className="px-4 py-2 font-semibold">Women / men</th>
                 <th className="px-4 py-2 font-semibold">Status</th>
               </tr>
@@ -625,13 +625,13 @@ function Verify({ u, state, setState, roster, kobo, openEvidence }: SectionProps
                           onClick={() =>
                             setState((s) => ({
                               ...s,
-                              actualApprovals: { ...s.actualApprovals, [i.id]: { what: `${i.id} actual`, by: u.id, date: TODAY, note: String(a.value) } },
-                              audit: [...s.audit, { date: TODAY, who: u.id, what: `Approved actual ${i.id} = ${a.value}`, kind: "approval" }],
+                              actualApprovals: { ...s.actualApprovals, [i.id]: { what: `${i.id} result`, by: u.id, date: TODAY, note: String(a.value) } },
+                              audit: [...s.audit, { date: TODAY, who: u.id, what: `Accepted result ${i.id} = ${a.value}`, kind: "approval" }],
                             }))
                           }
                           className="rounded-full bg-forest px-3 py-1 text-xs font-semibold text-forest-ink"
                         >
-                          {stale ? "Re-approve" : "Approve actual"}
+                          {stale ? "Accept again" : "Accept the result"}
                         </button>
                       ) : (
                         <Pill tone={stale ? "clay" : "ochre"}>{stale ? "Changed since approval" : "Draft"}</Pill>
@@ -643,7 +643,7 @@ function Verify({ u, state, setState, roster, kobo, openEvidence }: SectionProps
             </tbody>
           </table>
         </div>
-        <p className="mt-2 text-xs text-muted">Disaggregations collected: gender, age band, household size, community. Ethnicity is not collected for this project.</p>
+        <p className="mt-2 text-xs text-muted">Counted by women and men, age and place: gender, age band, household size, community. Ethnicity is not collected for this project.</p>
       </section>
     </div>
   );
@@ -842,7 +842,7 @@ function Report({ u, state, setState, field, openEvidence }: SectionProps & { op
   const spend = state.spend.reduce((s, r) => s + r.amount, 0);
   const approvedChanges = state.changes.filter((c) => c.status === "approved");
   const checklist = [
-    { ok: notApproved.length === 0, text: notApproved.length ? `${notApproved.length} actuals not approved by the MEL owner` : "Every actual approved by the MEL owner" },
+    { ok: notApproved.length === 0, text: notApproved.length ? `${notApproved.length} results not accepted by the MEL owner` : "Every result accepted by the MEL owner" },
     { ok: state.spend.length > 0, text: state.spend.length ? "Spend imported from NetSuite" : "This month's NetSuite export not imported" },
     { ok: traceable(state) === 100, text: `${traceable(state)}% of numbers link to evidence` },
   ];
@@ -907,9 +907,9 @@ function Report({ u, state, setState, field, openEvidence }: SectionProps & { op
           <table className="mt-2 w-full text-sm">
             <thead className="text-left text-[11px] uppercase tracking-wide text-muted">
               <tr>
-                <th className="py-2 pr-3 font-semibold">{view === "donor" ? "Donor indicator" : "Indicator"}</th>
-                <th className="py-2 pr-3 text-right font-semibold">Target</th>
-                <th className="py-2 pr-3 text-right font-semibold">Actual</th>
+                <th className="py-2 pr-3 font-semibold">{view === "donor" ? "Target, as the donor names it" : "Target"}</th>
+                <th className="py-2 pr-3 text-right font-semibold">How many</th>
+                <th className="py-2 pr-3 text-right font-semibold">Result</th>
                 <th className="py-2 text-right font-semibold">%</th>
               </tr>
             </thead>
@@ -1226,7 +1226,7 @@ export function ProjectPage({ id }: { id: string }) {
         ) : id !== "A-2027" ? (
           <section className="mt-8 rounded-2xl border border-line bg-surface p-6">
             <p className="font-display text-2xl">Not set up yet</p>
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted">This project has no plan in the app yet. Set it up from its award: goal, indicators and targets, budget and workplan.</p>
+            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted">This project has no plan in the app yet. Set it up from its award: goal, targets, budget and workplan.</p>
             <Link href="/setup?new=1" className={`${quietBtn} mt-5 inline-block`}>
               Set up a project
             </Link>
@@ -1293,10 +1293,10 @@ export function ProjectPage({ id }: { id: string }) {
  */
 function DatabaseProjectOverview() {
   const cards: { href: string; title: string; text: string }[] = [
-    { href: "/setup", title: "Plan", text: "Goal, indicators and targets with their impact themes, budget lines and the workplan, as signed off." },
+    { href: "/setup", title: "Plan", text: "Goal and targets with their impact themes, budget lines and the workplan, as signed off." },
     { href: "/setup/lens", title: "Lens review", text: "The plan read through ROP's reviewer lenses, with a decision on every gap." },
     { href: "/progress/results", title: "Results and proof", text: "Results recorded with their documents and SharePoint links, checked and accepted by MEL." },
-    { href: "/progress/budget", title: "Budget vs actual", text: "Spending against the approved budget by activity, the forecast, and the lines to explain." },
+    { href: "/progress/budget", title: "Budget and spending", text: "Spending against the approved budget by activity, the forecast, and the lines to explain." },
     { href: "/progress/review", title: "Monthly review", text: "Where results and money stand, and changes to targets, budget and workplan approved by a second reviewer." },
     { href: "/progress/report", title: "Quarterly report", text: "The donor's report, every figure linked to its evidence, released with a sign-off." },
     { href: "/work?source=procurement", title: "Procurement", text: "Requests, bids, contracts and payments, with the documents filed in SharePoint." },

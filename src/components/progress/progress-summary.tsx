@@ -43,7 +43,7 @@ export function ProgressSummaryPanel({ projectId, userId }: { projectId: string;
   const met = v.wins.filter((w) => w.key.startsWith("done-")).length;
   const critical = v.concerns.filter((c) => c.level === "critical").length;
   const shownWins = allWins ? v.wins : v.wins.slice(0, 5);
-  const headline = `${met ? `${met} ${met === 1 ? "indicator has" : "indicators have"} met ${v.year} targets` : `No ${v.year} targets met yet`}; ${
+  const headline = `${met ? `${met} ${met === 1 ? "target has" : "targets have"} been met for ${v.year}` : `No ${v.year} targets met yet`}; ${
     v.concerns.length ? `${v.concerns.length} ${v.concerns.length === 1 ? "thing needs" : "things need"} attention${critical ? `, ${critical} of them now` : ""}.` : "nothing needs your attention."
   }`;
 

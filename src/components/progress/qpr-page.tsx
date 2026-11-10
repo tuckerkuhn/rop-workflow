@@ -494,7 +494,7 @@ function InfoBox({ v, act, onImported }: { v: QprView; act: Act; onImported: () 
       <p className="mt-2 text-xs text-muted">
         {v.spend.source.kind === "import" ? (
           <>
-            From Finance&rsquo;s budget against actual:{" "}
+            {t("pw.fromBva")}{" "}
             {v.spend.source.files.map((f, k) => (
               <span key={f.name + f.period}>
                 {k > 0 && "; "}
@@ -693,7 +693,7 @@ function IndicatorRow({ r, v, act, card }: { r: Row; v: QprView; act: Act; card?
     <>
         <span className="font-mono text-xs text-muted">{r.donorCode}</span> {r.name} <span className="text-muted">({r.unit})</span>
         {r.budgetRef && v.spend.byLine[r.budgetRef] && (
-          <span className="mt-1 block text-xs text-muted" title="The budget line that pays for this indicator">
+          <span className="mt-1 block text-xs text-muted" title={t("pw.paysFor")}>
             {r.budgetRef}: {num(v.spend.byLine[r.budgetRef].quarter)} spent this quarter · {num(v.spend.byLine[r.budgetRef].actual)} of {num(v.spend.byLine[r.budgetRef].budget)} {v.spend.currency} to date
             {v.spend.byLine[r.budgetRef].budget > 0 && ` (${Math.round((v.spend.byLine[r.budgetRef].actual / v.spend.byLine[r.budgetRef].budget) * 100)}%)`}
           </span>
@@ -910,7 +910,7 @@ function SpendImport({ v, onDone }: { v: QprView; onDone: () => void }) {
   };
   return (
     <span className="mt-3 block rounded-xl bg-sunken p-3 text-sm text-ink">
-      <span className="block font-semibold">Import Finance&rsquo;s budget against actual</span>
+      <span className="block font-semibold">{t("pw.importBva")}</span>
       <span className="block text-xs text-muted">The FACE workbook sent to UNDP (.xlsx). Only its ICE Report sheet is read; the ledger sheets, which name staff, are not kept.</span>
       <span className="block text-xs text-muted">{t("sm.otherHelp")}</span>
       <input type="file" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="mt-2 block text-sm" onChange={(e) => { setFile(e.target.files?.[0] ?? null); setPreview(null); setGeneric(false); setDone(false); }} />

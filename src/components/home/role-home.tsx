@@ -242,7 +242,7 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
 
   const headline: Record<Lens, string> = {
     hr: "",
-    lead: `${v.project.short} is ${late ? `behind on ${late} ${late === 1 ? "indicator" : "indicators"}` : "on schedule"}: ${onTrack} of ${s.total} indicators done or on track${late ? "" : ", none late"}. It has spent ${pct(b.spentPct)} of its budget with ${pct(b.timePct)} of the time gone${b.overspent.length ? `, and ${b.overspent.length} ${b.overspent.length === 1 ? "line is" : "lines are"} overspent` : ""}.`,
+    lead: `${v.project.short} is ${late ? `behind on ${late} ${late === 1 ? "target" : "targets"}` : "on schedule"}: ${onTrack} of ${s.total} targets done or on track${late ? "" : ", none late"}. It has spent ${pct(b.spentPct)} of its budget with ${pct(b.timePct)} of the time gone${b.overspent.length ? `, and ${b.overspent.length} ${b.overspent.length === 1 ? "line is" : "lines are"} overspent` : ""}.`,
     mel: v.mel.toCheck
       ? `${v.mel.toCheck} ${v.mel.toCheck === 1 ? "result is" : "results are"} waiting for you to check, and the ${v.mel.quarter} report has ${v.mel.stops} ${v.mel.stops === 1 ? "item" : "items"} to fix before release.`
       : `No results are waiting for you; the ${v.mel.quarter} report has ${v.mel.stops} ${v.mel.stops === 1 ? "item" : "items"} to fix before release.`,

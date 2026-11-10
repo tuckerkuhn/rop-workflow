@@ -6,7 +6,7 @@
 export const ksEn = {
   "ks.suggest": "Suggest mappings",
   "ks.suggesting": "Looking at the forms… (up to a minute)",
-  "ks.help": "Claude looks at the forms' questions (never the answers) and suggests one for each indicator. Nothing changes until you accept a suggestion and save.",
+  "ks.help": "Claude looks at the forms' questions (never the answers) and suggests one for each target. Nothing changes until you accept a suggestion and save.",
   "ks.acceptHigh": "Accept all high-confidence ({n})",
   "ks.accept": "Accept",
   "ks.accepted": "Accepted",
@@ -22,7 +22,7 @@ type Keys = keyof typeof ksEn;
 export const ksEs: Partial<Record<Keys, string>> = {
   "ks.suggest": "Sugerir correspondencias",
   "ks.suggesting": "Revisando los formularios… (hasta un minuto)",
-  "ks.help": "Claude revisa las preguntas de los formularios (nunca las respuestas) y sugiere una para cada indicador. Nada cambia hasta que acepte una sugerencia y guarde.",
+  "ks.help": "Claude revisa las preguntas de los formularios (nunca las respuestas) y sugiere una para cada meta. Nada cambia hasta que acepte una sugerencia y guarde.",
   "ks.acceptHigh": "Aceptar todas las de confianza alta ({n})",
   "ks.accept": "Aceptar",
   "ks.accepted": "Aceptada",
@@ -37,7 +37,7 @@ export const ksEs: Partial<Record<Keys, string>> = {
 export const ksFa: Partial<Record<Keys, string>> = {
   "ks.suggest": "پیشنهاد تطبیق",
   "ks.suggesting": "در حال بررسی فورم‌ها… (تا یک دقیقه)",
-  "ks.help": "Claude سؤال‌های فورم‌ها را (نه پاسخ‌ها را) می‌بیند و برای هر شاخص یکی پیشنهاد می‌کند. تا پیشنهادی را نپذیرید و ذخیره نکنید، چیزی تغییر نمی‌کند.",
+  "ks.help": "Claude سؤال‌های فورم‌ها را (نه پاسخ‌ها را) می‌بیند و برای هر هدف یکی پیشنهاد می‌کند. تا پیشنهادی را نپذیرید و ذخیره نکنید، چیزی تغییر نمی‌کند.",
   "ks.acceptHigh": "پذیرفتن همهٔ پیشنهادهای با اطمینان بالا ({n})",
   "ks.accept": "پذیرفتن",
   "ks.accepted": "پذیرفته شد",
@@ -52,7 +52,7 @@ export const ksFa: Partial<Record<Keys, string>> = {
 export const ksPs: Partial<Record<Keys, string>> = {
   "ks.suggest": "د سمون وړاندیز",
   "ks.suggesting": "فورمې کتل کېږي… (تر یوې دقیقې)",
-  "ks.help": "Claude د فورمو پوښتنې (نه ځوابونه) ګوري او د هر شاخص لپاره یوه وړاندیز کوي. تر هغه چې وړاندیز ونه منئ او خوندي یې نه کړئ، هېڅ نه بدلېږي.",
+  "ks.help": "Claude د فورمو پوښتنې (نه ځوابونه) ګوري او د هرې موخې لپاره یوه وړاندیز کوي. تر هغه چې وړاندیز ونه منئ او خوندي یې نه کړئ، هېڅ نه بدلېږي.",
   "ks.acceptHigh": "ټول لوړ باور لرونکي ومنئ ({n})",
   "ks.accept": "منل",
   "ks.accepted": "ومنل شو",
