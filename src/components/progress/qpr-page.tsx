@@ -93,6 +93,13 @@ export function QprPage() {
     if (ready && user && project.saved) void load();
   }, [ready, user, project.saved, load]);
 
+  // A link from pre-flight or Home names the part to fix (#sec-summary, #claims, #info, #overspend): go there once the report is on screen.
+  const shown = !!v;
+  useEffect(() => {
+    if (!shown || !window.location.hash) return;
+    document.getElementById(decodeURIComponent(window.location.hash.slice(1)))?.scrollIntoView({ block: "start" });
+  }, [shown]);
+
   if (!user) return null;
   const act = async (a: QprPatch, msg: string) => {
     setError("");
@@ -340,6 +347,7 @@ export function QprPage() {
               </p>
             )}
             <ReportDownloads project={project.id} quarter={quarter} user={user.id} mayEvidence={!!user.admin || user.project.some((r) => ["mel-owner", "report-release", "plan-approver", "monthly-review"].includes(r))} mayAudit={!!user.admin || user.project.includes("mel-owner")} />
+            <div id="claims" className="scroll-mt-24" />
             <ClaimCheckPanel
               check={v.saved.claimCheck}
               sections={Object.fromEntries(Object.entries(v.saved.sections).map(([k, t]) => [k, t?.text ?? ""]))}
@@ -450,7 +458,7 @@ function InfoBox({ v, act, onImported }: { v: QprView; act: Act; onImported: () 
     </label>
   );
   return (
-    <section className="mt-6 rounded-2xl border border-line bg-surface p-4">
+    <section id="info" className="mt-6 scroll-mt-24 rounded-2xl border border-line bg-surface p-4">
       <SectionLabel>Project information</SectionLabel>
       <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
         <div>
@@ -542,7 +550,7 @@ function Overspend({ v, act }: { v: QprView; act: Act }) {
   const { t: tr } = useT();
   if (!lines.length) return null;
   return (
-    <div className="mt-3 space-y-3 rounded-xl bg-paper p-3">
+    <div id="overspend" className="mt-3 scroll-mt-24 space-y-3 rounded-xl bg-paper p-3">
       <p className="text-sm font-semibold">Budget lines above budget</p>
       <p className="text-xs text-muted">
         {tr("rp.explain.onBudget")}{" "}
