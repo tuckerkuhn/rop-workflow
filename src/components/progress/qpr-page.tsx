@@ -7,7 +7,7 @@ import { useCurrentProject } from "@/components/app/current-project";
 import { openReceipt } from "@/components/people/expense-page";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
-import { SECTIONS, STATUSES, STATUS_LABEL, durationOf, overspentLines, quarterSpendOf, type QprPatch, type Row, type Status } from "@/lib/qpr";
+import { SECTIONS, STATUSES, STATUS_LABEL, cannotOnReport, durationOf, overspentLines, quarterSpendOf, type QprPatch, type Row, type Status } from "@/lib/qpr";
 import { qprDocx, type Images } from "@/lib/qpr-docx";
 import { formatMinutes } from "@/lib/report-copy";
 import { ShareLinks } from "@/components/progress/share-links";
@@ -160,6 +160,7 @@ export function QprPage() {
 
   const emptyDraftable = v ? [...SECTIONS.filter((s) => s.draft).map((s) => s.key as string), ...v.activities.map((a) => `act.${a.code}`)].filter((k) => !v.saved.sections[k]?.text.trim()) : [];
   const stops = v?.checks.filter((c) => c.level === "stop") ?? [];
+  const cannot = v ? cannotOnReport({ edit: v.mayEdit, accept: user.project.includes("mel-owner"), import: v.mayImport, release: v.mayRelease }) : [];
   const { from, to } = quarterRange(quarter);
   // Home's "Next report" is the quarter under way; this page opens on the last one that ended.
   const nowQ = quarterOf(new Date().toISOString().slice(0, 10));
@@ -273,6 +274,18 @@ export function QprPage() {
                   {t("pf.button")}
                 </Link>
               </p>
+            )}
+            {/* What this person's roles do not allow on this report, said once, before they start. */}
+            {!v.frozen && !v.saved.released && cannot.length > 0 && (
+              <div className="mt-3 rounded-xl border border-line bg-surface px-4 py-3 text-sm">
+                <p className="font-semibold">{t("rp.cannot")}</p>
+                <ul className="mt-1 list-disc ps-5">
+                  {cannot.map((k) => (
+                    <li key={k}>{t(`rp.cannot.${k}`)}</li>
+                  ))}
+                </ul>
+                <p className="mt-1 text-muted">{t("rp.cannot.ask")}</p>
+              </div>
             )}
             {v.frozen && (
               <section className="mt-4 rounded-xl border border-line bg-surface px-4 py-3 text-sm">

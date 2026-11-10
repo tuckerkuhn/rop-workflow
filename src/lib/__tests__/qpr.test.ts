@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { breakdownsFor, buildRows, durationOf, checksFor, emptyQpr, prevQuarterOf, suggestStatus, yearShare, type IndicatorInfo, type Spend } from "@/lib/qpr";
+import { breakdownsFor, buildRows, cannotOnReport, durationOf, checksFor, emptyQpr, prevQuarterOf, suggestStatus, yearShare, type IndicatorInfo, type Spend } from "@/lib/qpr";
 import { result } from "./fixtures";
 
 const ind = (over: Partial<IndicatorInfo> = {}): IndicatorInfo => ({ code: "IND-1", donorCode: "1.1.1-A", name: "Farmers trained", unit: "farmers", target: 300, yearTargets: { "2026": 100, "2027": 300 }, result: "Output 1.1", disaggregation: ["sex"], budgetRef: null, ...over });
@@ -157,6 +157,11 @@ describe("durationOf: the project duration the report prints", () => {
   it("uses what the person typed", () => expect(durationOf(" 24 months ", project)).toBe("24 months"));
   it("falls back to the project's dates", () => expect(durationOf("", project)).toBe("1 March 2025 – 30 June 2027"));
   it("is nothing when a date is missing", () => expect(durationOf(undefined, { start: "2025-03-01", end: null })).toBeNull());
+});
+
+describe("cannotOnReport: what a person's roles leave out", () => {
+  it("is empty for someone who holds every role", () => expect(cannotOnReport({ edit: true, accept: true, import: true, release: true })).toEqual([]));
+  it("lists each missing step in the order the work is done", () => expect(cannotOnReport({ edit: true, accept: false, import: false, release: false })).toEqual(["accept", "import", "release"]));
 });
 
 describe("prevQuarterOf", () => {
