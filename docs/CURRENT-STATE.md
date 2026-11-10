@@ -7,15 +7,16 @@ Written 10 Nov 2026 from the code on `surge/2026-11-09`, not from the original s
 | Sign-in, roles, "View as" | Built | `src/server/auth.ts`, `src/lib/access.ts`, `src/lib/authority.ts` | Staff, session and timesheet routes are not yet scoped to an organization; safe with one organization only |
 | One guard for routes | Built 9 Nov | `src/server/guard.ts` | Older routes call the same checks directly rather than the new helpers |
 | Audit log | Built | `src/server/audit.ts` | Opportunities and payroll export still write no audit row |
-| Project setup from three uploads | Built | `src/server/setup-extract.ts`, `src/components/setup/` | Six fields of a target (baseline, breakdown, proof documents, budget line, workplan link, "in quarterly report") can only be set by a script |
+| Project setup from three uploads | Built | `src/server/setup-extract.ts`, `src/components/setup/` | Setup still does not ask for six facts about a target; they are set afterwards on Target details |
+| Target details (baseline, breakdown, proof documents, budget line, workplan step, "in quarterly table") | Built 10 Nov, unseen | `src/lib/target-details.ts`, `src/server/target-details.ts`, `src/components/progress/target-details-page.tsx` | May they change after the plan is signed off? Today a plan approver can |
 | Results with proof, MEL review | Built | `src/lib/results.ts`, `src/lib/data-checks.ts`, `src/server/results-store.ts`, `src/components/progress/results-page.tsx` | When may a result be accepted with no proof? |
 | KoboToolbox link, sync, mapping suggestions | Built | `src/server/kobo-link.ts`, `src/server/kobo-results.ts`, `src/server/kobo-suggest.ts` | The app does not keep who sent a submission |
 | Kobo nightly reconcile | Built 10 Nov, never run | `src/server/kobo-reconcile.ts`, `vercel.json` | Does the Vercel plan allow a third scheduled job? |
 | Progress: one row per target | Built | `src/components/progress/indicator-table.tsx`, `src/lib/target-status.ts` | Donor accounts and demo projects still see cards that judge "on track" a second way |
 | Number to proof, evidence pack | Built | `src/lib/evidence.ts`, `src/server/proof.ts`, `src/server/outputs.ts` | |
-| Budget and spending | Built | `src/lib/bva.ts`, `src/lib/budget-view.ts`, `src/lib/spend-map.ts` | The afghani rate is a fixed 70 in three places; the report's total and the Budget page's total differ by design and neither says so |
+| Budget and spending | Built | `src/lib/bva.ts`, `src/lib/budget-view.ts`, `src/lib/spend-map.ts` | The afghani rate is a fixed 70 in three places |
 | Monthly review | Built | `src/server/monthly-review-store.ts`, `src/components/progress/review-page.tsx` | |
-| Quarterly report, claim check, release | Built | `src/lib/qpr.ts`, `src/server/qpr-store.ts`, `src/components/progress/qpr-page.tsx` | Title, duration, agreement number and director are typed on the report, not taken from the project |
+| Quarterly report, claim check, release | Built | `src/lib/qpr.ts`, `src/server/qpr-store.ts`, `src/components/progress/qpr-page.tsx` | Title, agreement number, director, locations and partner are typed on the report; the app stores them nowhere else. The page is English only |
 | Pre-flight | Built | `src/lib/preflight.ts`, `src/server/preflight.ts` | |
 | Annual and final reports, FACE form | Built | `src/server/period-report-store.ts`, `src/server/face-store.ts` | |
 | Donor share links | Built | `src/server/share-store.ts` | May a link go out before release? |

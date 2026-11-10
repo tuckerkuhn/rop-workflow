@@ -196,6 +196,22 @@ Plan: reuse the existing `sync` and `koboToResults` unchanged; add only the nigh
 - The morning report written at the usage limit was replaced with the full one.
 - Final lint, typecheck, tests and build on `surge/2026-11-09`: all pass. Stopped.
 
+## 02:58 Second session (02:44 on). Daniel's path to a report: fixes and three improvements
+
+Tucker, awake, asked for the fixes and improvements listed in chat, to 03:50. Same guardrails. Each item is its own branch, merged only after lint, typecheck, tests and build passed. Nothing was run against a database, so every screen change here is unseen.
+
+- **`fix/report-quarter`.** The report page says in a bold line which quarter it shows, and when that is not the quarter Home calls the next report, links to it. The quarter is also on the bar that stays at the top.
+- **`fix/report-duration`.** One rule, `durationOf` in `src/lib/qpr.ts`, for the project duration: what was typed, else the project's dates. The Word file already did this; the page now says what an empty field will print. **Short of the plan:** agreement number, director, locations and partner are still typed, because the app stores them nowhere else.
+- **`fix/report-roles`.** At the top of an open report, one list of what the person's roles do not allow (write, accept results, import spending, mark final). Rule: `cannotOnReport` in `src/lib/qpr.ts`.
+- **`fix/report-phone`.** Below 1024px the report's target table and the Budget table are stacked blocks; the tables remain on wide screens. Table headings for the three figure columns are now translated.
+- **`feature/explain-on-budget`.** On Budget, a line the quarterly report asks a reason for has a box for it. It saves into the report for the quarter the latest spending import ends in (the same saved text, through the report's own route and audit row). The report's box links to Budget.
+- **`feature/target-details`.** New page `/progress/targets`, linked from the results framework: baseline, breakdown, proof documents, budget line, workplan step and "in the quarterly table" for each target. A plan approver or administrator saves; each save writes a `target_details_set` audit row with from and to. Rules and tests: `src/lib/target-details.ts`. No migration: the columns existed.
+- **`fix/two-totals`.** The report and the Budget page each say that the other's totals differ and why.
+- **`feature/preflight-lands`.** Pre-flight already was the one readiness page, so I did not build a second. Its rows for text, the claim check, typed spending and unexplained overspends now open the report at that part.
+- Tests: 249 (12 new). New strings are in four languages in `src/lib/i18n/report-path.ts` and `target-details.ts`; Spanish, Dari and Pashto are my drafts.
+- **Slip:** I first wrote an `eslint-disable` line in the new target page. It was removed before any check ran or anything was committed.
+- **Not done:** the lock on the bill book. A safe fix needs a row lock inside a transaction on the approvals path, which I would not change without a database to try it on.
+
 ## Decisions
 
 Each is reversible. Listed as they are made.
@@ -216,3 +232,8 @@ Each is reversible. Listed as they are made.
 - On Progress, a target with nothing accepted yet reads "No data", even when results are waiting for MEL.
 - The KoboToolbox reconcile is scheduled for 00:45 UTC, before the daily email.
 - C4 and C5 were not started rather than built unseen.
+- The report page still opens on the last quarter that ended; it now says so and links to the quarter under way. Which one it should open on is yours to choose.
+- A reason for an overspent line typed on Budget is saved into the report for the quarter the latest spending import ends in. It is not carried to the next quarter.
+- Target details may be changed after the plan is signed off, by the same people who word the results framework, with an audit row. If sign-off should freeze them, say so.
+- A breakdown the screen does not offer (for example "crop") is kept as it is when a target's details are saved.
+- Tables turn into stacked blocks below 1024px, not 640px, so a tablet held upright does not scroll sideways either.

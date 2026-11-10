@@ -2,6 +2,31 @@
 
 Everything is on `surge/2026-11-09`. `main` was not touched and still equals the tag `pre-surge-2026-11-09`. The last run of lint, typecheck, 237 tests and build on the surge branch passed. **Nothing was run against a database or an outside service**, so every screen change is unseen: read, type-checked and tested at the rule level only. Detail is in `docs/SURGE-LOG.md`; the audit is `docs/AUDIT-2026-11-09.md`.
 
+## Second session, 02:44 to 03:50
+
+Done after you asked for the fixes and improvements in chat. All on `surge/2026-11-09`, pushed, each on its own branch; the last full run passed with 249 tests. All of it is unseen on a screen.
+
+- **Quarter.** The report page says which quarter it shows and links to the one Home calls the next report.
+- **Roles.** An open report lists, once, what your roles do not let you do on it.
+- **Phone.** The report's target table and the Budget table stack below 1024px.
+- **Overspent lines.** The reason can be typed on Budget, beside the line. It is the same saved text the report prints.
+- **Target details.** New page `/progress/targets` (linked from the results framework) sets a target's baseline, breakdown, proof documents, budget line, workplan step and place in the quarterly table. No script needed.
+- **Totals.** The report and Budget each say why their totals differ.
+- **Pre-flight.** It already was the one readiness page. Its rows now open the report at the part to fix.
+
+Short of what I listed:
+
+- **Retyping.** Only the duration is filled from the project (its dates). Agreement number, director, locations and partner are stored nowhere else, so they are still typed. They are carried from quarter to quarter.
+- **Bill book lock.** Not done: it needs a database to try.
+- **Report page language.** Still English only, apart from the new lines.
+
+Look at first: `/progress/targets` on `SFTP-2026`; then the Budget page on a phone with an overspent line.
+
+New questions:
+
+11. Should the Report tab open on the quarter under way, or the last one that ended (as now)?
+12. May target details change after the plan is signed off?
+
 ## What is now true that was not yesterday
 
 1. 237 tests guard the rules behind donor figures, and CI runs them.
@@ -62,11 +87,11 @@ They are listed, one line each, under Decisions at the end of `docs/SURGE-LOG.md
 
 From reading the path from sign-in to a released quarterly report. One was fixed tonight; the rest are open.
 
-1. **He needs three role types to finish alone.** Accepting results needs MEL, releasing needs programme management, importing spending needs Finance, and accepting his own result needs solo mode switched on by an administrator. Missing any one, he is refused part-way with no single place that shows what he lacks.
+1. **He needs three role types to finish alone.** Accepting results needs MEL, releasing needs programme management, importing spending needs Finance, and accepting his own result needs solo mode switched on by an administrator. Missing any one, he was refused part-way. **Second session: the report now lists what he lacks at the top.** He still needs the roles.
 2. **The plan must be signed off first, and Home sent him in a circle.** Pre-flight blocks the report while the project is in Design. Home's "Sign off the plan and budget" row linked to Home itself, where a saved project has no sign-off control. **Fixed: it now goes to Progress, where the control is.**
-3. **The report page is English only and its target table scrolls sideways on a phone** (820px wide), as does the Budget table (720px). Everything else on the path stacks.
-4. **He retypes what the app knows.** Project title, duration, agreement number, director, locations and partner are typed on the report; overspent lines are flagged on Budget but explained on the report.
-5. **The Report tab opens last quarter, Home talks about this quarter.** He can release the wrong quarter's view without noticing which one he is in; the quarter is only in a small select at the top.
+3. **The report page is English only.** Its target table and the Budget table scrolled sideways on a phone. **Fixed in the second session: both stack.** The language is still open.
+4. **He retypes what the app knows.** Project title, duration, agreement number, director, locations and partner are typed on the report; overspent lines were flagged on Budget but explained on the report. **Second session: the reason can be typed on Budget, and the duration comes from the project's dates.** The other five fields are still typed.
+5. **The Report tab opens last quarter, Home talks about this quarter.** **Fixed in the second session: the page now says which quarter it shows and links to the other.** Which one it should open on is question 11.
 
 ## How to accept the night
 
