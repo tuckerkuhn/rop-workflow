@@ -113,6 +113,21 @@ What each place had and now has:
 - Results page: errors scroll into view and a loading line shows while it loads (it was blank), using the pieces from Phase 3d.
 - **Not done:** per-finding buttons on the procurement step check. The findings are a plain list on the purchase record; giving each its own decision means changing the record's shape inside the 1,000-line workspace. In the morning report as a follow-up.
 
+## 23:45 to 00:41 Stopped: usage limit
+
+The session stopped at the usage limit part-way through C1 and resumed at 00:41. C1's half-built work was parked as one commit on its own branch, unmerged; a short morning report was written in case the night ended there. Nothing was lost.
+
+## 00:43 Phase 5, C1. Home: Approve, Fix, Due (branch `feature/home-three-buckets`)
+
+Plan, in place of "wait for my go": keep the family panel and the single next step; put one list under it in three groups; move the old "Needs you" list into it; add nothing else.
+
+- **Waiting on you**, under the next step: **Approve** (plan and budget sign-off, proposed plan changes, monthly review sign-off, report release, results to accept), **Fix** (results MEL queried, overspent lines to explain, and this person's part of what stands before the next report), **Due** (Finance's workbook to import, the report's ready-by date, the month's review). One row, one line, one tap. An empty group is hidden.
+- It shows everything waiting on the person across all their roles, not only the view chosen in the switcher.
+- **Fix reads pre-flight itself**, so Home can no longer give a different blocker count from the pre-flight screen. The old "Clear N stop items" action, counted by a second function, is gone, and MEL's report tile uses pre-flight's count.
+- The next report is loaded once and shared by the panel and the list.
+- Under "More", the old list's place now holds only "Off plan" for leads.
+- Rows built by `waitingRows` (`src/lib/home-buckets.ts`), with tests. New text in four languages (my drafts for es, fa, ps). The action sentences from the server are still English, as before; they move in C4.
+
 ## Decisions
 
 Each is reversible. Listed as they are made.

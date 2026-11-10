@@ -71,3 +71,64 @@ export const sgPs: Partial<Record<keyof typeof sgEn, string>> = {
   "report.blockedOne": "۱ ټکی دا راپور دروي، نو لا یې وروستی کول نه شي. «له لېږلو مخکې کتنه» ښيي چې څه دی او چېرته سمېږي.",
   "setup.saveFailed": "پروژه خوندي نه شوه. هغه څه چې تاسو لیکلي له منځه نه دي تللي: خپله اړیکه وګورئ او بیا «خوندي کړئ» کېکاږئ.",
 };
+
+/** Home: what is waiting on a person, in three groups (C1). */
+export const hbEn = {
+  "home.b.title": "Waiting on you",
+  "home.b.none": "Nothing is waiting on you.",
+  "home.b.approve": "Approve",
+  "home.b.fix": "Fix",
+  "home.b.due": "Due",
+  "home.b.blocks": "Blocks the report:",
+  "home.b.now": "Now",
+  "home.b.reportDue": "{report} report: have it ready by {date}",
+  "home.b.reviewDue": "{review} closes on {date}",
+  "home.b.days": "{n} days",
+  "home.b.today": "Today",
+  "home.b.late": "{n} days late",
+};
+
+export const hbEs: Partial<Record<keyof typeof hbEn, string>> = {
+  "home.b.title": "Te está esperando",
+  "home.b.none": "Nada te está esperando.",
+  "home.b.approve": "Aprobar",
+  "home.b.fix": "Corregir",
+  "home.b.due": "Por entregar",
+  "home.b.blocks": "Bloquea el informe:",
+  "home.b.now": "Ahora",
+  "home.b.reportDue": "Informe {report}: tenerlo listo para el {date}",
+  "home.b.reviewDue": "{review} cierra el {date}",
+  "home.b.days": "{n} días",
+  "home.b.today": "Hoy",
+  "home.b.late": "{n} días de atraso",
+};
+
+export const hbFa: Partial<Record<keyof typeof hbEn, string>> = {
+  "home.b.title": "منتظر شما",
+  "home.b.none": "چیزی منتظر شما نیست.",
+  "home.b.approve": "تأیید",
+  "home.b.fix": "اصلاح",
+  "home.b.due": "موعددار",
+  "home.b.blocks": "جلوی گزارش را می‌گیرد:",
+  "home.b.now": "اکنون",
+  "home.b.reportDue": "گزارش {report}: تا {date} آماده باشد",
+  "home.b.reviewDue": "{review} در {date} بسته می‌شود",
+  "home.b.days": "{n} روز",
+  "home.b.today": "امروز",
+  "home.b.late": "{n} روز دیر",
+};
+
+export const hbPs: Partial<Record<keyof typeof hbEn, string>> = {
+  "home.b.title": "ستاسو په تمه",
+  "home.b.none": "هېڅ شی ستاسو په تمه نه دی.",
+  "home.b.approve": "تایید",
+  "home.b.fix": "سمول",
+  "home.b.due": "نېټه لرونکي",
+  "home.b.blocks": "راپور دروي:",
+  "home.b.now": "اوس",
+  "home.b.reportDue": "د {report} راپور: تر {date} پورې چمتو وي",
+  "home.b.reviewDue": "{review} په {date} تړل کېږي",
+  "home.b.days": "{n} ورځې",
+  "home.b.today": "نن",
+  "home.b.late": "{n} ورځې ناوخته",
+};

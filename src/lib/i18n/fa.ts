@@ -2,7 +2,7 @@ import type { Messages } from "./en";
 import { tsFa } from "./hr/timesheet";
 import { actFa } from "./activities";
 import { pfFa } from "./preflight";
-import { sgFa } from "./surge";
+import { hbFa, sgFa } from "./surge";
 import { awFa } from "./ai-why";
 import { rqFa } from "./review-queue";
 import { soFa } from "./solo";
@@ -487,6 +487,7 @@ export const fa: Messages = {
   ...actFa,
   ...pfFa,
   ...sgFa,
+  ...hbFa,
   ...awFa,
   ...rqFa,
   ...soFa,

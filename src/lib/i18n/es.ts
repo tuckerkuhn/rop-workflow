@@ -2,7 +2,7 @@ import type { Messages } from "./en";
 import { tsEs } from "./hr/timesheet";
 import { actEs } from "./activities";
 import { pfEs } from "./preflight";
-import { sgEs } from "./surge";
+import { hbEs, sgEs } from "./surge";
 import { awEs } from "./ai-why";
 import { rqEs } from "./review-queue";
 import { soEs } from "./solo";
@@ -512,6 +512,7 @@ export const es: Messages = {
   ...actEs,
   ...pfEs,
   ...sgEs,
+  ...hbEs,
   ...awEs,
   ...rqEs,
   ...soEs,

@@ -10,6 +10,9 @@ import { useEffect, useState } from "react";
 import { usePersistentState } from "@/components/workspace/ui";
 import type { AppUser, ProjectInfo } from "@/lib/demo";
 import type { HomeView, Lens } from "@/server/home-store";
+import type { NextReport } from "@/server/next-report";
+import { WaitingOnYou } from "@/components/home/waiting";
+import { waitingRows } from "@/lib/home-buckets";
 
 /**
  * Home for a database project, shaped by role. The eye goes, in order, to: one sentence that says
@@ -95,6 +98,8 @@ function StatusBar({ counts, total }: { counts: HomeView["schedule"]["counts"]; 
 export function RoleHome({ user, project }: { user: AppUser; project: ProjectInfo }) {
   const [v, setV] = useState<HomeView | null>(null);
   const [error, setError] = useState("");
+  // The next report from pre-flight, loaded once for the panel and for the Fix and Due groups.
+  const [nr, setNr] = useState<NextReport | null>(null);
   const [chosen, setChosen] = usePersistentState<Lens | "">("rop-home-lens", () => "");
 
   useEffect(() => {
@@ -107,6 +112,11 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
         if (live) setV(d);
       })
       .catch((e) => live && setError(e instanceof Error ? e.message : String(e)));
+    setNr(null);
+    fetch(`/api/projects/${project.id}/next-report`, { cache: "no-store", headers: { "x-demo-user": user.id } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => live && d && setNr(d))
+      .catch(() => undefined);
     return () => {
       live = false;
     };
@@ -174,8 +184,8 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
       <Tile
         key="ready"
         label={`${v.mel.quarter} report`}
-        value={v.mel.stops ? `${v.mel.stops} to fix` : "Ready"}
-        level={v.mel.stops ? "critical" : v.mel.checks ? "warning" : "good"}
+        value={(nr?.blocking ?? v.mel.stops) ? `${nr?.blocking ?? v.mel.stops} to fix` : "Ready"}
+        level={(nr?.blocking ?? v.mel.stops) ? "critical" : v.mel.checks ? "warning" : "good"}
         href="/progress/report"
       >
         {v.mel.stops} stop and {v.mel.checks} check items before release.
@@ -293,20 +303,22 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
         <Link href={next.href} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl border border-forest/40 bg-mist px-4 py-3 hover:border-forest">
           <span className="w-full text-xs font-semibold uppercase tracking-wide text-forest sm:w-auto">Your next step</span>
           <span className="min-w-0 flex-1 font-semibold">{next.text}</span>
-          {mine.length > 1 && <span className="hidden text-xs text-muted sm:inline">and {mine.length - 1} more below</span>}
-          <span aria-hidden className="text-forest rtl:rotate-180">
+                    <span aria-hidden className="text-forest rtl:rotate-180">
             →
           </span>
         </Link>
       )}
 
-      <NextReportPanel project={project.id} user={user.id} owners={lens === "lead" ? undefined : lens === "mel" ? ["mel", "writers"] : lens === "field" ? ["field"] : lens === "finance" ? ["finance"] : []} />
+      {/* Everything waiting on this person, across their roles: Approve, Fix, Due. */}
+      <WaitingOnYou rows={waitingRows({ actions: v.actions, lenses: v.lenses, report: nr, deadlines: v.deadlines })} />
+
+      <NextReportPanel project={project.id} user={user.id} data={nr} owners={lens === "lead" ? undefined : lens === "mel" ? ["mel", "writers"] : lens === "field" ? ["field"] : lens === "finance" ? ["finance"] : []} />
 
       <div className="grid gap-3 sm:grid-cols-2">{tiles[lens].slice(0, 2)}</div>
 
       <details className="group rounded-2xl border border-line bg-surface">
         <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-forest">
-          <span className="group-open:hidden">More: everything waiting for you, and this quarter&rsquo;s work ▾</span>
+          <span className="group-open:hidden">More: the numbers, and this quarter&rsquo;s work ▾</span>
           <span className="hidden group-open:inline">Less ▴</span>
         </summary>
         <div className="space-y-4 px-4 pb-4">
@@ -317,30 +329,12 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
               aria-labelledby="needs-you"
             >
               <h2 id="needs-you" className="font-display text-xl">
-                Needs you
+                Off plan
               </h2>
-              {mine.length === 0 ? (
-                <p className="mt-2 text-sm text-muted">Nothing is waiting for you in this view.</p>
-              ) : (
-                <ul className="mt-2 divide-y divide-line">
-                  {mine.map((a) => (
-                    <li key={a.key}>
-                      <Link href={a.href} className="flex items-center gap-3 py-2.5 text-sm hover:text-forest">
-                        <span aria-hidden className={`h-2 w-2 shrink-0 rounded-full ${a.urgent ? "bg-clay" : "bg-ochre"}`} />
-                        <span className="flex-1">{a.text}</span>
-                        {a.urgent && <span className="rounded-full bg-clay-soft px-2 py-0.5 text-xs font-semibold text-clay">Now</span>}
-                        <span aria-hidden className="text-muted rtl:rotate-180">
-                          ›
-                        </span>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              {!(lens === "lead" && (late > 0 || b.overspent.length > 0)) && <p className="mt-2 text-sm text-muted">Nothing is off plan in this view.</p>}
               {lens === "lead" && (late > 0 || b.overspent.length > 0) && (
                 <div className="mt-3 space-y-1 border-t border-line pt-3 text-sm">
-                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Off plan</p>
-                  {s.late.map((i) => (
+                                    {s.late.map((i) => (
                     <p key={i.code} className="flex gap-2">
                       <span className="shrink-0 font-mono text-xs text-muted">{i.code}</span>
                       <span className="min-w-0 truncate" title={i.name}>
