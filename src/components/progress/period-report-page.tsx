@@ -169,7 +169,14 @@ export function PeriodReportPage() {
                 </tbody>
               </table>
             </div>
-            {v.rows.some((r) => r.baseline === null) && <p className="mt-2 text-xs text-muted">Baselines marked — are not recorded on the indicator; add them in setup.</p>}
+            {v.rows.some((r) => r.baseline === null) && (
+              <p className="mt-2 text-xs text-muted">
+                {t("td.baselineMissing")}{" "}
+                <Link href="/progress/targets" className="font-semibold text-forest hover:underline">
+                  {t("td.title")}
+                </Link>
+              </p>
+            )}
 
             {v.rows.some((r) => r.women + r.men > 0) && (
               <section className="mt-8">
