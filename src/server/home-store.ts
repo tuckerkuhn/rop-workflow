@@ -11,6 +11,10 @@ import { projectByCode } from "@/server/field-store";
 import { handRecordedCounts } from "@/server/kobo-fed";
 import { loadReview, rawReview } from "@/server/monthly-review-store";
 import { loadPlan } from "@/server/procurement-plan-store";
+import { STUCK_DAYS, approverFor, isStuck } from "@/lib/grants";
+import { realToday } from "@/lib/clock";
+import { projectProcurementCards } from "@/server/boards-store";
+import { grantRules, loadGrantBook, mayApprove } from "@/server/grants-store";
 import { loadQpr } from "@/server/qpr-store";
 import { loadActivities } from "@/server/activities-store";
 
@@ -61,6 +65,30 @@ export function lensesFor(u: AppUser, hrStaff = false): Lens[] {
 async function holdsHrRole(personId: string) {
   const holders = ((await (await import("@/server/hr-store")).loadHr().catch(() => null))?.state.rules?.holders ?? {}) as Record<string, string[]>;
   return !!(holders.hr?.includes(personId) || holders.payroll?.includes(personId));
+}
+
+async function grantAndProcurementRows(code: string, name: string, u: AppUser, lenses: Lens[], actions: HomeAction[]) {
+  const [book, rules, cop, ho] = await Promise.all([loadGrantBook(code).catch(() => null), grantRules(code).catch(() => null), mayApprove(u, "cop"), mayApprove(u, "ho")]);
+  const today = realToday();
+  if (book && rules) {
+    const toApprove = book.items.filter((g) => g.status === "open" && g.step === "approval" && !g.approval && (approverFor(g, rules) === "ho" ? ho : cop));
+    if (toApprove.length) {
+      const n = toApprove.length;
+      actions.push({ key: "grants-approve", for: "lead", bucket: "approve", urgent: true, text: n === 1 ? "Approve 1 grant" : `Approve ${n} grants`, msg: { key: n === 1 ? "cn.ha.approveGrant1" : "cn.ha.approveGrant", vars: { n } }, href: n === 1 ? `/work/grants?project=${encodeURIComponent(code)}&open=${toApprove[0].id}` : "/work/grants" });
+    }
+    const stuck = lenses.includes("lead") ? book.items.filter((g) => g.status === "open" && isStuck(g.since, today)) : [];
+    if (stuck.length) {
+      const n = stuck.length;
+      actions.push({ key: "grants-stuck", for: "lead", bucket: "fix", urgent: false, text: `${n} ${n === 1 ? "grant has" : "grants have"} waited more than ${STUCK_DAYS} days in one step`, msg: { key: n === 1 ? "cn.ha.stuckGrant1" : "cn.ha.stuckGrant", vars: { n, days: STUCK_DAYS } }, href: n === 1 ? `/work/grants?project=${encodeURIComponent(code)}&open=${stuck[0].id}` : "/work/grants" });
+    }
+  }
+  if ((lenses.includes("lead") || lenses.includes("procurement")) && u.procurementAccess !== "none") {
+    const stuck = (await projectProcurementCards({ code, name, sandbox: false }, "Large").catch(() => [])).filter((c) => c.stage >= 0 && isStuck(c.since, today));
+    if (stuck.length) {
+      const n = stuck.length;
+      actions.push({ key: "procs-stuck", for: lenses.includes("procurement") ? "procurement" : "lead", bucket: "fix", urgent: false, text: `${n} large ${n === 1 ? "procurement has" : "procurements have"} waited more than ${STUCK_DAYS} days in one step`, msg: { key: n === 1 ? "cn.ha.stuckProc1" : "cn.ha.stuckProc", vars: { n, days: STUCK_DAYS } }, href: n === 1 ? `/work?source=procurement&open=${encodeURIComponent(stuck[0].id)}&project=${encodeURIComponent(code)}` : "/work/procurements" });
+    }
+  }
 }
 
 export async function loadHome(code: string, u: AppUser) {
@@ -189,6 +217,9 @@ export async function loadHome(code: string, u: AppUser) {
     if (!budget.importedTo || budget.importedTo < wanted) actions.push({ key: "import", for: "finance", bucket: "due", urgent: true, text: `Import Finance's workbook for ${monthName(wanted)} (imported to ${budget.importedTo ? monthName(budget.importedTo) : "nothing yet"})`, msg: budget.importedTo ? { key: "ha.import", vars: { month: wanted, to: budget.importedTo } } : { key: "ha.importNone", vars: { month: wanted } }, href: "/progress/report" });
     if (overspent.length) actions.push({ key: "overspent", for: "finance", bucket: "fix", urgent: false, text: `Explain ${overspent.length} overspent budget ${overspent.length === 1 ? "line" : "lines"}`, msg: { key: overspent.length === 1 ? "ha.overspent1" : "ha.overspent", vars: { n: overspent.length } }, href: "/progress/budget" });
   }
+
+  // Grants and large procurements (lib/connections.ts): approvals for the people who give them, and anything stuck for the people who run the project.
+  await grantAndProcurementRows(code, project.name, u, lenses, actions);
 
   // Field staff who only use KoboCollect: is this project's data all collected there, and what has arrived lately.
   const [conn] = await db.select({ at: s.koboConnections.lastSyncedAt }).from(s.koboConnections).where(eq(s.koboConnections.projectId, project.id)).limit(1);

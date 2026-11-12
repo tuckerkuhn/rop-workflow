@@ -275,6 +275,8 @@ export type Procurement = {
    * from, as they stood when the request was made.
    */
   plan?: PlanLink;
+  /** The agribusiness grant (an in-kind grant, same project) whose equipment this buys, when started from it. Fixed once made. */
+  grant?: string;
   /** How it is bought, chosen by procurement after the request is approved. */
   route?: Route;
   /** For goods handed on to participants: distribution lists, stock and verification. */

@@ -7,6 +7,12 @@ import { Pill, TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { SOURCES, type OppAction, type Opportunity } from "@/lib/opportunities";
 import type { OpportunitiesView } from "@/server/opportunities-store";
 import { TrackRecordButton } from "@/components/work/track-record-button";
+import { useT } from "@/components/app/i18n";
+import { Board, ViewSwitch, cardClass } from "@/components/workspace/board";
+import { usePersistentState } from "@/components/workspace/ui";
+import { deadlineSoon, opportunityColumns } from "@/lib/boards";
+import { realToday } from "@/lib/clock";
+import type { MessageKey } from "@/lib/i18n";
 
 /** Develop: opportunities, their framing and match brief, and the match call. */
 
@@ -89,6 +95,31 @@ function OppForm({ start, onSave, onCancel }: { start: Fields; onSave: (f: Field
       </div>
     </form>
   );
+}
+
+/** The donor pipeline as a board: one column per stage of the match call, nearest deadline first. */
+function PipelineBoard({ items, picked, pick }: { items: Opportunity[]; picked: string | null; pick: (id: string) => void }) {
+  const { t, date } = useT();
+  const today = realToday();
+  const columns = opportunityColumns(items).map((c) => ({
+    id: c.id,
+    title: t(`bd.opp.${c.id}` as MessageKey),
+    count: c.items.length,
+    folded: c.id === "no_match",
+    cards: c.items.map((o) => (
+      <button key={o.id} type="button" aria-pressed={picked === o.id} onClick={() => pick(o.id)} className={`${cardClass(false)} w-full ${picked === o.id ? "ring-2 ring-forest" : ""}`}>
+        <span className="block font-semibold">{o.title}</span>
+        <span className="mt-0.5 block text-xs text-muted">
+          {o.donor}
+          {o.value ? ` · ${o.currency} ${o.value.toLocaleString("en-US")}` : ""}
+          {o.country ? ` · ${o.country}` : ""}
+        </span>
+        {o.deadline && <span className={`mt-1 block text-xs ${deadlineSoon(o.deadline, today) ? "font-semibold text-clay" : "text-muted"}`}>{t("bd.opp.deadline", { date: date(o.deadline) })}</span>}
+        <span className="mt-1 block text-[11px] text-muted">{o.source}</span>
+      </button>
+    )),
+  }));
+  return <Board columns={columns} label="Donor pipeline" />;
 }
 
 function Card({ o, v, act }: { o: Opportunity; v: OpportunitiesView; act: (a: OppAction) => Promise<void> }) {
@@ -239,6 +270,8 @@ export function OpportunitiesPage() {
   const [v, setV] = useState<OpportunitiesView | null>(null);
   const [error, setError] = useState("");
   const [adding, setAdding] = useState(false);
+  const [view, setView] = usePersistentState<"board" | "list">("rop-opps-view", () => "list");
+  const [picked, setPicked] = useState<string | null>(null);
   // From "+ New → Record an opportunity".
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("new") === "1") setAdding(true);
@@ -267,12 +300,13 @@ export function OpportunitiesPage() {
   return (
     <div className="min-h-screen">
       <TopBar />
-      <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
+      <main className={`mx-auto px-4 py-6 sm:px-6 ${view === "board" ? "max-w-7xl" : "max-w-3xl"}`}>
         <Link href="/work" className="text-sm text-muted hover:text-ink">
           ← Work
         </Link>
         <div className="mt-2 flex flex-wrap items-end gap-3">
           <h1 className="min-w-0 flex-1 font-display text-4xl tracking-tight">Opportunities</h1>
+          {v && v.items.length > 0 && <ViewSwitch value={view} onChange={setView} />}
           {v && <TrackRecordButton user={user.id} />}
           {v?.can.add && !adding && (
             <button type="button" className={primaryBtn} onClick={() => setAdding(true)}>
@@ -289,11 +323,24 @@ export function OpportunitiesPage() {
         )}
         {!v && !error && <p className="mt-6 text-sm text-muted">Loading…</p>}
         {v && v.items.length === 0 && !adding && <p className="mt-6 text-sm text-muted">No opportunities recorded yet.</p>}
-        <ul className="mt-4 space-y-3">
-          {v?.items.map((o) => (
-            <Card key={o.id} o={o} v={v} act={act} />
-          ))}
-        </ul>
+        {v && view === "board" && v.items.length > 0 ? (
+          <>
+            <PipelineBoard items={v.items} picked={picked} pick={(id) => setPicked(picked === id ? null : id)} />
+            <ul className="mt-2 space-y-3">
+              {v.items
+                .filter((o) => o.id === picked)
+                .map((o) => (
+                  <Card key={o.id} o={o} v={v} act={act} />
+                ))}
+            </ul>
+          </>
+        ) : (
+          <ul className="mt-4 space-y-3">
+            {v?.items.map((o) => (
+              <Card key={o.id} o={o} v={v} act={act} />
+            ))}
+          </ul>
+        )}
       </main>
     </div>
   );

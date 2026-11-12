@@ -62,6 +62,24 @@ export function ResultsPage() {
   const quarter = params.get("q");
   // From "+ New → Record a result": once loaded, put the person on the indicator picker.
   const recordAsked = params.get("record") === "1";
+  // A result filled in from another record (a closed-out grant, a distribution list: lib/connections.ts), for the person to check and send.
+  const [prefill] = useState<Prefill | null>(() => {
+    if (!recordAsked || !params.get("from")) return null;
+    const keep = Object.fromEntries((["date", "value", "female", "male", "womenLed", "menLed", "province", "note"] as const).map((k) => [k, params.get(k) ?? ""]).filter(([, x]) => x));
+    return { from: params.get("from")!, fields: keep };
+  });
+  const updateFor = params.get("update");
+  useEffect(() => {
+    if (!v) return;
+    const ind = params.get("indicator");
+    if (recordAsked && ind && v.indicators.some((i) => i.code === ind && !i.fromKobo)) setAdding(ind);
+    if (updateFor && v.activities.some((a) => a.code === updateFor)) {
+      setAddingUpdate(true);
+      document.getElementById("activity-updates")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    // Only when the page first loads.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!v]);
   useEffect(() => {
     if (!recordAsked || !v) return;
     const el = document.getElementById("record-pick");
@@ -214,7 +232,7 @@ export function ResultsPage() {
                           {i.fromKobo ? (
                             <p className="text-sm text-muted">{t("pw.fromKobo")}</p>
                           ) : adding === i.code ? (
-                            <RecordForm ind={i} onClose={() => setAdding(null)} add={(r) => act({ action: "record", result: r }, "Recorded. MEL will check it.").then(() => setAdding(null))} />
+                            <RecordForm ind={i} prefill={prefill} onClose={() => setAdding(null)} add={(r) => act({ action: "record", result: r }, "Recorded. MEL will check it.").then(() => setAdding(null))} />
                           ) : (
                             v.mayRecord && (
                               <button type="button" className={quietBtn} onClick={() => setAdding(i.code)}>
@@ -237,7 +255,7 @@ export function ResultsPage() {
 
         {v?.mayRecord && v.indicators.some((i) => !i.fromKobo) && <ImportResults indicators={v.indicators.filter((i) => !i.fromKobo)} act={act} />}
         {v && v.activities.length > 0 && (
-          <section className="mt-10 border-t border-line pt-6">
+          <section id="activity-updates" className="mt-10 scroll-mt-24 border-t border-line pt-6">
             <h2 className="font-display text-2xl">Activity updates</h2>
             <p className="mt-1 max-w-2xl text-sm text-muted">
               Progress that is not a count on an indicator: reservoirs built, grant agreements signed, sales at an exhibition, an analysis finished. Add photos with a caption to put them in the donor
@@ -249,7 +267,7 @@ export function ResultsPage() {
               </button>
             )}
             {addingUpdate && (
-              <UpdateForm activities={v.activities} onClose={() => setAddingUpdate(false)} add={(u) => act({ action: "update", update: u }, "Update added.").then(() => setAddingUpdate(false))} />
+              <UpdateForm activities={v.activities} start={updateFor} onClose={() => setAddingUpdate(false)} add={(u) => act({ action: "update", update: u }, "Update added.").then(() => setAddingUpdate(false))} />
             )}
             {v.activities.map((a) => {
               const list = v.updates.filter((u) => u.activity === a.code && (!range || (u.date >= range.from && u.date <= range.to)));
@@ -366,8 +384,8 @@ function ProofPicker({
   );
 }
 
-function UpdateForm({ activities, add, onClose }: { activities: { code: string; name: string }[]; add: (u: UpdateInput) => Promise<void>; onClose: () => void }) {
-  const [f, setF] = useState({ activity: activities[0]?.code ?? "", date: new Date().toISOString().slice(0, 10), note: "" });
+function UpdateForm({ activities, start, add, onClose }: { activities: { code: string; name: string }[]; start?: string | null; add: (u: UpdateInput) => Promise<void>; onClose: () => void }) {
+  const [f, setF] = useState({ activity: (start && activities.some((a) => a.code === start) ? start : activities[0]?.code) ?? "", date: new Date().toISOString().slice(0, 10), note: "" });
   const [files, setFiles] = useState<Receipt[]>([]);
   const [captions, setCaptions] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
@@ -827,7 +845,10 @@ function ResultCard({ r, ind, act, mayAddProof, me }: { r: Res; ind?: Ind; act: 
   );
 }
 
-function RecordForm({ ind, add, onClose }: { ind: Ind; add: (r: ResultInput) => Promise<void>; onClose: () => void }) {
+/** Values for a new result, filled in from the record it comes from. */
+type Prefill = { from: string; fields: Partial<Record<"date" | "value" | "female" | "male" | "womenLed" | "menLed" | "province" | "note", string>> };
+
+function RecordForm({ ind, add, onClose, prefill }: { ind: Ind; add: (r: ResultInput) => Promise<void>; onClose: () => void; prefill?: Prefill | null }) {
   const d = ind.disaggregation ?? [];
   const bySex = d.includes("sex");
   const byLead = d.includes("women-led or men-led");
@@ -840,11 +861,13 @@ function RecordForm({ ind, add, onClose }: { ind: Ind; add: (r: ResultInput) => 
     youth: "",
     womenLed: "",
     menLed: "",
-    province: "",
     district: "",
     crop: "",
     note: "",
     noFile: "",
+    ...prefill?.fields,
+    // Only a province on the list: anything else is left for the person to pick.
+    province: prefill?.fields.province && (PROVINCES as readonly string[]).includes(prefill.fields.province) ? prefill.fields.province : "",
   });
   const [files, setFiles] = useState<Receipt[]>([]);
   const [captions, setCaptions] = useState<Record<string, string>>({});
@@ -890,6 +913,7 @@ function RecordForm({ ind, add, onClose }: { ind: Ind; add: (r: ResultInput) => 
 
   return (
     <div className="rounded-xl bg-sunken p-4">
+      {prefill && <p className="mb-3 text-sm text-ochre">Filled in from {prefill.from}. Check that this is the right target and every figure before you send it: MEL checks it like any other result.</p>}
       <div className="grid gap-3 sm:grid-cols-3">
         <label className="text-sm">
           Date achieved

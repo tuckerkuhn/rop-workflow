@@ -9,6 +9,7 @@ import { logAudit } from "@/server/audit";
 import { projectByCode } from "@/server/field-store";
 import { DEMO_PROJECT, applyProcurementContext, describeProcurementSave, loadProcurementContext, validateProcurementSave } from "@/server/procurement-guard";
 import { loadPlan } from "@/server/procurement-plan-store";
+import { loadGrantBook } from "@/server/grants-store";
 import { orgIdForPerson } from "@/server/org-settings-store";
 
 /** The project's procurements. */
@@ -52,6 +53,16 @@ export async function PUT(req: Request, { params }: { params: Promise<{ code: st
     for (const next of items) {
       const why = validateProcurementSave(stored.get(next.id), next, v.user, calendar, ctx.register, merged);
       if (why) return NextResponse.json({ error: `${next.id}: ${why}` }, { status: 409 });
+    }
+    // A request made for an in-kind grant keeps that grant; the grant must be this project's, open and in kind.
+    const withGrant = items.filter((x) => (x.grant ?? null) !== (stored.get(x.id)?.grant ?? null));
+    if (withGrant.length) {
+      const grants = (await loadGrantBook(code)).items;
+      for (const x of withGrant) {
+        if (stored.has(x.id)) return NextResponse.json({ error: `${x.id}: the grant a request is for is fixed when the request is made.` }, { status: 409 });
+        const g = grants.find((y) => y.id === x.grant);
+        if (!g || g.type !== "inKind" || g.status !== "open") return NextResponse.json({ error: `${x.id}: ${x.grant} is not an open in-kind grant on this project.` }, { status: 409 });
+      }
     }
     const saved = items.map((x) => ({ ...x, rev: (stored.get(x.id)?.rev ?? 0) + 1 }));
     await saveProcurements(code, saved);
