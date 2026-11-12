@@ -7,6 +7,8 @@ import { useT } from "@/components/app/i18n";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { Pill, TopBar, primaryBtn } from "@/components/workspace/ui";
 import { ACTIVITY_STATUSES, type ActivityAction, type ActivityStatus, type Timing } from "@/lib/activities";
+import { resultHref } from "@/lib/connections";
+import type { MessageKey } from "@/lib/i18n";
 import type { ActKey } from "@/lib/i18n/activities";
 import type { ActivitiesPageView as ActivitiesView } from "@/app/api/projects/[code]/activities/route";
 
@@ -37,7 +39,65 @@ async function call(url: string, user: string, init?: RequestInit): Promise<Acti
   return body as ActivitiesView;
 }
 
-function ActivityRow({ r, v, act }: { r: Row; v: ActivitiesView; act: (a: ActivityAction) => Promise<void> }) {
+/** What serves the activity, each linking to its own record: procurements, grants, updates, and what is spent on its budget lines. */
+function Linked({ r, v, project }: { r: Row; v: ActivitiesView; project: string }) {
+  const { t, date } = useT();
+  const l = r.links;
+  const p = encodeURIComponent(project);
+  const few = <T,>(xs: T[], n = 3) => ({ shown: xs.slice(0, n), more: Math.max(0, xs.length - n) });
+  const procs = few(l.procurements.filter((x) => !x.done).concat(l.procurements.filter((x) => x.done)));
+  const grants = few(l.grants.filter((g) => g.status === "open" || g.status === "done"));
+  const updates = few(l.updates, 2);
+  const money = (n: number) => `${Math.round(n).toLocaleString("en-US")} ${v.budgetCurrency}`;
+  const row = "flex flex-wrap gap-x-2 gap-y-0.5";
+  const head = "font-semibold text-muted";
+  return (
+    <div className="mt-2 space-y-1 rounded-xl bg-paper px-3 py-2 text-xs">
+      {l.budget.lines.length > 0 && <p className="tabular-nums text-muted">{t("cn.act.spent", { spent: money(l.budget.spent), total: money(l.budget.total), n: l.budget.lines.length })}</p>}
+      {procs.shown.length > 0 && (
+        <p className={row}>
+          <span className={head}>{t("cn.act.procurements")}:</span>
+          {procs.shown.map((x) => (
+            <Link key={x.id} href={`/work?source=procurement&open=${encodeURIComponent(x.id)}&project=${p}`} className="text-forest hover:underline">
+              {x.id} {x.title.slice(0, 40)} · {x.stage}
+            </Link>
+          ))}
+          {procs.more > 0 && <span className="text-muted">{t("cn.act.more", { n: procs.more })}</span>}
+        </p>
+      )}
+      {grants.shown.length > 0 && (
+        <p className={row}>
+          <span className={head}>{t("cn.act.grants")}:</span>
+          {grants.shown.map((g) => (
+            <Link key={g.id} href={`/work/grants?project=${p}&open=${g.id}`} className="text-forest hover:underline">
+              {g.id} {g.business.slice(0, 40)} · {g.status === "done" ? t("gr.doneTag") : t(`gr.step.${g.step}` as MessageKey)}
+            </Link>
+          ))}
+          {grants.more > 0 && <span className="text-muted">{t("cn.act.more", { n: grants.more })}</span>}
+        </p>
+      )}
+      <p className={row}>
+        {updates.shown.length > 0 && <span className={head}>{t("cn.act.updates")}:</span>}
+        {updates.shown.map((u) => (
+          <span key={u.id} className="text-muted">
+            {date(u.date)} {u.title.slice(0, 60)}
+          </span>
+        ))}
+        {updates.more > 0 && <span className="text-muted">{t("cn.act.more", { n: updates.more })}</span>}
+        <Link href={`/progress/results?project=${p}&update=${encodeURIComponent(r.code)}`} className="font-semibold text-forest hover:underline">
+          {t("cn.act.addUpdate")}
+        </Link>
+        {r.results.length > 0 && (
+          <Link href={resultHref(project, { indicator: r.results[0].indicator, from: r.code, note: "" })} className="font-semibold text-forest hover:underline">
+            {t("cn.act.record")}
+          </Link>
+        )}
+      </p>
+    </div>
+  );
+}
+
+function ActivityRow({ r, v, act, project, focus }: { r: Row; v: ActivitiesView; act: (a: ActivityAction) => Promise<void>; project: string; focus: boolean }) {
   const { t, date } = useT();
   const [open, setOpen] = useState<"status" | "task" | "owner" | null>(null);
   const [status, setStatus] = useState<ActivityStatus>(r.status === "not_started" ? "in_progress" : r.status);
@@ -47,7 +107,7 @@ function ActivityRow({ r, v, act }: { r: Row; v: ActivitiesView; act: (a: Activi
   const may = v.can.manage || r.mine;
   const tm = TIMING[r.timing];
   return (
-    <li className="py-3">
+    <li id={`act-${r.code}`} className={`scroll-mt-24 py-3 ${focus ? "-mx-2 rounded-xl px-2 ring-2 ring-forest" : ""}`}>
       <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
         <span className="font-mono text-xs text-muted">{r.code}</span>
         <div className="min-w-0 flex-1">
@@ -165,6 +225,7 @@ function ActivityRow({ r, v, act }: { r: Row; v: ActivitiesView; act: (a: Activi
           </button>
         </form>
       )}
+      <Linked r={r} v={v} project={project} />
       {r.tasks.length > 0 && (
         <ul className="mt-2 space-y-0.5 text-xs">
           {r.tasks.map((x) => (
@@ -188,6 +249,18 @@ export function ActivitiesPage() {
   const [v, setV] = useState<ActivitiesView | null>(null);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState<Filter | null>(null);
+  // `?open=1.2.1.3` (from a grant, a procurement or a result): show everything and go to that activity.
+  const [focus, setFocus] = useState<string | null>(null);
+  useEffect(() => {
+    const open = new URLSearchParams(window.location.search).get("open");
+    if (open) {
+      setFocus(open);
+      setFilter("all");
+    }
+  }, []);
+  useEffect(() => {
+    if (focus && v) document.getElementById(`act-${focus}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [focus, v]);
   const url = `/api/projects/${project.id}/activities`;
   const load = useCallback(async () => {
     if (!user) return;
@@ -249,6 +322,16 @@ export function ActivitiesPage() {
             {v.summary.unowned ? t("act.unowned", { n: v.summary.unowned }) : ""}
           </p>
         )}
+        {v && (v.unlinked.procurements > 0 || v.unlinked.grants > 0) && (
+          <p className="mt-2 text-xs text-muted" title={t("cn.act.unlinkedHelp")}>
+            {t("cn.act.unlinked", { p: v.unlinked.procurements, g: v.unlinked.grants })}{" "}
+            {v.unlinked.grants > 0 && (
+              <Link href="/work/grants" className="text-forest hover:underline">
+                {t("gr.title")}
+              </Link>
+            )}
+          </p>
+        )}
         {error && (
           <p role="alert" className="mt-3 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">
             {error}
@@ -270,7 +353,7 @@ export function ActivitiesPage() {
             <h2 className="border-b border-line py-3 text-sm font-semibold">{g}</h2>
             <ul className="divide-y divide-line">
               {rows.map((r) => (
-                <ActivityRow key={r.code} r={r} v={v!} act={act} />
+                <ActivityRow key={r.code} r={r} v={v!} act={act} project={project.id} focus={focus === r.code} />
               ))}
             </ul>
           </section>

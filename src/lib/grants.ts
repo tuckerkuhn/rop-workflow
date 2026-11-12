@@ -39,6 +39,10 @@ export type Grant = {
   /** The whole investment, the grantee's share included, in USD. */
   investment: number;
   womenOwned: boolean;
+  /** The workplan sub-activity it serves ("1.2.1.3"). Older grants have none. */
+  activity?: string | null;
+  /** The budget line it is paid from. */
+  budgetLine?: string | null;
   step: GrantStep;
   /** When it reached its current step (YYYY-MM-DD). */
   since: string;
@@ -48,7 +52,7 @@ export type Grant = {
   approval: (Tick & { as: string }) | null;
   /** The grantee's contribution proven so far, in USD, with what proves it. */
   contributions: { amount: number; proof: string; by: string; byName: string; at: string }[];
-  /** In-kind grants: the procurements that buy the equipment ("PR-2027-014"). */
+  /** In-kind grants: the procurements that buy the equipment ("PR-2027-014"). Requests started from the grant also carry its id (Procurement.grant). */
   procurements: string[];
   /** Why it was rejected or withdrawn. */
   closedWhy: string | null;
@@ -112,8 +116,11 @@ export const contributed = (g: Pick<Grant, "contributions">) => g.contributions.
 /** Who approves: "ho" (the Home Office: executive head) above the threshold, else "cop" (programme management). */
 export const approverFor = (g: Pick<Grant, "value">, r: GrantRules): "cop" | "ho" => (g.value > r.hoAboveUsd ? "ho" : "cop");
 
-/** What still stands between the grant and its next step, as message keys with values. Empty: it can move on. */
-export function blockers(g: Grant, r: GrantRules): { key: string; vars?: Record<string, string | number> }[] {
+/** A procurement as a grant sees it: whether its goods have been received. */
+export type GrantProc = { id: string; received: boolean };
+
+/** What still stands between the grant and its next step, as message keys with values. Empty: it can move on. `procs`: its linked procurements, when known. */
+export function blockers(g: Grant, r: GrantRules, procs?: GrantProc[]): { key: string; vars?: Record<string, string | number> }[] {
   const out: { key: string; vars?: Record<string, string | number> }[] = [];
   for (const c of itemsFor(g, g.step)) if (!c.optional && !g.checks[c.id]) out.push({ key: `gr.check.${c.id}` });
   if (g.step === "application") {
@@ -124,6 +131,11 @@ export function blockers(g: Grant, r: GrantRules): { key: string; vars?: Record<
   if (g.step === "implementation") {
     const owed = Math.max(0, g.investment - g.value);
     if (contributed(g) < owed) out.push({ key: "gr.block.contribution", vars: { have: Math.round(contributed(g)), need: Math.round(owed) } });
+    // In-kind: the equipment is bought by the project, so it closes out only once it has arrived.
+    if (g.type === "inKind" && procs) {
+      if (!procs.length) out.push({ key: "gr.block.noProc" });
+      else for (const p of procs) if (!p.received) out.push({ key: "gr.block.notReceived", vars: { id: p.id } });
+    }
   }
   return out;
 }
@@ -152,6 +164,8 @@ export const grantFields = z
     value: usd,
     investment: usd,
     womenOwned: z.boolean().default(false),
+    activity: z.string().trim().max(30).nullable().default(null),
+    budgetLine: z.string().trim().max(40).nullable().default(null),
   })
   .refine((f) => f.investment === 0 || f.investment >= f.value, { message: "The whole investment includes the project's share, so it cannot be smaller.", path: ["investment"] });
 export type GrantFields = z.infer<typeof grantFields>;

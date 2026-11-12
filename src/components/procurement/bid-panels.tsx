@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import type { SupplierRow } from "@/components/procurement/suppliers-page";
 import { bidUsd, distributionState, isSharePointUrl, lateBids, lowBids, lowestPassing, reviewKey, sampleNeeded, type Bid, type CommitteeMember, type Procurement } from "@/lib/procurement";
@@ -231,7 +232,20 @@ function CommitteeEditor({ p, set }: { p: Procurement; set: (fn: (q: Procurement
  * check on a sample of recipients by someone who did not hand the goods out. Open to anyone with
  * procurement access from receipt to close, whoever owns the step.
  */
-export function DistributionPanel({ p, canEdit, update, me }: { p: Procurement; canEdit: boolean; update: Update; me: { id: string; name: string } }) {
+export function DistributionPanel({
+  p,
+  canEdit,
+  update,
+  me,
+  resultLink,
+}: {
+  p: Procurement;
+  canEdit: boolean;
+  update: Update;
+  me: { id: string; name: string };
+  /** The Results page with the people reached filled in, for a person to check and send (lib/connections.ts). */
+  resultLink?: (people: { value: number; female: number; male: number; date?: string; place?: string }) => string;
+}) {
   const d = p.distribution ?? { forParticipants: false, lists: [], inStock: 0, checks: [] };
   const [list, setList] = useState({ date: "", place: "", recipients: "", women: "", qty: "", evidence: "" });
   const [chk, setChk] = useState({ on: "", sampled: "", confirmed: "", issues: "", evidence: "" });
@@ -264,6 +278,23 @@ export function DistributionPanel({ p, canEdit, update, me }: { p: Procurement; 
                 </li>
               ))}
             </ul>
+          )}
+          {resultLink && d.lists.length > 0 && (
+            <p className="mt-2 text-sm">
+              <Link
+                className="font-semibold text-forest hover:underline"
+                href={resultLink({
+                  value: people,
+                  female: d.lists.reduce((s, l) => s + l.women, 0),
+                  male: people - d.lists.reduce((s, l) => s + l.women, 0),
+                  date: d.lists.map((l) => l.date).sort().at(-1),
+                  place: [...new Set(d.lists.map((l) => l.place))].join(", "),
+                })}
+              >
+                Record the people reached in Results
+              </Link>{" "}
+              <span className="text-xs text-muted">Filled in from the lists; MEL checks it like any other result.</span>
+            </p>
           )}
           {d.checks.length > 0 && (
             <ul className="mt-2 space-y-1 text-sm">

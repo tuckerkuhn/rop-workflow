@@ -9,6 +9,7 @@ import { SelfConfirmSheet, useSolo } from "@/components/app/self-confirm";
 import { useDonors, usePlan, useProcurements } from "@/components/app/use-project-data";
 import type { BudgetLine as ProjectBudgetLine, WorkplanItem } from "@/lib/budget";
 import { METHOD, toUsd, type PlanItem } from "@/lib/procurement-plan";
+import { activityHref, resultHref, workplanOfProcurement } from "@/lib/connections";
 import { AiCheck, DraftPanel, RoutePicker, SoleFacts, SupplierField, VoucherPanel, type DraftKind } from "@/components/procurement/route-panels";
 import { useSupplierRegister, type SupplierRow } from "@/components/procurement/suppliers-page";
 import { BidsPanel, DistributionPanel } from "@/components/procurement/bid-panels";
@@ -232,7 +233,10 @@ function RequisitionForm({ p, editable, update }: { p: Procurement; editable: bo
 /** What a request started from the procurement calendar brings with it. */
 export type FromPlan = { item: PlanItem; line: ProjectBudgetLine | null; wp: WorkplanItem | null; projectName: string; funding: string };
 
-function NewRequest({ onCancel, onCreate, from }: { onCancel: () => void; onCreate: (p: Procurement) => void; from?: FromPlan }) {
+/** The in-kind grant a request is started from (lib/connections.ts): it buys that grant's equipment. */
+export type ForGrant = { id: string; business: string; purpose: string; value: number };
+
+function NewRequest({ onCancel, onCreate, from, grant }: { onCancel: () => void; onCreate: (p: Procurement) => void; from?: FromPlan; grant?: ForGrant | null }) {
   const { money, currency, user } = useSession();
   const { date } = useT();
   const item = from?.item;
@@ -240,11 +244,12 @@ function NewRequest({ onCancel, onCreate, from }: { onCancel: () => void; onCrea
   // From the exact amount in the budget currency, not the rounded USD figure.
   const startUnitUsd = item ? toUsd(item.value, item.currency) / startQty : 0;
   const shown = (usd: number) => (currency === "AFN" ? Math.round(usd * AFN_PER_USD) : Math.round(usd * 100) / 100);
-  const [title, setTitle] = useState(item?.title ?? "");
+  const [title, setTitle] = useState(grant ? grant.purpose || `Equipment for ${grant.business}` : (item?.title ?? ""));
   const [spec, setSpec] = useState("");
-  const [qty, setQty] = useState(item ? String(startQty) : "");
-  const [unit, setUnit] = useState(item ? (item.quantity ? (item.unit ?? "units") : "lot") : "units");
-  const [price, setPrice] = useState(item ? String(shown(startUnitUsd)) : "");
+  // A grant's equipment is one lot at the grant's value, until the specification says otherwise.
+  const [qty, setQty] = useState(grant ? "1" : item ? String(startQty) : "");
+  const [unit, setUnit] = useState(grant ? "lot" : item ? (item.quantity ? (item.unit ?? "units") : "lot") : "units");
+  const [price, setPrice] = useState(grant ? String(shown(grant.value)) : item ? String(shown(startUnitUsd)) : "");
   const [line, setLine] = useState(budgetLines[0].code);
   const [neededBy, setNeededBy] = useState(item?.neededBy ?? "2027-04-30");
   const [place, setPlace] = useState("");
@@ -278,7 +283,8 @@ function NewRequest({ onCancel, onCreate, from }: { onCancel: () => void; onCrea
           step: "need",
           checks: {},
           issues: [],
-          timeline: [{ date: today(), who: "holder", what: item ? `Request created from procurement calendar ${item.key}` : "Request created" }],
+          timeline: [{ date: today(), who: "holder", what: (item ? `Request created from procurement calendar ${item.key}` : "Request created") + (grant ? ` for grant ${grant.id} (${grant.business})` : "") }],
+          ...(grant ? { grant: grant.id } : {}),
           ...(item
             ? {
                 plan: {
@@ -300,7 +306,10 @@ function NewRequest({ onCancel, onCreate, from }: { onCancel: () => void; onCrea
       className="mx-auto max-w-2xl space-y-6"
     >
       <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ochre">{item ? `Procurement request · ${item.key}` : "New request"}</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ochre">
+          {item ? `Procurement request · ${item.key}` : "New request"}
+          {grant ? ` · for grant ${grant.id}, ${grant.business}` : ""}
+        </p>
         <h2 className="mt-2 font-display text-3xl tracking-tight">{item ? "Check and complete the request" : "What do you need?"}</h2>
         <p className="mt-1 text-sm text-muted">
           {item
@@ -443,8 +452,11 @@ function Detail({
   onDraft,
   onCheck,
   register,
+  links,
 }: {
   register?: SupplierRow[] | null;
+  /** Where it sits among the other workflows: its project, and the workplan sub-activity it serves. */
+  links?: { project: string; activity: { code: string; title: string } | null };
   p: Procurement;
   role: Role | null;
   update: (fn: (p: Procurement) => Procurement) => void;
@@ -500,8 +512,18 @@ function Detail({
           <Pill tone="muted">{levelFor(value)}</Pill>
           {p.urgent && <Pill tone="clay">Urgent</Pill>}
           {p.feeds && <Pill tone="sky">Feeds field inputs</Pill>}
+          {p.grant && links && (
+            <Link href={`/work/grants?project=${encodeURIComponent(links.project)}&open=${p.grant}`} className="text-xs font-semibold text-forest hover:underline">
+              For grant {p.grant}
+            </Link>
+          )}
         </div>
         <h2 className="mt-2 font-display text-3xl leading-tight tracking-tight">{p.title}</h2>
+        {links?.activity && (
+          <Link href={activityHref(links.project, links.activity.code)} className="mt-1 block text-sm text-forest hover:underline">
+            For {links.activity.code} {links.activity.title.slice(0, 80)}
+          </Link>
+        )}
         <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4">
           {[
             ["Quantity", `${p.qty.toLocaleString("en-US")} ${p.unit}`],
@@ -652,7 +674,7 @@ function Detail({
           {p.step === "payForm" && <PayFormPanel p={p} editable={mine} update={update} />}
           {(p.step === "payReady" || p.step === "approvePay" || p.step === "voucher") && <PayFormSummary p={p} />}
           {p.step === "paid" && <PaidPanel p={p} editable={mine} update={update} />}
-          {user && (receivedQty(p) > 0 || p.distribution) && <DistributionPanel p={p} canEdit={user.procurementAccess === "edit"} update={update} me={{ id: user.id, name: user.name }} />}
+          {user && (receivedQty(p) > 0 || p.distribution) && <DistributionPanel p={p} resultLink={links ? (people) => resultHref(links.project, { from: p.id, ...people, note: `${p.id}: ${p.title} handed to ${people.value} people (${people.female} women)${people.place ? ` at ${people.place}` : ""}, from signed distribution lists.` }) : undefined} canEdit={user.procurementAccess === "edit"} update={update} me={{ id: user.id, name: user.name }} />}
           {p.step === "voucher" && <VoucherPanel p={p} editable={mine} update={update} />}
           {step.checks.some((c) => c.ai) && <AiCheck p={p} editable={mine} onCheck={onCheck} />}
           <ul className="divide-y divide-line px-5">
@@ -765,6 +787,24 @@ export function ProcurementWorkspace() {
   const donors = useDonors(project.id);
   const [planKey, setPlanKey] = useState<string | null>(null);
   const [planError, setPlanError] = useState("");
+  // `?grant=G-003`: the request buys an in-kind grant's equipment.
+  const [grantId, setGrantId] = useState<string | null>(null);
+  const [forGrant, setForGrant] = useState<ForGrant | null>(null);
+  useEffect(() => {
+    if (!grantId || !user) return;
+    fetch(`/api/projects/${encodeURIComponent(project.id)}/grants`, { cache: "no-store", headers: { "x-demo-user": user.id } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((v: { items: { id: string; business: string; purpose: string; value: number }[] } | null) => {
+        const g = v?.items.find((x) => x.id === grantId);
+        setForGrant(g ? { id: g.id, business: g.business, purpose: g.purpose, value: g.value } : { id: grantId, business: grantId, purpose: "", value: 0 });
+      })
+      .catch(() => setForGrant({ id: grantId, business: grantId, purpose: "", value: 0 }));
+  }, [grantId, user, project.id]);
+  // The workplan sub-activity each procurement serves, for its link up to the activity page.
+  const activityOf = (p: Procurement) => {
+    const code = workplanOfProcurement(p, plan.items, plan.workplan, plan.budget?.lines ?? []);
+    return code ? { code, title: plan.workplan.find((w) => w.code === code)?.title ?? "" } : null;
+  };
   const planItem = planKey ? plan.items.find((i) => i.key === planKey) : undefined;
   const fromPlan: FromPlan | undefined = planItem
     ? {
@@ -813,6 +853,7 @@ export function ProcurementWorkspace() {
       setCreating(true);
       setMobileDetail(true);
       if (q.get("plan")) setPlanKey(q.get("plan"));
+      if (q.get("grant")) setGrantId(q.get("grant"));
     }
   }, []);
 
@@ -962,12 +1003,18 @@ export function ProcurementWorkspace() {
               </Link>
             </div>
           ) : (
+          grantId && !forGrant ? (
+            <div className="mx-auto max-w-xl py-16 text-center text-sm text-muted">Loading the grant…</div>
+          ) : (
           <NewRequest
-            key={planKey ?? "new"}
+            key={`${planKey ?? "new"}-${forGrant?.id ?? ""}`}
             from={fromPlan}
+            grant={forGrant}
             onCancel={() => {
               setCreating(false);
               setPlanKey(null);
+              setGrantId(null);
+              setForGrant(null);
               setMobileDetail(false);
             }}
             onCreate={(draft) => {
@@ -982,12 +1029,15 @@ export function ProcurementWorkspace() {
               if (p.plan)
                 plan.act(p.plan.key, { action: "start", procurementKey: p.id }).catch((e) => setPlanError(`${p.id} was created, but the calendar was not updated: ${e instanceof Error ? e.message : e}`));
               setPlanKey(null);
+              setGrantId(null);
+              setForGrant(null);
             }}
           />
           )
+          )
         ) : current ? (
           <div className="mx-auto max-w-3xl">
-            <Detail key={current.id} register={register} p={current} role={role} update={update(current.id)} onBack={() => setMobileDetail(false)} onDraft={(kind) => draftDoc(current.id, kind)} onCheck={() => runCheck(current.id, current.step)} />
+            <Detail key={current.id} register={register} p={current} links={{ project: project.id, activity: activityOf(current) }} role={role} update={update(current.id)} onBack={() => setMobileDetail(false)} onDraft={(kind) => draftDoc(current.id, kind)} onCheck={() => runCheck(current.id, current.step)} />
           </div>
         ) : (
           <div className="grid h-full place-items-center py-24 text-center">

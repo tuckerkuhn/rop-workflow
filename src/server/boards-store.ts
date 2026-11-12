@@ -27,16 +27,19 @@ export async function procurementBoard(v: Viewer, min: "Large" | "Medium"): Prom
   if (v.user.procurementAccess === "none") return { cards: [] };
   const projects = await projectsFor(v);
   const cards: ProcCard[] = [];
-  for (const p of projects) {
-    const [items, eff] = await Promise.all([loadProcurements(p.code).catch(() => []), projectRules(p.code).catch(() => null)]);
-    const values = eff ? Object.fromEntries(eff.lines.filter((l) => !l.conflict || l.decision).map((l) => [l.key, l.value as Value])) : null;
-    // The level is read under this project's own thresholds, with no await in between.
-    setProcurementRules(values);
-    const keep = items.filter((x) => (min === "Large" ? ["Large"] : ["Large", "Medium"]).includes(levelFor(x.qty * x.unitPrice)));
-    cards.push(...procurementCards(keep, { code: p.code, name: p.name, sandbox: p.kind === "sandbox" }));
-  }
-  setProcurementRules(null);
+  for (const p of projects) cards.push(...(await projectProcurementCards({ code: p.code, name: p.name, sandbox: p.kind === "sandbox" }, min)));
   return { cards };
+}
+
+/** One project's procurements at or above `min`, by that project's own thresholds. */
+export async function projectProcurementCards(project: ProcCard["project"], min: "Large" | "Medium"): Promise<ProcCard[]> {
+  const [items, eff] = await Promise.all([loadProcurements(project.code).catch(() => []), projectRules(project.code).catch(() => null)]);
+  const values = eff ? Object.fromEntries(eff.lines.filter((l) => !l.conflict || l.decision).map((l) => [l.key, l.value as Value])) : null;
+  // The level is read under this project's own thresholds, with no await in between.
+  setProcurementRules(values);
+  const keep = items.filter((x) => (min === "Large" ? ["Large"] : ["Large", "Medium"]).includes(levelFor(x.qty * x.unitPrice)));
+  setProcurementRules(null);
+  return procurementCards(keep, project);
 }
 
 export type GrantCard = Pick<Grant, "id" | "business" | "province" | "type" | "value" | "womenOwned" | "step" | "since" | "status"> & {
@@ -67,7 +70,7 @@ export async function grantBoard(v: Viewer, u: AppUser) {
         since: g.since,
         status: g.status,
         project: { code: p.code, name: p.name, sandbox: p.kind === "sandbox" },
-        left: blockers(g, view.rules).length,
+        left: blockers(g, view.rules, view.procs[g.id]).length,
         approver: approverFor(g, view.rules),
         contributed: contributed(g),
         owed: Math.max(0, g.investment - g.value),

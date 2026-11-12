@@ -29,6 +29,7 @@ import {
   type GrantStep,
   type StepSettings,
 } from "@/lib/grants";
+import { activityHref, resultHref } from "@/lib/connections";
 import type { MessageKey } from "@/lib/i18n";
 import type { GrantCard } from "@/server/boards-store";
 import type { GrantsView } from "@/server/grants-store";
@@ -57,11 +58,15 @@ function useStepName(steps: StepSettings) {
   return (s: GrantStep | "closed") => (s !== "closed" && steps.names[s]) || t(`gr.step.${s}` as MessageKey);
 }
 
-const EMPTY: GrantFields = { business: "", province: "", type: "matching", purpose: "", value: 0, investment: 0, womenOwned: false };
+const EMPTY: GrantFields = { business: "", province: "", type: "matching", purpose: "", value: 0, investment: 0, womenOwned: false, activity: null, budgetLine: null };
+const fieldsOf = (g: Grant): GrantFields => ({ business: g.business, province: g.province, type: g.type, purpose: g.purpose, value: g.value, investment: g.investment, womenOwned: g.womenOwned, activity: g.activity ?? null, budgetLine: g.budgetLine ?? null });
 
-function GrantForm({ start, onSave, onCancel }: { start: GrantFields; onSave: (f: GrantFields) => Promise<void>; onCancel: () => void }) {
+function GrantForm({ start, options, editing, onSave, onCancel }: { start: GrantFields; options: GrantsView["options"]; editing?: Grant; onSave: (f: GrantFields) => Promise<void>; onCancel: () => void }) {
   const { t } = useT();
   const [f, setF] = useState(start);
+  const line = options.lines.find((l) => l.code === f.budgetLine);
+  // The grant being edited is already counted in what is left on its own line.
+  const left = line ? line.left + (editing && editing.status === "open" && editing.budgetLine === line.code ? editing.value : 0) : null;
   const num = (k: "value" | "investment") => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: Number(e.target.value.replace(/[,$\s]/g, "")) || 0 });
   return (
     <form
@@ -97,6 +102,29 @@ function GrantForm({ start, onSave, onCancel }: { start: GrantFields; onSave: (f
       <label className="text-sm font-semibold">
         {t("gr.f.investment")}
         <input inputMode="decimal" className={input} value={f.investment || ""} onChange={num("investment")} />
+      </label>
+      <label className="text-sm font-semibold">
+        {t("cn.f.activity")}
+        <select className={input} value={f.activity ?? ""} onChange={(e) => setF({ ...f, activity: e.target.value || null })}>
+          <option value="">{t("cn.f.none")}</option>
+          {options.activities.map((a) => (
+            <option key={a.code} value={a.code}>
+              {a.code} {a.title.slice(0, 70)}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="text-sm font-semibold">
+        {t("cn.f.line")}
+        <select className={input} value={f.budgetLine ?? ""} onChange={(e) => setF({ ...f, budgetLine: e.target.value || null })}>
+          <option value="">{t("cn.f.none")}</option>
+          {options.lines.map((l) => (
+            <option key={l.code} value={l.code}>
+              {l.code} {l.description.slice(0, 60)}
+            </option>
+          ))}
+        </select>
+        {left !== null && <span className={`mt-1 block text-xs font-normal ${f.value > left ? "text-clay" : "text-muted"}`}>{t(f.value > left ? "cn.lineOver" : "cn.lineLeft", { left: usd(left) })}</span>}
       </label>
       <label className="text-sm font-semibold sm:col-span-2">
         {t("gr.f.purpose")}
@@ -156,7 +184,13 @@ function Detail({ g, v, act }: { g: Grant; v: GrantsView; act: (a: GrantAction) 
   };
   const rev = g.rev;
   const open = g.status === "open";
-  const left = blockers(g, v.rules);
+  const procs = v.procs[g.id] ?? [];
+  const left = blockers(g, v.rules, procs);
+  const activity = g.activity ? v.options.activities.find((a) => a.code === g.activity) : null;
+  const line = g.budgetLine ? v.options.lines.find((l) => l.code === g.budgetLine) : null;
+  // An in-kind grant's purchase starts from the approved procurement calendar item for its budget line.
+  const items = g.budgetLine ? v.options.calendar.filter((i) => i.budgetCode === g.budgetLine) : [];
+  const ready = items.find((i) => i.status === "approved");
   const next = nextStepOf(g.step, v.steps);
   const as = approverFor(g, v.rules);
   const mayApprove = as === "ho" ? v.can.approveHo : v.can.approveCop;
@@ -188,6 +222,16 @@ function Detail({ g, v, act }: { g: Grant; v: GrantsView; act: (a: GrantAction) 
             {g.province ? ` · ${g.province}` : ""} · {name(g.status === "open" || g.status === "done" ? g.step : "closed")}
           </p>
           {g.purpose && <p className="mt-1 text-sm">{g.purpose}</p>}
+          <p className="mt-1 flex flex-wrap gap-x-3 text-xs">
+            {g.activity ? (
+              <Link href={activityHref(v.code, g.activity)} className="text-forest hover:underline">
+                {t("cn.forActivity", { code: g.activity, title: activity?.title.slice(0, 60) ?? "" })}
+              </Link>
+            ) : (
+              <span className="text-muted">{t("cn.noActivity")}</span>
+            )}
+            {g.budgetLine && <span className="text-muted">{t("cn.paidFrom", { line: `${g.budgetLine}${line ? ` ${line.description.slice(0, 50)}` : ""}` })}</span>}
+          </p>
         </div>
         {open && !editing && (
           <button type="button" className={quietBtn} onClick={() => setEditing(true)}>
@@ -198,7 +242,7 @@ function Detail({ g, v, act }: { g: Grant; v: GrantsView; act: (a: GrantAction) 
 
       {editing ? (
         <div className="mt-3">
-          <GrantForm start={g} onCancel={() => setEditing(false)} onSave={(fields) => run({ action: "edit", id: g.id, rev, fields }).then(() => setEditing(false))} />
+          <GrantForm start={fieldsOf(g)} options={v.options} editing={g} onCancel={() => setEditing(false)} onSave={(fields) => run({ action: "edit", id: g.id, rev, fields }).then(() => setEditing(false))} />
         </div>
       ) : (
         <>
@@ -258,13 +302,31 @@ function Detail({ g, v, act }: { g: Grant; v: GrantsView; act: (a: GrantAction) 
               {g.type === "inKind" && GRANT_STEPS.indexOf(g.step) >= GRANT_STEPS.indexOf("agreement") && (
                 <div className="mt-3 text-sm">
                   <p className="font-semibold">{t("gr.procurements")}</p>
-                  <p className="mt-1 flex flex-wrap gap-2">
-                    {g.procurements.map((p) => (
-                      <Link key={p} href={`/work?source=procurement&open=${p}&project=${v.code}`} className="text-forest hover:underline">
-                        {p}
-                      </Link>
+                  <ul className="mt-1 space-y-0.5">
+                    {procs.map((p) => (
+                      <li key={p.id}>
+                        <Link href={`/work?source=procurement&open=${encodeURIComponent(p.id)}&project=${encodeURIComponent(v.code)}`} className="text-forest hover:underline">
+                          {p.id}
+                        </Link>{" "}
+                        {p.title !== p.id ? p.title : ""} · <span className={p.received ? "text-forest" : "text-muted"}>{p.received ? t("cn.received") : p.stage}</span>
+                      </li>
                     ))}
-                  </p>
+                  </ul>
+                  {open && (
+                    <p className="mt-2 text-xs">
+                      {!g.budgetLine ? (
+                        <span className="text-muted">{t("cn.start.noLine")}</span>
+                      ) : ready ? (
+                        <Link href={`/work?source=procurement&new=1&plan=${encodeURIComponent(ready.key)}&grant=${g.id}&project=${encodeURIComponent(v.code)}`} className={primaryBtn}>
+                          {t("cn.start", { key: ready.key })}
+                        </Link>
+                      ) : items.length ? (
+                        <span className="text-muted">{items.some((i) => i.procurementKey) ? t("cn.start.used", { key: items[0].key, pr: items.find((i) => i.procurementKey)!.procurementKey! }) : t("cn.start.waiting", { key: items[0].key })}</span>
+                      ) : (
+                        <span className="text-muted">{t("cn.start.none", { line: g.budgetLine })}</span>
+                      )}
+                    </p>
+                  )}
                   <form
                     className="mt-1 flex gap-2"
                     onSubmit={(e) => {
@@ -308,6 +370,25 @@ function Detail({ g, v, act }: { g: Grant; v: GrantsView; act: (a: GrantAction) 
                 )}
               </div>
             </>
+          )}
+          {g.status === "done" && (
+            <div className="mt-3 rounded-xl bg-paper p-3 text-sm">
+              <p className="font-semibold">{t("cn.result")}</p>
+              <p className="text-muted">{t("cn.resultHelp")}</p>
+              <Link
+                className={`${primaryBtn} mt-2`}
+                href={resultHref(v.code, {
+                  from: g.id,
+                  value: 1,
+                  ...(g.womenOwned ? { womenLed: 1 } : { menLed: 1 }),
+                  date: g.history.at(-1)?.at,
+                  province: g.province || undefined,
+                  note: `${g.id}: ${t(`gr.type.${g.type}` as MessageKey)} grant of ${usd(g.value)} to ${g.business}${g.purpose ? ` for ${g.purpose}` : ""}, closed out. The grantee contributed ${usd(contributed(g))}.`,
+                })}
+              >
+                {t("cn.resultBtn")}
+              </Link>
+            </div>
           )}
           {(g.status === "rejected" || g.status === "withdrawn") && (
             <div className="mt-3 text-sm">
@@ -460,7 +541,7 @@ function ProjectGrants({ user }: { user: string }) {
         folded: c.id === "closed",
         cards: c.items.map((g) => (
           <button key={g.id} type="button" aria-pressed={picked === g.id} onClick={() => setPicked(picked === g.id ? null : g.id)} className={`${cardClass(g.status === "open" && isStuck(g.since, today))} w-full ${picked === g.id ? "ring-2 ring-forest" : ""}`}>
-            <CardBody g={g} left={blockers(g, v.rules).length} today={today} />
+            <CardBody g={g} left={blockers(g, v.rules, v.procs[g.id]).length} today={today} />
           </button>
         )),
       }))
@@ -486,6 +567,7 @@ function ProjectGrants({ user }: { user: string }) {
         <section className="mt-4 rounded-2xl border border-line bg-surface p-4">
           <GrantForm
             start={EMPTY}
+            options={v?.options ?? { activities: [], lines: [], calendar: [] }}
             onCancel={() => setAdding(false)}
             onSave={(fields) =>
               act({ action: "add", fields }).then(() => {

@@ -16,7 +16,12 @@ import {
   type GrantRules,
   type StepSettings,
 } from "@/lib/grants";
+import { ourWork } from "@/lib/budget";
+import { grantProcs, lineLeft } from "@/lib/connections";
 import { logAudit } from "@/server/audit";
+import { loadBudget, loadWorkplan } from "@/server/plan-store";
+import { loadPlan } from "@/server/procurement-plan-store";
+import { loadProcurements } from "@/server/procurement-store";
 import { projectByCode } from "@/server/field-store";
 import { loadHr } from "@/server/hr-store";
 import { projectRules } from "@/server/policy-store";
@@ -50,16 +55,41 @@ async function mayChangeSteps(u: AppUser) {
   return ["management", "ceo"].some((t) => h[t]?.includes(u.id));
 }
 
-export async function loadGrants(code: string, u: AppUser) {
+/** What a grant connects to on this project: the workplan, the budget, the procurement calendar and its procurements. */
+async function connections(code: string) {
+  const [workplan, budget, calendar, procs] = await Promise.all([
+    loadWorkplan(code).catch(() => []),
+    loadBudget(code).catch(() => null),
+    loadPlan(code).catch(() => []),
+    loadProcurements(code).catch(() => []),
+  ]);
+  return { workplan: ourWork(workplan), lines: budget?.lines ?? [], calendar, procs };
+}
+
+/** The stored grants and steps, with nothing joined. */
+export async function loadGrantBook(code: string): Promise<Book> {
   const project = await projectByCode(code);
   const [row] = await db.select().from(s.projectState).where(and(eq(s.projectState.projectId, project.id), eq(s.projectState.key, KEY))).limit(1);
-  const book: Book = { ...EMPTY, ...((row?.data as Partial<Book>) ?? {}) };
-  const rules = await grantRules(code);
+  return { ...EMPTY, ...((row?.data as Partial<Book>) ?? {}) };
+}
+
+export async function loadGrants(code: string, u: AppUser) {
+  const book = await loadGrantBook(code);
+  const [rules, c] = await Promise.all([grantRules(code), connections(code)]);
   return {
     code,
     items: book.items,
     steps: book.steps,
     rules,
+    /** Each grant's procurements, with whether the goods have arrived. */
+    procs: Object.fromEntries(book.items.map((g) => [g.id, grantProcs(g, c.procs)])),
+    options: {
+      activities: c.workplan.map((w) => ({ code: w.code, title: w.title })),
+      // Left for a new grant: the line less what is spent and the open grants on it.
+      lines: c.lines.filter((l) => l.kind === "program").map((l) => ({ code: l.code, description: l.description, total: l.total, left: lineLeft(l, book.items) })),
+      // Approved procurement calendar items, by budget line: an in-kind grant's purchase starts from one.
+      calendar: c.calendar.filter((i) => i.budgetCode).map((i) => ({ key: i.key, budgetCode: i.budgetCode!, title: i.title, status: i.status, procurementKey: i.procurementKey ?? null })),
+    },
     can: { add: u.kind === "employee", approveCop: await mayApprove(u, "cop"), approveHo: await mayApprove(u, "ho"), steps: await mayChangeSteps(u) },
   };
 }
@@ -68,7 +98,10 @@ export type GrantsView = Awaited<ReturnType<typeof loadGrants>>;
 /** Applies one action. Returns the reason it was refused, or null. */
 export async function actOnGrant(code: string, a: GrantAction, u: AppUser): Promise<string | null> {
   const project = await projectByCode(code);
-  const rules = await grantRules(code);
+  const [rules, c] = await Promise.all([grantRules(code), connections(code)]);
+  // An activity and budget line, when given, must be this project's.
+  const fieldsWrong = (f: { activity: string | null; budgetLine: string | null }) =>
+    f.activity && !c.workplan.some((w) => w.code === f.activity) ? `${f.activity} is not in ROP's workplan for this project.` : f.budgetLine && !c.lines.some((l) => l.code === f.budgetLine) ? `${f.budgetLine} is not a line in this project's budget.` : null;
   const can = { cop: await mayApprove(u, "cop"), ho: await mayApprove(u, "ho"), steps: await mayChangeSteps(u) };
   const at = realToday();
   const ev = (what: string) => ({ at, by: u.id, byName: u.name, what });
@@ -97,6 +130,8 @@ export async function actOnGrant(code: string, a: GrantAction, u: AppUser): Prom
     }
     if (a.action === "add") {
       if (u.kind !== "employee") return "Grants are recorded by staff.";
+      const wrong = fieldsWrong(a.fields);
+      if (wrong) return wrong;
       const n = Math.max(0, ...book.items.map((g) => Number(g.id.slice(2)) || 0)) + 1;
       const first = GRANT_STEPS.find((x) => !book.steps.skip.includes(x) || REQUIRED_STEPS.includes(x))!;
       const g: Grant = { id: `G-${String(n).padStart(3, "0")}`, rev: 1, ...a.fields, step: first, since: at, status: "open", checks: {}, approval: null, contributions: [], procurements: [], closedWhy: null, history: [ev("Recorded")] };
@@ -113,6 +148,8 @@ export async function actOnGrant(code: string, a: GrantAction, u: AppUser): Prom
     switch (a.action) {
       case "edit": {
         if (!open) return "This grant is closed: reopen it to change it.";
+        const wrong = fieldsWrong(a.fields);
+        if (wrong) return wrong;
         // Once approved, the amounts are the ones approved: a change goes through an agreement modification.
         if (g.approval && (a.fields.value !== g.value || a.fields.investment !== g.investment || a.fields.type !== g.type)) return "The amounts and type were approved as they stand. A change needs an agreement modification, signed by the Chief of Party and the grantee.";
         return put({ ...g, ...a.fields, history: [...g.history, ev("Details changed")] }, "grant_edited", a.fields);
@@ -135,7 +172,7 @@ export async function actOnGrant(code: string, a: GrantAction, u: AppUser): Prom
       }
       case "advance": {
         if (!open) return "This grant is closed.";
-        const left = blockers(g, rules);
+        const left = blockers(g, rules, grantProcs(g, c.procs));
         if (left.length) return "Finish this step's checklist first.";
         const next = nextStepOf(g.step, book.steps);
         if (!next) return put({ ...g, status: "done", history: [...g.history, ev("Closed out")] }, "grant_closed_out");
@@ -147,6 +184,7 @@ export async function actOnGrant(code: string, a: GrantAction, u: AppUser): Prom
       }
       case "link": {
         if (g.type !== "inKind") return "Only in-kind grants buy through the project's procurement.";
+        if (!c.procs.some((p) => p.id === a.procurement)) return `${a.procurement} is not a procurement on this project.`;
         if (g.procurements.includes(a.procurement)) return null;
         return put({ ...g, procurements: [...g.procurements, a.procurement], history: [...g.history, ev(`Linked ${a.procurement}`)] }, "grant_linked", { procurement: a.procurement });
       }
