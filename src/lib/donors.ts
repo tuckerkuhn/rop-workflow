@@ -33,6 +33,7 @@ export const DONORS: Profile[] = [
       grantCapUsd: { value: 50000, source: "ACRP Project Document (RPA Annex A), p.35: market-shelter matching grants up to $50,000; the CBARD annex allowed $60,000" },
       grantCapCumulativeUsd: { value: 120000, source: `${OG}, §4.3 (ACRP's own annex not yet found)`, confidence: "to verify" },
       costSharePct: { value: 50, source: "ACRP Project Document: 50% for male-owned firms, 30% for female-owned" },
+      costShareWomenPct: { value: 30, source: "ACRP Project Document: 50% for male-owned firms, 30% for female-owned" },
       retentionYears: { value: 7, source: `${RPA}, Art. 12.3` },
       quarterlyReportDays: { value: 15, source: `${RPA}: quarterly progress reports 15 days after each quarter (article to cite)`, confidence: "to verify" },
       budgetRevisionPct: {

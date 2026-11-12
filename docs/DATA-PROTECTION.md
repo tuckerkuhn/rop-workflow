@@ -18,6 +18,7 @@ How ROP Workflow protects the people whose data it holds. The full review, with 
 | GPS | Shown only with "Sees participant names"; never on donor links |
 | Proof files | Visible to field staff and MEL on the project; fingerprint-checked; never on donor links except captioned photos |
 | Stories | Recorded consent first; first names and districts only |
+| Agribusiness grants | The business name, province and amounts only. Owners' names, passports and tazkiras are not kept in the app: the checklist records only that they were seen and the sanctions list checked, by whom and when. Nothing about a grant goes to the AI |
 | HR record | HR roles only; tamper-evident; "View as" never opens it |
 | Sign-in | Email code. With the Organization setting "People who see personal data sign in with a second step", administrators, HR role holders and anyone who sees names must also use an authenticator app |
 

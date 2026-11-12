@@ -13,6 +13,7 @@ import { smFa } from "./spend";
 import { haFa } from "./home-actions";
 import { osFa } from "./overspend";
 import { spFa } from "./sample";
+import { bdFa } from "./boards";
 import { pwFa } from "./plain-words";
 import { qcFa } from "./qpr-checks";
 import { ksFa } from "./kobo-suggest";
@@ -511,6 +512,7 @@ export const fa: Messages = {
   ...haFa,
   ...osFa,
   ...spFa,
+  ...bdFa,
   ...pwFa,
   ...qcFa,
   ...ksFa,

@@ -13,6 +13,7 @@ import { smEs } from "./spend";
 import { haEs } from "./home-actions";
 import { osEs } from "./overspend";
 import { spEs } from "./sample";
+import { bdEs } from "./boards";
 import { pwEs } from "./plain-words";
 import { qcEs } from "./qpr-checks";
 import { ksEs } from "./kobo-suggest";
@@ -535,6 +536,7 @@ export const es: Messages = {
   ...haEs,
   ...osEs,
   ...spEs,
+  ...bdEs,
   ...pwEs,
   ...qcEs,
   ...ksEs,
