@@ -7,7 +7,7 @@ import { flagsFor, gate, inProcUnit, plannedItems, suppliersOf, toKg, type DistI
 import type { Farmer } from "@/lib/field";
 import type { Procurement } from "@/lib/procurement";
 import type { Submission } from "@/lib/project";
-import { onProject, people, toAppUser } from "@/server/auth";
+import { demoMode, onProject, people, toAppUser } from "@/server/auth";
 import { projectByCode } from "@/server/field-store";
 import { HttpError } from "@/server/guard";
 import { loadProjectState, saveProjectState } from "@/server/project-state";
@@ -81,7 +81,9 @@ async function holders(code: string, role: "manager" | "extension" | "store") {
   const list = (await people()).filter((u) => u.field.includes(role) && onProject(u, code));
   const rows = await db.select().from(s.staff).where(eq(s.staff.active, true));
   const email = new Map(rows.filter((r) => r.personId && r.profile && r.email).map((r) => [toAppUser(r).id, r.email!]));
-  return list.map((u) => ({ user: u, email: email.get(u.id) ?? null }));
+  // Demo mode: the fictional people have no addresses, so NOTIFY_TEST_TO receives their mail for testing.
+  const test = demoMode() ? process.env.NOTIFY_TEST_TO?.trim() || null : null;
+  return list.map((u) => ({ user: u, email: test ?? email.get(u.id) ?? null }));
 }
 
 const qtyOf = (v: unknown) => {
