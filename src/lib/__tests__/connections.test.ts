@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { BudgetLine, WorkplanItem } from "@/lib/budget";
-import { grantProcurementIds, grantProcs, lineLeft, linksByActivity, received, resultHref, workplanOfProcurement } from "@/lib/connections";
+import { clip, grantProcurementIds, grantProcs, lineLeft, linksByActivity, received, resultHref, workplanOfProcurement } from "@/lib/connections";
 import { blockers, grantFields, type Grant, type GrantRules } from "@/lib/grants";
 import { steps, type Procurement } from "@/lib/procurement";
 
@@ -122,5 +122,10 @@ describe("the activity hub", () => {
     const q = new URL(href, "https://x").searchParams;
     expect(href.startsWith("/progress/results?")).toBe(true);
     expect([q.get("record"), q.get("indicator"), q.get("from"), q.get("value"), q.get("womenLed"), q.get("menLed")]).toEqual(["1", "IND-4", "G-001", "1", "1", null]);
+  });
+
+  it("shortens names at a word break, never mid-word", () => {
+    expect(clip("SANDBOX Arghandab Dried Fruit Co. (fictional)", 40)).toBe("SANDBOX Arghandab Dried Fruit Co…");
+    expect(clip("Short name", 40)).toBe("Short name");
   });
 });

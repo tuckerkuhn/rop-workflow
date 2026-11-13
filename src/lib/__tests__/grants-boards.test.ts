@@ -76,7 +76,7 @@ describe("grant steps", () => {
   it("closes out only once the grantee's contribution is proven", () => {
     const g = grant({ step: "implementation" });
     g.checks = ticked(g);
-    expect(blockers(g, RULES)).toEqual([{ key: "gr.block.contribution", vars: { have: 0, need: 20000 } }]);
+    expect(blockers(g, RULES)).toEqual([{ key: "gr.block.contribution", vars: { have: "0", need: "20,000" } }]);
     expect(blockers({ ...g, contributions: [{ amount: 20000, proof: "invoices", by: "u", byName: "U", at: "2026-11-03" }] }, RULES)).toEqual([]);
   });
 

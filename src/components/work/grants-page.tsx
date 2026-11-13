@@ -29,7 +29,7 @@ import {
   type GrantStep,
   type StepSettings,
 } from "@/lib/grants";
-import { activityHref, resultHref } from "@/lib/connections";
+import { activityHref, clip, resultHref } from "@/lib/connections";
 import type { MessageKey } from "@/lib/i18n";
 import type { GrantCard } from "@/server/boards-store";
 import type { GrantsView } from "@/server/grants-store";
@@ -109,7 +109,7 @@ function GrantForm({ start, options, editing, onSave, onCancel }: { start: Grant
           <option value="">{t("cn.f.none")}</option>
           {options.activities.map((a) => (
             <option key={a.code} value={a.code}>
-              {a.code} {a.title.slice(0, 70)}
+              {a.code} {clip(a.title, 70)}
             </option>
           ))}
         </select>
@@ -120,7 +120,7 @@ function GrantForm({ start, options, editing, onSave, onCancel }: { start: Grant
           <option value="">{t("cn.f.none")}</option>
           {options.lines.map((l) => (
             <option key={l.code} value={l.code}>
-              {l.code} {l.description.slice(0, 60)}
+              {l.code} {clip(l.description, 60)}
             </option>
           ))}
         </select>
@@ -225,12 +225,12 @@ function Detail({ g, v, act }: { g: Grant; v: GrantsView; act: (a: GrantAction) 
           <p className="mt-1 flex flex-wrap gap-x-3 text-xs">
             {g.activity ? (
               <Link href={activityHref(v.code, g.activity)} className="text-forest hover:underline">
-                {t("cn.forActivity", { code: g.activity, title: activity?.title.slice(0, 60) ?? "" })}
+                {t("cn.forActivity", { code: g.activity, title: activity ? clip(activity.title, 60) : "" })}
               </Link>
             ) : (
               <span className="text-muted">{t("cn.noActivity")}</span>
             )}
-            {g.budgetLine && <span className="text-muted">{t("cn.paidFrom", { line: `${g.budgetLine}${line ? ` ${line.description.slice(0, 50)}` : ""}` })}</span>}
+            {g.budgetLine && <span className="text-muted">{t("cn.paidFrom", { line: `${g.budgetLine}${line ? ` ${clip(line.description, 50)}` : ""}` })}</span>}
           </p>
         </div>
         {open && !editing && (
@@ -312,7 +312,7 @@ function Detail({ g, v, act }: { g: Grant; v: GrantsView; act: (a: GrantAction) 
                       </li>
                     ))}
                   </ul>
-                  {open && (
+                  {open && !(procs.length > 0 && !ready && items.some((i) => i.procurementKey && procs.some((p) => p.id === i.procurementKey))) && (
                     <p className="mt-2 text-xs">
                       {!g.budgetLine ? (
                         <span className="text-muted">{t("cn.start.noLine")}</span>

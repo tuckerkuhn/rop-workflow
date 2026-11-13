@@ -7,7 +7,7 @@ import { useT } from "@/components/app/i18n";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { Pill, TopBar, primaryBtn } from "@/components/workspace/ui";
 import { ACTIVITY_STATUSES, type ActivityAction, type ActivityStatus, type Timing } from "@/lib/activities";
-import { resultHref } from "@/lib/connections";
+import { clip, resultHref } from "@/lib/connections";
 import type { MessageKey } from "@/lib/i18n";
 import type { ActKey } from "@/lib/i18n/activities";
 import type { ActivitiesPageView as ActivitiesView } from "@/app/api/projects/[code]/activities/route";
@@ -59,7 +59,7 @@ function Linked({ r, v, project }: { r: Row; v: ActivitiesView; project: string 
           <span className={head}>{t("cn.act.procurements")}:</span>
           {procs.shown.map((x) => (
             <Link key={x.id} href={`/work?source=procurement&open=${encodeURIComponent(x.id)}&project=${p}`} className="text-forest hover:underline">
-              {x.id} {x.title.slice(0, 40)} · {x.stage}
+              {x.id} {clip(x.title, 40)} · {x.stage}
             </Link>
           ))}
           {procs.more > 0 && <span className="text-muted">{t("cn.act.more", { n: procs.more })}</span>}
@@ -70,7 +70,7 @@ function Linked({ r, v, project }: { r: Row; v: ActivitiesView; project: string 
           <span className={head}>{t("cn.act.grants")}:</span>
           {grants.shown.map((g) => (
             <Link key={g.id} href={`/work/grants?project=${p}&open=${g.id}`} className="text-forest hover:underline">
-              {g.id} {g.business.slice(0, 40)} · {g.status === "done" ? t("gr.doneTag") : t(`gr.step.${g.step}` as MessageKey)}
+              {g.id} {clip(g.business, 40)} · {g.status === "done" ? t("gr.doneTag") : t(`gr.step.${g.step}` as MessageKey)}
             </Link>
           ))}
           {grants.more > 0 && <span className="text-muted">{t("cn.act.more", { n: grants.more })}</span>}
@@ -80,7 +80,7 @@ function Linked({ r, v, project }: { r: Row; v: ActivitiesView; project: string 
         {updates.shown.length > 0 && <span className={head}>{t("cn.act.updates")}:</span>}
         {updates.shown.map((u) => (
           <span key={u.id} className="text-muted">
-            {date(u.date)} {u.title.slice(0, 60)}
+            {date(u.date)} {clip(u.title, 60)}
           </span>
         ))}
         {updates.more > 0 && <span className="text-muted">{t("cn.act.more", { n: updates.more })}</span>}

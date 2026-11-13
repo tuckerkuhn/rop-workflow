@@ -102,6 +102,14 @@ export function linksByActivity(a: {
   return { by, unlinked };
 }
 
+/** Shortens text for a one-line link: at a word break, with an ellipsis, never mid-word. */
+export function clip(s: string, n: number) {
+  if (s.length <= n) return s;
+  const cut = s.slice(0, n + 1);
+  const at = cut.lastIndexOf(" ");
+  return `${(at > n * 0.6 ? cut.slice(0, at) : s.slice(0, n)).replace(/[\s,.:;·(-]+$/, "")}…`;
+}
+
 /** The link that opens one activity on the activity page. */
 export const activityHref = (project: string, code: string) => `/work/activities?project=${encodeURIComponent(project)}&open=${encodeURIComponent(code)}`;
 

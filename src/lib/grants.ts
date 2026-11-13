@@ -130,7 +130,7 @@ export function blockers(g: Grant, r: GrantRules, procs?: GrantProc[]): { key: s
   if (g.step === "approval" && !g.approval) out.push({ key: approverFor(g, r) === "ho" ? "gr.block.ho" : "gr.block.cop" });
   if (g.step === "implementation") {
     const owed = Math.max(0, g.investment - g.value);
-    if (contributed(g) < owed) out.push({ key: "gr.block.contribution", vars: { have: Math.round(contributed(g)), need: Math.round(owed) } });
+    if (contributed(g) < owed) out.push({ key: "gr.block.contribution", vars: { have: Math.round(contributed(g)).toLocaleString("en-US"), need: Math.round(owed).toLocaleString("en-US") } });
     // In-kind: the equipment is bought by the project, so it closes out only once it has arrived.
     if (g.type === "inKind" && procs) {
       if (!procs.length) out.push({ key: "gr.block.noProc" });
