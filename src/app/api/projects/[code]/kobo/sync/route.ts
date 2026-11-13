@@ -12,7 +12,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
     const v = await requireViewer(req, { write: true, allow: (u) => canEditProject(u) || isMelOwner(u), why: "Your role cannot sync KoboToolbox." });
     if (v instanceof NextResponse) return v;
     return readable(async () => {
-      const counts = await sync(code);
+      const counts = await sync(code, new URL(req.url).origin);
       // Then every counted submission behind a results indicator becomes a result for MEL.
       return NextResponse.json({ ...counts, results: await koboToResults(code) });
     });

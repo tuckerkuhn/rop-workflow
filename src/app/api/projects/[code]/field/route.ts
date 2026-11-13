@@ -4,6 +4,8 @@ import { z } from "zod";
 import type { FieldItem } from "@/lib/field";
 import { requireViewer } from "@/server/auth";
 import { loadField, saveItems, saveStock } from "@/server/field-store";
+import { recordFromApp } from "@/server/distribution";
+import type { Farmer } from "@/lib/field";
 import { audit, handle, readBody } from "@/server/guard";
 
 /** Field activities state for a project. Names are included only for roles allowed to see them. */
@@ -63,10 +65,16 @@ export async function PUT(req: Request, { params }: { params: Promise<{ code: st
     if (v instanceof NextResponse) return v;
     const body = await readBody(req, bodySchema, "That record is not complete, so it was not saved. Reload the page and try again.");
     const items: FieldItem[] = body.items ?? [];
+    // A farmer leaving "distribute" means the input package was handed out: check the goods
+    // received note and quantities first (refused if not), then it goes to the manager to approve.
+    const before = new Map((await loadField(code, v.user)).items.map((i) => [i.id, i.step]));
+    const handedOut = items.filter((i): i is Farmer => i.kind === "farmer" && before.get(i.id) === "distribute" && i.step === "plant");
+    const recorded: string[] = [];
+    for (const f of handedOut) recorded.push(await recordFromApp(code, f, v.user, new URL(req.url).origin));
     if (items.length) await saveItems(code, items);
     if (body.stock) await saveStock(code, body.stock);
     if (items.length || body.stock)
       await audit(code, { entity: "field", entityId: crypto.randomUUID(), action: "field_saved", by: v.user.id, detail: { items: items.map((i) => ({ id: i.id, kind: i.kind, step: i.step })), ...(body.stock ? { stock: body.stock } : {}) } });
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, distributions: recorded });
   });
 }

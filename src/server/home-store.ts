@@ -3,6 +3,7 @@ import { reportDeadline } from "@/server/preflight";
 import { ourWork } from "@/lib/budget";
 import { eq } from "drizzle-orm";
 import { db, schema as s } from "@/db";
+import { listDistributions } from "@/server/distribution";
 import type { AppUser } from "@/lib/demo";
 import { quartersLabel } from "@/lib/monthly-review";
 import { STATUS_LABEL, type Status } from "@/lib/qpr";
@@ -209,6 +210,12 @@ export async function loadHome(code: string, u: AppUser) {
     if (toCheck) actions.push({ key: "accept", for: "mel", bucket: "approve", urgent: true, text: `Accept or query ${toCheck} ${toCheck === 1 ? "result" : "results"} waiting for you`, msg: { key: toCheck === 1 ? "ha.accept1" : "ha.accept", vars: { n: toCheck } }, href: "/progress/results" });
     // What blocks the report is listed from pre-flight itself (Home reads /next-report), so the
     // count here can never differ from the pre-flight screen's.
+  }
+  // Input distributions waiting for the project manager (server/distribution), oldest first.
+  if (u.field.includes("manager")) {
+    const waiting = (await listDistributions(code).catch(() => [])).filter((d) => d.status === "pending").reverse();
+    const n = waiting.length;
+    if (n) actions.push({ key: "distributions", for: lenses.includes("field") ? "field" : "lead", bucket: "approve", urgent: true, text: n === 1 ? `Approve the input distribution to ${waiting[0].farmerId}` : `Approve ${n} input distributions`, href: `/approve/${encodeURIComponent(code)}/${waiting[0].id}` });
   }
   const myQueried = allResults.filter((r) => r.status === "queried" && r.by === u.id);
   if (myQueried.length) actions.push({ key: "queried", for: "field", bucket: "fix", urgent: true, text: `Fix ${myQueried.length} ${myQueried.length === 1 ? "result" : "results"} MEL queried`, msg: { key: myQueried.length === 1 ? "ha.queried1" : "ha.queried", vars: { n: myQueried.length } }, href: "/progress/results" });

@@ -505,6 +505,7 @@ export const en = {
   "kobo.purpose": "What is this form for?",
   "kobo.purpose.readiness": "Readiness check: each submission waits in the review queue (Project > Verify) and counts only once accepted",
   "kobo.purpose.data": "Field data: submissions count straight toward targets",
+  "kobo.purpose.distribution": "Input distribution: each submission is checked against the goods received note and goes to the project manager to approve; it counts once approved",
   "kobo.q.map": "Which question counts toward each target?",
   "kobo.h.map": "Pick the form and question, then how to count it.",
   "kobo.noFormsChosen": "No forms are chosen for this project yet.",

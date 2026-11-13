@@ -68,7 +68,7 @@ export async function middleware(request: NextRequest) {
   };
   // Not configured yet: nobody can sign in, so only the sign-in page (which explains why) opens.
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-    return path.startsWith("/api/") || (OPEN.includes(path) || path.startsWith("/share/")) ? NextResponse.next() : toSignIn();
+    return path.startsWith("/api/") || (OPEN.includes(path) || path.startsWith("/share/") || path.startsWith("/approve/")) ? NextResponse.next() : toSignIn();
   }
 
   let response = NextResponse.next({ request });
@@ -86,7 +86,8 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user && !path.startsWith("/api/") && !(OPEN.includes(path) || path.startsWith("/share/"))) return toSignIn();
+  // Approval links from email open without signing in: the single-use token in the link is the check.
+  if (!user && !path.startsWith("/api/") && !(OPEN.includes(path) || path.startsWith("/share/") || path.startsWith("/approve/"))) return toSignIn();
   return response;
 }
 

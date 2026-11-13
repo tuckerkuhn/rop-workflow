@@ -58,8 +58,13 @@ export function useFieldData(code = "A-2027") {
 
   const save = useCallback(
     (body: { items?: FieldItem[]; stock?: Stock }) =>
-      call(`/api/projects/${code}/field`, user?.id, { method: "PUT", body: JSON.stringify(body) }).catch((e) => setError(`Not saved: ${e instanceof Error ? e.message : e}`)),
-    [code, user?.id],
+      call(`/api/projects/${code}/field`, user?.id, { method: "PUT", body: JSON.stringify(body) }).catch(async (e) => {
+        // Refused (e.g. inputs handed out before the goods received note is signed): show why and
+        // put the screen back to what is saved.
+        await reload();
+        setError(`Not saved: ${e instanceof Error ? e.message : e}`);
+      }),
+    [code, user?.id, reload],
   );
 
   /** Same shape as a state setter; only the items that changed are sent to the server. */

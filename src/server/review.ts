@@ -6,6 +6,7 @@ import { toSubmission } from "@/server/kobo";
 import { today } from "@/lib/clock";
 import { projectByCode } from "@/server/field-store";
 import { HttpError } from "@/server/guard";
+import { correctionTask } from "@/server/distribution";
 
 /**
  * MEL decisions on the review queue. Accepting a Kobo readiness check is what records the
@@ -24,6 +25,9 @@ export async function decide(code: string, evidenceId: string, status: "accepted
     // run and nobody accepts their own record unless solo mode allows it.
     if (row.source === "manual" && (row.form === "result" || row.form === "update")) throw new HttpError(409, "This is a recorded result. Accept or query it on the Results page, where its checks are shown.");
     if (row.reviewStatus !== "pending") return { already: row.reviewStatus, applied: null as string | null };
+    // Distributions are approved by the project manager, from the email link or Home, where the
+    // receipt and quantity checks run.
+    if (row.form === "distribution") throw new HttpError(409, "The project manager approves input distributions, from the email or from Home, where the goods received and quantity checks are shown.");
 
     await tx
       .update(s.evidence)
@@ -32,7 +36,7 @@ export async function decide(code: string, evidenceId: string, status: "accepted
 
     let applied: string | null = null;
     if (status === "accepted" && row.source === "kobo" && row.form === "readiness") {
-      applied = await applyReadiness(tx, row, user);
+      applied = await applyReadiness(tx, row, user, { ...project, code });
     }
 
     await tx.insert(s.auditLog).values({
@@ -49,7 +53,7 @@ export async function decide(code: string, evidenceId: string, status: "accepted
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /** Writes the readiness check and moves the farmer's step. Returns a one-line summary. */
-async function applyReadiness(tx: Tx, row: typeof s.evidence.$inferSelect, user: AppUser): Promise<string> {
+async function applyReadiness(tx: Tx, row: typeof s.evidence.$inferSelect, user: AppUser, project: { id: string; organizationId: string | null; code: string }): Promise<string> {
   const sub = toSubmission(row);
   const ready = sub.fields.result === "Yes";
   if (!sub.fields.result) return "No Yes/No result on the form; nothing recorded";
@@ -88,6 +92,8 @@ async function applyReadiness(tx: Tx, row: typeof s.evidence.$inferSelect, user:
       : { ...f, step: "correct", checks, deadline, correction: issue ?? "Not recorded on the form" };
     summary = ready ? "Readiness: Yes. Moved to distribution." : `Readiness: No. Correction opened, deadline ${deadline}.`;
     if (!ready && checkId) await tx.insert(s.corrections).values({ readinessCheckId: checkId, requiredAction: issue ?? "Not recorded on the form", deadline });
+    // The extension agent gets it as a task with the deadline, so it shows on their Home and in Tasks.
+    if (!ready) await correctionTask(tx, project, code, issue ?? "Not recorded on the form", deadline, row.id, user.id);
   } else if (from === "correct") {
     next = ready ? { ...f, step: "distribute", checks } : { ...f, step: "removal", checks };
     summary = ready ? "Recheck: Yes. Moved to distribution." : "Recheck: No. Sent to the project manager to remove or extend.";

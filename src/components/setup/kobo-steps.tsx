@@ -181,7 +181,7 @@ export function KoboForms({ code, onDone }: { code: string; onDone: () => void }
                 {FORM_PURPOSES.map((p) => (
                   <label key={p} className="flex items-start gap-2">
                     <input type="radio" name={`purpose-${f.uid}`} checked={(purpose[f.uid] ?? guessPurpose(f.name)) === p} onChange={() => setPurpose((x) => ({ ...x, [f.uid]: p }))} className="mt-1 accent-[var(--forest)]" />
-                    <span>{t(p === "readiness" ? "kobo.purpose.readiness" : "kobo.purpose.data")}</span>
+                    <span>{t(p === "readiness" ? "kobo.purpose.readiness" : p === "distribution" ? "kobo.purpose.distribution" : "kobo.purpose.data")}</span>
                   </label>
                 ))}
               </fieldset>

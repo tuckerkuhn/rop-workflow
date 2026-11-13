@@ -19,10 +19,10 @@ export type KoboConnectionInfo = {
 export type AutoSyncSecret = { path: string; username: string; password: string };
 
 /** What a linked form's submissions are for; see kobo_forms.purpose. */
-export const FORM_PURPOSES = ["readiness", "data"] as const;
+export const FORM_PURPOSES = ["readiness", "distribution", "data"] as const;
 export type FormPurpose = (typeof FORM_PURPOSES)[number];
 /** Setup's first guess for a form, from its name. People can change it. */
-export const guessPurpose = (name: string): FormPurpose => (/readiness/i.test(name) ? "readiness" : "data");
+export const guessPurpose = (name: string): FormPurpose => (/readiness/i.test(name) ? "readiness" : /distribut/i.test(name) ? "distribution" : "data");
 
 export type KoboFormInfo = { uid: string; name: string; submissions?: number; deployed?: boolean; purpose?: FormPurpose };
 

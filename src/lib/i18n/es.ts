@@ -435,6 +435,7 @@ export const es: Messages = {
   "kobo.purpose": "¿Para qué es este formulario?",
   "kobo.purpose.readiness": "Verificación de preparación: cada envío espera en la cola de revisión (Proyecto > Verificar) y cuenta solo cuando se acepta",
   "kobo.purpose.data": "Datos de campo: los envíos cuentan directamente para las metas",
+  "kobo.purpose.distribution": "Distribución de insumos: cada envío se verifica contra la nota de recepción de bienes y va al gerente del proyecto para aprobarlo; cuenta cuando se aprueba",
   "kobo.q.map": "¿Qué pregunta cuenta para cada meta?",
   "kobo.h.map": "Elige el formulario y la pregunta, y cómo contarla.",
   "kobo.noFormsChosen": "Aún no hay formularios elegidos para este proyecto.",

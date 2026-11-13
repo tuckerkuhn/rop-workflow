@@ -24,7 +24,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
     if (!(await isProjectForm(code, form))) return NextResponse.json({ ok: true, ignored: "form not linked to this project" });
 
     try {
-      const result = await sync(code);
+      const result = await sync(code, new URL(req.url).origin);
       return NextResponse.json({ ok: true, result, results: await koboToResults(code) });
     } catch (e) {
       // Not a 2xx, so KoboToolbox retries later.

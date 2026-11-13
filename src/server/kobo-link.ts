@@ -34,12 +34,12 @@ export async function credentials(code: string) {
   return { project, connection: c, server: c.serverUrl, token: decryptSecret(c.tokenEncrypted) };
 }
 
-const purposeOf = (v: string): FormPurpose => (v === "readiness" ? "readiness" : "data");
+const purposeOf = (v: string): FormPurpose => (v === "readiness" || v === "distribution" ? v : "data");
 
 /** The project's linked readiness forms, with the account to reach them. */
 export async function readinessForms(code: string) {
   const c = await credentials(code);
-  const forms = await db.select().from(s.koboForms).where(and(eq(s.koboForms.projectId, c.project.id), eq(s.koboForms.purpose, "readiness")));
+  const forms = await db.select().from(s.koboForms).where(and(eq(s.koboForms.projectId, c.project.id), inArray(s.koboForms.purpose, ["readiness", "distribution"])));
   if (!forms.length) throw new KoboError("No readiness form is linked to this project. In Setup, choose the form and mark it as the readiness check.");
   return { ...c, forms };
 }
@@ -201,7 +201,7 @@ const statusOf = (v: unknown) => ((v as { uid?: string } | null | undefined)?.ui
  * reviewer has decided one, later edits in KoboToolbox are written to the audit log instead of
  * changing what was decided.
  */
-export async function sync(code: string): Promise<SyncCounts> {
+export async function sync(code: string, origin?: string): Promise<SyncCounts> {
   const c = await credentials(code);
   const forms = await db.select().from(s.koboForms).where(eq(s.koboForms.projectId, c.project.id));
   const counts: SyncCounts = { fetched: 0, added: 0, already: 0, updated: 0, removed: 0, forms: forms.length };
@@ -209,7 +209,9 @@ export async function sync(code: string): Promise<SyncCounts> {
   const counted = new Set((await db.select({ q: s.koboMappings.question }).from(s.koboMappings).innerJoin(s.indicators, eq(s.indicators.id, s.koboMappings.indicatorId)).where(eq(s.indicators.projectId, c.project.id))).map((r) => r.q));
   const keep = (x: KoboSubmission) => protectSubmission(x, c.project.id, counted);
   for (const f of forms) {
-    const readiness = f.purpose === "readiness";
+    // Readiness and distribution forms are reviewed one by one before they count (MEL accepts a
+    // readiness check; the project manager approves a distribution). "readiness" below means that.
+    const readiness = f.purpose === "readiness" || f.purpose === "distribution";
     const ours = (x: object) => {
       const pc = (x as { project_code?: unknown }).project_code;
       return pc === undefined || pc === null || pc === "" || pc === code;
@@ -261,12 +263,12 @@ export async function sync(code: string): Promise<SyncCounts> {
     // Readiness checks carry who, which farmer and where, as the review queue shows them.
     const kind = (x: KoboSubmission) =>
       readiness
-        ? { form: "readiness", reviewStatus: "pending" as const, farmerCode: str(x.farmer), completedBy: str(x._submitted_by), location: str(x.location) }
+        ? { form: f.purpose, reviewStatus: "pending" as const, farmerCode: str(x.farmer), completedBy: str(x._submitted_by), location: str(x.location) }
         : { form: null, reviewStatus: "accepted" as const };
 
     await db.transaction(async (tx) => {
       // Stored before this form was marked readiness: never reviewed, so they go to the queue.
-      if (readiness) await tx.update(s.evidence).set({ form: "readiness", reviewStatus: "pending", updatedAt: now }).where(and(mine, isNull(s.evidence.form)));
+      if (readiness) await tx.update(s.evidence).set({ form: f.purpose, reviewStatus: "pending", updatedAt: now }).where(and(mine, isNull(s.evidence.form)));
 
       const rows = fresh.flatMap((n) => {
         const x = full.get(n);
@@ -313,6 +315,11 @@ export async function sync(code: string): Promise<SyncCounts> {
     counts.already += refs.length - fresh.length - edited.length;
   }
   await db.update(s.koboConnections).set({ lastSyncedAt: new Date() }).where(eq(s.koboConnections.id, c.connection.id));
+  // New distributions: checks, flags and the email to the project manager.
+  if (forms.some((f) => f.purpose === "distribution")) {
+    const { processPending } = await import("@/server/distribution");
+    await processPending(code, origin);
+  }
   return counts;
 }
 

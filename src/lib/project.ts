@@ -131,8 +131,8 @@ export type Submission = {
   id: string;
   /** Database row id, for decisions sent to the server. */
   dbId?: string;
-  /** "kobo" for real submissions, "sample" for the seeded demo records. */
-  source?: "kobo" | "sample";
+  /** "kobo" for real submissions, "app" for ones recorded in the app, "sample" for the seeded demo records. */
+  source?: "kobo" | "sample" | "app";
   orgId: string;
   form: SubmissionForm;
   farmerId: string;

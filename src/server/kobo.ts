@@ -78,8 +78,8 @@ export function toSubmission(row: EvidenceRow): Submission {
   const status = row.reviewStatus;
   const decided = { decidedBy: row.reviewedBy ?? undefined, decidedOn: row.reviewedAt ? row.reviewedAt.toISOString().slice(0, 10) : undefined, note: row.queryNote ?? undefined };
   if (row.source !== "kobo") {
-    // Seeded demo record: the payload is already a review-queue entry.
-    return { ...(p as unknown as Submission), dbId: row.id, source: "sample", status, ...decided };
+    // Seeded demo record, or one recorded in the app: the payload is already a review-queue entry.
+    return { ...(p as unknown as Submission), dbId: row.id, source: (p as { source?: string }).source === "app" ? "app" : "sample", status, ...decided };
   }
   const ready = str(p.ready);
   const fields: Record<string, string> = {
@@ -88,6 +88,11 @@ export function toSubmission(row: EvidenceRow): Submission {
     both_present: str(p.both_present) === "yes" ? "Yes" : str(p.both_present) === "no" ? "No" : "",
   };
   if (ready === "no") fields.issue = str(p.issue);
+  if (row.form === "distribution") {
+    // The Kobo distribution form (kobo/build_distribution_form.py). Sex comes from the farmer record.
+    for (const k of Object.keys(fields)) delete fields[k];
+    Object.assign(fields, { gender: str(p._rop_gender), seed_kg: str(p.seed_kg), npk_kg: str(p.npk_kg), signature: str(p.signed) === "yes" ? "Yes" : "Not confirmed" });
+  }
   return {
     id: `KB-${p._id ?? row.koboSubmissionUuid?.slice(0, 8)}`,
     dbId: row.id,
@@ -99,7 +104,7 @@ export function toSubmission(row: EvidenceRow): Submission {
     enumerator: row.completedBy ?? "kobo",
     gps: gpsOf(p.location),
     fields,
-    photo: !!str(p.photo),
+    photo: !!str(p.photo) || !!str(p.list_photo),
     status,
     ...decided,
   };
