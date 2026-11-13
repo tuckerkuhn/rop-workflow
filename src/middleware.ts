@@ -27,7 +27,34 @@ function tooManyWrites(request: NextRequest) {
   return w.n > WRITES_PER_MINUTE;
 }
 
+/**
+ * One shared password for the whole site (SITE_PASSWORD), asked for by the browser's own prompt.
+ * A gate against forwarded links, not a sign-in: it says nothing about who is visiting. Off when
+ * unset. Kobo's webhook has its own login, and donor share links are read-only by design.
+ */
+const KOBO_HOOK = /^\/api\/projects\/[^/]+\/kobo\/hook$/;
+function sitePasswordMissing(request: NextRequest) {
+  const password = process.env.SITE_PASSWORD;
+  const path = request.nextUrl.pathname;
+  if (!password || KOBO_HOOK.test(path) || path.startsWith("/share/")) return false;
+  const header = request.headers.get("authorization") ?? "";
+  if (!header.startsWith("Basic ")) return true;
+  let given = "";
+  try {
+    given = atob(header.slice(6)).split(":").slice(1).join(":");
+  } catch {
+    return true;
+  }
+  // Compare every character so the time taken does not hint at how much was right.
+  let diff = given.length ^ password.length;
+  for (let i = 0; i < password.length; i++) diff |= password.charCodeAt(i) ^ (given.charCodeAt(i) || 0);
+  return diff !== 0;
+}
+
 export async function middleware(request: NextRequest) {
+  if (sitePasswordMissing(request)) {
+    return new NextResponse("This site needs the Roots of Peace site password.", { status: 401, headers: { "WWW-Authenticate": 'Basic realm="Roots of Peace Workflow", charset="UTF-8"' } });
+  }
   if (tooManyWrites(request)) return NextResponse.json({ error: "Too many changes in a minute. Wait a moment and try again." }, { status: 429, headers: { "Retry-After": "60" } });
   if (process.env.DEMO_SIGN_IN === "1") return NextResponse.next();
   const path = request.nextUrl.pathname;
