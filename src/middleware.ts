@@ -30,13 +30,15 @@ function tooManyWrites(request: NextRequest) {
 /**
  * One shared password for the whole site (SITE_PASSWORD), asked for by the browser's own prompt.
  * A gate against forwarded links, not a sign-in: it says nothing about who is visiting. Off when
- * unset. Kobo's webhook has its own login, and donor share links are read-only by design.
+ * unset. Kobo's webhook has its own login, the nightly jobs (vercel.json) check CRON_SECRET,
+ * and donor share links are read-only by design.
  */
 const KOBO_HOOK = /^\/api\/projects\/[^/]+\/kobo\/hook$/;
+const NIGHTLY_JOBS = ["/api/hr/seal", "/api/notify/digest", "/api/kobo/reconcile"];
 function sitePasswordMissing(request: NextRequest) {
   const password = process.env.SITE_PASSWORD;
   const path = request.nextUrl.pathname;
-  if (!password || KOBO_HOOK.test(path) || path.startsWith("/share/")) return false;
+  if (!password || KOBO_HOOK.test(path) || NIGHTLY_JOBS.includes(path) || path.startsWith("/share/")) return false;
   const header = request.headers.get("authorization") ?? "";
   if (!header.startsWith("Basic ")) return true;
   let given = "";
