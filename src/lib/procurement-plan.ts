@@ -21,6 +21,8 @@ export type PlanItem = {
   activityCode: string | null;
   /** The workplan sub-activity it serves, when one matches. */
   workplanCode: string | null;
+  /** Who chose that row. Absent: the app matched it from the budget line's activity and wording, and nobody has confirmed it. */
+  workplanBy?: string | null;
   title: string;
   quantity: number | null;
   unit: string | null;
@@ -189,6 +191,8 @@ export const planActionSchema = z.discriminatedUnion("action", [
     leadDays: z.number().int().min(0).max(365).optional(),
     techLead: z.string().min(1).max(40).nullable().optional(),
     quantity: z.number().min(0).max(1e9).nullable().optional(),
+    /** The workplan row this purchase serves, chosen by a person (null to clear it). */
+    workplanCode: z.string().trim().min(1).max(40).nullable().optional(),
   }),
 ]);
 export type PlanAction = z.infer<typeof planActionSchema>;
@@ -198,7 +202,12 @@ export const isManager = (u: AppUser) => u.procurement.includes("procurement");
 export const procurementManager = (people: AppUser[]) => people.find((u) => isManager(u) && /manager/i.test(u.title)) ?? people.find(isManager);
 
 /** Applies an action, or returns why the person cannot. */
-export function applyAction(item: PlanItem, a: PlanAction, u: AppUser, people: AppUser[], today: string): PlanItem | string {
+/**
+ * `rows`: the workplan's row codes, when the project has a workplan. With one, a purchase must
+ * name the row it serves before the procurement manager can approve it, and only a real row can
+ * be named: what a purchase is for is chosen by a person, never left to a match on wording.
+ */
+export function applyAction(item: PlanItem, a: PlanAction, u: AppUser, people: AppUser[], today: string, rows?: string[]): PlanItem | string {
   const sign = (role: string, holder?: AppUser): Sign => ({ by: u.id, name: u.name, at: today, ...(holder && holder.id !== u.id ? { for: `${holder.name} (${role})` } : {}) });
   if (item.status === "started") return "This purchase has started; change it in Procurement.";
   switch (a.action) {
@@ -206,6 +215,7 @@ export function applyAction(item: PlanItem, a: PlanAction, u: AppUser, people: A
       if (item.status === "approved") return "Already approved.";
       if (a.as === "manager") {
         if (!isManager(u) && !u.admin) return "Only the procurement manager approves for procurement.";
+        if (rows?.length && !(item.workplanCode && rows.includes(item.workplanCode))) return "Choose the workplan row this purchase serves before approving it.";
         const holder = procurementManager(people);
         const approvals = { ...item.approvals, manager: sign("Procurement manager", isManager(u) ? u : holder) };
         return settle({ ...item, approvals, returnNote: null });
@@ -228,6 +238,7 @@ export function applyAction(item: PlanItem, a: PlanAction, u: AppUser, people: A
     case "edit": {
       if (!isManager(u) && u.id !== item.techLead && !u.admin) return "Only the procurement manager or the technical lead can change it.";
       if (item.status === "approved") return "Reopen it before changing it.";
+      if (a.workplanCode && rows && !rows.includes(a.workplanCode)) return "That row is not in this project's workplan. Choose one from the list.";
       const neededBy = a.neededBy ?? item.neededBy;
       const leadDays = a.leadDays ?? item.leadDays;
       // A change needs both approvals again.
@@ -240,6 +251,7 @@ export function applyAction(item: PlanItem, a: PlanAction, u: AppUser, people: A
         startBy: addDays(neededBy, -leadDays),
         techLead: a.techLead === undefined ? item.techLead : a.techLead,
         quantity: a.quantity === undefined ? item.quantity : a.quantity,
+        ...(a.workplanCode === undefined ? {} : { workplanCode: a.workplanCode, workplanBy: a.workplanCode ? u.id : null }),
         status: "draft",
         approvals: {},
         edited: true,

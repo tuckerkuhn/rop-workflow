@@ -49,7 +49,8 @@ export async function actOnPlan(code: string, key: string, action: PlanAction, u
     .where(and(eq(s.procurementPlan.projectId, project.id), eq(s.procurementPlan.planKey, key)))
     .limit(1);
   if (!row) return { error: "No such plan item.", status: 404 };
-  const out = applyAction(row.data as PlanItem, action, user, people, today());
+  const rows = (await loadWorkplan(code)).map((w) => w.code);
+  const out = applyAction(row.data as PlanItem, action, user, people, today(), rows);
   if (typeof out === "string") return { error: out, status: 403 };
   await db.transaction(async (tx) => {
     await write(tx, project.id, [out]);

@@ -220,6 +220,7 @@ export function ProcurementPlanPage() {
                   user={user}
                   line={plan.budget?.lines.find((l) => l.code === current.budgetCode) ?? null}
                   wp={plan.workplan.find((w) => w.code === current.workplanCode && (!w.org || /rop|roots/i.test(w.org))) ?? plan.workplan.find((w) => w.code === current.workplanCode) ?? null}
+                  workplan={plan.workplan}
                   money={money}
                   onAct={plan.act}
                   onClose={() => setOpen(null)}
@@ -268,10 +269,12 @@ function Detail({
   user,
   line,
   wp,
+  workplan,
   money,
   onAct,
   onClose,
 }: {
+  workplan: WorkplanItem[];
   item: PlanItem;
   user: AppUser;
   line: BudgetLine | null;
@@ -286,7 +289,10 @@ function Detail({
   const [returning, setReturning] = useState(false);
   const [why, setWhy] = useState("");
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState({ neededBy: item.neededBy, leadDays: item.leadDays, techLead: item.techLead ?? "" });
+  const [draft, setDraft] = useState({ neededBy: item.neededBy, leadDays: item.leadDays, techLead: item.techLead ?? "", workplanCode: item.workplanCode ?? "" });
+  // The rows to choose from: this purchase's own activity first, then the rest of the workplan.
+  const rows = [...workplan].sort((a, b) => Number(b.activityCode === item.activityCode) - Number(a.activityCode === item.activityCode) || a.code.localeCompare(b.code));
+  const needsRow = workplan.length > 0 && !workplan.some((w) => w.code === item.workplanCode);
 
   const lead = userById(item.techLead ?? "");
   const manager = procurementManager(users);
@@ -359,6 +365,8 @@ function Detail({
             </Row>
           )}
           <Row label="Workplan">
+            {needsRow && canChange && <span className="mb-1 block rounded-lg bg-ochre-soft px-2 py-1 text-xs">No workplan row chosen. Choose one with the Change button before this can be approved.</span>}
+            {wp && !item.workplanBy && item.status !== "started" && <span className="mb-1 block text-xs text-muted">Matched by the app from the budget line. Check it is the right row.</span>}
             {wp ? (
               <>
                 <span className="font-mono text-xs">{wp.code}</span> {wp.title}
@@ -430,6 +438,19 @@ function Detail({
               Lead time (days)
               <input type="number" min={0} max={365} value={draft.leadDays} onChange={(e) => setDraft({ ...draft, leadDays: Number(e.target.value) })} className="mt-1 w-full rounded-lg border border-line bg-paper px-2 py-2" />
             </label>
+            {workplan.length > 0 && (
+              <label className="text-sm sm:col-span-2">
+                Workplan row this purchase serves
+                <select value={draft.workplanCode} onChange={(e) => setDraft({ ...draft, workplanCode: e.target.value })} className="mt-1 w-full rounded-lg border border-line bg-paper px-2 py-2">
+                  <option value="">Not chosen</option>
+                  {rows.map((w) => (
+                    <option key={w.code} value={w.code}>
+                      {w.code} {w.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <label className="text-sm sm:col-span-2">
               Technical lead
               <select value={draft.techLead} onChange={(e) => setDraft({ ...draft, techLead: e.target.value })} className="mt-1 w-full rounded-lg border border-line bg-paper px-2 py-2">
@@ -513,7 +534,7 @@ function Detail({
           <button
             type="button"
             disabled={busy || !draft.neededBy}
-            onClick={() => void run({ action: "edit", neededBy: draft.neededBy, leadDays: draft.leadDays, techLead: draft.techLead || null })}
+            onClick={() => void run({ action: "edit", neededBy: draft.neededBy, leadDays: draft.leadDays, techLead: draft.techLead || null, ...(draft.workplanCode !== (item.workplanCode ?? "") ? { workplanCode: draft.workplanCode || null } : {}) })}
             className={primaryBtn}
           >
             Save changes
@@ -538,7 +559,7 @@ function Detail({
           {canChange && (
             <>
               <button type="button" onClick={() => setEditing(true)} className={quietBtn}>
-                Change dates or lead
+                Change dates, lead or workplan row
               </button>
               <button type="button" onClick={() => setReturning(true)} className={quietBtn}>
                 Send back
