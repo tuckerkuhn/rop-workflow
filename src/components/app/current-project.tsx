@@ -105,8 +105,10 @@ export function CurrentProjectProvider({ children }: { children: React.ReactNode
     }
   }, []);
 
-  // A project created in setup (linked or remembered) waits for the project list instead of showing another one first.
-  const waiting = savedId === null || (stored === null && !!user && ((!!askedId && !byId(askedId)) || !byId(savedId)));
+  // Every screen waits for the project list. Until it arrives nobody knows which projects are saved,
+  // so drawing early showed a signed-in person the wrong project, or the demo project's built-in
+  // sample screen and fixed date, for as long as the connection took.
+  const waiting = savedId === null || (stored === null && !!user);
   const project = byId(askedId) ?? byId(savedId) ?? projects[0];
 
   // The rules this project follows (its organization's policy combined with its donor's): procurement reads them.
@@ -137,7 +139,14 @@ export function CurrentProjectProvider({ children }: { children: React.ReactNode
     };
   }, [user, projectId, projectSaved]);
 
-  if (waiting) return null;
+  if (waiting)
+    return (
+      <div aria-busy="true" aria-label="Loading" className="mx-auto max-w-[1400px] space-y-4 px-4 py-10 sm:px-6">
+        <div className="h-10 w-64 animate-pulse rounded-xl bg-sunken" />
+        <div className="h-28 animate-pulse rounded-2xl bg-sunken" />
+        <div className="h-28 animate-pulse rounded-2xl bg-sunken" />
+      </div>
+    );
   return <Ctx.Provider value={{ project, setProject, projects, reload, rulesFor }}>{children}</Ctx.Provider>;
 }
 
