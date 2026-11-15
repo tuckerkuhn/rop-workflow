@@ -1,69 +1,10 @@
 import type { Farmer, FieldItem } from "@/lib/field";
-import type { FieldSetup } from "@/lib/package";
-import type { ResultInput } from "@/lib/results";
 
 /**
- * What field work leaves behind for reporting and for analysis, without anyone typing it twice:
- *
- * 1. A result, when a farmer passes a step the project counts (trained, plot ready, planted and
- *    visited): made from the step the field team already recorded, waiting for MEL like any other.
- * 2. One row per farmer with everything known about them, for a spreadsheet: who they are (by
- *    number, never by name), each step's date, how readiness went, what they received.
+ * What field work leaves behind for analysis: one row per farmer with everything known about
+ * them, for a spreadsheet. Who they are (by number, never by name), each step's date, how
+ * readiness went, what they received.
  */
-
-export type StepKind = "training" | "readiness" | "visit";
-
-export const STEP_KINDS: { id: StepKind; label: string; help: string }[] = [
-  { id: "training", label: "Farmers trained", help: "Counts a farmer when their training is recorded." },
-  { id: "readiness", label: "Farmers whose plot met the standard", help: "Counts a farmer when the readiness check, or the recheck after a correction, says yes." },
-  { id: "visit", label: "Planting visits", help: "Counts a visit when planting is recorded." },
-];
-
-/** The step a move completes, when it is one a project can count; null for every other move. */
-export function stepKind(from: string | undefined, to: string): StepKind | null {
-  if (from === "train" && to === "prepare") return "training";
-  if ((from === "verify" || from === "correct") && to === "distribute") return "readiness";
-  if (from === "plant" && to === "complete") return "visit";
-  return null;
-}
-
-const WHAT: Record<StepKind, (id: string, where: string) => string> = {
-  training: (id, where) => `Farmer ${id} completed the land preparation training${where}.`,
-  readiness: (id, where) => `Readiness check for farmer ${id}${where}: the plot meets the standard.`,
-  visit: (id, where) => `Planting visit to farmer ${id}${where}: planting recorded.`,
-};
-
-/** The key that ties a result to the farmer and step it came from, so the same step is never counted twice. */
-export const stepKey = (farmerId: string, kind: StepKind) => `${farmerId}:${kind}`;
-
-/** The result one completed step adds to its target: one farmer (or visit), on the day, by number and village only. */
-export function stepResult(f: Pick<Farmer, "id" | "gender" | "community">, kind: StepKind, date: string, by: string, target: string): ResultInput {
-  const where = f.community ? ` in ${f.community}` : "";
-  return {
-    indicator: target,
-    date,
-    value: 1,
-    ...(kind !== "visit" && (f.gender === "Female" || f.gender === "Male") ? { female: f.gender === "Female" ? 1 : 0, male: f.gender === "Male" ? 1 : 0 } : {}),
-    ...(f.community ? { district: f.community.slice(0, 80) } : {}),
-    note: `${WHAT[kind](f.id, where)} Recorded in Field activities by ${by}.`,
-    files: [],
-    noFile: "The proof is the farmer's record in Field activities, with its checks and dates.",
-    fieldStep: stepKey(f.id, kind),
-  };
-}
-
-/** The moves in a save that should each add a result, given the project's choices and what is already counted. */
-export function stepResults(a: { before: Map<string, string>; items: FieldItem[]; setup: Pick<FieldSetup, "targets"> | null; taken: Set<string>; countable: Set<string>; date: string; by: string }): ResultInput[] {
-  const out: ResultInput[] = [];
-  for (const i of a.items) {
-    if (i.kind !== "farmer") continue;
-    const kind = stepKind(a.before.get(i.id), i.step);
-    const target = kind ? a.setup?.targets?.[kind] : undefined;
-    if (!kind || !target || !a.countable.has(target) || a.taken.has(stepKey(i.id, kind))) continue;
-    out.push(stepResult(i, kind, a.date, a.by, target));
-  }
-  return out;
-}
 
 /* ---------- one row per farmer ---------- */
 

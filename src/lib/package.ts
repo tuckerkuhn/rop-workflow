@@ -37,12 +37,6 @@ export type FieldSetup = {
    * like any other result, so nobody types the same distribution in twice.
    */
   target?: string;
-  /**
-   * The targets other field steps count toward, by step (lib/field-data): a farmer trained, a
-   * plot that met the standard, a planting visit. Each is made into a result when the step is
-   * recorded in Field activities. Steps recorded in KoboCollect count through their form instead.
-   */
-  targets?: { training?: string; readiness?: string; visit?: string };
 };
 
 export const FIELD_SETUP_KEY = "field-setup";
@@ -58,7 +52,6 @@ export const DEMO_SETUP: FieldSetup = {
   crop: "Maize",
   windowEnd: "2027-03-20",
   target: "IND-2",
-  targets: { training: "IND-1", readiness: "IND-3", visit: "IND-4" },
 };
 
 /** One farmer's share of an item, in the item's unit. */
@@ -136,6 +129,5 @@ export function setupProblem(s: FieldSetup): string | null {
   }
   if (s.windowEnd && !/^\d{4}-\d{2}-\d{2}$/.test(s.windowEnd)) return "The planting window's last day must be a date.";
   if (s.target && !/^IND-\d+$/.test(s.target)) return "Choose the target from the list.";
-  if (Object.values(s.targets ?? {}).some((c) => c && !/^IND-\d+$/.test(c))) return "Choose each target from the list.";
   return null;
 }

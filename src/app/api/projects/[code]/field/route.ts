@@ -1,14 +1,9 @@
-import { and, eq } from "drizzle-orm";
-import { db, schema as s } from "@/db";
-import { realToday } from "@/lib/clock";
-import { stepResults } from "@/lib/field-data";
-import { addResults, loadResults } from "@/server/results-store";
 import { NextResponse } from "next/server";
 import { PHOTO_MAX_CHARS } from "@/lib/plans";
 import { z } from "zod";
 import type { FieldItem } from "@/lib/field";
 import { requireViewer } from "@/server/auth";
-import { loadField, projectByCode, saveItems, saveStock, setupFor } from "@/server/field-store";
+import { loadField, saveItems, saveStock } from "@/server/field-store";
 import { recordFromApp, stockFor } from "@/server/distribution";
 import { moveProblem, type Farmer } from "@/lib/field";
 import { audit, handle, readBody } from "@/server/guard";
@@ -84,24 +79,12 @@ export async function PUT(req: Request, { params }: { params: Promise<{ code: st
     const recorded: string[] = [];
     for (const f of handedOut) recorded.push(await recordFromApp(code, f, v.user, new URL(req.url).origin));
     if (items.length) await saveItems(code, items);
-    // A step the project counts (trained, plot ready, planted) becomes one result, made from what
-    // was just recorded and waiting for MEL like any other; never a second one for the same step.
-    const setup = items.length ? await setupFor(code) : null;
-    let counted = 0;
-    if (setup?.targets && Object.values(setup.targets).some(Boolean)) {
-      const project = await projectByCode(code);
-      const countable = new Set((await db.select({ code: s.indicators.code }).from(s.indicators).where(and(eq(s.indicators.projectId, project.id), eq(s.indicators.source, "results")))).map((i) => i.code));
-      const taken = new Set((await loadResults(code)).filter((r) => r.fieldStep && r.status !== "queried").map((r) => r.fieldStep!));
-      const made = stepResults({ before, items, setup, taken, countable, date: realToday(), by: v.user.name });
-      if (made.length) await addResults(code, made, v.user.id);
-      counted = made.length;
-    }
     // The store's stock follows the purchases when they supply the package; a typed figure is kept only when none does.
     const derived = await stockFor(code);
     const typed = body.stock && !derived ? body.stock : undefined;
     if (typed) await saveStock(code, typed);
     if (items.length || typed)
       await audit(code, { entity: "field", entityId: crypto.randomUUID(), action: "field_saved", by: v.user.id, detail: { items: items.map((i) => ({ id: i.id, kind: i.kind, step: i.step })), ...(typed ? { stock: typed } : {}), ...(recorded.length ? { distributions: recorded } : {}) } });
-    return NextResponse.json({ ok: true, distributions: recorded, counted, ...(derived ? { stock: derived.stock, stockNote: derived.block } : {}) });
+    return NextResponse.json({ ok: true, distributions: recorded, ...(derived ? { stock: derived.stock, stockNote: derived.block } : {}) });
   });
 }

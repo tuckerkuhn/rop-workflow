@@ -222,8 +222,6 @@ export function demoResults(subs: Submission[], proof: Record<string, ResultInpu
           note: WHAT[s.form](s),
           files: file ? [file] : [],
           ...(file ? {} : { noFile: "Sample record: no file is attached." }),
-          // Tied to the farmer's step, so recording that step in Field activities later does not count it again.
-          ...(s.form === "training" || s.form === "readiness" || (s.form === "visit" && s.fields.purpose === "Planting follow-up") ? { fieldStep: `${s.farmerId}:${s.form}` } : {}),
         },
         status: s.status,
         // Recorded by the field team and checked by MEL: a result the MEL officer recorded himself
