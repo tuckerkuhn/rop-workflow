@@ -347,6 +347,22 @@ export const fieldSteps: Record<string, SStep> = {
   },
 };
 
+/**
+ * Why a farmer's record may not be saved at the step it was sent with; null when it may. A farmer
+ * moves only along the workflow: from the step the database holds to one of that step's outcomes.
+ * The screen already works this way; the server checks it too, so an old tab left open cannot put
+ * a farmer back at a step they have passed (and have inputs handed out twice), and nothing can
+ * jump a farmer past the readiness check or the goods-received check.
+ */
+export function moveProblem(stored: string | undefined, item: Pick<FieldItem, "id" | "kind" | "step">): string | null {
+  if (item.kind !== "farmer") return null;
+  const name = (step: string) => fieldSteps[step]?.title ?? step;
+  if (stored === undefined) return item.step === "train" ? null : `${item.id} is not on this project's farmer list, so it cannot be saved at "${name(item.step)}". Add farmers from the farmer list.`;
+  if (stored === item.step) return null;
+  if (fieldSteps[stored]?.outcomes.some((o) => o.to === item.step)) return null;
+  return `${item.id} is at "${name(stored)}" and cannot be saved as "${name(item.step)}". Someone may have updated this farmer since you opened the page: reload and try again.`;
+}
+
 export const ownerOfItem = (i: FieldItem): FieldRole | null => {
   const s = fieldSteps[i.step];
   if (!s) return null;

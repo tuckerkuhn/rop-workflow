@@ -618,7 +618,7 @@ export function FieldWorkspace() {
             }}
           />
           <QueueFooter
-            note={mode === "demo" ? "Fictional records, saved in the project database. Resetting keeps real Kobo submissions." : "Saved in the project database."}
+            note={mode === "demo" && isDemo ? "Fictional records, saved in the project database. Resetting keeps real Kobo submissions." : "Saved in the project database."}
             onReset={
               mode === "demo" && isDemo
                 ? () => {

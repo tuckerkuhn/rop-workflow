@@ -199,3 +199,30 @@ describe("a project's own package (not the demo's maize)", () => {
     expect(convert(3, "kg", "cuttings")).toBeNull();
   });
 });
+
+describe("a record with nothing given", () => {
+  it("cannot be approved: it would count the farmer as supplied", () => {
+    const g = gateFor([], [proc({ ...got(400) })], {}, S);
+    expect(g.ok).toBe(false);
+    expect(g.block).toMatch(/No item is recorded as given/);
+  });
+});
+
+describe("applyFix: restoring an item recorded as not given", () => {
+  const planned = plannedItems();
+  const seedOnly = planned.filter((i) => i.key === "seed");
+  it("adds a planned item when the fix gives its amount", () => {
+    const out = applyFix(seedOnly, { qty: { npk: 50 } }, planned);
+    expect(out.map((i) => [i.key, i.qty])).toEqual([["seed", 10], ["npk", 50]]);
+  });
+  it("leaves an item out when its amount is zero, recorded or planned", () => {
+    expect(applyFix(seedOnly, { qty: { npk: 0 } }, planned).map((i) => i.key)).toEqual(["seed"]);
+    expect(applyFix(planned, { qty: { npk: 0 } }, planned).map((i) => i.key)).toEqual(["seed"]);
+  });
+  it("can rebuild a record that had nothing", () => {
+    expect(applyFix([], { qty: { seed: 8, npk: 50 } }, planned).map((i) => [i.key, i.qty])).toEqual([["seed", 8], ["npk", 50]]);
+  });
+  it("never adds an item that is not in the farmer's package", () => {
+    expect(applyFix(seedOnly, { qty: { diesel: 20 } }, planned).map((i) => i.key)).toEqual(["seed"]);
+  });
+});

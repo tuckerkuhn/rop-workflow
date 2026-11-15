@@ -5,7 +5,7 @@ import type { FieldItem } from "@/lib/field";
 import { requireViewer } from "@/server/auth";
 import { loadField, saveItems, saveStock } from "@/server/field-store";
 import { recordFromApp, stockFor } from "@/server/distribution";
-import type { Farmer } from "@/lib/field";
+import { moveProblem, type Farmer } from "@/lib/field";
 import { audit, handle, readBody } from "@/server/guard";
 
 /** Field activities state for a project. Names are included only for roles allowed to see them. */
@@ -72,6 +72,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ code: st
     // A farmer leaving "distribute" means the input package was handed out: check the goods
     // received note and quantities first (refused if not), then it goes to the manager to approve.
     const before = new Map((await loadField(code, v.user)).items.map((i) => [i.id, i.step]));
+    // A farmer moves only along the workflow, from the step the database holds (lib/field moveProblem).
+    const wrong = items.map((i) => moveProblem(before.get(i.id), i)).find(Boolean);
+    if (wrong) return NextResponse.json({ error: wrong }, { status: 409 });
     const handedOut = items.filter((i): i is Farmer => i.kind === "farmer" && before.get(i.id) === "distribute" && i.step === "plant");
     const recorded: string[] = [];
     for (const f of handedOut) recorded.push(await recordFromApp(code, f, v.user, new URL(req.url).origin));

@@ -71,6 +71,9 @@ export function gate(items: DistItem[], procs: Procurement[], given: Given, setu
     }
     return { ...base, received: got, ok: true, detail: `${it.item}: ${fmt(already + thisQty)} of ${fmt(got)} ${unit} received will have gone out (${done.map((p) => p.id).join(", ")}).` };
   });
+  // Nothing recorded as given is not a distribution: approving it would count the farmer as
+  // supplied and move them on to planting with nothing in hand.
+  if (!items.length) return { ok: false, lines, block: "No item is recorded as given. Send it back so the amounts can be corrected, or leave it unapproved if the farmer received nothing." };
   const bad = lines.filter((l) => !l.ok);
   return { ok: !bad.length, lines, block: bad.length ? bad.map((l) => l.detail).join(" ") : null };
 }
@@ -109,12 +112,15 @@ export function fixOwner(recordedBy: string | null, people: { id: string; field:
 /** What the person fixing a sent-back distribution may correct. Quantities are in the items' own units. */
 export type Fix = { qty?: Record<string, number>; signed?: boolean; photo?: boolean };
 
-/** The items after a fix: a corrected quantity replaces the recorded one; anything else stays. */
-export function applyFix(items: DistItem[], fix: Fix): DistItem[] {
-  return items.map((i) => {
-    const q = fix.qty?.[i.key];
-    return typeof q === "number" && Number.isFinite(q) && q >= 0 ? { ...i, qty: q } : i;
-  });
+/**
+ * The items after a fix: a corrected quantity replaces the recorded one and anything else stays.
+ * An item of the farmer's planned package that was recorded as not given can be added with its
+ * amount (a Kobo record that left it out by mistake); an amount of zero takes an item out.
+ */
+export function applyFix(items: DistItem[], fix: Fix, planned: DistItem[] = []): DistItem[] {
+  const valid = (q: unknown): q is number => typeof q === "number" && Number.isFinite(q) && q >= 0;
+  const added = planned.filter((p) => !items.some((i) => i.key === p.key) && valid(fix.qty?.[p.key])).map((p) => ({ ...p, qty: fix.qty![p.key] }));
+  return [...items.map((i) => (valid(fix.qty?.[i.key]) ? { ...i, qty: fix.qty![i.key] } : i)), ...added].filter((i) => i.qty > 0 || !(fix.qty && i.key in fix.qty));
 }
 
 /**

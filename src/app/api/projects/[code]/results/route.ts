@@ -10,7 +10,7 @@ import { isMelOwner, requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
 import { selfApproval, soloFor } from "@/server/solo";
 import { projectByCode } from "@/server/field-store";
-import { addProof, addResult, addResults, addUpdate, correctResult, editUpdate, loadResults, loadUpdates, removeUpdate, reopenResult, reviewResult, updateById } from "@/server/results-store";
+import { addProof, addResult, addResults, addUpdate, correctResult, editUpdate, koboMismatches, loadResults, loadUpdates, removeUpdate, reopenResult, reviewResult, updateById } from "@/server/results-store";
 import { activityOf } from "@/lib/qpr";
 import { loadQpr } from "@/server/qpr-store";
 import { sentWeekFor } from "@/lib/weekly";
@@ -37,6 +37,7 @@ async function view(code: string, u: AppUser) {
     .where(and(eq(s.indicators.projectId, project.id), eq(s.indicators.source, "results")))
     .orderBy(asc(s.indicators.position));
   const results = await loadResults(code);
+  const mismatched = await koboMismatches(project.id);
   const updates = await loadUpdates(code);
   const mel = isMelOwner(u);
   const solo = mel ? await soloFor(code).catch(() => ({ on: false, blocked: null })) : { on: false, blocked: null };
@@ -49,7 +50,7 @@ async function view(code: string, u: AppUser) {
     mayReview: mel,
     indicators: indicators.map((i) => ({ ...i, target: Number(i.target), fromKobo: kobo.has(i.code) })),
     // The data checker's flags, for MEL before accepting (and for the recorder to fix first).
-    results: results.map((r) => ({ ...r, canReview: mel && r.status === "pending" && r.by !== u.id, canSelfAccept: mel && solo.on && !solo.blocked && r.status === "pending" && r.by === u.id, canReopen: mel && r.status === "accepted" && r.by !== u.id, checks: dataChecks(r, results, indicators.find((i) => i.code === r.indicator)) })),
+    results: results.map((r) => ({ ...r, /** Its KoboToolbox submission was changed or deleted after it was accepted. */ koboChanged: mismatched.has(r.id), canReview: mel && r.status === "pending" && r.by !== u.id, canSelfAccept: mel && solo.on && !solo.blocked && r.status === "pending" && r.by === u.id, canReopen: mel && r.status === "accepted" && r.by !== u.id, checks: dataChecks(r, results, indicators.find((i) => i.code === r.indicator)) })),
     activities,
     updates,
     mayUpdate: mayRecord(u) || mel,

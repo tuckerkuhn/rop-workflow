@@ -1,8 +1,8 @@
 # Connections: where data passes between parts of the app
 
-Written 14 Nov 2026 from `main` at `1314fda`, plus the changes on branch `connections/field-to-finance`. Line numbers are for the branch.
+Written 14 Nov 2026 from `main` at `1314fda`; sections 2b to 5 were brought up to date the same evening against `4199486` (any project can run Field activities). Line numbers in the table are from the first pass and have since moved: search for the function name.
 
-**How this was checked.** The code was read, then run: the app was started against a local Postgres with all 25 migrations and the fictional A-2027 data, and the distribution chain was walked in a browser as Nadia, Bilal and Farida. Flows marked "read only" were read but not run. HR, payroll, timesheets, leave, expenses, onboarding, offboarding and opportunities were not reviewed: they do not carry project data from the field to the donor.
+**How this was checked.** The checks now live in the repo: `npm test` runs 381 tests, of which 26 in `src/server/__tests__/` run whole flows against an in-memory Postgres with the real migrations. First pass: the code was read, then run: the app was started against a local Postgres with all 25 migrations and the fictional A-2027 data, and the distribution chain was walked in a browser as Nadia, Bilal and Farida. Flows marked "read only" were read but not run. HR, payroll, timesheets, leave, expenses, onboarding, offboarding and opportunities were not reviewed: they do not carry project data from the field to the donor.
 
 Each flow is scored against six properties: entered once, checked at the handoff, owned, traceable, consistent, recoverable.
 
@@ -41,24 +41,37 @@ Each has a rule test in `src/lib/__tests__/` and was run end to end.
 10. **Home and sidebar.** Your next step and Waiting on you are first on Home. The sidebar lists a section's places only when that section is open, and Field activities and Procurement are places under Record.
 11. **Demo data.** Three first-lot purchases were added so the gate has real receipts: seed and the first fertilizer lot are received; the second fertilizer lot waits for Nadia's signature. Out of the box the storekeeper is refused with the reason, Nadia signs, and the distribution goes through.
 
+## 2b. Second pass, same evening
+
+The two commits made in Cursor after the first pass (per-project package, farmer list upload, the ACRP Kobo form) were run end to end on the demo project and on a made-up real project with three items in three units. They hold. What that run found and fixed:
+
+12. **A Kobo record with nothing given could be approved.** It counted the farmer as supplied and moved them on to planting. The gate now refuses it (`src/lib/distribution.ts`, `gate`), and whoever fixes a sent-back record can add back an item of the farmer's planned package (`applyFix`).
+13. **The server accepted any step for any farmer.** The workflow's order was enforced on the screen only. A farmer can now only stay at their step or move to one of its outcomes (`src/lib/field.ts`, `moveProblem`), so an old tab cannot put a farmer back at Distribute and nothing can jump past the readiness or goods-received checks.
+14. **The emailed link approved as "the first manager".** Each manager now gets their own link and the decision is recorded under whoever used it (`src/server/distribution.ts`, `tokenOpens`).
+15. **A change in Kobo after acceptance reached nobody.** MEL now has a Fix row on Home and a note on the result. Reopening it brings the new figure back to check at the next sync. If the edit is undone in Kobo the row clears itself (`src/server/results-store.ts`, `koboMismatches`).
+16. **Home's headline on a project with no targets** read "on schedule: 0 of 0 targets". It now says there are no targets yet.
+17. **A real project's field screen said its records were fictional.**
+18. **Database tests are in the repo** (`src/server/__tests__/`, one new development dependency: `@electric-sql/pglite`). They cannot reach Supabase.
+
 ## 3. Gaps still open, ranked
 
-1. **The real project has no field workflow.** Field activities exists only for A-2027: every database project is given procurement alone (`src/components/app/current-project.tsx:69`). ACRP cannot run a distribution today. This is the largest gap between the demo and use.
-2. **A change in Kobo after MEL accepted a result reaches nobody.** It is in the audit log only. It needs a row on MEL's Home and a way to say "keep it as accepted". Not built: the second half is a rule for you to set.
-3. **The email link approves as "the first manager emailed"** (`src/app/api/projects/[code]/distributions/[id]/route.ts:58`). With two managers the audit log can name the wrong one. One link per manager would fix it.
-4. **The store issue voucher is a tick box, not a number** (`src/lib/field.ts:258`). Nothing links the distribution to a voucher. This touches your open decision on voucher names.
-5. **A correction task goes to the first extension agent**, not the one who made the visit (`distribution.ts:495`). The app does not keep who sent a Kobo submission.
-6. **Dates on A-2027 disagree.** Field timelines are stamped with the demo date in 2027 while the server stamps 2026.
-7. **The bill book has no check against two people saving at once** (`bills-store.ts:19`). Field items are saved the same way (`src/server/field-store.ts:75`).
-8. **The distribution list at procurement close** needs "in stock" typed by hand to reconcile (`src/lib/procurement.ts:450`). It could now be worked out.
-9. **No database or screen tests in the repo.** The end-to-end checks for this branch were run from scratch scripts and are not in the repo. Adding them needs one development dependency.
+1. **A farmer list can start farmers at Distribute**, which skips the readiness check for them (`src/lib/farmer-import.ts`, `START_STEPS`). It is written to the audit log. Right for a project joining mid-season; a way round the gate otherwise. Your rule to set.
+2. **The store issue voucher is a tick box, not a number.** Nothing links a distribution to a voucher. This touches your open decision on voucher names.
+3. **A correction task goes to the first extension agent**, not the one who made the visit. The app does not keep who sent a Kobo submission.
+4. **Home asks the server about 22 things when it opens** (double that on a laptop in development), including HR, timesheets and the review queue for every role. It works; it will feel slow on a weak connection.
+5. **The bill book has no check against two people saving at once** (`src/server/bills-store.ts`). Field records are now protected for a farmer's step, but two people editing the same farmer's notes still overwrite each other.
+6. **The distribution list at procurement close** needs "in stock" typed by hand to reconcile. Left alone on purpose: a count by a person is the control.
+7. **No test drives the screens.** The browser walk-through (sign the received note, record, send back, fix, approve) was done by hand twice and is not in the repo.
+8. **A production build was not run** where this was written (the fonts could not be fetched). CI runs it on every push.
 
 ## 4. Yours to decide
 
-- The package-to-budget-line mapping is still hard-coded (seed 2.1, NPK 2.2) at `src/lib/distribution.ts:18`. The stock figure and the purchase a distribution is charged to both rest on it.
-- Names on the distribution voucher, and Dari and Pashto label checks. New screen text on this branch is English only.
+- Whether a farmer list may start farmers at Distribute (gap 1).
+- Names on the distribution voucher, and Dari and Pashto label checks. New screen text from both passes is English only.
 - Whether the demo should open with a refusal (as now) or with stock already in the store.
+
+The package-to-budget-line mapping is no longer hard-coded: each project sets it in Field activities.
 
 ## 5. Before real data
 
-Nothing on this branch touches secrets or adds a migration. The Supabase password and Kobo key still need resetting. The branch was never run against the shared database.
+Neither pass touches secrets or adds a migration. The Supabase password and Kobo key still need resetting. Nothing here was run against the shared database: every check ran on a throwaway database in memory.

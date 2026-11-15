@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import type { MappingMethod } from "@/lib/kobo-setup";
 import type { Correction, ResultInput, ResultRecord } from "@/lib/results";
@@ -6,7 +6,7 @@ import { logAudit } from "@/server/audit";
 import { attachmentBytes } from "@/server/kobo-client";
 import { credentials } from "@/server/kobo-link";
 import { saveFile } from "@/server/hr-files";
-import { loadResults } from "@/server/results-store";
+import { koboMismatches, loadResults } from "@/server/results-store";
 
 /**
  * KoboToolbox as the front door: every counted submission behind an indicator that takes results
@@ -88,14 +88,18 @@ const canon = (v: unknown): string =>
     : JSON.stringify(v ?? null);
 
 /**
- * Notes once that an accepted result no longer matches KoboToolbox. The sync runs after every
- * submission and every night, so without this the same change was written to the audit log again
+ * Notes that an accepted result no longer matches KoboToolbox, once per change. The sync runs after
+ * every submission and every night, so without this the same change was written to the audit log
  * on each run. Returns whether a new row was written.
  */
 async function flagOnce(projectId: string, resultId: string, detail: Record<string, unknown>) {
-  const rows = await db.select({ detail: s.auditLog.detail }).from(s.auditLog).where(and(eq(s.auditLog.projectId, projectId), eq(s.auditLog.entityId, resultId), eq(s.auditLog.action, "kobo_changed_after_acceptance")));
-  const want = { by: KOBO_BY, ...detail };
-  if (rows.some((r) => canon(r.detail ?? {}) === canon(want))) return false;
+  const [last] = await db
+    .select({ action: s.auditLog.action, detail: s.auditLog.detail })
+    .from(s.auditLog)
+    .where(and(eq(s.auditLog.projectId, projectId), eq(s.auditLog.entityId, resultId), inArray(s.auditLog.action, ["kobo_changed_after_acceptance", "kobo_matches_again"])))
+    .orderBy(desc(s.auditLog.at), desc(s.auditLog.sequence))
+    .limit(1);
+  if (last?.action === "kobo_changed_after_acceptance" && canon(last.detail ?? {}) === canon({ by: KOBO_BY, ...detail })) return false;
   await logAudit(db, projectId, { entity: "result", entityId: resultId, action: "kobo_changed_after_acceptance", by: KOBO_BY, detail });
   return true;
 }
@@ -120,6 +124,7 @@ export async function koboToResults(code: string): Promise<KoboResultCounts> {
   const approvedOnly = c.connection.countOnly === "approved";
   const forms = new Map((await db.select().from(s.koboForms).where(eq(s.koboForms.projectId, project.id))).map((f) => [f.assetUid, f.name]));
   const existing = (await loadResults(code)).filter((r) => r.kobo);
+  const mismatched = await koboMismatches(project.id);
 
   for (const { m, ind } of maps) {
     const rows = await db
@@ -172,7 +177,11 @@ export async function koboToResults(code: string): Promise<KoboResultCounts> {
 
       if (mine) {
         const changed = mine.value !== value || mine.date !== date || (mine.province ?? "") !== (province ?? "") || (mine.district ?? "") !== (district ?? "");
-        if (!changed) continue;
+        if (!changed) {
+          // It had been noted as changed after acceptance and now agrees again (the edit was undone in KoboToolbox).
+          if (mine.status === "accepted" && mismatched.delete(mine.id)) await logAudit(db, project.id, { entity: "result", entityId: mine.id, action: "kobo_matches_again", by: KOBO_BY, detail: { indicator: ind.code, submission: sub.num, value, date } });
+          continue;
+        }
         if (mine.status === "accepted") {
           await flagOnce(project.id, mine.id, { indicator: ind.code, submission: sub.num, was: { value: mine.value, date: mine.date }, now: { value, date } });
           out.flagged++;

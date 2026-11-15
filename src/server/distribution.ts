@@ -44,8 +44,13 @@ export type DistMeta = {
   recordedBy: string;
   gate: Gate;
   flags: Flag[];
-  /** sha256 of the approval link's token; cleared once used. */
+  /** Older records: sha256 of the one link every manager shared. Cleared once used. */
   hash: string | null;
+  /**
+   * sha256 of each manager's own link, by person id, so a decision from an emailed link is recorded
+   * under the manager who used it. All are cleared once the distribution is decided.
+   */
+  hashes?: Record<string, string>;
   expires: string;
   /** Whether the signed list was photographed and the recipient's signature confirmed, once a fix has said so. */
   photo?: boolean;
@@ -220,12 +225,13 @@ export async function processPending(code: string, origin = appOrigin()) {
 
 /* ---------- 2–3. checks stored, manager told ---------- */
 
-async function prepare(code: string, project: Project, id: string, m: Omit<DistMeta, "hash" | "expires">, origin: string, again?: { by: string; note: string }) {
-  const token = randomBytes(24).toString("base64url");
-  const meta: DistMeta = { ...m, hash: sha(token), expires: new Date(Date.now() + LINK_DAYS * 864e5).toISOString() };
-  const link = `${origin}/approve/${encodeURIComponent(code)}/${id}?t=${token}`;
+async function prepare(code: string, project: Project, id: string, m: Omit<DistMeta, "hash" | "expires" | "hashes">, origin: string, again?: { by: string; note: string }) {
   const managers = await holders(code, "manager");
   const to = managers.filter((x) => x.email);
+  // One link per manager: whoever uses theirs is the one the decision is recorded under.
+  const tokens = new Map(to.map((x) => [x.user.id, randomBytes(24).toString("base64url")]));
+  const meta: DistMeta = { ...m, hash: null, hashes: Object.fromEntries([...tokens].map(([who, t]) => [who, sha(t)])), expires: new Date(Date.now() + LINK_DAYS * 864e5).toISOString() };
+  const linkFor = (who: string) => `${origin}/approve/${encodeURIComponent(code)}/${id}?t=${tokens.get(who)}`;
   let emailed = false;
   let why: string | undefined;
   if (!to.length) why = managers.length ? "No email address for the project manager in the staff list" : "No project manager on this project";
@@ -233,7 +239,7 @@ async function prepare(code: string, project: Project, id: string, m: Omit<DistM
   else {
     try {
       const { send } = await import("@/server/notify-store");
-      for (const x of to) await send(x.email!, approvalEmail(x.user.name, code, meta, link, again));
+      for (const x of to) await send(x.email!, approvalEmail(x.user.name, code, meta, linkFor(x.user.id), again));
       emailed = true;
     } catch (e) {
       why = e instanceof Error ? e.message : String(e);
@@ -283,6 +289,8 @@ export type DistView = {
   notified: DistMeta["notified"] | null;
   decided: DistMeta["decided"] | null;
   history: NonNullable<DistMeta["history"]>;
+  /** The farmer's package as planned, so a fix can add an item that was recorded as not given. */
+  planned: DistItem[];
 };
 
 const photoOf = (r: { source: string; payload: unknown }) => {
@@ -305,6 +313,7 @@ export async function listDistributions(code: string): Promise<DistView[]> {
   // What approved distributions have taken so far, for the checks of the ones still waiting.
   const approved: Given = {};
   for (const r of rows) if (r.reviewStatus === "accepted" && !r.koboRemovedAt) addGiven(approved, st.byId[r.id]?.items ?? itemsFor(setup), setup);
+  const hectares = new Map((await db.select({ key: s.fieldItems.itemKey, data: s.fieldItems.data }).from(s.fieldItems).where(eq(s.fieldItems.projectId, project.id))).map((r) => [r.key, (r.data as { hectares?: number }).hectares]));
   return rows
     .filter((r) => st.byId[r.id] && !r.koboRemovedAt)
     .map((r) => {
@@ -328,19 +337,29 @@ export async function listDistributions(code: string): Promise<DistView[]> {
         notified: m.notified ?? null,
         decided: m.decided ?? null,
         history: m.history ?? [],
+        planned: itemsFor(setup, hectares.get(r.farmerCode ?? "")),
       };
     })
     .sort((a, b) => (a.status === b.status ? b.date.localeCompare(a.date) : a.status === "pending" ? -1 : 1));
 }
 
-/** Whether a link's token opens this distribution. */
-export async function tokenOpens(code: string, id: string, token: string) {
+/**
+ * Whether a link's token opens this distribution, and whose link it is: `{ who }` is the manager it
+ * was emailed to (null for an older record, whose managers shared one link). Null when it does not
+ * open it: wrong, used or expired.
+ */
+export async function tokenOpens(code: string, id: string, token: string): Promise<{ who: string | null } | null> {
   const project = await projectByCode(code);
   const m = (await loadState(project.id)).byId[id];
-  if (!m?.hash || !token || m.expires < new Date().toISOString()) return false;
-  const a = Buffer.from(m.hash, "hex");
-  const b = Buffer.from(sha(token), "hex");
-  return a.length === b.length && timingSafeEqual(a, b);
+  if (!m || !token || m.expires < new Date().toISOString()) return null;
+  const given = Buffer.from(sha(token), "hex");
+  const same = (hex: string) => {
+    const a = Buffer.from(hex, "hex");
+    return a.length === given.length && timingSafeEqual(a, given);
+  };
+  const mine = Object.entries(m.hashes ?? {}).find(([, h]) => same(h));
+  if (mine) return { who: mine[0] };
+  return m.hash && same(m.hash) ? { who: null } : null;
 }
 
 /* ---------- 4. approved or sent back ---------- */
@@ -458,7 +477,7 @@ export async function decideDistribution(code: string, id: string, decision: "ap
       detail: { by: by.id, farmer: row.farmerCode, items: m.items, procurements: changed, flags: m.flags.map((f) => f.id), note: note ?? null, ...(decision === "sent_back" ? { to: fixer } : {}) },
     });
     // The link is used up and the decision kept with the record, in the same step as the decision itself.
-    await putMeta(tx, project.id, id, { ...m, gate: g, hash: null, decided: { by: by.id, byName: by.name, at: now.toISOString(), decision, ...(note ? { note: note.trim() } : {}) } });
+    await putMeta(tx, project.id, id, { ...m, gate: g, hash: null, hashes: {}, decided: { by: by.id, byName: by.name, at: now.toISOString(), decision, ...(note ? { note: note.trim() } : {}) } });
   });
   return { decision, procurements: changed, fixer };
 }
@@ -490,14 +509,15 @@ export async function resubmitDistribution(code: string, id: string, by: { id: s
     return r;
   });
   if (!row || !m) throw new HttpError(409, "Only a distribution the project manager sent back can be fixed and sent again. Reload to see where it stands.");
-  const items = applyFix(m.items, fix);
+  const farmer = row.farmerCode ? await farmerOf(project.id, row.farmerCode) : null;
+  const planned = itemsFor(ctx.setup, farmer?.hectares);
+  const items = applyFix(m.items, fix, planned);
   const photo = fix.photo ?? m.photo ?? photoOf(row);
   const signed = fix.signed ?? m.signed ?? signedOf(row);
-  const farmer = row.farmerCode ? await farmerOf(project.id, row.farmerCode) : null;
-  const flags = flagsFor({ farmerId: row.farmerCode ?? m.farmerId, items, photo, signed, step: row.source === "kobo" ? (farmer?.step ?? "unknown") : null }, ctx.others, itemsFor(ctx.setup, farmer?.hectares));
+  const flags = flagsFor({ farmerId: row.farmerCode ?? m.farmerId, items, photo, signed, step: row.source === "kobo" ? (farmer?.step ?? "unknown") : null }, ctx.others, planned);
   const history = [...(m.history ?? []), ...(m.decided ? [{ sentBack: m.decided, fixed: { by: by.id, byName: by.name, at: now.toISOString(), note: note.trim() } }] : [])];
-  const { decided: _decided, hash: _hash, expires: _expires, notified: _notified, ...kept } = m;
-  void [_decided, _hash, _expires, _notified];
+  const { decided: _decided, hash: _hash, hashes: _hashes, expires: _expires, notified: _notified, ...kept } = m;
+  void [_decided, _hash, _hashes, _expires, _notified];
   await prepare(code, project, id, { ...kept, items, photo, signed, gate: gate(items, ctx.procs, ctx.given, ctx.setup), flags, history }, origin, { by: by.name, note: note.trim() });
   return { ok: true as const };
 }

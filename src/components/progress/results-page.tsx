@@ -725,6 +725,7 @@ function ResultCard({ r, ind, act, mayAddProof, me }: { r: Res; ind?: Ind; act: 
       <p className="mt-2 text-xs text-muted">
         {r.kobo ? `From KoboToolbox${r.kobo.id ? `, submission ${r.kobo.id}` : ""}` : `Recorded by ${r.by}`}
         {r.reviewedBy && ` · ${r.status === "accepted" ? "accepted" : "queried"} by ${r.reviewedBy}`}
+        {r.koboChanged && <span className="font-semibold text-clay"> · Changed in KoboToolbox since it was accepted: reopen it to check the new figure</span>}
         {/* A field's exact location is personal data: only for people who see participants' names. */}
         {r.gps && user?.pii && (
           <>

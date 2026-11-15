@@ -4,6 +4,7 @@ import { ourWork } from "@/lib/budget";
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { fieldRows, taskRow } from "@/lib/home-buckets";
 import type { FieldItem } from "@/lib/field";
+import { koboMismatches } from "@/server/results-store";
 import { db, schema as s } from "@/db";
 import { listDistributions } from "@/server/distribution";
 import type { AppUser } from "@/lib/demo";
@@ -220,6 +221,11 @@ export async function loadHome(code: string, u: AppUser) {
     if (n) actions.push({ key: "distributions", for: lenses.includes("field") ? "field" : "lead", bucket: "approve", urgent: true, text: n === 1 ? `Approve the input distribution to ${waiting[0].farmerId}` : `Approve ${n} input distributions`, href: `/approve/${encodeURIComponent(code)}/${waiting[0].id}` });
   }
   const myQueried = allResults.filter((r) => r.status === "queried" && r.by === u.id);
+  // Accepted results whose KoboToolbox submission was changed or deleted afterwards: MEL reopens them.
+  if (lenses.includes("mel")) {
+    const n = (await koboMismatches(project.id)).size;
+    if (n) actions.push({ key: "kobo-mismatch", for: "mel", bucket: "fix", urgent: true, text: `${n} accepted ${n === 1 ? "result no longer matches" : "results no longer match"} KoboToolbox: reopen ${n === 1 ? "it" : "them"} to check the new figure`, href: `/progress/results?project=${encodeURIComponent(code)}` });
+  }
   if (myQueried.length) actions.push({ key: "queried", for: "field", bucket: "fix", urgent: true, text: `Fix ${myQueried.length} ${myQueried.length === 1 ? "result" : "results"} MEL queried`, msg: { key: myQueried.length === 1 ? "ha.queried1" : "ha.queried", vars: { n: myQueried.length } }, href: "/progress/results" });
   if (lenses.includes("finance")) {
     const wanted = prevMonth(month);

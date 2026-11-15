@@ -15,6 +15,9 @@ import type { DistView } from "@/server/distribution";
  * corrects the quantities, confirms the signature and photo, says what they fixed and sends it
  * again. It then waits for the manager with fresh checks.
  */
+/** What a fix may correct: the items recorded, plus any of the planned package recorded as not given. */
+const fixable = (d: DistView) => [...d.items, ...d.planned.filter((p) => !d.items.some((i) => i.key === p.key))];
+
 export function ApprovePanel({ code, id, token }: { code: string; id: string; token: string }) {
   const { user, ready } = useSession();
   const [d, setD] = useState<DistView | null>(null);
@@ -38,7 +41,8 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
     setD(dist);
     setCanDecide(body.canDecide);
     setCanFix(!!body.canFix);
-    setFix({ qty: Object.fromEntries(dist.items.map((i) => [i.key, String(i.qty)])), signed: dist.signed, photo: dist.photo });
+    // Every item of the farmer's planned package can be corrected, including one recorded as not given (0).
+    setFix({ qty: Object.fromEntries(fixable(dist).map((i) => [i.key, String(dist.items.find((x) => x.key === i.key)?.qty ?? 0)])), signed: dist.signed, photo: dist.photo });
     setError("");
   }, [url, token, user?.id]);
 
@@ -102,6 +106,7 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
                   {i.qty} {i.unit} {i.item}
                 </li>
               ))}
+              {!d.items.length && <li className="text-clay">Nothing is recorded as given.</li>}
             </ul>
             <p className="mt-2 text-sm text-muted">
               Recipient: {d.gender ?? "sex not recorded"} · Signature or thumbprint: {d.signed ? "confirmed" : "not confirmed"} · Photo of the signed list: {d.photo ? "attached" : "missing"}
@@ -117,7 +122,7 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
                 </li>
               ))}
             </ul>
-            {!d.gate.ok && pending && <p className="mt-2 text-sm text-clay">This can&apos;t be approved until the goods received note is signed and the quantity is within what was received.</p>}
+            {!d.gate.ok && pending && <p className="mt-2 text-sm text-clay">{d.items.length ? "This can't be approved until the goods received note is signed and the quantity is within what was received." : d.gate.block}</p>}
           </section>
 
           <section className="mt-4 rounded-xl border border-line bg-surface px-4 py-3">
@@ -156,7 +161,7 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
               </h2>
               <p className="mt-1 text-sm text-muted">Correct what was recorded. The project manager is told at once and checks it again.</p>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                {d.items.map((i) => (
+                {fixable(d).map((i) => (
                   <label key={i.key} className="block text-sm font-medium">
                     {i.item} handed out ({i.unit})
                     <input type="number" min={0} step="any" inputMode="decimal" value={fix.qty[i.key] ?? ""} onChange={(e) => setFix((f) => ({ ...f, qty: { ...f.qty, [i.key]: e.target.value } }))} className={field} />

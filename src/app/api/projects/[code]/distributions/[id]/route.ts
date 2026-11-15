@@ -51,10 +51,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
       return NextResponse.json({ ok: true, decision: "resubmit", distribution: await view(code, id) });
     }
     let by: { id: string; name: string };
-    if (b.token && (await tokenOpens(code, id, b.token))) {
-      // The link was emailed to the project manager(s); it acts for the first of them.
+    const opened = b.token ? await tokenOpens(code, id, b.token) : null;
+    if (opened) {
+      // Each manager is emailed their own link, so the decision is recorded under the one who used
+      // it. An older record had one link for all its managers: that acts for the first of them.
       const d = await view(code, id);
-      const who = (await people()).find((u) => d.notified?.to.includes(u.id));
+      const who = (await people()).find((u) => (opened.who ? u.id === opened.who : d.notified?.to.includes(u.id)));
       by = who ? { id: who.id, name: who.name } : { id: "manager-link", name: "Project manager (email link)" };
     } else {
       const v = await requireViewer(req, { write: true, allow: (u) => mayApprove(u, code), why: "Only the project manager approves input distributions." });

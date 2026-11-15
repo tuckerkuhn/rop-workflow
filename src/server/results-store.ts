@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { proofCount, quarterOf, type Correction, type ResultInput, type ResultRecord, type UpdateInput, type UpdateRecord } from "@/lib/results";
 import type { z } from "zod";
@@ -32,6 +32,30 @@ export async function loadResults(code: string): Promise<ResultRecord[]> {
     .from(s.evidence)
     .where(and(eq(s.evidence.projectId, project.id), eq(s.evidence.source, "manual"), eq(s.evidence.form, "result")));
   return rows.map(toRecord).sort((a, b) => b.date.localeCompare(a.date));
+}
+
+/**
+ * Accepted results that no longer match KoboToolbox: the submission behind them was changed or
+ * deleted after MEL accepted the figure. The sync notes each such change in the audit log, and
+ * notes it again when the two agree once more; a result is listed while its latest note is a
+ * change made after it was last accepted. MEL reopens it and the next sync brings the new figure
+ * back to check. Until then the accepted figure stands and the report differs from its source.
+ */
+export async function koboMismatches(projectId: string): Promise<Set<string>> {
+  const notes = await db
+    .select({ id: s.auditLog.entityId, action: s.auditLog.action, at: s.auditLog.at })
+    .from(s.auditLog)
+    .where(and(eq(s.auditLog.projectId, projectId), inArray(s.auditLog.action, ["kobo_changed_after_acceptance", "kobo_matches_again"])))
+    .orderBy(asc(s.auditLog.at), asc(s.auditLog.sequence));
+  const latest = new Map(notes.map((n) => [n.id, n]));
+  const changed = [...latest.values()].filter((n) => n.action === "kobo_changed_after_acceptance");
+  if (!changed.length) return new Set();
+  const rows = await db
+    .select({ id: s.evidence.id, reviewedAt: s.evidence.reviewedAt })
+    .from(s.evidence)
+    .where(and(eq(s.evidence.projectId, projectId), eq(s.evidence.form, "result"), eq(s.evidence.reviewStatus, "accepted"), inArray(s.evidence.id, changed.map((n) => n.id))));
+  const acceptedAt = new Map(rows.map((r) => [r.id, r.reviewedAt]));
+  return new Set(changed.filter((n) => acceptedAt.has(n.id) && (!acceptedAt.get(n.id) || n.at > acceptedAt.get(n.id)!)).map((n) => n.id));
 }
 
 /** Many results at once, in one transaction: all are saved or none. */
