@@ -77,6 +77,8 @@ export const resultSchema = z
     kobo: z.object({ asset: z.string().max(80), uuid: z.string().max(80), id: z.number().int().optional() }).optional(),
     /** The input distribution it was made from (its record id), when the project manager's approval made it. */
     distribution: z.string().max(80).optional(),
+    /** The farmer and field step it was made from ("F-0007:training"), when recording the step made it. */
+    fieldStep: z.string().max(80).optional(),
     /** Why there is no file yet, when there is none. */
     noFile: z.string().trim().max(300).optional(),
   })

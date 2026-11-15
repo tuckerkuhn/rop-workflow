@@ -454,6 +454,42 @@ function Detail({
 
 /* ---------- workspace ---------- */
 
+/**
+ * The farmer table as a spreadsheet (lib/field-data): one row per farmer, by number, with each
+ * step's date, how readiness went and what they received. For analysis outside the app.
+ */
+function FarmerTableLink({ code, userId }: { code: string; userId: string }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const download = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/projects/${encodeURIComponent(code)}/field/export`, { cache: "no-store", headers: { "x-demo-user": userId } });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? `Could not make the file (${res.status}).`);
+      const url = URL.createObjectURL(await res.blob());
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${code}-farmers.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="mt-4 rounded-2xl border border-line bg-surface px-4 py-3 text-sm">
+      <button type="button" onClick={download} disabled={busy} className="font-semibold text-forest hover:underline disabled:opacity-60">
+        {busy ? "Making the file…" : "Download the farmer table (spreadsheet) ↓"}
+      </button>
+      <p className="mt-1 text-xs text-muted">One row per farmer, by number, never by name: each step&rsquo;s date, how the readiness check went, what they received and the days between steps.</p>
+      {error && <p role="alert" className="mt-1 text-xs text-clay">{error}</p>}
+    </div>
+  );
+}
+
 export function FieldWorkspace() {
   const { user, mode } = useRequireUser();
   const myRoles = (user?.field ?? []) as FieldRole[];
@@ -617,6 +653,7 @@ export function FieldWorkspace() {
               setMobileDetail(true);
             }}
           />
+          <FarmerTableLink code={project.id} userId={user?.id ?? ""} />
           <QueueFooter
             note={mode === "demo" && isDemo ? "Fictional records, saved in the project database. Resetting keeps real Kobo submissions." : "Saved in the project database."}
             onReset={

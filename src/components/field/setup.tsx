@@ -1,5 +1,6 @@
 "use client";
 
+import { STEP_KINDS } from "@/lib/field-data";
 import { useEffect, useState } from "react";
 import { useSession } from "@/components/app/session";
 import { primaryBtn, quietBtn } from "@/components/workspace/ui";
@@ -39,6 +40,8 @@ export function PackageSetup({ code, onSaved, onCancel }: { code: string; onSave
   // The target an approved distribution adds a farmer to, and the targets to choose from.
   const [target, setTarget] = useState("");
   const [targets, setTargets] = useState<{ code: string; name: string; unit: string }[]>([]);
+  // The targets the other field steps count toward, by step (lib/field-data).
+  const [stepTargets, setStepTargets] = useState<NonNullable<FieldSetup["targets"]>>({});
   const [fromDraft, setFromDraft] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -59,6 +62,7 @@ export function PackageSetup({ code, onSaved, onCancel }: { code: string; onSave
           setCrop(s.crop ?? "");
           setWindowEnd(s.windowEnd ?? "");
           setTarget(s.target ?? "");
+          setStepTargets(s.targets ?? {});
         }
       })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
@@ -71,6 +75,7 @@ export function PackageSetup({ code, onSaved, onCancel }: { code: string; onSave
     ...(crop.trim() ? { crop: crop.trim() } : {}),
     ...(windowEnd ? { windowEnd } : {}),
     ...(target ? { target } : {}),
+    ...(Object.values(stepTargets).some(Boolean) ? { targets: Object.fromEntries(Object.entries(stepTargets).filter(([, c]) => !!c)) } : {}),
   };
   const problem = setupProblem(built);
   const set = (k: number, patch: Partial<Draft>) => setItems((all) => all.map((d, j) => (j === k ? { ...d, ...patch } : d)));
@@ -195,6 +200,25 @@ export function PackageSetup({ code, onSaved, onCancel }: { code: string; onSave
               ? "Choose a target and each approved distribution adds one farmer to it. Left empty, distributions have to be recorded again on the Results page to count."
               : "This project has no targets that take recorded results yet. Add them in the project design, then choose one here."}
         </p>
+        {targets.length > 0 && (
+          <div className="mt-4 grid gap-3 border-t border-line pt-4 sm:grid-cols-3">
+            {STEP_KINDS.map((k) => (
+              <label key={k.id} className="block text-sm font-medium">
+                {k.label}
+                <select value={stepTargets[k.id] ?? ""} onChange={(e) => setStepTargets((all) => ({ ...all, [k.id]: e.target.value || undefined }))} className={`mt-1 ${field}`}>
+                  <option value="">Not counted</option>
+                  {targets.map((x) => (
+                    <option key={x.code} value={x.code}>
+                      {x.name} ({x.unit})
+                    </option>
+                  ))}
+                </select>
+                <span className="mt-1 block text-xs font-normal text-muted">{k.help}</span>
+              </label>
+            ))}
+            <p className="text-sm text-muted sm:col-span-3">These apply to steps recorded in Field activities. A step recorded in KoboCollect counts through its form, so choose one or the other for each step, not both.</p>
+          </div>
+        )}
       </fieldset>
       {editable && (
         <div className="space-y-2">

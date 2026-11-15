@@ -6,6 +6,7 @@ import { ancestors } from "@/lib/framework";
 import { DEMO_SETUP } from "@/lib/package";
 import { DONE, seedProcurements, stepById, stages, valueOf } from "@/lib/procurement";
 import { seedField } from "@/lib/field";
+import { stepKey } from "@/lib/field-data";
 import { indicators, seedSubmissions } from "@/lib/project";
 import { resultSchema } from "@/lib/results";
 
@@ -121,6 +122,12 @@ describe("the demo's field records count as results", () => {
     const names = seedField().flatMap((i) => (i.kind === "farmer" ? i.name.split(/\s+/) : []));
     expect(names.length).toBeGreaterThan(10);
     for (const r of made) for (const n of names) expect(r.payload.note).not.toContain(n);
+  });
+
+  it("ties training and readiness results to the farmer's step, so recording the step later does not count it again", () => {
+    for (const r of made.filter((x) => ["IND-1", "IND-3"].includes(x.payload.indicator))) expect(r.payload.fieldStep).toMatch(/^F-\d{4}:(training|readiness)$/);
+    const waiting = subs.find((s) => s.form === "readiness" && s.status === "pending" && s.fields.result === "Yes")!;
+    expect(made.some((r) => r.payload.fieldStep === stepKey(waiting.farmerId, "readiness"))).toBe(true);
   });
 
   it("gives each of the four field targets results, and leaves the survey target alone", () => {
