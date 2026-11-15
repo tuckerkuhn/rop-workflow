@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEMO_LINES, DEMO_RESULT_TARGETS, DEMO_TARGET_PLACES, demoResults, demoTakesResults, demoActivities, demoBudget, demoFramework, demoMonths, demoSpending, demoWorkplan } from "@/lib/demo-design";
+import { workplanOfProcurement } from "@/lib/connections";
 import { users } from "@/lib/demo";
 import { ancestors } from "@/lib/framework";
 import { DEMO_SETUP } from "@/lib/package";
@@ -59,6 +60,12 @@ describe("the demo project's design holds together", () => {
       expect(["2026-10-01", "2027-01-01"]).toContain(w.active[0]);
       for (const q of Object.keys(w.targets)) expect(w.active).toContain(q);
     }
+  });
+
+  it("ties every purchase to the workplan row it serves, through its budget line", () => {
+    const lines = demoBudget(TODAY).lines;
+    const plan = demoWorkplan(TODAY);
+    for (const p of seedProcurements()) expect(workplanOfProcurement(p, [], plan, lines), `${p.id} on line ${p.budgetLine}`).toBe(p.budgetLine === "3.1" ? "1.2.2.1" : "1.2.1.1");
   });
 
   it("imports spending for the months that have ended, and none before one has", () => {

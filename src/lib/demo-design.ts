@@ -142,9 +142,9 @@ const ROWS: Row[] = [
   { code: "1.1.1.1", act: ACT.train, title: "Farmer trainings on land preparation", indicator: "Farmers trained in land preparation", unit: "farmers", perQuarter: 25, owner: "farida", status: "in_progress", quarters: 4 },
   { code: "1.1.1.2", act: ACT.train, title: "Print training materials", indicator: null, unit: null, perQuarter: null, owner: "farida", status: "in_progress", quarters: 1 },
   { code: "1.1.2.1", act: ACT.visit, title: "Farm visits and readiness checks", indicator: "Farm visits completed", unit: "visits", perQuarter: 50, owner: "omar", status: "in_progress", quarters: 4 },
-  { code: "1.2.1.1", act: ACT.inputs, title: "Buy the farm input package", indicator: null, unit: null, perQuarter: null, owner: "zahra", status: "in_progress", quarters: 2 },
+  { code: "1.2.1.1", act: ACT.inputs, title: "Buy seed, fertilizer, equipment and soil testing kits for the input package", indicator: null, unit: null, perQuarter: null, owner: "zahra", status: "in_progress", quarters: 2 },
   { code: "1.2.1.2", act: ACT.inputs, title: "Distribute the farm input package", indicator: "Farmers receiving the input package", unit: "farmers", perQuarter: 25, owner: "bilal", status: "in_progress", quarters: 4 },
-  { code: "1.2.2.1", act: ACT.machines, title: "Tractor services for land preparation", indicator: null, unit: null, perQuarter: null, owner: "nadia", status: "not_started", quarters: 3 },
+  { code: "1.2.2.1", act: ACT.machines, title: "Mechanization: tractor services for land preparation", indicator: null, unit: null, perQuarter: null, owner: "nadia", status: "not_started", quarters: 3 },
 ];
 
 /** ROP's workplan: who delivers each piece of work, in which quarters, starting from this one. */
