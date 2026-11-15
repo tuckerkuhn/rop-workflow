@@ -23,6 +23,7 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
   const [d, setD] = useState<DistView | null>(null);
   const [canDecide, setCanDecide] = useState(false);
   const [canFix, setCanFix] = useState(false);
+  const [canCheckKobo, setCanCheckKobo] = useState(false);
   const [fix, setFix] = useState<{ qty: Record<string, string>; signed: boolean; photo: boolean }>({ qty: {}, signed: false, photo: false });
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
@@ -43,6 +44,7 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
     setD(dist);
     setCanDecide(body.canDecide);
     setCanFix(!!body.canFix);
+    setCanCheckKobo(!!body.canCheckKobo);
     // Every item of the farmer's planned package can be corrected, including one recorded as not given (0).
     setFix({ qty: Object.fromEntries(fixable(dist).map((i) => [i.key, String(dist.items.find((x) => x.key === i.key)?.qty ?? 0)])), signed: dist.signed, photo: dist.photo });
     setError("");
@@ -63,6 +65,16 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
     setDone(decision);
     setCounted(decision === "approved" && body.result ? (body.targetName ?? body.target ?? null) : null);
     setReached(decision === "approved" ? (body.procurements ?? []) : body.fixer ? [body.fixer] : []);
+  }
+
+  async function checkKobo() {
+    setBusy(true);
+    const res = await fetch(url, { method: "POST", headers, body: JSON.stringify({ decision: "kobo_checked" }) });
+    const body = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) return setError(body.error ?? `Not saved (${res.status}).`);
+    setD(body.distribution);
+    setError("");
   }
 
   async function sendAgain() {
@@ -141,6 +153,21 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
             )}
           </section>
 
+          {/* From KoboCollect: checked first by whoever this project names for KoboCollect data. */}
+          {pending && !done && d.koboCheck?.needed && (
+            <section className="mt-6 rounded-xl border border-ochre/40 bg-ochre-soft px-4 py-3 text-sm" aria-live="polite">
+              <p className="font-semibold">Step 1 of 2: check the KoboCollect record</p>
+              <p className="mt-1">
+                This record came from a phone in the field. {d.koboCheck.by} checks KoboCollect data on this project. Once that is done, the project manager can approve it.
+              </p>
+              {canCheckKobo && (
+                <button type="button" className={`${primaryBtn} mt-3`} disabled={busy} onClick={checkKobo}>
+                  I have checked this record
+                </button>
+              )}
+            </section>
+          )}
+          {d.koboCheck?.done && pending && !done && <p className="mt-6 text-sm text-muted">KoboCollect record checked by {d.koboCheck.done.byName}.</p>}
           {pending && canDecide && !done && (
             <section className="mt-6">
               <label className="block text-sm font-medium" htmlFor="note">
@@ -148,7 +175,7 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
               </label>
               <textarea id="note" value={note} onChange={(e) => setNote(e.target.value)} rows={3} className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm" placeholder="What needs fixing" />
               <div className="mt-3 flex flex-wrap gap-2">
-                <button type="button" className={primaryBtn} disabled={busy || !d.gate.ok} onClick={() => decide("approved")}>
+                <button type="button" className={primaryBtn} disabled={busy || !d.gate.ok || !!d.koboCheck?.needed} onClick={() => decide("approved")}>
                   Approve
                 </button>
                 <button type="button" className={quietBtn} disabled={busy || !note.trim()} onClick={() => decide("sent_back")}>

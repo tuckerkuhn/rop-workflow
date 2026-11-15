@@ -1,3 +1,5 @@
+import { approverNames, mayApproveKobo, mayDecide } from "@/lib/kobo-approval";
+import { koboApprovalFor } from "@/server/kobo-approval";
 import { and, asc, eq } from "drizzle-orm";
 import { after, NextResponse } from "next/server";
 import { db, schema as s } from "@/db";
@@ -6,7 +8,7 @@ import { quarterOf, resultActionSchema } from "@/lib/results";
 import { sameResult } from "@/lib/results-import";
 import { logAudit } from "@/server/audit";
 import { FROM_KOBO, koboFedCodes } from "@/server/kobo-fed";
-import { isMelOwner, requireViewer } from "@/server/auth";
+import { isMelOwner, onProject, people, requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
 import { selfApproval, soloFor } from "@/server/solo";
 import { projectByCode } from "@/server/field-store";
@@ -40,6 +42,9 @@ async function view(code: string, u: AppUser) {
   const mismatched = await koboMismatches(project.id);
   const updates = await loadUpdates(code);
   const mel = isMelOwner(u);
+  // A result made from a KoboToolbox form is checked by whoever this project names for KoboCollect data.
+  const kobo_ = mayApproveKobo(u, await koboApprovalFor(code));
+  const checks = (r: { kobo?: unknown }) => (r.kobo ? kobo_ : mel);
   const solo = mel ? await soloFor(code).catch(() => ({ on: false, blocked: null })) : { on: false, blocked: null };
   const names = new Map<string, string>();
   for (const l of await db.selectDistinct({ c: s.budgetLines.activityCode, n: s.budgetLines.activity }).from(s.budgetLines).where(eq(s.budgetLines.projectId, project.id))) if (l.c && l.n && !names.has(l.c)) names.set(l.c, l.n);
@@ -47,10 +52,10 @@ async function view(code: string, u: AppUser) {
   return {
     me: u.id,
     mayRecord: mayRecord(u),
-    mayReview: mel,
+    mayReview: mel || kobo_,
     indicators: indicators.map((i) => ({ ...i, target: Number(i.target), fromKobo: kobo.has(i.code) })),
     // The data checker's flags, for MEL before accepting (and for the recorder to fix first).
-    results: results.map((r) => ({ ...r, /** Its KoboToolbox submission was changed or deleted after it was accepted. */ koboChanged: mismatched.has(r.id), canReview: mel && r.status === "pending" && r.by !== u.id, canSelfAccept: mel && solo.on && !solo.blocked && r.status === "pending" && r.by === u.id, canReopen: mel && r.status === "accepted" && r.by !== u.id, checks: dataChecks(r, results, indicators.find((i) => i.code === r.indicator)) })),
+    results: results.map((r) => ({ ...r, /** Its KoboToolbox submission was changed or deleted after it was accepted. */ koboChanged: mismatched.has(r.id), canReview: checks(r) && r.status === "pending" && r.by !== u.id, canSelfAccept: mel && solo.on && !solo.blocked && r.status === "pending" && r.by === u.id, canReopen: mel && r.status === "accepted" && r.by !== u.id, checks: dataChecks(r, results, indicators.find((i) => i.code === r.indicator)) })),
     activities,
     updates,
     mayUpdate: mayRecord(u) || mel,
@@ -190,9 +195,11 @@ export async function POST(req: Request, { params }: Ctx) {
         await addResult(code, await inEnglish(typed, u.id, 2000), u.id);
       }
     } else {
-      if (!isMelOwner(u)) return NextResponse.json({ error: "Only the MEL owner can accept or query results." }, { status: 403 });
       const r = (await loadResults(code)).find((x) => x.id === a.id);
       if (!r) return NextResponse.json({ error: "No such result." }, { status: 404 });
+      const rule = await koboApprovalFor(code);
+      if (!mayDecide(u, !!r.kobo, rule))
+        return NextResponse.json({ error: r.kobo ? `This result came from KoboCollect. On this project ${approverNames((await people()).filter((p) => onProject(p, code)), rule)} approves KoboCollect data.` : "Only the MEL owner can accept or query results." }, { status: 403 });
       // Solo mode (server/solo.ts): a small team's MEL may accept their own result, confirming it; never query it.
       let self: Record<string, unknown> | undefined;
       if (r.by === u.id) {

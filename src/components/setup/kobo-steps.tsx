@@ -7,6 +7,7 @@ import { useT } from "@/components/app/i18n";
 import { useKobo, useProgress } from "@/components/app/use-project-data";
 import { useSession } from "@/components/app/session";
 import { mappingRisks, type Suggestion } from "@/lib/kobo-suggest";
+import { KoboApprovalSetting } from "@/components/setup/kobo-approval";
 import { Question, field } from "@/components/setup/question";
 import { primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { FORM_PURPOSES, MAPPING_METHODS, guessPurpose, type FormPurpose, type KoboFormInfo, type KoboMapping, type KoboQuestion, type MappingMethod, type AutoSyncSecret, type SyncCounts } from "@/lib/kobo-setup";
@@ -506,6 +507,7 @@ export function KoboDone({ code, name }: { code: string; name: string }) {
           )}</p>}
       <Alert text={error} />
       {connected && <KoboAutoSync code={code} />}
+      {connected && <KoboApprovalSetting code={code} />}
       <div className="mt-8 flex flex-wrap gap-3">
         <Link href="/home" className={quietBtn}>
           {t("nav.home")}

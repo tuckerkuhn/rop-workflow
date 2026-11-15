@@ -4,6 +4,8 @@ import { ourWork } from "@/lib/budget";
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { fieldRows, purchaseRows, taskRow } from "@/lib/home-buckets";
 import { loadLineReasons } from "@/server/overspend-store";
+import { mayApproveKobo } from "@/lib/kobo-approval";
+import { koboApprovalFor } from "@/server/kobo-approval";
 import { loadProcurements } from "@/server/procurement-store";
 import type { FieldItem } from "@/lib/field";
 import { koboMismatches } from "@/server/results-store";
@@ -210,15 +212,26 @@ export async function loadHome(code: string, u: AppUser) {
     if (!lastReview.review.signedOff) actions.push({ key: "review-signoff", for: "lead", bucket: "approve", urgent: false, text: `Sign off the ${monthName(lastReview.month)} monthly review`, msg: { key: "ha.reviewSignoff", vars: { month: lastReview.month } }, href: "/progress/review" });
     if (!lastReport.released) actions.push({ key: "release", for: "lead", bucket: "approve", urgent: false, text: `Release the ${qLabel(lastQ).replace("-", " ")} report in the app`, msg: { key: "ha.release", vars: { quarter: qLabel(lastQ).replace("-", " ") } }, href: "/progress/report" });
   }
-  if (lenses.includes("mel")) {
-    const toCheck = allResults.filter((r) => r.status === "pending" && r.by !== u.id).length;
-    if (toCheck) actions.push({ key: "accept", for: "mel", bucket: "approve", urgent: true, text: `Accept or query ${toCheck} ${toCheck === 1 ? "result" : "results"} waiting for you`, msg: { key: toCheck === 1 ? "ha.accept1" : "ha.accept", vars: { n: toCheck } }, href: "/progress/results" });
+  // Who approves KoboCollect data on this project (lib/kobo-approval): results made from a form
+  // and distributions from a phone wait for that person, not for anyone with the MEL role.
+  const koboRule = await koboApprovalFor(code);
+  const koboMine = mayApproveKobo(u, koboRule);
+  const isMel = lenses.includes("mel");
+  if (isMel || koboMine) {
+    const toCheck = allResults.filter((r) => r.status === "pending" && r.by !== u.id && (r.kobo ? koboMine : isMel)).length;
+    if (toCheck) actions.push({ key: "accept", for: isMel ? "mel" : lenses[0], bucket: "approve", urgent: true, text: `Accept or query ${toCheck} ${toCheck === 1 ? "result" : "results"} waiting for you`, msg: { key: toCheck === 1 ? "ha.accept1" : "ha.accept", vars: { n: toCheck } }, href: "/progress/results" });
     // What blocks the report is listed from pre-flight itself (Home reads /next-report), so the
     // count here can never differ from the pre-flight screen's.
   }
+  if (koboMine && koboRule.who !== "manager") {
+    const unchecked = (await listDistributions(code).catch(() => [])).filter((d) => d.koboCheck.needed).reverse();
+    const n = unchecked.length;
+    if (n) actions.push({ key: "kobo-check", for: lenses[0], bucket: "approve", urgent: true, text: n === 1 ? `Check the KoboCollect distribution to ${unchecked[0].farmerId} before it goes to the project manager` : `Check ${n} KoboCollect distributions before they go to the project manager`, href: `/approve/${encodeURIComponent(code)}/${unchecked[0].id}` });
+  }
   // Input distributions waiting for the project manager (server/distribution), oldest first.
+  // One from KoboCollect is hers once it has been checked.
   if (u.field.includes("manager")) {
-    const waiting = (await listDistributions(code).catch(() => [])).filter((d) => d.status === "pending").reverse();
+    const waiting = (await listDistributions(code).catch(() => [])).filter((d) => d.status === "pending" && !d.koboCheck.needed).reverse();
     const n = waiting.length;
     if (n) actions.push({ key: "distributions", for: lenses.includes("field") ? "field" : "lead", bucket: "approve", urgent: true, text: n === 1 ? `Approve the input distribution to ${waiting[0].farmerId}` : `Approve ${n} input distributions`, href: `/approve/${encodeURIComponent(code)}/${waiting[0].id}` });
   }

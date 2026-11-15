@@ -3,6 +3,8 @@ import { and, eq, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { today } from "@/lib/clock";
 import type { AppUser } from "@/lib/demo";
+import { approverNames, needsKoboCheck } from "@/lib/kobo-approval";
+import { koboApprovalFor } from "@/server/kobo-approval";
 import { insertResult } from "@/server/results-store";
 import { addGiven, applyFix, drawnFrom, fixOwner, flagsFor, gate, inProcUnit, lineOf, paymentDue, resultFor, storeStock, type DistItem, type Fix, type Flag, type Gate, type Given } from "@/lib/distribution";
 import { itemsFor, type FieldSetup } from "@/lib/package";
@@ -59,6 +61,8 @@ export type DistMeta = {
   /** Person id of who recorded it, when that is a person in the app (not a Kobo username). */
   recorderId?: string | null;
   notified?: { to: string[]; at: string; emailed: boolean; why?: string };
+  /** A record from KoboCollect: who checked it before the project manager could approve it (lib/kobo-approval). */
+  koboChecked?: { by: string; byName: string; at: string };
   decided?: { by: string; byName: string; at: string; decision: "approved" | "sent_back"; note?: string };
   /** Earlier rounds: each send-back with what was fixed in answer, oldest first. */
   history?: { sentBack: NonNullable<DistMeta["decided"]>; fixed: { by: string; byName: string; at: string; note: string } }[];
@@ -288,6 +292,8 @@ export type DistView = {
   flags: Flag[];
   status: "pending" | "accepted" | "queried";
   notified: DistMeta["notified"] | null;
+  /** From KoboCollect: whether it still waits for its check, who gives it, and who gave it. */
+  koboCheck: { needed: boolean; by: string; done: DistMeta["koboChecked"] | null };
   decided: DistMeta["decided"] | null;
   history: NonNullable<DistMeta["history"]>;
   /** The farmer's package as planned, so a fix can add an item that was recorded as not given. */
@@ -309,6 +315,8 @@ export async function listDistributions(code: string): Promise<DistView[]> {
   await processPending(code);
   const rows = await db.select().from(s.evidence).where(and(eq(s.evidence.projectId, project.id), eq(s.evidence.form, "distribution")));
   const st = await loadState(project.id);
+  const rule = await koboApprovalFor(code);
+  const approvers = approverNames((await people()).filter((u) => onProject(u, code)), rule);
   const procs = (await db.select().from(s.procurements).where(eq(s.procurements.projectId, project.id))).map((r) => r.data as Procurement);
   const setup = await setupOrEmpty(project);
   // What approved distributions have taken so far, for the checks of the ones still waiting.
@@ -336,6 +344,7 @@ export async function listDistributions(code: string): Promise<DistView[]> {
         flags: m.flags,
         status: r.reviewStatus,
         notified: m.notified ?? null,
+        koboCheck: { needed: r.reviewStatus === "pending" && needsKoboCheck({ source: r.source, koboChecked: m.koboChecked }, rule), by: approvers, done: m.koboChecked ?? null },
         decided: m.decided ?? null,
         history: m.history ?? [],
         planned: itemsFor(setup, hectares.get(r.farmerCode ?? "")),
@@ -363,6 +372,30 @@ export async function tokenOpens(code: string, id: string, token: string): Promi
   return m.hash && same(m.hash) ? { who: null } : null;
 }
 
+/* ---------- 3b. a KoboCollect record is checked first ---------- */
+
+/**
+ * The check on a distribution that came from KoboCollect, by whoever the project names for
+ * KoboCollect data. Until it is made, the project manager cannot approve the record. Made once;
+ * a record sent back and fixed keeps it.
+ */
+export async function checkKoboDistribution(code: string, id: string, by: { id: string; name: string }) {
+  const project = await projectByCode(code);
+  const [row] = await db.select().from(s.evidence).where(and(eq(s.evidence.id, id), eq(s.evidence.projectId, project.id), eq(s.evidence.form, "distribution"))).limit(1);
+  if (!row) throw new HttpError(404, "That distribution is not on this project.");
+  if (row.source !== "kobo") throw new HttpError(409, "This distribution was recorded in the app, so it goes straight to the project manager.");
+  if (row.reviewStatus !== "pending") throw new HttpError(409, "This distribution has already been decided.");
+  const m = (await loadState(project.id)).byId[id];
+  if (!m) throw new HttpError(409, "This distribution has not been read in yet. Sync Kobo and try again.");
+  if (m.koboChecked) return m.koboChecked;
+  const koboChecked = { by: by.id, byName: by.name, at: new Date().toISOString() };
+  await db.transaction(async (tx) => {
+    await putMeta(tx, project.id, id, { ...m, koboChecked });
+    await tx.insert(s.auditLog).values({ projectId: project.id, entity: "distribution", entityId: id, action: "distribution_kobo_checked", detail: { by: by.id, farmer: row.farmerCode } });
+  });
+  return koboChecked;
+}
+
 /* ---------- 4. approved or sent back ---------- */
 
 const isManager = (u: Pick<AppUser, "field">) => u.field.includes("manager");
@@ -382,6 +415,10 @@ export async function decideDistribution(code: string, id: string, decision: "ap
   const m = ctx.st.byId[id];
   if (!m) throw new HttpError(409, "This distribution has not been checked yet. Sync Kobo and try again.");
   if (decision === "sent_back" && !note?.trim()) throw new HttpError(400, "Say what needs fixing, so the person who recorded it knows.");
+  // From KoboCollect: checked first by whoever this project names for KoboCollect data.
+  const rule = await koboApprovalFor(code);
+  if (decision === "approved" && needsKoboCheck({ source: row.source, koboChecked: m.koboChecked }, rule))
+    throw new HttpError(409, `Not approved yet: this record came from KoboCollect, and ${approverNames((await people()).filter((u) => onProject(u, code)), rule)} checks KoboCollect data on this project before it is approved.`);
 
   const g = gate(m.items, ctx.procs, ctx.given, ctx.setup);
   if (decision === "approved" && !g.ok) throw new HttpError(409, `Not approved: ${g.block}`);
