@@ -1,5 +1,6 @@
 "use client";
 
+import { NON_CONTRACT } from "@/lib/timesheet";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
@@ -305,7 +306,7 @@ function AddBill({ v, onClose, add }: { v: BillsView; onClose: () => void; add: 
         </label>
         <label className="text-sm">
           <span className="font-medium">Funding source</span>
-          <select value={f.source} onChange={(e) => set({ source: e.target.value })} className={input}>
+          <select value={f.source} onChange={(e) => set({ source: e.target.value, budgetLine: "" })} className={input}>
             {v.sources.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.label}
@@ -314,8 +315,19 @@ function AddBill({ v, onClose, add }: { v: BillsView; onClose: () => void; add: 
           </select>
         </label>
         <label className="text-sm">
-          <span className="font-medium">Budget line (optional)</span>
-          <input value={f.budgetLine} onChange={(e) => set({ budgetLine: e.target.value })} className={input} />
+          <span className="font-medium">Budget line</span>
+          {(v.lines[f.source] ?? []).length ? (
+            <select value={f.budgetLine} onChange={(e) => set({ budgetLine: e.target.value })} className={input}>
+              <option value="">Choose the line this is charged to</option>
+              {v.lines[f.source].map((l) => (
+                <option key={l.code} value={l.code}>
+                  {l.code} {l.description}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <span className="mt-1 block text-xs text-muted">{f.source === NON_CONTRACT ? "General and admin bills have no project line." : "This project has no budget loaded yet, so there is no line to choose."}</span>
+          )}
         </label>
         <label className="text-sm sm:col-span-2">
           <span className="font-medium">Lease, contract or agreement it is under (if any)</span>

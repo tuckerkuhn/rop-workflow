@@ -1,7 +1,8 @@
+import { loadBudget } from "@/server/plan-store";
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db, schema as s } from "@/db";
-import { BILL_CATEGORIES, billActionSchema, billFlags, type Bill } from "@/lib/bills";
+import { billLineProblem, BILL_CATEGORIES, billActionSchema, billFlags, type Bill } from "@/lib/bills";
 import { AFN_PER_USD } from "@/lib/demo";
 import { isSharePointUrl } from "@/lib/procurement";
 import { NON_CONTRACT } from "@/lib/timesheet";
@@ -40,6 +41,16 @@ const today = () => new Date().toISOString().slice(0, 10);
 const largeAbove = (rules: Record<string, unknown>) => (typeof rules.largeAboveUsd === "number" ? rules.largeAboveUsd : 25000);
 const mayApproveOwn = (solo: SoloState, b: Bill, rules: Record<string, unknown>) => solo.on && !solo.blocked && b.usd <= largeAbove(rules);
 
+/** Budget lines by project code, for the projects that have a budget loaded. */
+async function linesBySource(codes: string[]) {
+  const out: Record<string, { code: string; description: string }[]> = {};
+  for (const c of codes) {
+    const b = await loadBudget(c).catch(() => null);
+    if (b?.lines.length) out[c] = b.lines.map((l) => ({ code: l.code, description: l.description }));
+  }
+  return out;
+}
+
 async function view(code: string, u: AppUser) {
   const book = await loadBills(code);
   const roles = await rolesOf(u);
@@ -51,6 +62,8 @@ async function view(code: string, u: AppUser) {
   const projects = await db.select({ code: s.projects.code, name: s.projects.name }).from(s.projects);
   return {
     me: u.id,
+    // Each project's budget lines, so a bill is charged to a line chosen from the list.
+    lines: await linesBySource(projects.map((p) => p.code).filter((c): c is string => !!c)),
     ...roles,
     sources: [{ id: NON_CONTRACT, label: "General and admin (non-contract)" }, ...projects.filter((p) => p.code).map((p) => ({ id: p.code!, label: p.name }))],
     items: [...book.items].reverse().map((b) => ({ ...b, flags: billFlags(b, book.items, micro), canApprove: roles.approve && b.status === "waiting" && b.raised.by !== u.id, canSelfApprove: roles.approve && b.status === "waiting" && b.raised.by === u.id && mayApproveOwn(solo, b, rules), canVoucher: roles.voucher && b.status === "approved" })),
@@ -83,6 +96,8 @@ export async function POST(req: Request, { params }: Ctx) {
       if (!(await rolesOf(u)).record) return fail("Only Finance, and people named for bill entry in the authority table, record bills.");
       const [f] = await db.select({ hash: s.hrFiles.hash }).from(s.hrFiles).where(and(eq(s.hrFiles.book, hrBook()), eq(s.hrFiles.hash, a.file.hash))).limit(1);
       if (!f) return fail("The bill did not finish uploading. Attach it again.", 400);
+      const lineWhy = billLineProblem(a.source, a.budgetLine || null, await linesBySource(a.source === NON_CONTRACT ? [] : [a.source]), NON_CONTRACT);
+      if (lineWhy) return fail(lineWhy, 400);
       const id = `BL-${String(book.next).padStart(3, "0")}`;
       const usd = Math.round((a.currency === "AFN" ? a.amount / AFN_PER_USD : a.amount) * 100) / 100;
       const bill: Bill = {

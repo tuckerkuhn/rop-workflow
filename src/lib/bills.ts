@@ -93,3 +93,17 @@ export function billFlags(b: Bill, all: Bill[], microMaxUsd: number): string[] {
   if (sameFile) out.push(`The same document as ${sameFile.id}.`);
   return out;
 }
+
+/**
+ * Why a bill cannot be saved with this budget line, or null when it can. A bill charged to a
+ * project is charged to one of that project's budget lines, chosen from the list: that is what
+ * lets spending be compared with the budget line by line. A bill with no project (general and
+ * admin) has no line, and a project whose budget is not loaded yet has none to choose from.
+ */
+export function billLineProblem(source: string, budgetLine: string | null, lines: Record<string, { code: string }[]>, nonContract: string): string | null {
+  if (source === nonContract) return budgetLine ? "A general and admin bill has no project budget line. Clear the line, or choose the project it belongs to." : null;
+  const known = lines[source] ?? [];
+  if (!known.length) return budgetLine ? "That project has no budget loaded yet, so there is no line to charge. Load the budget first, or leave the line empty." : null;
+  if (!budgetLine) return "Choose the budget line this bill is charged to.";
+  return known.some((l) => l.code === budgetLine) ? null : `Line ${budgetLine} is not in that project's budget. Choose one from the list.`;
+}
