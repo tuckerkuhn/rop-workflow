@@ -6,6 +6,7 @@ import { ProofNumber } from "@/components/progress/proof-panel";
 import { useT } from "@/components/app/i18n";
 import { today } from "@/lib/clock";
 import { quarterOfToday, targetStatus } from "@/lib/target-status";
+import { targetGroups } from "@/lib/framework";
 import type { FrameworkView, TreeNode } from "@/server/framework-store";
 
 /**
@@ -44,10 +45,8 @@ export function IndicatorTable({ projectId, userId }: { projectId: string; userI
     };
   }, [projectId, userId]);
   if (!v) return null;
-  // Outputs, each with the indicators of its activities.
-  const outputs: { key: string; text: string | null; rows: TreeNode["indicators"] }[] = v.outcomes.flatMap((o) =>
-    o.children.map((out) => ({ key: out.key, text: out.text ?? out.suggested?.text ?? null, rows: [...out.indicators, ...out.children.flatMap((a) => a.indicators)] })).filter((x) => x.rows.length),
-  );
+  // Every target once: by outcome and output, then the ones with no place in the framework yet.
+  const outputs = targetGroups<TreeNode["indicators"][number]>(v);
   const qNow = quarterOfToday(today());
   const TONE = { forest: "bg-mist text-forest", clay: "bg-clay-soft text-clay", muted: "bg-sunken text-muted" } as const;
   const ICON = { on_track: "✓", behind: "!", no_data: "–" } as const;
@@ -65,9 +64,10 @@ export function IndicatorTable({ projectId, userId }: { projectId: string; userI
       {outputs.map((o) => (
         <div key={o.key} className="mt-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-            Output {o.key}
+            {o.kind === "other" ? "Other targets" : `${o.kind === "outcome" ? "Outcome" : "Output"} ${o.key}`}
             {o.text ? ` · ${o.text}` : ""}
           </p>
+          {o.kind === "other" && <p className="mt-0.5 text-xs text-muted">Not placed under an output yet. Give each one its code from the donor&rsquo;s results framework in the project design to place it.</p>}
           <ul className="mt-1 divide-y divide-line rounded-2xl border border-line bg-surface">
             {o.rows.map((i) => {
               const st = targetStatus(i, qNow);

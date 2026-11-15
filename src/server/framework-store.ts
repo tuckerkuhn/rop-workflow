@@ -12,7 +12,7 @@ import { loadProjectState, saveProjectState } from "@/server/project-state";
 const KEY = FRAMEWORK_KEY;
 const today = () => new Date().toISOString().slice(0, 10);
 
-type Leaf = { code: string; donorCode: string; name: string; unit: string; year: number; yearTarget: number; status: string; /** Quarters of this year (1–4) with work planned; null when not linked to the workplan. */ planned: number[] | null; /** Date of the latest accepted result. */ lastAccepted: string | null };
+export type Leaf = { code: string; donorCode: string; name: string; unit: string; year: number; yearTarget: number; status: string; /** Quarters of this year (1–4) with work planned; null when not linked to the workplan. */ planned: number[] | null; /** Date of the latest accepted result. */ lastAccepted: string | null };
 type Sub = { code: string; title: string; status: string; timing: string; owner: string | null };
 export type TreeNode = { key: string; level: string; text: string | null; source: string | null; suggested: { text: string; source: string } | null; children: TreeNode[]; indicators: Leaf[]; activities: Sub[] };
 
@@ -35,10 +35,11 @@ export async function loadFramework(code: string, u: AppUser) {
   };
   // Activity names come from the workplan.
   const activityNames = new Map(plan.filter((w) => w.activityCode).map((w) => [w.activityCode!, w.activity ?? ""]));
+  const unplaced: Leaf[] = [];
   for (const i of review.indicators) {
     const chain = ancestors(i.donorCode ?? "");
-    if (!chain.length) continue;
-    node(chain[chain.length - 1]).indicators.push({ code: i.code, donorCode: i.donorCode ?? "", name: i.name, unit: i.unit, year: i.year, yearTarget: i.yearTarget, status: i.status, planned: i.planned ?? null, lastAccepted: i.lastAccepted });
+    // No donor code, so no place in the tree: kept aside and still shown, never dropped.
+    (chain.length ? node(chain[chain.length - 1]).indicators : unplaced).push({ code: i.code, donorCode: i.donorCode ?? "", name: i.name, unit: i.unit, year: i.year, yearTarget: i.yearTarget, status: i.status, planned: i.planned ?? null, lastAccepted: i.lastAccepted });
   }
   for (const w of ourWork(plan)) {
     const a = w.activityCode ?? ancestors(w.code).at(-1);
@@ -56,6 +57,7 @@ export async function loadFramework(code: string, u: AppUser) {
     year: review.year,
     goal: { text: fw.goal?.text ?? null, source: fw.goal?.source ?? null, suggested: fw.goal ? null : (sugg.goal ?? null) },
     outcomes,
+    unplaced,
     can: { edit: !!u.admin || u.project.includes("plan-approver") },
   };
 }

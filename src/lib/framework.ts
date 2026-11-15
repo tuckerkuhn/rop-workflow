@@ -40,3 +40,28 @@ export const SUGGESTED: Record<string, Record<string, { text: string; source: st
     "2.1": { text: "Improved understanding of communities on integrated water resources management (IWRM) with the use of balanced surface and groundwater", source: "UNDP Responsible Party Agreement, March 2025, Expected Outputs" },
   },
 };
+
+/* ---------- the targets table ---------- */
+
+type Rows<L> = { key: string; text: string | null; suggested?: { text: string } | null; indicators: L[]; children?: Rows<L>[] };
+export type TargetGroup<L> = { key: string; kind: "outcome" | "output" | "other"; text: string | null; rows: L[] };
+
+/**
+ * Every target of the project, grouped for the Progress table: each outcome's own targets, then
+ * each of its outputs with the targets of its activities, then the targets with no place in the
+ * framework. A target is listed exactly once and none is left out: a project whose targets have
+ * no donor codes yet still sees all of them, with what has been counted.
+ */
+export function targetGroups<L>(v: { outcomes: Rows<L>[]; unplaced?: L[] }): TargetGroup<L>[] {
+  const words = (n: Rows<L>) => n.text ?? n.suggested?.text ?? null;
+  const out: TargetGroup<L>[] = [];
+  for (const o of v.outcomes) {
+    if (o.indicators.length) out.push({ key: o.key, kind: "outcome", text: words(o), rows: o.indicators });
+    for (const p of o.children ?? []) {
+      const rows = [...p.indicators, ...(p.children ?? []).flatMap((a) => [...a.indicators, ...(a.children ?? []).flatMap((x) => x.indicators)])];
+      if (rows.length) out.push({ key: p.key, kind: "output", text: words(p), rows });
+    }
+  }
+  if (v.unplaced?.length) out.push({ key: "other", kind: "other", text: null, rows: v.unplaced });
+  return out;
+}
