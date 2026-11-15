@@ -9,10 +9,11 @@ import type { Farmer } from "@/lib/field";
 import { seedDatabase } from "@/server/demo-seed";
 import { decideDistribution, listDistributions, recordFromApp, resubmitDistribution, stockFor } from "@/server/distribution";
 import { realToday } from "@/lib/clock";
-import { loadField, saveItems, setupFor } from "@/server/field-store";
+import { loadField, saveItems, saveSetup, setupFor } from "@/server/field-store";
 import { loadHome } from "@/server/home-store";
 import { loadProcurements, saveProcurements } from "@/server/procurement-store";
 import { loadProgress } from "@/server/progress-store";
+import { loadResults, reviewResult } from "@/server/results-store";
 import { ready } from "@/server/__tests__/test-db";
 
 /**
@@ -25,6 +26,7 @@ const farida = userById("farida")!;
 const nadia = userById("nadia")!;
 const bilal = userById("bilal")!;
 const yusuf = userById("yusuf")!;
+const omar = userById("omar")!;
 
 const farmer = async (id: string) => (await loadField(code, farida)).items.find((i) => i.id === id) as Farmer;
 const evidence = () => db.select().from(s.evidence).where(eq(s.evidence.form, "distribution"));
@@ -147,12 +149,23 @@ describe("input distribution, field to finance (demo project)", { timeout: 60_00
   });
 
   it("on approval: counts toward the target, grows the right purchase's list, and is in the audit log", async () => {
-    const target = async () => (await loadProgress(code, nadia)).indicators.find((i) => i.source === "distribution")?.total ?? 0;
+    const target = async () => (await loadProgress(code, nadia)).indicators.find((i) => i.code === "IND-2")!;
     const before = await target();
     const res = await decideDistribution(code, first, "approved", nadia);
     // Charged to the purchases that received goods, never one still on order.
     expect([...res.procurements].sort()).toEqual(["PR-2027-006", "PR-2027-007"]);
-    expect(await target()).toBe(before + 1);
+    // One result for the target named in the package settings, made from the record already entered.
+    expect(res.target).toBe("IND-2");
+    const made = (await loadResults(code)).filter((r) => r.distribution === first);
+    expect(made).toHaveLength(1);
+    expect(made[0]).toMatchObject({ indicator: "IND-2", value: 1, status: "pending", by: "farida" });
+    expect(made[0].note).toMatch(/^Input package given to farmer F-\d{4} in Village B: .+ Recorded by Farida Noori, approved by Nadia Rahimi\.$/);
+    // It waits for MEL like any other result: not counted yet, and on the MEL officer's Home.
+    expect((await target()).total).toBe(before.total);
+    expect((await target()).pending).toBe(before.pending + 1);
+    expect((await loadHome(code, omar)).actions.find((a) => a.key === "accept")?.text).toMatch(/^Accept or query \d+ results? waiting for you$/);
+    await reviewResult(code, made[0].id, "accepted", "omar", null);
+    expect((await target()).total).toBe((before.total ?? 0) + 1);
     const procs = await loadProcurements(code);
     expect(procs.find((p) => p.id === "PR-2027-006")!.distribution!.lists.map((l) => [l.recipients, l.qty])).toEqual([[1, 8]]);
     // Those two purchases are paid and closed: finance is not asked to pay them again.
@@ -162,14 +175,26 @@ describe("input distribution, field to finance (demo project)", { timeout: 60_00
     expect(d.decided?.decision).toBe("approved");
   });
 
+  it("adds no result when the project has not named a target, and says so", async () => {
+    const setup = (await setupFor(code))!;
+    await saveSetup(code, { ...setup, target: undefined });
+    const before = (await loadResults(code)).length;
+    const res = await decideDistribution(code, second, "approved", nadia);
+    expect(res.result).toBeNull();
+    expect((await loadResults(code)).length).toBe(before);
+    await saveSetup(code, setup);
+  });
+
   it("asks finance to pay once, for the purchase that still has a payment to make", async () => {
-    await decideDistribution(code, second, "approved", nadia);
     await decideDistribution(code, third, "approved", nadia);
     const pay = await tasks("pay-ready:%");
     expect(pay.map((t) => [t.sourceKey, t.assignee])).toEqual([["pay-ready:PR-2027-011", "yusuf"]]);
     const row = (await loadHome(code, yusuf)).actions.find((a) => a.key === `task:${pay[0].id}`);
     expect(row?.href).toBe("/work?source=procurement&open=PR-2027-011&project=A-2027");
     expect(await audits("distribution_approved")).toHaveLength(3);
+    // A result for each approval made while a target was named, each tied to its own distribution: none counted twice.
+    const made = (await loadResults(code)).filter((r) => r.distribution);
+    expect(made.map((r) => r.distribution).sort()).toEqual([first, third].sort());
     expect(await audits("distribution_sent_back")).toHaveLength(2);
   });
 });

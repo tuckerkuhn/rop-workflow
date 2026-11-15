@@ -1,6 +1,7 @@
 import { and, asc, eq, inArray, isNotNull, notInArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { projects as demoProjects, type AppUser } from "@/lib/demo";
+import { DEMO_TARGET_PLACES, demoTakesResults } from "@/lib/demo-design";
 import { actualFor, indicators as demoIndicators, results as demoResults, type Indicator, type Submission } from "@/lib/project";
 import { totalsOf, type ResultRecord } from "@/lib/results";
 import { loadResults } from "@/server/results-store";
@@ -233,9 +234,9 @@ const levelOf = (resultId: string): Level => (resultId === "G" ? "goal" : result
  */
 export const DEMO_PLAN: Record<string, { target: number; forecast: Record<string, number> }> = {
   "IND-1": { target: 250, forecast: { "2026": 20, "2027": 100 } },
-  "IND-2": { target: 250, forecast: { "2026": 0, "2027": 100 } },
-  "IND-3": { target: 200, forecast: { "2026": 0, "2027": 80 } },
-  "IND-4": { target: 500, forecast: { "2026": 0, "2027": 200 } },
+  "IND-2": { target: 250, forecast: { "2026": 10, "2027": 100 } },
+  "IND-3": { target: 200, forecast: { "2026": 8, "2027": 80 } },
+  "IND-4": { target: 500, forecast: { "2026": 10, "2027": 200 } },
   "IND-5": { target: 25, forecast: { "2027": 10 } },
 };
 
@@ -253,10 +254,16 @@ export async function seedIndicators(projectId: string) {
         forecast: DEMO_PLAN[i.id]?.forecast ?? {},
         level: levelOf(i.result),
         result: demoResults.find((r) => r.id === i.result)?.statement ?? null,
-        source: i.source,
-        filter: i.id === "IND-3" ? { field: "result", equals: "Yes" } : null,
+        // The four targets the field team's records count toward take recorded results, as a real
+        // project's do (lib/demo-design); the income target stays with its survey.
+        source: demoTakesResults(i.id) ? "results" : i.source,
+        filter: null,
         frequency: i.frequency === "Monthly" ? ("monthly" as const) : ("end_of_season" as const),
         theme: i.library ?? null,
+        // Its place in the results framework, the workplan row that delivers it and the line that pays for it (lib/demo-design).
+        donorCode: DEMO_TARGET_PLACES[i.id]?.donorCode ?? null,
+        workplanCode: DEMO_TARGET_PLACES[i.id]?.workplanCode ?? null,
+        budgetRef: DEMO_TARGET_PLACES[i.id]?.budgetRef ?? null,
         position: k,
       })),
     )

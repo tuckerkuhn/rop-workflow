@@ -51,6 +51,7 @@ export const DEMO_SETUP: FieldSetup = {
   village: "Village B",
   crop: "Maize",
   windowEnd: "2027-03-20",
+  target: "IND-2",
 };
 
 /** One farmer's share of an item, in the item's unit. */

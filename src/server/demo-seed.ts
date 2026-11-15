@@ -5,8 +5,16 @@ import { ORG_ID, PROJECT } from "@/lib/demo";
 import { DEMO_SETUP, FIELD_SETUP_KEY } from "@/lib/package";
 import { SEASON, seedField, seedStock, type Farmer } from "@/lib/field";
 import { seedProcurements } from "@/lib/procurement";
-import { seedSubmissions } from "@/lib/project";
+import { seedSubmissions, type Submission } from "@/lib/project";
 import { seedStaff } from "@/server/staff";
+import { DEMO_PROOF, demoActivities, demoBudget, demoFramework, demoResults, demoSpending, demoWorkplan } from "@/lib/demo-design";
+import type { ResultInput } from "@/lib/results";
+import { samplePdf } from "@/lib/sample-files";
+import { saveFile } from "@/server/hr-files";
+import { FRAMEWORK_KEY } from "@/lib/framework";
+import { saveActuals } from "@/server/actuals-store";
+import { saveBudget, saveWorkplan } from "@/server/plan-store";
+import { saveProjectState } from "@/server/project-state";
 import { seedDonors, seedIndicators } from "@/server/progress-store";
 import { seedWorkItems } from "@/server/work-store";
 
@@ -122,9 +130,11 @@ async function loadDemoState(projectId: string, organizationId: string) {
   await seedProcurementRows(projectId, organizationId, days);
   await seedWorkItems(projectId, organizationId, days);
   await seedIndicators(projectId);
+  await seedDesign(projectId);
   // Report deadlines name calendar months and years ("Monthly report: February"), so they stay as written.
   await seedDonors(projectId, organizationId);
   const subs = shiftDates(seedSubmissions(seedField()), days);
+  await seedResults(projectId, organizationId, subs);
   await db.insert(s.evidence).values(
     subs.map((sub) => ({
       organizationId,
@@ -138,6 +148,54 @@ async function loadDemoState(projectId: string, organizationId: string) {
       reviewStatus: sub.status,
       reviewedBy: sub.decidedBy ?? null,
       reviewedAt: sub.decidedOn ? new Date(`${sub.decidedOn}T12:00:00Z`) : null,
+    })),
+  );
+}
+
+/**
+ * The demo project's design (lib/demo-design): the framework's wording, the budget, the workplan
+ * with its owners, and the spending Finance has sent. Without it the demo had field work and
+ * purchases with no plan behind them, and Progress, Budget and Activities opened empty.
+ */
+async function seedDesign(projectId: string) {
+  const [project] = await db.select({ code: s.projects.code, startDate: s.projects.startDate }).from(s.projects).where(eq(s.projects.id, projectId)).limit(1);
+  if (!project?.code) return;
+  const today = realToday();
+  await saveBudget(project.code, demoBudget(today));
+  await saveWorkplan(project.code, demoWorkplan(today));
+  await saveProjectState(projectId, FRAMEWORK_KEY, demoFramework(today));
+  await saveProjectState(projectId, "activities", demoActivities(today));
+  const spending = demoSpending(project.startDate ?? today, today);
+  if (spending) await saveActuals(project.code, spending, { name: "Sample spending (fictional).xlsx", hash: "demo", sharepointUrl: null }, "demo");
+}
+
+/**
+ * A result for each sample field record that counts toward a target (lib/demo-design), each with
+ * its own fictional one-page document as its proof. Accepted records are accepted results; the ones
+ * that arrived this week wait for MEL.
+ */
+async function seedResults(projectId: string, organizationId: string, subs: Submission[]) {
+  // Each record gets its own one-page document: records that share a file are flagged as a possible double count.
+  const proof: Record<string, ResultInput["files"][number]> = {};
+  for (const sub of subs) {
+    const title = `${DEMO_PROOF[sub.form]}: ${sub.farmerId}, ${sub.date}`;
+    proof[sub.id] = await saveFile(samplePdf(`${title} (fictional sample)`, ["Project: A-2027, a fictional maize project", "Place: Village B (fictional)", "This document is invented for training. It records no real person."]), `${title} (sample).pdf`, "application/pdf", "demo");
+  }
+  const rows = demoResults(subs, proof);
+  if (!rows.length) return;
+  await db.insert(s.evidence).values(
+    rows.map((r) => ({
+      organizationId,
+      projectId,
+      source: "manual" as const,
+      form: "result",
+      reviewStatus: r.status,
+      completedBy: r.by,
+      completedAt: new Date(`${r.payload.date}T12:00:00Z`),
+      location: "Village B",
+      payload: r.payload,
+      reviewedBy: r.reviewedBy,
+      reviewedAt: r.reviewedOn ? new Date(`${r.reviewedOn}T12:00:00Z`) : null,
     })),
   );
 }
