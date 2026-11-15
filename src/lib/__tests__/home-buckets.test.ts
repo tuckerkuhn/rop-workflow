@@ -155,3 +155,24 @@ describe("purchases waiting on a person reach Home", () => {
     expect(purchaseRows([{ ...procurements()[0], step: DONE }], officer, "A-2027", "procurement")).toEqual([]);
   });
 });
+
+describe("Home says a thing once", () => {
+  const item = (key: string, owner: "mel" | "finance" | "lead", blocks: boolean) => ({ owner, text: key, key, href: "/pf", blocks });
+
+  it("drops the report blocker when the same thing is already listed as the action to take", () => {
+    const rows = waitingRows({ actions: [{ ...action("accept", "approve"), for: "mel" }], lenses: ["mel"], report: report({ items: [item("pf.c.pending", "mel", true), item("pf.c.noProof", "mel", false)] }), deadlines: [] });
+    expect(rows.approve.map((r) => r.key)).toEqual(["accept"]);
+    expect(rows.fix.map((r) => r.item?.key)).toEqual(["pf.c.noProof"]);
+  });
+
+  it("marks the action that stays as needing doing now when it blocks the report", () => {
+    const rows = waitingRows({ actions: [{ ...action("overspent", "fix"), for: "finance" }, { ...action("accept", "approve"), for: "mel" }], lenses: ["mel", "finance"], report: report({ items: [item("pf.c.pending", "mel", true), item("pf.c.unexplained", "finance", false)] }), deadlines: [] });
+    expect(rows.approve[0]).toMatchObject({ key: "accept", urgent: true });
+    expect(rows.fix).toEqual([expect.objectContaining({ key: "overspent", urgent: false })]);
+  });
+
+  it("keeps the blocker when no action covers it", () => {
+    const rows = waitingRows({ actions: [], lenses: ["mel"], report: report({ items: [item("pf.c.pending", "mel", true)] }), deadlines: [] });
+    expect(rows.fix.map((r) => r.item?.key)).toEqual(["pf.c.pending"]);
+  });
+});

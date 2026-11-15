@@ -15,6 +15,15 @@ export const BUCKETS: Bucket[] = ["approve", "fix", "due"];
 /** Whose pre-flight items belong to each view of Home. */
 export const OWNERS_FOR: Record<Lens, LoopOwner[]> = { lead: ["lead"], mel: ["mel", "writers"], field: ["field"], finance: ["finance"], procurement: [], hr: [] };
 
+/** A pre-flight item and the Home action that asks for the same thing: shown once, as the action. */
+export const SAME_AS: Record<string, string> = {
+  "pf.c.signOff": "signoff",
+  "pf.c.pending": "accept",
+  "pf.c.queried": "queried",
+  "pf.c.unexplained": "overspent",
+  "pf.c.notImported": "import",
+};
+
 export type WaitingRow = {
   key: string;
   bucket: Bucket;
@@ -39,7 +48,17 @@ export function waitingRows(a: { actions: HomeAction[]; lenses: Lens[]; report: 
   // What stands between this person and the next report, from pre-flight: theirs only, blockers first.
   const mine = new Set(a.lenses.flatMap((l) => OWNERS_FOR[l]));
   if (a.report && !a.report.released)
-    for (const [k, i] of a.report.items.filter((i) => mine.has(i.owner)).entries()) out.fix.push({ key: `pf-${k}`, bucket: "fix", href: i.href, urgent: i.blocks, item: i });
+    for (const [k, i] of a.report.items.filter((i) => mine.has(i.owner)).entries()) {
+      // Already on the list as the thing to do ("Accept or query 4 results"): not said a second
+      // time as what blocks the report. The row that stays is marked as needing doing now.
+      const said = i.key ? SAME_AS[i.key] : undefined;
+      const row = said ? BUCKETS.flatMap((b) => out[b]).find((r) => r.key === said) : undefined;
+      if (row) {
+        if (i.blocks) row.urgent = true;
+        continue;
+      }
+      out.fix.push({ key: `pf-${k}`, bucket: "fix", href: i.href, urgent: i.blocks, item: i });
+    }
 
   // Dated things: the report (the date the team aims for, which keeps time for review) and the month's review.
   const writes = a.lenses.some((l) => l === "lead" || l === "mel");

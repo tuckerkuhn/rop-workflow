@@ -3,6 +3,7 @@ import { reportDeadline } from "@/server/preflight";
 import { ourWork } from "@/lib/budget";
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { fieldRows, purchaseRows, taskRow } from "@/lib/home-buckets";
+import { loadLineReasons } from "@/server/overspend-store";
 import { loadProcurements } from "@/server/procurement-store";
 import type { FieldItem } from "@/lib/field";
 import { koboMismatches } from "@/server/results-store";
@@ -231,7 +232,10 @@ export async function loadHome(code: string, u: AppUser) {
   if (lenses.includes("finance")) {
     const wanted = prevMonth(month);
     if (!budget.importedTo || budget.importedTo < wanted) actions.push({ key: "import", for: "finance", bucket: "due", urgent: true, text: `Import Finance's workbook for ${monthName(wanted)} (imported to ${budget.importedTo ? monthName(budget.importedTo) : "nothing yet"})`, msg: budget.importedTo ? { key: "ha.import", vars: { month: wanted, to: budget.importedTo } } : { key: "ha.importNone", vars: { month: wanted } }, href: "/progress/report" });
-    if (overspent.length) actions.push({ key: "overspent", for: "finance", bucket: "fix", urgent: false, text: `Explain ${overspent.length} overspent budget ${overspent.length === 1 ? "line" : "lines"}`, msg: { key: overspent.length === 1 ? "ha.overspent1" : "ha.overspent", vars: { n: overspent.length } }, href: "/progress/budget" });
+    // Only the lines nobody has explained yet: an explained line stays overspent, but there is nothing left to ask for.
+    const reasons = overspent.length ? await loadLineReasons(project.id) : {};
+    const toExplain = overspent.filter((l) => !reasons[l.code]);
+    if (toExplain.length) actions.push({ key: "overspent", for: "finance", bucket: "fix", urgent: false, text: `Explain ${toExplain.length} overspent budget ${toExplain.length === 1 ? "line" : "lines"}`, msg: { key: toExplain.length === 1 ? "ha.overspent1" : "ha.overspent", vars: { n: toExplain.length } }, href: "/progress/budget" });
   }
 
   // Field activities waiting on a role this person holds: their day's work, ahead of anything about reports.
