@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { flagsFor, gate, inProcUnit, plannedItems, toKg } from "@/lib/distribution";
+import { applyFix, drawnFrom, fixOwner, paymentDue, flagsFor, gate, inProcUnit, plannedItems, storeStock, toKg } from "@/lib/distribution";
+import { seedProcurements } from "@/lib/procurement";
 import type { Procurement } from "@/lib/procurement";
 
 const proc = (over: Partial<Procurement>): Procurement =>
@@ -57,5 +58,98 @@ describe("flagsFor", () => {
     const items = plannedItems().map((i) => (i.key === "seed" ? { ...i, qty: 15 } : i));
     const ids = flagsFor({ ...base, items, photo: false, signed: false, step: "verify" }, ["F-0001"]).map((f) => f.id);
     expect(ids).toEqual(["twice", "aboveplan", "nophoto", "unsigned", "notready"]);
+  });
+});
+
+describe("gate: says what would unblock a refusal", () => {
+  it("names a delivery that has arrived but is not signed for yet", () => {
+    const waiting = proc({ id: "PR-LOT2", unit: "kg", budgetLine: "2.2", step: "receive", grn: { qty: 600, place: "" } } as Partial<Procurement>);
+    const g = gate(plannedItems(), [seedIn(100), proc({ id: "PR-LOT1", unit: "kg", budgetLine: "2.2", ...got(100) }), waiting], { npk: 100 });
+    expect(g.ok).toBe(false);
+    expect(g.block).toMatch(/only 0 kg of the 100 kg received is left/);
+    expect(g.block).toMatch(/PR-LOT2 has been delivered: once its goods received note is signed/);
+  });
+});
+
+describe("storeStock: one figure for the store, from the purchases", () => {
+  it("is what was received on signed notes less what went out, in the package's unit", () => {
+    expect(storeStock([seedIn(400), npkIn(0.7)], { seed: 20, npk: 100 })).toEqual({ seed: 380, npk: 600 });
+  });
+  it("does not count a delivery whose received note is not signed", () => {
+    expect(storeStock([seedIn(400), proc({ id: "PR-NPK", unit: "kg", budgetLine: "2.2", step: "receive", grn: { qty: 600, place: "" } } as Partial<Procurement>)], {})).toEqual({ seed: 400, npk: 0 });
+  });
+  it("never goes below zero", () => {
+    expect(storeStock([seedIn(10), npkIn(1)], { seed: 30 })?.seed).toBe(0);
+  });
+  it("is null when no purchase supplies the package, so a typed stock is kept", () => {
+    expect(storeStock([proc({ budgetLine: "9.9" })], {})).toBeNull();
+  });
+  it("agrees with the gate on the demo project: enough seed, fertilizer waiting on one signature", () => {
+    const procs = seedProcurements();
+    // Two farmers already have their package (F-0001 and F-0002).
+    const given = { seed: 20, npk: 100 };
+    expect(storeStock(procs, given)).toEqual({ seed: 380, npk: 0 });
+    const g = gate(plannedItems(), procs, given);
+    expect(g.lines.find((l) => l.key === "seed")?.ok).toBe(true);
+    expect(g.lines.find((l) => l.key === "npk")?.ok).toBe(false);
+    expect(g.block).toMatch(/PR-2027-011 has been delivered/);
+  });
+});
+
+describe("fixOwner: a sent-back distribution returns to its owner", () => {
+  const people = [
+    { id: "nadia", field: ["manager"], fieldAccess: "edit" },
+    { id: "farida", field: ["extension"], fieldAccess: "edit" },
+    { id: "bilal", field: ["store"], fieldAccess: "edit" },
+    { id: "karim", field: [], fieldAccess: "view" },
+  ];
+  it("goes to the person who recorded it", () => {
+    expect(fixOwner("farida", people)).toBe("farida");
+  });
+  it("goes to the storekeeper when it came from a phone or the recorder cannot change records", () => {
+    expect(fixOwner("kobo_user_7", people)).toBe("bilal");
+    expect(fixOwner("karim", people)).toBe("bilal");
+    expect(fixOwner(null, people)).toBe("bilal");
+  });
+  it("falls back to the extension agent, and to nobody only when no one can fix it", () => {
+    expect(fixOwner(null, people.filter((u) => u.id !== "bilal"))).toBe("farida");
+    expect(fixOwner(null, [people[3]])).toBeNull();
+  });
+});
+
+describe("applyFix", () => {
+  it("replaces only the quantities that were corrected", () => {
+    const out = applyFix(plannedItems(), { qty: { seed: 8 } });
+    expect(out.find((i) => i.key === "seed")?.qty).toBe(8);
+    expect(out.find((i) => i.key === "npk")?.qty).toBe(50);
+  });
+  it("ignores a quantity that is not a number or is negative", () => {
+    expect(applyFix(plannedItems(), { qty: { seed: -1, npk: Number.NaN } })).toEqual(plannedItems());
+  });
+});
+
+describe("drawnFrom: an approved item is charged to a purchase that has received goods", () => {
+  const lot = (id: string, over: Partial<Procurement>) => proc({ id, unit: "kg", budgetLine: "2.2", ...over });
+  const listed = (qty: number) => ({ forParticipants: true, inStock: 0, checks: [], lists: [{ date: "2027-03-01", place: "Village B", recipients: 1, women: 0, qty, evidence: "", by: "nadia", byName: "Nadia" }] }) as unknown as Procurement["distribution"];
+  it("never picks a purchase whose goods received note is not signed", () => {
+    const procs = [lot("PR-A", { step: "contract" }), lot("PR-B", got(600))];
+    expect(drawnFrom("npk", 50, procs)?.id).toBe("PR-B");
+  });
+  it("uses the oldest received purchase with enough left, then moves to the next", () => {
+    const procs = [lot("PR-1", { ...got(100), distribution: listed(100) }), lot("PR-2", got(600))];
+    expect(drawnFrom("npk", 50, procs)?.id).toBe("PR-2");
+    expect(drawnFrom("npk", 50, [lot("PR-1", { ...got(100), distribution: listed(50) }), lot("PR-2", got(600))])?.id).toBe("PR-1");
+  });
+  it("is null when nothing on the line has been received", () => {
+    expect(drawnFrom("npk", 50, [lot("PR-A", { step: "receive" })])).toBeNull();
+  });
+});
+
+describe("paymentDue: finance is asked to pay only when a payment is left", () => {
+  it("is due between the received note and the payment", () => {
+    for (const step of ["package", "payForm", "payReady", "approvePay", "voucher"]) expect(paymentDue({ step })).toBe(true);
+  });
+  it("is not due before goods are received, or once paid or closed", () => {
+    for (const step of ["contract", "receive", "paid", "close", "done"]) expect(paymentDue({ step })).toBe(false);
   });
 });

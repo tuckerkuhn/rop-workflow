@@ -81,7 +81,8 @@ export type Finding = {
 };
 
 export type FieldItem = Farmer | Finding;
-export type Ctx = { stock: Stock };
+/** `stockNote`: when the store's stock comes from purchases and the next package cannot go out, why, and what unblocks it. */
+export type Ctx = { stock: Stock; stockNote?: string | null };
 
 export type SCheck = {
   id: string;
@@ -249,7 +250,7 @@ export const fieldSteps: Record<string, SStep> = {
         tag: "TS",
         auto: (_, ctx) => ({
           ok: PACKAGE.every((p) => ctx.stock[p.key] >= p.qty),
-          detail: PACKAGE.map((p) => `${p.item} ${ctx.stock[p.key]} ${p.unit} in store`).join(" · "),
+          detail: PACKAGE.map((p) => `${p.item} ${ctx.stock[p.key]} ${p.unit} in store`).join(" · ") + (ctx.stockNote && !PACKAGE.every((p) => ctx.stock[p.key] >= p.qty) ? `. ${ctx.stockNote}` : ""),
         }),
         fix: "Store is short for this package: check the procurement status.",
       },

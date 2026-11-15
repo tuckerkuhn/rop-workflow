@@ -1,3 +1,4 @@
+import { fieldSteps, ownerOfItem, type FieldItem } from "@/lib/field";
 import type { Bucket, HomeAction, Lens } from "@/server/home-store";
 import type { LoopItem, LoopOwner, NextReport } from "@/server/next-report";
 
@@ -51,3 +52,60 @@ export function waitingRows(a: { actions: HomeAction[]; lenses: Lens[]; report: 
 }
 
 export const waitingCount = (rows: Record<Bucket, WaitingRow[]>) => BUCKETS.reduce((n, b) => n + rows[b].length, 0);
+
+/* ---------- tasks made at a handoff ---------- */
+
+export type OpenTask = { id: string; title: string; date: string | null; assignee: string | null; sourceKey: string | null };
+
+const addDays = (d: string, n: number) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 864e5).toISOString().slice(0, 10);
+
+/**
+ * An open task as a row on Home, or null when it is not this person's to see. A handoff that makes
+ * a task (a distribution sent back, a readiness correction, a payment to release) is only owned
+ * once its owner meets it on Home, one tap from the place to act:
+ *
+ * - theirs: every task the app made for them, and tasks someone gave them that are due within a
+ *   week or late;
+ * - nobody's: a task the app made that has no owner goes to the people who lead the project, so it
+ *   cannot sit unseen.
+ */
+export function taskRow(t: OpenTask, a: { me: string; lead: boolean; code: string; today: string; lens: Lens }): HomeAction | null {
+  const made = !!t.sourceKey && !t.sourceKey.startsWith("demo:") && !t.sourceKey.startsWith("donor:");
+  const mine = t.assignee === a.me;
+  const orphan = made && !t.assignee && a.lead;
+  if (!mine && !orphan) return null;
+  if (mine && !made && !(t.date && t.date <= addDays(a.today, 7))) return null;
+  const key = t.sourceKey ?? "";
+  const at = key.indexOf(":");
+  const [kind, ref] = at < 0 ? [key, ""] : [key.slice(0, at), key.slice(at + 1)];
+  const project = encodeURIComponent(a.code);
+  const fix = kind === "dist-fix" || kind === "correction";
+  const href =
+    kind === "dist-fix" ? `/approve/${project}/${ref}` : kind === "pay-ready" ? `/work?source=procurement&open=${encodeURIComponent(ref)}&project=${project}` : kind === "correction" ? `/work?source=field&project=${project}` : `/work?project=${project}`;
+  const late = !!t.date && t.date < a.today;
+  return { key: `task:${t.id}`, for: a.lens, bucket: fix ? "fix" : "due", urgent: fix || late, text: orphan ? `No one is assigned: ${t.title}` : t.title, href };
+}
+
+/* ---------- field work waiting on this person ---------- */
+
+/**
+ * Field activities as rows on Home: one row per step that waits on a role this person holds, with
+ * how many farmers are at it, opening the first of them. A storekeeper sees "Distribute the input
+ * package: 2 farmers are waiting for you" before anything about reports.
+ */
+export function fieldRows(items: Pick<FieldItem, "id" | "kind" | "step">[], roles: string[], code: string, lens: Lens): HomeAction[] {
+  const by = new Map<string, string[]>();
+  for (const i of items) {
+    const owner = ownerOfItem(i as FieldItem);
+    if (!owner || !roles.includes(owner)) continue;
+    by.set(i.step, [...(by.get(i.step) ?? []), i.id]);
+  }
+  return [...by.entries()]
+    .sort((a, b) => (fieldSteps[a[0]]?.stage ?? 0) - (fieldSteps[b[0]]?.stage ?? 0) || a[0].localeCompare(b[0]))
+    .map(([step, ids]) => {
+      const farmers = items.find((i) => i.id === ids[0])?.kind === "farmer";
+      const n = ids.length;
+      const who = farmers ? (n === 1 ? "1 farmer is" : `${n} farmers are`) : n === 1 ? "1 finding is" : `${n} findings are`;
+      return { key: `field:${step}`, for: lens, bucket: "due" as const, urgent: false, text: `${fieldSteps[step]?.title ?? step}: ${who} waiting for you`, href: `/work?source=field&open=${encodeURIComponent(ids.sort()[0])}&project=${encodeURIComponent(code)}` };
+    });
+}

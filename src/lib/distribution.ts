@@ -60,13 +60,77 @@ export function gate(items: DistItem[], procs: Procurement[], givenKg: Partial<R
       return { ...base, receivedKg: 0, ok: false, detail: `${it.item}: the goods received note is not signed yet (${where}).` };
     }
     const receivedKg = done.reduce((s, p) => s + (toKg(receivedQty(p), p.unit) ?? 0), 0);
-    if (given + thisKg > receivedKg + 1e-9)
-      return { ...base, receivedKg, ok: false, detail: `${it.item}: this package needs ${fmt(thisKg)} kg, but only ${fmt(Math.max(0, receivedKg - given))} kg of the ${fmt(receivedKg)} kg received is left.` };
+    if (given + thisKg > receivedKg + 1e-9) {
+      // Say what would unblock it: a delivery that has arrived but whose received note is not signed yet.
+      const coming = sources.filter((p) => !received(p) && stepById[p.step]?.id === "receive");
+      const next = coming.length ? ` ${coming.map((p) => p.id).join(", ")} has been delivered: once its goods received note is signed, more can go out.` : "";
+      return { ...base, receivedKg, ok: false, detail: `${it.item}: this package needs ${fmt(thisKg)} kg, but only ${fmt(Math.max(0, receivedKg - given))} kg of the ${fmt(receivedKg)} kg received is left.${next}` };
+    }
     return { ...base, receivedKg, ok: true, detail: `${it.item}: ${fmt(given + thisKg)} of ${fmt(receivedKg)} kg received will have gone out (${done.map((p) => p.id).join(", ")}).` };
   });
   const bad = lines.filter((l) => !l.ok);
   return { ok: !bad.length, lines, block: bad.length ? bad.map((l) => l.detail).join(" ") : null };
 }
+
+/**
+ * What is in the store for each package item, in the package's own unit: what the purchases on its
+ * budget line have received (signed goods received notes), less what distributions have taken.
+ * One figure for Field activities and for the gate, so the screen and the check never disagree.
+ * Null when no purchase supplies the package at all (a project that keeps its stock by hand).
+ */
+export function storeStock(procs: Procurement[], givenKg: Partial<Record<PackageKey, number>>): Record<PackageKey, number> | null {
+  if (!PACKAGE.some((p) => suppliersOf(p.key, procs).length)) return null;
+  return Object.fromEntries(
+    PACKAGE.map((p) => {
+      const receivedKg = suppliersOf(p.key, procs)
+        .filter((x) => received(x))
+        .reduce((t, x) => t + (toKg(receivedQty(x), x.unit) ?? 0), 0);
+      const left = Math.max(0, receivedKg - (givenKg[p.key] ?? 0));
+      return [p.key, Math.round(fromKg(left, p.unit) * 1000) / 1000];
+    }),
+  ) as Record<PackageKey, number>;
+}
+
+/**
+ * Who fixes a distribution the manager sent back: the person who recorded it when they can still
+ * change field records on the project; otherwise the storekeeper, then the extension agent, so it
+ * never lands with nobody. `people` are those on the project.
+ */
+export function fixOwner(recordedBy: string | null, people: { id: string; field: string[]; fieldAccess: string }[]): string | null {
+  const can = people.filter((u) => u.fieldAccess === "edit");
+  return can.find((u) => u.id === recordedBy)?.id ?? can.find((u) => u.field.includes("store"))?.id ?? can.find((u) => u.field.includes("extension"))?.id ?? null;
+}
+
+/** What the person fixing a sent-back distribution may correct. Quantities are in the package's own units. */
+export type Fix = { qty?: Partial<Record<PackageKey, number>>; signed?: boolean; photo?: boolean };
+
+/** The items after a fix: a corrected quantity replaces the recorded one; anything else stays. */
+export function applyFix(items: DistItem[], fix: Fix): DistItem[] {
+  return items.map((i) => {
+    const q = fix.qty?.[i.key];
+    return typeof q === "number" && Number.isFinite(q) && q >= 0 ? { ...i, qty: q } : i;
+  });
+}
+
+/**
+ * The purchase an approved item is drawn from: the oldest received purchase on the item's budget
+ * line that still has enough left after its own distribution lists; when none has room for all of
+ * it, the newest received one. Never a purchase whose goods received note is not signed: its
+ * supplier has delivered nothing to pay for yet.
+ */
+export function drawnFrom(key: PackageKey, kg: number, procs: Procurement[]): Procurement | null {
+  const got = suppliersOf(key, procs)
+    .filter((p) => received(p))
+    .sort((a, b) => a.id.localeCompare(b.id));
+  const left = (p: Procurement) => (toKg(receivedQty(p), p.unit) ?? 0) - (toKg((p.distribution?.lists ?? []).reduce((t, l) => t + l.qty, 0), p.unit) ?? 0);
+  return got.find((p) => left(p) + 1e-9 >= kg) ?? got.at(-1) ?? null;
+}
+
+/**
+ * Whether the purchase still has a payment for finance to release: its goods are received and it
+ * is between Receive and the payment itself. A purchase already paid or closed gets no task.
+ */
+export const paymentDue = (p: Pick<Procurement, "step">) => stepById[p.step]?.stage === stages.indexOf("Pay-ready") && p.step !== "paid";
 
 /** A procurement's distribution list entry quantity, in its own unit. */
 export const inProcUnit = (kg: number, p: Pick<Procurement, "unit">) => fromKg(kg, p.unit);

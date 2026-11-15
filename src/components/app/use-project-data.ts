@@ -30,6 +30,7 @@ export function useFieldData(code = "A-2027") {
   const { user, ready } = useSession();
   const [items, setItemsState] = useState<FieldItem[]>([]);
   const [stock, setStockState] = useState<Stock>(seedStock);
+  const [stockNote, setStockNote] = useState<string | null>(null);
   const [status, setStatus] = useState<Load>("loading");
   const [error, setError] = useState("");
   const current = useRef<FieldItem[]>([]);
@@ -37,7 +38,8 @@ export function useFieldData(code = "A-2027") {
 
   const reload = useCallback(async () => {
     try {
-      const r = await call<{ items: FieldItem[]; stock: Stock | null }>(`/api/projects/${code}/field`, user?.id);
+      const r = await call<{ items: FieldItem[]; stock: Stock | null; stockNote?: string | null }>(`/api/projects/${code}/field`, user?.id);
+      setStockNote(r.stockNote ?? null);
       current.current = r.items;
       setItemsState(r.items);
       if (r.stock) {
@@ -58,7 +60,16 @@ export function useFieldData(code = "A-2027") {
 
   const save = useCallback(
     (body: { items?: FieldItem[]; stock?: Stock }) =>
-      call(`/api/projects/${code}/field`, user?.id, { method: "PUT", body: JSON.stringify(body) }).catch(async (e) => {
+      call<{ stock?: Stock; stockNote?: string | null }>(`/api/projects/${code}/field`, user?.id, { method: "PUT", body: JSON.stringify(body) })
+        .then((r) => {
+          if (body.items && r.stock) setStockNote(r.stockNote ?? null);
+          // The store's stock comes from the purchases: after a save that moved a farmer, show the server's figure.
+          if (body.items && r.stock) {
+            currentStock.current = r.stock;
+            setStockState(r.stock);
+          }
+        })
+        .catch(async (e) => {
         // Refused (e.g. inputs handed out before the goods received note is signed): show why and
         // put the screen back to what is saved.
         await reload();
@@ -95,7 +106,7 @@ export function useFieldData(code = "A-2027") {
     await reload();
   }, [code, user?.id, reload]);
 
-  return { items, setItems, stock, setStock, status, error, reload, reset };
+  return { items, setItems, stock, stockNote, setStock, status, error, reload, reset };
 }
 
 

@@ -322,25 +322,8 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
 
   return (
     <section aria-label="Where things stand" className="space-y-5">
-      <GettingStarted project={project.id} user={user.id} />
-      <div className="flex flex-wrap items-start gap-3">
-        <p className="min-w-0 flex-1 text-lg leading-snug">
-          {headline[lens]}
-          {lens === "lead" && (
-            <Link href="/portfolio" className="ms-2 whitespace-nowrap text-sm font-semibold text-forest hover:underline">
-              All projects →
-            </Link>
-          )}
-        </p>
-        {switcher}
-      </div>
-
-      <Families
-        project={project.id}
-        user={user.id}
-        mayWriteStory={user.fieldAccess === "edit" || !!user.admin || user.project.some((r) => ["mel-owner", "plan-approver", "monthly-review", "report-release"].includes(r))}
-      />
-
+      {/* First on the page: the one thing to do next, then everything waiting on this person. Where the
+          project stands, first steps and stories follow, for when the day's work is clear. */}
       {/* The one thing to do next; the rest of the list is under More. */}
       {next && (
         <Link href={next.href} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl border border-forest/40 bg-mist px-4 py-3 hover:border-forest">
@@ -354,6 +337,25 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
 
       {/* Everything waiting on this person, across their roles: Approve, Fix, Due. */}
       <WaitingOnYou rows={waiting} />
+
+      <div className="flex flex-wrap items-start gap-3">
+        <p className="min-w-0 flex-1 text-lg leading-snug">
+          {headline[lens]}
+          {lens === "lead" && (
+            <Link href="/portfolio" className="ms-2 whitespace-nowrap text-sm font-semibold text-forest hover:underline">
+              All projects →
+            </Link>
+          )}
+        </p>
+        {switcher}
+      </div>
+
+      <GettingStarted project={project.id} user={user.id} />
+      <Families
+        project={project.id}
+        user={user.id}
+        mayWriteStory={user.fieldAccess === "edit" || !!user.admin || user.project.some((r) => ["mel-owner", "plan-approver", "monthly-review", "report-release"].includes(r))}
+      />
 
       <NextReportPanel project={project.id} user={user.id} data={nr} owners={lens === "lead" ? undefined : lens === "mel" ? ["mel", "writers"] : lens === "field" ? ["field"] : lens === "finance" ? ["finance"] : []} />
 

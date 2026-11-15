@@ -1,7 +1,7 @@
 import { and, asc, eq } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import type { MappingMethod } from "@/lib/kobo-setup";
-import type { ResultInput, ResultRecord } from "@/lib/results";
+import type { Correction, ResultInput, ResultRecord } from "@/lib/results";
 import { logAudit } from "@/server/audit";
 import { attachmentBytes } from "@/server/kobo-client";
 import { credentials } from "@/server/kobo-link";
@@ -15,7 +15,12 @@ import { loadResults } from "@/server/results-store";
  * new answer). Runs after every sync; safe to repeat.
  *
  * While a result waits for MEL, it follows changes made in KoboToolbox. Once MEL has accepted it,
- * a change or a deletion in KoboToolbox is written to the audit log instead, for MEL to reopen.
+ * a change or a deletion in KoboToolbox is written to the audit log instead, for MEL to reopen
+ * (once per change, however many times the sync runs).
+ *
+ * A result MEL queried has no person to correct it in the app: its recorder is the form. The fix
+ * is made in KoboToolbox, and when it arrives here the result goes back to MEL as pending, with
+ * the query and the earlier figures kept in its history. Without that it stayed queried for good.
  */
 
 export const KOBO_BY = "kobo";
@@ -74,6 +79,27 @@ function addsUp(method: MappingMethod, value: string | null, a: string, seen: Se
 
 export type KoboResultCounts = { added: number; updated: number; removed: number; flagged: number; photos: number };
 
+/** A value written the same way whatever order its keys were stored in (the database does not keep key order). */
+const canon = (v: unknown): string =>
+  v && typeof v === "object"
+    ? Array.isArray(v)
+      ? `[${v.map(canon).join(",")}]`
+      : `{${Object.keys(v as object).sort().map((k) => `${JSON.stringify(k)}:${canon((v as Record<string, unknown>)[k])}`).join(",")}}`
+    : JSON.stringify(v ?? null);
+
+/**
+ * Notes once that an accepted result no longer matches KoboToolbox. The sync runs after every
+ * submission and every night, so without this the same change was written to the audit log again
+ * on each run. Returns whether a new row was written.
+ */
+async function flagOnce(projectId: string, resultId: string, detail: Record<string, unknown>) {
+  const rows = await db.select({ detail: s.auditLog.detail }).from(s.auditLog).where(and(eq(s.auditLog.projectId, projectId), eq(s.auditLog.entityId, resultId), eq(s.auditLog.action, "kobo_changed_after_acceptance")));
+  const want = { by: KOBO_BY, ...detail };
+  if (rows.some((r) => canon(r.detail ?? {}) === canon(want))) return false;
+  await logAudit(db, projectId, { entity: "result", entityId: resultId, action: "kobo_changed_after_acceptance", by: KOBO_BY, detail });
+  return true;
+}
+
 /** What is stored for a result: the record without the fields the store adds when reading it. */
 function stored(r: ResultRecord): ResultInput {
   const { id: _id, quarter: _q, status: _s, by: _b, at: _a, reviewedBy: _rb, reviewedAt: _ra, query: _qu, history: _h, ...input } = r;
@@ -126,7 +152,7 @@ export async function koboToResults(code: string): Promise<KoboResultCounts> {
       if (!value) {
         if (!mine) continue;
         if (mine.status === "accepted") {
-          await logAudit(db, project.id, { entity: "result", entityId: mine.id, action: "kobo_changed_after_acceptance", by: KOBO_BY, detail: { indicator: ind.code, submission: sub.num, change: sub.removed ? "deleted in KoboToolbox" : "no longer counts" } });
+          await flagOnce(project.id, mine.id, { indicator: ind.code, submission: sub.num, change: sub.removed ? "deleted in KoboToolbox" : "no longer counts" });
           out.flagged++;
         } else {
           await db.transaction(async (tx) => {
@@ -148,14 +174,20 @@ export async function koboToResults(code: string): Promise<KoboResultCounts> {
         const changed = mine.value !== value || mine.date !== date || (mine.province ?? "") !== (province ?? "") || (mine.district ?? "") !== (district ?? "");
         if (!changed) continue;
         if (mine.status === "accepted") {
-          await logAudit(db, project.id, { entity: "result", entityId: mine.id, action: "kobo_changed_after_acceptance", by: KOBO_BY, detail: { indicator: ind.code, submission: sub.num, was: { value: mine.value, date: mine.date }, now: { value, date } } });
+          await flagOnce(project.id, mine.id, { indicator: ind.code, submission: sub.num, was: { value: mine.value, date: mine.date }, now: { value, date } });
           out.flagged++;
           continue;
         }
-        const payload: ResultInput = { ...stored(mine), value, date, province, district, gps };
+        // Queried by MEL and now corrected in KoboToolbox: back to MEL, with the query and the old figures kept.
+        const answered = mine.status === "queried";
+        const history: Correction[] = [...(mine.history ?? []), ...(answered ? [{ at: new Date().toISOString(), by: KOBO_BY, query: mine.query, reply: "Corrected in KoboToolbox", previous: { value: mine.value, date: mine.date, ...(mine.province ? { province: mine.province } : {}), ...(mine.district ? { district: mine.district } : {}) } }] : [])];
+        const payload: ResultInput & { history?: Correction[] } = { ...stored(mine), value, date, province, district, gps, ...(history.length ? { history } : {}) };
         await db.transaction(async (tx) => {
-          await tx.update(s.evidence).set({ payload, completedAt: new Date(`${date}T12:00:00Z`), location: [district, province].filter(Boolean).join(", ") || null, updatedAt: new Date() }).where(and(where, eq(s.evidence.id, mine.id)));
-          await logAudit(tx, project.id, { entity: "result", entityId: mine.id, action: "kobo_result_updated", by: KOBO_BY, detail: { indicator: ind.code, submission: sub.num, value, date } });
+          await tx
+            .update(s.evidence)
+            .set({ payload, completedAt: new Date(`${date}T12:00:00Z`), location: [district, province].filter(Boolean).join(", ") || null, updatedAt: new Date(), ...(answered ? { reviewStatus: "pending" as const, reviewedBy: null, reviewedAt: null, queryNote: null } : {}) })
+            .where(and(where, eq(s.evidence.id, mine.id)));
+          await logAudit(tx, project.id, { entity: "result", entityId: mine.id, action: answered ? "result_corrected" : "kobo_result_updated", by: KOBO_BY, detail: { indicator: ind.code, submission: sub.num, value, date, ...(answered ? { query: mine.query, reply: "Corrected in KoboToolbox", before: { value: mine.value, date: mine.date }, after: { value, date } } : {}) } });
         });
         out.updated++;
         continue;
@@ -211,7 +243,7 @@ export async function koboToResults(code: string): Promise<KoboResultCounts> {
     // records). Waiting for MEL, it is removed; accepted, it is flagged and kept.
     for (const r of existing.filter((x) => x.indicator === ind.code && x.kobo?.asset === m.assetUid && !matched.has(x.id))) {
       if (r.status === "accepted") {
-        await logAudit(db, project.id, { entity: "result", entityId: r.id, action: "kobo_changed_after_acceptance", by: KOBO_BY, detail: { indicator: ind.code, submission: r.kobo?.id ?? null, change: "no matching submission in KoboToolbox" } });
+        await flagOnce(project.id, r.id, { indicator: ind.code, submission: r.kobo?.id ?? null, change: "no matching submission in KoboToolbox" });
         out.flagged++;
         continue;
       }

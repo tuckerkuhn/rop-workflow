@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
+import { useCurrentProject } from "@/components/app/current-project";
+import { taskHref, taskSources } from "@/components/tasks/sources";
 import { useSession } from "@/components/app/session";
 import { useT } from "@/components/app/i18n";
 import { Assistant } from "@/components/app/assistant";
@@ -11,8 +13,11 @@ import { orgAreasFor } from "@/lib/org-areas";
 import { holdsType } from "@/lib/authority";
 
 /**
- * The four main sections. A bottom tab bar on phones, a left sidebar from lg up.
- * Field activities and procurement live inside Work; project design opens from Home.
+ * The main sections. A bottom tab bar on phones, a left sidebar from lg up.
+ *
+ * The sidebar shows the sections, and under the one that is open, its places: one short list to
+ * read, not every page of the app at once. Field activities and Procurement are places under
+ * Record for the people and projects that have them, so nobody has to know they are there.
  */
 
 type Section = { id: string; href: string; label: MessageKey; also: string[]; icon: React.ReactNode; staffOnly?: boolean; orgOnly?: boolean; wideOnly?: boolean; places?: { href: string; label: MessageKey }[] };
@@ -101,7 +106,12 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
   const { t } = useT();
   const { shown, isActive } = useSections();
   const path = usePathname();
+  const source = useSearchParams().get("source");
+  const { project } = useCurrentProject();
   if (!user) return <>{children}</>;
+  // The workflows this person can open on this project come first under Record.
+  const workflows = taskSources(user, project).map((w) => ({ href: taskHref(w), label: (w === "field" ? "tasks.field" : "tasks.procurement") as MessageKey, source: w as string }));
+  const placesOf = (sec: Section): { href: string; label: MessageKey; source?: string }[] => (sec.id === "record" ? [...workflows, ...(sec.places ?? [])] : (sec.places ?? []));
   return (
     <>
       <aside className="fixed inset-y-0 start-0 z-40 hidden w-56 flex-col border-e border-line bg-surface lg:flex">
@@ -125,11 +135,13 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
             );
           }).flatMap((link, k) => {
             const s = shown[k];
-            if (!s.places || user.kind !== "employee") return [link];
+            const places = placesOf(s);
+            // Only the open section lists its places.
+            if (!places.length || user.kind !== "employee" || !isActive(s)) return [link];
             return [
               link,
-              ...s.places.map((pl) => {
-                const here = path === pl.href || path.startsWith(`${pl.href}/`);
+              ...places.map((pl) => {
+                const here = pl.source ? path === "/work" && source === pl.source : path === pl.href || path.startsWith(`${pl.href}/`);
                 return (
                   <Link key={pl.href} href={pl.href} aria-current={here ? "page" : undefined} className={`ms-9 rounded-lg px-3 py-1.5 text-sm ${here ? "font-semibold text-forest" : "text-muted hover:bg-sunken hover:text-ink"}`}>
                     {t(pl.label)}

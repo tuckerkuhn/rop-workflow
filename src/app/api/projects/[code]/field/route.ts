@@ -4,7 +4,7 @@ import { z } from "zod";
 import type { FieldItem } from "@/lib/field";
 import { requireViewer } from "@/server/auth";
 import { loadField, saveItems, saveStock } from "@/server/field-store";
-import { recordFromApp } from "@/server/distribution";
+import { recordFromApp, stockFor } from "@/server/distribution";
 import type { Farmer } from "@/lib/field";
 import { audit, handle, readBody } from "@/server/guard";
 
@@ -14,7 +14,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
   return handle(async () => {
     const v = await requireViewer(req, { allow: (u) => u.fieldAccess !== "none" });
     if (v instanceof NextResponse) return v;
-    return NextResponse.json(await loadField(code, v.user));
+    const field = await loadField(code, v.user);
+    // One figure for the store: what purchases have received less what has been handed out.
+    // A project with no purchase for the package keeps the stock typed in Field activities.
+    const derived = await stockFor(code);
+    return NextResponse.json({ ...field, stock: derived?.stock ?? field.stock, stockFrom: derived ? "purchases" : "store", stockNote: derived?.block ?? null });
   });
 }
 
@@ -72,9 +76,12 @@ export async function PUT(req: Request, { params }: { params: Promise<{ code: st
     const recorded: string[] = [];
     for (const f of handedOut) recorded.push(await recordFromApp(code, f, v.user, new URL(req.url).origin));
     if (items.length) await saveItems(code, items);
-    if (body.stock) await saveStock(code, body.stock);
-    if (items.length || body.stock)
-      await audit(code, { entity: "field", entityId: crypto.randomUUID(), action: "field_saved", by: v.user.id, detail: { items: items.map((i) => ({ id: i.id, kind: i.kind, step: i.step })), ...(body.stock ? { stock: body.stock } : {}) } });
-    return NextResponse.json({ ok: true, distributions: recorded });
+    // The store's stock follows the purchases when they supply the package; a typed figure is kept only when none does.
+    const derived = await stockFor(code);
+    const typed = body.stock && !derived ? body.stock : undefined;
+    if (typed) await saveStock(code, typed);
+    if (items.length || typed)
+      await audit(code, { entity: "field", entityId: crypto.randomUUID(), action: "field_saved", by: v.user.id, detail: { items: items.map((i) => ({ id: i.id, kind: i.kind, step: i.step })), ...(typed ? { stock: typed } : {}), ...(recorded.length ? { distributions: recorded } : {}) } });
+    return NextResponse.json({ ok: true, distributions: recorded, ...(derived ? { stock: derived.stock, stockNote: derived.block } : {}) });
   });
 }

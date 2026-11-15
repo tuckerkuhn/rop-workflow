@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useSession } from "@/components/app/session";
 import { primaryBtn, quietBtn } from "@/components/workspace/ui";
@@ -9,15 +10,23 @@ import type { DistView } from "@/server/distribution";
  * The project manager's one screen for an input distribution: what went out, the goods received
  * and quantity checks, what to look at, and Approve or Send back. Works from the email link
  * (single-use token) or signed in from Home. Farmer IDs only.
+ *
+ * The same screen is where a sent-back distribution is put right: the person who recorded it
+ * corrects the quantities, confirms the signature and photo, says what they fixed and sends it
+ * again. It then waits for the manager with fresh checks.
  */
 export function ApprovePanel({ code, id, token }: { code: string; id: string; token: string }) {
   const { user, ready } = useSession();
   const [d, setD] = useState<DistView | null>(null);
   const [canDecide, setCanDecide] = useState(false);
+  const [canFix, setCanFix] = useState(false);
+  const [fix, setFix] = useState<{ seed: string; npk: string; signed: boolean; photo: boolean }>({ seed: "", npk: "", signed: false, photo: false });
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState("");
+  const [done, setDone] = useState<"" | "approved" | "sent_back" | "resubmit">("");
+  /** After a decision: the purchases whose lists grew, or who has the task to fix it. */
+  const [reached, setReached] = useState<string[]>([]);
   const url = `/api/projects/${encodeURIComponent(code)}/distributions/${id}`;
   const headers = { "Content-Type": "application/json", "x-demo-user": user?.id ?? "" };
 
@@ -25,8 +34,12 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
     const res = await fetch(`${url}${token ? `?t=${encodeURIComponent(token)}` : ""}`, { cache: "no-store", headers: { "x-demo-user": user?.id ?? "" } });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) return setError(body.error ?? `Could not open it (${res.status}).`);
-    setD(body.distribution);
+    const dist = body.distribution as DistView;
+    setD(dist);
     setCanDecide(body.canDecide);
+    setCanFix(!!body.canFix);
+    const q = (k: "seed" | "npk") => String(dist.items.find((i) => i.key === k)?.qty ?? "");
+    setFix({ seed: q("seed"), npk: q("npk"), signed: dist.signed, photo: dist.photo });
     setError("");
   }, [url, token, user?.id]);
 
@@ -42,10 +55,26 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
     if (!res.ok) return setError(body.error ?? `Not saved (${res.status}).`);
     setD(body.distribution);
     setError("");
-    setDone(decision === "approved" ? `Approved. ${body.procurements?.length ? `Added to the distribution list on ${body.procurements.join(", ")}; finance has a task to pay.` : ""} It now counts toward the distribution target.` : "Sent back. The person who recorded it has a task to fix it.");
+    setDone(decision);
+    setReached(decision === "approved" ? (body.procurements ?? []) : body.fixer ? [body.fixer] : []);
+  }
+
+  async function sendAgain() {
+    const num = (v: string) => (v.trim() === "" || !Number.isFinite(Number(v)) || Number(v) < 0 ? undefined : Number(v));
+    setBusy(true);
+    const res = await fetch(url, { method: "POST", headers, body: JSON.stringify({ decision: "resubmit", note: note.trim(), fix: { qty: { seed: num(fix.seed), npk: num(fix.npk) }, signed: fix.signed, photo: fix.photo } }) });
+    const body = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) return setError(body.error ?? `Not sent (${res.status}).`);
+    setD(body.distribution);
+    setNote("");
+    setError("");
+    setDone("resubmit");
   }
 
   const pending = d?.status === "pending";
+  const sentBack = d?.status === "queried";
+  const field = "mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm";
   return (
     <main className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ochre">Project {code} · input distribution</p>
@@ -56,8 +85,15 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
         <>
           <p className="mt-2 text-sm text-muted">
             Recorded {d.date} by {d.recordedBy} {d.source === "kobo" ? "in KoboCollect" : "in the app"}.{" "}
-            {d.status === "accepted" ? `Approved by ${d.decided?.byName ?? "the project manager"}.` : d.status === "queried" ? `Sent back by ${d.decided?.byName ?? "the project manager"}: ${d.decided?.note ?? ""}` : "Waiting for your approval."}
+            {d.status === "accepted" ? `Approved by ${d.decided?.byName ?? "the project manager"}.` : sentBack ? `Sent back by ${d.decided?.byName ?? "the project manager"}.` : canDecide ? "Waiting for your approval." : "Waiting for the project manager to approve."}
           </p>
+
+          {sentBack && (
+            <div className="mt-4 rounded-xl border border-clay/40 bg-clay-soft px-4 py-3 text-sm text-clay">
+              <p className="font-semibold">What needs fixing</p>
+              <p className="mt-1">{d.decided?.note ?? "No reason was given."}</p>
+            </div>
+          )}
 
           <section className="mt-6 rounded-xl border border-line bg-surface px-4 py-3">
             <h2 className="font-medium">Handed out</h2>
@@ -69,7 +105,7 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
               ))}
             </ul>
             <p className="mt-2 text-sm text-muted">
-              Recipient: {d.gender ?? "sex not recorded"} · Photo of the signed list: {d.photo ? "attached" : "missing"}
+              Recipient: {d.gender ?? "sex not recorded"} · Signature or thumbprint: {d.signed ? "confirmed" : "not confirmed"} · Photo of the signed list: {d.photo ? "attached" : "missing"}
             </p>
           </section>
 
@@ -114,8 +150,79 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
               </div>
             </section>
           )}
-          {pending && !canDecide && <p className="mt-6 text-sm text-muted">Only the project manager approves distributions.</p>}
-          {done && <p className="mt-6 rounded-lg bg-mist px-4 py-3 text-sm">{done}</p>}
+          {sentBack && canFix && !done && (
+            <section className="mt-6 rounded-xl border border-forest/40 bg-mist px-4 py-4" aria-labelledby="fix">
+              <h2 id="fix" className="font-medium">
+                Fix it and send it again
+              </h2>
+              <p className="mt-1 text-sm text-muted">Correct what was recorded. The project manager is told at once and checks it again.</p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                {d.items.map((i) => (
+                  <label key={i.key} className="block text-sm font-medium">
+                    {i.item} handed out ({i.unit})
+                    <input type="number" min={0} step="any" inputMode="decimal" value={fix[i.key]} onChange={(e) => setFix((f) => ({ ...f, [i.key]: e.target.value }))} className={field} />
+                  </label>
+                ))}
+              </div>
+              <label className="mt-3 flex items-start gap-2 text-sm">
+                <input type="checkbox" className="mt-0.5 h-4 w-4" checked={fix.signed} onChange={(e) => setFix((f) => ({ ...f, signed: e.target.checked }))} />
+                The recipient&apos;s signature or thumbprint is on the list
+              </label>
+              <label className="mt-2 flex items-start gap-2 text-sm">
+                <input type="checkbox" className="mt-0.5 h-4 w-4" checked={fix.photo} onChange={(e) => setFix((f) => ({ ...f, photo: e.target.checked }))} />
+                A photo of the signed list is on the farmer&apos;s record
+              </label>
+              <label className="mt-3 block text-sm font-medium" htmlFor="fixed">
+                What you fixed
+              </label>
+              <textarea id="fixed" value={note} onChange={(e) => setNote(e.target.value)} rows={2} className={field} placeholder="For example: got the thumbprint; the seed was 8 kg, not 10" />
+              <button type="button" className={`${primaryBtn} mt-3`} disabled={busy || !note.trim()} onClick={sendAgain}>
+                Send it again
+              </button>
+              {!note.trim() && <p className="mt-2 text-xs text-muted">Say what you fixed to send it.</p>}
+            </section>
+          )}
+          {sentBack && !canFix && !done && <p className="mt-6 text-sm text-muted">The person who recorded it has a task to fix it and send it again.</p>}
+          {pending && !canDecide && !done && <p className="mt-6 text-sm text-muted">Only the project manager approves distributions.</p>}
+
+          {done && (
+            <section className="mt-6 rounded-xl bg-mist px-4 py-3 text-sm" aria-live="polite">
+              <p className="font-semibold">{done === "approved" ? "Approved." : done === "sent_back" ? "Sent back." : "Sent again."}</p>
+              {done === "approved" && (
+                <ul className="mt-1 list-disc space-y-0.5 pl-5">
+                  <li>Results: it now counts toward the distribution target.</li>
+                  {reached.length > 0 && <li>Procurement: added to the distribution list on {reached.join(" and ")}.</li>}
+                  <li>Finance: told when the purchase has a payment to release.</li>
+                  <li>Audit log: your decision is recorded.</li>
+                </ul>
+              )}
+              {done === "sent_back" && <p className="mt-1">{reached.length ? "The person who recorded it has a task to fix it and send it again. Nothing counts until you approve it." : "Nobody on this project can change field records, so no one has the task. Ask an administrator to add a storekeeper or extension agent."}</p>}
+              {done === "resubmit" && <p className="mt-1">The project manager has been told and will check it again. Your task is closed.</p>}
+              {user && (
+                <Link href="/home" className="mt-2 inline-block font-semibold text-forest hover:underline">
+                  Back to Home
+                </Link>
+              )}
+            </section>
+          )}
+
+          {d.history.length > 0 && (
+            <section className="mt-6 text-sm">
+              <h2 className="font-medium">Earlier rounds</h2>
+              <ol className="mt-1 space-y-2">
+                {d.history.map((h, k) => (
+                  <li key={k} className="rounded-lg border border-line px-3 py-2 text-muted">
+                    <span className="block">
+                      {h.sentBack.at.slice(0, 10)} · Sent back by {h.sentBack.byName}: {h.sentBack.note}
+                    </span>
+                    <span className="block">
+                      {h.fixed.at.slice(0, 10)} · Fixed by {h.fixed.byName}: {h.fixed.note}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          )}
           {d.notified && !d.notified.emailed && d.notified.why && <p className="mt-6 text-xs text-muted">Not emailed: {d.notified.why}.</p>}
         </>
       )}

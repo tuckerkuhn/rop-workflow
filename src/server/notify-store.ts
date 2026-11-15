@@ -104,7 +104,9 @@ export async function itemsFor(u: AppUser, today: string): Promise<DigestItem[]>
     if (u.kind === "employee") {
       const work = await listWorkItems(p.code).catch(() => ({ items: [] }));
       const soon = new Date(Date.parse(`${today}T00:00:00Z`) + 3 * 86400000).toISOString().slice(0, 10);
-      for (const t of work.items.filter((w) => w.type === "task" && !w.doneAt && w.assignee === u.id && w.date && w.date <= soon))
+      // Tasks already on Home's list (above) are not listed a second time.
+      const onHome = new Set((home?.actions ?? []).map((x) => x.key));
+      for (const t of work.items.filter((w) => w.type === "task" && !w.doneAt && w.assignee === u.id && w.date && w.date <= soon && !onHome.has(`task:${w.id}`)))
         out.push({ key: `${p.code}:task:${t.id}`, project: short, text: `${t.title}${t.date! < today ? ` (was due ${t.date})` : ` (due ${t.date})`}`, href: "/work", urgent: t.date! < today, kind: "workflow" });
     }
   }

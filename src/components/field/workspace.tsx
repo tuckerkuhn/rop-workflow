@@ -456,14 +456,14 @@ function Detail({
 export function FieldWorkspace() {
   const { user, mode } = useRequireUser();
   const myRoles = (user?.field ?? []) as FieldRole[];
-  const { items, setItems, stock, setStock, status, error, reset } = useFieldData();
+  const { items, setItems, stock, stockNote, setStock, status, error, reset } = useFieldData();
   const [pickedRole, setPickedRole] = useState<FieldRole | null>(null);
   const role = pickedRole && myRoles.includes(pickedRole) ? pickedRole : (myRoles[0] ?? null);
   const [selected, setSelected] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [creating, setCreating] = useState(false);
   const [mobileDetail, setMobileDetail] = useState(false);
-  const ctx: Ctx = { stock };
+  const ctx: Ctx = { stock, stockNote };
 
   // Links such as /field?open=F-0009 open that record.
   useEffect(() => {

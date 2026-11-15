@@ -1,16 +1,16 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { today } from "@/lib/clock";
 import type { AppUser } from "@/lib/demo";
-import { flagsFor, gate, inProcUnit, plannedItems, suppliersOf, toKg, type DistItem, type Flag, type Gate, type PackageKey } from "@/lib/distribution";
+import { applyFix, drawnFrom, fixOwner, flagsFor, gate, inProcUnit, paymentDue, plannedItems, storeStock, toKg, type DistItem, type Fix, type Flag, type Gate, type PackageKey } from "@/lib/distribution";
 import type { Farmer } from "@/lib/field";
 import type { Procurement } from "@/lib/procurement";
 import type { Submission } from "@/lib/project";
 import { demoMode, onProject, people, toAppUser } from "@/server/auth";
 import { projectByCode } from "@/server/field-store";
 import { HttpError } from "@/server/guard";
-import { loadProjectState, saveProjectState } from "@/server/project-state";
+import { loadProjectState } from "@/server/project-state";
 
 /**
  * One input distribution, field to finance (strategy brief, example 3):
@@ -23,7 +23,9 @@ import { loadProjectState, saveProjectState } from "@/server/project-state";
  * 4. Approved: the record counts toward the distribution target by sex (MEL and the donor report),
  *    the purchase's distribution list grows (procurement), finance is told the goods are in and out
  *    (ready to pay), and everything is in the audit log. Sent back: the person who recorded it gets
- *    a task to fix it.
+ *    a task to fix it, corrects the record on the same screen and sends it again (5).
+ * 5. Fixed and sent again: the record is pending once more with fresh checks, the manager is told,
+ *    and the fix task closes. Nothing counted while it was sent back.
  *
  * Each distribution is an `evidence` row (form "distribution"). What the app works out about it
  * (items, checks, flags, the approval link's hash) is kept in project_state "distributions".
@@ -44,16 +46,41 @@ export type DistMeta = {
   /** sha256 of the approval link's token; cleared once used. */
   hash: string | null;
   expires: string;
+  /** Whether the signed list was photographed and the recipient's signature confirmed, once a fix has said so. */
+  photo?: boolean;
+  signed?: boolean;
+  /** Person id of who recorded it, when that is a person in the app (not a Kobo username). */
+  recorderId?: string | null;
   notified?: { to: string[]; at: string; emailed: boolean; why?: string };
   decided?: { by: string; byName: string; at: string; decision: "approved" | "sent_back"; note?: string };
+  /** Earlier rounds: each send-back with what was fixed in answer, oldest first. */
+  history?: { sentBack: NonNullable<DistMeta["decided"]>; fixed: { by: string; byName: string; at: string; note: string } }[];
 };
 type State = { byId: Record<string, DistMeta> };
 
 const loadState = async (projectId: string) => loadProjectState<State>(projectId, KEY, { byId: {} });
-const saveState = (projectId: string, st: State) => saveProjectState(projectId, KEY, st);
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Stores one distribution's checks without touching the others: the database merges this one entry
+ * into the document in a single statement, so two people recording or deciding at the same moment
+ * cannot overwrite each other's (the whole document was read, changed and written back before).
+ */
+async function putMeta(q: Tx | typeof db, projectId: string, id: string, meta: DistMeta) {
+  const doc = JSON.stringify({ byId: { [id]: meta } });
+  await q.execute(sql`
+    insert into ${s.projectState} (project_id, key, data) values (${projectId}::uuid, ${KEY}, ${doc}::jsonb)
+    on conflict (project_id, key) do update
+      set data = jsonb_set(coalesce(${s.projectState}.data, '{}'::jsonb), '{byId}', coalesce(${s.projectState}.data -> 'byId', '{}'::jsonb) || (excluded.data -> 'byId')),
+          updated_at = now()`);
+}
 const sha = (t: string) => createHash("sha256").update(t).digest("hex");
 
 type Project = Awaited<ReturnType<typeof projectByCode>>;
+
+/** May correct a sent-back distribution and send it again: anyone who can change field records on the project. */
+export const mayFix = (u: AppUser, code: string) => u.kind === "employee" && u.fieldAccess === "edit" && onProject(u, code);
 
 /** Everything the gate needs: the purchases, and what each earlier distribution took, in kg. */
 async function context(project: Project, opts: { excluding?: string; countPending: boolean }) {
@@ -66,9 +93,22 @@ async function context(project: Project, opts: { excluding?: string; countPendin
     if (r.id === opts.excluding || r.koboRemovedAt || r.reviewStatus === "queried") continue;
     if (r.farmerCode) others.push(r.farmerCode);
     if (r.reviewStatus === "pending" && !opts.countPending) continue;
-    for (const it of st.byId[r.id]?.items ?? []) givenKg[it.key] = (givenKg[it.key] ?? 0) + (toKg(it.qty, it.unit) ?? it.qty);
+    // A record with no items stored (made before quantities were kept) is one planned package.
+    for (const it of st.byId[r.id]?.items ?? plannedItems()) givenKg[it.key] = (givenKg[it.key] ?? 0) + (toKg(it.qty, it.unit) ?? it.qty);
   }
-  return { procs, givenKg, others, st };
+  return { procs, givenKg, others, st, rows };
+}
+
+/**
+ * What is in the store, for Field activities: received on signed goods received notes, less every
+ * distribution recorded and not sent back. Null when no purchase supplies the package.
+ */
+export async function stockFor(code: string) {
+  const project = await projectByCode(code);
+  const ctx = await context(project, { countPending: true });
+  const stock = storeStock(ctx.procs, ctx.givenKg);
+  // Why the next package cannot go out, in the gate's own words, so the screen says what unblocks it.
+  return stock ? { stock, block: gate(plannedItems(), ctx.procs, ctx.givenKg).block } : null;
 }
 
 async function farmerOf(projectId: string, code: string) {
@@ -103,6 +143,10 @@ export async function recordFromApp(code: string, farmer: Farmer, user: AppUser,
   const ctx = await context(project, { countPending: true });
   const g = gate(items, ctx.procs, ctx.givenKg);
   if (!g.ok) throw new HttpError(409, `${farmer.id}'s input package can't be recorded as handed out yet. ${g.block}`);
+  // Saved twice (a retry, a double tap, a lost connection): the distribution already waiting for
+  // this farmer is this one. Nothing new is stored and the manager is not emailed again.
+  const waiting = ctx.rows.find((r) => r.farmerCode === farmer.id && r.reviewStatus === "pending" && !r.koboRemovedAt && r.source === "manual" && (r.payload as { source?: string } | null)?.source === "app");
+  if (waiting) return waiting.id;
   const signed = !!farmer.checks["distribute.recipient"];
   const photo = farmer.photos.some((p) => p.activity === "distribution");
   const sub: Submission = {
@@ -123,7 +167,7 @@ export async function recordFromApp(code: string, farmer: Farmer, user: AppUser,
     .values({ organizationId: project.organizationId, projectId: project.id, source: "manual", form: "distribution", farmerCode: farmer.id, reviewStatus: "pending", completedBy: user.id, completedAt: new Date(), location: farmer.community, payload: sub })
     .returning({ id: s.evidence.id });
   const flags = flagsFor({ farmerId: farmer.id, items, photo, signed, step: null }, ctx.others);
-  await prepare(code, project, row.id, { farmerId: farmer.id, items, gender: farmer.gender, village: farmer.community, recordedBy: user.name, gate: g, flags }, origin);
+  await prepare(code, project, row.id, { farmerId: farmer.id, items, gender: farmer.gender, village: farmer.community, recordedBy: user.name, recorderId: user.id, photo, signed, gate: g, flags }, origin);
   return row.id;
 }
 
@@ -156,7 +200,7 @@ export async function processPending(code: string, origin = appOrigin()) {
     const flags = flagsFor({ farmerId: code_, items, photo, signed, step: r.source === "kobo" ? (farmer?.step ?? "unknown") : null }, ctx.others);
     if (farmer && r.source === "kobo") await db.update(s.evidence).set({ payload: { ...p, _rop_gender: farmer.gender }, updatedAt: new Date() }).where(eq(s.evidence.id, r.id));
     const gender = farmer?.gender ?? (f.gender === "Female" || f.gender === "Male" ? f.gender : null);
-    await prepare(code, project, r.id, { farmerId: code_, items, gender, village: farmer?.community ?? (typeof p.village === "string" ? p.village : ""), recordedBy: r.completedBy ?? "KoboCollect", gate: g, flags }, origin);
+    await prepare(code, project, r.id, { farmerId: code_, items, gender, village: farmer?.community ?? (typeof p.village === "string" ? p.village : ""), recordedBy: r.completedBy ?? "KoboCollect", recorderId: r.source === "kobo" ? null : r.completedBy, photo, signed, gate: g, flags }, origin);
     done++;
   }
   return done;
@@ -164,7 +208,7 @@ export async function processPending(code: string, origin = appOrigin()) {
 
 /* ---------- 2–3. checks stored, manager told ---------- */
 
-async function prepare(code: string, project: Project, id: string, m: Omit<DistMeta, "hash" | "expires">, origin: string) {
+async function prepare(code: string, project: Project, id: string, m: Omit<DistMeta, "hash" | "expires">, origin: string, again?: { by: string; note: string }) {
   const token = randomBytes(24).toString("base64url");
   const meta: DistMeta = { ...m, hash: sha(token), expires: new Date(Date.now() + LINK_DAYS * 864e5).toISOString() };
   const link = `${origin}/approve/${encodeURIComponent(code)}/${id}?t=${token}`;
@@ -177,33 +221,34 @@ async function prepare(code: string, project: Project, id: string, m: Omit<DistM
   else {
     try {
       const { send } = await import("@/server/notify-store");
-      for (const x of to) await send(x.email!, approvalEmail(x.user.name, code, meta, link));
+      for (const x of to) await send(x.email!, approvalEmail(x.user.name, code, meta, link, again));
       emailed = true;
     } catch (e) {
       why = e instanceof Error ? e.message : String(e);
     }
   }
   meta.notified = { to: managers.map((x) => x.user.id), at: new Date().toISOString(), emailed, ...(why ? { why } : {}) };
-  const st = await loadState(project.id);
-  st.byId[id] = meta;
-  await saveState(project.id, st);
-  await db.insert(s.auditLog).values({ projectId: project.id, entity: "distribution", entityId: id, action: "distribution_recorded", detail: { flags: meta.flags.map((f) => f.id), blocked: !meta.gate.ok, emailed, why: why ?? null, to: meta.notified.to } });
+  await db.transaction(async (tx) => {
+    await putMeta(tx, project.id, id, meta);
+    await tx.insert(s.auditLog).values({ projectId: project.id, entity: "distribution", entityId: id, action: again ? "distribution_resubmitted" : "distribution_recorded", detail: { flags: meta.flags.map((f) => f.id), blocked: !meta.gate.ok, emailed, why: why ?? null, to: meta.notified!.to, ...(again ? { by: again.by, fixed: again.note, items: meta.items } : {}) } });
+  });
 }
 
 const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
-function approvalEmail(name: string, code: string, m: DistMeta, link: string) {
+function approvalEmail(name: string, code: string, m: DistMeta, link: string, again?: { by: string; note: string }) {
   const what = m.items.map((i) => `${i.qty} ${i.unit} ${i.item}`).join(", ");
-  const subject = `${m.gate.ok ? "Approval needed" : "On hold"}: input distribution in ${m.village || code}${m.flags.length ? ` (${m.flags.length} to check)` : ""}`;
+  const subject = `${m.gate.ok ? (again ? "Fixed, approval needed" : "Approval needed") : "On hold"}: input distribution in ${m.village || code}${m.flags.length ? ` (${m.flags.length} to check)` : ""}`;
+  const fixed = again ? `You sent this back. ${again.by} fixed it and sent it again: ${again.note}` : "";
   const flags = m.flags.length ? m.flags.map((f) => f.text) : ["Nothing flagged."];
   const html = `<div style="font-family:Calibri,Arial,sans-serif;font-size:15px;color:#222;max-width:560px">
 <p>${esc(name.split(" ")[0])},</p>
-<p>${esc(m.farmerId || "A farmer")} in ${esc(m.village || code)} (project ${esc(code)}) received the input package: ${esc(what)}. Recorded by ${esc(m.recordedBy)}.</p>
+<p>${esc(m.farmerId || "A farmer")} in ${esc(m.village || code)} (project ${esc(code)}) received the input package: ${esc(what)}. Recorded by ${esc(m.recordedBy)}.</p>${fixed ? `\n<p>${esc(fixed)}</p>` : ""}
 <p style="margin-bottom:4px"><strong>Checks</strong></p><ul style="padding-left:18px;margin-top:0">${m.gate.lines.map((l) => `<li>${esc(l.detail)}</li>`).join("")}</ul>
 <p style="margin-bottom:4px"><strong>To look at</strong></p><ul style="padding-left:18px;margin-top:0">${flags.map((f) => `<li>${esc(f)}</li>`).join("")}</ul>
 <p><a href="${link}" style="background:#1F4E3D;color:#fff;padding:8px 14px;border-radius:6px;text-decoration:none">${m.gate.ok ? "Review and approve" : "View details"}</a></p>
 <p style="color:#888;font-size:12px">The link works once and for ${LINK_DAYS} days. Farmer IDs only: names stay in the app.</p></div>`;
-  const text = [`${name.split(" ")[0]},`, "", `${m.farmerId || "A farmer"} in ${m.village || code} (project ${code}) received the input package: ${what}. Recorded by ${m.recordedBy}.`, "", "Checks:", ...m.gate.lines.map((l) => `- ${l.detail}`), "", "To look at:", ...flags.map((f) => `- ${f}`), "", link].join("\n");
+  const text = [`${name.split(" ")[0]},`, "", `${m.farmerId || "A farmer"} in ${m.village || code} (project ${code}) received the input package: ${what}. Recorded by ${m.recordedBy}.`, ...(fixed ? ["", fixed] : []), "", "Checks:", ...m.gate.lines.map((l) => `- ${l.detail}`), "", "To look at:", ...flags.map((f) => `- ${f}`), "", link].join("\n");
   return { subject, html, text };
 }
 
@@ -219,11 +264,23 @@ export type DistView = {
   items: DistItem[];
   gender: string | null;
   photo: boolean;
+  signed: boolean;
   gate: Gate;
   flags: Flag[];
   status: "pending" | "accepted" | "queried";
   notified: DistMeta["notified"] | null;
   decided: DistMeta["decided"] | null;
+  history: NonNullable<DistMeta["history"]>;
+};
+
+const photoOf = (r: { source: string; payload: unknown }) => {
+  const p = (r.payload ?? {}) as Record<string, unknown>;
+  return r.source === "kobo" ? typeof p.list_photo === "string" && !!p.list_photo : !!p.photo;
+};
+const signedOf = (r: { source: string; payload: unknown }) => {
+  const p = (r.payload ?? {}) as Record<string, unknown>;
+  const f = (typeof p.fields === "object" && p.fields ? p.fields : p) as Record<string, unknown>;
+  return r.source === "kobo" ? p.signed === "yes" : typeof f.signature === "string" && !!f.signature && f.signature !== "Not confirmed";
 };
 
 export async function listDistributions(code: string): Promise<DistView[]> {
@@ -231,11 +288,14 @@ export async function listDistributions(code: string): Promise<DistView[]> {
   await processPending(code);
   const rows = await db.select().from(s.evidence).where(and(eq(s.evidence.projectId, project.id), eq(s.evidence.form, "distribution")));
   const st = await loadState(project.id);
+  const procs = (await db.select().from(s.procurements).where(eq(s.procurements.projectId, project.id))).map((r) => r.data as Procurement);
+  // What approved distributions have taken so far, for the checks of the ones still waiting.
+  const approvedKg: Partial<Record<PackageKey, number>> = {};
+  for (const r of rows) if (r.reviewStatus === "accepted" && !r.koboRemovedAt) for (const it of st.byId[r.id]?.items ?? plannedItems()) approvedKg[it.key] = (approvedKg[it.key] ?? 0) + (toKg(it.qty, it.unit) ?? it.qty);
   return rows
     .filter((r) => st.byId[r.id] && !r.koboRemovedAt)
     .map((r) => {
       const m = st.byId[r.id];
-      const p = (r.payload ?? {}) as Record<string, unknown>;
       return {
         id: r.id,
         farmerId: r.farmerCode ?? "",
@@ -245,12 +305,16 @@ export async function listDistributions(code: string): Promise<DistView[]> {
         recordedBy: m.recordedBy,
         items: m.items,
         gender: m.gender,
-        photo: r.source === "kobo" ? typeof p.list_photo === "string" && !!p.list_photo : !!(p as { photo?: boolean }).photo,
-        gate: m.gate,
+        photo: m.photo ?? photoOf(r),
+        signed: m.signed ?? signedOf(r),
+        // While it waits, the checks are worked out now, as approving will: a goods received note
+        // signed since the record was made shows at once. Once decided, they stay as they were then.
+        gate: r.reviewStatus === "pending" ? gate(m.items, procs, approvedKg) : m.gate,
         flags: m.flags,
         status: r.reviewStatus,
         notified: m.notified ?? null,
         decided: m.decided ?? null,
+        history: m.history ?? [],
       };
     })
     .sort((a, b) => (a.status === b.status ? b.date.localeCompare(a.date) : a.status === "pending" ? -1 : 1));
@@ -290,7 +354,8 @@ export async function decideDistribution(code: string, id: string, decision: "ap
   if (decision === "approved" && !g.ok) throw new HttpError(409, `Not approved: ${g.block}`);
 
   const finance = decision === "approved" ? (await people()).filter((u) => u.procurement.includes("finance") && onProject(u, code))[0] : undefined;
-  const store = decision === "sent_back" ? (await holders(code, "store"))[0]?.user : undefined;
+  // Sent back to the person who recorded it; to the storekeeper or extension agent when that was a phone in the field.
+  const fixer = decision === "sent_back" ? fixOwner(m.recorderId ?? row.completedBy, (await people()).filter((u) => onProject(u, code))) : null;
   const now = new Date();
   const day = today();
   const changed: string[] = [];
@@ -305,10 +370,13 @@ export async function decideDistribution(code: string, id: string, decision: "ap
       // Procurement: the purchase's distribution list. One entry per day and village, added to.
       const rows = await tx.select().from(s.procurements).where(eq(s.procurements.projectId, project.id));
       for (const it of m.items) {
-        const supplier = suppliersOf(it.key, rows.map((r) => r.data as Procurement)).find((p) => g.lines.find((l) => l.key === it.key)?.procurements.includes(p.id));
+        // The received purchase this item comes from (oldest with enough left), read inside the
+        // transaction so an earlier item's update in this loop is seen.
+        const current = (await tx.select().from(s.procurements).where(eq(s.procurements.projectId, project.id))).map((x) => x.data as Procurement);
+        const supplier = drawnFrom(it.key, toKg(it.qty, it.unit) ?? it.qty, current);
         const r = supplier && rows.find((x) => x.procKey === supplier.id);
         if (!r || !supplier) continue;
-        const p = r.data as Procurement;
+        const p = supplier;
         const d = p.distribution ?? { forParticipants: true, lists: [], inStock: 0, checks: [] };
         const qty = inProcUnit(toKg(it.qty, it.unit) ?? it.qty, p);
         const place = m.village || "Not recorded";
@@ -321,6 +389,8 @@ export async function decideDistribution(code: string, id: string, decision: "ap
         await tx.update(s.procurements).set({ data: next, updatedAt: now }).where(eq(s.procurements.id, r.id));
         changed.push(p.id);
         // Finance: the goods are in and going out, so the supplier's invoice can be paid.
+        // Not for a purchase already paid or closed: there is nothing left to release.
+        if (!paymentDue(p)) continue;
         await tx
           .insert(s.workItems)
           .values({
@@ -355,12 +425,16 @@ export async function decideDistribution(code: string, id: string, decision: "ap
           type: "task",
           title: `Fix the distribution record for ${row.farmerCode ?? "a farmer"}: ${note!.trim().slice(0, 120)}`,
           date: day,
-          assignee: store?.id ?? null,
+          assignee: fixer,
           createdBy: by.id,
           sourceKey: `dist-fix:${id}`,
-          notes: `Sent back by ${by.name}: ${note!.trim()}`,
+          notes: fixNotes(code, id, by.name, note!.trim()),
         })
-        .onConflictDoNothing();
+        // Sent back a second time: the same task opens again with the new reason.
+        .onConflictDoUpdate({
+          target: [s.workItems.projectId, s.workItems.sourceKey],
+          set: { title: `Fix the distribution record for ${row.farmerCode ?? "a farmer"}: ${note!.trim().slice(0, 120)}`, date: day, assignee: fixer, notes: fixNotes(code, id, by.name, note!.trim()), doneAt: null, doneBy: null, updatedAt: now },
+        });
     }
 
     await tx.insert(s.auditLog).values({
@@ -368,19 +442,54 @@ export async function decideDistribution(code: string, id: string, decision: "ap
       entity: "distribution",
       entityId: id,
       action: decision === "approved" ? "distribution_approved" : "distribution_sent_back",
-      detail: { by: by.id, farmer: row.farmerCode, items: m.items, procurements: changed, flags: m.flags.map((f) => f.id), note: note ?? null },
+      detail: { by: by.id, farmer: row.farmerCode, items: m.items, procurements: changed, flags: m.flags.map((f) => f.id), note: note ?? null, ...(decision === "sent_back" ? { to: fixer } : {}) },
     });
+    // The link is used up and the decision kept with the record, in the same step as the decision itself.
+    await putMeta(tx, project.id, id, { ...m, gate: g, hash: null, decided: { by: by.id, byName: by.name, at: now.toISOString(), decision, ...(note ? { note: note.trim() } : {}) } });
   });
+  return { decision, procurements: changed, fixer };
+}
 
-  const st = await loadState(project.id);
-  st.byId[id] = { ...st.byId[id], gate: g, hash: null, decided: { by: by.id, byName: by.name, at: now.toISOString(), decision, ...(note ? { note } : {}) } };
-  await saveState(project.id, st);
-  return { decision, procurements: changed };
+const fixNotes = (code: string, id: string, by: string, note: string) => `Sent back by ${by}: ${note}\nOpen ${appOrigin()}/approve/${encodeURIComponent(code)}/${id}, correct what was recorded and send it again.`;
+
+/* ---------- 5. fixed and sent again ---------- */
+
+/**
+ * The fix for a distribution the manager sent back: the corrected quantities, signature and photo
+ * replace what was recorded, the record waits for the manager again with fresh checks and a new
+ * link, and the fix task closes. What was sent back and why stays in the record's history.
+ */
+export async function resubmitDistribution(code: string, id: string, by: { id: string; name: string }, fix: Fix, note: string, origin = appOrigin()) {
+  const project = await projectByCode(code);
+  if (!note.trim()) throw new HttpError(400, "Say what you fixed, so the project manager knows what changed.");
+  const ctx = await context(project, { excluding: id, countPending: true });
+  const m = ctx.st.byId[id];
+  const now = new Date();
+  const row = await db.transaction(async (tx) => {
+    // Only while still sent back: two people fixing it at once cannot both send it.
+    const [r] = await tx
+      .update(s.evidence)
+      .set({ reviewStatus: "pending", reviewedBy: null, reviewedAt: null, queryNote: null, updatedAt: now })
+      .where(and(eq(s.evidence.id, id), eq(s.evidence.projectId, project.id), eq(s.evidence.form, "distribution"), eq(s.evidence.reviewStatus, "queried")))
+      .returning();
+    if (!r) return null;
+    await tx.update(s.workItems).set({ doneAt: now, doneBy: by.id, updatedAt: now }).where(and(eq(s.workItems.projectId, project.id), eq(s.workItems.sourceKey, `dist-fix:${id}`)));
+    return r;
+  });
+  if (!row || !m) throw new HttpError(409, "Only a distribution the project manager sent back can be fixed and sent again. Reload to see where it stands.");
+  const items = applyFix(m.items, fix);
+  const photo = fix.photo ?? m.photo ?? photoOf(row);
+  const signed = fix.signed ?? m.signed ?? signedOf(row);
+  const farmer = row.farmerCode ? await farmerOf(project.id, row.farmerCode) : null;
+  const flags = flagsFor({ farmerId: row.farmerCode ?? m.farmerId, items, photo, signed, step: row.source === "kobo" ? (farmer?.step ?? "unknown") : null }, ctx.others);
+  const history = [...(m.history ?? []), ...(m.decided ? [{ sentBack: m.decided, fixed: { by: by.id, byName: by.name, at: now.toISOString(), note: note.trim() } }] : [])];
+  const { decided: _decided, hash: _hash, expires: _expires, notified: _notified, ...kept } = m;
+  void [_decided, _hash, _expires, _notified];
+  await prepare(code, project, id, { ...kept, items, photo, signed, gate: gate(items, ctx.procs, ctx.givenKg), flags, history }, origin, { by: by.name, note: note.trim() });
+  return { ok: true as const };
 }
 
 /* ---------- readiness "No": a task for the extension agent ---------- */
-
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /** Called inside the readiness decision: a correction task with the deadline, for the extension agent. */
 export async function correctionTask(tx: Tx, project: { id: string; organizationId: string | null; code: string }, farmerCode: string, issue: string, deadline: string, evidenceId: string, by: string) {

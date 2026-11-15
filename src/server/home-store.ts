@@ -1,7 +1,9 @@
 import { quarterRange } from "@/lib/results";
 import { reportDeadline } from "@/server/preflight";
 import { ourWork } from "@/lib/budget";
-import { eq } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
+import { fieldRows, taskRow } from "@/lib/home-buckets";
+import type { FieldItem } from "@/lib/field";
 import { db, schema as s } from "@/db";
 import { listDistributions } from "@/server/distribution";
 import type { AppUser } from "@/lib/demo";
@@ -223,6 +225,24 @@ export async function loadHome(code: string, u: AppUser) {
     const wanted = prevMonth(month);
     if (!budget.importedTo || budget.importedTo < wanted) actions.push({ key: "import", for: "finance", bucket: "due", urgent: true, text: `Import Finance's workbook for ${monthName(wanted)} (imported to ${budget.importedTo ? monthName(budget.importedTo) : "nothing yet"})`, msg: budget.importedTo ? { key: "ha.import", vars: { month: wanted, to: budget.importedTo } } : { key: "ha.importNone", vars: { month: wanted } }, href: "/progress/report" });
     if (overspent.length) actions.push({ key: "overspent", for: "finance", bucket: "fix", urgent: false, text: `Explain ${overspent.length} overspent budget ${overspent.length === 1 ? "line" : "lines"}`, msg: { key: overspent.length === 1 ? "ha.overspent1" : "ha.overspent", vars: { n: overspent.length } }, href: "/progress/budget" });
+  }
+
+  // Field activities waiting on a role this person holds: their day's work, ahead of anything about reports.
+  if (u.field.length && u.fieldAccess !== "none") {
+    const items = (await db.select({ data: s.fieldItems.data }).from(s.fieldItems).where(eq(s.fieldItems.projectId, project.id))).map((r) => r.data as FieldItem);
+    actions.push(...fieldRows(items, u.field, code, lenses.includes("field") ? "field" : lenses[0]));
+  }
+
+  // Tasks made at a handoff (a distribution sent back, a readiness correction, a payment to
+  // release) and tasks given to this person: on Home, one tap from the place to act.
+  const open = await db
+    .select({ id: s.workItems.id, title: s.workItems.title, date: s.workItems.date, assignee: s.workItems.assignee, sourceKey: s.workItems.sourceKey })
+    .from(s.workItems)
+    .where(and(eq(s.workItems.projectId, project.id), eq(s.workItems.type, "task"), isNull(s.workItems.doneAt)))
+    .orderBy(asc(s.workItems.date));
+  for (const t of open) {
+    const row = taskRow(t, { me: u.id, lead: lenses.includes("lead"), code, today: realToday(), lens: lenses[0] });
+    if (row) actions.push(row);
   }
 
   // Grants and large procurements (lib/connections.ts): approvals for the people who give them, and anything stuck for the people who run the project.
