@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "@/components/app/session";
-import { seedStock, type FieldItem, type Stock } from "@/lib/field";
+import type { FieldItem, Stock } from "@/lib/field";
+import type { FieldSetup } from "@/lib/package";
 import type { AutoSyncSecret, FormPurpose, KoboFormInfo, KoboMapping, KoboQuestion, KoboState, SyncCounts } from "@/lib/kobo-setup";
 import type { Procurement } from "@/lib/procurement";
 import type { Closeouts } from "@/lib/closeout";
@@ -29,23 +30,23 @@ async function call<T>(url: string, user: string | undefined, init?: RequestInit
 export function useFieldData(code = "A-2027") {
   const { user, ready } = useSession();
   const [items, setItemsState] = useState<FieldItem[]>([]);
-  const [stock, setStockState] = useState<Stock>(seedStock);
+  const [stock, setStockState] = useState<Stock>({});
+  const [setup, setSetup] = useState<FieldSetup | null>(null);
   const [stockNote, setStockNote] = useState<string | null>(null);
   const [status, setStatus] = useState<Load>("loading");
   const [error, setError] = useState("");
   const current = useRef<FieldItem[]>([]);
-  const currentStock = useRef<Stock>(seedStock());
+  const currentStock = useRef<Stock>({});
 
   const reload = useCallback(async () => {
     try {
-      const r = await call<{ items: FieldItem[]; stock: Stock | null; stockNote?: string | null }>(`/api/projects/${code}/field`, user?.id);
+      const r = await call<{ items: FieldItem[]; stock: Stock | null; stockNote?: string | null; setup?: FieldSetup | null }>(`/api/projects/${code}/field`, user?.id);
       setStockNote(r.stockNote ?? null);
+      setSetup(r.setup ?? null);
       current.current = r.items;
       setItemsState(r.items);
-      if (r.stock) {
-        currentStock.current = r.stock;
-        setStockState(r.stock);
-      }
+      currentStock.current = r.stock ?? {};
+      setStockState(r.stock ?? {});
       setStatus("ready");
       setError("");
     } catch (e) {
@@ -106,7 +107,7 @@ export function useFieldData(code = "A-2027") {
     await reload();
   }, [code, user?.id, reload]);
 
-  return { items, setItems, stock, stockNote, setStock, status, error, reload, reset };
+  return { items, setItems, stock, stockNote, setStock, setup, status, error, reload, reset };
 }
 
 

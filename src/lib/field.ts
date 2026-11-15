@@ -5,6 +5,8 @@
 
 import type { Issue, TimelineEvent } from "@/components/workspace/ui";
 import { ORG_ID, PROJECT, TODAY, holderOf, projectPath, stepHistory, type AppUser, type FieldRole } from "@/lib/demo";
+import { today } from "@/lib/clock";
+import { DEMO_SETUP, itemsFor, packageUsd, type FieldSetup } from "@/lib/package";
 
 export type { FieldRole };
 
@@ -23,13 +25,11 @@ export const fieldPerson = (r: string) => {
 
 export const SEASON = { name: PROJECT.season, crop: "Maize", village: "Village B", windowEnd: "2027-03-20" };
 
-export const PACKAGE = [
-  { item: "Certified maize seed", qty: 10, unit: "kg", key: "seed", unitUsd: 7.75 },
-  { item: "NPK 17-17-17", qty: 50, unit: "kg", key: "npk", unitUsd: 2.6 },
-] as const;
-export const PACKAGE_USD = PACKAGE.reduce((s, p) => s + p.qty * p.unitUsd, 0);
+/** The demo project's package value per farmer (A-2027 records). Other projects: lib/package packageUsd. */
+export const PACKAGE_USD = packageUsd(DEMO_SETUP);
 
-export type Stock = Record<(typeof PACKAGE)[number]["key"], number>;
+/** What is in the store, by package item key, in each item's unit. */
+export type Stock = Record<string, number>;
 export const seedStock = (): Stock => ({ seed: 380, npk: 600 });
 
 export type Survey = { date: string; score: number; comment: string; by: string };
@@ -81,8 +81,12 @@ export type Finding = {
 };
 
 export type FieldItem = Farmer | Finding;
-/** `stockNote`: when the store's stock comes from purchases and the next package cannot go out, why, and what unblocks it. */
-export type Ctx = { stock: Stock; stockNote?: string | null };
+/**
+ * What the checks need beyond the record. `stockNote`: when the store's stock comes from purchases
+ * and the next package cannot go out, why, and what unblocks it. `setup`: the project's package and
+ * season. `today`: the project's today (the demo date on the demo project).
+ */
+export type Ctx = { stock: Stock; stockNote?: string | null; setup: FieldSetup; today: string };
 
 export type SCheck = {
   id: string;
@@ -184,7 +188,7 @@ export const fieldSteps: Record<string, SStep> = {
         done: "Readiness: No",
         tone: "danger",
         note: "What needs fixing?",
-        effect: (i, note) => ({ item: { ...asFarmer(i), deadline: addDays(TODAY, 7), correction: note } }),
+        effect: (i, note, ctx) => ({ item: { ...asFarmer(i), deadline: addDays(ctx.today, 7), correction: note } }),
       },
     ],
   },
@@ -201,10 +205,10 @@ export const fieldSteps: Record<string, SStep> = {
         label: "Recheck is within the deadline",
         why: "If the issue is unresolved by the deadline, the farmer is removed. Expected to be rare after contribution.",
         tag: "TS",
-        auto: (i) => {
+        auto: (i, ctx) => {
           const d = asFarmer(i).deadline;
           if (!d) return null;
-          const left = daysBetween(TODAY, d);
+          const left = daysBetween(ctx.today, d);
           return { ok: left >= 0, detail: left >= 0 ? `Deadline ${d} · ${left} days left` : `Deadline ${d} passed ${-left} days ago` };
         },
       },
@@ -233,7 +237,7 @@ export const fieldSteps: Record<string, SStep> = {
         done: "Deadline extended 7 days",
         tone: "quiet",
         requiresChecks: false,
-        effect: (i) => ({ item: { ...asFarmer(i), deadline: addDays(TODAY, 7) } }),
+        effect: (i, _, ctx) => ({ item: { ...asFarmer(i), deadline: addDays(ctx.today, 7) } }),
       },
     ],
   },
@@ -245,27 +249,31 @@ export const fieldSteps: Record<string, SStep> = {
     checks: [
       {
         id: "stock",
-        label: "Package in stock at the Village B store",
-        why: "Inputs come from procurement (seed and fertilizer). Stock falls as packages go out.",
+        label: "Package in stock at the store",
+        why: "Inputs come from procurement, on the package's budget lines. Stock falls as packages go out.",
         tag: "TS",
-        auto: (_, ctx) => ({
-          ok: PACKAGE.every((p) => ctx.stock[p.key] >= p.qty),
-          detail: PACKAGE.map((p) => `${p.item} ${ctx.stock[p.key]} ${p.unit} in store`).join(" · ") + (ctx.stockNote && !PACKAGE.every((p) => ctx.stock[p.key] >= p.qty) ? `. ${ctx.stockNote}` : ""),
-        }),
+        auto: (i, ctx) => {
+          const need = itemsFor(ctx.setup, asFarmer(i).hectares);
+          const ok = need.every((p) => (ctx.stock[p.key] ?? 0) + 1e-9 >= p.qty);
+          return {
+            ok,
+            detail: need.map((p) => `${p.item}: needs ${p.qty} ${p.unit}, ${ctx.stock[p.key] ?? 0} in store`).join(" · ") + (ctx.stockNote && !ok ? `. ${ctx.stockNote}` : ""),
+          };
+        },
         fix: "Store is short for this package: check the procurement status.",
       },
       { id: "recipient", label: "Recipient confirmed by signature or thumbprint", why: "Recipient, quantities and date are recorded together.", tag: "TS" },
-      { id: "voucher", label: "Store issue voucher number recorded", why: "Links the distribution to expenditure evidence on budget line 2.1.", tag: "TS" },
+      { id: "voucher", label: "Store issue voucher number recorded", why: "Links the distribution to expenditure evidence on the package's budget lines.", tag: "TS" },
     ],
     outcomes: [
       {
         label: "Record distribution",
         to: "plant",
-        done: "Inputs distributed: 10 kg seed, 50 kg NPK",
+        done: "Inputs distributed",
         tone: "primary",
         effect: (i, _, ctx) => ({
           item: i,
-          stock: Object.fromEntries(PACKAGE.map((p) => [p.key, ctx.stock[p.key] - p.qty])) as Stock,
+          stock: { ...ctx.stock, ...Object.fromEntries(itemsFor(ctx.setup, asFarmer(i).hectares).map((p) => [p.key, Math.max(0, (ctx.stock[p.key] ?? 0) - p.qty)])) },
         }),
       },
     ],
@@ -281,9 +289,11 @@ export const fieldSteps: Record<string, SStep> = {
         label: "Planted within the planting window",
         why: "The targeted crop at the right time.",
         tag: "TS",
-        auto: () => {
-          const left = daysBetween(TODAY, SEASON.windowEnd);
-          return { ok: left >= 0, detail: `Window closes ${SEASON.windowEnd} · ${left} days left` };
+        auto: (_, ctx) => {
+          const end = ctx.setup.windowEnd;
+          if (!end) return null;
+          const left = daysBetween(ctx.today, end);
+          return { ok: left >= 0, detail: left >= 0 ? `Window closes ${end} · ${left} days left` : `Window closed ${end}` };
         },
       },
       { id: "manner", label: "Planted at the right spacing and depth", why: "The right manner, as trained.", tag: "TS" },
@@ -370,8 +380,9 @@ export function remainingPath(i: FieldItem): { step: string; owner: string }[] {
 }
 
 export function projectItem(i: FieldItem) {
-  const since = i.timeline.length ? i.timeline[i.timeline.length - 1].date : TODAY;
-  return projectPath(remainingPath(i), since, TODAY);
+  const now = today();
+  const since = i.timeline.length ? i.timeline[i.timeline.length - 1].date : now;
+  return projectPath(remainingPath(i), since, now);
 }
 
 export const historyBasis = (step: string) => {

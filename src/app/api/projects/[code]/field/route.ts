@@ -58,7 +58,7 @@ const finding = z.looseObject({
 });
 const bodySchema = z.object({
   items: z.array(z.discriminatedUnion("kind", [farmer, finding])).max(500).optional(),
-  stock: z.object({ seed: z.number().min(0).max(1e9), npk: z.number().min(0).max(1e9) }).optional(),
+  stock: z.record(z.string().regex(/^[a-z][a-z0-9_]{0,29}$/), z.number().min(0).max(1e9)).optional(),
 });
 
 /** Saves changed items and/or the store stock. */

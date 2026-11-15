@@ -6,6 +6,7 @@ import { audit, handle } from "@/server/guard";
 import { handRecordedCounts } from "@/server/kobo-fed";
 import { orgIdForPerson, sampleOf } from "@/server/org-settings-store";
 import { createProject, listProjects } from "@/server/project-store";
+import { projectsWithField } from "@/server/field-store";
 
 /** Projects in the database, for the project picker. */
 export async function GET(req: Request) {
@@ -13,12 +14,12 @@ export async function GET(req: Request) {
     const v = await requireViewer(req);
     if (v instanceof NextResponse) return v;
     // Only the projects this person works on, each with how many indicators take results by hand.
-    const hand = await handRecordedCounts();
+    const [hand, withField] = await Promise.all([handRecordedCounts(), projectsWithField()]);
     // The sample (C5): this organization's own, unless an administrator has hid it.
     const orgId = await orgIdForPerson(v.user.id);
     const sample = orgId ? await sampleOf(orgId) : null;
     const shown = (p: { code: string; kind: string }) => p.kind !== "sample" || (!!sample && !sample.hidden && sample.code === p.code);
-    return NextResponse.json({ projects: (await listProjects({ all: true })).filter((p) => shown(p) && onProject(v.user, p.code)).map((p) => ({ ...p, handRecorded: hand.get(p.code) ?? 0 })) });
+    return NextResponse.json({ projects: (await listProjects({ all: true })).filter((p) => shown(p) && onProject(v.user, p.code)).map((p) => ({ ...p, handRecorded: hand.get(p.code) ?? 0, field: withField.has(p.code) })) });
   });
 }
 

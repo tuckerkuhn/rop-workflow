@@ -114,8 +114,8 @@ export function useTaskRows(user: AppUser, project: ProjectInfo) {
       );
     if (!hasWorkflows) return [...hrWork, ...projectWork, ...stored].sort((a, b) => (a.date ?? "9999").localeCompare(b.date ?? "9999"));
     // The demo project's sample sign-offs belong to it alone.
-    const demo = project.workflows.includes("field");
-    const steps: Row[] = workFor(user, { field: demo ? field : [], procs, project: { ...local, submissions }, stages: {}, plan: plan.items, closeouts: closeouts.months }, user, { projectCards: demo })
+    const demo = project.id === "A-2027";
+    const steps: Row[] = workFor(user, { field: project.workflows.includes("field") ? field : [], procs, project: { ...local, submissions }, stages: {}, plan: plan.items, closeouts: closeouts.months }, user, { projectCards: demo })
       .filter((c) => c.now)
       .map((c) => ({
         key: c.key,
@@ -129,7 +129,7 @@ export function useTaskRows(user: AppUser, project: ProjectInfo) {
         href: c.href,
       }));
     return [...hrWork, ...projectWork, ...stored, ...steps].sort((a, b) => (a.date ?? "9999").localeCompare(b.date ?? "9999"));
-  }, [hrWork, projectWork, work.items, hasWorkflows, user, field, procs, local, submissions, plan.items, project.workflows, closeouts.months]);
+  }, [hrWork, projectWork, work.items, hasWorkflows, user, field, procs, local, submissions, plan.items, project.workflows, project.id, closeouts.months]);
 
   return { rows, work, projectWorkFailed };
 }

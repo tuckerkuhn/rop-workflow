@@ -1101,7 +1101,7 @@ export function ProjectPage({ id }: { id: string }) {
   const gatedStore = GATED_KEYS[id];
   const [local, setStateRaw] = usePersistentState<ProjectState>(gatedStore?.key ?? PROJECT_KEY, gatedStore?.seed ?? seedProject);
   const [targetOpen, setTargetOpen] = useState(false);
-  const { items: field, reload: reloadField, reset: resetField } = useFieldData();
+  const { items: field, reload: reloadField, reset: resetField } = useFieldData(id);
   const { mode } = useSession();
   const kobo = useSubmissions();
   // A-2027's review queue comes from the database. Gated demo projects (in Design) have no field data

@@ -1,95 +1,100 @@
 import { received } from "@/lib/connections";
-import { PACKAGE } from "@/lib/field";
+import { convert, fmtQty as fmt, itemsFor, type DistItem, type FieldSetup } from "@/lib/package";
 import { receivedQty, stages, stepById, type Procurement } from "@/lib/procurement";
+
+export { toKg, convert, type DistItem } from "@/lib/package";
 
 /**
  * The input distribution, field to finance (strategy brief, example 3). One distribution is one
- * farmer receiving the input package. These rules are pure so the field save, the Kobo sync and
- * the approval all apply the same ones.
+ * farmer receiving the project's input package (lib/package). These rules are pure so the field
+ * save, the Kobo sync and the approval all apply the same ones.
  *
  * - Blocked: nothing is handed out (in the app) or approved (from Kobo) until the purchase that
  *   supplies each item has its goods received note signed, and never more than was received.
  * - Flagged: what a person should look at before approving (same farmer twice, above plan,
  *   no photo of the signed list, recipient signature not confirmed, farmer not cleared as ready).
+ *
+ * Quantities are in each package item's own unit. A purchase bought in another unit converts when
+ * both are weights (t, kg, g); otherwise the units must match, or the item is blocked with why.
  */
 
-export type PackageKey = (typeof PACKAGE)[number]["key"];
-/** The budget line each package item is bought on: the purchase that supplies it is found by its line. */
-export const PACKAGE_LINES: Record<PackageKey, string> = { seed: "2.1", npk: "2.2" };
+/** Amounts already handed out, by package item key, in the item's unit. */
+export type Given = Record<string, number>;
 
-export type DistItem = { key: PackageKey; item: string; unit: string; qty: number };
-/** The planned package, as items. */
-export const plannedItems = (): DistItem[] => PACKAGE.map((p) => ({ key: p.key, item: p.item, unit: p.unit, qty: p.qty }));
+/** The budget line an item is bought on: its own, or the project package's for older records. */
+export const lineOf = (it: Pick<DistItem, "key" | "budgetLine">, setup: FieldSetup) => it.budgetLine ?? setup.items.find((p) => p.key === it.key)?.budgetLine ?? "";
+/** The package unit of an item (older records may carry another unit). */
+const unitOf = (it: Pick<DistItem, "key" | "unit">, setup: FieldSetup) => setup.items.find((p) => p.key === it.key)?.unit ?? it.unit;
 
-/** A quantity in kilograms, or null for a unit that is not a weight. */
-export function toKg(qty: number, unit: string): number | null {
-  const u = unit.trim().toLowerCase();
-  if (u === "kg" || u === "kgs" || u === "kilogram" || u === "kilograms") return qty;
-  if (u === "t" || u === "ton" || u === "tons" || u === "tonne" || u === "tonnes" || u === "mt") return qty * 1000;
-  if (u === "g" || u === "grams") return qty / 1000;
-  return null;
+/** Adds what a distribution took to the running totals, in each item's package unit. */
+export function addGiven(given: Given, items: DistItem[], setup: FieldSetup): Given {
+  for (const it of items) given[it.key] = (given[it.key] ?? 0) + (convert(it.qty, it.unit, unitOf(it, setup)) ?? it.qty);
+  return given;
 }
-const fromKg = (kg: number, unit: string) => {
-  const per = toKg(1, unit);
-  return per ? kg / per : kg;
-};
 
 /** The purchases that supply an item: those bought on its budget line. */
-export const suppliersOf = (key: PackageKey, procs: Procurement[]) => procs.filter((p) => (p.plan?.budgetCode ?? p.budgetLine) === PACKAGE_LINES[key]);
+export const suppliersOf = (line: string, procs: Procurement[]) => (line ? procs.filter((p) => (p.plan?.budgetCode ?? p.budgetLine) === line) : []);
 
-export type GateLine = { key: PackageKey; item: string; procurements: string[]; receivedKg: number; givenKg: number; thisKg: number; ok: boolean; detail: string };
+/** What a purchase has received, in another unit; null when the units cannot be compared. */
+const receivedIn = (p: Procurement, unit: string) => convert(receivedQty(p), p.unit, unit);
+
+export type GateLine = { key: string; item: string; unit: string; procurements: string[]; received: number; given: number; thisQty: number; ok: boolean; detail: string };
 export type Gate = { ok: boolean; lines: GateLine[]; block: string | null };
-
-const fmt = (n: number) => (Math.round(n * 100) / 100).toLocaleString("en-US");
 
 /**
  * Whether this package may go out: each item's purchase has a signed goods received note, and what
- * was already given plus this package stays within what was received. `givenKg` is what earlier
- * distributions of each item already took, in kg.
+ * was already given plus this package stays within what was received. `given` is what earlier
+ * distributions of each item already took, in the package unit.
  */
-export function gate(items: DistItem[], procs: Procurement[], givenKg: Partial<Record<PackageKey, number>>): Gate {
+export function gate(items: DistItem[], procs: Procurement[], given: Given, setup: FieldSetup): Gate {
   const lines = items.map((it): GateLine => {
-    const sources = suppliersOf(it.key, procs);
-    const thisKg = toKg(it.qty, it.unit) ?? it.qty;
-    const given = givenKg[it.key] ?? 0;
-    const base = { key: it.key, item: it.item, procurements: sources.map((p) => p.id), givenKg: given, thisKg };
-    if (!sources.length) return { ...base, receivedKg: 0, ok: false, detail: `No purchase on budget line ${PACKAGE_LINES[it.key]} supplies ${it.item}. Start one on the procurement calendar.` };
+    const line = lineOf(it, setup);
+    const unit = unitOf(it, setup);
+    const sources = suppliersOf(line, procs);
+    const thisQty = convert(it.qty, it.unit, unit) ?? it.qty;
+    const already = given[it.key] ?? 0;
+    const base = { key: it.key, item: it.item, unit, procurements: sources.map((p) => p.id), given: already, thisQty };
+    if (!sources.length) return { ...base, received: 0, ok: false, detail: `No purchase on budget line ${line || "(none set)"} supplies ${it.item}. Start one on the procurement calendar.` };
     const done = sources.filter((p) => received(p));
     if (!done.length) {
       const where = sources.map((p) => `${p.id} is at ${stages[stepById[p.step]?.stage ?? 0] ?? p.step}`).join("; ");
-      return { ...base, receivedKg: 0, ok: false, detail: `${it.item}: the goods received note is not signed yet (${where}).` };
+      return { ...base, received: 0, ok: false, detail: `${it.item}: the goods received note is not signed yet (${where}).` };
     }
-    const receivedKg = done.reduce((s, p) => s + (toKg(receivedQty(p), p.unit) ?? 0), 0);
-    if (given + thisKg > receivedKg + 1e-9) {
+    const odd = done.filter((p) => receivedIn(p, unit) === null);
+    if (odd.length) return { ...base, received: 0, ok: false, detail: `${it.item}: ${odd.map((p) => `${p.id} was bought in ${p.unit}`).join("; ")}, but the package gives ${unit}. Use the same unit in the package and the purchase.` };
+    const got = done.reduce((s, p) => s + (receivedIn(p, unit) ?? 0), 0);
+    if (already + thisQty > got + 1e-9) {
       // Say what would unblock it: a delivery that has arrived but whose received note is not signed yet.
       const coming = sources.filter((p) => !received(p) && stepById[p.step]?.id === "receive");
       const next = coming.length ? ` ${coming.map((p) => p.id).join(", ")} has been delivered: once its goods received note is signed, more can go out.` : "";
-      return { ...base, receivedKg, ok: false, detail: `${it.item}: this package needs ${fmt(thisKg)} kg, but only ${fmt(Math.max(0, receivedKg - given))} kg of the ${fmt(receivedKg)} kg received is left.${next}` };
+      return { ...base, received: got, ok: false, detail: `${it.item}: this package needs ${fmt(thisQty)} ${unit}, but only ${fmt(Math.max(0, got - already))} ${unit} of the ${fmt(got)} ${unit} received is left.${next}` };
     }
-    return { ...base, receivedKg, ok: true, detail: `${it.item}: ${fmt(given + thisKg)} of ${fmt(receivedKg)} kg received will have gone out (${done.map((p) => p.id).join(", ")}).` };
+    return { ...base, received: got, ok: true, detail: `${it.item}: ${fmt(already + thisQty)} of ${fmt(got)} ${unit} received will have gone out (${done.map((p) => p.id).join(", ")}).` };
   });
   const bad = lines.filter((l) => !l.ok);
   return { ok: !bad.length, lines, block: bad.length ? bad.map((l) => l.detail).join(" ") : null };
 }
 
 /**
- * What is in the store for each package item, in the package's own unit: what the purchases on its
+ * What is in the store for each package item, in the item's own unit: what the purchases on its
  * budget line have received (signed goods received notes), less what distributions have taken.
  * One figure for Field activities and for the gate, so the screen and the check never disagree.
  * Null when no purchase supplies the package at all (a project that keeps its stock by hand).
  */
-export function storeStock(procs: Procurement[], givenKg: Partial<Record<PackageKey, number>>): Record<PackageKey, number> | null {
-  if (!PACKAGE.some((p) => suppliersOf(p.key, procs).length)) return null;
+export function storeStock(setup: FieldSetup, procs: Procurement[], given: Given): Record<string, number> | null {
+  if (!setup.items.some((p) => suppliersOf(p.budgetLine, procs).length)) return null;
   return Object.fromEntries(
-    PACKAGE.map((p) => {
-      const receivedKg = suppliersOf(p.key, procs)
+    setup.items.map((p) => {
+      const got = suppliersOf(p.budgetLine, procs)
         .filter((x) => received(x))
-        .reduce((t, x) => t + (toKg(receivedQty(x), x.unit) ?? 0), 0);
-      const left = Math.max(0, receivedKg - (givenKg[p.key] ?? 0));
-      return [p.key, Math.round(fromKg(left, p.unit) * 1000) / 1000];
+        .reduce((t, x) => t + (receivedIn(x, p.unit) ?? 0), 0);
+      return [p.key, Math.round(Math.max(0, got - (given[p.key] ?? 0)) * 1000) / 1000];
     }),
-  ) as Record<PackageKey, number>;
+  );
 }
+
+/** The package for one farmer, planned: per-hectare items scaled by their hectares. */
+export const plannedFor = (setup: FieldSetup, hectares?: number) => itemsFor(setup, hectares ?? 1);
 
 /**
  * Who fixes a distribution the manager sent back: the person who recorded it when they can still
@@ -101,8 +106,8 @@ export function fixOwner(recordedBy: string | null, people: { id: string; field:
   return can.find((u) => u.id === recordedBy)?.id ?? can.find((u) => u.field.includes("store"))?.id ?? can.find((u) => u.field.includes("extension"))?.id ?? null;
 }
 
-/** What the person fixing a sent-back distribution may correct. Quantities are in the package's own units. */
-export type Fix = { qty?: Partial<Record<PackageKey, number>>; signed?: boolean; photo?: boolean };
+/** What the person fixing a sent-back distribution may correct. Quantities are in the items' own units. */
+export type Fix = { qty?: Record<string, number>; signed?: boolean; photo?: boolean };
 
 /** The items after a fix: a corrected quantity replaces the recorded one; anything else stays. */
 export function applyFix(items: DistItem[], fix: Fix): DistItem[] {
@@ -116,14 +121,14 @@ export function applyFix(items: DistItem[], fix: Fix): DistItem[] {
  * The purchase an approved item is drawn from: the oldest received purchase on the item's budget
  * line that still has enough left after its own distribution lists; when none has room for all of
  * it, the newest received one. Never a purchase whose goods received note is not signed: its
- * supplier has delivered nothing to pay for yet.
+ * supplier has delivered nothing to pay for yet. `qty` is in `unit`.
  */
-export function drawnFrom(key: PackageKey, kg: number, procs: Procurement[]): Procurement | null {
-  const got = suppliersOf(key, procs)
+export function drawnFrom(line: string, qty: number, unit: string, procs: Procurement[]): Procurement | null {
+  const got = suppliersOf(line, procs)
     .filter((p) => received(p))
     .sort((a, b) => a.id.localeCompare(b.id));
-  const left = (p: Procurement) => (toKg(receivedQty(p), p.unit) ?? 0) - (toKg((p.distribution?.lists ?? []).reduce((t, l) => t + l.qty, 0), p.unit) ?? 0);
-  return got.find((p) => left(p) + 1e-9 >= kg) ?? got.at(-1) ?? null;
+  const left = (p: Procurement) => (receivedIn(p, unit) ?? 0) - (convert((p.distribution?.lists ?? []).reduce((t, l) => t + l.qty, 0), p.unit, unit) ?? 0);
+  return got.find((p) => left(p) + 1e-9 >= qty) ?? got.at(-1) ?? null;
 }
 
 /**
@@ -132,22 +137,23 @@ export function drawnFrom(key: PackageKey, kg: number, procs: Procurement[]): Pr
  */
 export const paymentDue = (p: Pick<Procurement, "step">) => stepById[p.step]?.stage === stages.indexOf("Pay-ready") && p.step !== "paid";
 
-/** A procurement's distribution list entry quantity, in its own unit. */
-export const inProcUnit = (kg: number, p: Pick<Procurement, "unit">) => fromKg(kg, p.unit);
+/** A quantity in a purchase's own unit, for its distribution list. */
+export const inProcUnit = (qty: number, unit: string, p: Pick<Procurement, "unit">) => convert(qty, unit, p.unit) ?? qty;
 
 export type FlagId = "twice" | "aboveplan" | "nophoto" | "unsigned" | "notready";
 export type Flag = { id: FlagId; text: string };
 
-/** What to look at before approving. `others` are the farmer codes of every other distribution not sent back. */
-export function flagsFor(d: { farmerId: string; items: DistItem[]; photo: boolean; signed: boolean; step: string | null }, others: string[]): Flag[] {
+/**
+ * What to look at before approving. `others` are the farmer codes of every other distribution not
+ * sent back; `planned` is this farmer's package as planned.
+ */
+export function flagsFor(d: { farmerId: string; items: DistItem[]; photo: boolean; signed: boolean; step: string | null }, others: string[], planned: DistItem[]): Flag[] {
   const out: Flag[] = [];
   if (others.includes(d.farmerId)) out.push({ id: "twice", text: `${d.farmerId} already has a distribution recorded this season.` });
-  const plan = plannedItems();
   for (const it of d.items) {
-    const p = plan.find((x) => x.key === it.key);
-    const planKg = p ? toKg(p.qty, p.unit) : null;
-    const kg = toKg(it.qty, it.unit);
-    if (p && planKg !== null && kg !== null && kg > planKg + 1e-9) out.push({ id: "aboveplan", text: `${it.item}: ${fmt(it.qty)} ${it.unit} given; the package plans ${fmt(p.qty)} ${p.unit}.` });
+    const p = planned.find((x) => x.key === it.key);
+    const asPlanned = p ? convert(it.qty, it.unit, p.unit) : null;
+    if (p && asPlanned !== null && asPlanned > p.qty + 1e-9) out.push({ id: "aboveplan", text: `${it.item}: ${fmt(it.qty)} ${it.unit} given; the package plans ${fmt(p.qty)} ${p.unit}.` });
   }
   if (!d.photo) out.push({ id: "nophoto", text: "No photo of the signed recipient list." });
   if (!d.signed) out.push({ id: "unsigned", text: "The recipient's signature or thumbprint is not confirmed." });

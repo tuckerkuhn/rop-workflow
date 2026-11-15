@@ -8,11 +8,12 @@ import { stageOf } from "@/components/field/workspace";
 import { useFieldData } from "@/components/app/use-project-data";
 import { Initials, useFeature, useRequireUser, useSession } from "@/components/app/session";
 import { PHOTO_QUALITY } from "@/lib/plans";
-import { Pill, SectionLabel, TODAY, TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
+import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
+import { useCurrentProject } from "@/components/app/current-project";
+import { today } from "@/lib/clock";
+import { DEMO_SETUP, packageUsd } from "@/lib/package";
 import { holderOf } from "@/lib/demo";
 import {
-  PACKAGE_USD,
-  SEASON,
   farmerStages,
   fieldPerson,
   fieldRoleLabel,
@@ -104,7 +105,10 @@ function SatisfactionChart({ surveys }: { surveys: Farmer["surveys"] }) {
 export function FarmerProfile({ id }: { id: string }) {
   const { user } = useRequireUser();
   const { money } = useSession();
-  const { items, setItems, status, error } = useFieldData();
+  const { project } = useCurrentProject();
+  const { items, setItems, setup: loadedSetup, status, error } = useFieldData(project.id);
+  const setup = loadedSetup ?? DEMO_SETUP;
+  const TODAY = today();
   const { t } = useT();
   const [score, setScore] = useState(0);
   const [comment, setComment] = useState("");
@@ -175,13 +179,13 @@ export function FarmerProfile({ id }: { id: string }) {
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-mono text-xs text-muted">{farmer.id}</span>
-                  <Pill tone="muted">{SEASON.name}</Pill>
+                  {setup.season && <Pill tone="muted">{setup.season}</Pill>}
                   {step ? <Pill tone="forest">Now: {step.title}</Pill> : <Pill tone={farmer.step === "removed" ? "clay" : "forest"}>{farmer.step === "removed" ? "Removed" : "Season record complete"}</Pill>}
                 </div>
                 <h1 className="mt-1 font-display text-4xl leading-tight tracking-tight">{farmerName(farmer, user)}</h1>
                 {!user.pii && <p className="text-xs text-muted">Name and contact details are restricted participant data. You see the farmer ID only.</p>}
                 <p className="mt-1 text-sm text-muted">
-                  {farmer.community} · {farmer.hectares} ha {SEASON.crop.toLowerCase()} · Enrolled {farmer.enrolledOn} · Contribution {farmer.contributionPaid ? "paid" : "not paid"}
+                  {farmer.community} · {farmer.hectares} ha{setup.crop ? ` ${setup.crop.toLowerCase()}` : ""} · Enrolled {farmer.enrolledOn} · Contribution {farmer.contributionPaid ? "paid" : "not paid"}
                   <br />
                   {farmer.gender} · {farmer.ageBand} · household of {farmer.householdSize}
                 </p>
@@ -197,7 +201,7 @@ export function FarmerProfile({ id }: { id: string }) {
                 ["Engagements", String(engagements.length)],
                 ["Satisfaction", latest ? `${latest.score} / 5` : "—"],
                 ["Season progress", `${Math.min(stageOf(farmer), farmerStages.length)} of ${farmerStages.length}`],
-                ["Inputs received", gotInputs ? money(PACKAGE_USD) : "Not yet"],
+                ["Inputs received", gotInputs ? (packageUsd(setup, farmer.hectares) ? money(packageUsd(setup, farmer.hectares)) : "Yes") : "Not yet"],
               ].map(([k, v]) => (
                 <div key={k} className="bg-surface px-4 py-3">
                   <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted">{k}</dt>

@@ -1,11 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { applyFix, drawnFrom, fixOwner, paymentDue, flagsFor, gate, inProcUnit, plannedItems, storeStock, toKg } from "@/lib/distribution";
+import { addGiven, applyFix, convert, drawnFrom, fixOwner, paymentDue, flagsFor, gate as gateFor, inProcUnit, storeStock as stockFor, toKg } from "@/lib/distribution";
+import { DEMO_SETUP, itemsFor, type FieldSetup } from "@/lib/package";
 import { seedProcurements } from "@/lib/procurement";
 import type { Procurement } from "@/lib/procurement";
 
 const proc = (over: Partial<Procurement>): Procurement =>
   ({ id: "PR-1", title: "Seed", qty: 2400, unit: "kg", unitPrice: 7.75, budgetLine: "2.1", activity: "", step: "need", signatures: {}, checks: {}, issues: [], timeline: [], ...over }) as unknown as Procurement;
 const got = (qty: number) => ({ step: "done", grn: { qty } }) as unknown as Partial<Procurement>;
+
+const S = DEMO_SETUP;
+const plannedItems = () => itemsFor(S);
+const gate = (items: Parameters<typeof gateFor>[0], procs: Procurement[], given: Record<string, number>) => gateFor(items, procs, given, S);
+const storeStock = (procs: Procurement[], given: Record<string, number>) => stockFor(S, procs, given);
 
 const seedIn = (qty: number) => proc({ id: "PR-SEED", ...got(qty) });
 const npkIn = (tonnes: number) => proc({ id: "PR-NPK", unit: "t", budgetLine: "2.2", ...got(tonnes) });
@@ -44,19 +50,19 @@ describe("gate: nothing goes out before the goods received note", () => {
   });
 
   it("reports a distribution list quantity in the purchase's own unit", () => {
-    expect(inProcUnit(50, { unit: "t" })).toBeCloseTo(0.05);
-    expect(inProcUnit(10, { unit: "kg" })).toBe(10);
+    expect(inProcUnit(50, "kg", { unit: "t" })).toBeCloseTo(0.05);
+    expect(inProcUnit(10, "kg", { unit: "kg" })).toBe(10);
   });
 });
 
 describe("flagsFor", () => {
   const base = { farmerId: "F-0001", items: plannedItems(), photo: true, signed: true, step: "distribute" };
   it("is clean for a normal package", () => {
-    expect(flagsFor(base, [])).toEqual([]);
+    expect(flagsFor(base, [], plannedItems())).toEqual([]);
   });
   it("flags the same farmer twice, above plan, no photo, unsigned, not cleared", () => {
     const items = plannedItems().map((i) => (i.key === "seed" ? { ...i, qty: 15 } : i));
-    const ids = flagsFor({ ...base, items, photo: false, signed: false, step: "verify" }, ["F-0001"]).map((f) => f.id);
+    const ids = flagsFor({ ...base, items, photo: false, signed: false, step: "verify" }, ["F-0001"], plannedItems()).map((f) => f.id);
     expect(ids).toEqual(["twice", "aboveplan", "nophoto", "unsigned", "notready"]);
   });
 });
@@ -133,15 +139,15 @@ describe("drawnFrom: an approved item is charged to a purchase that has received
   const listed = (qty: number) => ({ forParticipants: true, inStock: 0, checks: [], lists: [{ date: "2027-03-01", place: "Village B", recipients: 1, women: 0, qty, evidence: "", by: "nadia", byName: "Nadia" }] }) as unknown as Procurement["distribution"];
   it("never picks a purchase whose goods received note is not signed", () => {
     const procs = [lot("PR-A", { step: "contract" }), lot("PR-B", got(600))];
-    expect(drawnFrom("npk", 50, procs)?.id).toBe("PR-B");
+    expect(drawnFrom("2.2", 50, "kg", procs)?.id).toBe("PR-B");
   });
   it("uses the oldest received purchase with enough left, then moves to the next", () => {
     const procs = [lot("PR-1", { ...got(100), distribution: listed(100) }), lot("PR-2", got(600))];
-    expect(drawnFrom("npk", 50, procs)?.id).toBe("PR-2");
-    expect(drawnFrom("npk", 50, [lot("PR-1", { ...got(100), distribution: listed(50) }), lot("PR-2", got(600))])?.id).toBe("PR-1");
+    expect(drawnFrom("2.2", 50, "kg", procs)?.id).toBe("PR-2");
+    expect(drawnFrom("2.2", 50, "kg", [lot("PR-1", { ...got(100), distribution: listed(50) }), lot("PR-2", got(600))])?.id).toBe("PR-1");
   });
   it("is null when nothing on the line has been received", () => {
-    expect(drawnFrom("npk", 50, [lot("PR-A", { step: "receive" })])).toBeNull();
+    expect(drawnFrom("2.2", 50, "kg", [lot("PR-A", { step: "receive" })])).toBeNull();
   });
 });
 
@@ -151,5 +157,42 @@ describe("paymentDue: finance is asked to pay only when a payment is left", () =
   });
   it("is not due before goods are received, or once paid or closed", () => {
     for (const step of ["contract", "receive", "paid", "close", "done"]) expect(paymentDue({ step })).toBe(false);
+  });
+});
+
+describe("a project's own package (not the demo's maize)", () => {
+  // ACRP-style: planting cuttings per hectare, bought in cuttings; trellising per hectare, bought in hectares.
+  const acrp: FieldSetup = {
+    items: [
+      { key: "cuttings", item: "Grape planting cuttings", unit: "cuttings", qty: 2500, per: "hectare", budgetLine: "PRG-1.1.1.A" },
+      { key: "trellis", item: "Trellising", unit: "hectare", qty: 1, per: "hectare", budgetLine: "PRG-1.1.1.B" },
+    ],
+  };
+  const buy = (id: string, line: string, unit: string, qty: number, step = "done") => proc({ id, budgetLine: line, unit, step, grn: { qty } } as unknown as Partial<Procurement>);
+
+  it("scales per-hectare items by the farmer's plot", () => {
+    expect(itemsFor(acrp, 0.5).map((i) => i.qty)).toEqual([1250, 0.5]);
+  });
+  it("passes when the purchase on each line was received in the same unit", () => {
+    const g = gateFor(itemsFor(acrp, 0.5), [buy("PR-C", "PRG-1.1.1.A", "Cuttings", 10000), buy("PR-T", "PRG-1.1.1.B", "hectares", 20)], {}, acrp);
+    expect(g.ok).toBe(true);
+  });
+  it("blocks with the reason when a purchase is in a unit the package cannot compare", () => {
+    const g = gateFor(itemsFor(acrp, 1), [buy("PR-C", "PRG-1.1.1.A", "bundles", 400), buy("PR-T", "PRG-1.1.1.B", "hectare", 20)], {}, acrp);
+    expect(g.ok).toBe(false);
+    expect(g.block).toMatch(/PR-C was bought in bundles, but the package gives cuttings/);
+  });
+  it("keeps the store's stock in each item's unit and adds up what went out", () => {
+    const given = addGiven({}, itemsFor(acrp, 2), acrp);
+    expect(given).toEqual({ cuttings: 5000, trellis: 2 });
+    expect(stockFor(acrp, [buy("PR-C", "PRG-1.1.1.A", "cuttings", 10000), buy("PR-T", "PRG-1.1.1.B", "hectare", 20)], given)).toEqual({ cuttings: 5000, trellis: 18 });
+  });
+  it("charges an approved item to a received purchase on its own line", () => {
+    expect(drawnFrom("PRG-1.1.1.A", 1250, "cuttings", [buy("PR-X", "PRG-1.1.1.B", "hectare", 20), buy("PR-C", "PRG-1.1.1.A", "cuttings", 10000)])?.id).toBe("PR-C");
+  });
+  it("converts weights but never unrelated units", () => {
+    expect(convert(2, "t", "kg")).toBe(2000);
+    expect(convert(3, "Cuttings", "cutting")).toBe(3);
+    expect(convert(3, "kg", "cuttings")).toBeNull();
   });
 });

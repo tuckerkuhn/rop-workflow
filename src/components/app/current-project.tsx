@@ -65,8 +65,9 @@ export function CurrentProjectProvider({ children }: { children: React.ReactNode
           status: "Active",
           stage: (STAGES as readonly string[]).includes(p.stage) ? (p.stage as Stage) : "Design",
           note: p.goal ?? "",
-          // Procurement runs from the budget and calendar saved in setup.
-          workflows: ["procurement"],
+          // Procurement runs from the budget and calendar saved in setup; Field activities once the
+          // project's input package is set up (lib/package).
+          workflows: p.field ? ["field", "procurement"] : ["procurement"],
           crop: p.crop ?? undefined,
           saved: true,
           handRecorded: p.handRecorded ?? 0,

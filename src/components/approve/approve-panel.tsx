@@ -20,7 +20,7 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
   const [d, setD] = useState<DistView | null>(null);
   const [canDecide, setCanDecide] = useState(false);
   const [canFix, setCanFix] = useState(false);
-  const [fix, setFix] = useState<{ seed: string; npk: string; signed: boolean; photo: boolean }>({ seed: "", npk: "", signed: false, photo: false });
+  const [fix, setFix] = useState<{ qty: Record<string, string>; signed: boolean; photo: boolean }>({ qty: {}, signed: false, photo: false });
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -38,8 +38,7 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
     setD(dist);
     setCanDecide(body.canDecide);
     setCanFix(!!body.canFix);
-    const q = (k: "seed" | "npk") => String(dist.items.find((i) => i.key === k)?.qty ?? "");
-    setFix({ seed: q("seed"), npk: q("npk"), signed: dist.signed, photo: dist.photo });
+    setFix({ qty: Object.fromEntries(dist.items.map((i) => [i.key, String(i.qty)])), signed: dist.signed, photo: dist.photo });
     setError("");
   }, [url, token, user?.id]);
 
@@ -62,7 +61,7 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
   async function sendAgain() {
     const num = (v: string) => (v.trim() === "" || !Number.isFinite(Number(v)) || Number(v) < 0 ? undefined : Number(v));
     setBusy(true);
-    const res = await fetch(url, { method: "POST", headers, body: JSON.stringify({ decision: "resubmit", note: note.trim(), fix: { qty: { seed: num(fix.seed), npk: num(fix.npk) }, signed: fix.signed, photo: fix.photo } }) });
+    const res = await fetch(url, { method: "POST", headers, body: JSON.stringify({ decision: "resubmit", note: note.trim(), fix: { qty: Object.fromEntries(Object.entries(fix.qty).flatMap(([k, v]) => (num(v) === undefined ? [] : [[k, num(v)]]))), signed: fix.signed, photo: fix.photo } }) });
     const body = await res.json().catch(() => ({}));
     setBusy(false);
     if (!res.ok) return setError(body.error ?? `Not sent (${res.status}).`);
@@ -160,7 +159,7 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
                 {d.items.map((i) => (
                   <label key={i.key} className="block text-sm font-medium">
                     {i.item} handed out ({i.unit})
-                    <input type="number" min={0} step="any" inputMode="decimal" value={fix[i.key]} onChange={(e) => setFix((f) => ({ ...f, [i.key]: e.target.value }))} className={field} />
+                    <input type="number" min={0} step="any" inputMode="decimal" value={fix.qty[i.key] ?? ""} onChange={(e) => setFix((f) => ({ ...f, qty: { ...f.qty, [i.key]: e.target.value } }))} className={field} />
                   </label>
                 ))}
               </div>
@@ -175,7 +174,7 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
               <label className="mt-3 block text-sm font-medium" htmlFor="fixed">
                 What you fixed
               </label>
-              <textarea id="fixed" value={note} onChange={(e) => setNote(e.target.value)} rows={2} className={field} placeholder="For example: got the thumbprint; the seed was 8 kg, not 10" />
+              <textarea id="fixed" value={note} onChange={(e) => setNote(e.target.value)} rows={2} className={field} placeholder="For example: got the thumbprint; the amount handed out was lower" />
               <button type="button" className={`${primaryBtn} mt-3`} disabled={busy || !note.trim()} onClick={sendAgain}>
                 Send it again
               </button>

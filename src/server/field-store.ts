@@ -1,5 +1,6 @@
 import { EMPTY_FRAMEWORK, FRAMEWORK_KEY, type Framework } from "@/lib/framework";
-import { loadProjectState } from "@/server/project-state";
+import { loadProjectState, saveProjectState } from "@/server/project-state";
+import { DEMO_SETUP, FIELD_SETUP_KEY, type FieldSetup } from "@/lib/package";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { canSeePII, type AppUser } from "@/lib/demo";
@@ -40,6 +41,36 @@ export async function goalOf(project: { id: string; goal: string | null }): Prom
   return fw.goal?.text?.trim() || project.goal;
 }
 
+/** The demo project: its package and season come with it (lib/package DEMO_SETUP). */
+export const DEMO_FIELD_PROJECT = "A-2027";
+
+/**
+ * A project's input package and season. The demo project has one built in; any other project has
+ * one once its manager sets it up in Field activities, and until then has no field workflow.
+ */
+export async function setupOf(project: { id: string; code: string | null }): Promise<FieldSetup | null> {
+  // A draft (pre-filled for a manager to confirm) does not switch Field activities on.
+  const stored = await loadProjectState<(FieldSetup & { draft?: boolean }) | null>(project.id, FIELD_SETUP_KEY, null);
+  if (stored?.items?.length && !stored.draft) return stored;
+  return project.code === DEMO_FIELD_PROJECT ? DEMO_SETUP : null;
+}
+/** Codes of the projects with an input package (not a draft), so Field activities runs on them. */
+export async function projectsWithField(): Promise<Set<string>> {
+  const rows = await db
+    .select({ code: s.projects.code, data: s.projectState.data })
+    .from(s.projectState)
+    .innerJoin(s.projects, eq(s.projects.id, s.projectState.projectId))
+    .where(eq(s.projectState.key, FIELD_SETUP_KEY));
+  return new Set(rows.filter((r) => r.code && (r.data as { items?: unknown[]; draft?: boolean } | null)?.items?.length && !(r.data as { draft?: boolean }).draft).map((r) => r.code!));
+}
+
+export const setupFor = async (code: string) => setupOf(await projectByCode(code));
+
+export async function saveSetup(code: string, setup: FieldSetup) {
+  const project = await projectByCode(code);
+  await saveProjectState(project.id, FIELD_SETUP_KEY, setup);
+}
+
 /** Copy of an item safe to store: no name. */
 function stripPII(item: FieldItem): FieldItem {
   return item.kind === "farmer" ? { ...item, name: "" } : item;
@@ -68,7 +99,7 @@ export async function loadField(code: string, user?: AppUser) {
     .map((r) => r.data as FieldItem)
     .map((i) => (i.kind === "farmer" ? { ...i, name: names.get(i.id) ?? "" } : i))
     .sort((a, b) => a.id.localeCompare(b.id));
-  return { items, stock: (stockRow?.data as Stock | undefined) ?? null };
+  return { items, stock: (stockRow?.data as Stock | undefined) ?? null, setup: await setupOf(project) };
 }
 
 /** Insert or replace the given items (only the ones that changed are sent). */

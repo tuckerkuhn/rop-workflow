@@ -42,4 +42,4 @@ export type ProjectDesign = z.infer<typeof projectDesignSchema>;
 
 /** A project from the database, for the project picker. */
 export type ProjectKind = "real" | "sample" | "sandbox";
-export type ProjectSummary = { code: string; name: string; country: string; crop: string | null; goal: string | null; startDate: string | null; endDate: string | null; stage: string; /** real, or a fictional sample (read-only) or sandbox (for testing). */ kind: ProjectKind; /** Indicators that take results recorded by hand (not fed by Kobo). */ handRecorded?: number };
+export type ProjectSummary = { code: string; name: string; country: string; crop: string | null; goal: string | null; startDate: string | null; endDate: string | null; stage: string; /** real, or a fictional sample (read-only) or sandbox (for testing). */ kind: ProjectKind; /** Indicators that take results recorded by hand (not fed by Kobo). */ handRecorded?: number; /** Has an input package set up, so Field activities runs on it. */ field?: boolean };

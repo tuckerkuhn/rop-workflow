@@ -3,12 +3,13 @@ import { and, eq, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { today } from "@/lib/clock";
 import type { AppUser } from "@/lib/demo";
-import { applyFix, drawnFrom, fixOwner, flagsFor, gate, inProcUnit, paymentDue, plannedItems, storeStock, toKg, type DistItem, type Fix, type Flag, type Gate, type PackageKey } from "@/lib/distribution";
+import { addGiven, applyFix, drawnFrom, fixOwner, flagsFor, gate, inProcUnit, lineOf, paymentDue, storeStock, type DistItem, type Fix, type Flag, type Gate, type Given } from "@/lib/distribution";
+import { itemsFor, type FieldSetup } from "@/lib/package";
 import type { Farmer } from "@/lib/field";
 import type { Procurement } from "@/lib/procurement";
 import type { Submission } from "@/lib/project";
 import { demoMode, onProject, people, toAppUser } from "@/server/auth";
-import { projectByCode } from "@/server/field-store";
+import { projectByCode, setupOf } from "@/server/field-store";
 import { HttpError } from "@/server/guard";
 import { loadProjectState } from "@/server/project-state";
 
@@ -82,21 +83,25 @@ type Project = Awaited<ReturnType<typeof projectByCode>>;
 /** May correct a sent-back distribution and send it again: anyone who can change field records on the project. */
 export const mayFix = (u: AppUser, code: string) => u.kind === "employee" && u.fieldAccess === "edit" && onProject(u, code);
 
-/** Everything the gate needs: the purchases, and what each earlier distribution took, in kg. */
+/** A project's package; a project without one has nothing to hand out. */
+const setupOrEmpty = async (project: Project): Promise<FieldSetup> => (await setupOf(project)) ?? { items: [] };
+
+/** Everything the gate needs: the package, the purchases, and what each earlier distribution took. */
 async function context(project: Project, opts: { excluding?: string; countPending: boolean }) {
+  const setup = await setupOrEmpty(project);
   const procs = (await db.select().from(s.procurements).where(eq(s.procurements.projectId, project.id))).map((r) => r.data as Procurement);
   const rows = await db.select().from(s.evidence).where(and(eq(s.evidence.projectId, project.id), eq(s.evidence.form, "distribution")));
   const st = await loadState(project.id);
-  const givenKg: Partial<Record<PackageKey, number>> = {};
+  const given: Given = {};
   const others: string[] = [];
   for (const r of rows) {
     if (r.id === opts.excluding || r.koboRemovedAt || r.reviewStatus === "queried") continue;
     if (r.farmerCode) others.push(r.farmerCode);
     if (r.reviewStatus === "pending" && !opts.countPending) continue;
     // A record with no items stored (made before quantities were kept) is one planned package.
-    for (const it of st.byId[r.id]?.items ?? plannedItems()) givenKg[it.key] = (givenKg[it.key] ?? 0) + (toKg(it.qty, it.unit) ?? it.qty);
+    addGiven(given, st.byId[r.id]?.items ?? itemsFor(setup), setup);
   }
-  return { procs, givenKg, others, st, rows };
+  return { setup, procs, given, others, st, rows };
 }
 
 /**
@@ -106,9 +111,9 @@ async function context(project: Project, opts: { excluding?: string; countPendin
 export async function stockFor(code: string) {
   const project = await projectByCode(code);
   const ctx = await context(project, { countPending: true });
-  const stock = storeStock(ctx.procs, ctx.givenKg);
+  const stock = storeStock(ctx.setup, ctx.procs, ctx.given);
   // Why the next package cannot go out, in the gate's own words, so the screen says what unblocks it.
-  return stock ? { stock, block: gate(plannedItems(), ctx.procs, ctx.givenKg).block } : null;
+  return stock ? { stock, block: gate(itemsFor(ctx.setup), ctx.procs, ctx.given, ctx.setup).block } : null;
 }
 
 async function farmerOf(projectId: string, code: string) {
@@ -139,9 +144,10 @@ const qtyOf = (v: unknown) => {
  */
 export async function recordFromApp(code: string, farmer: Farmer, user: AppUser, origin: string) {
   const project = await projectByCode(code);
-  const items = plannedItems();
   const ctx = await context(project, { countPending: true });
-  const g = gate(items, ctx.procs, ctx.givenKg);
+  if (!ctx.setup.items.length) throw new HttpError(409, `${code} has no input package set up yet. The project manager sets it up in Field activities.`);
+  const items = itemsFor(ctx.setup, farmer.hectares);
+  const g = gate(items, ctx.procs, ctx.given, ctx.setup);
   if (!g.ok) throw new HttpError(409, `${farmer.id}'s input package can't be recorded as handed out yet. ${g.block}`);
   // Saved twice (a retry, a double tap, a lost connection): the distribution already waiting for
   // this farmer is this one. Nothing new is stored and the manager is not emailed again.
@@ -166,7 +172,7 @@ export async function recordFromApp(code: string, farmer: Farmer, user: AppUser,
     .insert(s.evidence)
     .values({ organizationId: project.organizationId, projectId: project.id, source: "manual", form: "distribution", farmerCode: farmer.id, reviewStatus: "pending", completedBy: user.id, completedAt: new Date(), location: farmer.community, payload: sub })
     .returning({ id: s.evidence.id });
-  const flags = flagsFor({ farmerId: farmer.id, items, photo, signed, step: null }, ctx.others);
+  const flags = flagsFor({ farmerId: farmer.id, items, photo, signed, step: null }, ctx.others, items);
   await prepare(code, project, row.id, { farmerId: farmer.id, items, gender: farmer.gender, village: farmer.community, recordedBy: user.name, recorderId: user.id, photo, signed, gate: g, flags }, origin);
   return row.id;
 }
@@ -193,11 +199,13 @@ export async function processPending(code: string, origin = appOrigin()) {
     const f = (typeof p.fields === "object" && p.fields ? p.fields : p) as Record<string, unknown>;
     const code_ = r.farmerCode ?? String(p.farmer ?? p.farmerId ?? "");
     const farmer = code_ ? await farmerOf(project.id, code_) : null;
-    const items = plannedItems().map((i) => ({ ...i, qty: qtyOf(f[`${i.key}_kg`]) ?? i.qty }));
-    const g = gate(items, ctx.procs, ctx.givenKg);
+    // The Kobo form answers "<item>_qty" in the package unit ("seed_kg" on the demo form).
+    const planned = itemsFor(ctx.setup, farmer?.hectares);
+    const items = planned.map((i) => ({ ...i, qty: qtyOf(f[`${i.key}_qty`]) ?? qtyOf(f[`${i.key}_${i.unit}`]) ?? qtyOf(f[`${i.key}_kg`]) ?? i.qty }));
+    const g = gate(items, ctx.procs, ctx.given, ctx.setup);
     const photo = r.source === "kobo" ? typeof p.list_photo === "string" && !!p.list_photo : !!p.photo;
     const signed = r.source === "kobo" ? p.signed === "yes" : typeof f.signature === "string" && !!f.signature && f.signature !== "Not confirmed";
-    const flags = flagsFor({ farmerId: code_, items, photo, signed, step: r.source === "kobo" ? (farmer?.step ?? "unknown") : null }, ctx.others);
+    const flags = flagsFor({ farmerId: code_, items, photo, signed, step: r.source === "kobo" ? (farmer?.step ?? "unknown") : null }, ctx.others, planned);
     if (farmer && r.source === "kobo") await db.update(s.evidence).set({ payload: { ...p, _rop_gender: farmer.gender }, updatedAt: new Date() }).where(eq(s.evidence.id, r.id));
     const gender = farmer?.gender ?? (f.gender === "Female" || f.gender === "Male" ? f.gender : null);
     await prepare(code, project, r.id, { farmerId: code_, items, gender, village: farmer?.community ?? (typeof p.village === "string" ? p.village : ""), recordedBy: r.completedBy ?? "KoboCollect", recorderId: r.source === "kobo" ? null : r.completedBy, photo, signed, gate: g, flags }, origin);
@@ -289,9 +297,10 @@ export async function listDistributions(code: string): Promise<DistView[]> {
   const rows = await db.select().from(s.evidence).where(and(eq(s.evidence.projectId, project.id), eq(s.evidence.form, "distribution")));
   const st = await loadState(project.id);
   const procs = (await db.select().from(s.procurements).where(eq(s.procurements.projectId, project.id))).map((r) => r.data as Procurement);
+  const setup = await setupOrEmpty(project);
   // What approved distributions have taken so far, for the checks of the ones still waiting.
-  const approvedKg: Partial<Record<PackageKey, number>> = {};
-  for (const r of rows) if (r.reviewStatus === "accepted" && !r.koboRemovedAt) for (const it of st.byId[r.id]?.items ?? plannedItems()) approvedKg[it.key] = (approvedKg[it.key] ?? 0) + (toKg(it.qty, it.unit) ?? it.qty);
+  const approved: Given = {};
+  for (const r of rows) if (r.reviewStatus === "accepted" && !r.koboRemovedAt) addGiven(approved, st.byId[r.id]?.items ?? itemsFor(setup), setup);
   return rows
     .filter((r) => st.byId[r.id] && !r.koboRemovedAt)
     .map((r) => {
@@ -309,7 +318,7 @@ export async function listDistributions(code: string): Promise<DistView[]> {
         signed: m.signed ?? signedOf(r),
         // While it waits, the checks are worked out now, as approving will: a goods received note
         // signed since the record was made shows at once. Once decided, they stay as they were then.
-        gate: r.reviewStatus === "pending" ? gate(m.items, procs, approvedKg) : m.gate,
+        gate: r.reviewStatus === "pending" ? gate(m.items, procs, approved, setup) : m.gate,
         flags: m.flags,
         status: r.reviewStatus,
         notified: m.notified ?? null,
@@ -350,7 +359,7 @@ export async function decideDistribution(code: string, id: string, decision: "ap
   if (!m) throw new HttpError(409, "This distribution has not been checked yet. Sync Kobo and try again.");
   if (decision === "sent_back" && !note?.trim()) throw new HttpError(400, "Say what needs fixing, so the person who recorded it knows.");
 
-  const g = gate(m.items, ctx.procs, ctx.givenKg);
+  const g = gate(m.items, ctx.procs, ctx.given, ctx.setup);
   if (decision === "approved" && !g.ok) throw new HttpError(409, `Not approved: ${g.block}`);
 
   const finance = decision === "approved" ? (await people()).filter((u) => u.procurement.includes("finance") && onProject(u, code))[0] : undefined;
@@ -373,12 +382,12 @@ export async function decideDistribution(code: string, id: string, decision: "ap
         // The received purchase this item comes from (oldest with enough left), read inside the
         // transaction so an earlier item's update in this loop is seen.
         const current = (await tx.select().from(s.procurements).where(eq(s.procurements.projectId, project.id))).map((x) => x.data as Procurement);
-        const supplier = drawnFrom(it.key, toKg(it.qty, it.unit) ?? it.qty, current);
+        const supplier = drawnFrom(lineOf(it, ctx.setup), it.qty, it.unit, current);
         const r = supplier && rows.find((x) => x.procKey === supplier.id);
         if (!r || !supplier) continue;
         const p = supplier;
         const d = p.distribution ?? { forParticipants: true, lists: [], inStock: 0, checks: [] };
-        const qty = inProcUnit(toKg(it.qty, it.unit) ?? it.qty, p);
+        const qty = inProcUnit(it.qty, it.unit, p);
         const place = m.village || "Not recorded";
         const at = d.lists.findIndex((l) => l.date === day && l.place === place && l.by === by.id);
         const lists = [...d.lists];
@@ -481,11 +490,11 @@ export async function resubmitDistribution(code: string, id: string, by: { id: s
   const photo = fix.photo ?? m.photo ?? photoOf(row);
   const signed = fix.signed ?? m.signed ?? signedOf(row);
   const farmer = row.farmerCode ? await farmerOf(project.id, row.farmerCode) : null;
-  const flags = flagsFor({ farmerId: row.farmerCode ?? m.farmerId, items, photo, signed, step: row.source === "kobo" ? (farmer?.step ?? "unknown") : null }, ctx.others);
+  const flags = flagsFor({ farmerId: row.farmerCode ?? m.farmerId, items, photo, signed, step: row.source === "kobo" ? (farmer?.step ?? "unknown") : null }, ctx.others, itemsFor(ctx.setup, farmer?.hectares));
   const history = [...(m.history ?? []), ...(m.decided ? [{ sentBack: m.decided, fixed: { by: by.id, byName: by.name, at: now.toISOString(), note: note.trim() } }] : [])];
   const { decided: _decided, hash: _hash, expires: _expires, notified: _notified, ...kept } = m;
   void [_decided, _hash, _expires, _notified];
-  await prepare(code, project, id, { ...kept, items, photo, signed, gate: gate(items, ctx.procs, ctx.givenKg), flags, history }, origin, { by: by.name, note: note.trim() });
+  await prepare(code, project, id, { ...kept, items, photo, signed, gate: gate(items, ctx.procs, ctx.given, ctx.setup), flags, history }, origin, { by: by.name, note: note.trim() });
   return { ok: true as const };
 }
 

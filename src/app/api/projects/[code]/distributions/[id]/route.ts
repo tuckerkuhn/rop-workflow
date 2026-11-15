@@ -30,13 +30,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
   });
 }
 
-const qty = z.number().min(0).max(1e6).optional();
 const body = z.object({
   decision: z.enum(["approved", "sent_back", "resubmit"]),
   note: z.string().max(2000).optional(),
   token: z.string().max(200).optional(),
   /** With "resubmit": what was corrected. */
-  fix: z.object({ qty: z.object({ seed: qty, npk: qty }).optional(), signed: z.boolean().optional(), photo: z.boolean().optional() }).optional(),
+  fix: z.object({ qty: z.record(z.string().regex(/^[a-z][a-z0-9_]{0,29}$/), z.number().min(0).max(1e6)).optional(), signed: z.boolean().optional(), photo: z.boolean().optional() }).optional(),
 });
 
 export async function POST(req: Request, { params }: { params: Promise<{ code: string; id: string }> }) {

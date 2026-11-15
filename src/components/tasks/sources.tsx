@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useT } from "@/components/app/i18n";
 import { useSession } from "@/components/app/session";
-import type { AppUser, ProjectInfo } from "@/lib/demo";
+import { canEditProject, type AppUser, type ProjectInfo } from "@/lib/demo";
 
 /** The workflows Tasks can open in full, next to the list of all tasks. */
 
@@ -14,7 +14,8 @@ export type TaskSource = "field" | "procurement";
 export function taskSources(u: AppUser, project: ProjectInfo): TaskSource[] {
   const has = (w: TaskSource) => (project.workflows as readonly string[]).includes(w);
   return [
-    has("field") && u.fieldAccess !== "none" ? ("field" as const) : null,
+    // A saved project without an input package yet: its manager opens Field activities to set it up.
+    (has("field") && u.fieldAccess !== "none") || (has("procurement") && u.kind === "employee" && (canEditProject(u) || u.field.includes("manager"))) ? ("field" as const) : null,
     has("procurement") && u.procurementAccess !== "none" ? ("procurement" as const) : null,
   ].filter((s): s is TaskSource => s !== null);
 }

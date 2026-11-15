@@ -4,6 +4,11 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { useFieldData } from "@/components/app/use-project-data";
+import { useCurrentProject } from "@/components/app/current-project";
+import { FarmerImport, PackageSetup } from "@/components/field/setup";
+import { today } from "@/lib/clock";
+import { canEditProject } from "@/lib/demo";
+import { packageUsd, type FieldSetup } from "@/lib/package";
 import {
   AppShell,
   BackLink,
@@ -18,7 +23,6 @@ import {
   QueueHeader,
   QueueItem,
   StepCard,
-  TODAY,
   Tracker,
   dangerBtn,
   primaryBtn,
@@ -28,9 +32,6 @@ import { holderOf, type AppUser } from "@/lib/demo";
 import { NoAccess } from "@/components/workspace/ui";
 import {
   ISSUE_FOOTNOTE,
-  PACKAGE,
-  PACKAGE_USD,
-  SEASON,
   addDays,
   allChecksPass,
   farmerStages,
@@ -105,7 +106,7 @@ export function comingTo(items: FieldItem[], role: string, viewer?: AppUser | nu
 function ActionForm({ onSave }: { onSave: (a: { text: string; owner: FieldRole; due: string }) => void }) {
   const [text, setText] = useState("");
   const [owner, setOwner] = useState<FieldRole>("extension");
-  const [due, setDue] = useState(addDays(TODAY, 7));
+  const [due, setDue] = useState(addDays(today(), 7));
   const field = "rounded-lg border border-line bg-surface px-3 py-2 text-sm focus:border-forest focus:outline-none";
   return (
     <form
@@ -155,7 +156,7 @@ function NewFinding({ farmers, onCancel, onCreate }: { farmers: Farmer[]; onCanc
           step: "validate",
           checks: {},
           issues: [],
-          timeline: [{ date: TODAY, who: "mel", what: "Finding drafted" }],
+          timeline: [{ date: today(), who: "mel", what: "Finding drafted" }],
         });
       }}
       className="mx-auto max-w-2xl space-y-6"
@@ -231,7 +232,7 @@ function Detail({
   const blocks = openBlocking(item);
   const checksOk = allChecksPass(item, ctx);
 
-  const log = (i: FieldItem, what: string): FieldItem => ({ ...i, timeline: [...i.timeline, { date: TODAY, who: role ?? "manager", what }] });
+  const log = (i: FieldItem, what: string): FieldItem => ({ ...i, timeline: [...i.timeline, { date: today(), who: role ?? "manager", what }] });
 
   const run = (o: Outcome, n: string) => {
     const r = o.effect?.(item, n, ctx);
@@ -252,7 +253,7 @@ function Detail({
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-mono text-xs text-muted">{item.id}</span>
-            <Pill tone="muted">{SEASON.name}</Pill>
+            {ctx.setup.season && <Pill tone="muted">{ctx.setup.season}</Pill>}
             {item.step === "correct" && <Pill tone="clay">Correcting</Pill>}
           </div>
           <div className="mt-2 flex flex-wrap items-baseline justify-between gap-3">
@@ -263,10 +264,10 @@ function Detail({
           </div>
           <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4">
             {[
-              ["Village", SEASON.village],
-              ["Plot", `${item.hectares} ha ${SEASON.crop.toLowerCase()}`],
+              ["Village", item.community],
+              ["Plot", `${item.hectares} ha${ctx.setup.crop ? ` ${ctx.setup.crop.toLowerCase()}` : ""}`],
               ["Contribution", item.contributionPaid ? "Paid" : "Not paid"],
-              ["Input package", money(PACKAGE_USD)],
+              ["Input package", packageUsd(ctx.setup, item.hectares) ? money(packageUsd(ctx.setup, item.hectares)) : `${ctx.setup.items.length} items`],
             ].map(([k, v]) => (
               <div key={k}>
                 <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted">{k}</dt>
@@ -456,14 +457,19 @@ function Detail({
 export function FieldWorkspace() {
   const { user, mode } = useRequireUser();
   const myRoles = (user?.field ?? []) as FieldRole[];
-  const { items, setItems, stock, stockNote, setStock, status, error, reset } = useFieldData();
+  const { project } = useCurrentProject();
+  const { items, setItems, stock, stockNote, setStock, setup, status, error, reload, reset } = useFieldData(project.id);
+  const [panel, setPanel] = useState<"" | "package" | "farmers">("");
   const [pickedRole, setPickedRole] = useState<FieldRole | null>(null);
   const role = pickedRole && myRoles.includes(pickedRole) ? pickedRole : (myRoles[0] ?? null);
   const [selected, setSelected] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [creating, setCreating] = useState(false);
   const [mobileDetail, setMobileDetail] = useState(false);
-  const ctx: Ctx = { stock, stockNote };
+  const ctx: Ctx = { stock, stockNote, setup: setup ?? { items: [] }, today: today() };
+  const mayManage = !!user && user.kind === "employee" && (canEditProject(user) || user.field.includes("manager"));
+  // The demo project's sample records are the only ones a reset restores.
+  const isDemo = project.id === "A-2027";
 
   // Links such as /field?open=F-0009 open that record.
   useEffect(() => {
@@ -500,6 +506,9 @@ export function FieldWorkspace() {
 
   if (!user) return null;
   if (user.fieldAccess === "none") return <NoAccess what="Field activities" />;
+  // A project without an input package has no field workflow yet: its manager sets it up first.
+  if (status === "ready" && !setup)
+    return <SetupOnly code={project.id} mayManage={mayManage} onSaved={() => void reload()} />;
 
   return (
     <AppShell
@@ -531,7 +540,7 @@ export function FieldWorkspace() {
           <DataBanner status={status} error={error} />
           <div className="mx-3 mt-4 rounded-xl border border-line bg-surface px-3 py-3 sm:mx-4">
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
-              {SEASON.name} · {SEASON.village} · {farmers.length} farmers
+              {[ctx.setup.season, ctx.setup.village, `${farmers.length} farmers`].filter(Boolean).join(" · ")}
             </p>
             <ol className="mt-2 grid grid-cols-6 gap-1 text-center">
               {pipeline.map((s) => (
@@ -542,8 +551,18 @@ export function FieldWorkspace() {
               ))}
             </ol>
             <p className="mt-2 border-t border-line pt-2 text-[11px] text-muted">
-              Store: {PACKAGE.map((p) => `${stock[p.key]} ${p.unit} ${p.key === "seed" ? "seed" : "NPK"}`).join(" · ")}
+              Store: {ctx.setup.items.map((p) => `${stock[p.key] ?? 0} ${p.unit} ${p.item}`).join(" · ")}
             </p>
+            {mayManage && (
+              <div className="mt-2 flex flex-wrap gap-3 border-t border-line pt-2 text-xs font-semibold">
+                <button type="button" className="text-forest hover:underline" onClick={() => { setPanel("farmers"); setCreating(false); setMobileDetail(true); }}>
+                  Load farmer list
+                </button>
+                <button type="button" className="text-forest hover:underline" onClick={() => { setPanel("package"); setCreating(false); setMobileDetail(true); }}>
+                  Input package
+                </button>
+              </div>
+            )}
           </div>
           <QueueHeader
             title={readOnly ? "Everything this season" : showAll ? "Everything this season" : mineList.length ? `${mineList.length} waiting on you` : "Nothing waiting on you"}
@@ -557,7 +576,7 @@ export function FieldWorkspace() {
               {list.map((i) => {
                 const s = fieldSteps[i.step];
                 const end = ENDS[i.step];
-                const left = i.kind === "farmer" && i.step === "correct" && i.deadline ? Math.round((Date.parse(i.deadline) - Date.parse(TODAY)) / 86400000) : null;
+                const left = i.kind === "farmer" && i.step === "correct" && i.deadline ? Math.round((Date.parse(i.deadline) - Date.parse(today())) / 86400000) : null;
                 const o = ownerOfItem(i);
                 return (
                   <QueueItem
@@ -566,6 +585,7 @@ export function FieldWorkspace() {
                     onClick={() => {
                       setSelected(i.id);
                       setCreating(false);
+                      setPanel("");
                       setMobileDetail(true);
                     }}
                   >
@@ -600,7 +620,7 @@ export function FieldWorkspace() {
           <QueueFooter
             note={mode === "demo" ? "Fictional records, saved in the project database. Resetting keeps real Kobo submissions." : "Saved in the project database."}
             onReset={
-              mode === "demo"
+              mode === "demo" && isDemo
                 ? () => {
                     void reset();
                     setSelected(null);
@@ -611,7 +631,11 @@ export function FieldWorkspace() {
         </>
       }
       detail={
-        creating ? (
+        panel === "package" ? (
+          <PackageSetup code={project.id} onSaved={() => { setPanel(""); void reload(); }} onCancel={() => setPanel("")} />
+        ) : panel === "farmers" || (farmers.length === 0 && mayManage && !creating) ? (
+          <FarmerImport code={project.id} onDone={() => { setPanel(""); void reload(); }} onCancel={panel ? () => setPanel("") : undefined} />
+        ) : creating ? (
           <NewFinding
             farmers={farmers}
             onCancel={() => {
@@ -648,6 +672,31 @@ export function FieldWorkspace() {
           </div>
         )
       }
+    />
+  );
+}
+
+/** Field activities on a project whose input package is not set up yet. */
+function SetupOnly({ code, mayManage, onSaved }: { code: string; mayManage: boolean; onSaved: (s: FieldSetup) => void }) {
+  return (
+    <AppShell
+      active="field"
+      roles={[]}
+      role={null}
+      counts={{}}
+      onRole={() => {}}
+      mobileDetail
+      queue={
+        <div className="mx-3 mt-4 rounded-xl border border-line bg-surface px-4 py-4 text-sm sm:mx-4">
+          <p className="font-medium">Not set up yet</p>
+          <p className="mt-1 text-muted">
+            {mayManage
+              ? "Say what one farmer receives and the budget line each item is bought on. Then load the farmer list."
+              : "The project manager sets up the input package and loads the farmer list before field work starts here."}
+          </p>
+        </div>
+      }
+      detail={mayManage ? <PackageSetup code={code} onSaved={onSaved} /> : <div className="grid h-full place-items-center py-24 text-center text-sm text-muted">Nothing to do here yet.</div>}
     />
   );
 }

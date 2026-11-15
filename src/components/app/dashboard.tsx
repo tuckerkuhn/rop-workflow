@@ -18,7 +18,8 @@ import { holdsType } from "@/lib/authority";
 import { Pill, SectionLabel, TopBar, usePersistentState } from "@/components/workspace/ui";
 import { workFor, type Data, type WorkCard } from "@/components/tasks/work";
 import { PROJECT, daysFrom, directReports, userById, type AppUser } from "@/lib/demo";
-import { PACKAGE, PACKAGE_USD, farmerName, farmerStages, fieldRoleLabel, maskName, type Farmer, type FieldItem } from "@/lib/field";
+import { DEMO_SETUP, describePackage } from "@/lib/package";
+import { PACKAGE_USD, farmerName, farmerStages, fieldRoleLabel, maskName, type Farmer, type FieldItem } from "@/lib/field";
 import { DONE, procRolesFor, roleLabel, valueOf } from "@/lib/procurement";
 import { GATED_KEYS, seedProject, type ProjectState } from "@/lib/project";
 import { onDemoClock, today } from "@/lib/clock";
@@ -245,7 +246,7 @@ function DonorHome({ field, project }: { field: FieldItem[]; project: ProjectSta
           })}
         </ol>
         <p className="mt-3 text-xs text-muted">
-          Inputs per farmer: {PACKAGE.map((p) => `${p.qty} ${p.unit} ${p.item.toLowerCase()}`).join(" and ")} ({money(PACKAGE_USD)}). Participants are shown by farmer ID.
+          Inputs per farmer: {describePackage(DEMO_SETUP)} ({money(PACKAGE_USD)}). Participants are shown by farmer ID.
         </p>
       </section>
 
@@ -400,8 +401,8 @@ export function Dashboard() {
 
   if (!user) return null;
   // Field work and the sample sign-offs belong to the demo project; the calendar to projects with a budget.
-  const demo = current.workflows.includes("field");
-  const data: Data = { field: demo ? field : [], procs, project, stages: { "AG-2027": grapes.stage }, plan: plan.items, closeouts: closeouts.months, sampleSignOffs: demo };
+  const demo = current.id === "A-2027";
+  const data: Data = { field: current.workflows.includes("field") ? field : [], procs, project, stages: { "AG-2027": grapes.stage }, plan: plan.items, closeouts: closeouts.months, sampleSignOffs: demo };
   // Managers may view anyone in their reporting line, not just direct reports, when they drill down.
   const inLine = (id: string): boolean => {
     let m = userById(id);
