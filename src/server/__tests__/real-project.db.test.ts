@@ -178,3 +178,18 @@ describe("Field activities on a real project", { timeout: 60_000 }, () => {
     expect((await farmer("T-002")).step).toBe("plant");
   });
 });
+
+describe("the field review queue", { timeout: 60_000 }, () => {
+  it("lists field forms only, never a recorded result or weekly update", async () => {
+    const { isQueueForm, listSubmissions } = await import("@/server/kobo");
+    expect(["training", "readiness", "distribution", "visit"].every(isQueueForm)).toBe(true);
+    expect([null, "", "result", "update"].some(isQueueForm)).toBe(false);
+    const { addResult } = await import("@/server/results-store");
+    const [ind] = await db.select({ code: s.indicators.code }).from(s.indicators).where(eq(s.indicators.source, "results")).limit(1);
+    if (ind) await addResult(code, { indicator: ind.code, date: "2026-11-01", value: 3, note: "Three farmers trained in the field.", files: [], noFile: "Sheet to follow." }, "farida");
+    const { submissions } = await listSubmissions(code);
+    // Every row has the answers the queue's screen reads; a result has none and used to break it.
+    expect(submissions.every((x) => x.fields && typeof x.fields === "object")).toBe(true);
+    expect(submissions.some((x) => (x.form as string) === "result")).toBe(false);
+  });
+});

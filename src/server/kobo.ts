@@ -1,3 +1,4 @@
+import { formLabel } from "@/lib/project";
 import { desc, eq } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import type { Submission, SubmissionForm } from "@/lib/project";
@@ -129,9 +130,14 @@ export function toSubmission(row: EvidenceRow): Submission {
   };
 }
 
+/** Whether a stored record is a field form the review queue shows (training, readiness, distribution, visit). */
+export const isQueueForm = (form: string | null): form is SubmissionForm => !!form && form in formLabel;
+
 export async function listSubmissions(code: string) {
   const project = await projectByCode(code);
   const rows = await db.select().from(s.evidence).where(eq(s.evidence.projectId, project.id)).orderBy(desc(s.evidence.createdAt));
   // A pending check deleted in KoboToolbox leaves the queue; decided ones stay as history.
-  return { project, submissions: rows.filter((r) => r.form && !(r.koboRemovedAt && r.reviewStatus === "pending")).map(toSubmission) };
+  // Only field forms belong in the queue. Recorded results and weekly updates are stored beside
+  // them with another shape (no form answers), and listing them here broke the queue's screen.
+  return { project, submissions: rows.filter((r) => isQueueForm(r.form) && !(r.koboRemovedAt && r.reviewStatus === "pending")).map(toSubmission) };
 }
