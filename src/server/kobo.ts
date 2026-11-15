@@ -1,7 +1,7 @@
 import { desc, eq } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import type { Submission, SubmissionForm } from "@/lib/project";
-import { farmerListRows, projectByCode } from "@/server/field-store";
+import { farmerListRows, projectByCode, setupFor } from "@/server/field-store";
 import { readinessForms } from "@/server/kobo-link";
 
 /**
@@ -13,7 +13,19 @@ import { readinessForms } from "@/server/kobo-link";
 export async function farmersCsv(code: string) {
   const rows = await farmerListRows(code);
   const esc = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
-  return ["name,label", ...rows.map((r) => `${esc(r.name)},${esc(r.label)}`)].join("\n") + "\n";
+  // hectares: a distribution form works out each farmer's per-hectare amounts from it (pulldata).
+  return ["name,label,hectares", ...rows.map((r) => `${esc(r.name)},${esc(r.label)},${r.hectares ?? ""}`)].join("\n") + "\n";
+}
+
+/**
+ * package.csv for distribution forms: each package item's amount, unit and whether it is per farmer
+ * or per hectare, from the package saved in Field activities. Null when the project has none.
+ */
+export async function packageCsv(code: string) {
+  const setup = await setupFor(code);
+  if (!setup) return null;
+  const esc = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+  return ["name,label,qty,unit,per", ...setup.items.map((i) => [i.key, i.item, String(i.qty), i.unit, i.per].map(esc).join(","))].join("\n") + "\n";
 }
 
 /**
@@ -24,30 +36,33 @@ export async function pushFarmerList(code: string) {
   const k = await readinessForms(code);
   const headers = { Authorization: `Token ${k.token}`, Accept: "application/json" };
   const csv = await farmersCsv(code);
+  const pkg = await packageCsv(code);
   let redeployed = true;
   for (const form of k.forms) {
+    const files: [string, string][] = [["farmers.csv", csv], ...(form.purpose === "distribution" && pkg ? ([["package.csv", pkg]] as [string, string][]) : [])];
     const asset = `${k.server}/api/v2/assets/${encodeURIComponent(form.assetUid)}`;
     const filesUrl = `${asset}/files/`;
 
     const existing = await fetch(`${filesUrl}?file_type=form_media`, { headers, cache: "no-store" });
     if (!existing.ok) throw new Error(`Kobo returned ${existing.status} listing form media on ${form.name}.`);
     const list = (await existing.json()) as { results: { uid: string; metadata?: { filename?: string } }[] };
-    for (const f of list.results.filter((x) => x.metadata?.filename === "farmers.csv")) {
-      await fetch(`${filesUrl}${f.uid}/`, { method: "DELETE", headers });
+    for (const [filename, body] of files) {
+      for (const f of list.results.filter((x) => x.metadata?.filename === filename)) {
+        await fetch(`${filesUrl}${f.uid}/`, { method: "DELETE", headers });
+      }
+      // Kobo accepts media as base64 JSON; its multipart upload returned a server error in testing.
+      const upload = await fetch(filesUrl, {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          description: "default",
+          file_type: "form_media",
+          metadata: { filename },
+          base64Encoded: `data:text/csv;base64,${Buffer.from(body).toString("base64")}`,
+        }),
+      });
+      if (!upload.ok) throw new Error(`Kobo rejected ${filename} on ${form.name} (${upload.status}): ${(await upload.text()).slice(0, 200)}`);
     }
-
-    // Kobo accepts media as base64 JSON; its multipart upload returned a server error in testing.
-    const upload = await fetch(filesUrl, {
-      method: "POST",
-      headers: { ...headers, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        description: "default",
-        file_type: "form_media",
-        metadata: { filename: "farmers.csv" },
-        base64Encoded: `data:text/csv;base64,${Buffer.from(csv).toString("base64")}`,
-      }),
-    });
-    if (!upload.ok) throw new Error(`Kobo rejected the farmer list upload on ${form.name} (${upload.status}): ${(await upload.text()).slice(0, 200)}`);
 
     // Redeploy so the new media reaches the web form and phones.
     const current = await fetch(`${asset}/`, { headers, cache: "no-store" });
@@ -91,7 +106,11 @@ export function toSubmission(row: EvidenceRow): Submission {
   if (row.form === "distribution") {
     // The Kobo distribution form (kobo/build_distribution_form.py). Sex comes from the farmer record.
     for (const k of Object.keys(fields)) delete fields[k];
-    Object.assign(fields, { gender: str(p._rop_gender), seed_kg: str(p.seed_kg), npk_kg: str(p.npk_kg), signature: str(p.signed) === "yes" ? "Yes" : "Not confirmed" });
+    // Amounts are "<item>_qty" (or "seed_kg"/"npk_kg" on the demo form); an item answered "not given" is left out.
+    const amounts = Object.fromEntries(
+      Object.entries(p).filter(([k, v]) => /^[a-z][a-z0-9_]*_(qty|kg)$/.test(k) && typeof v === "string" && p[`${k.replace(/_(qty|kg)$/, "")}_given`] !== "no").map(([k, v]) => [k, v as string]),
+    );
+    Object.assign(fields, { gender: str(p._rop_gender), ...amounts, signature: str(p.signed) === "yes" ? "Yes" : "Not confirmed" });
   }
   return {
     id: `KB-${p._id ?? row.koboSubmissionUuid?.slice(0, 8)}`,

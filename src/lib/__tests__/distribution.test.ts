@@ -190,6 +190,9 @@ describe("a project's own package (not the demo's maize)", () => {
   it("charges an approved item to a received purchase on its own line", () => {
     expect(drawnFrom("PRG-1.1.1.A", 1250, "cuttings", [buy("PR-X", "PRG-1.1.1.B", "hectare", 20), buy("PR-C", "PRG-1.1.1.A", "cuttings", 10000)])?.id).toBe("PR-C");
   });
+  it("flags a record where nothing was given (every item answered No in Kobo)", () => {
+    expect(flagsFor({ farmerId: "F-1", items: [], photo: true, signed: true, step: "distribute" }, [], itemsFor(acrp, 1)).map((f) => f.id)).toEqual(["nothing"]);
+  });
   it("converts weights but never unrelated units", () => {
     expect(convert(2, "t", "kg")).toBe(2000);
     expect(convert(3, "Cuttings", "cutting")).toBe(3);

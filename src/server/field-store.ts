@@ -141,8 +141,9 @@ export async function farmerListRows(code: string) {
     .from(s.fieldItems)
     .where(and(eq(s.fieldItems.projectId, project.id), inArray(s.fieldItems.itemKey, farmers.map((f) => f.code).concat("__none__"))));
   const removed = new Set(active.filter((r) => (r.data as FieldItem).step === "removed").map((r) => r.key));
+  const hectares = new Map(active.filter((r) => (r.data as FieldItem).kind === "farmer").map((r) => [r.key, (r.data as { hectares?: number }).hectares ?? null]));
   return farmers
     .filter((f) => !removed.has(f.code) && f.status !== "removed")
     .sort((a, b) => a.code.localeCompare(b.code))
-    .map((f) => ({ name: f.code, label: [f.code, f.village, f.householdHeadInitials].filter(Boolean).join(" · ") }));
+    .map((f) => ({ name: f.code, label: [f.code, f.village, f.householdHeadInitials].filter(Boolean).join(" · "), hectares: hectares.get(f.code) ?? null }));
 }

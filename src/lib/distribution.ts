@@ -140,7 +140,7 @@ export const paymentDue = (p: Pick<Procurement, "step">) => stepById[p.step]?.st
 /** A quantity in a purchase's own unit, for its distribution list. */
 export const inProcUnit = (qty: number, unit: string, p: Pick<Procurement, "unit">) => convert(qty, unit, p.unit) ?? qty;
 
-export type FlagId = "twice" | "aboveplan" | "nophoto" | "unsigned" | "notready";
+export type FlagId = "twice" | "aboveplan" | "nothing" | "nophoto" | "unsigned" | "notready";
 export type Flag = { id: FlagId; text: string };
 
 /**
@@ -150,6 +150,7 @@ export type Flag = { id: FlagId; text: string };
 export function flagsFor(d: { farmerId: string; items: DistItem[]; photo: boolean; signed: boolean; step: string | null }, others: string[], planned: DistItem[]): Flag[] {
   const out: Flag[] = [];
   if (others.includes(d.farmerId)) out.push({ id: "twice", text: `${d.farmerId} already has a distribution recorded this season.` });
+  if (!d.items.length) out.push({ id: "nothing", text: "No item is recorded as given: check whether this farmer received anything." });
   for (const it of d.items) {
     const p = planned.find((x) => x.key === it.key);
     const asPlanned = p ? convert(it.qty, it.unit, p.unit) : null;

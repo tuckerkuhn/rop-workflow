@@ -1,0 +1,20 @@
+{
+  "project_code": "ACRP-2026",
+  "form_title": "ACRP input distribution",
+  "form_id": "acrp_input_distribution",
+  "out": "acrp_distribution_form.xlsx",
+  "items": [
+    {
+      "key": "cuttings",
+      "label": ["Quality planting cuttings", "قلمه‌های نهال با کیفیت", "د ښه کیفیت د نیالګیو قلمې"]
+    },
+    {
+      "key": "trellising",
+      "label": ["Trellising for vineyard or orchard", "داربست برای تاکستان یا باغ", "د تاکستان یا باغ لپاره چوکاټ"]
+    },
+    {
+      "key": "drip",
+      "label": ["Drip irrigation system", "سیستم آبیاری قطره‌ای", "د څاڅکي اوبو لګولو سیستم"]
+    }
+  ]
+}

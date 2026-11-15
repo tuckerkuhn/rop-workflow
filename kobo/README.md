@@ -7,7 +7,8 @@ Field staff use KoboCollect (offline, Android) or Enketo web forms.
 |---|---|---|
 | `readiness_check.xlsx` | Verify readiness / recheck | **Built.** Accepted results move the farmer in Field activities. |
 | `training_attendance.xlsx` | Train farmers | Planned |
-| `distribution_form.xlsx` | Distribute inputs | **Draft for review.** Checked against the goods received note; the project manager approves each one (email link or Home). |
+| `distribution_form.xlsx` | Distribute inputs (demo maize package, A-2027) | **Draft for review.** Checked against the goods received note; the project manager approves each one (email link or Home). |
+| `acrp_distribution_form.xlsx` | Distribute inputs (ACRP-2026) | **Draft for review.** Built from `acrp_distribution.json` by `build_package_form.py`: cuttings, trellising, drip irrigation; each item "given?" then amount. |
 | `field_visit.xlsx` | Plant and follow up | Planned |
 
 Conventions:
@@ -30,6 +31,20 @@ not signed), and emailed to the project manager with a single-use approval link.
 counts the farmer toward the distribution target by sex, adds them to the purchase's distribution
 list and gives finance a task to pay the supplier. **Push farmer list to Kobo** updates
 `farmers.csv` on this form too.
+
+## A project's own distribution form (ACRP and any other project)
+
+1. In Field activities, save the project's input package (items, budget lines, amounts).
+2. Write a spec like `kobo/acrp_distribution.json`: the project code, form id and title, and one entry
+   per package item with **the same key** as in Field activities and English, Dari and Pashto labels.
+3. `python3 kobo/build_package_form.py kobo/acrp_distribution.json` writes the XLSForm.
+4. Upload and deploy it in Kobo, link it in Setup as **Input distribution**, then **Push farmer list
+   to Kobo**. That uploads `farmers.csv` (with each farmer's hectares) and `package.csv` (the saved
+   package), so the form shows each farmer's planned amounts. Push again after changing the package.
+
+Each item is asked "Given to this farmer?" first: an item answered No is not counted, checked against
+stock or charged to a purchase, so a farmer can receive part of the package. A record where nothing
+was given is flagged for the project manager.
 
 ## Setting up the readiness check
 

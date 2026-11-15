@@ -201,7 +201,11 @@ export async function processPending(code: string, origin = appOrigin()) {
     const farmer = code_ ? await farmerOf(project.id, code_) : null;
     // The Kobo form answers "<item>_qty" in the package unit ("seed_kg" on the demo form).
     const planned = itemsFor(ctx.setup, farmer?.hectares);
-    const items = planned.map((i) => ({ ...i, qty: qtyOf(f[`${i.key}_qty`]) ?? qtyOf(f[`${i.key}_${i.unit}`]) ?? qtyOf(f[`${i.key}_kg`]) ?? i.qty }));
+    // A partial package: an item answered "not given" is left out (nothing counted, checked or charged).
+    const items = planned
+      .filter((i) => f[`${i.key}_given`] !== "no")
+      .map((i) => ({ ...i, qty: qtyOf(f[`${i.key}_qty`]) ?? qtyOf(f[`${i.key}_${i.unit}`]) ?? qtyOf(f[`${i.key}_kg`]) ?? i.qty }))
+      .filter((i) => i.qty > 0);
     const g = gate(items, ctx.procs, ctx.given, ctx.setup);
     const photo = r.source === "kobo" ? typeof p.list_photo === "string" && !!p.list_photo : !!p.photo;
     const signed = r.source === "kobo" ? p.signed === "yes" : typeof f.signature === "string" && !!f.signature && f.signature !== "Not confirmed";
