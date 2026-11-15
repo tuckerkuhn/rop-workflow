@@ -1,4 +1,5 @@
 import { fieldSteps, ownerOfItem, type FieldItem } from "@/lib/field";
+import { DONE, maySign, stepById, type Procurement } from "@/lib/procurement";
 import type { Bucket, HomeAction, Lens } from "@/server/home-store";
 import type { LoopItem, LoopOwner, NextReport } from "@/server/next-report";
 
@@ -108,4 +109,29 @@ export function fieldRows(items: Pick<FieldItem, "id" | "kind" | "step">[], role
       const who = farmers ? (n === 1 ? "1 farmer is" : `${n} farmers are`) : n === 1 ? "1 finding is" : `${n} findings are`;
       return { key: `field:${step}`, for: lens, bucket: "due" as const, urgent: false, text: `${fieldSteps[step]?.title ?? step}: ${who} waiting for you`, href: `/work?source=field&open=${encodeURIComponent(ids.sort()[0])}&project=${encodeURIComponent(code)}` };
     });
+}
+
+/* ---------- purchases waiting on this person ---------- */
+
+/** How many purchases Home lists one by one before it folds the rest into a single row. */
+export const PURCHASE_ROWS = 4;
+
+/**
+ * Purchases as rows on Home: one row per purchase whose current step this person may sign, saying
+ * the step and the purchase, opening that purchase. An approval goes under Approve, everything
+ * else under Due. Beyond a handful, the rest fold into one row that opens the whole list, so a
+ * procurement officer with twenty open purchases still sees the rest of Home.
+ */
+export function purchaseRows(procs: Pick<Procurement, "id" | "title" | "step" | "route" | "plan" | "signatures">[], u: Parameters<typeof maySign>[0], code: string, lens: Lens): HomeAction[] {
+  const project = encodeURIComponent(code);
+  const mine = procs
+    .filter((p) => p.step !== DONE && !!stepById[p.step] && maySign(u, p as Procurement, stepById[p.step].owner))
+    .sort((a, b) => Number(stepById[b.step].owner === "approver") - Number(stepById[a.step].owner === "approver") || a.id.localeCompare(b.id));
+  const row = (p: (typeof mine)[number]): HomeAction => {
+    const approve = stepById[p.step].owner === "approver";
+    return { key: `purchase:${p.id}`, for: lens, bucket: approve ? "approve" : "due", urgent: approve, text: `${stepById[p.step].title}: ${p.id} ${p.title}`, href: `/work?source=procurement&open=${encodeURIComponent(p.id)}&project=${project}` };
+  };
+  if (mine.length <= PURCHASE_ROWS) return mine.map(row);
+  const rest = mine.length - (PURCHASE_ROWS - 1);
+  return [...mine.slice(0, PURCHASE_ROWS - 1).map(row), { key: "purchase:more", for: lens, bucket: "due", urgent: false, text: `${rest} more purchases are waiting for you`, href: `/work?source=procurement&project=${project}` }];
 }

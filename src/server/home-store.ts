@@ -2,7 +2,8 @@ import { quarterRange } from "@/lib/results";
 import { reportDeadline } from "@/server/preflight";
 import { ourWork } from "@/lib/budget";
 import { and, asc, eq, isNull } from "drizzle-orm";
-import { fieldRows, taskRow } from "@/lib/home-buckets";
+import { fieldRows, purchaseRows, taskRow } from "@/lib/home-buckets";
+import { loadProcurements } from "@/server/procurement-store";
 import type { FieldItem } from "@/lib/field";
 import { koboMismatches } from "@/server/results-store";
 import { db, schema as s } from "@/db";
@@ -246,7 +247,12 @@ export async function loadHome(code: string, u: AppUser) {
     .from(s.workItems)
     .where(and(eq(s.workItems.projectId, project.id), eq(s.workItems.type, "task"), isNull(s.workItems.doneAt)))
     .orderBy(asc(s.workItems.date));
+  // Purchases whose current step waits on this person: each one named, one tap from its step.
+  const waitingPurchases = u.procurementAccess === "none" ? [] : purchaseRows(await loadProcurements(code).catch(() => []), u, code, lenses.includes("procurement") ? "procurement" : lenses[0]);
+  actions.push(...waitingPurchases);
   for (const t of open) {
+    // A payment to release is already listed as the purchase itself when its step is this person's.
+    if (t.sourceKey?.startsWith("pay-ready:") && waitingPurchases.some((r) => r.key === `purchase:${t.sourceKey!.slice("pay-ready:".length)}`)) continue;
     const row = taskRow(t, { me: u.id, lead: lenses.includes("lead"), code, today: realToday(), lens: lenses[0] });
     if (row) actions.push(row);
   }

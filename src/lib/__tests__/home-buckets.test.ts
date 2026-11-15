@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { fieldRows, taskRow, waitingCount, waitingRows } from "@/lib/home-buckets";
+import { fieldRows, PURCHASE_ROWS, purchaseRows, taskRow, waitingCount, waitingRows } from "@/lib/home-buckets";
+import { users } from "@/lib/demo";
+import { DONE, maySign, seedProcurements as procurements, stepById } from "@/lib/procurement";
 import type { HomeAction } from "@/server/home-store";
 import type { NextReport } from "@/server/next-report";
 
@@ -111,5 +113,45 @@ describe("Home: field work waiting on this person", () => {
   });
   it("says 1 farmer is, not 1 farmers are", () => {
     expect(fieldRows(items, ["mel"], "A-2027", "mel")[0].text).toMatch(/: 1 farmer is waiting for you$/);
+  });
+});
+
+describe("purchases waiting on a person reach Home", () => {
+  const officer = users.find((u) => u.id === "zahra")!;
+  const manager = users.find((u) => u.id === "nadia")!;
+  const rows = (u: typeof officer) => purchaseRows(procurements(), u, "A-2027", "procurement");
+
+  it("names the step and the purchase, and opens that purchase", () => {
+    const r = rows(manager).find((x) => x.key === "purchase:PR-2027-011");
+    expect(r?.text).toMatch(/^Receive and inspect: PR-2027-011 /);
+    expect(r?.href).toBe("/work?source=procurement&open=PR-2027-011&project=A-2027");
+  });
+
+  it("only lists a purchase for someone who may sign its current step", () => {
+    for (const u of [officer, manager])
+      for (const r of rows(u).filter((x) => x.key !== "purchase:more")) {
+        const p = procurements().find((q) => `purchase:${q.id}` === r.key)!;
+        expect(maySign(u, p, stepById[p.step].owner)).toBe(true);
+      }
+    expect(rows(users.find((u) => u.id === "omar")!)).toEqual([]);
+  });
+
+  it("puts an approval under Approve and anything else under Due", () => {
+    const all = [...rows(officer), ...rows(manager), ...rows(users.find((u) => u.id === "karim")!)].filter((x) => x.key !== "purchase:more");
+    for (const r of all) {
+      const p = procurements().find((q) => `purchase:${q.id}` === r.key)!;
+      expect(r.bucket).toBe(stepById[p.step].owner === "approver" ? "approve" : "due");
+    }
+  });
+
+  it("folds a long list into one row so the rest of Home stays in view", () => {
+    const many = Array.from({ length: 9 }, (_, i) => ({ ...procurements().find((p) => p.step === "receive")!, id: `PR-X-${i}` }));
+    const r = purchaseRows(many, manager, "A-2027", "field");
+    expect(r).toHaveLength(PURCHASE_ROWS);
+    expect(r.at(-1)).toMatchObject({ key: "purchase:more", text: "6 more purchases are waiting for you", href: "/work?source=procurement&project=A-2027" });
+  });
+
+  it("leaves a finished purchase off Home", () => {
+    expect(purchaseRows([{ ...procurements()[0], step: DONE }], officer, "A-2027", "procurement")).toEqual([]);
   });
 });
