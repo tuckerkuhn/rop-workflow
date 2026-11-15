@@ -205,6 +205,9 @@ export type DemoResult = { payload: ResultInput; status: Submission["status"]; b
 export function demoResults(subs: Submission[], proof: Record<string, ResultInput["files"][number]> = {}): DemoResult[] {
   return subs
     .filter((s) => s.form !== "readiness" || s.fields.result === "Yes")
+    // A distribution still waiting for the project manager is not a result yet: her approval makes
+    // it one (server/distribution), and a result here as well would count that farmer twice.
+    .filter((s) => !(s.form === "distribution" && s.status === "pending"))
     .map((s) => {
       const file = proof[s.id];
       const g = s.fields.gender;

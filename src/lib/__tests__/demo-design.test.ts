@@ -96,9 +96,12 @@ describe("the demo's field records count as results", () => {
 
   it("makes one result per record that counts, and none for a plot that failed its readiness check", () => {
     const failed = subs.filter((s) => s.form === "readiness" && s.fields.result !== "Yes").length;
-    expect(made).toHaveLength(subs.length - failed);
+    // A distribution the manager has not approved yet becomes a result when she does, not before.
+    const waiting = subs.filter((s) => s.form === "distribution" && s.status === "pending").length;
+    expect(waiting).toBeGreaterThan(0);
+    expect(made).toHaveLength(subs.length - failed - waiting);
     for (const form of ["training", "distribution", "readiness", "visit"] as const)
-      expect(made.filter((r) => r.payload.indicator === DEMO_RESULT_TARGETS[form]).length, form).toBe(subs.filter((s) => s.form === form && (form !== "readiness" || s.fields.result === "Yes")).length);
+      expect(made.filter((r) => r.payload.indicator === DEMO_RESULT_TARGETS[form]).length, form).toBe(subs.filter((s) => s.form === form && (form !== "readiness" || s.fields.result === "Yes") && !(form === "distribution" && s.status === "pending")).length);
   });
 
   it("keeps what MEL had decided: accepted stays accepted, waiting stays waiting", () => {

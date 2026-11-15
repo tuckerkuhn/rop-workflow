@@ -395,7 +395,7 @@ export async function decideDistribution(code: string, id: string, decision: "ap
   const team = decision === "approved" ? await people() : [];
   // The target approved distributions count toward (lib/package `target`), when the project has
   // named one and it takes recorded results.
-  const counts = decision === "approved" && ctx.setup.target ? ((await db.select({ code: s.indicators.code }).from(s.indicators).where(and(eq(s.indicators.projectId, project.id), eq(s.indicators.code, ctx.setup.target), eq(s.indicators.source, "results"))).limit(1))[0]?.code ?? null) : null;
+  const counts = decision === "approved" && ctx.setup.target ? ((await db.select({ code: s.indicators.code, name: s.indicators.name }).from(s.indicators).where(and(eq(s.indicators.projectId, project.id), eq(s.indicators.code, ctx.setup.target), eq(s.indicators.source, "results"))).limit(1))[0] ?? null) : null;
   let result: string | null = null;
 
   await db.transaction(async (tx) => {
@@ -449,7 +449,7 @@ export async function decideDistribution(code: string, id: string, decision: "ap
       // own mapping (server/kobo-results), and counting it here too would count the farmer twice.
       if (counts && row.source !== "kobo" && row.farmerCode) {
         const recorder = team.find((u) => u.id === (m.recorderId ?? row.completedBy));
-        const input = resultFor({ id, farmerId: row.farmerCode, village: m.village, gender: m.gender ?? undefined, date: (row.completedAt ?? now).toISOString().slice(0, 10), items: m.items, recordedBy: recorder?.name ?? "the field team", approvedBy: by.name }, counts);
+        const input = resultFor({ id, farmerId: row.farmerCode, village: m.village, gender: m.gender ?? undefined, date: (row.completedAt ?? now).toISOString().slice(0, 10), items: m.items, recordedBy: recorder?.name ?? "the field team", approvedBy: by.name }, counts.code);
         const made = await insertResult(tx, project, input, recorder?.id ?? row.completedBy ?? by.id);
         result = made.id;
       }
@@ -489,12 +489,12 @@ export async function decideDistribution(code: string, id: string, decision: "ap
       entity: "distribution",
       entityId: id,
       action: decision === "approved" ? "distribution_approved" : "distribution_sent_back",
-      detail: { by: by.id, farmer: row.farmerCode, items: m.items, procurements: changed, ...(result ? { result, target: counts } : {}), flags: m.flags.map((f) => f.id), note: note ?? null, ...(decision === "sent_back" ? { to: fixer } : {}) },
+      detail: { by: by.id, farmer: row.farmerCode, items: m.items, procurements: changed, ...(result ? { result, target: counts?.code } : {}), flags: m.flags.map((f) => f.id), note: note ?? null, ...(decision === "sent_back" ? { to: fixer } : {}) },
     });
     // The link is used up and the decision kept with the record, in the same step as the decision itself.
     await putMeta(tx, project.id, id, { ...m, gate: g, hash: null, hashes: {}, decided: { by: by.id, byName: by.name, at: now.toISOString(), decision, ...(note ? { note: note.trim() } : {}) } });
   });
-  return { decision, procurements: changed, fixer, result, target: counts };
+  return { decision, procurements: changed, fixer, result, target: counts?.code ?? null, targetName: counts?.name ?? null };
 }
 
 const fixNotes = (code: string, id: string, by: string, note: string) => `Sent back by ${by}: ${note}\nOpen ${appOrigin()}/approve/${encodeURIComponent(code)}/${id}, correct what was recorded and send it again.`;

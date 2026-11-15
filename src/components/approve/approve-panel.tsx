@@ -61,7 +61,7 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
     setD(body.distribution);
     setError("");
     setDone(decision);
-    setCounted(decision === "approved" && body.result ? (body.target ?? null) : null);
+    setCounted(decision === "approved" && body.result ? (body.targetName ?? body.target ?? null) : null);
     setReached(decision === "approved" ? (body.procurements ?? []) : body.fixer ? [body.fixer] : []);
   }
 
@@ -197,7 +197,7 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
               <p className="font-semibold">{done === "approved" ? "Approved." : done === "sent_back" ? "Sent back." : "Sent again."}</p>
               {done === "approved" && (
                 <ul className="mt-1 list-disc space-y-0.5 pl-5">
-                  <li>{counted ? `Results: one farmer added to target ${counted}. It counts once MEL accepts it.` : "Results: not added to a target. Nobody has chosen the target that counts distributions (input package settings), or this record came from KoboCollect, which counts through its own form."}</li>
+                  <li>{counted ? `Results: one farmer added to the target "${counted}". It counts once MEL accepts it.` : "Results: not added to a target. Nobody has chosen the target that counts distributions (input package settings), or this record came from KoboCollect, which counts through its own form."}</li>
                   {reached.length > 0 && <li>Procurement: added to the distribution list on {reached.join(" and ")}.</li>}
                   <li>Finance: told when the purchase has a payment to release.</li>
                   <li>Audit log: your decision is recorded.</li>
