@@ -14,6 +14,7 @@ import { saveFile } from "@/server/hr-files";
 import { FRAMEWORK_KEY } from "@/lib/framework";
 import { saveActuals } from "@/server/actuals-store";
 import { saveBudget, saveWorkplan } from "@/server/plan-store";
+import { rebuildPlan } from "@/server/procurement-plan-store";
 import { saveProjectState } from "@/server/project-state";
 import { seedDonors, seedIndicators } from "@/server/progress-store";
 import { seedWorkItems } from "@/server/work-store";
@@ -167,6 +168,9 @@ async function seedDesign(projectId: string) {
   await saveProjectState(projectId, "activities", demoActivities(today));
   const spending = demoSpending(project.startDate ?? today, today);
   if (spending) await saveActuals(project.code, spending, { name: "Sample spending (fictional).xlsx", hash: "demo", sharepointUrl: null }, "demo");
+  // The procurement calendar, built from the budget as the procurement manager would with one
+  // tap, so the finished demo project opens with every part of its plan in place.
+  await rebuildPlan(project.code);
 }
 
 /**

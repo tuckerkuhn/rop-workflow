@@ -185,6 +185,14 @@ describe("input distribution, field to finance (demo project)", { timeout: 60_00
     await saveSetup(code, setup);
   });
 
+  it("opens the finished demo project with its procurement calendar already built", async () => {
+    const { loadPlan } = await import("@/server/procurement-plan-store");
+    const plan = await loadPlan(code);
+    // One entry for each budget line that is bought through procurement (lib/demo-design).
+    expect(plan.length).toBeGreaterThanOrEqual(6);
+    expect(new Set(plan.map((i) => i.budgetCode))).toEqual(new Set(["2.1", "2.2", "2.3", "2.4", "2.5", "3.1"]));
+  });
+
   it("asks finance to pay once, for the purchase that still has a payment to make", async () => {
     await decideDistribution(code, third, "approved", nadia);
     const pay = await tasks("pay-ready:%");
