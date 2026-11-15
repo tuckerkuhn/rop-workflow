@@ -22,10 +22,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
   return handle(async () => {
     const t = new URL(req.url).searchParams.get("t") ?? "";
     if (!(t && (await tokenOpens(code, id, t)))) {
-      // Anyone on staff may open it; what each person can do on it is decided per record.
+      // Field staff and approvers open it, and whoever checks this KoboCollect record.
       const v = await requireViewer(req, { allow: (u) => u.kind === "employee" });
       if (v instanceof NextResponse) return t ? NextResponse.json({ error: "This link has been used or has expired. Open the distribution from Home instead." }, { status: 401 }) : v;
-      return NextResponse.json({ distribution: await view(code, id), canDecide: mayApprove(v.user, code), canFix: mayFix(v.user, code), canCheckKobo: (await view(code, id)).koboCheck.who.includes(v.user.id) });
+      const d = await view(code, id);
+      const canCheckKobo = d.koboCheck.who.includes(v.user.id);
+      if (v.user.fieldAccess === "none" && !mayApprove(v.user, code) && !canCheckKobo) throw new HttpError(403, "Your role does not open input distributions on this project.");
+      return NextResponse.json({ distribution: d, canDecide: mayApprove(v.user, code), canFix: mayFix(v.user, code), canCheckKobo });
     }
     return NextResponse.json({ distribution: await view(code, id), canDecide: true, canFix: false });
   });

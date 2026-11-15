@@ -2,8 +2,8 @@ import type { StatusKind } from "@/lib/procurement";
 
 const tagStyles: Record<StatusKind, string> = {
   CUR: "bg-sky-soft text-sky",
-  D1: "bg-ochre-soft text-ochre",
-  "D1*": "bg-clay-soft/60 text-ochre ring-1 ring-inset ring-ochre/40",
+  D1: "bg-ochre-soft text-warn",
+  "D1*": "bg-clay-soft/60 text-warn ring-1 ring-inset ring-ochre/40",
   TS: "bg-mist text-leaf",
   OPEN: "bg-clay-soft text-clay",
   PA: "bg-plum-soft text-plum",

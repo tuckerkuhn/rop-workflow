@@ -162,7 +162,7 @@ function CardBody({ g, left, today, stepTag }: { g: Pick<Grant, "business" | "va
         {g.womenOwned && <Pill tone="plum">{t("gr.womenTag")}</Pill>}
         {g.status === "done" ? <Pill tone="forest">{t("gr.doneTag")}</Pill> : g.status === "open" ? left ? <Pill tone="muted">{t("gr.left", { n: left })}</Pill> : <Pill tone="forest">{t("gr.ready")}</Pill> : null}
       </span>
-      {g.status === "open" && <span className={`mt-1 block text-[11px] ${isStuck(g.since, today) ? "font-semibold text-ochre" : "text-muted"}`}>{t(isStuck(g.since, today) ? "bd.stuck" : "bd.days", { n: days })}</span>}
+      {g.status === "open" && <span className={`mt-1 block text-[11px] ${isStuck(g.since, today) ? "font-semibold text-warn" : "text-muted"}`}>{t(isStuck(g.since, today) ? "bd.stuck" : "bd.days", { n: days })}</span>}
       {g.closedWhy && <span className="mt-1 block text-xs text-muted">{g.closedWhy}</span>}
     </>
   );

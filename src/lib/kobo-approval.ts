@@ -81,14 +81,24 @@ const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLow
 
 /**
  * The person who collected a record, from the KoboCollect account that sent it: the match the
- * project saved, or else an account named exactly like the person's sign-in email or its first
- * part. Null when the account is unknown, and then the app cannot tell who collected.
+ * project saved, or else the person whose full sign-in email the account is. Null when the account
+ * is unknown, and then the app cannot tell who collected. An account named only like the start of
+ * an email ("omar", "admin") is never matched by itself: see suggestedCollector.
  */
 export function collectorOf(account: string | null | undefined, rule: KoboApproval, people: Person[]): string | null {
   if (!account?.trim()) return null;
   const saved = Object.entries(rule.accounts ?? {}).find(([name]) => same(name, account))?.[1];
   if (saved) return people.some((p) => p.id === saved) ? saved : null;
-  return people.find((p) => p.email && (same(p.email, account) || same(p.email.split("@")[0], account)))?.id ?? null;
+  return people.find((p) => p.email && same(p.email, account))?.id ?? null;
+}
+
+/**
+ * Who an account probably belongs to, for a person to confirm on the setup screen: the one person
+ * whose sign-in email starts with the account name. Null when none or more than one does.
+ */
+export function suggestedCollector(account: string, people: Person[]): string | null {
+  const hits = people.filter((p) => p.email && same(p.email.split("@")[0], account));
+  return hits.length === 1 ? hits[0].id : null;
 }
 
 type Rec = { fromKobo: boolean; /** Who collected or recorded it (person id), when known. */ collector: string | null };

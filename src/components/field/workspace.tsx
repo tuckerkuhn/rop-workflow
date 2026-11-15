@@ -162,7 +162,7 @@ function NewFinding({ farmers, onCancel, onCreate }: { farmers: Farmer[]; onCanc
       className="mx-auto max-w-2xl space-y-6"
     >
       <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ochre">New finding</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-warn">New finding</p>
         <h2 className="mt-2 font-display text-3xl tracking-tight">What did you see in the field?</h2>
       </div>
       <label className="block">
@@ -258,7 +258,7 @@ function Detail({
           </div>
           <div className="mt-2 flex flex-wrap items-baseline justify-between gap-3">
             <h2 className="font-display text-3xl leading-tight tracking-tight">{farmerName(item, user)}</h2>
-            <Link href={`/field/farmers/${item.id}`} className="text-sm font-semibold text-forest hover:underline">
+            <Link href={`/field/farmers/${item.id}`} className="btn-link">
               Open profile →
             </Link>
           </div>
@@ -581,7 +581,7 @@ export function FieldWorkspace() {
             <ol className="mt-2 grid grid-cols-6 gap-1 text-center">
               {pipeline.map((s) => (
                 <li key={s.label}>
-                  <p className="font-display text-xl tabular-nums">{s.n}</p>
+                  <p className="text-xl tabular-nums font-semibold">{s.n}</p>
                   <p className="text-[10px] leading-tight text-muted">{s.label}</p>
                 </li>
               ))}

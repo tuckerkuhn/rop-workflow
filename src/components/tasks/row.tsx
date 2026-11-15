@@ -11,7 +11,7 @@ import { isOverdue, type MilestoneKind, type Row } from "@/lib/work-items";
 export const kindTone: Record<MilestoneKind, Tone> = { report_deadline: "clay", harvest_window: "ochre", field_activity: "sky", other: "plum" };
 /** Solid colour per kind for calendar dots and timeline bars. */
 export const kindFill: Record<MilestoneKind, string> = { report_deadline: "bg-clay", harvest_window: "bg-ochre", field_activity: "bg-sky", other: "bg-plum" };
-const kindText: Record<MilestoneKind, string> = { report_deadline: "text-clay", harvest_window: "text-ochre", field_activity: "text-sky", other: "text-plum" };
+const kindText: Record<MilestoneKind, string> = { report_deadline: "text-clay", harvest_window: "text-warn", field_activity: "text-sky", other: "text-plum" };
 
 export type RowActions = {
   canEdit: boolean;

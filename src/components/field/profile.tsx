@@ -242,7 +242,7 @@ export function FarmerProfile({ id }: { id: string }) {
                         role="radio"
                         aria-checked={score === s}
                         onClick={() => setScore(s)}
-                        className={`grid h-10 w-10 place-items-center rounded-full border font-display text-lg transition ${score >= s && score ? "border-forest bg-forest text-forest-ink" : "border-line bg-paper hover:border-forest/50"}`}
+                        className={`grid h-10 w-10 place-items-center rounded-full border font-semibold text-lg transition ${score >= s && score ? "border-forest bg-forest text-forest-ink" : "border-line bg-paper hover:border-forest/50"}`}
                       >
                         {s}
                       </button>
@@ -399,7 +399,7 @@ export function FarmerProfile({ id }: { id: string }) {
                   {done.length === 0 && <p className="text-sm text-muted">None yet. Notes become stories once they are written up.</p>}
                   {done.map((s) => (
                     <article key={s.id} className="rounded-xl border border-forest/30 bg-mist p-4">
-                      <p className="font-display text-lg leading-snug text-forest">{maskName(s.title, farmer, user)}</p>
+                      <p className="text-lg leading-snug text-forest font-semibold">{maskName(s.title, farmer, user)}</p>
                       <p className="mt-1 text-sm leading-relaxed">{maskName(s.text, farmer, user)}</p>
                       <p className="mt-2 text-xs text-muted">
                         Completed {s.date} · {fieldPerson(s.by)}
@@ -443,7 +443,7 @@ export function FarmerProfile({ id }: { id: string }) {
                       <p className="text-xs text-muted">{fieldRoleLabel(role)}</p>
                       {u.feedback && (
                         <p className="mt-1 flex items-center gap-1.5 text-sm">
-                          <span className="font-display text-lg leading-none text-forest">{u.feedback.score.toFixed(1)}</span>
+                          <span className="text-lg leading-none text-forest font-semibold">{u.feedback.score.toFixed(1)}</span>
                           <span className="text-xs text-muted">/ 5 farmer feedback · {u.feedback.n} responses</span>
                         </p>
                       )}

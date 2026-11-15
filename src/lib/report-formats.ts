@@ -141,11 +141,11 @@ export function reportHtml(doc: ReportDoc, lang: string, dir: string) {
     )
     .join("");
   return `<!doctype html><html lang="${lang}" dir="${dir}"><head><meta charset="utf-8"><title>${esc(doc.title)} · ${esc(doc.subtitle)}</title>
-<style>body{font-family:system-ui,"Segoe UI",Tahoma,sans-serif;color:#13201a;max-width:900px;margin:32px auto;padding:0 24px;line-height:1.45}
-h1{font-size:26px;margin:0}h2{font-size:17px;margin:28px 0 8px;border-bottom:1px solid #ccc;padding-bottom:4px}
-dl{display:grid;grid-template-columns:max-content 1fr;gap:4px 16px;margin:16px 0}dt{color:#5a6a60}dd{margin:0}
-table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid #ddd;padding:6px 8px;text-align:start;vertical-align:top}th{background:#f3f0e8}
-.note{font-size:12px;color:#5a6a60}.write{min-height:90px;border:1px dashed #bbb;border-radius:6px}@media print{body{margin:0}}</style></head>
+<style>body{font-family:Inter,"Source Sans 3",system-ui,Arial,sans-serif;color:#2B2B2B;max-width:900px;margin:32px auto;padding:0 24px;line-height:1.45}
+h1{font-family:Fraunces,"Source Serif 4",Georgia,serif;font-size:26px;margin:0;color:#314D2F}h2{font-size:17px;margin:28px 0 8px;border-bottom:1px solid #E5E7E3;padding-bottom:4px;color:#314D2F}
+dl{display:grid;grid-template-columns:max-content 1fr;gap:4px 16px;margin:16px 0}dt{color:#6B7280}dd{margin:0}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid #E5E7E3;padding:6px 8px;text-align:start;vertical-align:top}th{background:#314D2F;color:#fff}
+.note{font-size:12px;color:#6B7280}.write{min-height:90px;border:1px dashed #bbb;border-radius:6px}@media print{body{margin:0}}</style></head>
 <body><h1>${esc(doc.title)}</h1><p>${esc(doc.subtitle)}</p><dl>${doc.meta.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>
 <p>${esc(doc.summary)}</p>${tables}${doc.narrative.map((h) => `<h2>${esc(h)}</h2><div class="write"></div>`).join("")}</body></html>`;
 }

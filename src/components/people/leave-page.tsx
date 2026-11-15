@@ -284,7 +284,7 @@ function RequestForm({ v, act }: { v: LeaveView; act: (a: LvAction, msg: string)
             {after !== null && <span className={after < 0 ? "text-clay" : "text-muted"}> · {after < 0 ? t("lv.moreThanYouHave", { n: Math.abs(Math.round(after * 10) / 10) }) : t("lv.daysLeftAfter", { n: Math.round(after * 10) / 10 })}</span>}
           </>
         ) : (
-          <span className="text-ochre">{t("lv.allWeekends")}</span>
+          <span className="text-warn">{t("lv.allWeekends")}</span>
         )}
       </p>
       {error && (
@@ -359,7 +359,7 @@ function RequestCard({ r, v, span, act, onError, compact }: { r: Req; v: LeaveVi
       )}
       {r.closed?.note && <p className="mt-1 text-sm text-clay">{t("lv.sentBackBy", { name: name(r.closed.by), note: r.closed.note })}</p>}
       {r.warnings.length > 0 && (
-        <ul className="mt-2 space-y-1 rounded-xl bg-ochre-soft px-3 py-2 text-sm text-ochre">
+        <ul className="mt-2 space-y-1 rounded-xl bg-ochre-soft px-3 py-2 text-sm text-warn">
           {r.warnings.map((w) => (
             <li key={w}>⚠ {w}</li>
           ))}

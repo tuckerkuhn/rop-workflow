@@ -230,7 +230,7 @@ function Register({ lines, totals, v, adjust, onAdjust }: { lines: Line[]; total
                     {l.title} · {amt(l.rate, l.currency)} per {l.payBasis.toLowerCase()}
                   </span>
                   {l.problems.map((p) => (
-                    <span key={p} className="mt-0.5 block text-xs text-ochre">
+                    <span key={p} className="mt-0.5 block text-xs text-warn">
                       ⚠ {p}
                     </span>
                   ))}
@@ -385,7 +385,7 @@ function RunCard({
         </div>
       )}
       {r.warnings.length > 0 && (
-        <ul className="mt-3 space-y-1 rounded-xl bg-ochre-soft px-3 py-2 text-sm text-ochre">
+        <ul className="mt-3 space-y-1 rounded-xl bg-ochre-soft px-3 py-2 text-sm text-warn">
           {r.warnings.map((w) => (
             <li key={w}>⚠ {w}</li>
           ))}
@@ -396,7 +396,7 @@ function RunCard({
           const s = r.signatures[i];
           const isNext = r.status === "pending" && i === r.signatures.length;
           return (
-            <li key={i} className={`rounded-full border px-3 py-1 ${s ? "border-forest text-leaf" : isNext ? "border-ochre text-ochre" : "border-line text-muted"}`}>
+            <li key={i} className={`rounded-full border px-3 py-1 ${s ? "border-forest text-leaf" : isNext ? "border-ochre text-warn" : "border-line text-muted"}`}>
               {i + 1}. {ROLE_LABEL[role]}
               {s ? `: ${name(s.by)}${s.as !== role ? ` for the ${ROLE_LABEL[s.as]}` : ""}` : isNext && r.next?.fellBack ? ": falls to the Board (conflict)" : isNext ? ": waiting" : ""}
             </li>
@@ -573,7 +573,7 @@ function Prepare({ v, supplemental, onDone }: { v: PayrollView; supplemental: bo
           />
         </label>
       </div>
-      {problems > 0 && <p className="mt-3 text-sm text-ochre">{problems} lines have something to check. The signers will see them; fix what you can first (approve timesheets, complete records).</p>}
+      {problems > 0 && <p className="mt-3 text-sm text-warn">{problems} lines have something to check. The signers will see them; fix what you can first (approve timesheets, complete records).</p>}
       <button
         type="button"
         disabled={busy || reason.trim().length < 3 || !preview.lines.length}

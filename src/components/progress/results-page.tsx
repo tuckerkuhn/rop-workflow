@@ -132,7 +132,7 @@ export function ResultsPage() {
     <div className="min-h-screen">
       <TopBar />
       <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ochre">{project.name}</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-warn">{project.name}</p>
         <h1 className="mt-1 font-display text-3xl tracking-tight">Results and their proof</h1>
         <p className="mt-1 max-w-2xl text-sm text-muted">
           Record each result with the attendance sheet, photos or verification report that proves it. MEL checks it; once accepted it counts in Progress and in the donor report, and every figure there
@@ -224,7 +224,7 @@ export function ResultsPage() {
                             {num(shown.female)} women · {num(shown.male)} men
                           </span>
                         )}
-                        {pending > 0 && <span className="text-ochre">{pending} waiting for MEL</span>}
+                        {pending > 0 && <span className="text-warn">{pending} waiting for MEL</span>}
                         {i.verification && <span>Proof: {i.verification}</span>}
                       </p>
                       {isOpen && (
@@ -914,7 +914,7 @@ function RecordForm({ ind, add, onClose, prefill }: { ind: Ind; add: (r: ResultI
 
   return (
     <div className="rounded-xl bg-sunken p-4">
-      {prefill && <p className="mb-3 text-sm text-ochre">Filled in from {prefill.from}. Check that this is the right target and every figure before you send it: MEL checks it like any other result.</p>}
+      {prefill && <p className="mb-3 text-sm text-warn">Filled in from {prefill.from}. Check that this is the right target and every figure before you send it: MEL checks it like any other result.</p>}
       <div className="grid gap-3 sm:grid-cols-3">
         <label className="text-sm">
           Date achieved
@@ -1051,7 +1051,7 @@ function ImportResults({ indicators, act }: { indicators: { code: string; donorC
     );
   return (
     <section className="mt-6 rounded-2xl border border-line bg-surface p-4">
-      <h2 className="font-display text-xl">Import results</h2>
+      <h2 className="text-xl font-semibold">Import results</h2>
       <p className="mt-1 text-sm text-muted">
         One row per result. The target may be the app&rsquo;s code (IND-7) or the donor&rsquo;s (1.2.1.4). Each row is checked as if typed in, and nothing is saved until every row passes. Imported
         results wait for MEL like any other.{" "}
@@ -1152,7 +1152,7 @@ function WhatNeedsDoing({ v, me, onRecord, act, onReview }: { v: ResultsView; me
       )}
       <ul className={`${v.mayRecord ? "mt-3" : ""} flex flex-wrap gap-x-5 gap-y-1 text-sm`}>
         <li>
-          <span className={`font-semibold tabular-nums ${pending ? "text-ochre" : ""}`}>{pending}</span> waiting for MEL
+          <span className={`font-semibold tabular-nums ${pending ? "text-warn" : ""}`}>{pending}</span> waiting for MEL
         </li>
         {queriedMine > 0 && (
           <li>
@@ -1216,7 +1216,7 @@ function ReviewQueue({ ids, v, act, onClose }: { ids: string[]; v: ResultsView; 
   return (
     <section className="mt-5 rounded-2xl border border-ochre bg-surface p-4" aria-live="polite">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-ochre">{r ? t("rq.of", { k, n: ids.length }) : ""}</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-warn">{r ? t("rq.of", { k, n: ids.length }) : ""}</p>
         <button type="button" className="min-h-11 text-sm font-semibold text-forest hover:underline" onClick={onClose}>
           {t("rq.back")}
         </button>

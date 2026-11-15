@@ -94,7 +94,7 @@ export function GatedSections({ tab, state, stage, openTarget }: { tab: string; 
                   <li key={m}>{m}</li>
                 ))}
               </ul>
-              <Link href={`/design?project=${state.projectId}`} className="mt-3 inline-block text-sm font-semibold text-forest hover:underline">
+              <Link href={`/design?project=${state.projectId}`} className="btn-link mt-3">
                 Go to Project design →
               </Link>
             </>
@@ -142,14 +142,14 @@ export function GatedSections({ tab, state, stage, openTarget }: { tab: string; 
           <p className="text-sm text-muted">Draft, not released · stage {stage}</p>
         </header>
         <section className="mt-6">
-          <h3 className="font-display text-xl">Market target</h3>
+          <h3 className="text-xl font-semibold">Market target</h3>
           <div className="mt-2">
             <TargetLine state={state} onOpen={openTarget} />
           </div>
           {state.marketTarget && <p className="mt-1 text-sm text-muted">{state.marketTarget.reason}</p>}
         </section>
         <section className="mt-6">
-          <h3 className="font-display text-xl">Results</h3>
+          <h3 className="text-xl font-semibold">Results</h3>
           <p className="mt-2 text-sm text-muted">No results yet.</p>
         </section>
       </article>

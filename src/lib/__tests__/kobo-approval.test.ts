@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { users } from "@/lib/demo";
-import { approverNames, collectorOf, deciderNames, decidersOf, DEFAULT_KOBO_APPROVAL, koboApprovalProblem, koboApprovers, mayApproveKobo, mayDecide, mayDecideRecord, needsKoboCheck, refusalFor, type KoboApproval } from "@/lib/kobo-approval";
+import { approverNames, collectorOf, deciderNames, decidersOf, DEFAULT_KOBO_APPROVAL, koboApprovalProblem, koboApprovers, mayApproveKobo, mayDecide, mayDecideRecord, needsKoboCheck, refusalFor, suggestedCollector, type KoboApproval } from "@/lib/kobo-approval";
 
 const u = (id: string) => users.find((x) => x.id === id)!;
 const named: KoboApproval = { who: "named", person: "karim", standIn: "nadia" };
@@ -70,8 +70,11 @@ describe("nobody approves what they collected", () => {
 
   it("matches an account named like the person's sign-in email without being told", () => {
     const team = [{ ...users.find((x) => x.id === "omar")!, email: "omar.sadiq@example.org" }];
-    expect(collectorOf("omar.sadiq", { who: "mel" }, team)).toBe("omar");
     expect(collectorOf("Omar.Sadiq@example.org", { who: "mel" }, team)).toBe("omar");
+    // Named like the start of the email: only suggested, until a person confirms it.
+    expect(collectorOf("omar.sadiq", { who: "mel" }, team)).toBeNull();
+    expect(suggestedCollector("omar.sadiq", team)).toBe("omar");
+    expect(suggestedCollector("admin", team)).toBeNull();
   });
 
   it("with one MEL officer who collected it, sends it to the person they report to", () => {

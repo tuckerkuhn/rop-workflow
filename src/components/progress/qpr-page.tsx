@@ -184,7 +184,7 @@ export function QprPage() {
     <div className="min-h-screen">
       <TopBar />
       <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ochre">{project.name}</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-warn">{project.name}</p>
         <div className="mt-1 flex flex-wrap items-end justify-between gap-3">
           <h1 className="font-display text-3xl tracking-tight">Quarterly progress report</h1>
           <label className="text-sm">
@@ -391,7 +391,7 @@ export function QprPage() {
                 <ul className="mt-2 space-y-1">
                   {v.checks.map((c) => (
                     <li key={c.text} className="flex gap-2">
-                      <span className={c.level === "stop" ? "font-semibold text-clay" : "text-ochre"}>{c.level === "stop" ? "Fix" : "Check"}</span>
+                      <span className={c.level === "stop" ? "font-semibold text-clay" : "text-warn"}>{c.level === "stop" ? "Fix" : "Check"}</span>
                       <span>{c.key ? t(c.key, c.vars) : c.text}</span>
                     </li>
                   ))}
@@ -487,7 +487,7 @@ function InfoBox({ v, act, onImported }: { v: QprView; act: Act; onImported: () 
         <div>
           <dt className="text-muted">Spent this quarter</dt>
           <dd className="font-semibold tabular-nums">{quarterSpendOf(v.saved, v.spend) === null ? "—" : `${num(quarterSpendOf(v.saved, v.spend)!)} ${c}`}</dd>
-          {v.saved.quarterSpend !== null && v.spend.quarter !== null && <dd className="text-xs text-ochre">Typed in; the import says {num(v.spend.quarter)}</dd>}
+          {v.saved.quarterSpend !== null && v.spend.quarter !== null && <dd className="text-xs text-warn">Typed in; the import says {num(v.spend.quarter)}</dd>}
         </div>
       </dl>
       <p className="mt-2 text-xs text-muted">{t("rp.totals.onReport")}</p>
@@ -579,7 +579,7 @@ function Section({ v, k, heading, act, busy, draftable }: { v: QprView; k: strin
   return (
     <section className="mt-6 scroll-mt-24" id={`sec-${k}`}>
       <div className="flex flex-wrap items-baseline gap-2">
-        <h3 className="font-display text-lg">{heading ?? def?.heading}</h3>
+        <h3 className="text-lg font-semibold">{heading ?? def?.heading}</h3>
         {saved?.drafted && <Pill tone="ochre">Drafted by Claude: review</Pill>}
         {saved?.from && <Pill tone="ochre">Copied from {saved.from}: review</Pill>}
         {saved && !saved.drafted && !saved.from && <span className="text-xs text-muted">Saved by {saved.by}</span>}
@@ -844,7 +844,7 @@ function Risks({ v, act }: { v: QprView; act: Act }) {
   const dirty = JSON.stringify(list) !== JSON.stringify(v.saved.risks);
   return (
     <section className="mt-6">
-      <h3 className="font-display text-lg">V. Risk Management</h3>
+      <h3 className="text-lg font-semibold">V. Risk Management</h3>
       <div className="mt-2 space-y-2">
         {list.map((r, k) => (
           <div key={k} className="grid gap-2 sm:grid-cols-2">
@@ -923,7 +923,7 @@ function SpendImport({ v, onDone }: { v: QprView; onDone: () => void }) {
             <span key={p} className="block text-clay">{p}</span>
           ))}
           {preview.notes.map((p) => (
-            <span key={p} className="block text-ochre">{p}</span>
+            <span key={p} className="block text-warn">{p}</span>
           ))}
         </span>
       )}
@@ -1052,7 +1052,7 @@ function Acronyms({ v, act }: { v: QprView; act: Act }) {
       .map((x) => [x[0].trim(), x.slice(1).join(":").trim()]);
   return (
     <details className="mt-6 rounded-xl border border-line bg-surface px-4 py-3">
-      <summary className="cursor-pointer font-display text-lg">Acronyms ({v.saved.acronyms?.length ?? 0})</summary>
+      <summary className="cursor-pointer text-lg font-semibold">Acronyms ({v.saved.acronyms?.length ?? 0})</summary>
       <p className="mt-1 text-xs text-muted">One per line, as &ldquo;IWRM: Integrated Water Resources Management&rdquo;. Kept from quarter to quarter. The Word file also gets a table of contents.</p>
       <textarea className={input} rows={8} value={text} disabled={!v.mayEdit} onChange={(e) => setText(e.target.value)} />
       {v.mayEdit && dirty && (

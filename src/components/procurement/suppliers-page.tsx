@@ -392,7 +392,7 @@ export function SuppliersPage() {
         </div>
         {adding && (
           <section className="mt-4 rounded-2xl border border-line bg-surface p-4">
-            <h2 className="mb-3 font-display text-xl">New supplier</h2>
+            <h2 className="mb-3 text-xl font-semibold">New supplier</h2>
             <DetailsForm start={empty} onSave={(fields) => act({ action: "add", fields }, `${fields.name} added. Screen it and have Finance confirm its bank details before an award.`).then(() => setAdding(false))} onCancel={() => setAdding(false)} />
           </section>
         )}

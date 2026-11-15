@@ -43,7 +43,7 @@ export function SelfConfirmSheet({ what, onConfirm, onCancel }: { what?: string;
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 sm:items-center" onClick={onCancel} role="presentation">
       <div role="dialog" aria-modal="true" aria-label={t("so.confirmTitle")} className="w-full rounded-t-2xl bg-paper p-4 text-start shadow-xl sm:max-w-md sm:rounded-2xl sm:p-5" onClick={(e) => e.stopPropagation()}>
-        <h2 className="font-display text-xl">{t("so.confirmTitle")}</h2>
+        <h2 className="text-xl font-semibold">{t("so.confirmTitle")}</h2>
         {what && <p className="mt-1 text-sm text-muted">{what}</p>}
         <label className="mt-4 flex min-h-12 items-start gap-3 rounded-xl border border-line bg-surface p-3 text-sm font-semibold">
           <input type="checkbox" checked={sure} onChange={(e) => setSure(e.target.checked)} className="mt-0.5 h-5 w-5 shrink-0 accent-forest" />

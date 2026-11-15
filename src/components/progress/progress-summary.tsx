@@ -52,7 +52,7 @@ export function ProgressSummaryPanel({ projectId, userId }: { projectId: string;
       <p className="text-lg leading-snug">{headline}</p>
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <section className="min-w-0 rounded-2xl border border-line bg-surface p-4" aria-labelledby="celebrate">
-          <h2 id="celebrate" className="flex items-center gap-2 font-display text-xl">
+          <h2 id="celebrate" className="flex items-center gap-2 text-xl font-semibold">
             <span aria-hidden className="grid h-6 w-6 place-items-center rounded-full bg-mist text-sm text-forest">
               ✓
             </span>
@@ -80,7 +80,7 @@ export function ProgressSummaryPanel({ projectId, userId }: { projectId: string;
         </section>
 
         <section className="min-w-0 rounded-2xl border border-line bg-surface p-4" aria-labelledby="attention">
-          <h2 id="attention" className="flex items-center gap-2 font-display text-xl">
+          <h2 id="attention" className="flex items-center gap-2 text-xl font-semibold">
             <span aria-hidden className="grid h-6 w-6 place-items-center rounded-full bg-clay-soft text-sm font-semibold text-clay">
               !
             </span>
@@ -93,7 +93,7 @@ export function ProgressSummaryPanel({ projectId, userId }: { projectId: string;
               {v.concerns.map((c, k) => (
                 <li key={c.key} className={k >= 4 && !allConcerns ? "hidden lg:block" : ""}>
                   <Link href={c.href} className="flex gap-3 py-2.5 hover:text-forest">
-                    <span className={`mt-0.5 shrink-0 self-start rounded-full px-2 py-0.5 text-[11px] font-semibold ${c.level === "critical" ? "bg-clay-soft text-clay" : "bg-ochre-soft text-ochre"}`}>
+                    <span className={`mt-0.5 shrink-0 self-start rounded-full px-2 py-0.5 text-[11px] font-semibold ${c.level === "critical" ? "bg-clay-soft text-clay" : "bg-ochre-soft text-warn"}`}>
                       {c.level === "critical" ? "Now" : "Soon"}
                     </span>
                     <span className="min-w-0 flex-1">

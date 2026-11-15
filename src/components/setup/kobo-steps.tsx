@@ -348,7 +348,7 @@ export function KoboMap({ code, onDone }: { code: string; onDone: () => void }) 
                           <Why>{s.reason}</Why>
                         </p>
                         <div className="mt-2 flex items-center gap-2">
-                          <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${s.confidence === "high" ? "bg-mist text-leaf" : s.confidence === "medium" ? "bg-ochre-soft text-ochre" : "bg-clay-soft text-clay"}`}>{t(`ks.conf.${s.confidence}`)}</span>
+                          <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${s.confidence === "high" ? "bg-mist text-leaf" : s.confidence === "medium" ? "bg-ochre-soft text-warn" : "bg-clay-soft text-clay"}`}>{t(`ks.conf.${s.confidence}`)}</span>
                           {isAccepted(s) ? (
                             <span className="text-xs font-semibold text-leaf">✓ {t("ks.accepted")}</span>
                           ) : declined.includes(s.indicatorCode) ? (

@@ -97,7 +97,7 @@ export function HrHome({ userId }: { userId: string }) {
 
       <div className="grid gap-4 lg:grid-cols-3">
         <section className="rounded-2xl border border-line bg-surface p-4">
-          <h2 className="font-display text-xl">Starting</h2>
+          <h2 className="text-xl font-semibold">Starting</h2>
           {v.starting.length ? (
             <ul className="mt-2 space-y-1.5 text-sm">
               {v.starting.map((s) => (
@@ -116,7 +116,7 @@ export function HrHome({ userId }: { userId: string }) {
           )}
         </section>
         <section className="rounded-2xl border border-line bg-surface p-4">
-          <h2 className="font-display text-xl">Leaving</h2>
+          <h2 className="text-xl font-semibold">Leaving</h2>
           {v.leaving.length ? (
             <ul className="mt-2 space-y-1.5 text-sm">
               {v.leaving.map((l) => (
@@ -135,7 +135,7 @@ export function HrHome({ userId }: { userId: string }) {
           )}
         </section>
         <section className="rounded-2xl border border-line bg-surface p-4">
-          <h2 className="font-display text-xl">Away today</h2>
+          <h2 className="text-xl font-semibold">Away today</h2>
           {v.away.length ? (
             <ul className="mt-2 space-y-1.5 text-sm">
               {v.away.map((a) => (
@@ -148,7 +148,7 @@ export function HrHome({ userId }: { userId: string }) {
             <p className="mt-2 text-sm text-muted">Everyone is in.</p>
           )}
           {v.leaveWaiting > 0 && (
-            <Link href="/leave" className="mt-2 block text-sm font-semibold text-forest hover:underline">
+            <Link href="/leave" className="btn-link mt-2">
               {v.leaveWaiting} leave {v.leaveWaiting === 1 ? "request" : "requests"} waiting →
             </Link>
           )}

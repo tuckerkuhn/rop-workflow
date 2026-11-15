@@ -92,7 +92,7 @@ export function PackageSetup({ code, onSaved, onCancel }: { code: string; onSave
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ochre">Field activities · {code}</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-warn">Field activities · {code}</p>
         <h2 className="mt-2 font-display text-3xl tracking-tight">What does one farmer receive?</h2>
         <p className="mt-2 max-w-2xl text-sm text-muted">
           List each input in the package and the budget line it is bought on. The store&apos;s stock, the goods received check and the supplier payment all follow from the purchases on that line.
@@ -247,7 +247,7 @@ export function FarmerImport({ code, onDone, onCancel }: { code: string; onDone:
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ochre">Field activities · {code}</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-warn">Field activities · {code}</p>
         <h2 className="mt-2 font-display text-3xl tracking-tight">Load the farmer list</h2>
         <p className="mt-2 max-w-2xl text-sm text-muted">
           One row per farmer: Farmer ID, Village, Sex (F or M) and Hectares. Name, Age band, Household size, Contribution paid and Step are optional. Save the sheet from Excel as CSV.

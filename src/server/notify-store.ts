@@ -135,17 +135,17 @@ export function digestEmail(name: string, fresh: DigestItem[], waiting: DigestIt
   const workflow = all.filter((i) => i.kind === "workflow");
   const tag = (i: (typeof all)[number]) => [i.project, i.isNew ? "new" : "", i.urgent ? "now" : ""].filter(Boolean).join(" · ");
   const li = (i: (typeof all)[number]) =>
-    `<li style="margin:0 0 10px"><a href="${origin}${i.href}" style="color:#1F4E3D;font-weight:600">${esc(i.text)}</a> <span style="color:#777;font-size:13px">${esc(tag(i))}</span>${i.why ? `<br><span style="color:#555;font-size:13px">${esc(i.why)}</span>` : ""}</li>`;
-  const small = (i: (typeof all)[number]) => `<li style="margin:0 0 4px;font-size:14px"><a href="${origin}${i.href}" style="color:#1F4E3D">${esc(i.text)}</a> <span style="color:#777;font-size:12px">${esc(tag(i))}</span></li>`;
+    `<li style="margin:0 0 10px"><a href="${origin}${i.href}" style="color:#314D2F;font-weight:600">${esc(i.text)}</a> <span style="color:#6B7280;font-size:13px">${esc(tag(i))}</span>${i.why ? `<br><span style="color:#6B7280;font-size:13px">${esc(i.why)}</span>` : ""}</li>`;
+  const small = (i: (typeof all)[number]) => `<li style="margin:0 0 4px;font-size:14px"><a href="${origin}${i.href}" style="color:#314D2F">${esc(i.text)}</a> <span style="color:#6B7280;font-size:12px">${esc(tag(i))}</span></li>`;
   const subject = impact.length
     ? `${impact.length} ${impact.length === 1 ? "thing" : "things"} affecting results need you${fresh.length ? "" : " (reminder)"}`
     : `${workflow.length} workflow ${workflow.length === 1 ? "step is" : "steps are"} waiting for you${fresh.length ? "" : " (reminder)"}`;
-  const html = `<div style="font-family:Calibri,Arial,sans-serif;font-size:15px;color:#222;max-width:560px">
+  const html = `<div style="font-family:Inter,Arial,sans-serif;font-size:15px;color:#2B2B2B;max-width:560px">
 <p>Good morning ${esc(name.split(" ")[0])},</p>
 ${impact.length ? `<p style="margin-bottom:6px"><strong>Results and the work that delivers them</strong></p><ul style="padding-left:18px;margin-top:0">${impact.map(li).join("")}</ul>` : `<p>Nothing is slipping on results or activities you own.</p>`}
-${workflow.length ? `<p style="margin-bottom:6px;color:#555"><strong>Also waiting for you</strong></p><ul style="padding-left:18px;margin-top:0">${workflow.map(small).join("")}</ul>` : ""}
-<p><a href="${origin}/home" style="color:#1F4E3D">Open ROP Workflow</a></p>
-<p style="color:#888;font-size:12px">You get this when something new needs you, and on Mondays when anything is still waiting. Turn it off in Settings.</p></div>`;
+${workflow.length ? `<p style="margin-bottom:6px;color:#6B7280"><strong>Also waiting for you</strong></p><ul style="padding-left:18px;margin-top:0">${workflow.map(small).join("")}</ul>` : ""}
+<p><a href="${origin}/home" style="color:#314D2F">Open ROP Workflow</a></p>
+<p style="color:#6B7280;font-size:12px">You get this when something new needs you, and on Mondays when anything is still waiting. Turn it off in Settings.</p></div>`;
   const line = (i: (typeof all)[number]) => `- ${i.text} (${tag(i)}) ${origin}${i.href}`;
   const text = [`Good morning ${name.split(" ")[0]},`, "", impact.length ? "Results and the work that delivers them:" : "Nothing is slipping on results or activities you own.", ...impact.map(line), ...(workflow.length ? ["", "Also waiting for you:", ...workflow.map(line)] : []), "", `${origin}/home`].join("\n");
   return { subject, html, text };

@@ -317,7 +317,7 @@ function ChangeItem({ c, me, mayDecide, solo, busy, label, act }: { c: Change; m
           }}
         />
       )}
-      {c.status === "approved" && c.selfApproved && <p className="mt-1 text-xs font-semibold text-ochre">{t("so.self")}</p>}
+      {c.status === "approved" && c.selfApproved && <p className="mt-1 text-xs font-semibold text-warn">{t("so.self")}</p>}
     </li>
   );
 }

@@ -285,7 +285,7 @@ function CurrentSheet({ v, monthName, onApprove, onReturn, onRevise }: { v: Time
       </div>
       {t.decidedBy?.note && <p className="rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">“{t.decidedBy.note}”</p>}
       {t.leaveCheck.length > 0 && (
-        <div className="rounded-xl bg-ochre-soft px-4 py-3 text-sm text-ochre">
+        <div className="rounded-xl bg-ochre-soft px-4 py-3 text-sm text-warn">
           <p className="font-semibold">{tr("ts.leaveMismatch")}</p>
           <ul className="mt-1 list-disc ps-5">
             {t.leaveCheck.map((x) => (
@@ -349,7 +349,7 @@ function Summary({ sheet, v }: { sheet: Sheet; v: TimesheetView }) {
           <span className="font-display text-2xl tabular-nums">{fmtH(recorded)}</span> <span className="text-muted">{t("ts.hoursRecorded")}</span>
         </span>
         <span className="text-muted">
-          {t("ts.expectedMonth", { hours: fmtH(s.expected) })}{diff !== 0 && <span className={diff < 0 ? "text-ochre" : "text-clay"}> · {diff > 0 ? "+" : ""}{fmtH(diff)}</span>}
+          {t("ts.expectedMonth", { hours: fmtH(s.expected) })}{diff !== 0 && <span className={diff < 0 ? "text-warn" : "text-clay"}> · {diff > 0 ? "+" : ""}{fmtH(diff)}</span>}
         </span>
         {s.leaveTotal > 0 && (
           <span className="text-muted">
@@ -478,7 +478,7 @@ function Editor({ v, sheet, setSheet, own, revising, onCancel, onSubmit }: { v: 
   const sel = "rounded-xl border border-line bg-paper px-3 py-2.5 text-base sm:text-sm";
   return (
     <section className="mt-6 space-y-4">
-      {revising && <p className="rounded-xl bg-ochre-soft px-4 py-3 text-sm text-ochre">{t("ts.newVersion")}</p>}
+      {revising && <p className="rounded-xl bg-ochre-soft px-4 py-3 text-sm text-warn">{t("ts.newVersion")}</p>}
       {!revising && <p className="text-sm text-muted">{t("ts.prefilled")}</p>}
       <Summary sheet={sheet} v={v} />
       <div className="flex flex-wrap items-end gap-2 rounded-2xl border border-line bg-surface p-3">

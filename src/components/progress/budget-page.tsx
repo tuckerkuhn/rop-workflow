@@ -93,7 +93,7 @@ export function BudgetPage() {
               ].map(([k, val]) => (
                 <div key={k} className="rounded-2xl border border-line bg-surface px-4 py-3">
                   <dt className="text-xs uppercase tracking-[0.12em] text-muted">{k}</dt>
-                  <dd className="mt-1 font-display text-xl tabular-nums">{val}</dd>
+                  <dd className="mt-1 text-xl tabular-nums font-semibold">{val}</dd>
                 </div>
               ))}
             </dl>
@@ -204,7 +204,7 @@ function LineText({ l }: { l: LineView }) {
         </span>
       ))}
       {l.flags.map((f) => (
-        <span key={f.text} className={`mt-1 block text-xs ${f.level === "stop" ? "font-semibold text-clay" : "text-ochre"}`}>
+        <span key={f.text} className={`mt-1 block text-xs ${f.level === "stop" ? "font-semibold text-clay" : "text-warn"}`}>
           {f.text}
         </span>
       ))}

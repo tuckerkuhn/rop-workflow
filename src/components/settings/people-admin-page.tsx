@@ -116,7 +116,7 @@ export function PeopleAdminPage() {
           instead.
         </p>
         {v?.demoMode && (
-          <p className="mt-3 rounded-xl bg-ochre-soft px-4 py-3 text-sm text-ochre">
+          <p className="mt-3 rounded-xl bg-ochre-soft px-4 py-3 text-sm text-warn">
             This copy of the app runs on the demo cast, so changes here take effect on the live site (real sign-in), not on this screen&rsquo;s demo people.
           </p>
         )}
@@ -352,7 +352,7 @@ function PersonForm({
         <label className="text-sm">
           Email they sign in with
           <input type="email" className={input} value={p.email ?? ""} disabled={locked} onChange={(e) => set("email", e.target.value || null)} placeholder="name@rootsofpeace.org" />
-          {email && p.email !== email && !locked && <span className="mt-1 block text-xs text-ochre">A new email unlinks the old sign-in.</span>}
+          {email && p.email !== email && !locked && <span className="mt-1 block text-xs text-warn">A new email unlinks the old sign-in.</span>}
         </label>
         <label className="text-sm">
           Reports to

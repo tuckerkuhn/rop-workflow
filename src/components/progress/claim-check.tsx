@@ -57,7 +57,7 @@ export function ClaimCheckPanel({
           <ul className="mt-3 space-y-2">
             {check.issues.map((i, k) => (
               <li key={k} className={`rounded-lg px-3 py-2 ${i.decided?.choice === "keep" ? "bg-sunken text-muted" : "bg-ochre-soft"}`}>
-                <p className="text-xs font-semibold uppercase tracking-wide text-ochre">
+                <p className="text-xs font-semibold uppercase tracking-wide text-warn">
                   {KIND[i.kind]} · {headings[i.section] ?? i.section}
                 </p>
                 <p className="mt-1 italic">&ldquo;{i.sentence}&rdquo;</p>
@@ -67,12 +67,12 @@ export function ClaimCheckPanel({
                 {i.evidence.length > 0 && (
                   <p className="mt-1 text-xs">
                     {i.evidence.some((e) => e.startsWith("r:")) && (
-                      <Link href="/progress/results" className="font-semibold text-forest hover:underline">
+                      <Link href="/progress/results" className="btn-link">
                         The results →
                       </Link>
                     )}
                     {i.evidence.some((e) => e.startsWith("u:")) && (
-                      <Link href="/progress/weekly" className="ms-3 font-semibold text-forest hover:underline">
+                      <Link href="/progress/weekly" className="btn-link ms-3">
                         The weekly updates →
                       </Link>
                     )}

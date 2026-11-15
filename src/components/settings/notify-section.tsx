@@ -25,7 +25,7 @@ export function NotifySection() {
   if (!actor) return null;
   return (
     <section className="mt-6 rounded-2xl border border-line bg-surface p-5">
-      <h2 className="font-display text-xl">Daily email</h2>
+      <h2 className="text-xl font-semibold">Daily email</h2>
       <p className="mt-1 text-sm text-muted">
         Each morning when something new needs you, and on Mondays if anything is still waiting. It leads with what affects results: targets slipping, activities you own that are late or not started, results waiting to count. Sign-offs, imports, procurement steps and tasks follow, briefly.
       </p>

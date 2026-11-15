@@ -21,7 +21,7 @@ export function ReportView({ doc }: { doc: ReportDoc }) {
       <p className="mt-4 text-sm">{doc.summary}</p>
       {doc.tables.map((tbl) => (
         <section key={tbl.heading} className="mt-6">
-          <h4 className="font-display text-lg">{tbl.heading}</h4>
+          <h4 className="text-lg font-semibold">{tbl.heading}</h4>
           <div className="mt-2 overflow-x-auto">
             <table className="w-full min-w-[560px] text-sm">
               <thead className="text-start text-[11px] uppercase tracking-wide text-muted">
@@ -51,7 +51,7 @@ export function ReportView({ doc }: { doc: ReportDoc }) {
       ))}
       {doc.narrative.map((h) => (
         <section key={h} className="mt-6">
-          <h4 className="font-display text-lg">{h}</h4>
+          <h4 className="text-lg font-semibold">{h}</h4>
           <div className="mt-2 h-16 rounded-lg border border-dashed border-line" aria-hidden />
         </section>
       ))}

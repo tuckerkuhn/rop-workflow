@@ -116,7 +116,7 @@ export function CalendarView({ rows, actions }: { rows: Row[]; actions: RowActio
       </div>
 
       <section className="mt-6" aria-live="polite">
-        <h3 className="font-display text-lg">{date(picked, { weekday: "long", day: "numeric", month: "long" })}</h3>
+        <h3 className="text-lg font-semibold">{date(picked, { weekday: "long", day: "numeric", month: "long" })}</h3>
         {pickedRows.length ? (
           <ul className="mt-1 divide-y divide-line">
             {pickedRows.map((r) => (

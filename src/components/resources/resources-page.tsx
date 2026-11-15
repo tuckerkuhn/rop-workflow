@@ -41,7 +41,7 @@ function Viability() {
         ))}
       </ul>
       <section className="mt-6 rounded-2xl border border-line bg-surface p-4">
-        <h3 className="font-display text-lg">Pro forma for one farmer, per season</h3>
+        <h3 className="text-lg font-semibold">Pro forma for one farmer, per season</h3>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <label className="text-sm">
             Net income now
@@ -119,7 +119,7 @@ export function ResourcesPage() {
               </p>
               {groups.map((g) => (
                 <section key={g} className="mt-5">
-                  <h2 className="font-display text-xl">{g}</h2>
+                  <h2 className="text-xl font-semibold">{g}</h2>
                   <ol className="mt-2 space-y-2">
                     {DIRTY_DOZEN.filter((p) => p.group === g).map((p) => (
                       <li key={p.n} className="rounded-xl border border-line bg-surface p-3 text-sm">

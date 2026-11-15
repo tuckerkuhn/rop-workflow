@@ -99,7 +99,7 @@ export const canSeePII = (u: AppUser | null | undefined) => !!u?.pii;
 
 export const PROJECT = {
   id: "A-2027",
-  name: "Demo for training: every workflow (fictional maize project)",
+  name: "Demo for training: every workflow, fictional maize project",
   country: "Afghanistan",
   season: "2027 Spring",
   award: "Award A-2027 (fictional)",

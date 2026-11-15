@@ -51,12 +51,12 @@ export function HealthPage() {
               </li>
               <li className="rounded-2xl border border-line bg-surface p-4">
                 <p className="text-xs text-muted">Daily email</p>
-                <p className="font-display text-xl">{h.email.configured ? "Switched on" : "Not set up"}</p>
+                <p className="text-xl font-semibold">{h.email.configured ? "Switched on" : "Not set up"}</p>
                 {!h.email.configured && <p className="text-xs text-muted">Needs RESEND_API_KEY and CRON_SECRET on the server.</p>}
               </li>
               <li className="rounded-2xl border border-line bg-surface p-4 sm:col-span-3">
                 <p className="text-xs text-muted">Database space</p>
-                <p className={`font-display text-3xl ${h.storage.level === "critical" ? "text-clay" : h.storage.level === "warning" ? "text-ochre" : ""}`}>
+                <p className={`font-display text-3xl ${h.storage.level === "critical" ? "text-clay" : h.storage.level === "warning" ? "text-warn" : ""}`}>
                   {h.storage.usedMb} MB <span className="text-base text-muted">of {h.storage.limitMb} MB</span>
                 </p>
                 <p className="text-xs text-muted">
@@ -77,7 +77,7 @@ export function HealthPage() {
                       <span className="font-semibold">{r.project}</span> <span className="text-xs text-muted">{r.at.replace("T", " ").slice(0, 16)} UTC</span>
                       <p className={`break-words ${r.ok ? "" : "text-clay"}`}>
                         {r.ok ? t(r.added + r.updated + r.removed ? "health.kobo.changed" : "health.kobo.same", { fetched: r.fetched, added: r.added, updated: r.updated, removed: r.removed }) : t("health.kobo.failed", { error: r.error ?? "" })}
-                        {r.ok && r.results.flagged > 0 && <span className="font-semibold text-ochre"> {t("health.kobo.flagged", { n: r.results.flagged })}</span>}
+                        {r.ok && r.results.flagged > 0 && <span className="font-semibold text-warn"> {t("health.kobo.flagged", { n: r.results.flagged })}</span>}
                       </p>
                     </li>
                   ))}

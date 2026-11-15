@@ -44,7 +44,7 @@ export function Families({ project, user, mayWriteStory }: { project: string; us
   return (
     <section aria-label="What the work came to" className="grid gap-4 rounded-2xl border border-line bg-surface p-4 sm:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
       <div className="min-w-0">
-        <h2 className="font-display text-xl">{v.current ? `So far in ${label}` : `What ${label} came to`}</h2>
+        <h2 className="text-xl font-semibold">{v.current ? `So far in ${label}` : `What ${label} came to`}</h2>
         {v.results.length === 0 ? (
           <p className="mt-2 text-sm text-muted">No results accepted yet for {label}.</p>
         ) : (
@@ -72,7 +72,7 @@ export function Families({ project, user, mayWriteStory }: { project: string; us
           </ul>
         )}
         {v.more > 0 && (
-          <Link href="/progress" className="mt-3 inline-block text-sm font-semibold text-forest hover:underline">
+          <Link href="/progress" className="btn-link mt-3">
             and {v.more} more results →
           </Link>
         )}
@@ -90,7 +90,7 @@ export function Families({ project, user, mayWriteStory }: { project: string; us
         <div className="flex flex-col justify-center rounded-xl border border-dashed border-line p-4 text-sm text-muted">
           <p>Behind every figure is a family. No story is approved yet for this project.</p>
           {mayWriteStory && (
-            <Link href="/progress/stories" className="mt-2 font-semibold text-forest hover:underline">
+            <Link href="/progress/stories" className="btn-link mt-2">
               Write the first one, with their consent →
             </Link>
           )}

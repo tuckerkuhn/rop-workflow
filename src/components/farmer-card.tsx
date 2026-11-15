@@ -31,7 +31,7 @@ export function FarmerCard() {
                   <path d="M3 8.5 6.5 12 13 4.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </span>
-              <span className="font-display text-xl">Yes, after recheck</span>
+              <span className="text-xl font-semibold">Yes, after recheck</span>
             </div>
           </section>
 
@@ -54,7 +54,7 @@ export function FarmerCard() {
           </section>
 
           <section className="rounded-2xl bg-ochre-soft px-4 py-3.5">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ochre">Needs action</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-warn">Needs action</p>
             <div className="mt-1.5 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
               <span className="font-medium">Planting follow-up visit</span>
               <span className="font-mono text-xs text-muted">Eli · Extension · due 25 Mar</span>

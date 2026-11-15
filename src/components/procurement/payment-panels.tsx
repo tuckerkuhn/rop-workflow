@@ -44,7 +44,7 @@ const unreview = (q: Procurement): Record<string, boolean> => {
 const Head = ({ p }: { p: Procurement }) => {
   const i = currentInstalment(p);
   return i.of > 1 ? (
-    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ochre">
+    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-warn">
       Payment {i.n} of {i.of} · {i.label} · {i.pct}%
     </p>
   ) : null;

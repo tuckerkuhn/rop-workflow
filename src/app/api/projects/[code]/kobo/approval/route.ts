@@ -3,7 +3,7 @@ import { z } from "zod";
 import { canEditProject } from "@/lib/demo";
 import { and, eq, isNotNull } from "drizzle-orm";
 import { db, schema as s } from "@/db";
-import { approverNames, collectorOf, KOBO_APPROVAL_OPTIONS, koboApprovalProblem, mayApproveKobo, type KoboApproval } from "@/lib/kobo-approval";
+import { approverNames, collectorOf, KOBO_APPROVAL_OPTIONS, koboApprovalProblem, mayApproveKobo, suggestedCollector, type KoboApproval } from "@/lib/kobo-approval";
 import { projectByCode } from "@/server/field-store";
 import { onProject, people, requireViewer } from "@/server/auth";
 import { audit, handle, readBody } from "@/server/guard";
@@ -26,10 +26,10 @@ export async function GET(req: Request, { params }: Ctx) {
     const sent = await db.selectDistinct({ account: s.evidence.completedBy }).from(s.evidence).where(and(eq(s.evidence.projectId, project.id), eq(s.evidence.source, "kobo"), isNotNull(s.evidence.completedBy)));
     const names = [...new Set([...sent.map((x) => x.account!.trim()).filter(Boolean), ...Object.keys(rule.accounts ?? {})])].sort((a, b) => a.localeCompare(b));
     return NextResponse.json({
-      accounts: names.map((account) => ({ account, person: collectorOf(account, rule, staff), saved: !!rule.accounts?.[account] })),
+      accounts: names.map((account) => ({ account, person: collectorOf(account, rule, staff), saved: !!rule.accounts?.[account], suggested: suggestedCollector(account, staff) })),
       rule,
       options: KOBO_APPROVAL_OPTIONS,
-      people: staff.map((p) => ({ id: p.id, name: p.name, title: p.title })),
+      people: staff.map((p) => ({ id: p.id, name: p.name, title: p.title, fieldAccess: p.fieldAccess })),
       approvers: approverNames(staff, rule),
       mine: mayApproveKobo(v.user, rule),
       canEdit: (canEditProject(v.user) || !!v.user.admin) && v.user.kind === "employee",

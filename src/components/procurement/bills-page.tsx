@@ -68,7 +68,7 @@ export function BillsPage() {
     <div className="min-h-screen">
       <TopBar active="procurement" />
       <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ochre">{project.name}</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-warn">{project.name}</p>
         <h1 className="mt-1 font-display text-3xl tracking-tight">Bills paid directly</h1>
         <p className="mt-1 max-w-2xl text-sm text-muted">
           Rent, utilities, internet and phones, insurance, and services under an agreement. Record the bill with its document; programme management approves; Finance prepares the voucher. A one-off purchase of goods or services goes through procurement instead.
@@ -156,7 +156,7 @@ function BillCard({ b, v, act }: { b: Item; v: BillsView; act: (a: BillAction, m
       </button>
       <p className="mt-1 text-xs text-muted">{b.timeline.map((t) => `${t.date}: ${t.what} (${t.who})`).join(" · ")}</p>
       {b.flags.length > 0 && b.status !== "filed" && (
-        <ul className="mt-2 space-y-1 rounded-xl bg-ochre-soft px-3 py-2 text-sm text-ochre">
+        <ul className="mt-2 space-y-1 rounded-xl bg-ochre-soft px-3 py-2 text-sm text-warn">
           {b.flags.map((f) => (
             <li key={f}>⚠ {f}</li>
           ))}
@@ -177,7 +177,7 @@ function BillCard({ b, v, act }: { b: Item; v: BillsView; act: (a: BillAction, m
           )}
         </div>
       )}
-      {b.approval?.selfApproved && <p className="mt-2 text-xs font-semibold text-ochre">{t("so.self")}{b.approval.soloNote ? `: ${b.approval.soloNote}` : ""}</p>}
+      {b.approval?.selfApproved && <p className="mt-2 text-xs font-semibold text-warn">{t("so.self")}{b.approval.soloNote ? `: ${b.approval.soloNote}` : ""}</p>}
       {b.canApprove &&
         (back === null ? (
           <div className="mt-3 flex gap-2">

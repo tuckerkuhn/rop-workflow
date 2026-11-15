@@ -12,14 +12,14 @@ import type { Bucket } from "@/server/home-store";
  * and one tap to the place to act. A group with nothing in it is not shown.
  */
 
-const TONE: Record<Bucket, string> = { approve: "text-forest", fix: "text-clay", due: "text-ochre" };
+const TONE: Record<Bucket, string> = { approve: "text-forest", fix: "text-clay", due: "text-warn" };
 
 export function WaitingOnYou({ rows }: { rows: Record<Bucket, WaitingRow[]> }) {
   const { t, date } = useT();
   if (!waitingCount(rows))
     return (
       <section aria-labelledby="waiting" className="rounded-2xl border border-line bg-surface p-4">
-        <h2 id="waiting" className="font-display text-xl">
+        <h2 id="waiting" className="text-xl font-semibold">
           {t("home.b.title")}
         </h2>
         <p className="mt-1 text-sm text-muted">{t("home.b.none")}</p>
@@ -38,7 +38,7 @@ export function WaitingOnYou({ rows }: { rows: Record<Bucket, WaitingRow[]> }) {
   const when = (days: number) => (days < 0 ? t("home.b.late", { n: -days }) : days === 0 ? t("home.b.today") : t("home.b.days", { n: days }));
   return (
     <section aria-labelledby="waiting" className="rounded-2xl border border-line bg-surface p-4">
-      <h2 id="waiting" className="font-display text-xl">
+      <h2 id="waiting" className="text-xl font-semibold">
         {t("home.b.title")}
       </h2>
       {BUCKETS.filter((b) => rows[b].length).map((b) => (

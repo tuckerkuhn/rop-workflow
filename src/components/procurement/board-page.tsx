@@ -58,7 +58,7 @@ export function ProcurementBoardPage() {
                 ${Math.round(p.value).toLocaleString("en-US")} · {p.level} · {p.stepTitle}
               </span>
               {p.waitingOn && <span className="mt-1 block text-xs">{t("bd.proc.waiting", { who: p.waitingOn })}</span>}
-              {p.stage >= 0 && p.since && <span className={`mt-1 block text-[11px] ${stuck ? "font-semibold text-ochre" : "text-muted"}`}>{t(stuck ? "bd.stuck" : "bd.days", { n: daysSince(p.since, today) })}</span>}
+              {p.stage >= 0 && p.since && <span className={`mt-1 block text-[11px] ${stuck ? "font-semibold text-warn" : "text-muted"}`}>{t(stuck ? "bd.stuck" : "bd.days", { n: daysSince(p.since, today) })}</span>}
             </Link>
           );
         }),

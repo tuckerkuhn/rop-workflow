@@ -1,52 +1,63 @@
 @import "tailwindcss";
 
 :root {
-  --paper: #f6f3ec;
-  --surface: #ffffff;
-  --sunken: #efeadf;
-  --ink: #13201a;
-  --muted: #5a6a60;
-  --line: #e2dccd;
-  --forest: #1f4d36;
-  --forest-ink: #f4f1e8;
-  --leaf: #2f7d52;
-  --mist: #e6efe8;
-  --ochre: #b97a1c;
-  --ochre-soft: #f6e8cc;
-  --clay: #b04a35;
-  --clay-soft: #f6dfd8;
-  --sky: #23578a;
-  --sky-soft: #e1ecf7;
-  /* "On track" beside solid forest ("done") in status bars; checked for colour-blind separation. */
-  --progress: #8fb39f;
-  --plum: #5b4592;
-  --plum-soft: #ece7f6;
-  --deep: #1f4d36;
-  --deep-ink: #f4f1e8;
+  /* Roots of Peace brand palette (Brand Guidelines v1.1, section 2). Each token keeps one job. */
+  --paper: #f2f5f1; /* Light green wash: the page behind cards */
+  --surface: #ffffff; /* White: cards and panels */
+  --sunken: #f2f5f1; /* Light green wash: insets inside cards */
+  --ink: #2b2b2b; /* Body text */
+  --muted: #6b7280; /* Secondary text: captions, labels, helper text */
+  --line: #e5e7e3; /* Light border */
+  --line-strong: #c8ccc6; /* Medium border: form fields */
+  --forest: #314d2f; /* Primary green: headings, primary buttons, success */
+  --forest-hover: #243a22; /* Green hover */
+  --forest-ink: #ffffff; /* Text on green */
+  --leaf: #547147; /* Chart series 2, second green */
+  --mist: #f2f5f1; /* Light green wash: chosen and highlighted rows */
+  --ochre: #d2a028; /* Accent gold: fills, accent borders, warning marks. Never as text on white (3.0:1). */
+  --warn: #7a5230; /* Warm text on white where gold would fail contrast (guidelines 11.2: use walnut) */
+  --ochre-soft: #fbf6eb; /* Light gold wash: callouts and warnings */
+  --clay: #b91c1c; /* Error red: functional only */
+  --clay-soft: #fbeaea; /* Error background (tint of error red) */
+  --sky: #1e6fa0; /* Info blue: functional only */
+  --sky-soft: #e8f1f7; /* Info background (tint of info blue) */
+  /* "On track" beside solid forest ("done") in status bars. */
+  --progress: #547147;
+  /* AI suggestions and findings: helper messages, so info blue. */
+  --plum: #1e6fa0;
+  --plum-soft: #e8f1f7;
+  --deep: #314d2f; /* Dark green: hero panels, white text on top */
+  --deep-ink: #ffffff;
 }
 
+/* Dark screens: the guidelines have no dark palette, so these are the brand colours lightened to
+   stay readable on dark green-black. Gold reads well on dark, so warnings use it as text here. */
 @media (prefers-color-scheme: dark) {
   :root {
-    --paper: #0d1410;
-    --surface: #131c17;
-    --sunken: #0a100d;
-    --ink: #edf1ea;
-    --muted: #97a79c;
-    --line: #233029;
-    --forest: #84c99f;
-    --forest-ink: #0d1410;
-    --leaf: #6fbf8e;
-    --mist: #15241c;
-    --ochre: #e2a94e;
-    --ochre-soft: #2b2112;
-    --clay: #e07a62;
-    --clay-soft: #2d1813;
-    --sky: #8dbbe8;
-    --sky-soft: #142233;
-    --progress: #3d6b52;
-    --plum: #bba9ee;
-    --plum-soft: #211a33;
-    --deep: #10261b;
+    --paper: #111811;
+    --surface: #182118;
+    --sunken: #0d130d;
+    --ink: #eceee9;
+    --muted: #a3a9a1;
+    --line: #2b372a;
+    --line-strong: #3d4b3c;
+    --forest: #a9c4a2;
+    --forest-hover: #c2d6bc;
+    --forest-ink: #111811;
+    --leaf: #8fb085;
+    --mist: #1d2a1c;
+    --ochre: #d2a028;
+    --warn: #d2a028;
+    --ochre-soft: #2c2410;
+    --clay: #f08a8a;
+    --clay-soft: #351616;
+    --sky: #82b8de;
+    --sky-soft: #12273a;
+    --progress: #547147;
+    --plum: #82b8de;
+    --plum-soft: #12273a;
+    --deep: #243a22;
+    --deep-ink: #ffffff;
   }
 }
 
@@ -57,11 +68,14 @@
   --color-ink: var(--ink);
   --color-muted: var(--muted);
   --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
   --color-forest: var(--forest);
+  --color-forest-hover: var(--forest-hover);
   --color-forest-ink: var(--forest-ink);
   --color-leaf: var(--leaf);
   --color-mist: var(--mist);
   --color-ochre: var(--ochre);
+  --color-warn: var(--warn);
   --color-ochre-soft: var(--ochre-soft);
   --color-clay: var(--clay);
   --color-clay-soft: var(--clay-soft);
@@ -92,6 +106,17 @@ body {
 html:lang(fa) :is(.font-sans, .font-display),
 html:lang(ps) :is(.font-sans, .font-display) {
   font-family: var(--font-vazirmatn), var(--font-inter), sans-serif;
+}
+
+/* Focus ring: accent gold at 40% (guidelines 2.5), for keyboard users. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 3px solid rgb(210 160 40 / 0.4);
+  outline-offset: 2px;
+}
+
+/* Figures line up in columns (guidelines 3.4). */
+table {
+  font-variant-numeric: tabular-nums;
 }
 
 ::selection {
@@ -165,5 +190,28 @@ html:lang(ps) :is(.font-sans, .font-display) {
     opacity: 1;
     transform: none;
     transition: none;
+  }
+}
+
+/* An action that takes you somewhere ("Open the report →"): a quiet outlined button, so it reads as
+   something to press. The one main action in a section stays the solid green primary button. */
+@utility btn-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 2.25rem;
+  border-radius: 9999px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  padding: 0.375rem 0.875rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 600;
+  color: var(--forest);
+  text-align: start;
+  transition: border-color 150ms, background-color 150ms;
+  &:hover {
+    border-color: var(--forest);
+    background: var(--mist);
   }
 }

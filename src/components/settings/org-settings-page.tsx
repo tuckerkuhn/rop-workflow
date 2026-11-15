@@ -99,7 +99,7 @@ export function OrgSettingsPage() {
     <div className="min-h-screen pb-40">
       <TopBar />
       <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ochre">{v?.name ?? "Organization"}</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-warn">{v?.name ?? "Organization"}</p>
         <h1 className="mt-1 font-display text-3xl tracking-tight">Organization settings</h1>
         <p className="mt-1 max-w-3xl text-sm text-muted">
           The rules the whole organization works by, by department. Our written policy and procedures always apply. Where a requirement profile or a donor asks for more, it shows as a gap; once approved, it is layered on top. Every change says who approved it, when and why.
@@ -298,7 +298,7 @@ function RuleRow({
         </div>
         <div className="text-end">
           <p className="font-semibold tabular-nums">{show(d, shown)}</p>
-          {pendingChange && <p className="text-xs text-ochre">Now {show(d, current?.value ?? null)} · not saved</p>}
+          {pendingChange && <p className="text-xs text-warn">Now {show(d, current?.value ?? null)} · not saved</p>}
           {!pendingChange && changed && <Pill tone="sky">Added to our policy</Pill>}
         </div>
       </div>
@@ -415,7 +415,7 @@ function SoloPanel({ v, post }: { v: OrgSettingsView; post: (body: object, msg: 
   return (
     <section className="mt-6 rounded-2xl border border-line bg-surface p-4">
       <div className="flex flex-wrap items-center gap-2">
-        <h2 className="font-display text-xl">{t("so.title")}</h2>
+        <h2 className="text-xl font-semibold">{t("so.title")}</h2>
         <Pill tone={on ? "ochre" : "muted"}>{on ? t("so.on") : t("so.off")}</Pill>
       </div>
       <p className="mt-1 max-w-3xl text-sm text-muted">{t("so.help")}</p>
@@ -466,7 +466,7 @@ function SamplePanel({ v, post }: { v: OrgSettingsView; post: (body: object, msg
   return (
     <section className="mt-6 rounded-2xl border border-line bg-surface p-4">
       <div className="flex flex-wrap items-center gap-2">
-        <h2 className="font-display text-xl">{t("sample.title")}</h2>
+        <h2 className="text-xl font-semibold">{t("sample.title")}</h2>
         <Pill tone={hidden ? "muted" : "forest"}>{hidden ? t("sample.hidden") : t("sample.shown")}</Pill>
       </div>
       <p className="mt-1 max-w-3xl text-sm text-muted">{t("sample.help")}</p>

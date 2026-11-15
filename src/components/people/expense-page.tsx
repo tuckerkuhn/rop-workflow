@@ -339,7 +339,7 @@ function Detail({ v, monthName, back, act, revise }: { v: ExpenseView; monthName
       )}
       {r.returned && <p className="rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">{t("exp.sentBackBy", { name: name(r.returned.by), note: r.returned.note })}</p>}
       {(r.canSign || v.seesAll) && r.flags.length > 0 && (
-        <ul className="space-y-1 rounded-xl bg-ochre-soft px-3 py-2 text-sm text-ochre">
+        <ul className="space-y-1 rounded-xl bg-ochre-soft px-3 py-2 text-sm text-warn">
           {r.flags.map((f) => (
             <li key={f}>⚠ {f}</li>
           ))}
@@ -365,7 +365,7 @@ function Detail({ v, monthName, back, act, revise }: { v: ExpenseView; monthName
                   📎 {rc.name}
                 </button>
               ))}
-              {l.noReceipt && <span className="text-ochre">{t("exp.noReceiptWhy", { reason: l.noReceipt })}</span>}
+              {l.noReceipt && <span className="text-warn">{t("exp.noReceiptWhy", { reason: l.noReceipt })}</span>}
             </p>
           </li>
         ))}

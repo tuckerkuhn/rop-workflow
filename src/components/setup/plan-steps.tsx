@@ -201,7 +201,7 @@ export function BudgetStep({ code, onDone }: { code: string; onDone: () => void 
         {saved > 0 && !source && <span className="text-sm text-muted">{t("budget.saved", { n: saved })}</span>}
         {source && <span className="text-sm text-muted">{t("plan.readFrom", { file: source.file, n: lines.length })}</span>}
       </div>
-      {source && saved > 0 && <p className="mt-2 text-sm text-ochre">{t("budget.replaces", { n: saved })}</p>}
+      {source && saved > 0 && <p className="mt-2 text-sm text-warn">{t("budget.replaces", { n: saved })}</p>}
       {proposedFrom && (
         <div className="mt-3 rounded-xl bg-mist px-4 py-3 text-sm">
           <p>{t("ag.budgetFrom", { file: proposedFrom })}</p>
@@ -281,17 +281,17 @@ export function BudgetStep({ code, onDone }: { code: string; onDone: () => void 
           <dl className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
             <div className="rounded-2xl bg-sunken p-3">
               <dt className="text-xs text-muted">{t("budget.total")}</dt>
-              <dd className="font-display text-xl tabular-nums">{money(total)}</dd>
+              <dd className="text-xl tabular-nums font-semibold">{money(total)}</dd>
             </div>
             <div className="rounded-2xl bg-sunken p-3">
               <dt className="text-xs text-muted">{t("budget.toProcure")}</dt>
-              <dd className="font-display text-xl tabular-nums">
+              <dd className="text-xl tabular-nums font-semibold">
                 {money(procured.reduce((s, l) => s + l.total, 0))} <span className="text-sm text-muted">· {t("budget.lines", { n: procured.length })}</span>
               </dd>
             </div>
             <div className="rounded-2xl bg-sunken p-3">
               <dt className="text-xs text-muted">{t("budget.spentSoFar")}</dt>
-              <dd className="font-display text-xl tabular-nums">{money(lines.reduce((s, l) => s + (l.spent ?? 0), 0))}</dd>
+              <dd className="text-xl tabular-nums font-semibold">{money(lines.reduce((s, l) => s + (l.spent ?? 0), 0))}</dd>
             </div>
           </dl>
 
@@ -494,7 +494,7 @@ export function WorkplanStep({ code, projectStart, onDone }: { code: string; pro
         {saved > 0 && !source && <span className="text-sm text-muted">{t("workplan.saved", { n: saved })}</span>}
         {source && <span className="text-sm text-muted">{t("plan.readFrom", { file: source.file, n: all.length })}</span>}
       </div>
-      {source && saved > 0 && <p className="mt-2 text-sm text-ochre">{t("workplan.replaces", { n: saved })}</p>}
+      {source && saved > 0 && <p className="mt-2 text-sm text-warn">{t("workplan.replaces", { n: saved })}</p>}
       {source?.warnings.map((w) => (
         <p key={w} className="mt-2 text-sm text-clay">
           {w}

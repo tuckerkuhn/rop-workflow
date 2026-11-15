@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useSession } from "@/components/app/session";
-import { LogoMark } from "@/components/logo";
+import { Logo } from "@/components/logo";
 import { primaryBtn } from "@/components/workspace/ui";
 import { formatMoney } from "@/lib/demo";
 import { documentFor } from "@/lib/procurement-docs";
@@ -48,9 +48,8 @@ export function DocumentViewer({
         <article className="px-6 py-8 sm:px-10">
           <header className="flex flex-wrap items-start justify-between gap-4 border-b-2 border-ink pb-4">
             <div className="flex items-center gap-3">
-              <LogoMark className="h-10 w-10" />
+              <Logo className="w-[130px]" />
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted">Roots of Peace</p>
                 <h2 className="font-display text-3xl tracking-tight">{d.title}</h2>
               </div>
             </div>
@@ -92,7 +91,7 @@ export function DocumentViewer({
                       {l.signed ? (
                         <span className="font-display text-2xl italic text-forest">{l.signed.name}</span>
                       ) : isPending ? (
-                        <span className="text-sm text-ochre">You sign here when you complete your step</span>
+                        <span className="text-sm text-warn">You sign here when you complete your step</span>
                       ) : (
                         <span className="text-sm text-muted">Awaiting {who ?? "signature"}</span>
                       )}

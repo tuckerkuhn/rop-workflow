@@ -32,7 +32,7 @@ export function GapPanel({
   const keys = items.map((i) => i.key).filter((k) => picked.has(k));
   return (
     <section className="mt-6 rounded-2xl border border-ochre bg-ochre-soft/50 p-4">
-      <p className="font-semibold text-ochre">{title}</p>
+      <p className="font-semibold text-warn">{title}</p>
       <p className="mt-1 text-sm text-muted">{intro}</p>
       <div className="mt-3 overflow-x-auto rounded-xl border border-line bg-surface">
         <table className="w-full min-w-[40rem] text-sm">

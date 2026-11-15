@@ -137,7 +137,7 @@ export function OffboardingPage() {
                       {o.reason ? ` · ${o.reason}` : ""}
                     </p>
                     {o.payout && (
-                      <p className={`mt-2 rounded-xl px-3 py-2 text-sm ${o.payout.rule.rule === "unset" ? "bg-ochre-soft text-ochre" : "bg-mist"}`}>
+                      <p className={`mt-2 rounded-xl px-3 py-2 text-sm ${o.payout.rule.rule === "unset" ? "bg-ochre-soft text-warn" : "bg-mist"}`}>
                         <span className="font-semibold">Unused annual leave: </span>
                         {o.payout.amount !== null ? `${o.payout.currency} ${o.payout.amount.toLocaleString("en-US")}. ` : ""}
                         {o.payout.note}

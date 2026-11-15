@@ -56,7 +56,7 @@ export function IndicatorTable({ projectId, userId }: { projectId: string; userI
         <h2 id="ind-year" className="font-display text-2xl">
           {t("prog.title", { year: v.year })}
         </h2>
-        <Link href="/progress/framework" className="text-sm font-semibold text-forest hover:underline">
+        <Link href="/progress/framework" className="btn-link">
           Results framework →
         </Link>
       </div>

@@ -5,7 +5,7 @@ import { workflowSteps, type StepKind, type WorkflowStep } from "@/lib/workflow"
 
 const kindStyles: Record<StepKind, { chip: string; dot: string; tag?: string }> = {
   step: { chip: "bg-mist text-forest", dot: "bg-forest" },
-  gate: { chip: "bg-ochre-soft text-ochre", dot: "bg-ochre", tag: "Gate" },
+  gate: { chip: "bg-ochre-soft text-warn", dot: "bg-ochre", tag: "Gate" },
   yes: { chip: "bg-mist text-leaf", dot: "bg-leaf", tag: "If Yes" },
   no: { chip: "bg-clay-soft text-clay", dot: "bg-clay", tag: "If No" },
 };
@@ -55,7 +55,7 @@ function Node({
           </span>
         )}
       </span>
-      <span className={`mt-auto block font-display text-[1.05rem] leading-snug ${compact ? "pt-1" : "pt-4"}`}>
+      <span className={`mt-auto block font-semibold text-[1.05rem] leading-snug ${compact ? "pt-1" : "pt-4"}`}>
         {step.title}
       </span>
       {!compact && (

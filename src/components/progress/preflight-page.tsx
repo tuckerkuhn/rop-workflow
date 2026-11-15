@@ -94,7 +94,7 @@ export function PreflightPage() {
     <div className="min-h-screen">
       <TopBar />
       <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ochre">{project.name}</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-warn">{project.name}</p>
         <h1 className="mt-1 font-display text-3xl tracking-tight">{t("pf.title")}</h1>
         <p className="mt-2 text-sm text-muted">{t("pf.intro")}</p>
 
@@ -143,7 +143,7 @@ export function PreflightPage() {
                 <p className="text-muted">{t("pf.noDeadline")}</p>
               ) : null}
               {u && !v.released && (
-                <p role="status" className={`mt-2 rounded-xl px-3 py-2 font-semibold ${u === "near" ? "bg-ochre-soft text-ochre" : "bg-clay-soft text-clay"}`}>
+                <p role="status" className={`mt-2 rounded-xl px-3 py-2 font-semibold ${u === "near" ? "bg-ochre-soft text-warn" : "bg-clay-soft text-clay"}`}>
                   <span aria-hidden>⚠ </span>
                   {u === "past" ? t("pf.warn.past", { date: date(d.due!, { day: "numeric", month: "long" }) }) : u === "missed-aim" ? t("pf.warn.missedAim", { n: daysBetween(today(), d.due!) }) : t("pf.warn.near", { n: daysBetween(today(), d.aim!) })}
                 </p>
@@ -163,7 +163,7 @@ export function PreflightPage() {
                   </Link>
                 )}
                 <section className="mt-6">
-                  <h2 className="flex items-center gap-2 font-display text-xl">
+                  <h2 className="flex items-center gap-2 text-xl font-semibold">
                     <span aria-hidden className={`inline-block h-2.5 w-2.5 rounded-full ${blocks.length ? "bg-clay" : "bg-leaf"}`} />
                     {t("pf.blocks")} <span className="text-base text-muted">({blocks.length})</span>
                   </h2>
@@ -178,7 +178,7 @@ export function PreflightPage() {
                   )}
                 </section>
                 <section className="mt-6">
-                  <h2 className="flex items-center gap-2 font-display text-xl">
+                  <h2 className="flex items-center gap-2 text-xl font-semibold">
                     <span aria-hidden className="inline-block h-2.5 w-2.5 rounded-full bg-ochre" />
                     {t("pf.fix")} <span className="text-base text-muted">({fix.length})</span>
                   </h2>
@@ -196,7 +196,7 @@ export function PreflightPage() {
             )}
             {v.ready.length > 0 && (
               <details className="mt-6 rounded-2xl border border-line bg-surface p-4">
-                <summary className="cursor-pointer font-display text-xl">
+                <summary className="cursor-pointer text-xl font-semibold">
                   {t("pf.ready")} <span className="text-base text-muted">({v.ready.length})</span>
                 </summary>
                 <ul className="mt-2 space-y-1 text-sm">

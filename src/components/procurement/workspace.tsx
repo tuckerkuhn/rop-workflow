@@ -306,7 +306,7 @@ function NewRequest({ onCancel, onCreate, from, grant }: { onCancel: () => void;
       className="mx-auto max-w-2xl space-y-6"
     >
       <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ochre">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-warn">
           {item ? `Procurement request · ${item.key}` : "New request"}
           {grant ? ` · for grant ${grant.id}, ${grant.business}` : ""}
         </p>
@@ -425,7 +425,7 @@ function NewRequest({ onCancel, onCreate, from, grant }: { onCancel: () => void;
         ].map(([k, v]) => (
           <div key={k} className="bg-surface px-4 py-3">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">{k}</p>
-            <p className={`mt-1 font-display text-xl tabular-nums ${k === "Left on line" && value > bl.remainingValue ? "text-clay" : ""}`}>{v}</p>
+            <p className={`mt-1 font-semibold text-xl tabular-nums ${k === "Left on line" && value > bl.remainingValue ? "text-clay" : ""}`}>{v}</p>
           </div>
         ))}
       </div>
@@ -551,9 +551,9 @@ function Detail({
         </div>
       ) : (
         <>
-          {checkedBySelf && <p className="rounded-xl bg-ochre-soft px-4 py-3 text-sm text-ochre">You checked this payment, so another Finance person verifies it.</p>}
+          {checkedBySelf && <p className="rounded-xl bg-ochre-soft px-4 py-3 text-sm text-warn">You checked this payment, so another Finance person verifies it.</p>}
           {needsOther && (
-            <p className="rounded-xl bg-ochre-soft px-4 py-3 text-sm text-ochre">
+            <p className="rounded-xl bg-ochre-soft px-4 py-3 text-sm text-warn">
               This signature needs the {ROLE_LABEL[needsOther].toLowerCase()} ({holdersOfType(needsOther).map((id) => userById(id)?.name ?? id).join(" or ") || "nobody named in the authority table"}):{" "}
               {needsOther === "ceo" ? "large awards and every sole source go to the executive head." : "it is outside your role."}
             </p>
@@ -575,7 +575,7 @@ function Detail({
                   )}
                   <div className="flex flex-wrap items-center gap-2">
                     {ownApproval && !mayOwn ? (
-                      <p className="text-sm text-ochre">The person who requested a purchase cannot approve it, so someone else signs here.{ownBarred && solo ? ` ${ownBarred}` : ""}</p>
+                      <p className="text-sm text-warn">The person who requested a purchase cannot approve it, so someone else signs here.{ownBarred && solo ? ` ${ownBarred}` : ""}</p>
                     ) : (
                       <button type="button" disabled={!isReady} onClick={() => (mayOwn ? setSelfing(true) : complete())} className={primaryBtn}>
                         {step.signs && !/^sign\b/i.test(step.action) ? `Sign and ${lowerFirst(step.action)}` : step.action} →

@@ -24,7 +24,7 @@ import { useT } from "@/components/app/i18n";
 type Level = "good" | "warning" | "critical" | "unknown";
 const LEVEL: Record<Level, { word: string; icon: string; chip: string }> = {
   good: { word: "On track", icon: "✓", chip: "bg-mist text-forest" },
-  warning: { word: "Watch", icon: "!", chip: "bg-ochre-soft text-ochre" },
+  warning: { word: "Watch", icon: "!", chip: "bg-ochre-soft text-warn" },
   critical: { word: "Act now", icon: "!", chip: "bg-clay-soft text-clay" },
   unknown: { word: "No data", icon: "–", chip: "bg-sunken text-muted" },
 };
@@ -292,12 +292,12 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
     return (
       <section aria-label={t("home.kobo.title")} className="space-y-5">
         <div className="rounded-2xl border border-forest/40 bg-mist p-4">
-          <h2 className="font-display text-xl">{t("home.kobo.title")}</h2>
+          <h2 className="text-xl font-semibold">{t("home.kobo.title")}</h2>
           <p className="mt-1 text-sm">{t("home.kobo.body")}</p>
         </div>
         {waitingCount(waiting) > 0 && <WaitingOnYou rows={waiting} />}
         <section className="rounded-2xl border border-line bg-surface p-4" aria-labelledby="kobo-recent">
-          <h2 id="kobo-recent" className="font-display text-xl">
+          <h2 id="kobo-recent" className="text-xl font-semibold">
             {t("home.kobo.recent")}
           </h2>
           <p className="mt-1 text-xs text-muted">
@@ -345,7 +345,7 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
         <p className="min-w-0 flex-1 text-lg leading-snug">
           {headline[lens]}
           {lens === "lead" && (
-            <Link href="/portfolio" className="ms-2 whitespace-nowrap text-sm font-semibold text-forest hover:underline">
+            <Link href="/portfolio" className="btn-link ms-2 whitespace-nowrap">
               All projects →
             </Link>
           )}
@@ -376,7 +376,7 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
               className={`min-w-0 rounded-2xl border border-line bg-surface p-4 ${mine.length || (lens === "lead" && (late > 0 || b.overspent.length > 0)) ? "" : "self-start"}`}
               aria-labelledby="needs-you"
             >
-              <h2 id="needs-you" className="font-display text-xl">
+              <h2 id="needs-you" className="text-xl font-semibold">
                 {t("ha.offPlan")}
               </h2>
               {!(lens === "lead" && (late > 0 || b.overspent.length > 0)) && <p className="mt-2 text-sm text-muted">{t("ha.offPlanNone")}</p>}
@@ -417,7 +417,7 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
                 const parts = [moving && `${moving} under way`, done && `${done} done`, idle && `${idle} not started`, held && `${held} on hold`].filter(Boolean).join(", ");
                 return (
                   <>
-                    <h2 id="season" className="font-display text-xl">
+                    <h2 id="season" className="text-xl font-semibold">
                       This quarter&rsquo;s work
                     </h2>
                     {now.length === 0 ? (
@@ -464,7 +464,7 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
                       </>
                     )}
                     <p className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-                      <Link href="/work/activities" className="font-semibold text-forest hover:underline">
+                      <Link href="/work/activities" className="btn-link">
                         {unowned && v.lenses.includes("lead") ? "Assign owners" : "Open activities"} →
                       </Link>
                       {v.season.next.length > 0 && (

@@ -46,7 +46,7 @@ export type Tone = "forest" | "ochre" | "clay" | "muted" | "sky" | "plum";
 export function Pill({ tone, children }: { tone: Tone; children: React.ReactNode }) {
   const t = {
     forest: "bg-mist text-leaf",
-    ochre: "bg-ochre-soft text-ochre",
+    ochre: "bg-ochre-soft text-warn",
     clay: "bg-clay-soft text-clay",
     muted: "bg-sunken text-muted",
     sky: "bg-sky-soft text-sky",
@@ -78,7 +78,7 @@ export function Tracker({ labels, current, marks = {}, warn = false }: { labels:
               {done ? "✓" : now && warn ? "!" : i + 1}
             </span>
             <span className={`mt-1.5 hidden text-[11px] leading-tight sm:block ${now ? "font-semibold text-ink" : "text-muted"}`}>{label}</span>
-            {marks[i] && <span className={`mt-0.5 hidden font-mono text-[9px] sm:block ${done ? "text-forest" : "text-ochre"}`}>{marks[i]}</span>}
+            {marks[i] && <span className={`mt-0.5 hidden font-mono text-[9px] sm:block ${done ? "text-forest" : "text-warn"}`}>{marks[i]}</span>}
           </li>
         );
       })}
@@ -396,7 +396,7 @@ export function StepCard({
         <div>
           <p className={`text-[11px] font-semibold uppercase tracking-[0.14em] ${mine ? "text-forest" : "text-muted"}`}>
             {mine ? "Your turn" : `Waiting on ${ownerLabel}`}
-            {eyebrow && <span className="ml-2 text-ochre">· {eyebrow}</span>}
+            {eyebrow && <span className="ml-2 text-warn">· {eyebrow}</span>}
           </p>
           <h3 className="mt-1 font-display text-2xl tracking-tight">{title}</h3>
           {note && <p className="mt-1 text-sm text-muted">{note}</p>}
@@ -419,7 +419,7 @@ export function StepCard({
 }
 
 export const primaryBtn =
-  "rounded-full bg-forest px-6 py-3 text-sm font-semibold text-forest-ink shadow-[0_12px_24px_-14px_rgb(31_77_54/0.8)] transition enabled:hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-35 disabled:shadow-none";
+  "rounded-full bg-forest px-6 py-3 text-sm font-semibold text-forest-ink shadow-[0_12px_24px_-14px_rgb(49_77_47/0.8)] transition enabled:hover:-translate-y-0.5 enabled:hover:bg-forest-hover disabled:cursor-not-allowed disabled:opacity-35 disabled:shadow-none";
 export const dangerBtn =
   "rounded-full bg-clay px-6 py-3 text-sm font-semibold text-white transition enabled:hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-35";
 export const quietBtn =
@@ -443,7 +443,7 @@ function ProjectSwitcher() {
       <select
         value={project.id}
         onChange={(e) => (e.target.value === NEW ? router.push("/setup?new=1") : setProject(e.target.value))}
-        className="max-w-[11rem] truncate rounded-full sm:max-w-[14rem] border border-line bg-surface py-1.5 ps-3 pe-8 font-display text-sm"
+        className="max-w-[11rem] truncate rounded-full sm:max-w-[14rem] border border-line bg-surface py-1.5 ps-3 pe-8 text-sm font-semibold"
       >
         {projects.map((p) => (
           <option key={p.id} value={p.id}>
@@ -613,7 +613,7 @@ export function AppShell({
                 >
                   {r.short}
                   {counts[r.id] > 0 && (
-                    <span className={`grid h-5 min-w-5 place-items-center rounded-full px-1 text-[11px] font-bold tabular-nums ${role === r.id ? "bg-forest-ink/20" : "bg-ochre-soft text-ochre"}`}>
+                    <span className={`grid h-5 min-w-5 place-items-center rounded-full px-1 text-[11px] font-bold tabular-nums ${role === r.id ? "bg-forest-ink/20" : "bg-ochre-soft text-warn"}`}>
                       {counts[r.id]}
                     </span>
                   )}
@@ -654,7 +654,7 @@ export function ComingUp({
             <button type="button" onClick={() => onOpen?.(c.id)} className="w-full text-left text-sm hover:text-forest" title={c.basis}>
               <span className="flex items-baseline justify-between gap-2">
                 <span className="min-w-0 truncate font-medium">{c.title}</span>
-                <span className="shrink-0 font-mono text-[11px] text-ochre">~{c.eta.slice(5)}</span>
+                <span className="shrink-0 font-mono text-[11px] text-warn">~{c.eta.slice(5)}</span>
               </span>
               <span className="block truncate text-xs text-muted">
                 {c.step} · now {c.via}
@@ -686,7 +686,7 @@ export function NoAccess({ what }: { what: string }) {
 export function QueueHeader({ title, toggleLabel, onToggle }: { title: string; toggleLabel: string; onToggle: () => void }) {
   return (
     <div className="flex items-center justify-between px-4 pb-2 pt-5 sm:px-6">
-      <h1 className="font-display text-xl tracking-tight">{title}</h1>
+      <h1 className="text-xl tracking-tight font-semibold">{title}</h1>
       {toggleLabel && (
         <button type="button" onClick={onToggle} className="text-sm text-muted hover:text-ink">
           {toggleLabel}

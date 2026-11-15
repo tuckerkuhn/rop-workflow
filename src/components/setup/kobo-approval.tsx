@@ -6,7 +6,7 @@ import { field } from "@/components/setup/question";
 import { primaryBtn } from "@/components/workspace/ui";
 import type { KoboApproval } from "@/lib/kobo-approval";
 
-type View = { rule: KoboApproval; options: { id: KoboApproval["who"]; label: string; help: string }[]; people: { id: string; name: string; title: string }[]; approvers: string; canEdit: boolean; accounts: { account: string; person: string | null; saved: boolean }[] };
+type View = { rule: KoboApproval; options: { id: KoboApproval["who"]; label: string; help: string }[]; people: { id: string; name: string; title: string; fieldAccess: string }[]; approvers: string; canEdit: boolean; accounts: { account: string; person: string | null; saved: boolean; suggested: string | null }[] };
 
 /**
  * Who approves what arrives from KoboCollect on this project (lib/kobo-approval): one choice,
@@ -96,6 +96,14 @@ export function KoboApprovalSetting({ code }: { code: string }) {
                   ))}
               </select>
             </label>
+            {[rule.person, rule.standIn]
+              .map((id) => v.people.find((p) => p.id === id))
+              .filter((p) => p && p.fieldAccess === "none")
+              .map((p) => (
+                <p key={p!.id} className="rounded-xl bg-ochre-soft px-3 py-2 text-sm sm:col-span-2">
+                  {p!.name} has no field access, so they can check distributions but cannot open Results to accept results. Switch on field access for them in Settings, People.
+                </p>
+              ))}
             {!rule.standIn && <p className="text-sm text-muted sm:col-span-2">With no stand-in, field data waits whenever this person is away. In the last week of a planting window that can hold farmers up.</p>}
           </div>
         )}
@@ -109,6 +117,7 @@ export function KoboApprovalSetting({ code }: { code: string }) {
           <ul className="mt-3 space-y-2">
             {v.accounts.map((a) => {
               const chosen = rule.accounts?.[a.account] ?? (a.saved ? "" : (a.person ?? ""));
+              const hint = !chosen && a.suggested ? v.people.find((p) => p.id === a.suggested) : undefined;
               return (
                 <li key={a.account} className="grid items-center gap-2 text-sm sm:grid-cols-[1fr_1.4fr]">
                   <span className="font-mono text-xs">{a.account}</span>
@@ -120,6 +129,14 @@ export function KoboApprovalSetting({ code }: { code: string }) {
                       </option>
                     ))}
                   </select>
+                  {hint && (
+                    <p className="text-xs text-muted sm:col-start-2">
+                      Looks like {hint.name}&apos;s account (named like their sign-in email).{" "}
+                      <button type="button" disabled={!v.canEdit || busy} className="font-medium text-forest underline" onClick={() => pick({ accounts: { ...(rule.accounts ?? {}), [a.account]: hint.id } })}>
+                        Confirm
+                      </button>
+                    </p>
+                  )}
                 </li>
               );
             })}

@@ -220,7 +220,7 @@ export function SpreadsheetImport({ code, file, link, onDone, onCancel }: { code
         </span>
       ))}
       {preview.notes.map((p) => (
-        <span key={p} className="mt-1 block text-xs text-ochre">
+        <span key={p} className="mt-1 block text-xs text-warn">
           {p}
         </span>
       ))}
@@ -237,7 +237,7 @@ export function SpreadsheetImport({ code, file, link, onDone, onCancel }: { code
           <ul className="space-y-2">{done.map(card)}</ul>
         </details>
       )}
-      {unmatched > 0 && <span className="mt-2 block text-xs text-ochre">{t("sm.unmatchedNote", { n: unmatched })}</span>}
+      {unmatched > 0 && <span className="mt-2 block text-xs text-warn">{t("sm.unmatchedNote", { n: unmatched })}</span>}
       {err && <span role="alert" className="mt-2 block text-xs text-clay">{err}</span>}
       <span className="mt-3 flex flex-wrap gap-2">
         <button type="button" className={`${primaryBtn} min-h-12`} disabled={busy || preview.problems.length > 0} onClick={() => void doImport()}>

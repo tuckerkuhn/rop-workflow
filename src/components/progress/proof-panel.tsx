@@ -46,7 +46,7 @@ function Sheet({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3">
-          <h2 className="font-display text-xl">{title}</h2>
+          <h2 className="text-xl font-semibold">{title}</h2>
           <button
             type="button"
             onClick={onClose}
@@ -121,7 +121,7 @@ export function ProofNumber({
         {shown}
       </button>
       {proof === 0 && (
-        <span className="ms-1 whitespace-nowrap rounded-full bg-ochre-soft px-1.5 py-0.5 text-[10px] font-semibold text-ochre">
+        <span className="ms-1 whitespace-nowrap rounded-full bg-ochre-soft px-1.5 py-0.5 text-[10px] font-semibold text-warn">
           {t("ev.noProof")}
         </span>
       )}
@@ -236,7 +236,7 @@ export function ProofNumber({
                           </li>
                         )}
                         {none && (
-                          <li className="font-semibold text-ochre">
+                          <li className="font-semibold text-warn">
                             {r.noFile
                               ? t("ev.noFile", { why: r.noFile })
                               : t("ev.noProof")}
@@ -249,7 +249,7 @@ export function ProofNumber({
               </ul>
               <Link
                 href={`/progress/results?indicator=${v.indicator.code}${v.from ? `&from=${v.from}` : ""}&to=${v.to}`}
-                className="mt-4 inline-flex min-h-11 items-center font-semibold text-forest hover:underline"
+                className="btn-link mt-4 min-h-11"
               >
                 {t("ev.open")} →
               </Link>
@@ -312,7 +312,7 @@ export function MoneySourceLink({
           {!v ? (
             <p className="mt-3 text-sm text-muted">{t("ev.loading")}</p>
           ) : !v.length ? (
-            <p className="mt-3 text-sm font-semibold text-ochre">
+            <p className="mt-3 text-sm font-semibold text-warn">
               {t("ev.money.none")}
             </p>
           ) : (
@@ -346,7 +346,7 @@ export function MoneySourceLink({
                       href={s.sharepointUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="mt-1 inline-flex min-h-9 items-center font-semibold text-forest hover:underline"
+                      className="btn-link mt-1 min-h-9"
                     >
                       {t("ev.money.sharepoint")} →
                     </a>

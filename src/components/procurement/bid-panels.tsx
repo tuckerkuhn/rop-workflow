@@ -266,7 +266,7 @@ export function DistributionPanel({
       </div>
       {d.forParticipants && (
         <>
-          {state && <p className={`mt-2 text-sm ${state.ok ? "text-forest" : "text-ochre"}`}>{state.detail}</p>}
+          {state && <p className={`mt-2 text-sm ${state.ok ? "text-forest" : "text-warn"}`}>{state.detail}</p>}
           {d.lists.length > 0 && (
             <ul className="mt-3 space-y-1 text-sm">
               {d.lists.map((l, i) => (

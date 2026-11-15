@@ -42,7 +42,7 @@ export function NextReportPanel({ project, user, owners, data }: { project: stri
   return (
     <section aria-label={t("nr.title", { q: v.quarter.replace("-", " ") })} className="rounded-2xl border border-line bg-surface p-4">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h2 className="font-display text-xl">{t("nr.title", { q: v.quarter.replace("-", " ") })}</h2>
+        <h2 className="text-xl font-semibold">{t("nr.title", { q: v.quarter.replace("-", " ") })}</h2>
         <p className="text-sm text-muted">
           {v.deadline.aim && v.deadline.due ? (
             <>
@@ -59,10 +59,10 @@ export function NextReportPanel({ project, user, owners, data }: { project: stri
           </button>
         )}
         <span className="ms-auto flex flex-wrap gap-x-4 gap-y-1">
-          <Link href={`/progress/report?q=${v.quarter}`} className="text-sm font-semibold text-forest hover:underline">
+          <Link href={`/progress/report?q=${v.quarter}`} className="btn-link">
             {t("pf.openReport")} →
           </Link>
-          <Link href={preflightHref({ kind: "qpr", quarter: v.quarter })} className="text-sm font-semibold text-forest hover:underline">
+          <Link href={preflightHref({ kind: "qpr", quarter: v.quarter })} className="btn-link">
             {t("pf.button")} →
           </Link>
         </span>

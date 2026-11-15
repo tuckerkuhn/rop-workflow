@@ -49,7 +49,7 @@ export function CloseoutPage() {
     <div className="min-h-screen">
       <TopBar active="procurement" />
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ochre">{project.name}</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-warn">{project.name}</p>
         <h1 className="mt-1 font-display text-3xl tracking-tight">Monthly closeout</h1>
         <p className="mt-1 max-w-2xl text-sm text-muted">
           Expense vouchers by month, from procurements and from bills paid directly, with where each is filed in SharePoint and posted in NetSuite. Finance closes a month once every voucher in it is filed and posted.

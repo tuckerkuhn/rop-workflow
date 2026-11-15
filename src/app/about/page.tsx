@@ -36,7 +36,7 @@ function FieldRows() {
 function SectionHeading({ eyebrow, title, children }: { eyebrow: string; title: React.ReactNode; children?: React.ReactNode }) {
   return (
     <Reveal className="max-w-2xl">
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ochre">{eyebrow}</p>
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-warn">{eyebrow}</p>
       <h2 className="mt-4 font-display text-4xl leading-[1.05] tracking-tight text-balance sm:text-5xl">{title}</h2>
       {children && <p className="mt-5 text-lg leading-relaxed text-muted text-pretty">{children}</p>}
     </Reveal>
@@ -56,7 +56,7 @@ export default function About() {
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-8">
           <Link href="/" className="flex items-center gap-2.5">
             <LogoMark />
-            <span className="font-display text-lg tracking-tight">ROP Workflow</span>
+            <span className="text-lg tracking-tight font-semibold">ROP Workflow</span>
           </Link>
           <nav className="hidden items-center gap-8 text-sm text-muted md:flex">
             <a href="#workflow" className="transition hover:text-ink">Workflow</a>
@@ -158,7 +158,7 @@ export default function About() {
         <section className="border-y border-line bg-sunken">
           <div className="mx-auto grid max-w-7xl items-center gap-12 px-5 py-20 sm:px-8 lg:grid-cols-[1.2fr_1fr]">
             <Reveal>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ochre">Connected workflow · Procurement</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-warn">Connected workflow · Procurement</p>
               <h2 className="mt-4 font-display text-4xl leading-[1.05] tracking-tight text-balance sm:text-5xl">
                 Before inputs are distributed, they are bought.
               </h2>
@@ -180,7 +180,7 @@ export default function About() {
                 {["Need", "Requisition", "Authorize", "Select", "Contract", "Receive", "Pay-ready", "Close"].map((s, i) => (
                   <li key={s} className="rounded-xl border border-line bg-surface px-3 py-3">
                     <span className="font-mono text-[10px] text-muted">{String(i + 1).padStart(2, "0")}</span>
-                    <span className="mt-1 block font-display text-sm">{s}</span>
+                    <span className="mt-1 block text-sm font-semibold">{s}</span>
                   </li>
                 ))}
               </ol>
@@ -193,7 +193,7 @@ export default function About() {
         <section id="lifecycle" className="bg-deep text-deep-ink">
           <div className="mx-auto max-w-7xl px-5 py-28 sm:px-8 lg:py-36">
             <Reveal className="max-w-2xl">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ochre">Project lifecycle</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-warn">Project lifecycle</p>
               <h2 className="mt-4 font-display text-4xl leading-[1.05] tracking-tight text-balance sm:text-5xl">
                 The whole arc, from opportunity to closeout.
               </h2>
@@ -213,7 +213,7 @@ export default function About() {
                       </span>
                     )}
                   </div>
-                  <h3 className="mt-8 font-display text-xl">{s.title}</h3>
+                  <h3 className="mt-8 text-xl font-semibold">{s.title}</h3>
                   <p className="mt-2 text-sm leading-relaxed opacity-70">{s.detail}</p>
                 </Reveal>
               ))}
@@ -233,7 +233,7 @@ export default function About() {
             <ol className="divide-y divide-line border-y border-line">
               {principles.map((p, i) => (
                 <Reveal as="li" key={p.title} className="grid grid-cols-[3rem_1fr] gap-4 py-8">
-                  <span className="font-mono text-sm text-ochre">{String(i + 1).padStart(2, "0")}</span>
+                  <span className="font-mono text-sm text-warn">{String(i + 1).padStart(2, "0")}</span>
                   <div>
                     <h3 className="font-display text-2xl tracking-tight">{p.title}</h3>
                     <p className="mt-3 leading-relaxed text-muted">{p.body}</p>
@@ -302,13 +302,13 @@ export default function About() {
         {/* CTA */}
         <section className="mx-auto max-w-7xl px-5 py-28 sm:px-8 lg:py-36">
           <Reveal className="relative overflow-hidden rounded-[2rem] bg-ink px-8 py-16 text-paper sm:px-16 sm:py-20">
-            <svg aria-hidden viewBox="0 0 600 300" className="absolute -right-20 -top-10 h-[130%] w-auto text-ochre opacity-20">
+            <svg aria-hidden viewBox="0 0 600 300" className="absolute -right-20 -top-10 h-[130%] w-auto text-warn opacity-20">
               {Array.from({ length: 10 }, (_, i) => (
                 <path key={i} d={`M 0 ${40 + i * 26} C 160 ${10 + i * 26}, 380 ${80 + i * 26}, 600 ${30 + i * 26}`} fill="none" stroke="currentColor" />
               ))}
             </svg>
             <div className="relative max-w-2xl">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ochre">Next step</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-warn">Next step</p>
               <h2 className="mt-4 font-display text-4xl leading-[1.05] tracking-tight text-balance sm:text-5xl">
                 Run one fictional farmer through all seven steps.
               </h2>

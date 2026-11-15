@@ -76,7 +76,7 @@ export function SettingsPage() {
               const next = d.deadlines.find((x) => x.date >= today());
               const body = (
                 <>
-                  <p className="font-display text-xl">{d.name}</p>
+                  <p className="text-xl font-semibold">{d.name}</p>
                   <p className="mt-1 text-sm text-muted">
                     {t(formatById(d.reportFormat).label)} · {t("settings.tracks", { n: Object.keys(d.indicatorRefs).length || data.indicators.length })} ·{" "}
                     {t("settings.deadlineCount", { n: d.deadlines.length })}

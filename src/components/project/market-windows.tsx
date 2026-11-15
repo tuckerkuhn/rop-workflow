@@ -36,7 +36,7 @@ export function SampleTag({ validated = false }: { validated?: boolean }) {
   return validated ? (
     <span className="rounded bg-mist px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-leaf">Validated</span>
   ) : (
-    <span className="rounded bg-ochre-soft px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ochre">{SAMPLE_LABEL}</span>
+    <span className="rounded bg-ochre-soft px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-warn">{SAMPLE_LABEL}</span>
   );
 }
 
@@ -163,7 +163,7 @@ export function TargetPanel({ state, onClose }: { state: ProjectState; onClose: 
           </ul>
           <p className="mt-3 text-xs text-muted">Window data from the Market Windows feature brief. Area and competitor months are ROP&rsquo;s calendar, kept in Project design.</p>
         </div>
-        <Link href={`/design?project=${state.projectId}`} className="mt-5 inline-block text-sm font-semibold text-forest hover:underline">
+        <Link href={`/design?project=${state.projectId}`} className="btn-link mt-5">
           Open in Project design →
         </Link>
       </aside>
@@ -195,7 +195,7 @@ export function MarketTargetCard({ state, onOpen }: { state: ProjectState; onOpe
             </p>
           )}
         </div>
-        <Link href={`/design?project=${state.projectId}`} className="shrink-0 text-sm font-semibold text-forest hover:underline">
+        <Link href={`/design?project=${state.projectId}`} className="btn-link shrink-0">
           {win ? "Open in Project design →" : "Choose it in Project design →"}
         </Link>
       </div>
@@ -331,7 +331,7 @@ export function Calendar({
         <div className={`${cols} gap-px text-center text-[11px] text-muted`}>
           <span />
           {MONTHS.map((m, i) => (
-            <span key={m} className={`py-1 ${harvest.includes(i + 1) ? "font-semibold text-ochre" : ""}`}>
+            <span key={m} className={`py-1 ${harvest.includes(i + 1) ? "font-semibold text-warn" : ""}`}>
               {m}
             </span>
           ))}

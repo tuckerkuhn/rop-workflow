@@ -26,7 +26,7 @@ export default async function Page({ params }: { params: Promise<{ code: string;
   const photo = (hash: string) => `/api/share/${encodeURIComponent(code)}/${token}/photo/${hash}`;
   return (
     <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ochre">{v.project.donor ?? ""}</p>
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-warn">{v.project.donor ?? ""}</p>
       <h1 className="mt-1 font-display text-3xl tracking-tight sm:text-4xl">{v.project.name}</h1>
       <p className="mt-1 text-lg">Quarterly progress report, {v.quarter.replace("-", " ")}</p>
       <p className="mt-2 text-sm text-muted">
@@ -86,7 +86,7 @@ export default async function Page({ params }: { params: Promise<{ code: string;
         <section className="mt-10 space-y-6">
           {v.sections.map((x) => (
             <div key={x.heading}>
-              <h2 className="font-display text-xl">{x.heading}</h2>
+              <h2 className="text-xl font-semibold">{x.heading}</h2>
               <div className="mt-2 space-y-2 text-sm leading-relaxed">
                 {x.text.split(/\n{2,}/).map((para, k) => (
                   <p key={k} className="whitespace-pre-line">

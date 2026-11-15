@@ -288,7 +288,7 @@ function Validate({ u, state, setState, locked, cal }: Props) {
           <article key={id} className={`rounded-2xl border-2 bg-surface ${ok ? "border-forest/50" : "border-line"}`}>
             <div className="flex flex-wrap items-start justify-between gap-3 border-b border-line px-5 py-4">
               <div>
-                <p className="font-display text-xl">{targetLabel(win)}</p>
+                <p className="text-xl font-semibold">{targetLabel(win)}</p>
                 <p className="text-xs text-muted">
                   {areaOf(state, cal, win.crop).name} · {fitLabel[fitRank(win, areaOf(state, cal, win.crop).months)]} · {n} of {VALIDATION_ITEMS.length} items confirmed
                 </p>
@@ -383,7 +383,7 @@ function Choose({ u, state, setState, locked, cal, projectId, openTarget, intel 
         <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">Decision · target market window</p>
         {!editing && savedWin ? (
           <div className="mt-2">
-            <button type="button" onClick={openTarget} className="font-display text-xl text-forest underline decoration-dotted underline-offset-4">
+            <button type="button" onClick={openTarget} className="text-xl text-forest underline decoration-dotted underline-offset-4 font-semibold">
               {targetText(saved!)}
             </button>
             <p className="mt-1 text-sm leading-relaxed">{saved!.reason}</p>
@@ -529,7 +529,7 @@ export function DesignPage() {
       <TopBar active="design" />
       <div className="mx-auto max-w-[1200px] px-4 py-6 sm:px-6 lg:py-8">
         <header>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ochre">Project design</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-warn">Project design</p>
           <h1 className="mt-1 font-display text-4xl tracking-tight">Find the best validated market window</h1>
           <p className="mt-1 max-w-2xl text-sm text-muted">Start from demand: explore where buyers have unmet demand and when, validate the strongest windows with evidence, then commit the project to one.</p>
           <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
@@ -546,7 +546,7 @@ export function DesignPage() {
             {STEPS.map((s, k) => (
               <li key={s.id}>
                 <a href={`#${s.id}`} className="flex items-baseline gap-2 px-3 py-3 text-sm hover:text-forest">
-                  <span className="font-display text-lg text-muted">{k + 1}</span>
+                  <span className="text-lg text-muted font-semibold">{k + 1}</span>
                   <span className="font-semibold">{s.label}</span>
                   <span className="text-xs text-muted">{stepStatus[s.id]}</span>
                 </a>

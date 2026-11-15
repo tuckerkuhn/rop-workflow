@@ -566,7 +566,7 @@ function ProposalCard({ p, view, fmt, act, onDone }: { p: ProposalView; view: Hr
         {p.reason}
       </p>
       {p.warnings.length > 0 && (
-        <ul className="mt-3 space-y-1 rounded-xl bg-ochre-soft px-3 py-2 text-sm text-ochre">
+        <ul className="mt-3 space-y-1 rounded-xl bg-ochre-soft px-3 py-2 text-sm text-warn">
           {p.warnings.map((w) => (
             <li key={w}>⚠ {w}</li>
           ))}
@@ -577,7 +577,7 @@ function ProposalCard({ p, view, fmt, act, onDone }: { p: ProposalView; view: Hr
           const s = p.signatures[i];
           const isNext = p.status === "pending" && i === p.signatures.length;
           return (
-            <li key={i} className={`rounded-full border px-3 py-1 ${s ? "border-forest text-leaf" : isNext ? "border-ochre text-ochre" : "border-line text-muted"}`}>
+            <li key={i} className={`rounded-full border px-3 py-1 ${s ? "border-forest text-leaf" : isNext ? "border-ochre text-warn" : "border-line text-muted"}`}>
               {i + 1}. {ROLE_LABEL[r]}
               {s ? `: ${view.names[s.by] ?? s.by}${s.as !== r ? ` for the ${ROLE_LABEL[s.as]}` : ""}, ${fmt(s.at)}` : isNext && p.next?.fellBack ? ": falls to the Board (conflict)" : isNext ? ": waiting" : ""}
             </li>
@@ -692,7 +692,7 @@ function ChangeForm({ state, view, onClose, submit }: { state: FormState; view: 
           <label className="block text-sm">
             <span className="font-medium">{state.type === "separate" ? "Last day" : "Takes effect"}</span>
             <input type="date" value={effective} onChange={(e) => setEffective(e.target.value)} className="mt-1 block w-full rounded-xl border border-line bg-paper px-3 py-2.5 text-base sm:w-56" />
-            {effective < today() && <span className="mt-1 block text-ochre">Backdated: the approvers will see this.</span>}
+            {effective < today() && <span className="mt-1 block text-warn">Backdated: the approvers will see this.</span>}
           </label>
         )}
         <label className="block text-sm">
@@ -1284,7 +1284,7 @@ function BambooImport({ user, onDone }: { user: string; onDone: (msg: string) =>
                 {r.reportsTo && ` · reports to ${r.reportsTo}`}
                 {r.skip && <span className="block text-xs">{r.skip}</span>}
                 {r.errors.length > 0 && <span className="block text-xs text-clay">{r.errors.join("; ")}</span>}
-                {r.warnings.length > 0 && <span className="block text-xs text-ochre">{r.warnings.join("; ")}</span>}
+                {r.warnings.length > 0 && <span className="block text-xs text-warn">{r.warnings.join("; ")}</span>}
               </li>
             ))}
           </ul>

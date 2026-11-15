@@ -104,7 +104,7 @@ export async function createSampleProject(orgId: string, orgName: string, by: st
   if (!project) {
     [project] = await db
       .insert(s.projects)
-      .values({ organizationId: orgId, code, name: "Example of a finished project (read-only, fictional apricot)", country: "AF", donor: "Sample Donor Fund", startDate: "2026-01-01", endDate: "2027-12-31", crop: "Apricot", goal: "Apricot farmers earn more from better orchards, solar drying and selling together.", stage: "Execute", kind: "sample" })
+      .values({ organizationId: orgId, code, name: "Example of a finished project: read-only, fictional apricot", country: "AF", donor: "Sample Donor Fund", startDate: "2026-01-01", endDate: "2027-12-31", crop: "Apricot", goal: "Apricot farmers earn more from better orchards, solar drying and selling together.", stage: "Execute", kind: "sample" })
       .returning();
     await logAudit(db, project.id, { entity: "project", entityId: project.id, action: "sample_project_created", by, detail: { code, note: "Fictional sample project (C5): read-only, left out of totals." } });
   }

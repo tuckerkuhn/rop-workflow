@@ -305,7 +305,7 @@ function Plan({ state, field, procs, openEvidence }: SectionProps & { openEviden
                   <span className="font-mono text-xs text-muted">{r.id}</span>
                   <span className="text-xs text-muted">· donor: {r.donorRef}</span>
                 </div>
-                <p className="mt-2 font-display text-xl leading-snug">{r.statement}</p>
+                <p className="mt-2 text-xl leading-snug font-semibold">{r.statement}</p>
                 {inds.length > 0 && (
                   <ul className="mt-3 space-y-2">
                     {inds.map((i) => {
@@ -384,7 +384,7 @@ function Execute({ field, procs }: SectionProps) {
           const link = [4, 6, 7].includes(a.n) ? "/work?source=field" : a.n === 5 ? "/work?source=procurement" : null;
           return (
             <li key={a.n} className="grid grid-cols-[2rem_1fr] gap-3 px-4 py-3 sm:grid-cols-[2rem_1fr_10rem_7rem]">
-              <span className="font-display text-xl text-muted">{a.n}</span>
+              <span className="text-xl text-muted font-semibold">{a.n}</span>
               <div className="min-w-0">
                 <p className="font-medium">{a.name}</p>
                 <p className="truncate text-xs text-muted">{st.detail}</p>
@@ -611,7 +611,7 @@ function Verify({ u, state, setState, roster, kobo, openEvidence }: SectionProps
                           {a.value}
                         </button>
                       )}
-                      {a.pending > 0 && <span className="ml-1 text-xs text-ochre">+{a.pending} in queue</span>}
+                      {a.pending > 0 && <span className="ml-1 text-xs text-warn">+{a.pending} in queue</span>}
                     </td>
                     <td className="px-4 py-3 tabular-nums text-muted">{i.unit === "farmers" ? `${a.byGender.Female} / ${a.byGender.Male}` : "—"}</td>
                     <td className="px-4 py-3">
@@ -897,13 +897,13 @@ function Report({ u, state, setState, field, openEvidence }: SectionProps & { op
         </header>
 
         <section className="mt-6">
-          <h3 className="font-display text-xl">Summary</h3>
+          <h3 className="text-xl font-semibold">Summary</h3>
           <p className="mt-2 leading-relaxed">{summary}</p>
           <p className="mt-1 text-xs text-plum">Drafted by the Report writer (AI) from approved records. Edit before release.</p>
         </section>
 
         <section className="mt-6">
-          <h3 className="font-display text-xl">Results</h3>
+          <h3 className="text-xl font-semibold">Results</h3>
           <table className="mt-2 w-full text-sm">
             <thead className="text-left text-[11px] uppercase tracking-wide text-muted">
               <tr>
@@ -939,7 +939,7 @@ function Report({ u, state, setState, field, openEvidence }: SectionProps & { op
         </section>
 
         <section className="mt-6">
-          <h3 className="font-display text-xl">Budget</h3>
+          <h3 className="text-xl font-semibold">Budget</h3>
           <p className="mt-2 text-sm">
             {state.spend.length ? `${money(spend)} spent to date against ${money(planLines.reduce((s, l) => s + l.plannedToDate, 0))} planned (NetSuite export of ${state.importedOn}).` : "Awaiting this month's NetSuite export."}
           </p>
@@ -947,7 +947,7 @@ function Report({ u, state, setState, field, openEvidence }: SectionProps & { op
 
         {stories.length > 0 && (
           <section className="mt-6">
-            <h3 className="font-display text-xl">Success stories</h3>
+            <h3 className="text-xl font-semibold">Success stories</h3>
             {stories.map(({ s, f }) => (
               <p key={s.id} className="mt-2 text-sm leading-relaxed">
                 <span className="font-semibold">{s.title}.</span> {maskName(s.text, f, null)}
@@ -958,7 +958,7 @@ function Report({ u, state, setState, field, openEvidence }: SectionProps & { op
         )}
 
         <section className="mt-6">
-          <h3 className="font-display text-xl">Challenges and changes</h3>
+          <h3 className="text-xl font-semibold">Challenges and changes</h3>
           <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
             {approvedChanges.map((c) => (
               <li key={c.id}>{c.text}</li>
@@ -1244,7 +1244,7 @@ export function ProjectPage({ id }: { id: string }) {
                     className={`relative px-3 py-3 text-sm transition ${shownTab === t ? "font-semibold text-ink" : "text-muted hover:text-ink"}`}
                   >
                     {t}
-                    {t === "Verify" && pendingCount > 0 && <span className="ml-1.5 rounded-full bg-ochre-soft px-1.5 text-[11px] font-bold text-ochre">{pendingCount}</span>}
+                    {t === "Verify" && pendingCount > 0 && <span className="ml-1.5 rounded-full bg-ochre-soft px-1.5 text-[11px] font-bold text-warn">{pendingCount}</span>}
                     {shownTab === t && <span className="absolute inset-x-2 bottom-0 h-0.5 rounded bg-forest" />}
                   </button>
                 ))}
@@ -1308,7 +1308,7 @@ function DatabaseProjectOverview() {
         {cards.map((c) => (
           <li key={c.href}>
             <Link href={c.href} className="block h-full rounded-2xl border border-line bg-surface p-4 transition hover:border-forest">
-              <span className="font-display text-lg">{c.title}</span>
+              <span className="text-lg font-semibold">{c.title}</span>
               <span className="mt-1 block text-sm text-muted">{c.text}</span>
             </Link>
           </li>

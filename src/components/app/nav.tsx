@@ -7,7 +7,7 @@ import { taskHref, taskSources } from "@/components/tasks/sources";
 import { useSession } from "@/components/app/session";
 import { useT } from "@/components/app/i18n";
 import { Assistant } from "@/components/app/assistant";
-import { LogoMark } from "@/components/logo";
+import { Logo } from "@/components/logo";
 import type { MessageKey } from "@/lib/i18n";
 import { orgAreasFor } from "@/lib/org-areas";
 import { holdsType } from "@/lib/authority";
@@ -115,9 +115,9 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
   return (
     <>
       <aside className="fixed inset-y-0 start-0 z-40 hidden w-56 flex-col border-e border-line bg-surface lg:flex">
-        <Link href="/home" className="flex items-center gap-2 px-5 py-4">
-          <LogoMark className="h-7 w-7" />
-          <span className="font-display text-sm">Roots of Peace</span>
+        <Link href="/home" className="flex flex-col items-start gap-3 px-6 pb-4 pt-7">
+          <Logo className="w-[150px]" />
+          <span className="text-xs font-medium text-muted">Workflow</span>
         </Link>
         <nav aria-label={t("nav.label")} className="mt-2 flex flex-col gap-1 px-3">
           {shown.map((s) => {

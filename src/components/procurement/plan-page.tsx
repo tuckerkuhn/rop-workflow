@@ -95,7 +95,7 @@ export function ProcurementPlanPage() {
     <Shell>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ochre">{project.name}</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-warn">{project.name}</p>
           <h1 className="mt-1 font-display text-3xl tracking-tight">Procurement calendar</h1>
           <p className="mt-1 max-w-2xl text-sm text-muted">
             Built from the budget lines marked to procure. The procurement manager and each line&apos;s technical lead approve it; approved purchases go on the Tasks calendar on the day they have to start.
@@ -333,7 +333,7 @@ function Detail({
           <p className="font-mono text-xs text-muted">
             {item.key} · {item.budgetCode}
           </p>
-          <h2 id="plan-detail-title" className="mt-1 font-display text-xl leading-snug">
+          <h2 id="plan-detail-title" className="mt-1 text-xl leading-snug font-semibold">
             {item.title}
           </h2>
           <p className="mt-2 flex flex-wrap gap-1">

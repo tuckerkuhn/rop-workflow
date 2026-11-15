@@ -156,10 +156,10 @@ export function ProgressPage() {
                   ["Report and learn", [["/progress/weekly", "Weekly update"], ["/progress/report", "Quarterly report"], ["/progress/annual", "Annual and final reports"], ["/progress/learning", "Lessons and close-out"]]],
                 ] as [string, [string, string][]][]
               ).map(([head, links]) => (
-                <span key={head} className="block">
+                <span key={head} className="flex flex-col items-start gap-1.5">
                   <span className="block text-xs font-semibold uppercase tracking-wide text-muted">{head}</span>
                   {links.map(([href, label]) => (
-                    <Link key={href} href={href} className="mt-1.5 block font-semibold text-forest hover:underline">
+                    <Link key={href} href={href} className="btn-link">
                       {label} <Arrow />
                     </Link>
                   ))}
@@ -174,7 +174,7 @@ export function ProgressPage() {
   );
 }
 
-const TRACK_TONE: Record<TrackStatus, string> = { on_track: "text-leaf", slightly_behind: "text-ochre", behind: "text-clay", not_measured: "text-muted" };
+const TRACK_TONE: Record<TrackStatus, string> = { on_track: "text-leaf", slightly_behind: "text-warn", behind: "text-clay", not_measured: "text-muted" };
 
 function IndicatorCard({ i, donorCode, canMap }: { i: IndicatorProgress; donorCode?: string; canMap: boolean }) {
   const { t, date } = useT();
@@ -227,10 +227,10 @@ function IndicatorCard({ i, donorCode, canMap }: { i: IndicatorProgress; donorCo
         ) : (
           <span className="text-forest">{t("progress.thisPeriod", { n: i.period ?? 0 })}</span>
         )}
-        {i.pending > 0 && <span className="text-ochre">{t("progress.pending", { n: i.pending })}</span>}
+        {i.pending > 0 && <span className="text-warn">{t("progress.pending", { n: i.pending })}</span>}
         {i.lastDate && <span className="text-muted">{t("progress.last", { date: date(i.lastDate) })}</span>}
         {i.dataSource === "results" && (
-          <Link href={`/progress/results?indicator=${i.code}`} className="font-semibold text-forest hover:underline">
+          <Link href={`/progress/results?indicator=${i.code}`} className="btn-link">
             Records and proof <Arrow />
           </Link>
         )}

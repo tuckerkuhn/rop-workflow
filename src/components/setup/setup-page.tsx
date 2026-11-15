@@ -159,7 +159,7 @@ function Wizard({ code: initialCode, first }: { code: string | null; first: Step
   return (
     <Frame wide={step === "budget" || step === "workplan"}>
       {signedOff && code && <SignedOffBanner code={code} stage={stage} />}
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ochre">{t(code ? "setup.editTitle" : "setup.newTitle")}</p>
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-warn">{t(code ? "setup.editTitle" : "setup.newTitle")}</p>
       <div className="mt-2 h-1 overflow-hidden rounded-full bg-sunken" aria-hidden>
         <div className="h-full rounded-full bg-forest transition-all" style={{ width: `${((index + 1) / steps.length) * 100}%` }} />
       </div>
@@ -522,13 +522,13 @@ function Review({ draft, editing, onEdit }: { draft: ProjectDesign; editing: boo
       </dl>
       {editing && (
         <p className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-sm">
-          <button type="button" onClick={() => onEdit("kobo-connect")} className="font-semibold text-forest hover:underline">
+          <button type="button" onClick={() => onEdit("kobo-connect")} className="btn-link">
             {t("setup.koboLink")} <Arrow />
           </button>
-          <Link href="/design" className="font-semibold text-forest hover:underline">
+          <Link href="/design" className="btn-link">
             {t("setup.marketLink")} <Arrow />
           </Link>
-          <Link href="/settings" className="font-semibold text-forest hover:underline">
+          <Link href="/settings" className="btn-link">
             {t("home.settings")} <Arrow />
           </Link>
         </p>

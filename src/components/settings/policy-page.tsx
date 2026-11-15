@@ -72,7 +72,7 @@ export function PolicyPage() {
     <div className="min-h-screen">
       <TopBar />
       <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ochre">{project.name}</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-warn">{project.name}</p>
         <h1 className="mt-1 font-display text-3xl tracking-tight">Rules this project follows</h1>
         <p className="mt-1 max-w-3xl text-sm text-muted">
           The organization&apos;s own procedures always apply. Where the donor requires more, it shows as a gap; once approved, the donor&apos;s requirement is layered on for this project. Where nothing satisfies both, an administrator decides. Every approval and decision is kept.
@@ -128,7 +128,7 @@ export function PolicyPage() {
                 {v.donor && <p className="mt-2 text-sm text-muted">{v.donor.summary}</p>}
                 {v.donor && <Docs docs={v.donor.documents} />}
                 {mayChoose && (
-                  <Link href="/setup?step=deadlines" className="mt-2 inline-block text-sm font-semibold text-forest hover:underline">
+                  <Link href="/setup?step=deadlines" className="btn-link mt-2">
                     Read the deadlines and rules from the signed agreement →
                   </Link>
                 )}

@@ -243,7 +243,8 @@ async function prepare(code: string, project: Project, id: string, m: Omit<DistM
   const linkFor = (who: string) => `${origin}/approve/${encodeURIComponent(code)}/${id}?t=${tokens.get(who)}`;
   let emailed = false;
   let why: string | undefined;
-  if (held) why = `Waiting for ${deciderNames((await people()).filter((u) => onProject(u, code)), { fromKobo: true, collector: collectorOf(m.recordedBy, rule!, (await people()).filter((u) => onProject(u, code))) }, rule!)} to check the KoboCollect record first`;
+  const team = held ? (await people()).filter((u) => onProject(u, code)) : [];
+  if (held) why = `Waiting for ${deciderNames(team, { fromKobo: true, collector: collectorOf(m.recordedBy, rule!, team) }, rule!)} to check the KoboCollect record first`;
   else if (!to.length) why = managers.length ? "No email address for the project manager in the staff list" : "No project manager on this project";
   else if (!process.env.RESEND_API_KEY) why = "Email is not set up (RESEND_API_KEY)";
   else {
@@ -269,13 +270,13 @@ function approvalEmail(name: string, code: string, m: DistMeta, link: string, ag
   const subject = `${m.gate.ok ? (again ? "Fixed, approval needed" : "Approval needed") : "On hold"}: input distribution in ${m.village || code}${m.flags.length ? ` (${m.flags.length} to check)` : ""}`;
   const fixed = again ? `You sent this back. ${again.by} fixed it and sent it again: ${again.note}` : "";
   const flags = m.flags.length ? m.flags.map((f) => f.text) : ["Nothing flagged."];
-  const html = `<div style="font-family:Calibri,Arial,sans-serif;font-size:15px;color:#222;max-width:560px">
+  const html = `<div style="font-family:Inter,Arial,sans-serif;font-size:15px;color:#2B2B2B;max-width:560px">
 <p>${esc(name.split(" ")[0])},</p>
 <p>${esc(m.farmerId || "A farmer")} in ${esc(m.village || code)} (project ${esc(code)}) received the input package: ${esc(what)}. Recorded by ${esc(m.recordedBy)}.</p>${fixed ? `\n<p>${esc(fixed)}</p>` : ""}
 <p style="margin-bottom:4px"><strong>Checks</strong></p><ul style="padding-left:18px;margin-top:0">${m.gate.lines.map((l) => `<li>${esc(l.detail)}</li>`).join("")}</ul>
 <p style="margin-bottom:4px"><strong>To look at</strong></p><ul style="padding-left:18px;margin-top:0">${flags.map((f) => `<li>${esc(f)}</li>`).join("")}</ul>
-<p><a href="${link}" style="background:#1F4E3D;color:#fff;padding:8px 14px;border-radius:6px;text-decoration:none">${m.gate.ok ? "Review and approve" : "View details"}</a></p>
-<p style="color:#888;font-size:12px">The link works once and for ${LINK_DAYS} days. Farmer IDs only: names stay in the app.</p></div>`;
+<p><a href="${link}" style="background:#314D2F;color:#fff;padding:8px 14px;border-radius:6px;text-decoration:none">${m.gate.ok ? "Review and approve" : "View details"}</a></p>
+<p style="color:#6B7280;font-size:12px">The link works once and for ${LINK_DAYS} days. Farmer IDs only: names stay in the app.</p></div>`;
   const text = [`${name.split(" ")[0]},`, "", `${m.farmerId || "A farmer"} in ${m.village || code} (project ${code}) received the input package: ${what}. Recorded by ${m.recordedBy}.`, ...(fixed ? ["", fixed] : []), "", "Checks:", ...m.gate.lines.map((l) => `- ${l.detail}`), "", "To look at:", ...flags.map((f) => `- ${f}`), "", link].join("\n");
   return { subject, html, text };
 }

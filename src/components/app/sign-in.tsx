@@ -8,7 +8,7 @@ import {
   supabaseBrowser,
   useSession,
 } from "@/components/app/session";
-import { LogoMark } from "@/components/logo";
+import { Logo } from "@/components/logo";
 import { users } from "@/lib/demo";
 import { fieldRoleLabel } from "@/lib/field";
 import { roleLabel } from "@/lib/procurement";
@@ -36,7 +36,7 @@ export function SignIn() {
         <svg
           aria-hidden
           viewBox="0 0 600 600"
-          className="pointer-events-none absolute -bottom-24 -right-24 h-[120%] w-auto text-ochre opacity-15"
+          className="pointer-events-none absolute -bottom-24 -right-24 h-[120%] w-auto text-warn opacity-15"
         >
           {Array.from({ length: 14 }, (_, i) => (
             <path
@@ -48,10 +48,8 @@ export function SignIn() {
           ))}
         </svg>
         <div className="relative flex items-center gap-3">
-          <LogoMark className="h-9 w-9" />
-          <span className="font-display text-lg">
-            Roots of Peace · Workflow
-          </span>
+          <Logo onDark className="w-[180px]" />
+          <span className="text-sm font-medium opacity-80">Workflow</span>
         </div>
         <div className="relative my-16 max-w-md">
           <h1 className="font-display text-5xl leading-[1.02] tracking-tight text-balance">

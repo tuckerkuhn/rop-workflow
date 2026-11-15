@@ -104,7 +104,7 @@ export function Assistant() {
               <Sparkle className="h-5 w-5" />
             </span>
             <div className="min-w-0 flex-1">
-              <h2 id="assistant-title" className="font-display text-xl">
+              <h2 id="assistant-title" className="text-xl font-semibold">
                 {t("assistant.name")}
               </h2>
               <p className="truncate text-xs text-muted">{t("assistant.for", { project: project.name })}</p>
@@ -145,7 +145,7 @@ export function Assistant() {
                         {x.links.length > 0 && (
                           <p className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-sm">
                             {x.links.map((l) => (
-                              <Link key={l.href + l.label} href={l.href} onClick={() => setOpen(false)} className="font-semibold text-forest hover:underline">
+                              <Link key={l.href + l.label} href={l.href} onClick={() => setOpen(false)} className="btn-link">
                                 {l.label} →
                               </Link>
                             ))}

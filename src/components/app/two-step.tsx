@@ -150,7 +150,7 @@ export function TwoStepSettings() {
   };
   return (
     <section className="rounded-2xl border border-line bg-surface p-5">
-      <h2 className="font-display text-xl">Two-step sign-in</h2>
+      <h2 className="text-xl font-semibold">Two-step sign-in</h2>
       <p className="mt-1 text-sm text-muted">A code from an authenticator app on your phone, as well as your password or emailed code. It protects pay, bank details and the HR record if a password is stolen.</p>
       {error && <p className="mt-2 text-sm text-clay">{error}</p>}
       {factors === null ? (

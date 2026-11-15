@@ -39,7 +39,7 @@ export function PortfolioPage() {
           {v?.rows.map((p) => (
             <li key={p.code} className="rounded-2xl border border-line bg-surface p-4">
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="min-w-0 flex-1 font-display text-xl">{p.name}</h2>
+                <h2 className="min-w-0 flex-1 text-xl font-semibold">{p.name}</h2>
                 <Pill tone="muted">{p.stage}</Pill>
                 {p.ready && <Pill tone={p.level === "good" ? "forest" : p.level === "warning" ? "ochre" : "clay"}>{p.late ? `${p.late} late` : "On schedule"}</Pill>}
               </div>
@@ -74,7 +74,7 @@ export function PortfolioPage() {
               ) : (
                 <p className="mt-2 text-sm text-muted">No plan signed off yet.</p>
               )}
-              <Link href="/progress" onClick={() => setProject(p.code)} className="mt-2 inline-block text-sm font-semibold text-forest hover:underline">
+              <Link href="/progress" onClick={() => setProject(p.code)} className="btn-link mt-2">
                 Open {p.short} →
               </Link>
             </li>

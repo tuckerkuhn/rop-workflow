@@ -95,7 +95,7 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
   const field = "mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm";
   return (
     <main className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ochre">Project {code} · input distribution</p>
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-warn">Project {code} · input distribution</p>
       <h1 className="mt-1 font-display text-3xl tracking-tight">{d ? `${d.farmerId}${d.village ? `, ${d.village}` : ""}` : "Distribution"}</h1>
       {error && <p className="mt-4 rounded-lg border border-clay/40 bg-surface px-4 py-3 text-sm text-clay">{error}</p>}
       {!d && !error && <p className="mt-4 text-muted">Loading…</p>}

@@ -84,7 +84,7 @@ function Node({ node, canEdit, save, year }: { node: TreeNode; canEdit: boolean;
   const wrap = depth === 1 ? "mt-6 rounded-2xl border border-line bg-surface p-4" : depth === 2 ? "mt-4 border-s-2 border-forest/40 ps-4" : "mt-3 rounded-xl bg-paper p-3";
   return (
     <section className={wrap} aria-label={`${node.level} ${node.key}`}>
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-ochre">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-warn">
         {node.level} {node.key}
       </p>
       {node.level === "Activity" ? <p className="text-sm font-semibold">{node.text ?? "—"}</p> : <Wording k={node.key} level={node.level} text={node.text} source={node.source} suggested={node.suggested} canEdit={canEdit} save={save} />}
@@ -167,7 +167,7 @@ export function FrameworkPage() {
         <h1 className="mt-2 font-display text-4xl tracking-tight">Results framework</h1>
         <p className="mt-1 text-sm text-muted">{t("pw.frameworkIntro")}</p>
         <p className="mt-2 text-sm">
-          <Link href="/progress/targets" className="font-semibold text-forest hover:underline">
+          <Link href="/progress/targets" className="btn-link">
             {t("td.title")} <span aria-hidden className="inline-block rtl:rotate-180">→</span>
           </Link>
         </p>

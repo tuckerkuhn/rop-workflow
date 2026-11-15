@@ -49,7 +49,7 @@ function ThisWeek({ rows, progress, actions }: { rows: Row[]; progress: ReturnTy
         <h2 id="this-week" className="font-display text-2xl">
           {t("home.thisWeek")}
         </h2>
-        <Link href="/work" className="text-sm font-semibold text-forest hover:underline">
+        <Link href="/work" className="btn-link">
           {t("home.seeTasks")} <Arrow />
         </Link>
       </div>
@@ -131,7 +131,7 @@ function Glance({ user, project, stage, progress }: { user: AppUser; project: Pr
                   <span className="flex items-baseline justify-between gap-3 text-sm">
                     <span className="min-w-0 truncate">{i.name}</span>
                     <span className="shrink-0 tabular-nums">
-                      <span className="font-display text-lg">{i.total ?? "—"}</span>
+                      <span className="text-lg font-semibold">{i.total ?? "—"}</span>
                       <span className="text-muted"> / {i.target}</span>
                     </span>
                   </span>

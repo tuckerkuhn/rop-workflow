@@ -39,7 +39,7 @@ export function GettingStarted({ project, user }: { project: string; user: strin
   return (
     <section aria-label="Getting started" className="rounded-2xl border border-forest/30 bg-mist p-4">
       <div className="flex items-baseline gap-3">
-        <h2 className="font-display text-xl">Getting started</h2>
+        <h2 className="text-xl font-semibold">Getting started</h2>
         <span className="text-sm text-muted">
           {done} of {steps.length} done
         </span>

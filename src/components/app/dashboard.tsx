@@ -45,7 +45,7 @@ function Pipeline({ cards }: { cards: WorkCard[] }) {
         <div key={g.label} className="min-w-0 rounded-2xl border border-line bg-surface p-3">
           <div className="flex items-baseline justify-between px-1">
             <p className="text-sm font-semibold">{g.label}</p>
-            <p className="font-display text-xl tabular-nums text-muted">{g.cards.length}</p>
+            <p className="text-xl tabular-nums text-muted font-semibold">{g.cards.length}</p>
           </div>
           <ul className="mt-2 space-y-2">
             {g.cards.map((c) => (
@@ -56,7 +56,7 @@ function Pipeline({ cards }: { cards: WorkCard[] }) {
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-[10px] font-semibold uppercase tracking-wide text-muted">{c.space}</span>
-                    <span className={`font-mono text-[11px] ${c.late ? "text-clay" : c.now ? "text-forest" : "text-ochre"}`}>
+                    <span className={`font-mono text-[11px] ${c.late ? "text-clay" : c.now ? "text-forest" : "text-warn"}`}>
                       {c.late ? "late · " : c.now ? "" : "~"}
                       {c.date.slice(5)}
                     </span>
@@ -230,7 +230,7 @@ function DonorHome({ field, project }: { field: FieldItem[]; project: ProjectSta
           <SectionLabel>
             {PROJECT.name} · {PROJECT.season}
           </SectionLabel>
-          <Link href="/work?source=field" className="text-sm font-semibold text-forest hover:underline">
+          <Link href="/work?source=field" className="btn-link">
             View field activities →
           </Link>
         </div>
@@ -257,7 +257,7 @@ function DonorHome({ field, project }: { field: FieldItem[]; project: ProjectSta
             <article key={s.id + s.farmer.id} className="rounded-2xl border border-forest/30 bg-mist p-5">
               <p className="font-display text-2xl leading-snug text-forest">{s.title}</p>
               <p className="mt-2 leading-relaxed">{maskName(s.text, s.farmer, user)}</p>
-              <Link href={`/field/farmers/${s.farmer.id}`} className="mt-3 inline-block text-sm font-semibold text-forest hover:underline">
+              <Link href={`/field/farmers/${s.farmer.id}`} className="btn-link mt-3">
                 {farmerName(s.farmer, user)}&rsquo;s profile →
               </Link>
             </article>
@@ -427,7 +427,7 @@ export function Dashboard() {
             <p>
               Viewing <span className="font-semibold">{subject.name}</span>&rsquo;s work, read-only. {subject.reportsTo && subject.reportsTo !== user.id ? `Reports to ${userById(subject.reportsTo)?.name}.` : "Reports to you."}
             </p>
-            <button type="button" onClick={() => view(subject.reportsTo && subject.reportsTo !== user.id ? subject.reportsTo : null)} className="font-semibold text-ochre hover:underline">
+            <button type="button" onClick={() => view(subject.reportsTo && subject.reportsTo !== user.id ? subject.reportsTo : null)} className="font-semibold text-warn hover:underline">
               ← Back
             </button>
           </div>
