@@ -30,6 +30,8 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
   const [done, setDone] = useState<"" | "approved" | "sent_back" | "resubmit">("");
   /** After a decision: the purchases whose lists grew, or who has the task to fix it. */
   const [reached, setReached] = useState<string[]>([]);
+  // The target the approval added a result to, when it added one.
+  const [counted, setCounted] = useState<string | null>(null);
   const url = `/api/projects/${encodeURIComponent(code)}/distributions/${id}`;
   const headers = { "Content-Type": "application/json", "x-demo-user": user?.id ?? "" };
 
@@ -59,6 +61,7 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
     setD(body.distribution);
     setError("");
     setDone(decision);
+    setCounted(decision === "approved" && body.result ? (body.target ?? null) : null);
     setReached(decision === "approved" ? (body.procurements ?? []) : body.fixer ? [body.fixer] : []);
   }
 
@@ -194,7 +197,7 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
               <p className="font-semibold">{done === "approved" ? "Approved." : done === "sent_back" ? "Sent back." : "Sent again."}</p>
               {done === "approved" && (
                 <ul className="mt-1 list-disc space-y-0.5 pl-5">
-                  <li>Results: it now counts toward the distribution target.</li>
+                  <li>{counted ? `Results: one farmer added to target ${counted}. It counts once MEL accepts it.` : "Results: not added to a target. Nobody has chosen the target that counts distributions (input package settings), or this record came from KoboCollect, which counts through its own form."}</li>
                   {reached.length > 0 && <li>Procurement: added to the distribution list on {reached.join(" and ")}.</li>}
                   <li>Finance: told when the purchase has a payment to release.</li>
                   <li>Audit log: your decision is recorded.</li>

@@ -75,6 +75,8 @@ export const resultSchema = z
     original: z.object({ lang: z.enum(["fa", "ps", "other"]), title: z.string().max(400).optional(), note: z.string().max(8000).optional(), captions: z.record(z.string(), z.string().max(600)).optional(), pending: z.boolean().optional(), model: z.string().max(80).optional() }).optional(),
     /** The KoboToolbox submission it came from, when it came from one. */
     kobo: z.object({ asset: z.string().max(80), uuid: z.string().max(80), id: z.number().int().optional() }).optional(),
+    /** The input distribution it was made from (its record id), when the project manager's approval made it. */
+    distribution: z.string().max(80).optional(),
     /** Why there is no file yet, when there is none. */
     noFile: z.string().trim().max(300).optional(),
   })

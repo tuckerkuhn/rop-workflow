@@ -67,7 +67,8 @@ export async function addResults(code: string, inputs: ResultInput[], by: string
 }
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
-async function insertResult(tx: Tx, project: Awaited<ReturnType<typeof projectByCode>>, input: ResultInput, by: string) {
+/** One result, pending for MEL, inside a transaction the caller already has open. */
+export async function insertResult(tx: Tx, project: Awaited<ReturnType<typeof projectByCode>>, input: ResultInput, by: string) {
   const [r] = await tx
     .insert(s.evidence)
     .values({

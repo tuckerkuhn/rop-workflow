@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { and, asc, eq } from "drizzle-orm";
 import { z } from "zod";
+import { db, schema as s } from "@/db";
 import { canEditProject } from "@/lib/demo";
 import { FIELD_SETUP_KEY, setupProblem, type FieldSetup } from "@/lib/package";
 import { requireViewer } from "@/server/auth";
@@ -9,6 +11,13 @@ import { loadBudget } from "@/server/plan-store";
 import { loadProjectState, saveProjectState } from "@/server/project-state";
 
 type Ctx = { params: Promise<{ code: string }> };
+
+const resultTargets = (projectId: string) =>
+  db
+    .select({ code: s.indicators.code, name: s.indicators.name, unit: s.indicators.unit })
+    .from(s.indicators)
+    .where(and(eq(s.indicators.projectId, projectId), eq(s.indicators.source, "results")))
+    .orderBy(asc(s.indicators.position));
 
 /**
  * A project's input package and season for Field activities (lib/package). GET also gives the
@@ -26,6 +35,8 @@ export async function GET(req: Request, { params }: Ctx) {
       setup: await setupOf(project),
       draft: stored?.draft ? stored : null,
       lines: budget.lines.map((l) => ({ code: l.code, description: l.description, unit: l.unit })),
+      // The targets an approved distribution can count toward: the ones that take recorded results.
+      targets: await resultTargets(project.id),
       canEdit: canEditProject(v.user) && v.user.kind === "employee",
     });
   });
@@ -46,6 +57,7 @@ const body = z.object({
   village: z.string().trim().max(80).optional(),
   crop: z.string().trim().max(80).optional(),
   windowEnd: z.union([z.string().regex(/^\d{4}-\d{2}-\d{2}$/), z.literal("")]).optional(),
+  target: z.union([z.string().regex(/^IND-\d+$/), z.literal("")]).optional(),
 });
 
 /** Saves the package. From then on the project has Field activities. */
@@ -55,7 +67,7 @@ export async function PUT(req: Request, { params }: Ctx) {
     const v = await requireViewer(req, { write: true, allow: (u) => canEditProject(u) && u.kind === "employee", why: "Only the project manager and plan approvers can set up the input package." });
     if (v instanceof NextResponse) return v;
     const b = await readBody(req, body, "The package could not be saved: check each item has a name, unit, amount and budget line.");
-    const setup: FieldSetup = { ...b, windowEnd: b.windowEnd || undefined };
+    const setup: FieldSetup = { ...b, windowEnd: b.windowEnd || undefined, target: b.target || undefined };
     const problem = setupProblem(setup);
     if (problem) return NextResponse.json({ error: problem }, { status: 400 });
     const budget = await loadBudget(code).catch(() => null);
@@ -63,9 +75,10 @@ export async function PUT(req: Request, { params }: Ctx) {
     const unknown = known.size ? setup.items.find((i) => !known.has(i.budgetLine)) : undefined;
     if (unknown) return NextResponse.json({ error: `${unknown.item}: budget line ${unknown.budgetLine} is not in this project's budget.` }, { status: 400 });
     const project = await projectByCode(code);
+    if (setup.target && !(await resultTargets(project.id)).some((i) => i.code === setup.target)) return NextResponse.json({ error: "That target is not one of this project's targets that take recorded results." }, { status: 400 });
     const before = await setupOf(project);
     await saveProjectState(project.id, FIELD_SETUP_KEY, setup);
-    await audit(code, { entity: "field", entityId: crypto.randomUUID(), action: "field_setup_saved", by: v.user.id, detail: { before: before?.items ?? null, after: setup.items } });
+    await audit(code, { entity: "field", entityId: crypto.randomUUID(), action: "field_setup_saved", by: v.user.id, detail: { before: before?.items ?? null, after: setup.items, target: { before: before?.target ?? null, after: setup.target ?? null } } });
     return NextResponse.json({ setup });
   });
 }

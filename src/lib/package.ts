@@ -31,6 +31,12 @@ export type FieldSetup = {
   crop?: string;
   /** Last day of the planting window (YYYY-MM-DD). */
   windowEnd?: string;
+  /**
+   * The target that counts farmers who received the package (its code, e.g. "IND-2"). When set,
+   * each distribution the project manager approves becomes one result for it, waiting for MEL
+   * like any other result, so nobody types the same distribution in twice.
+   */
+  target?: string;
 };
 
 export const FIELD_SETUP_KEY = "field-setup";
@@ -121,5 +127,6 @@ export function setupProblem(s: FieldSetup): string | null {
     if (!p.budgetLine.trim()) return `${which} needs the budget line it is bought on.`;
   }
   if (s.windowEnd && !/^\d{4}-\d{2}-\d{2}$/.test(s.windowEnd)) return "The planting window's last day must be a date.";
+  if (s.target && !/^IND-\d+$/.test(s.target)) return "Choose the target from the list.";
   return null;
 }

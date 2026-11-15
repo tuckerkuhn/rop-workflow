@@ -1,6 +1,7 @@
 import { received } from "@/lib/connections";
 import { convert, fmtQty as fmt, itemsFor, type DistItem, type FieldSetup } from "@/lib/package";
 import { receivedQty, stages, stepById, type Procurement } from "@/lib/procurement";
+import type { ResultInput } from "@/lib/results";
 
 export { toKg, convert, type DistItem } from "@/lib/package";
 
@@ -167,4 +168,27 @@ export function flagsFor(d: { farmerId: string; items: DistItem[]; photo: boolea
   // In the app the farmer has just moved on from "distribute"; from Kobo they should be at it.
   if (d.step !== null && !["distribute", "plant", "complete"].includes(d.step)) out.push({ id: "notready", text: `${d.farmerId} has not been cleared as ready (their step is "${d.step}").` });
   return out;
+}
+
+/* ---------- an approved distribution counts toward a target ---------- */
+
+/**
+ * The result an approved distribution adds to the project's target for farmers who received the
+ * package: one farmer, on the day it was given, with the distribution record as its proof. Made
+ * from the record the storekeeper already entered, so the same distribution is never typed in a
+ * second time on the Results page. The farmer is named by number and village only.
+ */
+export function resultFor(d: { id: string; farmerId: string; village?: string; gender?: string; date: string; items: DistItem[]; recordedBy: string; approvedBy: string }, target: string): ResultInput {
+  const given = d.items.filter((i) => i.qty > 0).map((i) => `${i.qty} ${i.unit} ${i.item}`).join(", ");
+  return {
+    indicator: target,
+    date: d.date,
+    value: 1,
+    ...(d.gender === "Female" ? { female: 1, male: 0 } : d.gender === "Male" ? { female: 0, male: 1 } : {}),
+    ...(d.village ? { district: d.village.slice(0, 80) } : {}),
+    note: `Input package given to farmer ${d.farmerId}${d.village ? ` in ${d.village}` : ""}: ${given || "the planned package"}. Recorded by ${d.recordedBy}, approved by ${d.approvedBy}.`.slice(0, 2000),
+    files: [],
+    noFile: "The proof is the distribution record in Field activities, checked and approved by the project manager.",
+    distribution: d.id,
+  };
 }

@@ -36,16 +36,20 @@ export function PackageSetup({ code, onSaved, onCancel }: { code: string; onSave
   const [village, setVillage] = useState("");
   const [crop, setCrop] = useState("");
   const [windowEnd, setWindowEnd] = useState("");
+  // The target an approved distribution adds a farmer to, and the targets to choose from.
+  const [target, setTarget] = useState("");
+  const [targets, setTargets] = useState<{ code: string; name: string; unit: string }[]>([]);
   const [fromDraft, setFromDraft] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (!user) return;
-    api<{ setup: FieldSetup | null; draft: FieldSetup | null; lines: Line[]; canEdit: boolean }>(`/api/projects/${encodeURIComponent(code)}/field/setup`, user.id)
+    api<{ setup: FieldSetup | null; draft: FieldSetup | null; lines: Line[]; targets?: { code: string; name: string; unit: string }[]; canEdit: boolean }>(`/api/projects/${encodeURIComponent(code)}/field/setup`, user.id)
       .then((r) => {
         setLines(r.lines);
         setCanEdit(r.canEdit);
+        setTargets(r.targets ?? []);
         const s = r.setup ?? r.draft;
         setFromDraft(!r.setup && !!r.draft);
         if (s) {
@@ -54,6 +58,7 @@ export function PackageSetup({ code, onSaved, onCancel }: { code: string; onSave
           setVillage(s.village ?? "");
           setCrop(s.crop ?? "");
           setWindowEnd(s.windowEnd ?? "");
+          setTarget(s.target ?? "");
         }
       })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
@@ -65,6 +70,7 @@ export function PackageSetup({ code, onSaved, onCancel }: { code: string; onSave
     ...(village.trim() ? { village: village.trim() } : {}),
     ...(crop.trim() ? { crop: crop.trim() } : {}),
     ...(windowEnd ? { windowEnd } : {}),
+    ...(target ? { target } : {}),
   };
   const problem = setupProblem(built);
   const set = (k: number, patch: Partial<Draft>) => setItems((all) => all.map((d, j) => (j === k ? { ...d, ...patch } : d)));
@@ -166,6 +172,29 @@ export function PackageSetup({ code, onSaved, onCancel }: { code: string; onSave
           Planting window ends
           <input type="date" value={windowEnd} onChange={(e) => setWindowEnd(e.target.value)} className={`mt-1 ${field}`} />
         </label>
+      </fieldset>
+      <fieldset disabled={!editable} className="rounded-2xl border border-line bg-surface p-4">
+        <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-muted">Count it toward a target (optional)</legend>
+        <label className="block text-sm font-medium">
+          Target for farmers who received the package
+          <select value={target} onChange={(e) => setTarget(e.target.value)} className={`mt-1 ${field}`}>
+            <option value="">Do not count distributions toward a target</option>
+            {/* A saved target no longer on the list stays visible, so saving again does not drop it without anyone noticing. */}
+            {target && !targets.some((x) => x.code === target) && <option value={target}>{target} (no longer takes recorded results)</option>}
+            {targets.map((x) => (
+              <option key={x.code} value={x.code}>
+                {x.name} ({x.unit})
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="mt-2 text-sm text-muted">
+          {target
+            ? "Each distribution the project manager approves adds one farmer to this target. It counts once MEL accepts it, so nobody records the same distribution a second time."
+            : targets.length
+              ? "Choose a target and each approved distribution adds one farmer to it. Left empty, distributions have to be recorded again on the Results page to count."
+              : "This project has no targets that take recorded results yet. Add them in the project design, then choose one here."}
+        </p>
       </fieldset>
       {editable && (
         <div className="space-y-2">

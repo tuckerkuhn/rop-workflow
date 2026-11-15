@@ -3,7 +3,8 @@ import { and, eq, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { today } from "@/lib/clock";
 import type { AppUser } from "@/lib/demo";
-import { addGiven, applyFix, drawnFrom, fixOwner, flagsFor, gate, inProcUnit, lineOf, paymentDue, storeStock, type DistItem, type Fix, type Flag, type Gate, type Given } from "@/lib/distribution";
+import { insertResult } from "@/server/results-store";
+import { addGiven, applyFix, drawnFrom, fixOwner, flagsFor, gate, inProcUnit, lineOf, paymentDue, resultFor, storeStock, type DistItem, type Fix, type Flag, type Gate, type Given } from "@/lib/distribution";
 import { itemsFor, type FieldSetup } from "@/lib/package";
 import type { Farmer } from "@/lib/field";
 import type { Procurement } from "@/lib/procurement";
@@ -391,6 +392,11 @@ export async function decideDistribution(code: string, id: string, decision: "ap
   const now = new Date();
   const day = today();
   const changed: string[] = [];
+  const team = decision === "approved" ? await people() : [];
+  // The target approved distributions count toward (lib/package `target`), when the project has
+  // named one and it takes recorded results.
+  const counts = decision === "approved" && ctx.setup.target ? ((await db.select({ code: s.indicators.code }).from(s.indicators).where(and(eq(s.indicators.projectId, project.id), eq(s.indicators.code, ctx.setup.target), eq(s.indicators.source, "results"))).limit(1))[0]?.code ?? null) : null;
+  let result: string | null = null;
 
   await db.transaction(async (tx) => {
     await tx
@@ -438,6 +444,15 @@ export async function decideDistribution(code: string, id: string, decision: "ap
           })
           .onConflictDoNothing();
       }
+      // Results: the distribution counts toward the project's target, once, waiting for MEL like
+      // any other result. Only for one recorded in the app: a KoboToolbox form counts through its
+      // own mapping (server/kobo-results), and counting it here too would count the farmer twice.
+      if (counts && row.source !== "kobo" && row.farmerCode) {
+        const recorder = team.find((u) => u.id === (m.recorderId ?? row.completedBy));
+        const input = resultFor({ id, farmerId: row.farmerCode, village: m.village, gender: m.gender ?? undefined, date: (row.completedAt ?? now).toISOString().slice(0, 10), items: m.items, recordedBy: recorder?.name ?? "the field team", approvedBy: by.name }, counts);
+        const made = await insertResult(tx, project, input, recorder?.id ?? row.completedBy ?? by.id);
+        result = made.id;
+      }
       // Field: a Kobo distribution moves the farmer on, as the in-app one already did.
       if (row.source === "kobo" && row.farmerCode) {
         const [item] = await tx.select().from(s.fieldItems).where(and(eq(s.fieldItems.projectId, project.id), eq(s.fieldItems.itemKey, row.farmerCode))).limit(1);
@@ -474,12 +489,12 @@ export async function decideDistribution(code: string, id: string, decision: "ap
       entity: "distribution",
       entityId: id,
       action: decision === "approved" ? "distribution_approved" : "distribution_sent_back",
-      detail: { by: by.id, farmer: row.farmerCode, items: m.items, procurements: changed, flags: m.flags.map((f) => f.id), note: note ?? null, ...(decision === "sent_back" ? { to: fixer } : {}) },
+      detail: { by: by.id, farmer: row.farmerCode, items: m.items, procurements: changed, ...(result ? { result, target: counts } : {}), flags: m.flags.map((f) => f.id), note: note ?? null, ...(decision === "sent_back" ? { to: fixer } : {}) },
     });
     // The link is used up and the decision kept with the record, in the same step as the decision itself.
     await putMeta(tx, project.id, id, { ...m, gate: g, hash: null, hashes: {}, decided: { by: by.id, byName: by.name, at: now.toISOString(), decision, ...(note ? { note: note.trim() } : {}) } });
   });
-  return { decision, procurements: changed, fixer };
+  return { decision, procurements: changed, fixer, result, target: counts };
 }
 
 const fixNotes = (code: string, id: string, by: string, note: string) => `Sent back by ${by}: ${note}\nOpen ${appOrigin()}/approve/${encodeURIComponent(code)}/${id}, correct what was recorded and send it again.`;

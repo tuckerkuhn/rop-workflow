@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { addGiven, applyFix, convert, drawnFrom, fixOwner, paymentDue, flagsFor, gate as gateFor, inProcUnit, storeStock as stockFor, toKg } from "@/lib/distribution";
+import { addGiven, applyFix, convert, drawnFrom, fixOwner, paymentDue, flagsFor, gate as gateFor, inProcUnit, storeStock as stockFor, toKg, resultFor } from "@/lib/distribution";
+import { resultSchema } from "@/lib/results";
 import { DEMO_SETUP, itemsFor, type FieldSetup } from "@/lib/package";
 import { seedProcurements } from "@/lib/procurement";
 import type { Procurement } from "@/lib/procurement";
@@ -224,5 +225,28 @@ describe("applyFix: restoring an item recorded as not given", () => {
   });
   it("never adds an item that is not in the farmer's package", () => {
     expect(applyFix(seedOnly, { qty: { diesel: 20 } }, planned).map((i) => i.key)).toEqual(["seed"]);
+  });
+});
+
+describe("an approved distribution becomes one result", () => {
+  const d = { id: "d-1", farmerId: "F-0007", village: "Village B", gender: "Female", date: "2026-11-14", items: [{ key: "seed", item: "Certified maize seed", unit: "kg", qty: 12 }, { key: "npk", item: "NPK 17-17-17", unit: "kg", qty: 0 }], recordedBy: "Bilal Haidari", approvedBy: "Nadia Rahimi" };
+
+  it("counts one farmer on the day the package was given, for the target named", () => {
+    const r = resultFor(d, "IND-2");
+    expect(r).toMatchObject({ indicator: "IND-2", date: "2026-11-14", value: 1, female: 1, male: 0, district: "Village B", distribution: "d-1", files: [] });
+  });
+
+  it("says what was given, by whom, and leaves out an item that was not given", () => {
+    expect(resultFor(d, "IND-2").note).toBe("Input package given to farmer F-0007 in Village B: 12 kg Certified maize seed. Recorded by Bilal Haidari, approved by Nadia Rahimi.");
+  });
+
+  it("is a result the app accepts, pointing at the distribution record as its proof", () => {
+    expect(resultSchema.safeParse(resultFor(d, "IND-2")).success).toBe(true);
+    expect(resultSchema.safeParse(resultFor({ ...d, village: "", gender: undefined, items: [] }, "IND-9")).success).toBe(true);
+  });
+
+  it("does not guess a sex that was not recorded", () => {
+    const r = resultFor({ ...d, gender: undefined }, "IND-2");
+    expect("female" in r || "male" in r).toBe(false);
   });
 });
