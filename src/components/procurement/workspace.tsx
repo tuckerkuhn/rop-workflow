@@ -578,7 +578,7 @@ function Detail({
                       <p className="text-sm text-ochre">The person who requested a purchase cannot approve it, so someone else signs here.{ownBarred && solo ? ` ${ownBarred}` : ""}</p>
                     ) : (
                       <button type="button" disabled={!isReady} onClick={() => (mayOwn ? setSelfing(true) : complete())} className={primaryBtn}>
-                        {step.signs ? `Sign and ${lowerFirst(step.action)}` : step.action} →
+                        {step.signs && !/^sign\b/i.test(step.action) ? `Sign and ${lowerFirst(step.action)}` : step.action} →
                       </button>
                     )}
                     {selfing && (

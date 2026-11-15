@@ -2,7 +2,7 @@
 
 Written 14 Nov 2026 from `main` at `1314fda`; sections 2b to 5 were brought up to date the same evening against `4199486` (any project can run Field activities). Line numbers in the table are from the first pass and have since moved: search for the function name.
 
-**How this was checked.** The checks now live in the repo: `npm test` runs 381 tests, of which 26 in `src/server/__tests__/` run whole flows against an in-memory Postgres with the real migrations. First pass: the code was read, then run: the app was started against a local Postgres with all 25 migrations and the fictional A-2027 data, and the distribution chain was walked in a browser as Nadia, Bilal and Farida. Flows marked "read only" were read but not run. HR, payroll, timesheets, leave, expenses, onboarding, offboarding and opportunities were not reviewed: they do not carry project data from the field to the donor.
+**How this was checked.** The checks now live in the repo: `npm test` runs 388 tests, of which 27 in `src/server/__tests__/` run whole flows against an in-memory Postgres with the real migrations. First pass: the code was read, then run: the app was started against a local Postgres with all 25 migrations and the fictional A-2027 data, and the distribution chain was walked in a browser as Nadia, Bilal and Farida. Flows marked "read only" were read but not run. HR, payroll, timesheets, leave, expenses, onboarding, offboarding and opportunities were not reviewed: they do not carry project data from the field to the donor.
 
 Each flow is scored against six properties: entered once, checked at the handoff, owned, traceable, consistent, recoverable.
 
@@ -52,6 +52,8 @@ The two commits made in Cursor after the first pass (per-project package, farmer
 16. **Home's headline on a project with no targets** read "on schedule: 0 of 0 targets". It now says there are no targets yet.
 17. **A real project's field screen said its records were fictional.**
 18. **Database tests are in the repo** (`src/server/__tests__/`, one new development dependency: `@electric-sql/pglite`). They cannot reach Supabase.
+
+19. **The demo project's dates disagreed.** Its history sat in March 2027 beside records dated today, and the planting window was 126 days off. Loading or resetting the sample data now moves every date by the same number of days, so the story starts from that day (`src/lib/clock.ts`, `shiftDates`). Donor report deadlines keep their calendar dates. The story goes stale as days pass: reset the sample data before a demo.
 
 ## 3. Gaps still open, ranked
 

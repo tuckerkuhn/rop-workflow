@@ -8,7 +8,8 @@ import { userById } from "@/lib/demo";
 import type { Farmer } from "@/lib/field";
 import { seedDatabase } from "@/server/demo-seed";
 import { decideDistribution, listDistributions, recordFromApp, resubmitDistribution, stockFor } from "@/server/distribution";
-import { loadField, saveItems } from "@/server/field-store";
+import { realToday } from "@/lib/clock";
+import { loadField, saveItems, setupFor } from "@/server/field-store";
 import { loadHome } from "@/server/home-store";
 import { loadProcurements, saveProcurements } from "@/server/procurement-store";
 import { loadProgress } from "@/server/progress-store";
@@ -53,6 +54,21 @@ describe("input distribution, field to finance (demo project)", { timeout: 60_00
     expect((await loadHome(code, bilal)).actions.find((a) => a.key === "field:distribute")?.text).toBe("Distribute the input package: 2 farmers are waiting for you");
     const listed = await listDistributions(code);
     expect(listed.map((d) => [d.farmerId, d.status, d.gate.ok])).toEqual([["F-0002", "pending", true]]);
+  });
+
+  it("loads the sample story from today: history behind, the planting window sixteen days ahead", async () => {
+    const today = realToday();
+    const plus = (n: number) => new Date(Date.parse(`${today}T00:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
+    expect((await setupFor(code))?.windowEnd).toBe(plus(16));
+    expect((await setupFor(code))?.season).toBe(`${plus(16).slice(0, 4)} season`);
+    const items = (await loadField(code, farida)).items;
+    const history = items.flatMap((i) => i.timeline.map((t) => t.date));
+    expect(history.length).toBeGreaterThan(10);
+    expect(history.every((d) => d <= today)).toBe(true);
+    // The newest entry is recent, not months old: the story really was moved.
+    expect([...history].sort().at(-1)! >= plus(-3)).toBe(true);
+    const neededBy = (await loadProcurements(code)).find((p) => p.id === "PR-2027-011")!.neededBy;
+    expect(neededBy).toBe(plus(1));
   });
 
   it("refuses a distribution before the fertilizer's received note is signed, and stores nothing", async () => {

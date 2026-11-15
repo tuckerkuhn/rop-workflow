@@ -1,3 +1,4 @@
+import { shiftDates } from "@/lib/clock";
 import { and, asc, eq } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import type { NewWorkItem, WorkItem } from "@/lib/work-items";
@@ -95,16 +96,16 @@ const DEMO: (Omit<typeof s.workItems.$inferInsert, "projectId" | "organizationId
   { key: "donor-visit", type: "milestone", milestoneKind: "other", title: "Donor field visit", date: "2027-05-12" },
   { key: "harvest", type: "milestone", milestoneKind: "harvest_window", title: "Maize harvest", date: "2027-08-15", endDate: "2027-09-30" },
   { key: "transport", type: "task", title: "Confirm transport for input distribution", date: "2027-03-03", assignee: "bilal" },
-  { key: "attendance", type: "task", title: "Send February training attendance sheets to MEL", date: "2027-03-05", assignee: "farida" },
+  { key: "attendance", type: "task", title: "Send last month's training attendance sheets to MEL", date: "2027-03-05", assignee: "farida" },
   { key: "venue", type: "task", title: "Book the venue for follow-on trainings", date: "2027-03-25", assignee: "farida" },
   { key: "guide", type: "task", title: "Share the planting guide with lead farmers", date: null, assignee: null },
   { key: "contacts", type: "task", title: "Update the community leaders contact list", date: "2027-02-26", assignee: "nadia", doneAt: new Date("2027-02-25T10:00:00Z"), doneBy: "nadia" },
 ];
 
 /** Adds the demo items, leaving any already there. Safe to run repeatedly. */
-export async function seedWorkItems(projectId: string, organizationId: string) {
+export async function seedWorkItems(projectId: string, organizationId: string, days = 0) {
   await db
     .insert(s.workItems)
-    .values(DEMO.map(({ key, ...item }) => ({ ...item, projectId, organizationId, sourceKey: `demo:${key}`, createdBy: "demo" })))
+    .values(shiftDates(DEMO, days).map(({ key, ...item }) => ({ ...item, projectId, organizationId, sourceKey: `demo:${key}`, createdBy: "demo" })))
     .onConflictDoNothing();
 }

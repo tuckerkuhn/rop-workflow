@@ -1,6 +1,8 @@
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
+import { daysFromDemo, realToday, shiftDates } from "@/lib/clock";
 import { ORG_ID, PROJECT } from "@/lib/demo";
+import { DEMO_SETUP, FIELD_SETUP_KEY } from "@/lib/package";
 import { SEASON, seedField, seedStock, type Farmer } from "@/lib/field";
 import { seedProcurements } from "@/lib/procurement";
 import { seedSubmissions } from "@/lib/project";
@@ -39,7 +41,7 @@ export async function seedDatabase() {
   const [season] = await db.insert(s.seasons).values({ projectId: project.id, name: SEASON.name, startDate: "2027-01-01", endDate: "2027-10-31" }).returning();
   const [crop] = await db.insert(s.crops).values({ name: SEASON.crop }).returning();
 
-  const farmers = seedField().filter((i): i is Farmer => i.kind === "farmer");
+  const farmers = shiftDates(seedField(), daysFromDemo(realToday())).filter((i): i is Farmer => i.kind === "farmer");
   for (const [k, f] of farmers.entries()) {
     const [row] = await db
       .insert(s.farmers)
@@ -98,7 +100,10 @@ export async function resetDemo(code: string) {
 }
 
 async function loadDemoState(projectId: string, organizationId: string) {
-  const field = seedField();
+  // The story starts from today: every date in the sample data moves by the same number of days
+  // (lib/clock shiftDates), so its history is in the past and its deadlines are just ahead.
+  const days = daysFromDemo(realToday());
+  const field = shiftDates(seedField(), days);
   await db.insert(s.fieldItems).values(
     field.map((i) => ({
       organizationId,
@@ -110,11 +115,16 @@ async function loadDemoState(projectId: string, organizationId: string) {
     })),
   );
   await db.insert(s.projectState).values({ projectId, key: "stock", data: seedStock() });
-  await seedProcurementRows(projectId, organizationId);
-  await seedWorkItems(projectId, organizationId);
+  // The package with its planting window moved too; without this the window would stay in March 2027.
+  // Its season is named for the year the window now falls in ("2027 Spring" would read oddly in another year).
+  const setup = shiftDates(DEMO_SETUP, days);
+  await db.insert(s.projectState).values({ projectId, key: FIELD_SETUP_KEY, data: days && setup.windowEnd ? { ...setup, season: `${setup.windowEnd.slice(0, 4)} season` } : setup });
+  await seedProcurementRows(projectId, organizationId, days);
+  await seedWorkItems(projectId, organizationId, days);
   await seedIndicators(projectId);
+  // Report deadlines name calendar months and years ("Monthly report: February"), so they stay as written.
   await seedDonors(projectId, organizationId);
-  const subs = seedSubmissions(field);
+  const subs = shiftDates(seedSubmissions(seedField()), days);
   await db.insert(s.evidence).values(
     subs.map((sub) => ({
       organizationId,
@@ -133,9 +143,9 @@ async function loadDemoState(projectId: string, organizationId: string) {
 }
 
 /** The demo procurements. Also used once to fill a project that had them only in browsers. */
-export async function seedProcurementRows(projectId: string, organizationId: string | null) {
+export async function seedProcurementRows(projectId: string, organizationId: string | null, days = 0) {
   await db
     .insert(s.procurements)
-    .values(seedProcurements().map((p) => ({ organizationId, projectId, procKey: p.id, step: p.step, data: p })))
+    .values(shiftDates(seedProcurements(), days).map((p) => ({ organizationId, projectId, procKey: p.id, step: p.step, data: p })))
     .onConflictDoNothing();
 }
