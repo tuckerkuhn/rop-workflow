@@ -58,7 +58,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
       const rule = await koboApprovalFor(code);
       const v = await requireViewer(req, { write: true, allow: (u) => mayApproveKobo(u, rule), why: "Only the people this project names to approve KoboCollect data can check this record." });
       if (v instanceof NextResponse) return v;
-      await checkKoboDistribution(code, id, { id: v.user.id, name: v.user.name });
+      await checkKoboDistribution(code, id, { id: v.user.id, name: v.user.name }, new URL(req.url).origin);
       return NextResponse.json({ ok: true, decision: "kobo_checked", distribution: await view(code, id) });
     }
     let by: { id: string; name: string };

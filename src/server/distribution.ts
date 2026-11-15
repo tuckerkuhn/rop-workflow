@@ -222,7 +222,7 @@ export async function processPending(code: string, origin = appOrigin()) {
     const flags = flagsFor({ farmerId: code_, items, photo, signed, step: r.source === "kobo" ? (farmer?.step ?? "unknown") : null }, ctx.others, planned);
     if (farmer && r.source === "kobo") await db.update(s.evidence).set({ payload: { ...p, _rop_gender: farmer.gender }, updatedAt: new Date() }).where(eq(s.evidence.id, r.id));
     const gender = farmer?.gender ?? (f.gender === "Female" || f.gender === "Male" ? f.gender : null);
-    await prepare(code, project, r.id, { farmerId: code_, items, gender, village: farmer?.community ?? (typeof p.village === "string" ? p.village : ""), recordedBy: r.completedBy ?? "KoboCollect", recorderId: r.source === "kobo" ? null : r.completedBy, photo, signed, gate: g, flags }, origin);
+    await prepare(code, project, r.id, { farmerId: code_, items, gender, village: farmer?.community ?? (typeof p.village === "string" ? p.village : ""), recordedBy: r.completedBy ?? "KoboCollect", recorderId: r.source === "kobo" ? null : r.completedBy, photo, signed, gate: g, flags }, origin, undefined, true);
     done++;
   }
   return done;
@@ -230,16 +230,21 @@ export async function processPending(code: string, origin = appOrigin()) {
 
 /* ---------- 2–3. checks stored, manager told ---------- */
 
-async function prepare(code: string, project: Project, id: string, m: Omit<DistMeta, "hash" | "expires" | "hashes">, origin: string, again?: { by: string; note: string }) {
+async function prepare(code: string, project: Project, id: string, m: Omit<DistMeta, "hash" | "expires" | "hashes">, origin: string, again?: { by: string; note: string }, fromKobo = false) {
   const managers = await holders(code, "manager");
-  const to = managers.filter((x) => x.email);
+  // A record from KoboCollect that still waits for its check is not sent to the project manager
+  // yet: no email and no link until the check is made (checkKoboDistribution sends it then).
+  const rule = fromKobo ? await koboApprovalFor(code) : null;
+  const held = !!rule && needsKoboCheck({ source: "kobo", koboChecked: m.koboChecked }, rule);
+  const to = held ? [] : managers.filter((x) => x.email);
   // One link per manager: whoever uses theirs is the one the decision is recorded under.
   const tokens = new Map(to.map((x) => [x.user.id, randomBytes(24).toString("base64url")]));
   const meta: DistMeta = { ...m, hash: null, hashes: Object.fromEntries([...tokens].map(([who, t]) => [who, sha(t)])), expires: new Date(Date.now() + LINK_DAYS * 864e5).toISOString() };
   const linkFor = (who: string) => `${origin}/approve/${encodeURIComponent(code)}/${id}?t=${tokens.get(who)}`;
   let emailed = false;
   let why: string | undefined;
-  if (!to.length) why = managers.length ? "No email address for the project manager in the staff list" : "No project manager on this project";
+  if (held) why = `Waiting for ${approverNames((await people()).filter((u) => onProject(u, code)), rule!)} to check the KoboCollect record first`;
+  else if (!to.length) why = managers.length ? "No email address for the project manager in the staff list" : "No project manager on this project";
   else if (!process.env.RESEND_API_KEY) why = "Email is not set up (RESEND_API_KEY)";
   else {
     try {
@@ -250,10 +255,10 @@ async function prepare(code: string, project: Project, id: string, m: Omit<DistM
       why = e instanceof Error ? e.message : String(e);
     }
   }
-  meta.notified = { to: managers.map((x) => x.user.id), at: new Date().toISOString(), emailed, ...(why ? { why } : {}) };
+  meta.notified = { to: held ? [] : managers.map((x) => x.user.id), at: new Date().toISOString(), emailed, ...(why ? { why } : {}) };
   await db.transaction(async (tx) => {
     await putMeta(tx, project.id, id, meta);
-    await tx.insert(s.auditLog).values({ projectId: project.id, entity: "distribution", entityId: id, action: again ? "distribution_resubmitted" : "distribution_recorded", detail: { flags: meta.flags.map((f) => f.id), blocked: !meta.gate.ok, emailed, why: why ?? null, to: meta.notified!.to, ...(again ? { by: again.by, fixed: again.note, items: meta.items } : {}) } });
+    await tx.insert(s.auditLog).values({ projectId: project.id, entity: "distribution", entityId: id, action: again ? "distribution_resubmitted" : fromKobo && m.koboChecked ? "distribution_sent_to_manager" : "distribution_recorded", detail: { flags: meta.flags.map((f) => f.id), blocked: !meta.gate.ok, emailed, why: why ?? null, to: meta.notified!.to, ...(again ? { by: again.by, fixed: again.note, items: meta.items } : {}) } });
   });
 }
 
@@ -379,7 +384,7 @@ export async function tokenOpens(code: string, id: string, token: string): Promi
  * KoboCollect data. Until it is made, the project manager cannot approve the record. Made once;
  * a record sent back and fixed keeps it.
  */
-export async function checkKoboDistribution(code: string, id: string, by: { id: string; name: string }) {
+export async function checkKoboDistribution(code: string, id: string, by: { id: string; name: string }, origin = appOrigin()) {
   const project = await projectByCode(code);
   const [row] = await db.select().from(s.evidence).where(and(eq(s.evidence.id, id), eq(s.evidence.projectId, project.id), eq(s.evidence.form, "distribution"))).limit(1);
   if (!row) throw new HttpError(404, "That distribution is not on this project.");
@@ -393,6 +398,8 @@ export async function checkKoboDistribution(code: string, id: string, by: { id: 
     await putMeta(tx, project.id, id, { ...m, koboChecked });
     await tx.insert(s.auditLog).values({ projectId: project.id, entity: "distribution", entityId: id, action: "distribution_kobo_checked", detail: { by: by.id, farmer: row.farmerCode } });
   });
+  // Now it goes to the project manager: the approval email and its link, held until this moment.
+  await prepare(code, project, id, { ...m, koboChecked }, origin, undefined, true);
   return koboChecked;
 }
 
@@ -570,7 +577,7 @@ export async function resubmitDistribution(code: string, id: string, by: { id: s
   const history = [...(m.history ?? []), ...(m.decided ? [{ sentBack: m.decided, fixed: { by: by.id, byName: by.name, at: now.toISOString(), note: note.trim() } }] : [])];
   const { decided: _decided, hash: _hash, hashes: _hashes, expires: _expires, notified: _notified, ...kept } = m;
   void [_decided, _hash, _hashes, _expires, _notified];
-  await prepare(code, project, id, { ...kept, items, photo, signed, gate: gate(items, ctx.procs, ctx.given, ctx.setup), flags, history }, origin, { by: by.name, note: note.trim() });
+  await prepare(code, project, id, { ...kept, items, photo, signed, gate: gate(items, ctx.procs, ctx.given, ctx.setup), flags, history }, origin, { by: by.name, note: note.trim() }, row.source === "kobo");
   return { ok: true as const };
 }
 

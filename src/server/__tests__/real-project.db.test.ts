@@ -149,6 +149,8 @@ describe("Field activities on a real project", { timeout: 60_000 }, () => {
 
     // From a phone: held until the person this project names for KoboCollect data has checked it.
     expect(d1.koboCheck).toMatchObject({ needed: true, by: "Omar Sadiq", done: null });
+    // Not sent to the project manager yet: no email, no link, and the record says why.
+    expect(d1.notified).toMatchObject({ to: [], emailed: false, why: "Waiting for Omar Sadiq to check the KoboCollect record first" });
     expect(await refusal(() => decideDistribution(code, part, "approved", nadia))).toMatch(/^Not approved yet: this record came from KoboCollect, and Omar Sadiq checks KoboCollect data/);
     expect((await loadHome(code, omar)).actions.find((a) => a.key === "kobo-check")?.text).toBe("Check 2 KoboCollect distributions before they go to the project manager");
     expect((await loadHome(code, nadia)).actions.find((a) => a.key === "distributions")).toBeUndefined();
@@ -159,6 +161,9 @@ describe("Field activities on a real project", { timeout: 60_000 }, () => {
     expect((await db.select().from(s.auditLog).where(eq(s.auditLog.action, "distribution_kobo_checked")))).toHaveLength(2);
     const after = (await listDistributions(code)).find((x) => x.id === part)!;
     expect(after.koboCheck).toMatchObject({ needed: false, done: { by: "omar", byName: "Omar Sadiq" } });
+    // The check is what sends it on: the manager is told now, once.
+    expect(after.notified?.to).toEqual(["nadia"]);
+    expect(await db.select().from(s.auditLog).where(eq(s.auditLog.action, "distribution_sent_to_manager"))).toHaveLength(2);
     expect((await loadHome(code, omar)).actions.find((a) => a.key === "kobo-check")).toBeUndefined();
     expect((await loadHome(code, nadia)).actions.find((a) => a.key === "distributions")?.text).toBe("Approve 2 input distributions");
 
