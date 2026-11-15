@@ -119,13 +119,15 @@ export async function saveActuals(code: string, imported: Bva, file: Imported["f
   const notInBudget = thisPhase ? bva.lines.filter((l) => !known.has(l.code)).map((l) => l.code) : [];
   const notInFile = thisPhase ? budget.filter((b) => !bva.lines.some((l) => l.code === b.code)).map((b) => b.code) : [];
   const at = new Date().toISOString();
+  // Read before the transaction opens: read inside it, this used a second database connection
+  // while holding the first, which stalls the import whenever no second connection is free.
+  const prev = await loadActuals(code);
   await db.transaction(async (tx) => {
     if (thisPhase)
       for (const l of bva.lines) {
         const id = known.get(l.code);
         if (id && !l.currency) await tx.update(s.budgetLines).set({ spent: String(Math.round(l.actual * 100) / 100), updatedAt: new Date() }).where(eq(s.budgetLines.id, id));
       }
-    const prev = await loadActuals(code);
     // The new import replaces any import whose months overlap it (the same phase, a later month).
     const overlaps = (a: string[], b: string[]) => a.some((m) => b.includes(m));
     const imports = [...prev.imports.filter((i) => !overlaps(i.months, bva.months)), { ...bva, file, by, at, ...(opts.source ? { source: opts.source } : {}) }];
