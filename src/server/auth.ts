@@ -164,6 +164,8 @@ export async function requireViewer(req: Request, opts: { write?: boolean; allow
     const org = await organizationOfProject(decodeURIComponent(code));
     if (org && org !== v.organizationId) return deny(404, NO_PROJECT(decodeURIComponent(code)));
   }
+  // A parked project is set aside while the app is built: it answers as if it were not there.
+  if (code && (await isParkedProject(decodeURIComponent(code)))) return deny(404, NO_PROJECT(decodeURIComponent(code)));
   // The sample project is a finished example: everyone can open it, nobody can change it.
   if (code && opts.write && (await isSampleProject(decodeURIComponent(code)))) return deny(403, SAMPLE_READ_ONLY);
   return v;
@@ -181,6 +183,12 @@ export async function isSampleProject(code: string): Promise<boolean> {
     if (p) kindOf.set(code, kind);
   }
   return kind === "sample";
+}
+
+/** Whether a project is parked (projects.kind "parked"). Not kept: a project can be parked and brought back. */
+export async function isParkedProject(code: string): Promise<boolean> {
+  const [p] = await db.select({ kind: s.projects.kind }).from(s.projects).where(eq(s.projects.code, code)).limit(1);
+  return p?.kind === "parked";
 }
 
 /** What a person is told when a project code leads nowhere. */

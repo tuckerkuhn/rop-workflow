@@ -45,8 +45,9 @@ export function reconcileLine(r: Pick<ReconcileRun, "ok" | "fetched" | "added" |
  * the rest. `only` limits it to the projects named (a run by hand, e.g. on a sandbox).
  */
 export async function reconcileAll(opts: { only?: string[]; by?: string } = {}): Promise<ReconcileRun[]> {
-  const all = await db.select({ id: s.projects.id, code: s.projects.code }).from(s.koboConnections).innerJoin(s.projects, eq(s.projects.id, s.koboConnections.projectId)).orderBy(asc(s.projects.code));
-  const projects = opts.only ? all.filter((p) => p.code && opts.only!.includes(p.code)) : all;
+  const all = await db.select({ id: s.projects.id, code: s.projects.code, kind: s.projects.kind }).from(s.koboConnections).innerJoin(s.projects, eq(s.projects.id, s.koboConnections.projectId)).orderBy(asc(s.projects.code));
+  // A parked project is not synced on the schedule; a run by hand that names it still is.
+  const projects = opts.only ? all.filter((p) => p.code && opts.only!.includes(p.code)) : all.filter((p) => p.kind !== "parked");
   const runs: ReconcileRun[] = [];
   for (const p of projects) {
     if (!p.code) continue;

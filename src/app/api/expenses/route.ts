@@ -29,7 +29,7 @@ async function view(me: string, open: number | null) {
   const { reports } = foldExpenses(entries, hr);
   const all = seesAll(me, hr);
   const visible = reports.filter((r) => all || r.person === me || r.by === me || hr.people[r.person]?.current.supervisor === me || !!nextFor(r, hr)?.people.includes(me) || r.signatures.some((x) => x.by === me));
-  const projects = await db.select({ code: s.projects.code, name: s.projects.name }).from(s.projects);
+  const projects = (await db.select({ code: s.projects.code, name: s.projects.name, kind: s.projects.kind }).from(s.projects)).filter((p) => p.kind !== "parked");
   const sources = [{ id: NON_CONTRACT, label: "General and admin (non-contract)" }, ...projects.filter((p) => p.code).map((p) => ({ id: p.code!, label: p.name }))];
   const rates = await mileageRates(sources.map((x) => x.id));
   const names = Object.fromEntries((await people()).map((u) => [u.id, u.name]));

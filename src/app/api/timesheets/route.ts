@@ -13,7 +13,7 @@ import { append, loadHr, todayIso } from "@/server/hr-store";
  */
 
 async function sources(): Promise<FundingSource[]> {
-  const projects = await db.select({ code: s.projects.code, name: s.projects.name }).from(s.projects);
+  const projects = (await db.select({ code: s.projects.code, name: s.projects.name, kind: s.projects.kind }).from(s.projects)).filter((p) => p.kind !== "parked");
   return [{ id: NON_CONTRACT, label: "General and admin (non-contract)" }, ...projects.filter((p) => p.code).map((p) => ({ id: p.code!, label: p.name }))];
 }
 

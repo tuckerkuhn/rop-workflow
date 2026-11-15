@@ -890,7 +890,7 @@ function Report({ u, state, setState, field, openEvidence }: SectionProps & { op
       <article id="report-doc" className="rounded-2xl border border-line bg-surface px-6 py-8 sm:px-10">
         <header className="border-b-2 border-ink pb-4">
           <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted">Roots of Peace · {view === "rop" ? "Progress report" : "Donor progress report (mapped)"}</p>
-          <h2 className="mt-1 font-display text-3xl tracking-tight">Village B Smallholder Maize</h2>
+          <h2 className="mt-1 font-display text-3xl tracking-tight">Village B Smallholder Maize (demo)</h2>
           <p className="text-sm text-muted">
             {PERIOD} · {state.reportRelease ? `Released by ${name(state.reportRelease.by)} on ${state.reportRelease.date}` : "Draft, not released"}
           </p>

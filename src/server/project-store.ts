@@ -5,6 +5,9 @@ import type { IndicatorInput, ProjectDesign, ProjectKind, ProjectSummary } from 
 
 /** Projects and their design (goal, dates, indicators) in Postgres, written by project setup. */
 
+/** A project set aside while the app is built: hidden everywhere, its data kept (npm run park). */
+export const PARKED = "parked";
+
 const summary = (p: typeof s.projects.$inferSelect): ProjectSummary => ({
   code: p.code ?? p.id,
   name: p.name,
@@ -20,10 +23,11 @@ const summary = (p: typeof s.projects.$inferSelect): ProjectSummary => ({
 /**
  * The projects there are. Real projects only, unless `all`: the sample and the sandboxes hold
  * fictional data, so portfolio totals, track record and notifications never count them. The
- * project picker asks for all.
+ * project picker asks for all. A parked project (kind "parked") is never listed: it is set aside
+ * with its data kept until it is brought back (npm run park).
  */
 export async function listProjects(opts: { all?: boolean } = {}) {
-  const all = (await db.select().from(s.projects).orderBy(asc(s.projects.createdAt))).map(summary);
+  const all = (await db.select().from(s.projects).orderBy(asc(s.projects.createdAt))).filter((p) => p.kind !== PARKED).map(summary);
   return opts.all ? all : all.filter((p) => p.kind === "real");
 }
 

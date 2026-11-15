@@ -144,6 +144,7 @@ export const projects = pgTable("projects", {
    * real | sample | sandbox. A sample is a finished, fictional project every organization gets to
    * look at: read-only for everyone. A sandbox is fictional too but writable, for testing. Neither
    * counts in portfolio totals, track record or notifications (server/project-store listProjects).
+   * parked: a real project set aside with its data kept, hidden everywhere (npm run park).
    */
   kind: text("kind").notNull().default("real"),
   ...timestamps,

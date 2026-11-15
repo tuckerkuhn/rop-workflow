@@ -3,13 +3,13 @@
  * named: the same sync and the same audit row as the nightly run, marked "by hand". Name at least
  * one project, so a test run never touches a real project by accident.
  *
- *   npm run kobo:reconcile -- SSOP-2027
+ *   npm run kobo:reconcile -- SFTP-2026
  */
 import { reconcileAll, reconcileLine } from "@/server/kobo-reconcile";
 
 async function main() {
   const only = process.argv.slice(2).filter((a) => !a.startsWith("--"));
-  if (!only.length) throw new Error("Name the project(s) to reconcile, e.g. npm run kobo:reconcile -- SSOP-2027");
+  if (!only.length) throw new Error("Name the project(s) to reconcile, e.g. npm run kobo:reconcile -- SFTP-2026");
   const runs = await reconcileAll({ only, by: "by hand" });
   const missing = only.filter((c) => !runs.some((r) => r.project === c));
   for (const r of runs) console.log(`${r.project}: ${reconcileLine(r)}`);

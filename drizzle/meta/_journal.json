@@ -176,6 +176,13 @@
       "when": 1794346501945,
       "tag": "0024_project_kind",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1794715066386,
+      "tag": "0025_project_parked",
+      "breakpoints": true
     }
   ]
 }
