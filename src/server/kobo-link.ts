@@ -264,7 +264,7 @@ export async function sync(code: string, origin?: string): Promise<SyncCounts> {
     const kind = (x: KoboSubmission) =>
       readiness
         ? { form: f.purpose, reviewStatus: "pending" as const, farmerCode: str(x.farmer), completedBy: str(x._submitted_by), location: str(x.location) }
-        : { form: null, reviewStatus: "accepted" as const };
+        : { form: null, reviewStatus: "accepted" as const, completedBy: str(x._submitted_by) };
 
     await db.transaction(async (tx) => {
       // Stored before this form was marked readiness: never reviewed, so they go to the queue.

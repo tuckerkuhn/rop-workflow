@@ -3,8 +3,6 @@ import { z } from "zod";
 import { people, requireViewer } from "@/server/auth";
 import { checkKoboDistribution, decideDistribution, listDistributions, mayApprove, mayFix, resubmitDistribution, tokenOpens } from "@/server/distribution";
 import { handle, HttpError, readBody } from "@/server/guard";
-import { mayApproveKobo } from "@/lib/kobo-approval";
-import { koboApprovalFor } from "@/server/kobo-approval";
 
 /**
  * One input distribution for the project manager: what was handed out, the goods received and
@@ -24,10 +22,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
   return handle(async () => {
     const t = new URL(req.url).searchParams.get("t") ?? "";
     if (!(t && (await tokenOpens(code, id, t)))) {
-      const rule = await koboApprovalFor(code);
-      const v = await requireViewer(req, { allow: (u) => u.fieldAccess !== "none" || mayApprove(u, code) || mayApproveKobo(u, rule) });
+      // Anyone on staff may open it; what each person can do on it is decided per record.
+      const v = await requireViewer(req, { allow: (u) => u.kind === "employee" });
       if (v instanceof NextResponse) return t ? NextResponse.json({ error: "This link has been used or has expired. Open the distribution from Home instead." }, { status: 401 }) : v;
-      return NextResponse.json({ distribution: await view(code, id), canDecide: mayApprove(v.user, code), canFix: mayFix(v.user, code), canCheckKobo: mayApproveKobo(v.user, await koboApprovalFor(code)) });
+      return NextResponse.json({ distribution: await view(code, id), canDecide: mayApprove(v.user, code), canFix: mayFix(v.user, code), canCheckKobo: (await view(code, id)).koboCheck.who.includes(v.user.id) });
     }
     return NextResponse.json({ distribution: await view(code, id), canDecide: true, canFix: false });
   });
@@ -55,8 +53,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
     }
     if (b.decision === "kobo_checked") {
       // The check on a KoboCollect record, by whoever this project names for KoboCollect data.
-      const rule = await koboApprovalFor(code);
-      const v = await requireViewer(req, { write: true, allow: (u) => mayApproveKobo(u, rule), why: "Only the people this project names to approve KoboCollect data can check this record." });
+      // Who may check is decided on the record itself: the project's approvers, never its collector.
+      const v = await requireViewer(req, { write: true, allow: (u) => u.kind === "employee", why: "Only staff can check this record." });
       if (v instanceof NextResponse) return v;
       await checkKoboDistribution(code, id, { id: v.user.id, name: v.user.name }, new URL(req.url).origin);
       return NextResponse.json({ ok: true, decision: "kobo_checked", distribution: await view(code, id) });

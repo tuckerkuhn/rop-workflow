@@ -26,7 +26,7 @@ import { koboMismatches, loadResults } from "@/server/results-store";
 export const KOBO_BY = "kobo";
 const PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
-type Sub = { id: string; uuid: string; num: number | null; at: Date | null; payload: Record<string, unknown>; removed: boolean; form: string | null; review: string };
+type Sub = { id: string; uuid: string; num: number | null; /** The KoboCollect account that sent it. */ by: string | null; at: Date | null; payload: Record<string, unknown>; removed: boolean; form: string | null; review: string };
 
 const text = (v: unknown) => (v === null || v === undefined ? "" : String(v).trim());
 /** A form's answer by question path, or by its last part (Kobo may store either). */
@@ -134,7 +134,7 @@ export async function koboToResults(code: string): Promise<KoboResultCounts> {
       .orderBy(asc(s.evidence.completedAt));
     const subs: Sub[] = rows
       .filter((r) => r.koboSubmissionUuid)
-      .map((r) => ({ id: r.id, uuid: r.koboSubmissionUuid!, num: r.koboSubmissionId, at: r.completedAt, payload: (r.payload as Record<string, unknown>) ?? {}, removed: !!r.koboRemovedAt, form: r.form, review: r.reviewStatus }));
+      .map((r) => ({ id: r.id, uuid: r.koboSubmissionUuid!, num: r.koboSubmissionId, by: r.completedBy, at: r.completedAt, payload: (r.payload as Record<string, unknown>) ?? {}, removed: !!r.koboRemovedAt, form: r.form, review: r.reviewStatus }));
     const seen = new Set<string>();
     // Results matched to a submission on this form; any other result from this form and target is left over.
     const matched = new Set<string>();
@@ -235,7 +235,7 @@ export async function koboToResults(code: string): Promise<KoboResultCounts> {
         ...(Object.keys(captions).length ? { captions, taken } : {}),
         ...(files.length ? {} : { noFile: "From a KoboToolbox submission with no photo" }),
         ...(gps ? { gps } : {}),
-        kobo: { asset: m.assetUid, uuid: sub.uuid, ...(sub.num !== null ? { id: sub.num } : {}) },
+        kobo: { asset: m.assetUid, uuid: sub.uuid, ...(sub.num !== null ? { id: sub.num } : {}), ...(sub.by ? { by: sub.by.slice(0, 120) } : {}) },
       };
       await db.transaction(async (tx) => {
         const [r] = await tx

@@ -3,7 +3,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { today } from "@/lib/clock";
 import type { AppUser } from "@/lib/demo";
-import { approverNames, needsKoboCheck } from "@/lib/kobo-approval";
+import { approverNames, collectorOf, deciderNames, decidersOf, needsKoboCheck, refusalFor } from "@/lib/kobo-approval";
 import { koboApprovalFor } from "@/server/kobo-approval";
 import { insertResult } from "@/server/results-store";
 import { addGiven, applyFix, drawnFrom, fixOwner, flagsFor, gate, inProcUnit, lineOf, paymentDue, resultFor, storeStock, type DistItem, type Fix, type Flag, type Gate, type Given } from "@/lib/distribution";
@@ -243,7 +243,7 @@ async function prepare(code: string, project: Project, id: string, m: Omit<DistM
   const linkFor = (who: string) => `${origin}/approve/${encodeURIComponent(code)}/${id}?t=${tokens.get(who)}`;
   let emailed = false;
   let why: string | undefined;
-  if (held) why = `Waiting for ${approverNames((await people()).filter((u) => onProject(u, code)), rule!)} to check the KoboCollect record first`;
+  if (held) why = `Waiting for ${deciderNames((await people()).filter((u) => onProject(u, code)), { fromKobo: true, collector: collectorOf(m.recordedBy, rule!, (await people()).filter((u) => onProject(u, code))) }, rule!)} to check the KoboCollect record first`;
   else if (!to.length) why = managers.length ? "No email address for the project manager in the staff list" : "No project manager on this project";
   else if (!process.env.RESEND_API_KEY) why = "Email is not set up (RESEND_API_KEY)";
   else {
@@ -298,7 +298,7 @@ export type DistView = {
   status: "pending" | "accepted" | "queried";
   notified: DistMeta["notified"] | null;
   /** From KoboCollect: whether it still waits for its check, who gives it, and who gave it. */
-  koboCheck: { needed: boolean; by: string; done: DistMeta["koboChecked"] | null };
+  koboCheck: { needed: boolean; by: string; /** Person ids who may make the check. */ who: string[]; done: DistMeta["koboChecked"] | null };
   decided: DistMeta["decided"] | null;
   history: NonNullable<DistMeta["history"]>;
   /** The farmer's package as planned, so a fix can add an item that was recorded as not given. */
@@ -321,7 +321,8 @@ export async function listDistributions(code: string): Promise<DistView[]> {
   const rows = await db.select().from(s.evidence).where(and(eq(s.evidence.projectId, project.id), eq(s.evidence.form, "distribution")));
   const st = await loadState(project.id);
   const rule = await koboApprovalFor(code);
-  const approvers = approverNames((await people()).filter((u) => onProject(u, code)), rule);
+  const team = (await people()).filter((u) => onProject(u, code));
+  const approvers = approverNames(team, rule);
   const procs = (await db.select().from(s.procurements).where(eq(s.procurements.projectId, project.id))).map((r) => r.data as Procurement);
   const setup = await setupOrEmpty(project);
   // What approved distributions have taken so far, for the checks of the ones still waiting.
@@ -349,7 +350,10 @@ export async function listDistributions(code: string): Promise<DistView[]> {
         flags: m.flags,
         status: r.reviewStatus,
         notified: m.notified ?? null,
-        koboCheck: { needed: r.reviewStatus === "pending" && needsKoboCheck({ source: r.source, koboChecked: m.koboChecked }, rule), by: approvers, done: m.koboChecked ?? null },
+        koboCheck: (() => {
+          const rec = { fromKobo: true, collector: r.source === "kobo" ? collectorOf(r.completedBy, rule, team) : null };
+          return { needed: r.reviewStatus === "pending" && needsKoboCheck({ source: r.source, koboChecked: m.koboChecked }, rule), by: r.source === "kobo" ? deciderNames(team, rec, rule) : approvers, who: r.source === "kobo" ? decidersOf(team, rec, rule).map((p) => p.id) : [], done: m.koboChecked ?? null };
+        })(),
         decided: m.decided ?? null,
         history: m.history ?? [],
         planned: itemsFor(setup, hectares.get(r.farmerCode ?? "")),
@@ -384,11 +388,22 @@ export async function tokenOpens(code: string, id: string, token: string): Promi
  * KoboCollect data. Until it is made, the project manager cannot approve the record. Made once;
  * a record sent back and fixed keeps it.
  */
+/** Who may make the check on this KoboCollect distribution: the project's approvers, never its collector (lib/kobo-approval). */
+export async function koboCheckers(code: string, account: string | null) {
+  const rule = await koboApprovalFor(code);
+  const team = (await people()).filter((u) => onProject(u, code));
+  const rec = { fromKobo: true, collector: collectorOf(account, rule, team) };
+  return { team, rule, rec, who: decidersOf(team, rec, rule) };
+}
+
 export async function checkKoboDistribution(code: string, id: string, by: { id: string; name: string }, origin = appOrigin()) {
   const project = await projectByCode(code);
   const [row] = await db.select().from(s.evidence).where(and(eq(s.evidence.id, id), eq(s.evidence.projectId, project.id), eq(s.evidence.form, "distribution"))).limit(1);
   if (!row) throw new HttpError(404, "That distribution is not on this project.");
   if (row.source !== "kobo") throw new HttpError(409, "This distribution was recorded in the app, so it goes straight to the project manager.");
+  const c = await koboCheckers(code, row.completedBy);
+  const why = refusalFor(by, c.team, c.rec, c.rule);
+  if (why) throw new HttpError(403, why);
   if (row.reviewStatus !== "pending") throw new HttpError(409, "This distribution has already been decided.");
   const m = (await loadState(project.id)).byId[id];
   if (!m) throw new HttpError(409, "This distribution has not been read in yet. Sync Kobo and try again.");

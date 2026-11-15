@@ -13,6 +13,12 @@ export type KoboApproval = {
   person?: string;
   /** With "named": who approves when that person is away. */
   standIn?: string;
+  /**
+   * Whose KoboCollect account is whose: Kobo account name to person id. Every submission carries
+   * the account that sent it, so with this the app knows who collected a record and can make sure
+   * someone else approves it.
+   */
+  accounts?: Record<string, string>;
 };
 
 export const DEFAULT_KOBO_APPROVAL: KoboApproval = { who: "mel" };
@@ -24,7 +30,7 @@ export const KOBO_APPROVAL_OPTIONS: { id: KoboApproval["who"]; label: string; he
   { id: "manager", label: "The project manager", help: "One check instead of two for input distributions. The project manager also approves results and readiness checks that come from KoboCollect." },
 ];
 
-type Person = { id: string; name: string; kind?: string; field: string[]; project: string[] };
+type Person = { id: string; name: string; kind?: string; email?: string; reportsTo?: string; field: string[]; project: string[] };
 
 /** Whether this person approves KoboCollect data under the project's rule. */
 export function mayApproveKobo(u: Pick<Person, "id" | "field" | "project">, rule: KoboApproval): boolean {
@@ -67,4 +73,52 @@ export const needsKoboCheck = (d: { source: string; koboChecked?: unknown }, rul
 /** Who decides a record: the project's KoboCollect approver when it came from a form, MEL otherwise. */
 export function mayDecide(u: Pick<Person, "id" | "field" | "project">, fromKobo: boolean, rule: KoboApproval): boolean {
   return fromKobo ? mayApproveKobo(u, rule) : u.project.includes("mel-owner");
+}
+
+/* ---------- nobody approves what they collected ---------- */
+
+const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+
+/**
+ * The person who collected a record, from the KoboCollect account that sent it: the match the
+ * project saved, or else an account named exactly like the person's sign-in email or its first
+ * part. Null when the account is unknown, and then the app cannot tell who collected.
+ */
+export function collectorOf(account: string | null | undefined, rule: KoboApproval, people: Person[]): string | null {
+  if (!account?.trim()) return null;
+  const saved = Object.entries(rule.accounts ?? {}).find(([name]) => same(name, account))?.[1];
+  if (saved) return people.some((p) => p.id === saved) ? saved : null;
+  return people.find((p) => p.email && (same(p.email, account) || same(p.email.split("@")[0], account)))?.id ?? null;
+}
+
+type Rec = { fromKobo: boolean; /** Who collected or recorded it (person id), when known. */ collector: string | null };
+
+/**
+ * The people who may decide a record. It starts from the usual group (the project's KoboCollect
+ * approvers for a record from a phone, the MEL role for one typed into the app) and takes out
+ * whoever collected it: nobody approves their own work. When that leaves nobody, as with a team
+ * of one MEL officer, it goes to the person the collector reports to.
+ */
+export function decidersOf<P extends Person>(people: P[], rec: Rec, rule: KoboApproval): P[] {
+  const usual = (rec.fromKobo ? koboApprovers(people, rule) : people.filter((p) => p.project.includes("mel-owner"))).filter((p) => p.id !== rec.collector);
+  if (usual.length || !rec.collector) return usual;
+  const boss = people.find((p) => p.id === people.find((c) => c.id === rec.collector)?.reportsTo);
+  return boss ? [boss] : [];
+}
+
+export const mayDecideRecord = (u: Pick<Person, "id">, people: Person[], rec: Rec, rule: KoboApproval) => decidersOf(people, rec, rule).some((p) => p.id === u.id);
+
+/** "Nadia Rahimi", "Omar Sadiq or Karim Ahmadi", or what to do when nobody can. */
+export function deciderNames(people: Person[], rec: Rec, rule: KoboApproval): string {
+  const names = decidersOf(people, rec, rule).map((p) => p.name);
+  if (!names.length) return "nobody yet (name a second approver, or set who the collector reports to in the staff list)";
+  return names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} or ${names.at(-1)}`;
+}
+
+/** Why this person may not decide this record, in words; null when they may. */
+export function refusalFor(u: Pick<Person, "id">, people: Person[], rec: Rec, rule: KoboApproval): string | null {
+  if (mayDecideRecord(u, people, rec, rule)) return null;
+  const who = deciderNames(people, rec, rule);
+  if (rec.collector === u.id) return `You collected this record, so someone else decides it: ${who}.`;
+  return rec.fromKobo ? `This record came from KoboCollect. On this project ${who} approves it.` : `Only ${who} can accept or query this record.`;
 }

@@ -4,7 +4,8 @@ import { ourWork } from "@/lib/budget";
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { fieldRows, purchaseRows, taskRow } from "@/lib/home-buckets";
 import { loadLineReasons } from "@/server/overspend-store";
-import { mayApproveKobo } from "@/lib/kobo-approval";
+import { onProject, people } from "@/server/auth";
+import { collectorOf, mayApproveKobo, mayDecideRecord } from "@/lib/kobo-approval";
 import { koboApprovalFor } from "@/server/kobo-approval";
 import { loadProcurements } from "@/server/procurement-store";
 import type { FieldItem } from "@/lib/field";
@@ -215,16 +216,19 @@ export async function loadHome(code: string, u: AppUser) {
   // Who approves KoboCollect data on this project (lib/kobo-approval): results made from a form
   // and distributions from a phone wait for that person, not for anyone with the MEL role.
   const koboRule = await koboApprovalFor(code);
+  const team = (await people()).filter((p) => onProject(p, code));
   const koboMine = mayApproveKobo(u, koboRule);
   const isMel = lenses.includes("mel");
-  if (isMel || koboMine) {
-    const toCheck = allResults.filter((r) => r.status === "pending" && r.by !== u.id && (r.kobo ? koboMine : isMel)).length;
+  // Also for someone a record has fallen to because its collector is the only usual approver.
+  const fallsToMe = !isMel && !koboMine && allResults.some((r) => r.status === "pending" && r.by !== u.id && mayDecideRecord(u, team, { fromKobo: !!r.kobo, collector: r.kobo ? collectorOf(r.kobo.by, koboRule, team) : r.by }, koboRule));
+  if (isMel || koboMine || fallsToMe) {
+    const toCheck = allResults.filter((r) => r.status === "pending" && r.by !== u.id && mayDecideRecord(u, team, { fromKobo: !!r.kobo, collector: r.kobo ? collectorOf(r.kobo.by, koboRule, team) : r.by }, koboRule)).length;
     if (toCheck) actions.push({ key: "accept", for: isMel ? "mel" : lenses[0], bucket: "approve", urgent: true, text: `Accept or query ${toCheck} ${toCheck === 1 ? "result" : "results"} waiting for you`, msg: { key: toCheck === 1 ? "ha.accept1" : "ha.accept", vars: { n: toCheck } }, href: "/progress/results" });
     // What blocks the report is listed from pre-flight itself (Home reads /next-report), so the
     // count here can never differ from the pre-flight screen's.
   }
-  if (koboMine && koboRule.who !== "manager") {
-    const unchecked = (await listDistributions(code).catch(() => [])).filter((d) => d.koboCheck.needed).reverse();
+  if (koboRule.who !== "manager") {
+    const unchecked = (await listDistributions(code).catch(() => [])).filter((d) => d.koboCheck.needed && d.koboCheck.who.includes(u.id)).reverse();
     const n = unchecked.length;
     if (n) actions.push({ key: "kobo-check", for: lenses[0], bucket: "approve", urgent: true, text: n === 1 ? `Check the KoboCollect distribution to ${unchecked[0].farmerId} before it goes to the project manager` : `Check ${n} KoboCollect distributions before they go to the project manager`, href: `/approve/${encodeURIComponent(code)}/${unchecked[0].id}` });
   }

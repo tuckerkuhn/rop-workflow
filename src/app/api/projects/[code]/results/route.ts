@@ -1,4 +1,4 @@
-import { approverNames, mayApproveKobo, mayDecide } from "@/lib/kobo-approval";
+import { collectorOf, mayApproveKobo, mayDecideRecord, refusalFor } from "@/lib/kobo-approval";
 import { koboApprovalFor } from "@/server/kobo-approval";
 import { and, asc, eq } from "drizzle-orm";
 import { after, NextResponse } from "next/server";
@@ -43,8 +43,12 @@ async function view(code: string, u: AppUser) {
   const updates = await loadUpdates(code);
   const mel = isMelOwner(u);
   // A result made from a KoboToolbox form is checked by whoever this project names for KoboCollect data.
-  const kobo_ = mayApproveKobo(u, await koboApprovalFor(code));
-  const checks = (r: { kobo?: unknown }) => (r.kobo ? kobo_ : mel);
+  // and never by the person who collected it; with nobody else, by the person they report to.
+  const rule = await koboApprovalFor(code);
+  const team = (await people()).filter((p) => onProject(p, code));
+  const recOf = (r: { kobo?: { by?: string }; by: string }) => ({ fromKobo: !!r.kobo, collector: r.kobo ? collectorOf(r.kobo.by, rule, team) : r.by });
+  const checks = (r: { kobo?: { by?: string }; by: string }) => mayDecideRecord(u, team, recOf(r), rule);
+  const kobo_ = mayApproveKobo(u, rule) || results.some((r) => r.status === "pending" && checks(r));
   const solo = mel ? await soloFor(code).catch(() => ({ on: false, blocked: null })) : { on: false, blocked: null };
   const names = new Map<string, string>();
   for (const l of await db.selectDistinct({ c: s.budgetLines.activityCode, n: s.budgetLines.activity }).from(s.budgetLines).where(eq(s.budgetLines.projectId, project.id))) if (l.c && l.n && !names.has(l.c)) names.set(l.c, l.n);
@@ -55,7 +59,7 @@ async function view(code: string, u: AppUser) {
     mayReview: mel || kobo_,
     indicators: indicators.map((i) => ({ ...i, target: Number(i.target), fromKobo: kobo.has(i.code) })),
     // The data checker's flags, for MEL before accepting (and for the recorder to fix first).
-    results: results.map((r) => ({ ...r, /** Its KoboToolbox submission was changed or deleted after it was accepted. */ koboChanged: mismatched.has(r.id), canReview: checks(r) && r.status === "pending" && r.by !== u.id, canSelfAccept: mel && solo.on && !solo.blocked && r.status === "pending" && r.by === u.id, canReopen: mel && r.status === "accepted" && r.by !== u.id, checks: dataChecks(r, results, indicators.find((i) => i.code === r.indicator)) })),
+    results: results.map((r) => ({ ...r, /** Its KoboToolbox submission was changed or deleted after it was accepted. */ koboChanged: mismatched.has(r.id), canReview: r.status === "pending" && checks(r), canSelfAccept: mel && solo.on && !solo.blocked && r.status === "pending" && r.by === u.id, canReopen: mel && r.status === "accepted" && r.by !== u.id, checks: dataChecks(r, results, indicators.find((i) => i.code === r.indicator)) })),
     activities,
     updates,
     mayUpdate: mayRecord(u) || mel,
@@ -125,14 +129,17 @@ export async function POST(req: Request, { params }: Ctx) {
       return NextResponse.json(await view(code, u));
     }
     if (a.action === "accept-many") {
-      if (!isMelOwner(u)) return NextResponse.json({ error: "Only the MEL owner can accept results." }, { status: 403 });
       const project = await projectByCode(code);
       const all = await loadResults(code);
+      const rule = await koboApprovalFor(code);
+      const team = (await people()).filter((p) => onProject(p, code));
+      const mine = (r: (typeof all)[number]) => mayDecideRecord(u, team, { fromKobo: !!r.kobo, collector: r.kobo ? collectorOf(r.kobo.by, rule, team) : r.by }, rule);
+      if (!isMelOwner(u) && !a.ids.some((id) => all.some((r) => r.id === id && mine(r)))) return NextResponse.json({ error: "None of these results are yours to accept." }, { status: 403 });
       const indicators = await db.select().from(s.indicators).where(eq(s.indicators.projectId, project.id));
       let accepted = 0;
       for (const id of a.ids) {
         const r = all.find((x) => x.id === id);
-        if (!r || r.status !== "pending" || r.by === u.id) continue;
+        if (!r || r.status !== "pending" || r.by === u.id || !mine(r)) continue;
         const ind = indicators.find((i) => i.code === r.indicator);
         if (dataChecks(r, all, ind ? { code: ind.code, unit: ind.unit, disaggregation: ind.disaggregation } : undefined).length) continue;
         if (await reviewResult(code, id, "accepted", u.id, null)) accepted++;
@@ -190,16 +197,20 @@ export async function POST(req: Request, { params }: Ctx) {
       const { female, male } = a.result;
       if (female !== undefined && male !== undefined && female + male === 0) return NextResponse.json({ error: "Women and men are both 0: leave them blank if the result is not about people." }, { status: 400 });
       {
-        const { kobo: _k, gps: _g, original: _o, ...typed } = a.result;
-        void [_k, _g, _o];
+        // Set by the app only: where a result came from is never taken from what a person sends.
+        const { kobo: _k, gps: _g, original: _o, distribution: _d, ...typed } = a.result;
+        void [_k, _g, _o, _d];
         await addResult(code, await inEnglish(typed, u.id, 2000), u.id);
       }
     } else {
       const r = (await loadResults(code)).find((x) => x.id === a.id);
       if (!r) return NextResponse.json({ error: "No such result." }, { status: 404 });
       const rule = await koboApprovalFor(code);
-      if (!mayDecide(u, !!r.kobo, rule))
-        return NextResponse.json({ error: r.kobo ? `This result came from KoboCollect. On this project ${approverNames((await people()).filter((p) => onProject(p, code)), rule)} approves KoboCollect data.` : "Only the MEL owner can accept or query results." }, { status: 403 });
+      const team = (await people()).filter((p) => onProject(p, code));
+      // Their own typed-in result keeps its own rule below (solo mode); every other case is decided here.
+      const own = !r.kobo && r.by === u.id;
+      const why = own ? (isMelOwner(u) ? null : "You recorded this result, so someone else must check it.") : refusalFor(u, team, { fromKobo: !!r.kobo, collector: r.kobo ? collectorOf(r.kobo.by, rule, team) : r.by }, rule);
+      if (why) return NextResponse.json({ error: why }, { status: 403 });
       // Solo mode (server/solo.ts): a small team's MEL may accept their own result, confirming it; never query it.
       let self: Record<string, unknown> | undefined;
       if (r.by === u.id) {

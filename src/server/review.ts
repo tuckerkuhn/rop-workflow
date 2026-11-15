@@ -15,8 +15,8 @@ import { correctionTask } from "@/server/distribution";
 
 const later = (a: string, b: string) => (a > b ? a : b);
 
-/** `refusal(fromKobo)`: why this person may not decide a record of that kind, or null when they may. */
-export async function decide(code: string, evidenceId: string, status: "accepted" | "queried", user: AppUser, note?: string, refusal?: (fromKobo: boolean) => string | null) {
+/** `refusal(fromKobo, by)`: why this person may not decide this record (`by`: who sent or recorded it), or null when they may. */
+export async function decide(code: string, evidenceId: string, status: "accepted" | "queried", user: AppUser, note?: string, refusal?: (fromKobo: boolean, by: string | null) => string | null) {
   const project = await projectByCode(code);
   return db.transaction(async (tx) => {
     // Only a record of this project: an id from another project answers as if it did not exist.
@@ -25,7 +25,7 @@ export async function decide(code: string, evidenceId: string, status: "accepted
     // Results and updates recorded by hand are decided on the Results page, where the data checks
     // run and nobody accepts their own record unless solo mode allows it.
     if (row.source === "manual" && (row.form === "result" || row.form === "update")) throw new HttpError(409, "This is a recorded result. Accept or query it on the Results page, where its checks are shown.");
-    const why = refusal?.(row.source === "kobo");
+    const why = refusal?.(row.source === "kobo", row.completedBy);
     if (why) throw new HttpError(403, why);
     if (row.reviewStatus !== "pending") return { already: row.reviewStatus, applied: null as string | null };
     // Distributions are approved by the project manager, from the email link or Home, where the

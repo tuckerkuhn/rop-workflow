@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { users } from "@/lib/demo";
-import { approverNames, DEFAULT_KOBO_APPROVAL, koboApprovalProblem, koboApprovers, mayApproveKobo, mayDecide, needsKoboCheck, type KoboApproval } from "@/lib/kobo-approval";
+import { approverNames, collectorOf, deciderNames, decidersOf, DEFAULT_KOBO_APPROVAL, koboApprovalProblem, koboApprovers, mayApproveKobo, mayDecide, mayDecideRecord, needsKoboCheck, refusalFor, type KoboApproval } from "@/lib/kobo-approval";
 
 const u = (id: string) => users.find((x) => x.id === id)!;
 const named: KoboApproval = { who: "named", person: "karim", standIn: "nadia" };
@@ -52,5 +52,56 @@ describe("who approves KoboCollect data", () => {
     expect(mayDecide(u("karim"), false, named)).toBe(u("karim").project.includes("mel-owner"));
     expect(mayDecide(u("omar"), true, named)).toBe(false);
     expect(mayDecide(u("karim"), true, named)).toBe(true);
+  });
+});
+
+describe("nobody approves what they collected", () => {
+  const rule: KoboApproval = { who: "mel", accounts: { omar_field: "omar", "Farida.N": "farida" } };
+  const ids = (rec: { fromKobo: boolean; collector: string | null }, r: KoboApproval = rule, team = users) => decidersOf(team, rec, r).map((p) => p.id);
+
+  it("knows the collector from the KoboCollect account, however it is capitalised", () => {
+    expect(collectorOf("omar_field", rule, users)).toBe("omar");
+    expect(collectorOf("farida.n", rule, users)).toBe("farida");
+    expect(collectorOf("someone_else", rule, users)).toBeNull();
+    expect(collectorOf("", rule, users)).toBeNull();
+    // An account matched to someone who has left is unknown again, not a stale name.
+    expect(collectorOf("gone", { who: "mel", accounts: { gone: "nobody" } }, users)).toBeNull();
+  });
+
+  it("matches an account named like the person's sign-in email without being told", () => {
+    const team = [{ ...users.find((x) => x.id === "omar")!, email: "omar.sadiq@example.org" }];
+    expect(collectorOf("omar.sadiq", { who: "mel" }, team)).toBe("omar");
+    expect(collectorOf("Omar.Sadiq@example.org", { who: "mel" }, team)).toBe("omar");
+  });
+
+  it("with one MEL officer who collected it, sends it to the person they report to", () => {
+    expect(users.filter((p) => p.project.includes("mel-owner")).map((p) => p.id)).toEqual(["omar"]);
+    expect(ids({ fromKobo: true, collector: "omar" })).toEqual([u("omar").reportsTo]);
+    expect(mayDecideRecord(u("omar"), users, { fromKobo: true, collector: "omar" }, rule)).toBe(false);
+    expect(refusalFor(u("omar"), users, { fromKobo: true, collector: "omar" }, rule)).toBe(`You collected this record, so someone else decides it: ${u(u("omar").reportsTo!).name}.`);
+  });
+
+  it("leaves it with the usual approver when someone else collected it, or nobody knows who did", () => {
+    expect(ids({ fromKobo: true, collector: "farida" })).toEqual(["omar"]);
+    expect(ids({ fromKobo: true, collector: null })).toEqual(["omar"]);
+    expect(refusalFor(u("omar"), users, { fromKobo: true, collector: "farida" }, rule)).toBeNull();
+  });
+
+  it("uses the stand-in before the line manager when the named approver collected it", () => {
+    const named: KoboApproval = { who: "named", person: "omar", standIn: "karim" };
+    expect(ids({ fromKobo: true, collector: "omar" }, named)).toEqual(["karim"]);
+    expect(ids({ fromKobo: true, collector: "omar" }, { who: "named", person: "omar" })).toEqual([u("omar").reportsTo]);
+  });
+
+  it("applies the same rule to a result typed into the app", () => {
+    expect(ids({ fromKobo: false, collector: "farida" })).toEqual(["omar"]);
+    expect(ids({ fromKobo: false, collector: "omar" })).toEqual([u("omar").reportsTo]);
+    expect(refusalFor(u("bilal"), users, { fromKobo: false, collector: "farida" }, rule)).toBe(`Only ${u("omar").name} can accept or query this record.`);
+  });
+
+  it("says so when nobody is left to decide", () => {
+    const alone = [{ ...u("omar"), reportsTo: undefined }];
+    expect(decidersOf(alone, { fromKobo: true, collector: "omar" }, rule)).toEqual([]);
+    expect(deciderNames(alone, { fromKobo: true, collector: "omar" }, rule)).toMatch(/^nobody yet/);
   });
 });
