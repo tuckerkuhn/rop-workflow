@@ -3,10 +3,11 @@ import { PHOTO_MAX_CHARS } from "@/lib/plans";
 import { z } from "zod";
 import type { FieldItem } from "@/lib/field";
 import { requireViewer } from "@/server/auth";
-import { loadField, saveItems, saveStock } from "@/server/field-store";
+import { loadField, saveEdited, saveStock } from "@/server/field-store";
 import { recordFromApp, stockFor } from "@/server/distribution";
-import { moveProblem, type Farmer } from "@/lib/field";
-import { audit, handle, readBody } from "@/server/guard";
+import { moveProblem, stepRefusal, type Farmer } from "@/lib/field";
+import { today } from "@/lib/clock";
+import { audit, handle, HttpError, readBody } from "@/server/guard";
 
 /** Field activities state for a project. Names are included only for roles allowed to see them. */
 export async function GET(req: Request, { params }: { params: Promise<{ code: string }> }) {
@@ -71,20 +72,28 @@ export async function PUT(req: Request, { params }: { params: Promise<{ code: st
     const items: FieldItem[] = body.items ?? [];
     // A farmer leaving "distribute" means the input package was handed out: check the goods
     // received note and quantities first (refused if not), then it goes to the manager to approve.
-    const before = new Map((await loadField(code, v.user)).items.map((i) => [i.id, i.step]));
-    // A farmer moves only along the workflow, from the step the database holds (lib/field moveProblem).
-    const wrong = items.map((i) => moveProblem(before.get(i.id), i)).find(Boolean);
+    const field = await loadField(code, v.user);
+    const stored = new Map(field.items.map((i) => [i.id, i]));
+    const before = new Map(field.items.map((i) => [i.id, i.step]));
+    // A stale page never writes over newer work: each record must be the version the page read.
+    const stale = items.find((i) => stored.has(i.id) && stored.get(i.id)!.rev !== i.rev);
+    if (stale) throw new HttpError(409, `${stale.kind === "farmer" ? `Farmer ${stale.id}` : `Finding ${stale.id}`} was changed by someone else since you opened this page, so your change was not saved. The page now shows the latest; make your change again.`);
+    // A farmer moves only along the workflow, from the step the database holds (lib/field moveProblem),
+    // by the step's owner, with its checks done (stepRefusal): the screen's rules, enforced here.
+    const derivedBefore = await stockFor(code);
+    const ctx = { stock: derivedBefore?.stock ?? field.stock ?? {}, stockNote: derivedBefore?.block ?? null, setup: field.setup ?? { items: [] }, today: today() };
+    const wrong = items.map((i) => moveProblem(before.get(i.id), i) ?? (stored.has(i.id) ? stepRefusal(stored.get(i.id)!, i, v.user.field, ctx) : null)).find(Boolean);
     if (wrong) return NextResponse.json({ error: wrong }, { status: 409 });
     const handedOut = items.filter((i): i is Farmer => i.kind === "farmer" && before.get(i.id) === "distribute" && i.step === "plant");
     const recorded: string[] = [];
     for (const f of handedOut) recorded.push(await recordFromApp(code, f, v.user, new URL(req.url).origin));
-    if (items.length) await saveItems(code, items);
+    const revs = items.length ? await saveEdited(code, items) : {};
     // The store's stock follows the purchases when they supply the package; a typed figure is kept only when none does.
     const derived = await stockFor(code);
     const typed = body.stock && !derived ? body.stock : undefined;
     if (typed) await saveStock(code, typed);
     if (items.length || typed)
       await audit(code, { entity: "field", entityId: crypto.randomUUID(), action: "field_saved", by: v.user.id, detail: { items: items.map((i) => ({ id: i.id, kind: i.kind, step: i.step })), ...(typed ? { stock: typed } : {}), ...(recorded.length ? { distributions: recorded } : {}) } });
-    return NextResponse.json({ ok: true, distributions: recorded, ...(derived ? { stock: derived.stock, stockNote: derived.block } : {}) });
+    return NextResponse.json({ ok: true, revs, distributions: recorded, ...(derived ? { stock: derived.stock, stockNote: derived.block } : {}) });
   });
 }

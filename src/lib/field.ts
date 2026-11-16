@@ -63,6 +63,8 @@ export type Farmer = {
   surveys: Survey[];
   photos: Photo[];
   stories: Story[];
+  /** The saved version this copy was read at (server-set, never stored in the record). */
+  rev?: string;
 };
 
 export type Finding = {
@@ -78,6 +80,8 @@ export type Finding = {
   action?: { text: string; owner: FieldRole; due: string };
   issues: Issue[];
   timeline: TimelineEvent[];
+  /** The saved version this copy was read at (server-set, never stored in the record). */
+  rev?: string;
 };
 
 export type FieldItem = Farmer | Finding;
@@ -375,6 +379,30 @@ export function fieldCheck(i: FieldItem, c: SCheck, ctx: Ctx) {
   if (r && !r.ok && i.checks[`fix.${i.step}.${c.id}`]) return { ok: true, auto: true, detail: `${r.detail} · ${c.resolve}` };
   if (r) return { ok: r.ok, auto: true, detail: r.detail };
   return { ok: !!i.checks[`${i.step}.${c.id}`], auto: false };
+}
+
+/**
+ * Why this person may not move an item from the step the database holds to the one sent, or null
+ * when they may. The same rules the screen applies, checked again on the server: the step's owner
+ * moves it, along one of its outcomes, with its checks passing (unless the outcome is one that
+ * goes ahead without them) and no blocking issue open.
+ */
+export function stepRefusal(stored: FieldItem, sent: FieldItem, roles: readonly string[], ctx: Ctx): string | null {
+  if (stored.step === sent.step) return null;
+  const step = fieldSteps[stored.step];
+  const outcome = step?.outcomes.find((o) => o.to === sent.step);
+  const label = sent.kind === "farmer" ? sent.id : `Finding ${sent.id}`;
+  if (!step || !outcome) return null; // moveProblem refuses moves off the workflow
+  const owner = ownerOfItem(stored);
+  if (!owner || !roles.includes(owner)) return `${label}: "${step.title}" is for the ${fieldRoleLabel(owner ?? "")} to record. Ask them, or reload if someone already has.`;
+  // Judged on the record as sent, at the step it is leaving.
+  const at = { ...sent, step: stored.step } as FieldItem;
+  if (openBlocking(at).length) return `${label}: a blocking issue is still open on "${step.title}". Resolve it first.`;
+  if (outcome.requiresChecks !== false) {
+    const missing = step.checks.filter((c) => !fieldCheck(at, c, ctx).ok).map((c) => c.label);
+    if (missing.length) return `${label} cannot be recorded as "${outcome.done}" yet. Not done: ${missing.join("; ")}.`;
+  }
+  return null;
 }
 
 export const openBlocking = (i: FieldItem) => i.issues.filter((x) => x.status === "open" && x.blocking);

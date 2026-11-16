@@ -2,8 +2,11 @@ import { and, eq } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 
 /** One JSON document per project and key in project_state. */
-export async function loadProjectState<T>(projectId: string, key: string, empty: T): Promise<T> {
-  const [row] = await db
+/** Anything that can run a select: the database, or an open transaction. */
+export type Reader = Pick<typeof db, "select">;
+
+export async function loadProjectState<T>(projectId: string, key: string, empty: T, q: Reader = db): Promise<T> {
+  const [row] = await q
     .select()
     .from(s.projectState)
     .where(and(eq(s.projectState.projectId, projectId), eq(s.projectState.key, key)))

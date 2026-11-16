@@ -36,6 +36,9 @@ export function useFieldData(code = "A-2027") {
   const [status, setStatus] = useState<Load>("loading");
   const [error, setError] = useState("");
   const current = useRef<FieldItem[]>([]);
+  // The saved version of each record as this page last read or wrote it. Sent with every save, so
+  // a change made while an earlier save was on its way is not mistaken for a stale copy.
+  const revs = useRef<Map<string, string>>(new Map());
   const currentStock = useRef<Stock>({});
 
   const reload = useCallback(async () => {
@@ -44,6 +47,7 @@ export function useFieldData(code = "A-2027") {
       setStockNote(r.stockNote ?? null);
       setSetup(r.setup ?? null);
       current.current = r.items;
+      revs.current = new Map(r.items.map((i) => [i.id, i.rev ?? ""]));
       setItemsState(r.items);
       currentStock.current = r.stock ?? {};
       setStockState(r.stock ?? {});
@@ -59,23 +63,32 @@ export function useFieldData(code = "A-2027") {
     if (ready && user) void reload();
   }, [ready, user, reload]);
 
+  // Saves go one after another, each sending the latest copy with the version it is based on, so
+  // two quick changes to one farmer never trip over each other.
+  const queue = useRef<Promise<void>>(Promise.resolve());
   const save = useCallback(
-    (body: { items?: FieldItem[]; stock?: Stock }) =>
-      call<{ stock?: Stock; stockNote?: string | null }>(`/api/projects/${code}/field`, user?.id, { method: "PUT", body: JSON.stringify(body) })
-        .then((r) => {
-          if (body.items && r.stock) setStockNote(r.stockNote ?? null);
+    (body: { ids?: string[]; stock?: Stock }) => {
+      queue.current = queue.current.then(async () => {
+        const items = body.ids ? current.current.filter((i) => body.ids!.includes(i.id)).map((i) => ({ ...i, rev: revs.current.get(i.id) || undefined })) : undefined;
+        if (body.ids && !items?.length) return;
+        try {
+          const r = await call<{ revs?: Record<string, string>; stock?: Stock; stockNote?: string | null }>(`/api/projects/${code}/field`, user?.id, { method: "PUT", body: JSON.stringify({ items, stock: body.stock }) });
+          for (const [id, rev] of Object.entries(r.revs ?? {})) revs.current.set(id, rev);
           // The store's stock comes from the purchases: after a save that moved a farmer, show the server's figure.
-          if (body.items && r.stock) {
+          if (items && r.stock) {
+            setStockNote(r.stockNote ?? null);
             currentStock.current = r.stock;
             setStockState(r.stock);
           }
-        })
-        .catch(async (e) => {
-        // Refused (e.g. inputs handed out before the goods received note is signed): show why and
-        // put the screen back to what is saved.
-        await reload();
-        setError(`Not saved: ${e instanceof Error ? e.message : e}`);
-      }),
+        } catch (e) {
+          // Refused (a stale copy, a step not yours, inputs before the goods received note is
+          // signed): show why and put the screen back to what is saved.
+          await reload();
+          setError(`Not saved: ${e instanceof Error ? e.message : e}`);
+        }
+      });
+      return queue.current;
+    },
     [code, user?.id, reload],
   );
 
@@ -86,8 +99,8 @@ export function useFieldData(code = "A-2027") {
       const value = typeof next === "function" ? next(current.current) : next;
       current.current = value;
       setItemsState(value);
-      const changed = value.filter((i) => before.get(i.id) !== JSON.stringify(i));
-      if (changed.length) void save({ items: changed });
+      const changed = value.filter((i) => before.get(i.id) !== JSON.stringify(i)).map((i) => i.id);
+      if (changed.length) void save({ ids: changed });
     },
     [save],
   );

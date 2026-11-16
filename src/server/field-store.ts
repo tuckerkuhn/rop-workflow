@@ -1,7 +1,7 @@
 import { EMPTY_FRAMEWORK, FRAMEWORK_KEY, type Framework } from "@/lib/framework";
-import { loadProjectState, saveProjectState } from "@/server/project-state";
+import { loadProjectState, saveProjectState, type Reader } from "@/server/project-state";
 import { DEMO_SETUP, FIELD_SETUP_KEY, type FieldSetup } from "@/lib/package";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { canSeePII, type AppUser } from "@/lib/demo";
 import { type FieldItem, type Stock } from "@/lib/field";
@@ -48,9 +48,9 @@ export const DEMO_FIELD_PROJECT = "A-2027";
  * A project's input package and season. The demo project has one built in; any other project has
  * one once its manager sets it up in Field activities, and until then has no field workflow.
  */
-export async function setupOf(project: { id: string; code: string | null }): Promise<FieldSetup | null> {
+export async function setupOf(project: { id: string; code: string | null }, q?: Reader): Promise<FieldSetup | null> {
   // A draft (pre-filled for a manager to confirm) does not switch Field activities on.
-  const stored = await loadProjectState<(FieldSetup & { draft?: boolean }) | null>(project.id, FIELD_SETUP_KEY, null);
+  const stored = await loadProjectState<(FieldSetup & { draft?: boolean }) | null>(project.id, FIELD_SETUP_KEY, null, q);
   if (stored?.items?.length && !stored.draft) return stored;
   return project.code === DEMO_FIELD_PROJECT ? DEMO_SETUP : null;
 }
@@ -96,18 +96,57 @@ export async function loadField(code: string, user?: AppUser) {
   }
 
   const items = rows
-    .map((r) => r.data as FieldItem)
-    .map((i) => (i.kind === "farmer" ? { ...i, name: names.get(i.id) ?? "" } : i))
+    .map((r) => ({ ...(r.data as FieldItem), rev: r.updatedAt.toISOString() }) as FieldItem)
+    .map((i): FieldItem => (i.kind === "farmer" ? { ...i, name: names.get(i.id) ?? "" } : i))
     .sort((a, b) => a.id.localeCompare(b.id));
   return { items, stock: (stockRow?.data as Stock | undefined) ?? null, setup: await setupOf(project) };
 }
 
-/** Insert or replace the given items (only the ones that changed are sent). */
+/** What is stored for an item: no name (farmer_pii holds it) and no version stamp. */
+const storable = (raw: FieldItem): FieldItem => {
+  const { rev: _rev, ...item } = stripPII(raw);
+  void _rev;
+  return item as FieldItem;
+};
+
+/**
+ * Saves items edited in the browser, each only if it is still the version the browser read (`rev`).
+ * A record changed since (a Kobo record accepted, a distribution approved, someone else's save) is
+ * refused whole, so a stale page never writes over newer work. All or nothing; returns the new
+ * versions.
+ */
+export async function saveEdited(code: string, items: FieldItem[]): Promise<Record<string, string>> {
+  const project = await projectByCode(code);
+  const revs: Record<string, string> = {};
+  await db.transaction(async (tx) => {
+    for (const raw of items) {
+      const item = storable(raw);
+      const now = new Date();
+      const where = and(eq(s.fieldItems.projectId, project.id), eq(s.fieldItems.itemKey, item.id));
+      const [updated] = raw.rev
+        ? await tx
+            .update(s.fieldItems)
+            .set({ data: item, kind: item.kind, updatedAt: now })
+            .where(and(where, sql`date_trunc('milliseconds', ${s.fieldItems.updatedAt}) = ${raw.rev}::timestamptz`))
+            .returning({ at: s.fieldItems.updatedAt })
+        : await tx
+            .insert(s.fieldItems)
+            .values({ organizationId: project.organizationId, projectId: project.id, itemKey: item.id, kind: item.kind, data: item, updatedAt: now })
+            .onConflictDoNothing()
+            .returning({ at: s.fieldItems.updatedAt });
+      if (!updated) throw new HttpError(409, `${item.kind === "farmer" ? `Farmer ${item.id}` : `Finding ${item.id}`} was changed by someone else since you opened this page, so your change was not saved. The page now shows the latest; make your change again.`);
+      revs[item.id] = updated.at.toISOString();
+    }
+  });
+  return revs;
+}
+
+/** Insert or replace the given items, whatever version is stored (seeding, imports, tests). */
 export async function saveItems(code: string, items: FieldItem[]) {
   if (!items.length) return;
   const project = await projectByCode(code);
   for (const raw of items) {
-    const item = stripPII(raw);
+    const item = storable(raw);
     await db
       .insert(s.fieldItems)
       .values({ organizationId: project.organizationId, projectId: project.id, itemKey: item.id, kind: item.kind, data: item })

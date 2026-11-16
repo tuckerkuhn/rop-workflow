@@ -14,7 +14,7 @@ import type { Submission } from "@/lib/project";
 import { demoMode, onProject, people, toAppUser } from "@/server/auth";
 import { projectByCode, setupOf } from "@/server/field-store";
 import { HttpError } from "@/server/guard";
-import { loadProjectState } from "@/server/project-state";
+import { loadProjectState, type Reader } from "@/server/project-state";
 
 /**
  * One input distribution, field to finance (strategy brief, example 3):
@@ -69,7 +69,7 @@ export type DistMeta = {
 };
 type State = { byId: Record<string, DistMeta> };
 
-const loadState = async (projectId: string) => loadProjectState<State>(projectId, KEY, { byId: {} });
+const loadState = async (projectId: string, q?: Reader) => loadProjectState<State>(projectId, KEY, { byId: {} }, q);
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -94,14 +94,24 @@ type Project = Awaited<ReturnType<typeof projectByCode>>;
 export const mayFix = (u: AppUser, code: string) => u.kind === "employee" && u.fieldAccess === "edit" && onProject(u, code);
 
 /** A project's package; a project without one has nothing to hand out. */
-const setupOrEmpty = async (project: Project): Promise<FieldSetup> => (await setupOf(project)) ?? { items: [] };
+const setupOrEmpty = async (project: Project, q?: Reader): Promise<FieldSetup> => (await setupOf(project, q)) ?? { items: [] };
 
-/** Everything the gate needs: the package, the purchases, and what each earlier distribution took. */
-async function context(project: Project, opts: { excluding?: string; countPending: boolean }) {
-  const setup = await setupOrEmpty(project);
-  const procs = (await db.select().from(s.procurements).where(eq(s.procurements.projectId, project.id))).map((r) => r.data as Procurement);
-  const rows = await db.select().from(s.evidence).where(and(eq(s.evidence.projectId, project.id), eq(s.evidence.form, "distribution")));
-  const st = await loadState(project.id);
+/**
+ * Stock decisions on a project happen one at a time: the lock is held until the transaction ends,
+ * so a second distribution recorded or approved at the same moment waits, then checks the stock
+ * against the first one's outcome instead of the same remaining stock.
+ */
+const lockStock = (tx: Tx, projectId: string) => tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`rop-stock:${projectId}`}))`);
+
+/**
+ * Everything the gate needs: the package, the purchases, and what each earlier distribution took.
+ * `q`: read inside an open transaction (under the stock lock) instead of the database.
+ */
+async function context(project: Project, opts: { excluding?: string; countPending: boolean }, q: Reader = db) {
+  const setup = await setupOrEmpty(project, q);
+  const procs = (await q.select().from(s.procurements).where(eq(s.procurements.projectId, project.id))).map((r) => r.data as Procurement);
+  const rows = await q.select().from(s.evidence).where(and(eq(s.evidence.projectId, project.id), eq(s.evidence.form, "distribution")));
+  const st = await loadState(project.id, q);
   const given: Given = {};
   const others: string[] = [];
   for (const r of rows) {
@@ -154,37 +164,46 @@ const qtyOf = (v: unknown) => {
  */
 export async function recordFromApp(code: string, farmer: Farmer, user: AppUser, origin: string) {
   const project = await projectByCode(code);
-  const ctx = await context(project, { countPending: true });
-  if (!ctx.setup.items.length) throw new HttpError(409, `${code} has no input package set up yet. The project manager sets it up in Field activities.`);
-  const items = itemsFor(ctx.setup, farmer.hectares);
-  const g = gate(items, ctx.procs, ctx.given, ctx.setup);
-  if (!g.ok) throw new HttpError(409, `${farmer.id}'s input package can't be recorded as handed out yet. ${g.block}`);
-  // Saved twice (a retry, a double tap, a lost connection): the distribution already waiting for
-  // this farmer is this one. Nothing new is stored and the manager is not emailed again.
-  const waiting = ctx.rows.find((r) => r.farmerCode === farmer.id && r.reviewStatus === "pending" && !r.koboRemovedAt && r.source === "manual" && (r.payload as { source?: string } | null)?.source === "app");
-  if (waiting) return waiting.id;
-  const signed = !!farmer.checks["distribute.recipient"];
-  const photo = farmer.photos.some((p) => p.activity === "distribution");
-  const sub: Submission = {
-    id: `DS-${farmer.id}-${today()}`,
-    source: "app",
-    orgId: farmer.orgId,
-    form: "distribution",
-    farmerId: farmer.id,
-    date: today(),
-    enumerator: user.id,
-    gps: null,
-    fields: { gender: farmer.gender, ...Object.fromEntries(items.map((i) => [`${i.key}_${i.unit}`, String(i.qty)])), signature: signed ? "Yes" : "Not confirmed" },
-    photo,
-    status: "pending",
-  };
-  const [row] = await db
-    .insert(s.evidence)
-    .values({ organizationId: project.organizationId, projectId: project.id, source: "manual", form: "distribution", farmerCode: farmer.id, reviewStatus: "pending", completedBy: user.id, completedAt: new Date(), location: farmer.community, payload: sub })
-    .returning({ id: s.evidence.id });
-  const flags = flagsFor({ farmerId: farmer.id, items, photo, signed, step: null }, ctx.others, items);
-  await prepare(code, project, row.id, { farmerId: farmer.id, items, gender: farmer.gender, village: farmer.community, recordedBy: user.name, recorderId: user.id, photo, signed, gate: g, flags }, origin);
-  return row.id;
+  // The stock check and the stored record are one step under the project's stock lock (lockStock).
+  const made = await db.transaction(async (tx) => {
+    await lockStock(tx, project.id);
+    const ctx = await context(project, { countPending: true }, tx);
+    if (!ctx.setup.items.length) throw new HttpError(409, `${code} has no input package set up yet. The project manager sets it up in Field activities.`);
+    const items = itemsFor(ctx.setup, farmer.hectares);
+    const g = gate(items, ctx.procs, ctx.given, ctx.setup);
+    if (!g.ok) throw new HttpError(409, `${farmer.id}'s input package can't be recorded as handed out yet. ${g.block}`);
+    // Saved twice (a retry, a double tap, a lost connection): the distribution already waiting for
+    // this farmer is this one. Nothing new is stored and the manager is not emailed again.
+    const waiting = ctx.rows.find((r) => r.farmerCode === farmer.id && r.reviewStatus === "pending" && !r.koboRemovedAt && r.source === "manual" && (r.payload as { source?: string } | null)?.source === "app");
+    if (waiting) return { id: waiting.id, next: null };
+    const signed = !!farmer.checks["distribute.recipient"];
+    const photo = farmer.photos.some((p) => p.activity === "distribution");
+    const sub: Submission = {
+      id: `DS-${farmer.id}-${today()}`,
+      source: "app",
+      orgId: farmer.orgId,
+      form: "distribution",
+      farmerId: farmer.id,
+      date: today(),
+      enumerator: user.id,
+      gps: null,
+      fields: { gender: farmer.gender, ...Object.fromEntries(items.map((i) => [`${i.key}_${i.unit}`, String(i.qty)])), signature: signed ? "Yes" : "Not confirmed" },
+      photo,
+      status: "pending",
+    };
+    const [row] = await tx
+      .insert(s.evidence)
+      .values({ organizationId: project.organizationId, projectId: project.id, source: "manual", form: "distribution", farmerCode: farmer.id, reviewStatus: "pending", completedBy: user.id, completedAt: new Date(), location: farmer.community, payload: sub })
+      .returning({ id: s.evidence.id });
+    const flags = flagsFor({ farmerId: farmer.id, items, photo, signed, step: null }, ctx.others, items);
+    return { id: row.id, next: { items, photo, signed, g, flags } };
+  });
+  // Checks stored and the manager emailed once the record is saved, outside the lock.
+  if (made.next) {
+    const { items, photo, signed, g, flags } = made.next;
+    await prepare(code, project, made.id, { farmerId: farmer.id, items, gender: farmer.gender, village: farmer.community, recordedBy: user.name, recorderId: user.id, photo, signed, gate: g, flags }, origin);
+  }
+  return made.id;
 }
 
 /* ---------- 1b. from the Kobo distribution form, or anything not yet checked ---------- */
@@ -459,6 +478,13 @@ export async function decideDistribution(code: string, id: string, decision: "ap
   let result: string | null = null;
 
   await db.transaction(async (tx) => {
+    if (decision === "approved") {
+      // Checked again under the stock lock: another approval may have just used the stock.
+      await lockStock(tx, project.id);
+      const now2 = await context(project, { excluding: id, countPending: false }, tx);
+      const again = gate(m.items, now2.procs, now2.given, now2.setup);
+      if (!again.ok) throw new HttpError(409, `Not approved: ${again.block}`);
+    }
     await tx
       .update(s.evidence)
       .set({ reviewStatus: decision === "approved" ? "accepted" : "queried", reviewedBy: by.id, reviewedAt: now, queryNote: decision === "sent_back" ? note!.trim() : null, updatedAt: now })
