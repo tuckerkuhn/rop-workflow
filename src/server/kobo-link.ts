@@ -168,8 +168,11 @@ export async function saveForms(code: string, forms: { uid: string; name: string
 export async function saveMappings(code: string, mappings: KoboMapping[], by: string) {
   const project = await projectRow(code);
   const inds = await db.select().from(s.indicators).where(eq(s.indicators.projectId, project.id));
-  const forms = new Set((await db.select().from(s.koboForms).where(eq(s.koboForms.projectId, project.id))).map((f) => f.assetUid));
+  const linked = await db.select().from(s.koboForms).where(eq(s.koboForms.projectId, project.id));
+  const forms = new Set(linked.map((f) => f.assetUid));
+  const distribution = new Set(linked.filter((f) => f.purpose === "distribution").map((f) => f.assetUid));
   for (const m of mappings) {
+    if (distribution.has(m.assetUid)) throw new KoboError(`An input distribution form is not mapped to a target here. Choose the target in Field activities, Input package: every distribution the project manager approves counts toward it.`);
     if (!inds.some((i) => i.code === m.indicatorCode)) throw new KoboError(`No target ${m.indicatorCode} on this project.`);
     if (!forms.has(m.assetUid)) throw new KoboError("A mapping uses a form that is not chosen for this project.");
     if (m.method === "count_answer" && !m.value) throw new KoboError(`Say which answer counts for ${m.indicatorCode}.`);

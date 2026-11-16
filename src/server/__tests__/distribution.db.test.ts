@@ -7,7 +7,9 @@ import { db, schema as s } from "@/db";
 import { userById } from "@/lib/demo";
 import type { Farmer } from "@/lib/field";
 import { seedDatabase } from "@/server/demo-seed";
-import { decideDistribution, listDistributions, recordFromApp, resubmitDistribution, stockFor } from "@/server/distribution";
+import { checkKoboDistribution, decideDistribution, listDistributions, recordFromApp, resubmitDistribution, stockFor } from "@/server/distribution";
+import { saveKoboApproval } from "@/server/kobo-approval";
+import { saveMappings } from "@/server/kobo-link";
 import { realToday } from "@/lib/clock";
 import { loadField, saveItems, saveSetup, setupFor } from "@/server/field-store";
 import { loadHome } from "@/server/home-store";
@@ -204,5 +206,31 @@ describe("input distribution, field to finance (demo project)", { timeout: 60_00
     const made = (await loadResults(code)).filter((r) => r.distribution);
     expect(made.map((r) => r.distribution).sort()).toEqual([first, third].sort());
     expect(await audits("distribution_sent_back")).toHaveLength(2);
+  });
+
+  it("counts a KoboCollect distribution toward the same target, once checked and approved, under its collector", async () => {
+    const project = (await db.select().from(s.projects).where(eq(s.projects.code, code)))[0];
+    // The KoboCollect account farida.kobo belongs to Farida; Omar (MEL) checks, Nadia approves.
+    await saveKoboApproval(code, { who: "mel", accounts: { "farida.kobo": "farida" } });
+    const someone = (await loadField(code, farida)).items.find((i) => i.kind === "farmer") as Farmer;
+    const [row] = await db
+      .insert(s.evidence)
+      .values({ organizationId: project.organizationId, projectId: project.id, source: "kobo", form: "distribution", farmerCode: someone.id, reviewStatus: "pending", completedBy: "farida.kobo", completedAt: new Date(), koboAssetUid: "aDistForm", koboSubmissionUuid: "kobo-dist-1", koboSubmissionId: 9001, payload: { seed_given: "yes", seed_qty: "1", npk_given: "no", signed: "yes", list_photo: "list.jpg" } })
+      .returning({ id: s.evidence.id });
+    await listDistributions(code);
+    // Not before the KoboCollect check.
+    expect(await refusal(() => decideDistribution(code, row.id, "approved", nadia))).toMatch(/came from KoboCollect/);
+    await checkKoboDistribution(code, row.id, { id: omar.id, name: omar.name }, "http://test");
+    const res = await decideDistribution(code, row.id, "approved", nadia);
+    expect(res.target).toBe("IND-2");
+    const made = (await loadResults(code)).filter((r) => r.distribution === row.id);
+    expect(made).toHaveLength(1);
+    expect(made[0]).toMatchObject({ indicator: "IND-2", value: 1, status: "pending", by: "farida" });
+  });
+
+  it("does not let a distribution form be mapped to a target in the KoboToolbox setup", async () => {
+    const project = (await db.select().from(s.projects).where(eq(s.projects.code, code)))[0];
+    await db.insert(s.koboForms).values({ projectId: project.id, assetUid: "aDistForm", name: "Input distribution", purpose: "distribution" });
+    expect(await refusal(() => saveMappings(code, [{ indicatorCode: "IND-2", assetUid: "aDistForm", question: "farmer", method: "count_answered", value: null }], "omar"))).toMatch(/Input package/);
   });
 });

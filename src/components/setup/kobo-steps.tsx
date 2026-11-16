@@ -387,6 +387,11 @@ export function KoboMap({ code, onDone }: { code: string; onDone: () => void }) 
           </ul>
         </div>
       )}
+      {forms.some((f) => f.purpose === "distribution") && (
+        <p className="mb-3 rounded-xl bg-mist px-3 py-2 text-sm">
+          Input distribution forms are not mapped here. Each distribution the project manager approves, from KoboCollect or recorded in the app, counts toward the target chosen in Field activities, Input package.
+        </p>
+      )}
       <ul className="space-y-3">
         {indicators.map((i) => {
           const m = draft?.[i.code];
@@ -410,11 +415,13 @@ export function KoboMap({ code, onDone }: { code: string; onDone: () => void }) 
                   className={field}
                 >
                   <option value="">{t("kobo.notMapped")}</option>
-                  {forms.map((f) => (
-                    <option key={f.uid} value={f.uid}>
-                      {f.name}
-                    </option>
-                  ))}
+                  {forms
+                    .filter((f) => f.purpose !== "distribution")
+                    .map((f) => (
+                      <option key={f.uid} value={f.uid}>
+                        {f.name}
+                      </option>
+                    ))}
                 </select>
               </label>
               {m && (

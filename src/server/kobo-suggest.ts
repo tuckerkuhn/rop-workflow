@@ -39,7 +39,8 @@ const SYSTEM = [
 export async function suggestMappings(code: string, by: string): Promise<{ suggestions: Suggestion[]; model: string; questions: Record<string, KoboQuestion[]> }> {
   const project = await projectByCode(code);
   const st = await koboState(code);
-  const forms = st.forms.filter((f) => f.purpose !== "readiness");
+  // Readiness forms are reviewed one by one; distribution forms count through the input package setting.
+  const forms = st.forms.filter((f) => f.purpose !== "readiness" && f.purpose !== "distribution");
   const indicators = await db
     .select({ code: s.indicators.code, donorCode: s.indicators.donorCode, name: s.indicators.name, unit: s.indicators.unit })
     .from(s.indicators)

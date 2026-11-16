@@ -177,6 +177,7 @@ export function PackageSetup({ code, onSaved, onCancel }: { code: string; onSave
         <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-muted">Count it toward a target (optional)</legend>
         <label className="block text-sm font-medium">
           Target for farmers who received the package
+          <span className="mt-0.5 block text-xs font-normal text-muted">Each distribution the project manager approves adds one farmer, from KoboCollect or recorded in the app. This is the only place distributions are counted.</span>
           <select value={target} onChange={(e) => setTarget(e.target.value)} className={`mt-1 ${field}`}>
             <option value="">Do not count distributions toward a target</option>
             {/* A saved target no longer on the list stays visible, so saving again does not drop it without anyone noticing. */}

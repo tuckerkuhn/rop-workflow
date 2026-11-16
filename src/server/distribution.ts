@@ -504,13 +504,14 @@ export async function decideDistribution(code: string, id: string, decision: "ap
           })
           .onConflictDoNothing();
       }
-      // Results: the distribution counts toward the project's target, once, waiting for MEL like
-      // any other result. Only for one recorded in the app: a KoboToolbox form counts through its
-      // own mapping (server/kobo-results), and counting it here too would count the farmer twice.
-      if (counts && row.source !== "kobo" && row.farmerCode) {
-        const recorder = team.find((u) => u.id === (m.recorderId ?? row.completedBy));
+      // Results: the distribution counts toward the target the input package names, once, waiting
+      // for MEL like any other result. The same for one recorded in the app and one from
+      // KoboCollect: a distribution form is never mapped to a target in the KoboToolbox setup
+      // (server/kobo-results skips it), so this is the one place a distribution is counted.
+      if (counts && row.farmerCode) {
+        const recorder = team.find((u) => u.id === (row.source === "kobo" ? collectorOf(row.completedBy, rule, team) : (m.recorderId ?? row.completedBy)));
         const input = resultFor({ id, farmerId: row.farmerCode, village: m.village, gender: m.gender ?? undefined, date: (row.completedAt ?? now).toISOString().slice(0, 10), items: m.items, recordedBy: recorder?.name ?? "the field team", approvedBy: by.name }, counts.code);
-        const made = await insertResult(tx, project, input, recorder?.id ?? row.completedBy ?? by.id);
+        const made = await insertResult(tx, project, input, recorder?.id ?? (row.source === "kobo" ? by.id : (row.completedBy ?? by.id)));
         result = made.id;
       }
       // Field: a Kobo distribution moves the farmer on, as the in-app one already did.

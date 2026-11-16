@@ -122,11 +122,17 @@ export async function koboToResults(code: string): Promise<KoboResultCounts> {
     .where(and(eq(s.indicators.projectId, project.id), eq(s.indicators.source, "results")));
   if (!maps.length) return out;
   const approvedOnly = c.connection.countOnly === "approved";
-  const forms = new Map((await db.select().from(s.koboForms).where(eq(s.koboForms.projectId, project.id))).map((f) => [f.assetUid, f.name]));
+  const linked = await db.select().from(s.koboForms).where(eq(s.koboForms.projectId, project.id));
+  const forms = new Map(linked.map((f) => [f.assetUid, f.name]));
+  // Input distributions count toward the target the input package names, when the project
+  // manager approves each one (server/distribution). A mapping on a distribution form is skipped,
+  // so a farmer is never counted twice.
+  const distributionForms = new Set(linked.filter((f) => f.purpose === "distribution").map((f) => f.assetUid));
   const existing = (await loadResults(code)).filter((r) => r.kobo);
   const mismatched = await koboMismatches(project.id);
 
   for (const { m, ind } of maps) {
+    if (distributionForms.has(m.assetUid)) continue;
     const rows = await db
       .select()
       .from(s.evidence)
