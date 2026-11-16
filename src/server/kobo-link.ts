@@ -2,6 +2,7 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { and, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { protectSubmission } from "@/server/kobo-protect";
+import { isReviewed, REVIEWED_PURPOSES } from "@/lib/kobo-setup";
 import type { AutoSyncSecret, FormPurpose, KoboMapping, KoboState, MappingMethod, MappingOrigin, SyncCounts } from "@/lib/kobo-setup";
 import { logAudit } from "@/server/audit";
 import { KoboError, checkServerUrl, formQuestions, formSubmissions, listForms, submissionRefs, type KoboSubmission } from "@/server/kobo-client";
@@ -11,8 +12,8 @@ import { MissingKeyError, decryptSecret, encryptSecret } from "@/server/secrets"
  * A project's own KoboToolbox link: the account, the forms that belong to the project, and how
  * each indicator is counted from a form question. This is the only way Kobo data comes in.
  *
- * Each linked form has a purpose. Readiness forms: each submission is stored with form
- * "readiness" and waits in the review queue; it counts only once accepted. Data forms: stored
+ * Each linked form has a purpose. Reviewed forms (readiness, training, visit, distribution): each
+ * submission is stored with its purpose as `form` and waits in the review queue; it counts only once accepted. Data forms: stored
  * with no `form`, so they stay out of the review queue and count through mappings.
  */
 
@@ -34,13 +35,13 @@ export async function credentials(code: string) {
   return { project, connection: c, server: c.serverUrl, token: decryptSecret(c.tokenEncrypted) };
 }
 
-const purposeOf = (v: string): FormPurpose => (v === "readiness" || v === "distribution" ? v : "data");
+const purposeOf = (v: string): FormPurpose => (isReviewed(v) ? v : "data");
 
 /** The project's linked readiness forms, with the account to reach them. */
 export async function readinessForms(code: string) {
   const c = await credentials(code);
-  const forms = await db.select().from(s.koboForms).where(and(eq(s.koboForms.projectId, c.project.id), inArray(s.koboForms.purpose, ["readiness", "distribution"])));
-  if (!forms.length) throw new KoboError("No readiness form is linked to this project. In Setup, choose the form and mark it as the readiness check.");
+  const forms = await db.select().from(s.koboForms).where(and(eq(s.koboForms.projectId, c.project.id), inArray(s.koboForms.purpose, [...REVIEWED_PURPOSES])));
+  if (!forms.length) throw new KoboError("No field form that uses the farmer list is linked to this project. In Setup, choose the form and mark what it is for (readiness check, training attendance, farm visit or input distribution).");
   return { ...c, forms };
 }
 
@@ -214,7 +215,7 @@ export async function sync(code: string, origin?: string): Promise<SyncCounts> {
   for (const f of forms) {
     // Readiness and distribution forms are reviewed one by one before they count (MEL accepts a
     // readiness check; the project manager approves a distribution). "readiness" below means that.
-    const readiness = f.purpose === "readiness" || f.purpose === "distribution";
+    const readiness = isReviewed(f.purpose);
     const ours = (x: object) => {
       const pc = (x as { project_code?: unknown }).project_code;
       return pc === undefined || pc === null || pc === "" || pc === code;

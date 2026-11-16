@@ -434,6 +434,8 @@ export const es: Messages = {
   "kobo.submissions": "{n} envíos",
   "kobo.purpose": "¿Para qué es este formulario?",
   "kobo.purpose.readiness": "Verificación de preparación: cada envío espera en la cola de revisión (Proyecto > Verificar) y cuenta solo cuando se acepta",
+  "kobo.purpose.training": "Asistencia a la capacitación: cada envío espera en la cola de revisión; al aceptarse registra la capacitación del agricultor y lo hace avanzar desde Capacitar",
+  "kobo.purpose.visit": "Visita a la finca después de la siembra: cada envío espera en la cola de revisión; al aceptarse registra la siembra o lo que requiere seguimiento",
   "kobo.purpose.data": "Datos de campo: los envíos cuentan directamente para las metas",
   "kobo.purpose.distribution": "Distribución de insumos: cada envío se verifica contra la nota de recepción de bienes y va al gerente del proyecto para aprobarlo; cuenta cuando se aprueba",
   "kobo.q.map": "¿Qué pregunta cuenta para cada meta?",

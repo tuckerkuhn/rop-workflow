@@ -6,10 +6,10 @@ Field staff use KoboCollect (offline, Android) or Enketo web forms.
 | Form | Workflow step | Status |
 |---|---|---|
 | `readiness_check.xlsx` | Verify readiness / recheck | **Built.** Accepted results move the farmer in Field activities. |
-| `training_attendance.xlsx` | Train farmers | Planned |
+| `training_attendance.xlsx` | Train farmers | **Draft for review.** One record per farmer per session, from the signed register. Accepted "attended" moves the farmer from Train to Prepare the plot. |
 | `distribution_form.xlsx` | Distribute inputs (demo maize package, A-2027) | **Draft for review.** Checked against the goods received note; the project manager approves each one (email link or Home). |
 | `acrp_distribution_form.xlsx` | Distribute inputs (ACRP-2026) | **Draft for review.** Built from `acrp_distribution.json` by `build_package_form.py`: cuttings, trellising, drip irrigation; each item "given?" then amount. |
-| `field_visit.xlsx` | Plant and follow up | Planned |
+| `field_visit.xlsx` | Plant and follow up | **Draft for review.** Accepted "planted at the trained spacing" records planting; otherwise the follow-up goes on the farmer's record. |
 
 Conventions:
 
@@ -45,6 +45,25 @@ list and gives finance a task to pay the supplier. **Push farmer list to Kobo** 
 Each item is asked "Given to this farmer?" first: an item answered No is not counted, checked against
 stock or charged to a purchase, so a farmer can receive part of the package. A record where nothing
 was given is flagged for the project manager.
+
+## Training attendance and farm visit forms
+
+`python3 kobo/build_field_forms.py` writes both for the demo (A-2027); `python3 kobo/build_field_forms.py
+ACRP-2026` writes `acrp_2026_training_attendance.xlsx` and `acrp_2026_field_visit.xlsx` for that project.
+Set them up like the readiness check below, and in Setup mark them **Training attendance** and
+**Farm visit**. **Push farmer list to Kobo** updates `farmers.csv` on them too.
+
+Each submission waits in Project → Verify. When MEL accepts it:
+- Training, attended: the Train checks are ticked and the farmer moves to Prepare the plot, but only
+  if already enrolled with the contribution paid; otherwise they stay at Train with the attendance
+  recorded. Not attended: noted on the record only.
+- Farm visit at Plant: planted at the trained spacing records planting and completes the season path;
+  not planted, or not as trained, keeps the farmer at Plant with what needs follow-up. The planting
+  window is not checked here: a planting date after the window shows on the record for MEL to judge.
+- A farmer at another step: the record is kept, the step does not move, and the queue flags it first.
+
+To count trained farmers or visits toward a target, map the form in Setup (for example distinct
+`farmer` answers): like readiness checks, these count only once accepted.
 
 ## Setting up the readiness check
 

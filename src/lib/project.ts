@@ -171,8 +171,11 @@ export function dataFlags(s: Submission, all: Submission[], roster?: Roster): st
     const step = roster[s.farmerId];
     if (step === undefined) f.push(`Farmer ${s.farmerId || "(blank)"} is not on the project roster`);
     else if (s.form === "readiness" && !["verify", "correct"].includes(step)) f.push(`Farmer ${s.farmerId} is not at a readiness step (now: ${step}); the result will be recorded but the step will not move`);
+    else if (s.form === "training" && step !== "train") f.push(`Farmer ${s.farmerId} is past training (now: ${step}); attendance will be recorded but the step will not move`);
+    else if (s.form === "visit" && step !== "plant") f.push(`Farmer ${s.farmerId} is not at planting (now: ${step}); the visit will be recorded but the step will not move`);
   }
   if (s.source === "kobo" && s.form === "readiness" && s.fields.result === "No" && !s.fields.issue) f.push("Result is No but nothing is recorded under what needs fixing");
+  if (s.source === "kobo" && s.form === "training" && s.fields.attended === "No") f.push("Marked as not attended: accepting it records the absence only");
   if (s.source === "kobo" && s.date > new Date().toISOString().slice(0, 10)) f.push(`Visit date ${s.date} is in the future`);
   const missing = Object.entries(s.fields)
     .filter(([, v]) => !v)

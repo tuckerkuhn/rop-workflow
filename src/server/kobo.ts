@@ -81,6 +81,8 @@ export async function pushFarmerList(code: string) {
 /* ---------- stored rows → review queue entries ---------- */
 
 const str = (v: unknown) => (typeof v === "string" ? v : "");
+/** A choice name as words: "land_prep" → "Land prep". */
+const label = (v: string) => (v ? v.charAt(0).toUpperCase() + v.slice(1).replace(/_/g, " ") : "");
 
 function gpsOf(raw: unknown): [number, number] | null {
   const parts = str(raw).trim().split(/\s+/).map(Number);
@@ -113,6 +115,19 @@ export function toSubmission(row: EvidenceRow): Submission {
     );
     Object.assign(fields, { gender: str(p._rop_gender), ...amounts, signature: str(p.signed) === "yes" ? "Yes" : "Not confirmed" });
   }
+  const yn = (v: unknown) => (str(v) === "yes" ? "Yes" : str(v) === "no" ? "No" : "");
+  if (row.form === "training") {
+    // kobo/build_field_forms.py, training attendance. Sex comes from the farmer record when accepted.
+    for (const k of Object.keys(fields)) delete fields[k];
+    Object.assign(fields, { session: label(str(p.session)), attended: yn(p.attended), register: str(p.register_ref) });
+  }
+  if (row.form === "visit") {
+    // kobo/build_field_forms.py, farm visit after planting.
+    for (const k of Object.keys(fields)) delete fields[k];
+    Object.assign(fields, { purpose: label(str(p.purpose)), both_present: yn(p.both_present), planted: yn(p.planted) });
+    if (str(p.planted) === "yes") Object.assign(fields, { planting_date: str(p.planting_date), spacing: yn(p.spacing_ok) });
+    if (str(p.planted) === "no" || str(p.spacing_ok) === "no") fields.issue = str(p.issue);
+  }
   return {
     id: `KB-${p._id ?? row.koboSubmissionUuid?.slice(0, 8)}`,
     dbId: row.id,
@@ -120,7 +135,7 @@ export function toSubmission(row: EvidenceRow): Submission {
     orgId: row.organizationId ?? "",
     form: (row.form as SubmissionForm) ?? "readiness",
     farmerId: row.farmerCode ?? str(p.farmer),
-    date: str(p.visit_date) || (row.completedAt ? row.completedAt.toISOString().slice(0, 10) : ""),
+    date: str(p.visit_date) || str(p.training_date) || (row.completedAt ? row.completedAt.toISOString().slice(0, 10) : ""),
     enumerator: row.completedBy ?? "kobo",
     gps: gpsOf(p.location),
     fields,

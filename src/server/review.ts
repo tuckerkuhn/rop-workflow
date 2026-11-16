@@ -9,8 +9,9 @@ import { HttpError } from "@/server/guard";
 import { correctionTask } from "@/server/distribution";
 
 /**
- * MEL decisions on the review queue. Accepting a Kobo readiness check is what records the
- * Yes/No on the farmer: nothing changes in Field activities until a named person accepts it.
+ * MEL decisions on the review queue. Accepting a Kobo readiness check, training attendance or farm
+ * visit is what records it on the farmer: nothing changes in Field activities until a named person
+ * accepts it.
  */
 
 const later = (a: string, b: string) => (a > b ? a : b);
@@ -40,6 +41,8 @@ export async function decide(code: string, evidenceId: string, status: "accepted
     let applied: string | null = null;
     if (status === "accepted" && row.source === "kobo" && row.form === "readiness") {
       applied = await applyReadiness(tx, row, user, { ...project, code });
+    } else if (status === "accepted" && row.source === "kobo" && (row.form === "training" || row.form === "visit")) {
+      applied = await (row.form === "training" ? applyTraining : applyVisit)(tx, row, user);
     }
 
     await tx.insert(s.auditLog).values({
@@ -110,4 +113,80 @@ async function applyReadiness(tx: Tx, row: typeof s.evidence.$inferSelect, user:
   };
   await tx.update(s.fieldItems).set({ data: next, updatedAt: new Date() }).where(eq(s.fieldItems.id, item.id));
   return summary;
+}
+
+/** The farmer's Field activities record, or null when the farmer is not on this project's list. */
+async function farmerItem(tx: Tx, projectId: string, code: string) {
+  const [item] = await tx.select().from(s.fieldItems).where(and(eq(s.fieldItems.projectId, projectId), eq(s.fieldItems.itemKey, code))).limit(1);
+  return item ?? null;
+}
+
+async function saveFarmer(tx: Tx, id: string, f: Farmer, date: string, what: string) {
+  const next: Farmer = { ...f, timeline: [...f.timeline, { date, who: "mel", what }] };
+  await tx.update(s.fieldItems).set({ data: next, updatedAt: new Date() }).where(eq(s.fieldItems.id, id));
+}
+
+/**
+ * Training attendance (kobo/build_field_forms.py). Attended: ticks "attended" and "register" on the
+ * Train step and moves the farmer on to Prepare the plot, as "Record training" does, but only when
+ * the step's other checks (enrolled, contribution paid) already hold. Otherwise it is recorded and
+ * the farmer stays where they are.
+ */
+async function applyTraining(tx: Tx, row: typeof s.evidence.$inferSelect, user: AppUser): Promise<string> {
+  const sub = toSubmission(row);
+  const code = sub.farmerId;
+  const item = await farmerItem(tx, row.projectId, code);
+  if (!item) return `Farmer ${code} is not on the farmer list; attendance kept on the submission only`;
+  const f = item.data as Farmer;
+  const date = sub.date || today();
+  const kbo = `Kobo ${sub.id}, accepted by ${user.name}`;
+  const session = sub.fields.session || "training";
+  if (sub.fields.attended !== "Yes") {
+    await saveFarmer(tx, item.id, f, date, `Did not attend ${session.toLowerCase()} (${kbo})`);
+    return "Not attended: noted on the farmer's record; the step did not move.";
+  }
+  const register = sub.fields.register ? `, register ${sub.fields.register}` : "";
+  if (f.step !== "train") {
+    await saveFarmer(tx, item.id, f, date, `Attended ${session.toLowerCase()}${register} (${kbo})`);
+    return `Attendance recorded; farmer was at "${fieldSteps[f.step]?.title ?? f.step}", so the step did not move.`;
+  }
+  const checks = { ...f.checks, "train.attended": true, "train.register": true };
+  const blocked = !f.enrolled ? "not enrolled" : !f.contributionPaid ? "contribution not yet paid" : null;
+  if (blocked) {
+    await saveFarmer(tx, item.id, { ...f, checks }, date, `Attended ${session.toLowerCase()}${register}; stays at Train: ${blocked} (${kbo})`);
+    return `Attendance recorded. Stays at Train: ${blocked}.`;
+  }
+  await saveFarmer(tx, item.id, { ...f, checks, step: "prepare" }, date, `Training recorded: ${session.toLowerCase()}${register} (${kbo})`);
+  return "Training recorded. Moved to Prepare the plot.";
+}
+
+/**
+ * Farm visit after planting (kobo/build_field_forms.py). Planted at the trained spacing: ticks the
+ * Plant checks and records planting, completing the farmer's season path. Not planted, or not as
+ * trained: what needs follow-up goes on the record and the farmer stays at Plant.
+ */
+async function applyVisit(tx: Tx, row: typeof s.evidence.$inferSelect, user: AppUser): Promise<string> {
+  const sub = toSubmission(row);
+  const code = sub.farmerId;
+  const item = await farmerItem(tx, row.projectId, code);
+  if (!item) return `Farmer ${code} is not on the farmer list; visit kept on the submission only`;
+  const f = item.data as Farmer;
+  const date = sub.date || today();
+  const kbo = `Kobo ${sub.id}, accepted by ${user.name}`;
+  const purpose = (sub.fields.purpose || "Farm visit").toLowerCase();
+  const issue = sub.fields.issue;
+  const ok = sub.fields.planted === "Yes" && sub.fields.spacing === "Yes";
+  if (f.step !== "plant") {
+    await saveFarmer(tx, item.id, f, date, `Farm visit, ${purpose}${issue ? `: ${issue}` : ""} (${kbo})`);
+    return `Visit recorded; farmer was at "${fieldSteps[f.step]?.title ?? f.step}", so the step did not move.`;
+  }
+  const checks = { ...f.checks, "plant.followup": true, "plant.manner": ok };
+  if (!ok) {
+    const what = sub.fields.planted === "Yes" ? "planted, not as trained" : "not yet planted";
+    await saveFarmer(tx, item.id, { ...f, checks }, date, `Farm visit, ${purpose}: ${what}${issue ? `. To follow up: ${issue}` : ""} (${kbo})`);
+    return `Visit recorded: ${what}. Stays at Plant for follow-up.`;
+  }
+  const planted = sub.fields.planting_date ? ` on ${sub.fields.planting_date}` : "";
+  await saveFarmer(tx, item.id, { ...f, checks, step: "complete" }, date, `Planting recorded${planted}, at the trained spacing (${kbo})`);
+  return "Planting recorded. Season path complete.";
 }
