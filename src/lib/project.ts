@@ -146,6 +146,9 @@ export type Submission = {
   decidedBy?: string;
   decidedOn?: string;
   note?: string;
+  /** From the server, for the person viewing: whether they may accept or query it, and who decides it. */
+  mayDecide?: boolean;
+  deciders?: string;
 };
 
 /** Project area for the GPS check (fictional). */

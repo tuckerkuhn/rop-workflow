@@ -3,7 +3,8 @@
  * code and the pages a person has opened, never project data: API answers and donor links are
  * always fetched fresh and never stored. Work saved offline waits in the page's own outbox.
  */
-const CACHE = "rop-shell-v2";
+// Raising the version clears every copy stored under the old one when the new worker starts.
+const CACHE = "rop-shell-v3";
 const OFFLINE = "/offline.html";
 
 self.addEventListener("install", (e) => {
@@ -21,8 +22,8 @@ self.addEventListener("fetch", (e) => {
   if (req.method !== "GET") return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin || neverStore(url)) return;
-  // The app's code: the same file name never changes, so the stored copy is always right.
-  if (url.pathname.startsWith("/_next/static/") || /\.(png|svg|ico|woff2?)$/.test(url.pathname)) {
+  // The app's code: a built file's name changes with its content, so the stored copy is always right.
+  if (url.pathname.startsWith("/_next/static/")) {
     e.respondWith(
       caches.match(req).then(
         (hit) =>
@@ -35,6 +36,22 @@ self.addEventListener("fetch", (e) => {
             return res;
           }),
       ),
+    );
+    return;
+  }
+  // Images and icons keep their names when replaced (a new logo is still /brand/rop-logo.svg), so
+  // the network first, and the stored copy only without a connection.
+  if (/\.(png|svg|ico|woff2?)$/.test(url.pathname)) {
+    e.respondWith(
+      fetch(req)
+        .then((res) => {
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(req, copy));
+          }
+          return res;
+        })
+        .catch(() => caches.match(req).then((hit) => hit || Response.error())),
     );
     return;
   }

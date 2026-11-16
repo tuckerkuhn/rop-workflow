@@ -19,6 +19,7 @@ import { NamesWarning } from "@/components/progress/names-warning";
 import { LookedAt } from "@/components/app/ai-why";
 import { FieldHelp } from "@/components/app/field-help";
 import { ErrorNote } from "@/components/app/error-note";
+import { FieldRecords } from "@/components/progress/field-records";
 
 /**
  * Results recorded with their proof. Field staff record what was achieved (10 ha of drip
@@ -173,6 +174,8 @@ export function ResultsPage() {
             }}
           />
         )}
+
+        {project.saved && !range && !reviewing && <FieldRecords code={project.id} />}
 
         {range && (
           <p className="mt-6 flex flex-wrap items-center gap-2 rounded-xl bg-sunken px-4 py-3 text-sm">

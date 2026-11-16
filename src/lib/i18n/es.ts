@@ -433,7 +433,7 @@ export const es: Messages = {
   "kobo.notDeployed": "No publicado",
   "kobo.submissions": "{n} envíos",
   "kobo.purpose": "¿Para qué es este formulario?",
-  "kobo.purpose.readiness": "Verificación de preparación: cada envío espera en la cola de revisión (Proyecto > Verificar) y cuenta solo cuando se acepta",
+  "kobo.purpose.readiness": "Verificación de preparación: cada envío espera en Revisar › Resultados y pruebas, en Formularios de campo por revisar, y cuenta solo cuando se acepta",
   "kobo.purpose.training": "Asistencia a la capacitación: cada envío espera en la cola de revisión; al aceptarse registra la capacitación del agricultor y lo hace avanzar desde Capacitar",
   "kobo.purpose.visit": "Visita a la finca después de la siembra: cada envío espera en la cola de revisión; al aceptarse registra la siembra o lo que requiere seguimiento",
   "kobo.purpose.data": "Datos de campo: los envíos cuentan directamente para las metas",

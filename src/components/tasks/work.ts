@@ -5,7 +5,7 @@ import { procurementComingTo } from "@/components/procurement/workspace";
 import { PROJECT, daysFrom, projectPath, stepHistory, type AppUser, type Stage } from "@/lib/demo";
 import { farmerLabel, fieldSteps, ownerOfItem, projectItem, type FieldItem } from "@/lib/field";
 import { ownerOf, procRolesFor, stepById, stepsFor, type Procurement } from "@/lib/procurement";
-import { actualFor, indicators, type ProjectState } from "@/lib/project";
+import { type ProjectState } from "@/lib/project";
 import { blockers, fromProcurement, monthsOf, type Closeouts } from "@/lib/closeout";
 import { awaiting, type PlanItem } from "@/lib/procurement-plan";
 import { today } from "@/lib/clock";
@@ -131,16 +131,10 @@ export function workFor(u: AppUser, data: Data, viewer: AppUser, opts: { project
   if (opts.projectCards === false || data.sampleSignOffs === false) return cards.sort((a, b) => a.date.localeCompare(b.date));
   // Project sign-offs from the build spec.
   const pending = project.submissions.filter((s) => s.status === "pending").length;
-  const unapproved = indicators.filter((i) => {
-    if (i.source === "survey") return false;
-    const a = project.actualApprovals[i.id];
-    return !a || a.note !== String(actualFor(i, project.submissions).value);
-  }).length;
   const proj = (key: string, title: string, step: string, tab: string, days: number) =>
     cards.push({ key, title, step, date: new Date(Date.parse(today()) + days * 86400000).toISOString().slice(0, 10), href: `/progress/records?project=${PROJECT.id}#${tab}`, space: "Project", now: true, late: false, note: "" });
   if (u.project.includes("mel-owner")) {
-    if (pending) proj("pj-queue", `${pending} Kobo submissions to review`, "Accept or query in the review queue", "verify", 1);
-    if (unapproved) proj("pj-actuals", `${unapproved} results to approve`, "Approve this period's results", "verify", 3);
+    if (pending) cards.push({ key: "pj-queue", title: `${pending} field forms to check`, step: "Accept or query on Results and proof", date: new Date(Date.parse(today()) + 86400000).toISOString().slice(0, 10), href: "/progress/results#field-records", space: "Project", now: true, late: false, note: "" });
   }
   if (u.project.includes("finance-import") && !project.importedOn) proj("pj-import", "March NetSuite export", "Import and map spend to budget lines", "budget", 2);
   if (u.project.includes("monthly-review")) {

@@ -19,7 +19,7 @@ Conventions:
 - Labels in English, Dari and Pashto. **The Dari and Pashto labels are drafts; have a native
   speaker review them before field use.**
 - Each submission is stored once, keyed on Kobo's `_uuid`, and waits in the project's review
-  queue (Project → Verify). Nothing changes in Field activities until the MEL owner accepts it.
+  queue (Check › Results and proof). Nothing changes in Field activities until the MEL owner accepts it.
 
 ## Setting up the distribution form
 
@@ -53,7 +53,7 @@ ACRP-2026` writes `acrp_2026_training_attendance.xlsx` and `acrp_2026_field_visi
 Set them up like the readiness check below, and in Setup mark them **Training attendance** and
 **Farm visit**. **Push farmer list to Kobo** updates `farmers.csv` on them too.
 
-Each submission waits in Project → Verify. When MEL accepts it:
+Each submission waits on Check › Results and proof, under Field forms to check, and is counted on Home. When MEL accepts it:
 - Training, attended: the Train checks are ticked and the farmer moves to Prepare the plot, but only
   if already enrolled with the contribution paid; otherwise they stay at Train with the attendance
   recorded. Not attended: noted on the record only.
@@ -78,8 +78,8 @@ Each project links its own KoboToolbox account and forms in the app; nothing abo
 4. On the last Setup step, **Turn on automatic sync** and enter the address, username and password it
    shows in Kobo: the form → **Settings → REST Services → Register a new service** (JSON, Basic
    authentication). Each project has its own password.
-5. Project → Verify → **Push farmer list to Kobo** uploads `farmers.csv` and redeploys the form.
+5. Check › Results and proof → **Send farmer list to KoboToolbox** uploads `farmers.csv` and redeploys the form.
 
-Readiness submissions land in the review queue (Project → Verify) as pending, by automatic sync or
+Readiness submissions land in the review queue (Check › Results and proof, Field forms to check) as pending, by automatic sync or
 **Sync from Kobo**; both are safe to repeat. A check that has been accepted or queried is not
 changed by later edits in Kobo; the edit is written to the audit log instead.

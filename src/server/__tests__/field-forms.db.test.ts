@@ -11,6 +11,8 @@ import { seedDatabase } from "@/server/demo-seed";
 import { loadField, saveItems } from "@/server/field-store";
 import { listSubmissions } from "@/server/kobo";
 import { decide } from "@/server/review";
+import { loadHome } from "@/server/home-store";
+import { GET as listQueue } from "@/app/api/projects/[code]/submissions/route";
 import { ready } from "@/server/__tests__/test-db";
 
 /**
@@ -36,6 +38,7 @@ async function submit(form: "training" | "visit", farmerCode: string, answers: R
 }
 
 beforeAll(async () => {
+  process.env.DEMO_SIGN_IN = "1";
   await ready;
   await seedDatabase();
 }, 120_000);
@@ -99,5 +102,20 @@ describe("training attendance and farm visit forms", { timeout: 60_000 }, () => 
     const id = await submit("training", f.id, { session: "land_prep", attended: "yes", register_ref: "" });
     expect((await decide(code, id, "queried", omar, "Register reference missing")).applied).toBeNull();
     expect((await farmer(f.id)).step).toBe("train");
+  });
+  it("puts waiting field forms on Home for whoever may decide them, and says who on the queue", async () => {
+    const f = (await farmers()).find((x) => x.step === "train")!;
+    await submit("training", f.id, { session: "land_prep", attended: "yes", register_ref: "B3 p1" });
+    const forms = (h: Awaited<ReturnType<typeof loadHome>>) => h.actions.find((a) => a.key === "field-forms");
+    // Collected by farida: MEL (omar) decides it, farida does not.
+    expect(forms(await loadHome(code, omar))?.href).toBe("/progress/results#field-records");
+    expect(forms(await loadHome(code, omar))?.text).toMatch(/^Check \d+ field forms? from KoboCollect/);
+    expect(forms(await loadHome(code, farida))).toBeUndefined();
+
+    const res = await listQueue(new Request(`http://test/api/projects/${code}/submissions`, { headers: { "x-demo-user": "farida" } }), { params: Promise.resolve({ code }) });
+    const { submissions } = (await res.json()) as { submissions: { farmerId: string; status: string; form: string; mayDecide: boolean; deciders: string }[] };
+    const mine = submissions.find((x) => x.farmerId === f.id && x.status === "pending" && x.form === "training")!;
+    expect(mine.mayDecide).toBe(false);
+    expect(mine.deciders).toBe("Omar Sadiq");
   });
 });

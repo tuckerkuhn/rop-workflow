@@ -5,9 +5,8 @@ import { useProcurements } from "@/components/app/use-project-data";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useFieldData, useSubmissions } from "@/components/app/use-project-data";
-import type { SyncCounts } from "@/lib/kobo-setup";
 import { useRequireUser, useSession } from "@/components/app/session";
-import { Pill, SectionLabel, TODAY, TopBar, dangerBtn, primaryBtn, quietBtn, usePersistentState } from "@/components/workspace/ui";
+import { Pill, SectionLabel, TODAY, TopBar, primaryBtn, quietBtn, usePersistentState } from "@/components/workspace/ui";
 import { STAGES, holderOf, projectRoleHolders, userById, type AppUser } from "@/lib/demo";
 import { useCurrentProject } from "@/components/app/current-project";
 import { GatedSections, MoveToExecute } from "@/components/project/gated-project";
@@ -36,12 +35,11 @@ import {
   type ProjectState,
   type Roster,
   type SpendRow,
-  type Submission,
 } from "@/lib/project";
 
 export const PROJECT_KEY = "rop-project-v3";
 
-const TABS = ["Overview", "Plan", "Execute", "Verify", "Budget", "Report", "Audit"] as const;
+const TABS = ["Overview", "Plan", "Execute", "Budget", "Report", "Audit"] as const;
 type Tab = (typeof TABS)[number];
 const PERIOD = "January to March 2027 (to 4 March)";
 
@@ -135,26 +133,36 @@ function Overview({ u, state, setState, field, procs, roster, go }: SectionProps
   const pending = state.submissions.filter((s) => s.status === "pending");
   const flagged = pending.filter((s) => dataFlags(s, state.submissions, roster).length);
   const late = activities.filter((a) => activityStatus(a, field, procs).status === "Late");
-  const unapproved = indicators.filter((i) => i.source !== "survey" && !state.actualApprovals[i.id]);
   const spend = state.spend.reduce((s, r) => s + r.amount, 0);
   const plannedToDate = planLines.reduce((s, l) => s + l.plannedToDate, 0);
   const openFindings = field.filter((i) => i.kind === "finding" && i.step !== "closed");
 
   return (
     <div className="space-y-8">
-      <section className="grid gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-2 lg:grid-cols-4">
+      <section className="grid gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-3">
         {[
-          { k: "Review queue", v: `${pending.length}`, s: `${flagged.length} flagged by the data checker`, t: "Verify" as Tab },
+          { k: "Field forms to check", v: `${pending.length}`, s: `${flagged.length} flagged by the data checker`, href: "/progress/results#field-records" },
           { k: "Late activities", v: `${late.length}`, s: late.map((a) => a.name).join(", ") || "None", t: "Execute" as Tab },
-          { k: "Results not accepted", v: `${unapproved.length}`, s: "Block report release", t: "Verify" as Tab },
           { k: "Spend to date", v: state.spend.length ? money(spend) : "Not imported", s: state.spend.length ? `${pct(spend, plannedToDate)}% of plan to date` : "NetSuite export due", t: "Budget" as Tab },
-        ].map((c) => (
-          <button key={c.k} type="button" onClick={() => go(c.t)} className="bg-surface px-5 py-4 text-left transition hover:bg-paper">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">{c.k}</p>
-            <p className="mt-1 font-display text-3xl tabular-nums">{c.v}</p>
-            <p className="mt-1 truncate text-xs text-muted">{c.s}</p>
-          </button>
-        ))}
+        ].map((c) => {
+          const body = (
+            <>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">{c.k}</p>
+              <p className="mt-1 font-display text-3xl tabular-nums">{c.v}</p>
+              <p className="mt-1 truncate text-xs text-muted">{c.s}</p>
+            </>
+          );
+          // The review queue lives on Check > Results and proof, with the results MEL checks.
+          return c.href ? (
+            <Link key={c.k} href={c.href} className="bg-surface px-5 py-4 text-left transition hover:bg-paper">
+              {body}
+            </Link>
+          ) : (
+            <button key={c.k} type="button" onClick={() => go(c.t!)} className="bg-surface px-5 py-4 text-left transition hover:bg-paper">
+              {body}
+            </button>
+          );
+        })}
       </section>
 
       <section className="rounded-2xl border border-line bg-surface">
@@ -415,236 +423,6 @@ function Execute({ field, procs }: SectionProps) {
         ))}
       </div>
       <p className="text-xs text-muted">HR stays in BambooHR and finance in NetSuite. The harness reads their exports and never replaces them.</p>
-    </div>
-  );
-}
-
-function KoboBar({ kobo }: { kobo: SectionProps["kobo"] }) {
-  const [busy, setBusy] = useState<string | null>(null);
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const run = async (what: string, fn: () => Promise<string>) => {
-    setBusy(what);
-    setMsg(null);
-    try {
-      setMsg({ ok: true, text: await fn() });
-    } catch (e) {
-      setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
-    }
-    setBusy(null);
-  };
-  const synced = (r: SyncCounts) =>
-    `Synced ${new Date().toLocaleTimeString()}: ${r.fetched} on Kobo · ${r.added} new · ${r.already} already in${r.updated ? ` · ${r.updated} changed` : ""}${r.removed ? ` · ${r.removed} deleted in Kobo` : ""}`;
-  return (
-    <div className="rounded-2xl border border-line bg-surface p-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <p className="mr-auto text-sm">
-          <span className="font-semibold">KoboToolbox</span> <span className="text-muted">· this project&apos;s readiness form</span>
-        </p>
-        <button type="button" disabled={!!busy} onClick={() => run("sync", async () => synced(await kobo.sync()))} className={`${primaryBtn} py-2`}>
-          {busy === "sync" ? "Syncing…" : "Sync from Kobo"}
-        </button>
-        <button
-          type="button"
-          disabled={!!busy}
-          onClick={() => run("push", async () => {
-            const r = await kobo.pushFarmers();
-            return `Farmer list uploaded (${r.farmers} farmers)${r.redeployed ? ` and ${r.forms > 1 ? "the forms" : "the form"} redeployed.` : ". Redeploy the form in Kobo so it picks up the new list."}`;
-          })}
-          className={`${quietBtn} py-2`}
-        >
-          {busy === "push" ? "Uploading…" : "Push farmer list to Kobo"}
-        </button>
-        <button
-          type="button"
-          disabled={!!busy}
-          onClick={() => run("download", async () => {
-            await kobo.downloadFarmers();
-            return "farmers.csv downloaded.";
-          })}
-          className="px-2 text-sm text-forest hover:underline"
-        >
-          Download farmers.csv
-        </button>
-      </div>
-      {msg && <p className={`mt-2 text-sm ${msg.ok ? "text-leaf" : "text-clay"}`}>{msg.text}</p>}
-      <p className="mt-2 text-xs text-muted">The farmer list carries ID, village and household-head initials only. Submissions are matched to a farmer by ID and stored once per Kobo record.</p>
-    </div>
-  );
-}
-
-function Verify({ u, state, setState, roster, kobo, openEvidence }: SectionProps & { openEvidence: (i: Indicator) => void }) {
-  const isMel = u.project.includes("mel-owner");
-  const [querying, setQuerying] = useState<string | null>(null);
-  const [note, setNote] = useState("");
-  const [outcome, setOutcome] = useState<{ ok: boolean; text: string } | null>(null);
-  const pending = state.submissions.filter((s) => s.status === "pending");
-  const queried = state.submissions.filter((s) => s.status === "queried");
-  const decide = async (subs: Submission[], status: "accepted" | "queried", why?: string) => {
-    setOutcome(null);
-    try {
-      const applied = await kobo.decide(subs.map((x) => x.dbId!).filter(Boolean), status, why);
-      setOutcome({ ok: true, text: applied.length ? `Field activities updated: ${applied.join(" ")}` : `${subs.length} record${subs.length === 1 ? "" : "s"} ${status}.` });
-    } catch (e) {
-      setOutcome({ ok: false, text: e instanceof Error ? e.message : String(e) });
-    }
-  };
-  const clean = pending.filter((s) => dataFlags(s, state.submissions, roster).length === 0);
-
-  return (
-    <div className="space-y-8">
-      {kobo.error && (
-        <p role="alert" className="rounded-xl border border-clay/40 bg-clay-soft px-4 py-3 text-sm text-clay">
-          {kobo.error}
-        </p>
-      )}
-      {u.kind === "employee" && <KoboBar kobo={kobo} />}
-      {outcome && <p className={`rounded-xl border px-4 py-3 text-sm ${outcome.ok ? "border-forest/30 bg-mist text-leaf" : "border-clay/40 bg-clay-soft text-clay"}`}>{outcome.text}</p>}
-      <section>
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <SectionLabel>Review queue · {pending.length} from the daily Kobo pull</SectionLabel>
-            <p className="mt-1 text-sm text-muted">The data checker flags problems. {isMel ? "You" : name(projectRoleHolders("mel-owner")[0]?.id ?? "")} accept or query each record; accepted data becomes part of a Result.</p>
-          </div>
-          {isMel && clean.length > 0 && (
-            <button type="button" onClick={() => decide(clean, "accepted")} className={quietBtn}>
-              Accept {clean.length} without flags
-            </button>
-          )}
-        </div>
-        <ul className="mt-3 space-y-2">
-          {pending.map((s) => {
-            const flags = dataFlags(s, state.submissions, roster);
-            return (
-              <li key={s.id} className={`rounded-2xl border bg-surface p-4 ${flags.length ? "border-clay/40" : "border-line"}`}>
-                <div className="flex flex-wrap items-start gap-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm">
-                      <span className="font-mono text-xs text-muted">{s.id}</span> · <span className="font-medium">{formLabel[s.form]}</span> · Farmer {s.farmerId}{" "}
-                      <Pill tone={s.source === "kobo" ? "sky" : "muted"}>{s.source === "kobo" ? "Kobo" : "Sample"}</Pill>
-                    </p>
-                    <p className="mt-0.5 text-xs text-muted">
-                      {s.date} · {name(s.enumerator)} · {Object.entries(s.fields).map(([k, v]) => `${k}: ${v || "—"}`).join(" · ")}
-                    </p>
-                    {flags.length > 0 && (
-                      <ul className="mt-2 space-y-1">
-                        {flags.map((f) => (
-                          <li key={f} className="flex gap-2 text-sm text-clay">
-                            <span aria-hidden>◆</span>
-                            {f}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                  {isMel && querying !== s.id && (
-                    <div className="flex gap-2">
-                      <button type="button" onClick={() => decide([s], "accepted")} className="rounded-full bg-forest px-4 py-1.5 text-sm font-medium text-forest-ink">
-                        Accept
-                      </button>
-                      <button type="button" onClick={() => setQuerying(s.id)} className="rounded-full border border-line px-4 py-1.5 text-sm">
-                        Query
-                      </button>
-                    </div>
-                  )}
-                </div>
-                {querying === s.id && (
-                  <form
-                    className="mt-3 flex flex-wrap gap-2"
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      if (!note.trim()) return;
-                      void decide([s], "queried", note.trim());
-                      setQuerying(null);
-                      setNote("");
-                    }}
-                  >
-                    <input
-                      id={`q-${s.id}`}
-                      autoFocus
-                      value={note}
-                      onChange={(e) => setNote(e.target.value)}
-                      placeholder={`Question for ${name(s.enumerator)}`}
-                      className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm focus:border-forest focus:outline-none"
-                    />
-                    <button type="submit" className={dangerBtn}>
-                      Send query
-                    </button>
-                  </form>
-                )}
-              </li>
-            );
-          })}
-          {pending.length === 0 && <li className="rounded-2xl border border-line bg-surface p-4 text-sm text-muted">{kobo.status === "loading" ? "Loading the review queue…" : "Queue is clear."}</li>}
-        </ul>
-        {queried.length > 0 && <p className="mt-2 text-xs text-muted">{queried.length} queried and back with the enumerator: {queried.map((s) => s.id).join(", ")}</p>}
-      </section>
-
-      <section>
-        <SectionLabel>Results for {PERIOD}</SectionLabel>
-        <div className="mt-3 overflow-x-auto rounded-2xl border border-line bg-surface">
-          <table className="w-full min-w-[640px] text-sm">
-            <thead className="border-b border-line text-left text-[11px] uppercase tracking-wide text-muted">
-              <tr>
-                <th className="px-4 py-2 font-semibold">Target</th>
-                <th className="px-4 py-2 font-semibold">How many</th>
-                <th className="px-4 py-2 font-semibold">Result</th>
-                <th className="px-4 py-2 font-semibold">Women / men</th>
-                <th className="px-4 py-2 font-semibold">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line">
-              {indicators.map((i) => {
-                const a = actualFor(i, state.submissions);
-                const appr = state.actualApprovals[i.id];
-                const stale = appr && appr.note !== String(a.value);
-                return (
-                  <tr key={i.id}>
-                    <td className="px-4 py-3">
-                      <span className="font-mono text-xs text-muted">{i.id}</span> {i.name}
-                    </td>
-                    <td className="px-4 py-3 tabular-nums">{i.target}</td>
-                    <td className="px-4 py-3">
-                      {i.source === "survey" ? (
-                        <span className="text-muted">End-of-season survey</span>
-                      ) : (
-                        <button type="button" onClick={() => openEvidence(i)} className="font-semibold tabular-nums text-forest hover:underline">
-                          {a.value}
-                        </button>
-                      )}
-                      {a.pending > 0 && <span className="ml-1 text-xs text-warn">+{a.pending} in queue</span>}
-                    </td>
-                    <td className="px-4 py-3 tabular-nums text-muted">{i.unit === "farmers" ? `${a.byGender.Female} / ${a.byGender.Male}` : "—"}</td>
-                    <td className="px-4 py-3">
-                      {i.source === "survey" ? (
-                        <Pill tone="muted">No data yet</Pill>
-                      ) : appr && !stale ? (
-                        <Pill tone="forest">Approved · {name(appr.by).split(" ")[0]}</Pill>
-                      ) : isMel ? (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setState((s) => ({
-                              ...s,
-                              actualApprovals: { ...s.actualApprovals, [i.id]: { what: `${i.id} result`, by: u.id, date: TODAY, note: String(a.value) } },
-                              audit: [...s.audit, { date: TODAY, who: u.id, what: `Accepted result ${i.id} = ${a.value}`, kind: "approval" }],
-                            }))
-                          }
-                          className="rounded-full bg-forest px-3 py-1 text-xs font-semibold text-forest-ink"
-                        >
-                          {stale ? "Accept again" : "Accept the result"}
-                        </button>
-                      ) : (
-                        <Pill tone={stale ? "clay" : "ochre"}>{stale ? "Changed since approval" : "Draft"}</Pill>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        <p className="mt-2 text-xs text-muted">Counted by women and men, age and place: gender, age band, household size, community. Ethnicity is not collected for this project.</p>
-      </section>
     </div>
   );
 }
@@ -1010,9 +788,9 @@ function Audit({ state, field, procs, roster }: SectionProps) {
     const kb = state.submissions
       .filter((s) => s.source === "kobo")
       .flatMap((s) => [
-        { date: s.date, who: s.enumerator, what: `Kobo submission ${s.id} (${formLabel[s.form]}, ${s.farmerId}) received`, kind: "import" as const, where: "Verify" },
+        { date: s.date, who: s.enumerator, what: `Kobo submission ${s.id} (${formLabel[s.form]}, ${s.farmerId}) received`, kind: "import" as const, where: "Field forms" },
         ...(s.status !== "pending" && s.decidedOn
-          ? [{ date: s.decidedOn, who: s.decidedBy ?? "", what: `${s.status === "accepted" ? "Accepted" : "Queried"} ${s.id}${s.note ? `: ${s.note}` : ""}`, kind: "approval" as const, where: "Verify" }]
+          ? [{ date: s.decidedOn, who: s.decidedBy ?? "", what: `${s.status === "accepted" ? "Accepted" : "Queried"} ${s.id}${s.note ? `: ${s.note}` : ""}`, kind: "approval" as const, where: "Field forms" }]
           : []),
       ]);
     const fe = field.flatMap((i) => i.timeline.map((e) => ({ date: e.date, who: holderOf("field", e.who)?.id ?? e.who, what: `${i.id}: ${e.what}`, kind: "change" as const, where: "Field activities" })));
@@ -1135,7 +913,6 @@ export function ProjectPage({ id }: { id: string }) {
   const donor = user.kind === "donor";
   const tabs: Tab[] = donor ? ["Report"] : [...TABS];
   const shownTab: Tab = donor ? "Report" : tab;
-  const pendingCount = state.submissions.filter((s) => s.status === "pending").length;
   // Accepting a readiness check changes Field activities, so refresh it after each decision.
   const decideAndRefresh: typeof kobo.decide = async (...args) => {
     const applied = await kobo.decide(...args);
@@ -1244,7 +1021,6 @@ export function ProjectPage({ id }: { id: string }) {
                     className={`relative px-3 py-3 text-sm transition ${shownTab === t ? "font-semibold text-ink" : "text-muted hover:text-ink"}`}
                   >
                     {t}
-                    {t === "Verify" && pendingCount > 0 && <span className="ml-1.5 rounded-full bg-ochre-soft px-1.5 text-[11px] font-bold text-warn">{pendingCount}</span>}
                     {shownTab === t && <span className="absolute inset-x-2 bottom-0 h-0.5 rounded bg-forest" />}
                   </button>
                 ))}
@@ -1254,7 +1030,6 @@ export function ProjectPage({ id }: { id: string }) {
               {shownTab === "Overview" && <Overview {...props} go={go} />}
               {shownTab === "Plan" && <Plan {...props} openEvidence={setEvidence} />}
               {shownTab === "Execute" && <Execute {...props} />}
-              {shownTab === "Verify" && <Verify {...props} openEvidence={setEvidence} />}
               {shownTab === "Budget" && <Budget {...props} />}
               {shownTab === "Report" && <Report {...props} openEvidence={setEvidence} />}
               {shownTab === "Audit" && <Audit {...props} />}

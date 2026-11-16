@@ -1,7 +1,7 @@
 import { quarterRange } from "@/lib/results";
 import { reportDeadline } from "@/server/preflight";
 import { ourWork } from "@/lib/budget";
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { fieldRows, purchaseRows, taskRow } from "@/lib/home-buckets";
 import { loadLineReasons } from "@/server/overspend-store";
 import { onProject, people } from "@/server/auth";
@@ -226,6 +226,19 @@ export async function loadHome(code: string, u: AppUser) {
     if (toCheck) actions.push({ key: "accept", for: isMel ? "mel" : lenses[0], bucket: "approve", urgent: true, text: `Accept or query ${toCheck} ${toCheck === 1 ? "result" : "results"} waiting for you`, msg: { key: toCheck === 1 ? "ha.accept1" : "ha.accept", vars: { n: toCheck } }, href: "/progress/results" });
     // What blocks the report is listed from pre-flight itself (Home reads /next-report), so the
     // count here can never differ from the pre-flight screen's.
+  }
+  // Field forms (readiness, training, farm visit) waiting in the review queue on Results and proof,
+  // for whoever may decide each one; accepting them is what moves farmers in Field activities.
+  {
+    const forms = await db
+      .select({ source: s.evidence.source, by: s.evidence.completedBy })
+      .from(s.evidence)
+      .where(and(eq(s.evidence.projectId, project.id), inArray(s.evidence.form, ["readiness", "training", "visit"]), eq(s.evidence.reviewStatus, "pending"), isNull(s.evidence.koboRemovedAt)));
+    const n = forms.filter((f) => {
+      const fromKobo = f.source === "kobo";
+      return mayDecideRecord(u, team, { fromKobo, collector: fromKobo ? collectorOf(f.by, koboRule, team) : f.by }, koboRule);
+    }).length;
+    if (n) actions.push({ key: "field-forms", for: isMel ? "mel" : lenses[0], bucket: "approve", urgent: false, text: `Check ${n} field ${n === 1 ? "form" : "forms"} from KoboCollect (readiness, training, farm visits)`, msg: { key: n === 1 ? "ha.fieldForms1" : "ha.fieldForms", vars: { n } }, href: "/progress/results#field-records" });
   }
   if (koboRule.who !== "manager") {
     const unchecked = (await listDistributions(code).catch(() => [])).filter((d) => d.koboCheck.needed && d.koboCheck.who.includes(u.id)).reverse();
