@@ -41,25 +41,23 @@ AI reads what is pasted. It does not open files in SharePoint: the app has no li
 
 ## Who can open it
 
-Worked out from the HR record (job title and office) on every request. Nothing is stored, so a change in HR changes access at once.
+Each organization sets its own core. Changed 17 Nov after your review: the first version matched job titles and offices; that was ROP's shape hard-coded.
 
-| Who | How they are recognized | What they can do |
+| Who | How | What they can do |
 |---|---|---|
-| Country Directors | Title contains "Country Director" (not Deputy, Associate or Assistant to) | Lead: everything, including naming contributors and recording the outcome |
-| Home Office, Director or above | Office is Home Office and the title contains Director, Chief, a C-level title, President, VP or "Head of" | Lead |
-| The executive head | Holds the executive role in the authority table | Lead, whatever the title says |
-| Home Office program staff | Office is Home Office and the title contains "Program" or "Programme" | Run proposals: build the list, assign, rate. Cannot name contributors or record the outcome |
+| **The core** | The organization names it: everyone holding chosen role types in the authority table (default: executive head and programme management), named people, or both. Set on the Proposals page by the executive head or an administrator | Start a proposal; see and run every one: build the list, assign, rate, add contributors, record the outcome |
+| **A contributor from staff** | Anyone running the proposal adds any colleague | That proposal only: see it, move their own items, sign what they are named to sign |
+| **A contributor from outside** | Anyone running the proposal adds them by name, with organization and email | Holds items and can be a signer. No sign-in: the people running the proposal update their items and record their signature |
 | Anyone else | | Nothing. The menu entry is not shown and the API answers as if there were none |
-| A named contributor | A lead names them on one proposal | That proposal only: see it, move their own items, sign what they are named to sign |
 
-The last row is an addition to the rule as you stated it. Without it, a technical lead in a country office who writes the narrative could not see their own items. A lead names them; it is recorded in the history and the audit log.
+Role types follow the HR record: give someone the role and they are in at once.
 
 ## Connections
 
 | From | To | What crosses |
 |---|---|---|
 | Opportunities | Proposals | A matched opportunity has "Start the proposal"; the title and donor carry over, and an opportunity has one proposal |
-| HR record | Proposals | Who can open it; who can be given an item |
+| Authority table (HR record) | Proposals | Who holds the role types in the core; the staff list for adding contributors |
 | Proposals | Home | "Sign Declarations for the proposal ..., 6 days to the donor's deadline" for a signer; "... 2 items are yours" for an owner. Urgent inside 72 hours |
 | Proposals | Audit log | Started, AI runs, ratings, contributors, outcome |
 | Proposals | Next proposal | Start from an earlier one |
@@ -68,8 +66,8 @@ Not connected yet: a won proposal does not start the project's setup with its re
 
 ## What was checked
 
-- 32 rule tests and 14 database tests: access by title and office, a contributor's limits, signing, rating, the readiness answers, the band's weighting, budget limits, the donor's clock, the three starting points, Home rows.
-- Run in a browser on a local copy with the fictional sample proposal, as the executive head at laptop and phone width (no sideways scroll), confirming an AI-suggested rating by tapping. As a contributor: sees the one proposal. As a storekeeper: refused.
+- 30 rule tests and 16 database tests: the core by role type and by name, changing it, a contributor's limits, someone from outside holding and signing items, signing, rating, the readiness answers, the band's weighting, budget limits, the donor's clock, the three starting points, Home rows.
+- Run in a browser on a local copy with the fictional sample proposal, as the executive head at laptop and phone width (no sideways scroll), confirming an AI-suggested rating by tapping. As the demo's lead account: the core list, and adding someone from outside by typing. As a contributor: sees the one proposal. As a storekeeper: refused.
 - **Not run:** the two AI actions (build from the call, suggest a rating). There is no API key in my sandbox. The prompts, schemas and the path around them are written and typed; the first real run is yours.
 - English only.
 
@@ -77,19 +75,19 @@ Not connected yet: a won proposal does not start the project's setup with its re
 
 | File | What |
 |---|---|
-| `src/lib/funding-proposals.ts` | Every rule: access, kinds, statuses, bands, readiness, budget limits, the donor's clock, the standard list |
+| `src/lib/funding-proposals.ts` | Every rule: the core, kinds, statuses, bands, readiness, budget limits, the donor's clock, the standard list |
 | `src/lib/funding-proposals-sample.ts` | The fictional sample |
-| `src/server/funding-proposals-store.ts` | Storage (one document per organization, no migration), access from HR, the actions, the two AI calls |
+| `src/server/funding-proposals-store.ts` | Storage (two documents per organization: the proposals and the core; no migration), the actions, the two AI calls |
 | `src/app/api/proposals/route.ts` | The API |
 | `src/components/work/proposals-page.tsx` | The screen |
 
 ## Decisions for Tucker
 
-1. **Named contributors.** Recommended: keep. If you want the rule strict, remove the "team" action and country-office writers work through a lead.
-2. **Titles decide access.** "Head of" counts as Director level; a Deputy Country Director is out; "program staff" means the word Program or Programme in the title. Recommended: confirm these three, or give me the list of real titles and I will fit the rule to them. A cleaner long-term answer is a "Proposals" role type in the authority table, which is a small change and no migration.
-3. **Administrators are not let in by being administrators.** You asked for three groups only. The demo's "Pilot lead" account therefore cannot open it; open the demo as Grace Moreno (CEO) or Karim Ahmadi (Country Director).
-4. **Support cost share is measured against the budget total.** Some donors measure it against direct costs. Recommended: keep the total as default and add the choice when a call needs it.
-5. **Should a low band ever block submission?** Recommended: no. Built that way.
+1. **Outside contributors have no sign-in.** They are tracked, and the core updates their items. Giving a consultant or a partner their own sign-in limited to one proposal is possible and is new work on accounts, not on this section. Recommended: wait until a real proposal needs it.
+2. **Support cost share is measured against the budget total.** Some donors measure it against direct costs. Recommended: keep the total as default and add the choice when a call needs it.
+3. **Should the app check the files itself?** Today "final" is what the owner says, and AI rates text someone pastes. With a live SharePoint link the app could confirm each final file exists and read drafts directly. Recommended: yes, after one real proposal has run through this, so the link is built for what the team actually does.
+
+Settled on 17 Nov: anyone can be added to a proposal; the core is the organization's choice; a low band never blocks a submission.
 
 ## Next, in order
 

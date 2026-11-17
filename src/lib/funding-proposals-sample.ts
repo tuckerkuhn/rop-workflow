@@ -3,8 +3,9 @@ import { standardItems, type FundingProposal, type Item } from "@/lib/funding-pr
 /**
  * One fictional proposal for the demo, a week from its deadline, so every part of the screen has
  * something to show: decisions open, a budget over the call's limits, sections rated and not,
- * one AI suggestion waiting for a reviewer, and two contributors named from outside the three
- * groups. The donor, the call, the figures and the people are invented.
+ * one AI suggestion waiting for a reviewer, two staff contributors from outside the core and one
+ * consultant from outside the organization. The donor, the call, the figures and the people are
+ * invented.
  */
 const plus = (day: string, n: number) => new Date(Date.parse(`${day}T00:00:00Z`) + n * 864e5).toISOString().slice(0, 10);
 
@@ -18,7 +19,7 @@ export function sampleProposal(today: string): FundingProposal {
     "Experience and capacity": { ref: "Section 4", owner: "grace", status: "final", points: 20, final: "13.01", rating: { band: "differentiator", why: "Three comparable projects with results against targets and a reference each, and unbroken presence in the province. Few applicants can show this.", next: "", by: "karim", byName: "Karim Ahmadi", at: plus(today, -1), suggested: false } },
     "Team and management": { ref: "Section 5", owner: "karim", status: "drafting", points: 10, final: "13.01", due: plus(today, 3) },
     "Sustainability and exit": { ref: "Section 6", owner: "farid", status: "todo", points: 10, final: "13.01", due: plus(today, 3) },
-    "Budget narrative and value for money": { ref: "Section 7", owner: "peter", status: "todo", points: 5, final: "13.01", due: plus(today, 3) },
+    "Budget narrative and value for money": { ref: "Section 7", owner: "OUT-SAMPLE", status: "todo", points: 5, final: "13.01", due: plus(today, 3) },
     Budget: { ref: "Annex III", owner: "peter", status: "drafting", working: "04.02", final: "04.03", due: plus(today, 2) },
     "Results framework": { ref: "Annex IV", owner: "karim", status: "drafting", working: "05.02", final: "13.04", due: plus(today, 3) },
     Workplan: { ref: "Annex V", owner: "nadia", status: "drafting", working: "06.02", final: "13.05", due: plus(today, 3) },
@@ -50,6 +51,7 @@ export function sampleProposal(today: string): FundingProposal {
     rules: ["Edit files in the shared folder, not in downloaded copies.", "Save each final, signed file in the submission folder; old versions go to the archive folder, never deleted.", "Update your status here when a file changes hands."],
     budget: { ceiling: 2_000_000, total: 2_004_300, direct: 1_870_000, support: 371_000, indirect: 134_300, supportCap: 15, indirectCap: 7 },
     team: ["nadia", "farid"],
+    outside: [{ id: "OUT-SAMPLE", name: "Lucía Barrios", org: "Budget consultant (fictional)", email: "" }],
     items,
     outcome: "drafting",
     confirmation: "",

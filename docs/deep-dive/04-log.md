@@ -46,12 +46,12 @@ Each has my recommended option first. I took the cautious default where one was 
 
 A new section, asked for after the summary above was written. Full write-up in `06-proposals.md`, with its own Decisions for Tucker.
 
-**What.** `/work/proposals`: a call for proposals as one list of checkbox, scored and decision items, each with an owner, status and file; "Can it be submitted?" and "How would it stand?" (a band, not a score); win themes; the call's budget limits; the donor's clock; start from the standard list, an earlier proposal or the call itself with AI. Open only to Country Directors, Home Office directors and above and Home Office program staff, plus anyone a lead names on one proposal.
+**What.** `/work/proposals`: a call for proposals as one list of checkbox, scored and decision items, each with an owner, status and file; "Can it be submitted?" and "How would it stand?" (a band, not a score); win themes; the call's budget limits; the donor's clock; start from the standard list, an earlier proposal or the call itself with AI. Open to the core each organization names, plus anyone added to a proposal.
 
 **Judgment calls.**
 - No migration: one document per organization in `organization_state`, like Opportunities.
-- Access is computed from the HR record's title and office on every request, not stored.
-- Named contributors are an addition to the three groups you gave. Without them a country-office writer could not see their own items.
+- Access, as changed after your review the same morning: each organization names its core (role types from the authority table, named people, or both) and anyone, inside or outside the organization, can be added to a proposal. The first version matched job titles and offices; that was ROP's shape hard-coded and is gone.
+- Someone outside the organization has no sign-in. They hold items; the people running the proposal update them.
 - Opportunities was marked do-not-touch. I added one link to it ("Start the proposal") and changed nothing else there.
 - The HR ledger cannot be read by the in-memory test database, so the database tests give the HR record as a fixture.
 - The sample proposal is invented. Nothing from the real call that informed the design is in the repo, and a test checks that.

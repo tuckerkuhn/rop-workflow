@@ -52,6 +52,12 @@ export async function seedDatabase() {
     .returning();
   // The second demo project: just won, still to be set up (lib/demo NEW_PROJECT).
   await resetNewProject(org.id);
+  // Who can start proposals in the demo: the executive head and programme management by role
+  // type, and three people by name, so the demo's lead account can open it.
+  await db
+    .insert(s.organizationState)
+    .values({ organizationId: org.id, key: "proposal-core", data: { roles: ["ceo", "management"], people: ["peter", "tucker", "daniel"] } })
+    .onConflictDoUpdate({ target: [s.organizationState.organizationId, s.organizationState.key], set: { data: { roles: ["ceo", "management"], people: ["peter", "tucker", "daniel"] }, updatedAt: new Date() } });
   // One fictional proposal a week from its deadline (lib/funding-proposals-sample).
   await db
     .insert(s.organizationState)

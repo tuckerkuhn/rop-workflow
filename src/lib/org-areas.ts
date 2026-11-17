@@ -11,12 +11,12 @@ import { HR_ACCESS_ROLES, type HrRole } from "@/lib/hr";
 export type OrgArea = { id: string; href: string; title: string; help: string };
 
 /**
- * Who may open Proposals, by person id. It depends on each person's title and office in the HR
- * record (lib/funding-proposals accessOf), which the browser does not hold, so the session loads
- * it once and registers it here. The API checks again on every request.
+ * Who is in the organization's core for Proposals, by person id (lib/funding-proposals inCore).
+ * The core is an organization setting the browser does not hold, so the session loads it once
+ * and registers it here. The API checks again on every request.
  */
-let proposalAccess: Record<string, "lead" | "member"> = {};
-export function registerProposalAccess(m: Record<string, "lead" | "member"> | null | undefined) {
+let proposalAccess: Record<string, "core"> = {};
+export function registerProposalAccess(m: Record<string, "core"> | null | undefined) {
   proposalAccess = m ?? {};
 }
 export const opensProposals = (u: AppUser | null) => !!u && !!proposalAccess[u.id];

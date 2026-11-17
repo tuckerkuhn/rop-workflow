@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
-  accessOf,
-  accessReason,
   budgetProblems,
   byPerson,
+  coreReason,
+  DEFAULT_CORE,
   hoursLeft,
+  inCore,
   instantOf,
   itemsFrom,
   itemsFromPlan,
@@ -25,41 +26,30 @@ import { sampleProposal } from "@/lib/funding-proposals-sample";
 
 const item = (over: Partial<Item>): Item => ({ id: "I1", ref: "", title: "Item", kind: "checkbox", owner: "a", signer: null, due: null, status: "todo", todo: "", working: "", final: "", points: null, criteria: "", guidance: "", rating: null, upload: null, unchecked: false, ...over });
 const rated = (band: Band, points: number | null, suggested = false): Partial<Item> => ({ kind: "scored", points, status: "final", rating: { band, why: "because it is", next: "", by: "r", byName: "R", at: "2026-01-01", suggested } });
-const prop = (items: Item[], over: Partial<FundingProposal> = {}): FundingProposal => ({ id: "PRO-1", opportunityId: null, title: "P", donor: "D", portal: "", folder: "", currency: "USD", deadline: null, targets: [], themes: ["One"], rules: [], budget: NO_BUDGET, team: [], items, outcome: "drafting", confirmation: "", history: [], ...over });
+const prop = (items: Item[], over: Partial<FundingProposal> = {}): FundingProposal => ({ id: "PRO-1", opportunityId: null, title: "P", donor: "D", portal: "", folder: "", currency: "USD", deadline: null, targets: [], themes: ["One"], rules: [], budget: NO_BUDGET, team: [], outside: [], items, outcome: "drafting", confirmation: "", history: [], ...over });
 
-describe("who may open proposals", () => {
-  const p = (title: string, office: string | null) => ({ id: "x", title, office });
-  it("lets in Country Directors, wherever they sit", () => {
-    expect(accessOf(p("Country Director", "Afghanistan"), false)).toBe("lead");
-    expect(accessOf(p("Country director", null), false)).toBe("lead");
-    expect(accessReason(p("Country Director", "Guatemala"), false)).toBe("Country Director");
+describe("who can start proposals: each organization's own core", () => {
+  const holders = { ceo: ["grace"], management: ["karim"], technical: ["farid"] };
+  it("is the executive head and programme management until the organization chooses", () => {
+    expect(inCore("grace", DEFAULT_CORE, holders)).toBe(true);
+    expect(inCore("karim", DEFAULT_CORE, holders)).toBe(true);
+    expect(inCore("farid", DEFAULT_CORE, holders)).toBe(false);
+    expect(inCore("nadia", DEFAULT_CORE, holders)).toBe(false);
   });
-  it("does not let in a deputy", () => {
-    expect(accessOf(p("Deputy Country Director", "Afghanistan"), false)).toBeNull();
+  it("can be set by role type, by name, or both", () => {
+    const core = { roles: ["technical" as const], people: ["nadia"] };
+    expect(inCore("farid", core, holders)).toBe(true);
+    expect(inCore("nadia", core, holders)).toBe(true);
+    expect(inCore("grace", core, holders)).toBe(false);
   });
-  it("lets in Home Office staff at Director level or above", () => {
-    for (const t of ["Director of Global Operations", "Chief Financial Officer", "Chief Executive Officer", "Vice President, Programs", "Head of HR"]) expect(accessOf(p(t, "Home Office"), false)).toBe("lead");
-    expect(accessReason(p("Chief Financial Officer", "Home Office"), false)).toBe("Home Office, Director or above");
+  it("follows the authority table: a role given or taken away changes who is in", () => {
+    expect(inCore("sami", DEFAULT_CORE, { ...holders, management: ["karim", "sami"] })).toBe(true);
+    expect(inCore("karim", DEFAULT_CORE, { ...holders, management: [] })).toBe(false);
   });
-  it("lets in Home Office program staff as members", () => {
-    expect(accessOf(p("Program Officer", "Home Office"), false)).toBe("member");
-    expect(accessOf(p("Senior Programme Associate", "Home Office"), false)).toBe("member");
-    expect(accessReason(p("Program Officer", "Home Office"), false)).toBe("Home Office program staff");
-  });
-  it("keeps everyone else out: field directors, field program staff, other Home Office staff", () => {
-    expect(accessOf(p("Director of MEL", "Afghanistan"), false)).toBeNull();
-    expect(accessOf(p("Program Manager", "Guatemala"), false)).toBeNull();
-    expect(accessOf(p("HR Manager", "Home Office"), false)).toBeNull();
-    expect(accessOf(p("Accounting Manager", "Home Office"), false)).toBeNull();
-    expect(accessOf(p("Project Manager", "Afghanistan"), false)).toBeNull();
-  });
-  it("needs the office from the HR record: a director with no office on record is not let in", () => {
-    expect(accessOf(p("Director of Global Operations", null), false)).toBeNull();
-    expect(accessOf(null, false)).toBeNull();
-  });
-  it("lets in the executive head whatever their title says", () => {
-    expect(accessOf(p("Pilot lead", null), true)).toBe("lead");
-    expect(accessOf(null, true)).toBe("lead");
+  it("says why each person is in", () => {
+    expect(coreReason("karim", { roles: ["ceo", "management"], people: ["karim"] }, holders)).toBe("Programme management, Named");
+    expect(coreReason("nadia", { roles: [], people: ["nadia"] }, holders)).toBe("Named");
+    expect(coreReason("bilal", DEFAULT_CORE, holders)).toBe("");
   });
 });
 
@@ -144,6 +134,11 @@ describe("who may change what", () => {
     expect(statusRefusal(i, "final", "s", false)).toBeNull();
     expect(statusRefusal(item({ signer: null }), "sign", "a", false)).toMatch(/Nobody is named to sign/);
   });
+  it("lets the people running it record the signature of a signer outside the organization, who has no sign-in", () => {
+    const i = item({ owner: "a", signer: "OUT-1", status: "sign" });
+    expect(statusRefusal(i, "final", "lead", true, ["OUT-1"])).toBeNull();
+    expect(statusRefusal(i, "final", "a", false, ["OUT-1"])).toMatch(/final when its signer has signed/);
+  });
   it("lets nobody rate a section they wrote", () => {
     const i = item({ kind: "scored", owner: "a" });
     expect(ratingRefusal(i, "a", true)).toBe("You wrote this section, so someone else rates it.");
@@ -221,7 +216,7 @@ describe("the demo's sample proposal", () => {
     expect(r.budget).toHaveLength(3);
     expect(r.scored).toMatchObject({ rated: 2, of: 7, suggested: 1, band: "differentiator" });
     expect(r.blockers.length).toBeGreaterThan(2);
-    expect(byPerson(p).map((g) => g.person)).toContain("nadia");
+    expect(byPerson(p).map((g) => g.person)).toEqual(expect.arrayContaining(["nadia", "OUT-SAMPLE"]));
     expect(uploadPlan(p).length).toBeGreaterThan(10);
   });
   it("names nobody real and no real donor", () => {

@@ -8,11 +8,11 @@ import { aiAllowed } from "@/server/limits";
 import { orgIdForPerson } from "@/server/org-settings-store";
 
 /**
- * Proposals, for the whole organization. Open to Country Directors, Home Office staff at Director
- * level or above and Home Office program staff; a contributor named on a proposal sees that one.
- * Anyone else gets the same answer as if there were none: what exists is not shown.
+ * Proposals, for the whole organization. Open to the organization's core (the role types and
+ * people it names to start proposals); a contributor added to a proposal sees that one. Anyone
+ * else gets the same answer as if there were none: what exists is not shown.
  */
-const NOT_FOR_YOU = "Proposals are open to Country Directors, Home Office directors and Home Office program staff, and to people named on a proposal.";
+const NOT_FOR_YOU = "Proposals are open to the people your organization has named to start them, and to anyone added to a proposal.";
 
 async function org(personId: string) {
   const id = await orgIdForPerson(personId);

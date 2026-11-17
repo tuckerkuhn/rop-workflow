@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { HR_ROLES, ROLE_LABEL, type HrRole } from "@/lib/hr";
 
 /**
  * Proposals: the work between "this opportunity is a match" and "submitted". A donor's call for
@@ -19,42 +20,27 @@ import { z } from "zod";
 
 /* ---------------- Who may open proposals ---------------- */
 
-/** What the HR record says about a person: their job title and office. Office is null when they are not in the record. */
-export type Staffer = { id: string; title: string; office: string | null };
-
-const HOME = "Home Office";
-/** Director or above, by job title: a director, a chief or C-level officer, a president or vice president, a head of a function. */
-const DIRECTOR_UP = /\b(director|chief|ceo|cfo|coo|cto|president|vp|head of)\b/i;
-const COUNTRY_DIRECTOR = /\bcountry director\b/i;
-const NOT_THE_DIRECTOR = /\b(deputy|assistant to|associate)\b/i;
-const PROGRAM = /\bprogram(me)?s?\b/i;
-
-export type Access = "lead" | "member" | null;
-
 /**
- * Proposals are open to three groups and nobody else: Country Directors, Home Office staff at
- * Director level or above, and Home Office program staff. The first two lead (they can name
- * contributors and record the outcome); program staff run the work with them. The executive
- * head leads whatever their title says. Everyone else sees nothing unless a lead names them
- * as a contributor on one proposal, and then they see that proposal only.
+ * Each organization names its own core: the people who can start a proposal and who see and run
+ * every one. It is set by role type (whoever holds the role in the authority table, so it follows
+ * the HR record), by name, or both. Anyone else, inside the organization or outside it, is added
+ * to a proposal as a contributor and then sees that proposal only.
  */
-export function accessOf(p: Staffer | null, isExecutiveHead: boolean): Access {
-  if (isExecutiveHead) return "lead";
-  if (!p) return null;
-  if (COUNTRY_DIRECTOR.test(p.title) && !NOT_THE_DIRECTOR.test(p.title)) return "lead";
-  if (p.office !== HOME) return null;
-  if (DIRECTOR_UP.test(p.title) && !NOT_THE_DIRECTOR.test(p.title)) return "lead";
-  return PROGRAM.test(p.title) ? "member" : null;
+export type Core = { roles: HrRole[]; people: string[] };
+/** Until an organization chooses: the executive head and programme management. */
+export const DEFAULT_CORE: Core = { roles: ["ceo", "management"], people: [] };
+export type Holders = Partial<Record<HrRole, string[]>>;
+
+export const inCore = (person: string, core: Core, holders: Holders): boolean => core.people.includes(person) || core.roles.some((r) => holders[r]?.includes(person));
+
+/** Why this person is in the core, in words: the role types they hold that are in it, or that they are named. */
+export function coreReason(person: string, core: Core, holders: Holders): string {
+  const roles = core.roles.filter((r) => holders[r]?.includes(person)).map((r) => ROLE_LABEL[r]);
+  return [...roles, ...(core.people.includes(person) ? ["Named"] : [])].join(", ");
 }
 
-/** Why this person is in, in words, for the screen that lists who can see proposals. */
-export function accessReason(p: Staffer | null, isExecutiveHead: boolean): string {
-  const a = accessOf(p, isExecutiveHead);
-  if (!a) return "";
-  if (isExecutiveHead) return "Executive head";
-  if (p && COUNTRY_DIRECTOR.test(p.title)) return "Country Director";
-  return a === "lead" ? "Home Office, Director or above" : "Home Office program staff";
-}
+/** Someone outside the organization named on a proposal: a consultant, a partner's writer. They hold items; they have no sign-in. */
+export type Outsider = { id: string; name: string; org: string; email: string };
 
 /* ---------------- The record ---------------- */
 
@@ -157,13 +143,15 @@ export type FundingProposal = {
   deadline: Moment | null;
   /** The team's own targets before the deadline, in the donor's time zone. */
   targets: { label: string; at: string }[];
-  /** Up to three reasons to choose this organization, chosen by the leads. Guidance and ratings are written against them. */
+  /** Up to three reasons to choose this organization, chosen by the people running the proposal. Guidance and ratings are written against them. */
   themes: string[];
   /** How the team works until submission, as agreed. */
   rules: string[];
   budget: Budget;
-  /** People outside the three groups who are named on this proposal and can open it, and only it. */
+  /** Staff outside the core who are named on this proposal and can open it, and only it. */
   team: string[];
+  /** People outside the organization who hold items on it. The core updates their items for them. */
+  outside: Outsider[];
   items: Item[];
   outcome: Outcome;
   /** Where the donor's confirmation of receipt is saved. */
@@ -216,6 +204,8 @@ export const proposalAction = z.discriminatedUnion("action", [
   z.object({ action: z.literal("head"), id: z.string(), fields: headFields }),
   z.object({ action: z.literal("themes"), id: z.string(), themes: z.array(z.string().trim().min(3).max(200)).max(3) }),
   z.object({ action: z.literal("team"), id: z.string(), person, add: z.boolean() }),
+  z.object({ action: z.literal("outsider"), id: z.string(), name: z.string().trim().min(2, "Give their name.").max(120), org: z.string().trim().max(120).default(""), email: z.string().trim().max(200).default("") }),
+  z.object({ action: z.literal("core"), roles: z.array(z.enum(HR_ROLES)).max(HR_ROLES.length), people: z.array(person).max(60) }),
   z.object({ action: z.literal("addItem"), id: z.string(), fields: itemFields }),
   z.object({ action: z.literal("editItem"), id: z.string(), item: z.string(), fields: itemFields }),
   z.object({ action: z.literal("removeItem"), id: z.string(), item: z.string() }),
@@ -255,9 +245,11 @@ export const assessSchema = z.object({
 /* ---------------- Rules ---------------- */
 
 /** May this person mark the item with this status? Null when they may; otherwise why not. */
-export function statusRefusal(i: Item, to: Status, by: string, runsIt: boolean): string | null {
+export function statusRefusal(i: Item, to: Status, by: string, runsIt: boolean, outside: string[] = []): string | null {
   if (!runsIt && i.owner !== by && i.signer !== by) return "Only the item's owner, its signer and the people running the proposal change its status.";
-  if (to === "final" && i.signer && i.signer !== by) return "This one is final when its signer has signed it. Mark it ready to sign.";
+  // A signer outside the organization has no sign-in: the people running the proposal record their signature.
+  const recordsForSigner = runsIt && !!i.signer && outside.includes(i.signer);
+  if (to === "final" && i.signer && i.signer !== by && !recordsForSigner) return "This one is final when its signer has signed it. Mark it ready to sign.";
   if (to === "sign" && !i.signer) return "Nobody is named to sign this one. Name the signer, or mark it final.";
   if (to === "final" && i.kind === "decision" && i.owner !== by && !runsIt) return "The person named decides.";
   return null;
@@ -439,7 +431,7 @@ type Seed = Pick<Item, "ref" | "title" | "kind" | "todo"> & Partial<Pick<Item, "
 /**
  * A standard donor package: what most institutional calls ask for. A starting point to edit
  * against the call in hand, not a rule. Scored sections carry what evaluators usually look for
- * and the kind of evidence that scores; the leads' win themes are added when they are chosen.
+ * and the kind of evidence that scores; the win themes are added when they are chosen.
  */
 export const STANDARD: Seed[] = [
   { ref: "", title: "Who applies: alone or with partners", kind: "decision", todo: "Decide whether the organization applies alone or leads a group. With partners, each needs its own declarations and a partnership annex." },

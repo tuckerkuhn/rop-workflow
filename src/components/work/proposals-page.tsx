@@ -29,6 +29,7 @@ import {
   type ProposalAction,
   type Status,
 } from "@/lib/funding-proposals";
+import { ROLE_LABEL } from "@/lib/hr";
 import type { ProposalsView } from "@/server/funding-proposals-store";
 
 /**
@@ -249,7 +250,7 @@ function ItemRow({ p, i, v, me, act, busy }: { p: P; i: Item; v: ProposalsView; 
   const name = (id: string | null) => (id ? (v.names[id] ?? id) : "nobody yet");
   const live = p.outcome === "drafting";
   const mayStatus = live && (v.can.run || i.owner === me || i.signer === me);
-  const people = [...v.groups, ...p.team.map((id) => ({ id, name: v.names[id] ?? id }))];
+  const people = [...(v.core?.members ?? []), ...p.team.map((id) => ({ id, name: v.names[id] ?? id })), ...p.outside.map((o) => ({ id: o.id, name: v.names[o.id] ?? o.name }))];
   // The statuses this person can pick: a signed item is made final by its signer only.
   const choices = STATUSES.filter((s) => s === i.status || ((s !== "final" || !i.signer || i.signer === me) && (s !== "sign" || !!i.signer)));
   return (
@@ -425,12 +426,13 @@ function Detail({ p, v, me, act, busy }: { p: P; v: ProposalsView; me: string; a
   const [callText, setCallText] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [addPerson, setAddPerson] = useState("");
+  const [out, setOut] = useState({ name: "", org: "", email: "" });
   const r = p.readiness;
   const live = p.outcome === "drafting";
   const zone = useMemo(here, []);
   const left = p.deadline ? hoursLeft(p.deadline, new Date()) : null;
   const name = (id: string | null) => (id ? (v.names[id] ?? id) : "Nobody yet");
-  const people = [...v.groups, ...p.team.map((id) => ({ id, name: v.names[id] ?? id }))];
+  const people = [...(v.core?.members ?? []), ...p.team.map((id) => ({ id, name: v.names[id] ?? id })), ...p.outside.map((o) => ({ id: o.id, name: v.names[o.id] ?? o.name }))];
   const row = (i: Item) => <ItemRow key={i.id} p={p} i={i} v={v} me={me} act={act} busy={busy} />;
   const close = () => setPanel("");
 
@@ -668,34 +670,70 @@ function Detail({ p, v, me, act, busy }: { p: P; v: ProposalsView; me: string; a
       )}
 
       <section className="rounded-2xl border border-line bg-surface p-4">
-        <SectionLabel>Who can open this proposal</SectionLabel>
-        <p className="mt-2 text-sm text-muted">Country Directors, Home Office staff at Director level or above and Home Office program staff open every proposal. Anyone else sees only a proposal they are named on.</p>
-        <p className="mt-2 text-sm">
-          <span className="font-semibold">Named on this one: </span>
-          {p.team.length ? p.team.map((id) => v.names[id] ?? id).join(", ") : "nobody"}
-        </p>
-        {live && v.can.lead && (
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <select aria-label="Person to name on this proposal" className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm" value={addPerson} onChange={(e) => setAddPerson(e.target.value)}>
-              <option value="">Name a contributor…</option>
-              {v.others
-                .filter((o) => !p.team.includes(o.id))
-                .map((o) => (
-                  <option key={o.id} value={o.id}>
-                    {o.name}, {o.title}
-                  </option>
-                ))}
-            </select>
-            <button type="button" className={quietBtn} disabled={busy || !addPerson} onClick={() => void act({ action: "team", id: p.id, person: addPerson, add: true }).then(() => setAddPerson(""))}>
-              Name them
-            </button>
-            {p.team.map((id) => (
-              <button key={id} type="button" className="text-sm text-muted hover:text-clay hover:underline" disabled={busy} onClick={() => void act({ action: "team", id: p.id, person: id, add: false })}>
-                Remove {v.names[id] ?? id}
+        <SectionLabel>Who is on this proposal</SectionLabel>
+        <p className="mt-2 text-sm text-muted">The people your organization has named to start proposals open every one. Anyone else can be added here, from inside the organization or outside it, and then sees this proposal only.</p>
+        <ul className="mt-2 space-y-1 text-sm">
+          {p.team.map((id) => (
+            <li key={id} className="flex flex-wrap items-center justify-between gap-2">
+              <span>{v.names[id] ?? id}</span>
+              {live && v.can.run && (
+                <button type="button" className="text-muted hover:text-clay hover:underline" disabled={busy} onClick={() => void act({ action: "team", id: p.id, person: id, add: false })}>
+                  Remove
+                </button>
+              )}
+            </li>
+          ))}
+          {p.outside.map((o) => (
+            <li key={o.id} className="flex flex-wrap items-center justify-between gap-2">
+              <span>
+                {o.name}
+                <span className="text-muted">
+                  {o.org ? `, ${o.org}` : ""} · outside the organization, no sign-in{o.email ? ` · ${o.email}` : ""}
+                </span>
+              </span>
+              {live && v.can.run && (
+                <button type="button" className="text-muted hover:text-clay hover:underline" disabled={busy} onClick={() => void act({ action: "team", id: p.id, person: o.id, add: false })}>
+                  Remove
+                </button>
+              )}
+            </li>
+          ))}
+          {!p.team.length && !p.outside.length && <li className="text-muted">Nobody has been added yet.</li>}
+        </ul>
+        {live && v.can.run && (
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <select aria-label="Colleague to add to this proposal" className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm" value={addPerson} onChange={(e) => setAddPerson(e.target.value)}>
+                <option value="">Add a colleague…</option>
+                {v.others
+                  .filter((o) => !p.team.includes(o.id))
+                  .map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.name}, {o.title}
+                    </option>
+                  ))}
+              </select>
+              <button type="button" className={quietBtn} disabled={busy || !addPerson} onClick={() => void act({ action: "team", id: p.id, person: addPerson, add: true }).then(() => setAddPerson(""))}>
+                Add
               </button>
-            ))}
+            </div>
+            <form
+              className="flex flex-wrap items-center gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void act({ action: "outsider", id: p.id, ...out }).then(() => setOut({ name: "", org: "", email: "" }));
+              }}
+            >
+              <input aria-label="Name of someone outside the organization" className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm" placeholder="Someone outside: name" value={out.name} onChange={(e) => setOut({ ...out, name: e.target.value })} required minLength={2} />
+              <input aria-label="Their organization or role" className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm" placeholder="Organization or role" value={out.org} onChange={(e) => setOut({ ...out, org: e.target.value })} />
+              <input aria-label="Their email" type="email" className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm" placeholder="Email (optional)" value={out.email} onChange={(e) => setOut({ ...out, email: e.target.value })} />
+              <button className={quietBtn} disabled={busy}>
+                Add
+              </button>
+            </form>
           </div>
         )}
+        {live && v.can.run && p.outside.length > 0 && <p className="mt-2 text-xs text-muted">Someone outside has no sign-in, so you update the status of their items for them.</p>}
       </section>
 
       {v.can.run && (
@@ -706,12 +744,12 @@ function Detail({ p, v, me, act, busy }: { p: P; v: ProposalsView; me: string; a
                 Deadline, budget limits and links
               </button>
             )}
-            {live && v.can.lead && (
+            {live && v.can.run && (
               <button type="button" className={primaryBtn} disabled={r.blockers.length > 0} onClick={() => setPanel("submit")}>
                 Record it as submitted
               </button>
             )}
-            {v.can.lead && p.outcome === "submitted" && (
+            {v.can.run && p.outcome === "submitted" && (
               <>
                 <button type="button" className={quietBtn} disabled={busy} onClick={() => void act({ action: "outcome", id: p.id, outcome: "won", confirmation: "", note: "" })}>
                   Won
@@ -721,18 +759,18 @@ function Detail({ p, v, me, act, busy }: { p: P; v: ProposalsView; me: string; a
                 </button>
               </>
             )}
-            {v.can.lead && live && (
+            {v.can.run && live && (
               <button type="button" className={quietBtn} disabled={busy} onClick={() => confirm("Withdraw this proposal? It is kept, and can be reopened.") && void act({ action: "outcome", id: p.id, outcome: "withdrawn", confirmation: "", note: "" })}>
                 Withdraw
               </button>
             )}
-            {v.can.lead && !live && (
+            {v.can.run && !live && (
               <button type="button" className={quietBtn} disabled={busy} onClick={() => void act({ action: "outcome", id: p.id, outcome: "drafting", confirmation: "", note: "Reopened" })}>
                 Reopen
               </button>
             )}
           </div>
-          {live && v.can.lead && r.blockers.length > 0 && <p className="mt-2 text-sm text-muted">It can be recorded as submitted once nothing above stops it.</p>}
+          {live && v.can.run && r.blockers.length > 0 && <p className="mt-2 text-sm text-muted">It can be recorded as submitted once nothing above stops it.</p>}
           {panel === "head" && (
             <div className="mt-3">
               <HeadForm start={{ title: p.title, donor: p.donor, portal: p.portal, folder: p.folder, currency: p.currency, deadline: p.deadline, targets: p.targets, rules: p.rules, budget: p.budget }} onCancel={close} onSave={(fields) => act({ action: "head", id: p.id, fields }).then(close)} />
@@ -775,6 +813,111 @@ function Detail({ p, v, me, act, busy }: { p: P; v: ProposalsView; me: string; a
         </ul>
       </details>
     </div>
+  );
+}
+
+const ROLE_CHOICES = ["ceo", "management", "technical", "cfo", "finance", "mel", "compliance"] as const;
+
+/** Who can start proposals: each organization sets its own core, by role type, by name, or both. */
+function CorePanel({ v, act, busy }: { v: ProposalsView; act: (a: ProposalAction) => Promise<void>; busy: boolean }) {
+  const core = v.core!;
+  const [editing, setEditing] = useState(false);
+  const [roles, setRoles] = useState<string[]>(core.roles);
+  const [people, setPeople] = useState<string[]>(core.people);
+  const [add, setAdd] = useState("");
+  const everyone = [...core.members, ...v.others];
+  return (
+    <details className="mt-5 rounded-2xl border border-line bg-surface" open={editing}>
+      <summary className="cursor-pointer px-4 py-3 text-sm font-medium">Who can start proposals ({core.members.length})</summary>
+      <div className="space-y-3 px-4 pb-4 text-sm">
+        <p className="text-muted">These people can start a proposal, and see and run every one. Anyone else is added to a proposal as a contributor.</p>
+        {!editing ? (
+          <>
+            <ul className="space-y-1">
+              {core.members.map((m) => (
+                <li key={m.id}>
+                  {m.name}
+                  <span className="text-muted">
+                    , {m.title} · {m.why}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {v.can.setCore ? (
+              <button type="button" className={quietBtn} onClick={() => setEditing(true)}>
+                Change
+              </button>
+            ) : (
+              <p className="text-muted">The executive head or an administrator changes this.</p>
+            )}
+          </>
+        ) : (
+          <form
+            className="space-y-3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void act({ action: "core", roles: roles as (typeof ROLE_CHOICES)[number][], people }).then(() => setEditing(false));
+            }}
+          >
+            <fieldset>
+              <legend className="font-semibold">Everyone who holds one of these role types</legend>
+              <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+                {ROLE_CHOICES.map((r) => (
+                  <label key={r}>
+                    <input type="checkbox" className="me-1" checked={roles.includes(r)} onChange={(e) => setRoles(e.target.checked ? [...roles, r] : roles.filter((x) => x !== r))} />
+                    {ROLE_LABEL[r]}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend className="font-semibold">And these people by name</legend>
+              <ul className="mt-1 space-y-1">
+                {people.map((id) => (
+                  <li key={id} className="flex items-center justify-between gap-2">
+                    <span>{v.names[id] ?? id}</span>
+                    <button type="button" className="text-muted hover:text-clay hover:underline" onClick={() => setPeople(people.filter((x) => x !== id))}>
+                      Remove
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-1 flex flex-wrap gap-2">
+                <select aria-label="Person to name" className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 py-2" value={add} onChange={(e) => setAdd(e.target.value)}>
+                  <option value="">Name a person…</option>
+                  {everyone
+                    .filter((x) => !people.includes(x.id))
+                    .map((x) => (
+                      <option key={x.id} value={x.id}>
+                        {x.name}, {x.title}
+                      </option>
+                    ))}
+                </select>
+                <button
+                  type="button"
+                  className={quietBtn}
+                  disabled={!add}
+                  onClick={() => {
+                    setPeople([...people, add]);
+                    setAdd("");
+                  }}
+                >
+                  Name them
+                </button>
+              </div>
+            </fieldset>
+            <div className="flex gap-2">
+              <button className={primaryBtn} disabled={busy}>
+                Save
+              </button>
+              <button type="button" className={quietBtn} onClick={() => setEditing(false)}>
+                Cancel
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+    </details>
   );
 }
 
@@ -860,6 +1003,7 @@ export function ProposalsPage() {
         {v && !current && (
           <>
             {open && <p className="mt-4 text-sm text-muted">That proposal is not one you can open.</p>}
+            {v.core && <CorePanel v={v} act={safe} busy={busy} />}
             {adding && (
               <section className="mt-5 rounded-2xl border border-line bg-surface p-4">
                 <h2 className="font-medium">New proposal</h2>
@@ -926,7 +1070,7 @@ export function ProposalsPage() {
                 </li>
               ))}
             </ul>
-            {!v.items.length && !adding && <p className="mt-6 rounded-2xl border border-line bg-surface p-6 text-sm text-muted">No proposals yet. {v.can.run ? "Start one from a matched opportunity, the standard list or an empty page." : "You will see a proposal here when you are named on one."}</p>}
+            {!v.items.length && !adding && <p className="mt-6 rounded-2xl border border-line bg-surface p-6 text-sm text-muted">No proposals yet. {v.can.run ? "Start one from a matched opportunity, the standard list or an empty page." : "You will see a proposal here when you are added to one."}</p>}
           </>
         )}
       </main>
