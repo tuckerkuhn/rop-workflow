@@ -6,7 +6,7 @@
 import type { Issue, TimelineEvent } from "@/components/workspace/ui";
 import { ORG_ID, PROJECT, TODAY, holderOf, projectPath, stepHistory, type AppUser, type FieldRole } from "@/lib/demo";
 import { today } from "@/lib/clock";
-import { DEMO_SETUP, itemsFor, packageUsd, type FieldSetup } from "@/lib/package";
+import { DEMO_SETUP, itemsFor, packageUsd, qtyUnit, type FieldSetup } from "@/lib/package";
 
 export type { FieldRole };
 
@@ -107,6 +107,8 @@ export type SCheck = {
   ai?: boolean;
   fix?: string;
   resolve?: string;
+  /** The history line once the fix is recorded ("Contribution received"); the button label when absent. */
+  resolveDone?: string;
   /** What recording the fix changes on the record. Without it, the check is marked as fixed. */
   resolveEffect?: (i: FieldItem) => FieldItem;
 };
@@ -161,6 +163,7 @@ export const fieldSteps: Record<string, SStep> = {
         tag: "TS",
         auto: (i) => ({ ok: asFarmer(i).contributionPaid, detail: asFarmer(i).contributionPaid ? "Contribution received" : "Not yet received" }),
         resolve: "Record contribution received",
+        resolveDone: "Contribution received",
         resolveEffect: (i) => ({ ...asFarmer(i), contributionPaid: true }),
       },
       { id: "attended", label: "Attended classroom and field training", why: "Crop-stage training: here, land preparation and planting.", tag: "TS" },
@@ -267,7 +270,8 @@ export const fieldSteps: Record<string, SStep> = {
           const ok = need.every((p) => (ctx.stock[p.key] ?? 0) + 1e-9 >= p.qty);
           return {
             ok,
-            detail: need.map((p) => `${p.item}: needs ${p.qty} ${p.unit}, ${ctx.stock[p.key] ?? 0} in store`).join(" · ") + (ctx.stockNote && !ok ? `. ${ctx.stockNote}` : ""),
+            // When short, the store's own reason says what is missing and what would unblock it.
+            detail: !ok && ctx.stockNote ? ctx.stockNote : need.map((p) => `${p.item}: needs ${qtyUnit(p.qty, p.unit)}, ${qtyUnit(ctx.stock[p.key] ?? 0, p.unit)} in store`).join(" · "),
           };
         },
         fix: "Store is short for this package: check the procurement status.",

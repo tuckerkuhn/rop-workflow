@@ -251,7 +251,7 @@ export function PayFormSummary({ p }: { p: Procurement }) {
     <div className={box}>
       <Head p={p} />
       <p className="text-sm font-semibold">
-        Invoice {p.invoice.number} of {p.invoice.date} · {p.supplier?.name}
+        Invoice {p.invoice.number || "(no number)"} of {p.invoice.date || "(no date)"} · {p.supplier?.name || "no supplier recorded"}
         {p.supplier?.licenceNo ? ` · licence ${p.supplier.licenceNo}` : ""}
       </p>
       <Figures p={p} />

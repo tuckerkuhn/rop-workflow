@@ -133,7 +133,9 @@ export function itemFor(line: BudgetLine, currency: string, workplan: WorkplanIt
     neededBy,
     neededWhy,
     leadDays,
-    startBy: addDays(neededBy, -leadDays),
+    // Never before the project exists: a large purchase needed at the start is "late" from day one,
+    // not due to start months before the agreement was signed.
+    startBy: [addDays(neededBy, -leadDays), projectStart].filter(Boolean).sort().at(-1)!,
     techLead: leadFor(line, people),
     status: "draft",
     approvals: {},

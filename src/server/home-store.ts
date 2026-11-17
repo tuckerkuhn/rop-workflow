@@ -11,8 +11,8 @@ import { loadProcurements } from "@/server/procurement-store";
 import type { FieldItem } from "@/lib/field";
 import { koboMismatches } from "@/server/results-store";
 import { db, schema as s } from "@/db";
-import { listDistributions } from "@/server/distribution";
-import type { AppUser } from "@/lib/demo";
+import { listDistributions, stockFor } from "@/server/distribution";
+import { canEditProject, type AppUser } from "@/lib/demo";
 import { quartersLabel } from "@/lib/monthly-review";
 import { STATUS_LABEL, mayWriteReport, type Status } from "@/lib/qpr";
 import { procRolesFor } from "@/lib/procurement";
@@ -276,9 +276,29 @@ export async function loadHome(code: string, u: AppUser) {
   }
 
   // Field activities waiting on a role this person holds: their day's work, ahead of anything about reports.
-  if (u.field.length && u.fieldAccess !== "none") {
+  // Farmers at Distribute that nothing has been recorded for yet, and whether the store can supply
+  // them: the storekeeper is told when there is nothing to hand out, and whoever runs the field
+  // programme is told to get the inputs bought, so a farmer never sits at Inputs with no one acting.
+  const manages = u.kind === "employee" && (canEditProject(u) || u.field.includes("manager"));
+  if ((u.field.length && u.fieldAccess !== "none") || manages) {
     const items = (await db.select({ data: s.fieldItems.data }).from(s.fieldItems).where(eq(s.fieldItems.projectId, project.id))).map((r) => r.data as FieldItem);
-    actions.push(...fieldRows(items, u.field, code, lenses.includes("field") ? "field" : lenses[0]));
+    const waiting = items.filter((i) => i.kind === "farmer" && i.step === "distribute" && (i as { awaiting?: { status: string } }).awaiting?.status !== "pending");
+    const short = waiting.length ? ((await stockFor(code).catch(() => null))?.block ?? null) : null;
+    if (u.field.length && u.fieldAccess !== "none") {
+      const rows = fieldRows(items, u.field, code, lenses.includes("field") ? "field" : lenses[0]);
+      const dist = rows.find((r) => r.key === "field:distribute");
+      if (dist && short) dist.text = `${dist.text.replace(/ waiting for you$/, " waiting")}, but the store has nothing to hand out yet. ${short}`;
+      actions.push(...rows);
+    }
+    if (manages && short)
+      actions.push({
+        key: "restock",
+        for: lenses.includes("lead") ? "lead" : lenses[0],
+        bucket: "fix",
+        urgent: true,
+        text: `The store cannot supply the input package: ${waiting.length === 1 ? "1 farmer is" : `${waiting.length} farmers are`} waiting at Distribute. ${short}`,
+        href: "/work/plan",
+      });
   }
 
   // Tasks made at a handoff (a distribution sent back, a readiness correction, a payment to

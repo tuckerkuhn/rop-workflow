@@ -146,7 +146,7 @@ export const CHECKABLE_STEPS = Object.keys(CHECKS);
 const findingsSchema = z.object({
   findings: z
     .array(z.string())
-    .describe("Each finding in one or two sentences: what is wrong or missing, where in the record, and what would fix it. Most serious first. Empty if nothing is wrong."),
+    .describe("Each finding in one or two plain sentences for a finance or procurement officer: what is wrong or missing and what would fix it. No field names or programming words. Most serious first. Empty if nothing is wrong."),
 });
 
 /** Runs an AI check for one step. Returns the findings for a person to read; it decides nothing. */
@@ -156,7 +156,7 @@ export async function checkProcurement(p: Procurement, step: string, by: string)
   const { out } = await askAi({
     job: "procurementCheck",
     by,
-    system: `${policyText()}\n\nYou are checking, not drafting. Report problems you can see in the record. Do not repeat what is fine. Never say a check passed on a person's behalf.`,
+    system: `${policyText()}\n\nYou are checking, not drafting. Report problems you can see in the record. Do not repeat what is fine. Never say a check passed on a person's behalf.\n\nThe reader is a finance or procurement officer, not a programmer. Write each finding in plain words about the purchase and its papers (supplier, order, goods received note, invoice, signatures, screening, tax). Never name the record's fields or keys, and never write null, empty object, array, JSON, true or false: say "no supplier is recorded", not "supplier is null".`,
     task: ask,
     facts: asIs(recordOf(p), RECORD),
     factsLabel: "The procurement record (JSON)",

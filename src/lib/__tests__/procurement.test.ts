@@ -104,3 +104,14 @@ describe("solo mode never covers", () => {
     expect(soloBarred({ ...base(), route: "rfq", qty: 1, unitPrice: 100, issues: [] })).toBeNull();
   });
 });
+
+describe("payment check with nothing to pay", () => {
+  it("fails supplier screening, bank account and the invoice match when no supplier or invoice details are recorded", async () => {
+    const { stepById } = await import("@/lib/procurement");
+    const p = { ...base(), step: "payReady", supplier: undefined, invoice: { number: "", date: "", amount: 200, qty: 2 } } as unknown as Procurement;
+    const check = (id: string) => stepById.payReady.checks.find((c) => c.id === id)!.auto!(p, {} as never);
+    expect(check("rescreen")).toMatchObject({ ok: false, detail: "No supplier is recorded on this purchase" });
+    expect(check("payee")).toMatchObject({ ok: false });
+    expect(check("match")).toMatchObject({ ok: false, detail: expect.stringMatching(/^Not recorded: the supplier, the invoice number, the invoice date/) });
+  });
+});

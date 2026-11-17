@@ -147,7 +147,7 @@ async function qpr(c: Ctx, quarter: string): Promise<Omit<Preflight, "items" | "
 }
 async function soloCount(c: Ctx, from: string, to: string) {
   const k = await selfApprovedIn(c.code, from, to);
-  if (k) add(c, { group: "fix", owner: "lead", text: `${n(k, "sign-off", "sign-offs")} in the period ${k === 1 ? "was" : "were"} approved by the person who prepared ${k === 1 ? "it" : "them"} (solo mode): worth a second look before release`, key: "so.pf", vars: { n: k }, href: "/progress/audit" });
+  if (k) add(c, { group: "fix", owner: "lead", text: `${n(k, "sign-off", "sign-offs")} in the period ${k === 1 ? "was" : "were"} approved by the person who prepared ${k === 1 ? "it" : "them"} (solo mode): worth a second look before release`, key: k === 1 ? "so.pf1" : "so.pf", vars: { n: k }, href: "/progress/audit" });
 }
 
 async function annual(c: Ctx, year: number): Promise<Omit<Preflight, "items" | "ready">> {

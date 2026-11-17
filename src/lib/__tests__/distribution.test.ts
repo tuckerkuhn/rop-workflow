@@ -73,7 +73,7 @@ describe("gate: says what would unblock a refusal", () => {
     const waiting = proc({ id: "PR-LOT2", unit: "kg", budgetLine: "2.2", step: "receive", grn: { qty: 600, place: "" } } as Partial<Procurement>);
     const g = gate(plannedItems(), [seedIn(100), proc({ id: "PR-LOT1", unit: "kg", budgetLine: "2.2", ...got(100) }), waiting], { npk: 100 });
     expect(g.ok).toBe(false);
-    expect(g.block).toMatch(/only 0 kg of the 100 kg received is left/);
+    expect(g.block).toMatch(/none left in the store; all 100 kg received have gone out, and this package needs 50 kg/);
     expect(g.block).toMatch(/PR-LOT2 has been delivered: once its goods received note is signed/);
   });
 });

@@ -148,6 +148,9 @@ export const expectedAfn = (p: Procurement) => {
  */
 export function invoiceMatches(p: Procurement): { ok: boolean; detail: string } | null {
   if (!p.invoice) return null;
+  // An invoice without a number, a date or a supplier cannot be matched to anything, or paid.
+  const gaps = [!p.supplier?.name && "the supplier", !p.invoice.number?.trim() && "the invoice number", !p.invoice.date && "the invoice date"].filter(Boolean);
+  if (gaps.length) return { ok: false, detail: `Not recorded: ${gaps.join(", ")}. Enter the invoice as received before it is checked for payment` };
   if (!contractValueKnown(p)) return { ok: false, detail: "The contract value as signed is not recorded: add it with the payment schedule, so the invoice is matched to the contract and not the estimate" };
   // Quantity: never more than received for this instalment (goods; works are matched on progress).
   if (p.grn && p.grn.progressPct === undefined && p.invoice.qty > p.grn.qty)

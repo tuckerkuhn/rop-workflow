@@ -61,3 +61,12 @@ describe("a bill names the budget line it is charged to", () => {
     expect(billLineProblem("B-2028", "2.1", lines, NONE)).toMatch(/no budget loaded yet/);
   });
 });
+
+describe("procurement calendar timing", () => {
+  it("never starts a purchase before the project does", () => {
+    const big = { ...line, procure: true, total: 40_000, spent: 0, schedule: {} };
+    const it_ = itemFor(big, "USD", [], "2026-01-01", users, "PP-009")!;
+    expect(it_.neededBy).toBe("2026-01-01");
+    expect(it_.startBy).toBe("2026-01-01");
+  });
+});

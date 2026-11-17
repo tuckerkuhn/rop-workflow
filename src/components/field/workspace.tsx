@@ -447,7 +447,7 @@ function Detail({
                   onToggle={() => apply((i) => ({ ...i, checks: { ...i.checks, [`${i.step}.${c.id}`]: !i.checks[`${i.step}.${c.id}`] } }))}
                   onRaise={(n) => setRaising(n)}
                   onResolve={() =>
-                    apply((i) => log(c.resolveEffect ? c.resolveEffect(i) : { ...i, checks: { ...i.checks, [`fix.${i.step}.${c.id}`]: true } }, c.resolve!))
+                    apply((i) => log(c.resolveEffect ? c.resolveEffect(i) : { ...i, checks: { ...i.checks, [`fix.${i.step}.${c.id}`]: true } }, c.resolveDone ?? c.resolve!))
                   }
                 />
               );

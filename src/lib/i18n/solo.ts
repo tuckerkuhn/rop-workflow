@@ -28,6 +28,7 @@ export const soEn = {
   "so.yours": "You recorded this. Solo mode lets you accept it yourself.",
   "so.self": "Self-approved",
   "so.pf": "{n} sign-offs in the period were approved by the person who prepared them (solo mode): worth a second look before release",
+  "so.pf1": "1 sign-off in the period was approved by the person who prepared it (solo mode): worth a second look before release",
 };
 
 export const soEs: Record<keyof typeof soEn, string> = {
@@ -55,6 +56,7 @@ export const soEs: Record<keyof typeof soEn, string> = {
   "so.yours": "Usted registró esto. El modo individual le permite aceptarlo.",
   "so.self": "Autoaprobado",
   "so.pf": "{n} aprobaciones del período las hizo la misma persona que las preparó (modo individual): conviene una segunda mirada antes de publicar",
+  "so.pf1": "1 aprobación del período la hizo la misma persona que la preparó (modo individual): conviene una segunda mirada antes de publicar",
 };
 
 export const soFa: Record<keyof typeof soEn, string> = {
@@ -82,6 +84,7 @@ export const soFa: Record<keyof typeof soEn, string> = {
   "so.yours": "شما این را ثبت کردید. حالت انفرادی اجازه می‌دهد خودتان آن را بپذیرید.",
   "so.self": "خودتأیید",
   "so.pf": "{n} تأیید در این دوره توسط همان کسی انجام شد که آن را آماده کرده بود (حالت انفرادی): پیش از نشر یک بار دیگر بررسی شود",
+  "so.pf1": "۱ تأیید در این دوره توسط همان کسی انجام شد که آن را آماده کرده بود (حالت انفرادی): پیش از نشر یک بار دیگر بررسی شود",
 };
 
 export const soPs: Record<keyof typeof soEn, string> = {
@@ -109,4 +112,5 @@ export const soPs: Record<keyof typeof soEn, string> = {
   "so.yours": "تاسو دا ثبت کړی. یوازې حالت اجازه درکوي چې پخپله یې ومنئ.",
   "so.self": "ځان‌تأیید",
   "so.pf": "{n} تأییدونه په دې موده کې د هماغه چا لخوا وشول چې چمتو کړي یې وو (یوازې حالت): له خپرولو مخکې بیا وکتل شي",
+  "so.pf1": "۱ تأیید په دې موده کې د هماغه چا لخوا وشو چې چمتو کړی یې و (یوازې حالت): له خپرولو مخکې بیا وکتل شي",
 };

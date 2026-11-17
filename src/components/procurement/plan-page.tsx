@@ -83,7 +83,11 @@ export function ProcurementPlanPage() {
     setBusy(true);
     try {
       const r = await plan.rebuild();
-      setNote(`Calendar updated from the budget: ${r.total} items (${r.added} new${r.removed ? `, ${r.removed} removed` : ""}). Items already approved or changed by someone were kept.`);
+      setNote(
+        r.total
+          ? `Calendar updated from the budget: ${r.total} ${r.total === 1 ? "item" : "items"} (${r.added} new${r.removed ? `, ${r.removed} removed` : ""}). Items already approved or changed by someone were kept.`
+          : "Nothing to add: no budget line is marked to procure.",
+      );
     } catch (e) {
       setNote(e instanceof Error ? e.message : String(e));
     } finally {
@@ -127,7 +131,15 @@ export function ProcurementPlanPage() {
         <p className="py-16 text-center text-sm text-muted">Loading…</p>
       ) : !plan.items.length ? (
         <div className="mt-8 rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">
-          {plan.budget?.lines.length ? (
+          {plan.budget?.lines.length && !plan.budget.lines.some((l) => l.procure) ? (
+            <>
+              None of the {plan.budget.lines.length} budget lines is marked to procure, so the calendar has nothing to plan. Tick &ldquo;Procure&rdquo; on the lines that are bought in{" "}
+              <Link href="/setup?step=budget" className="font-semibold text-forest underline-offset-2 hover:underline">
+                project setup, Budget
+              </Link>
+              , then build the calendar.
+            </>
+          ) : plan.budget?.lines.length ? (
             canBuild ? (
               "No calendar yet. Build it from the budget."
             ) : (

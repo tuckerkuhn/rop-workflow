@@ -1,5 +1,5 @@
 import { received } from "@/lib/connections";
-import { convert, fmtQty as fmt, itemsFor, type DistItem, type FieldSetup } from "@/lib/package";
+import { convert, fmtQty as fmt, itemsFor, qtyUnit, type DistItem, type FieldSetup } from "@/lib/package";
 import { receivedQty, stages, stepById, type Procurement } from "@/lib/procurement";
 import type { ResultInput } from "@/lib/results";
 
@@ -68,7 +68,15 @@ export function gate(items: DistItem[], procs: Procurement[], given: Given, setu
       // Say what would unblock it: a delivery that has arrived but whose received note is not signed yet.
       const coming = sources.filter((p) => !received(p) && stepById[p.step]?.id === "receive");
       const next = coming.length ? ` ${coming.map((p) => p.id).join(", ")} has been delivered: once its goods received note is signed, more can go out.` : "";
-      return { ...base, received: got, ok: false, detail: `${it.item}: this package needs ${fmt(thisQty)} ${unit}, but only ${fmt(Math.max(0, got - already))} ${unit} of the ${fmt(got)} ${unit} received is left.${next}` };
+      const left = Math.max(0, got - already);
+      return {
+        ...base,
+        received: got,
+        ok: false,
+        detail: left < 1e-9
+          ? `${it.item}: none left in the store; all ${qtyUnit(got, unit)} received have gone out, and this package needs ${qtyUnit(thisQty, unit)}.${next || " More has to be bought and received (goods received note signed) before it can go out."}`
+          : `${it.item}: this package needs ${qtyUnit(thisQty, unit)}, but only ${qtyUnit(left, unit)} of the ${qtyUnit(got, unit)} received is left.${next}`,
+      };
     }
     return { ...base, received: got, ok: true, detail: `${it.item}: ${fmt(already + thisQty)} of ${fmt(got)} ${unit} received will have gone out (${done.map((p) => p.id).join(", ")}).` };
   });

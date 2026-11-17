@@ -255,6 +255,23 @@ export function DistributionPanel({
   const people = d.lists.reduce((s, l) => s + l.recipients, 0);
   const listOk = list.date && list.place.trim() && Number(list.recipients) > 0 && Number(list.qty) > 0 && isSharePointUrl(list.evidence) && Number(list.women || 0) <= Number(list.recipients);
   const chkOk = chk.on && Number(chk.sampled) > 0 && Number(chk.confirmed) >= 0 && Number(chk.confirmed) <= Number(chk.sampled) && isSharePointUrl(chk.evidence);
+  // What is still missing, said beside the button rather than leaving it greyed out without a reason.
+  const listMissing = [
+    !list.date && "the date",
+    !list.place.trim() && "the village or site",
+    !(Number(list.qty) > 0) && "the quantity",
+    !(Number(list.recipients) > 0) && "how many people are on the list",
+    Number(list.women || 0) > Number(list.recipients) && "women cannot be more than the people on the list",
+    !isSharePointUrl(list.evidence) && "a SharePoint link to the signed list",
+  ].filter(Boolean) as string[];
+  const chkMissing = [
+    !chk.on && "the date",
+    !(Number(chk.sampled) > 0) && "how many were contacted",
+    chk.confirmed === "" && "how many confirmed",
+    Number(chk.confirmed) > Number(chk.sampled) && "confirmed cannot be more than contacted",
+    !isSharePointUrl(chk.evidence) && "a SharePoint link to the verification record (call notes or visit form)",
+  ].filter(Boolean) as string[];
+  const started = (o: Record<string, string>) => Object.values(o).some((v) => v.trim());
   return (
     <section className={box}>
       <div className="flex flex-wrap items-center gap-3">
@@ -271,7 +288,7 @@ export function DistributionPanel({
             <ul className="mt-3 space-y-1 text-sm">
               {d.lists.map((l, i) => (
                 <li key={i}>
-                  {l.date} · {l.place}: {l.qty.toLocaleString("en-US")} {p.unit} to {l.recipients} people ({l.women} women), recorded by {l.byName}{" "}
+                  {l.date} · {l.place}: {l.qty.toLocaleString("en-US")} {p.unit} to {l.recipients} {l.recipients === 1 ? "person" : "people"} ({l.women} {l.women === 1 ? "woman" : "women"}), recorded by {l.byName}{" "}
                   <a href={l.evidence} target="_blank" rel="noreferrer" className="text-forest hover:underline">
                     signed list
                   </a>
@@ -333,6 +350,7 @@ export function DistributionPanel({
                 <button type="submit" disabled={!listOk} className="justify-self-start text-sm font-semibold text-forest hover:underline disabled:opacity-40 sm:col-span-3">
                   Add list
                 </button>
+                {!listOk && started(list) && <p className="text-xs text-muted sm:col-span-3">Still needed: {listMissing.join("; ")}.</p>}
               </form>
               {d.lists.length > 0 &&
                 (distributor ? (
@@ -356,6 +374,7 @@ export function DistributionPanel({
                     <button type="submit" disabled={!chkOk} className="justify-self-start text-sm font-semibold text-forest hover:underline disabled:opacity-40 sm:col-span-3">
                       Record verification
                     </button>
+                    {!chkOk && started(chk) && <p className="text-xs text-muted sm:col-span-3">Still needed: {chkMissing.join("; ")}.</p>}
                   </form>
                 ))}
             </>

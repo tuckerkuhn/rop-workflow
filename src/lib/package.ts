@@ -72,6 +72,8 @@ export const describePackage = (setup: FieldSetup) =>
   setup.items.map((p) => `${fmtQty(p.qty)} ${p.unit} ${p.item}${p.per === "hectare" ? " per hectare" : ""}`).join(" and ");
 
 export const fmtQty = (n: number) => (Math.round(n * 100) / 100).toLocaleString("en-US");
+/** "1 kit", "2 kits", "1 kg": a counted unit written in the plural loses its "s" for exactly one. */
+export const qtyUnit = (n: number, unit: string) => `${fmtQty(n)} ${Math.abs(n - 1) < 1e-9 && /^[a-z]{3,}s$/i.test(unit) ? unit.slice(0, -1) : unit}`;
 
 /** A quantity in kilograms, or null for a unit that is not a weight. */
 export function toKg(qty: number, unit: string): number | null {

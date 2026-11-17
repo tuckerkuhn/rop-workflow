@@ -228,7 +228,9 @@ export function FarmerImport({ code, onDone, onCancel }: { code: string; onDone:
   const [fileName, setFileName] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [loaded, setLoaded] = useState<{ added: number; updated: number } | null>(null);
   const mayNames = canSeePII(user);
+  const farmersN = (n: number) => `${n} ${n === 1 ? "farmer" : "farmers"}`;
 
   async function upload() {
     if (!parsed?.rows.length) return;
@@ -236,7 +238,8 @@ export function FarmerImport({ code, onDone, onCancel }: { code: string; onDone:
     try {
       const r = await api<{ added: number; updated: number }>(`/api/projects/${encodeURIComponent(code)}/farmers`, user?.id, { method: "POST", body: JSON.stringify({ rows: parsed.rows }) });
       setError("");
-      onDone(r);
+      // Say what happened before the panel closes, so loading the list is not a silent click.
+      setLoaded(r);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -245,6 +248,18 @@ export function FarmerImport({ code, onDone, onCancel }: { code: string; onDone:
   }
 
   const template = `data:text/csv;charset=utf-8,${encodeURIComponent(FARMER_TEMPLATE)}`;
+  if (loaded)
+    return (
+      <div className="mx-auto max-w-3xl space-y-4">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-warn">Field activities · {code}</p>
+        <p role="status" className="rounded-2xl border border-forest/30 bg-mist p-4 text-sm text-leaf">
+          Farmer list loaded: {farmersN(loaded.added)} added{loaded.updated ? `, ${farmersN(loaded.updated)} updated` : ""}. New farmers start at the step given in the list (Train when none is given) and show in the list on the left.
+        </p>
+        <button type="button" onClick={() => onDone(loaded)} className={primaryBtn}>
+          Done
+        </button>
+      </div>
+    );
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
@@ -276,13 +291,13 @@ export function FarmerImport({ code, onDone, onCancel }: { code: string; onDone:
       {parsed && (
         <div className="space-y-3 rounded-2xl border border-line bg-surface p-4 text-sm">
           <p>
-            <span className="font-semibold">{parsed.rows.length}</span> farmers ready to load
+            <span className="font-semibold">{parsed.rows.length}</span> {parsed.rows.length === 1 ? "farmer" : "farmers"} ready to load
             {parsed.rows.length > 0 && ` (${parsed.rows.filter((r) => r.gender === "Female").length} women, ${parsed.rows.filter((r) => r.gender === "Male").length} men)`}.
           </p>
           {parsed.hasNames && !mayNames && <p className="text-clay">The list has names, and your role cannot add them. Remove the Name column, or ask someone with access to participants&apos; names to load it.</p>}
           {parsed.problems.length > 0 && (
             <div>
-              <p className="font-medium text-clay">{parsed.problems.length} rows left out:</p>
+              <p className="font-medium text-clay">{parsed.problems.length === 1 ? "1 row" : `${parsed.problems.length} rows`} left out:</p>
               <ul className="mt-1 max-h-48 list-disc overflow-y-auto pl-5 text-muted">
                 {parsed.problems.map((p) => (
                   <li key={p}>{p}</li>
@@ -299,7 +314,7 @@ export function FarmerImport({ code, onDone, onCancel }: { code: string; onDone:
       )}
       <div className="flex flex-wrap gap-3">
         <button type="button" disabled={!parsed?.rows.length || busy || (parsed.hasNames && !mayNames)} onClick={() => void upload()} className={primaryBtn}>
-          {busy ? "Loading…" : `Load ${parsed?.rows.length ?? 0} farmers`}
+          {busy ? "Loading…" : `Load ${farmersN(parsed?.rows.length ?? 0)}`}
         </button>
         {onCancel && (
           <button type="button" onClick={onCancel} className="rounded-full px-4 py-3 text-sm text-muted hover:text-ink">

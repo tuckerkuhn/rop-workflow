@@ -56,7 +56,10 @@ beforeAll(async () => {
 describe("input distribution, field to finance (demo project)", { timeout: 60_000 }, () => {
   it("starts with the store's stock worked out from signed received notes", async () => {
     expect(await stock()).toEqual({ seed: 380, npk: 0 });
-    expect((await loadHome(code, bilal)).actions.find((a) => a.key === "field:distribute")?.text).toBe("Distribute the input package: 2 farmers are waiting for you");
+    // The fertilizer's received note is not signed yet, so the store has nothing to hand out: Home says so,
+    // and the project manager is told to get it in.
+    expect((await loadHome(code, bilal)).actions.find((a) => a.key === "field:distribute")?.text).toMatch(/^Distribute the input package: 2 farmers are waiting, but the store has nothing to hand out yet\. NPK 17-17-17:/);
+    expect((await loadHome(code, userById("nadia")!)).actions.find((a) => a.key === "restock")?.text).toMatch(/^The store cannot supply the input package: 2 farmers are waiting at Distribute\./);
     const listed = await listDistributions(code);
     expect(listed.map((d) => [d.farmerId, d.status, d.gate.ok])).toEqual([["F-0002", "pending", true]]);
     // Recorded in the app by the storekeeper: named, and never held for a KoboCollect check.

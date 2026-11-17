@@ -1228,7 +1228,8 @@ export const steps: Step[] = [
         fix: "Re-screen the supplier before payment.",
         resolve: "Record new screening: no match",
         auto: (p) => {
-          if (!p.supplier) return null;
+          // No supplier, nothing screened: never a box ticked by hand.
+          if (!p.supplier) return { ok: false, detail: "No supplier is recorded on this purchase" };
           const r = registered(p);
           if (r) {
             const sc = lastScreening(r);
@@ -1249,7 +1250,8 @@ export const steps: Step[] = [
         why: "A changed account is confirmed through a different channel from the one that asked for it.",
         tag: "D1 §4.13",
         auto: (p) => {
-          if (!supplierRegister || !p.supplier) return null;
+          if (!p.supplier) return { ok: false, detail: "No supplier is recorded on this purchase, so there is no account to pay" };
+          if (!supplierRegister) return null;
           const r = registered(p);
           if (!r) return { ok: false, detail: "Link the supplier to the register, where Finance confirms its bank details" };
           if (!r.bank) return { ok: false, detail: `${r.name}: bank details not confirmed by Finance in the register` };
