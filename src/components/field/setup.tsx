@@ -40,20 +40,38 @@ export function PackageSetup({ code, onSaved, onCancel }: { code: string; onSave
   const [target, setTarget] = useState("");
   const [targets, setTargets] = useState<{ code: string; name: string; unit: string }[]>([]);
   const [fromDraft, setFromDraft] = useState(false);
+  // A draft copied from another project says which one (lib/project-template).
+  const [copiedFrom, setCopiedFrom] = useState("");
+  // Projects this one can be started from, offered only while it has no package at all.
+  const [sources, setSources] = useState<{ code: string; name: string }[]>([]);
+  const [source, setSource] = useState("");
+  const [copyNotes, setCopyNotes] = useState<string[]>([]);
+  const [reload, setReload] = useState(0);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (!user) return;
-    api<{ setup: FieldSetup | null; draft: FieldSetup | null; lines: Line[]; targets?: { code: string; name: string; unit: string }[]; canEdit: boolean }>(`/api/projects/${encodeURIComponent(code)}/field/setup`, user.id)
+    api<{ setup: FieldSetup | null; draft: (FieldSetup & { from?: string }) | null; lines: Line[]; targets?: { code: string; name: string; unit: string }[]; canEdit: boolean }>(`/api/projects/${encodeURIComponent(code)}/field/setup`, user.id)
       .then((r) => {
         setLines(r.lines);
         setCanEdit(r.canEdit);
         setTargets(r.targets ?? []);
         const s = r.setup ?? r.draft;
         setFromDraft(!r.setup && !!r.draft);
+        setCopiedFrom(!r.setup ? (r.draft?.from ?? "") : "");
+        if (!s)
+          api<{ sources: { code: string; name: string }[]; canCopy: boolean }>(`/api/projects/${encodeURIComponent(code)}/template`, user.id)
+            .then((t) => {
+              setSources(t.canCopy ? t.sources : []);
+              setSource(t.sources[0]?.code ?? "");
+            })
+            .catch(() => setSources([]));
+        else setSources([]);
         if (s) {
-          setItems(s.items.map(toDraft));
+          // A draft copied from another project keeps a budget line only when this project's budget has it too.
+          const known = new Set(r.lines.map((l) => l.code));
+          setItems(s.items.map(toDraft).map((d) => (!r.setup && !known.has(d.budgetLine) ? { ...d, budgetLine: "" } : d)));
           setSeason(s.season ?? "");
           setVillage(s.village ?? "");
           setCrop(s.crop ?? "");
@@ -62,7 +80,23 @@ export function PackageSetup({ code, onSaved, onCancel }: { code: string; onSave
         }
       })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
-  }, [code, user]);
+  }, [code, user, reload]);
+
+  /** Starts this project from another project's setup: its package as a draft, its approver and its targets. */
+  async function copyFrom() {
+    if (!source) return;
+    setBusy(true);
+    try {
+      const r = await api<{ notes: string[] }>(`/api/projects/${encodeURIComponent(code)}/template`, user?.id, { method: "POST", body: JSON.stringify({ from: source }) });
+      setError("");
+      setCopyNotes(r.notes);
+      setReload((n) => n + 1);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const built: FieldSetup = {
     items: items.map((d) => ({ key: d.key || keyFrom(d.item), item: d.item.trim(), unit: d.unit.trim(), qty: Number(d.qty), per: d.per, budgetLine: d.budgetLine, ...(d.unitUsd.trim() ? { unitUsd: Number(d.unitUsd) } : {}) })),
@@ -96,10 +130,46 @@ export function PackageSetup({ code, onSaved, onCancel }: { code: string; onSave
         <h2 className="mt-2 font-display text-3xl tracking-tight">What does one farmer receive?</h2>
         <p className="mt-2 max-w-2xl text-sm text-muted">
           List each input in the package and the budget line it is bought on. The store&apos;s stock, the goods received check and the supplier payment all follow from the purchases on that line.
-          {fromDraft && " This was filled in from the budget: check the amounts before saving."}
+          {fromDraft && (copiedFrom ? ` This was copied from ${copiedFrom}: check each amount and its budget line before saving.` : " This was filled in from the budget: check the amounts before saving.")}
         </p>
       </div>
+      {editable && sources.length > 0 && !fromDraft && (
+        <section className="rounded-2xl border border-forest/40 bg-mist p-4" aria-labelledby="start-from">
+          <h3 id="start-from" className="font-medium">
+            Start from a project that is already running
+          </h3>
+          <p className="mt-1 text-sm text-muted">Copies its input package as a draft for you to check, who approves KoboCollect data, and its targets. Nothing about farmers, records or money is copied, and nothing already set on this project is changed.</p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <select value={source} onChange={(e) => setSource(e.target.value)} aria-label="Project to start from" className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm">
+              {sources.map((p) => (
+                <option key={p.code} value={p.code}>
+                  {p.code} · {p.name}
+                </option>
+              ))}
+            </select>
+            <button type="button" className={primaryBtn} disabled={busy || !source} onClick={copyFrom}>
+              Copy its setup
+            </button>
+          </div>
+          <p className="mt-2 text-xs text-muted">Or fill in the package below from nothing.</p>
+        </section>
+      )}
+      {copyNotes.length > 0 && (
+        <section className="rounded-2xl border border-line bg-surface p-4 text-sm" aria-live="polite">
+          <p className="font-medium">Copied. What to do next:</p>
+          <ol className="mt-1 list-decimal space-y-1 pl-5">
+            {copyNotes.map((n) => (
+              <li key={n}>{n}</li>
+            ))}
+          </ol>
+        </section>
+      )}
       {!editable && <p className="rounded-xl border border-line bg-paper px-4 py-3 text-sm text-muted">Only the project manager and plan approvers can set up the package.</p>}
+      {editable && !lines.length && (
+        <p className="rounded-xl border border-ochre/40 bg-ochre-soft px-4 py-3 text-sm">
+          This project has no budget yet, so there is no budget line to choose. <a href="/setup" className="font-medium underline">Add the budget in Setup</a> first, then come back and choose the line each item is bought on.
+        </p>
+      )}
       <div className="space-y-4">
         {items.map((d, k) => (
           <fieldset key={k} disabled={!editable} className="rounded-2xl border border-line bg-surface p-4">
