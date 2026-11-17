@@ -14,7 +14,7 @@ import { db, schema as s } from "@/db";
 import { listDistributions } from "@/server/distribution";
 import type { AppUser } from "@/lib/demo";
 import { quartersLabel } from "@/lib/monthly-review";
-import { STATUS_LABEL, type Status } from "@/lib/qpr";
+import { STATUS_LABEL, mayWriteReport, type Status } from "@/lib/qpr";
 import { procRolesFor } from "@/lib/procurement";
 import { projectByCode } from "@/server/field-store";
 import { handRecordedCounts } from "@/server/kobo-fed";
@@ -262,10 +262,14 @@ export async function loadHome(code: string, u: AppUser) {
   if (lenses.includes("finance")) {
     const wanted = prevMonth(month);
     if (!budget.importedTo || budget.importedTo < wanted) actions.push({ key: "import", for: "finance", bucket: "due", urgent: true, text: `Import Finance's workbook for ${monthName(wanted)} (imported to ${budget.importedTo ? monthName(budget.importedTo) : "nothing yet"})`, msg: budget.importedTo ? { key: "ha.import", vars: { month: wanted, to: budget.importedTo } } : { key: "ha.importNone", vars: { month: wanted } }, href: "/progress/report" });
+  }
+  // Overspent lines are explained by the people who write the report (the MEL owner or a lead,
+  // lib/qpr mayWriteReport), as the Budget page and its API require; Finance reports the spend.
+  if (mayWriteReport(u)) {
     // Only the lines nobody has explained yet: an explained line stays overspent, but there is nothing left to ask for.
     const reasons = overspent.length ? await loadLineReasons(project.id) : {};
     const toExplain = overspent.filter((l) => !reasons[l.code]);
-    if (toExplain.length) actions.push({ key: "overspent", for: "finance", bucket: "fix", urgent: false, text: `Explain ${toExplain.length} overspent budget ${toExplain.length === 1 ? "line" : "lines"}`, msg: { key: toExplain.length === 1 ? "ha.overspent1" : "ha.overspent", vars: { n: toExplain.length } }, href: "/progress/budget" });
+    if (toExplain.length) actions.push({ key: "overspent", for: isMel ? "mel" : lenses.includes("lead") ? "lead" : lenses[0], bucket: "fix", urgent: false, text: `Explain ${toExplain.length} overspent budget ${toExplain.length === 1 ? "line" : "lines"}`, msg: { key: toExplain.length === 1 ? "ha.overspent1" : "ha.overspent", vars: { n: toExplain.length } }, href: "/progress/budget" });
   }
 
   // Field activities waiting on a role this person holds: their day's work, ahead of anything about reports.

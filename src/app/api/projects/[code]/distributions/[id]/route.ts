@@ -25,10 +25,18 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
       // Field staff and approvers open it, and whoever checks this KoboCollect record.
       const v = await requireViewer(req, { allow: (u) => u.kind === "employee" });
       if (v instanceof NextResponse) return t ? NextResponse.json({ error: "This link has been used or has expired. Open the distribution from Home instead." }, { status: 401 }) : v;
-      const d = await view(code, id);
+      const all = await listDistributions(code);
+      const d = all.find((x) => x.id === id);
+      if (!d) throw new HttpError(404, "That distribution is not on this project.");
       const canCheckKobo = d.koboCheck.who.includes(v.user.id);
-      if (v.user.fieldAccess === "none" && !mayApprove(v.user, code) && !canCheckKobo) throw new HttpError(403, "Your role does not open input distributions on this project.");
-      return NextResponse.json({ distribution: d, canDecide: mayApprove(v.user, code), canFix: mayFix(v.user, code), canCheckKobo });
+      const canDecide = mayApprove(v.user, code);
+      if (v.user.fieldAccess === "none" && !canDecide && !canCheckKobo) throw new HttpError(403, "Your role does not open input distributions on this project.");
+      // The others waiting for this person, oldest first, so the page can go straight to the next one.
+      const waiting = all
+        .filter((x) => x.id !== id && x.status === "pending" && (canDecide ? !x.koboCheck.needed : x.koboCheck.needed && x.koboCheck.who.includes(v.user.id)))
+        .reverse()
+        .map((x) => ({ id: x.id, farmerId: x.farmerId }));
+      return NextResponse.json({ distribution: d, canDecide, canFix: mayFix(v.user, code), canCheckKobo, waiting: canDecide || canCheckKobo ? waiting : [] });
     }
     return NextResponse.json({ distribution: await view(code, id), canDecide: true, canFix: false });
   });

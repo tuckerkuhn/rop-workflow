@@ -63,6 +63,12 @@ export type Farmer = {
   surveys: Survey[];
   photos: Photo[];
   stories: Story[];
+  /**
+   * An input distribution recorded for this farmer and not yet approved (server-set, from
+   * server/distribution): waiting for the project manager, or sent back to be fixed. The farmer
+   * stays at "distribute" until it is approved, from the app or from KoboCollect alike.
+   */
+  awaiting?: { id: string; status: "pending" | "sent_back"; note?: string };
   /** The saved version this copy was read at (server-set, never stored in the record). */
   rev?: string;
 };
@@ -390,6 +396,8 @@ export function fieldCheck(i: FieldItem, c: SCheck, ctx: Ctx) {
 export function stepRefusal(stored: FieldItem, sent: FieldItem, roles: readonly string[], ctx: Ctx): string | null {
   if (stored.step === sent.step) return null;
   const step = fieldSteps[stored.step];
+  const waiting = stored.kind === "farmer" ? stored.awaiting : undefined;
+  if (waiting) return `${sent.id}'s input distribution is already recorded and ${waiting.status === "pending" ? "waiting for the project manager to approve it" : "was sent back to be fixed; fix it from its approval page"}. The farmer moves on once it is approved.`;
   const outcome = step?.outcomes.find((o) => o.to === sent.step);
   const label = sent.kind === "farmer" ? sent.id : `Finding ${sent.id}`;
   if (!step || !outcome) return null; // moveProblem refuses moves off the workflow

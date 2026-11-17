@@ -7,6 +7,7 @@ import { userById } from "@/lib/demo";
 import type { Farmer, FieldItem } from "@/lib/field";
 import { seedDatabase } from "@/server/demo-seed";
 import { loadField } from "@/server/field-store";
+import { loadProcurements, saveProcurements } from "@/server/procurement-store";
 import { ready } from "@/server/__tests__/test-db";
 
 /**
@@ -85,6 +86,27 @@ describe("saving Field activities from the browser", { timeout: 60_000 }, () => 
     const res = await put("farida", [{ ...f, step: "removal" }]);
     expect(res.status).toBe(200);
     expect((await farmer(f.id)).step).toBe("removal");
+  });
+
+  it("records a handover but keeps the farmer at Distribute until the project manager approves", async () => {
+    // The fertilizer's goods received note signed, so the package can go out.
+    const p = (await loadProcurements(code)).find((x) => x.id === "PR-2027-011")!;
+    await saveProcurements(code, [{ ...p, step: "package" }]);
+    const f = (await all()).find((i) => i.kind === "farmer" && i.step === "distribute") as Farmer;
+    const done = { ...f, checks: { ...f.checks, "distribute.recipient": true, "distribute.voucher": true }, step: "plant" };
+    const res = await put("bilal", [done]);
+    expect(res.status).toBe(200);
+    const after = await farmer(f.id);
+    expect(after.step).toBe("distribute");
+    expect(after.awaiting?.status).toBe("pending");
+    expect(after.checks["distribute.voucher"]).toBe(true);
+    // Recording it again is refused while it waits, with the reason.
+    const again = await put("bilal", [{ ...after, step: "plant" }]);
+    expect(again.status).toBe(409);
+    expect(again.body.error).toMatch(/already recorded and waiting for the project manager/);
+    // The page cannot clear the marker itself.
+    expect((await put("bilal", [{ ...after, awaiting: undefined, community: after.community }])).status).toBe(200);
+    expect((await farmer(f.id)).awaiting?.status).toBe("pending");
   });
 
   it("keeps the version stamp out of the stored record", async () => {

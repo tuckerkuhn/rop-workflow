@@ -36,11 +36,12 @@ const tasks = (key: string) => db.select().from(s.workItems).where(like(s.workIt
 const audits = (action: string) => db.select().from(s.auditLog).where(eq(s.auditLog.action, action));
 const stock = async () => (await stockFor(code))?.stock;
 const refusal = async (f: () => Promise<unknown>) => f().then(() => "", (e: Error) => e.message);
+// As the field route does: the farmer is saved at "distribute", then the distribution recorded;
+// the farmer moves to planting only when the project manager approves.
 const record = async (id: string, by = farida) => {
   const f = await farmer(id);
-  const rid = await recordFromApp(code, { ...f, step: "plant" }, by, "http://test");
-  await saveItems(code, [{ ...f, step: "plant" }]);
-  return rid;
+  await saveItems(code, [f]);
+  return recordFromApp(code, { ...f, step: "plant" }, by, "http://test");
 };
 
 let first = "";
@@ -58,6 +59,8 @@ describe("input distribution, field to finance (demo project)", { timeout: 60_00
     expect((await loadHome(code, bilal)).actions.find((a) => a.key === "field:distribute")?.text).toBe("Distribute the input package: 2 farmers are waiting for you");
     const listed = await listDistributions(code);
     expect(listed.map((d) => [d.farmerId, d.status, d.gate.ok])).toEqual([["F-0002", "pending", true]]);
+    // The demo's waiting distribution keeps its farmer at "distribute", shown as waiting for approval.
+    expect(await farmer("F-0002")).toMatchObject({ step: "distribute", awaiting: { status: "pending" } });
   });
 
   it("loads the sample story from today: history behind, the planting window sixteen days ahead", async () => {
@@ -89,7 +92,8 @@ describe("input distribution, field to finance (demo project)", { timeout: 60_00
     first = await recordFromApp(code, { ...f, step: "plant" }, farida, "http://test");
     // The same save arriving again (a retry, a double tap) is the same record.
     expect(await recordFromApp(code, { ...f, step: "plant" }, farida, "http://test")).toBe(first);
-    await saveItems(code, [{ ...f, step: "plant" }]);
+    // The farmer waits at "distribute" for the project manager; nothing moves them on before that.
+    expect(await farmer("F-0007")).toMatchObject({ step: "distribute", awaiting: { id: first, status: "pending" } });
     expect(await evidence()).toHaveLength(3);
     expect((await audits("distribution_recorded")).filter((a) => a.entityId === first)).toHaveLength(1);
     expect(await stock()).toEqual({ seed: 370, npk: 550 });
@@ -103,16 +107,19 @@ describe("input distribution, field to finance (demo project)", { timeout: 60_00
     expect(ids).toContain(third);
   });
 
-  it("puts the approval on the manager's Home, and the farmers now ready to plant on the extension agent's", async () => {
+  it("puts the approval on the manager's Home, and keeps the farmers off everyone else's until it is approved", async () => {
     expect((await loadHome(code, nadia)).actions.find((a) => a.key === "distributions")?.bucket).toBe("approve");
     // Nobody is left waiting for inputs, so the storekeeper's Home has no field row.
     expect((await loadHome(code, bilal)).actions.some((a) => a.key === "field:distribute")).toBe(false);
-    expect((await loadHome(code, farida)).actions.find((a) => a.key === "field:plant")?.text).toMatch(/farmers are waiting for you$/);
+    // Not ready to plant yet: nobody moves to planting before the project manager approves.
+    expect((await loadHome(code, farida)).actions.some((a) => a.key === "field:plant")).toBe(false);
   });
 
   it("sends a record back to the person who recorded it, with a task on their Home", async () => {
     expect(await refusal(() => decideDistribution(code, first, "sent_back", nadia, " "))).toMatch(/Say what needs fixing/);
     const back = await decideDistribution(code, first, "sent_back", nadia, "Signature missing on the list");
+    // The farmer stays at "distribute", showing why it came back.
+    expect(await farmer("F-0007")).toMatchObject({ step: "distribute", awaiting: { id: first, status: "sent_back", note: "Signature missing on the list" } });
     expect(back.fixer).toBe("farida");
     const [task] = await tasks(`dist-fix:${first}`);
     expect(task.assignee).toBe("farida");
@@ -131,6 +138,7 @@ describe("input distribution, field to finance (demo project)", { timeout: 60_00
     await resubmitDistribution(code, first, farida, { signed: true, photo: true, qty: { seed: 8 } }, "Got the thumbprint; seed was 8 kg", "http://test");
     const d = (await listDistributions(code)).find((x) => x.id === first)!;
     expect(d.status).toBe("pending");
+    expect((await farmer("F-0007")).awaiting).toEqual({ id: first, status: "pending" });
     expect(d.signed && d.photo).toBe(true);
     expect(d.items.find((i) => i.key === "seed")?.qty).toBe(8);
     expect(d.history).toHaveLength(1);
@@ -154,6 +162,11 @@ describe("input distribution, field to finance (demo project)", { timeout: 60_00
     const target = async () => (await loadProgress(code, nadia)).indicators.find((i) => i.code === "IND-2")!;
     const before = await target();
     const res = await decideDistribution(code, first, "approved", nadia);
+    // Approval is what moves the farmer on to planting.
+    const moved = await farmer("F-0007");
+    expect(moved.step).toBe("plant");
+    expect(moved.awaiting).toBeUndefined();
+    expect(moved.timeline.at(-1)!.what).toBe("Distribution approved by Nadia Rahimi: moved to planting");
     // Charged to the purchases that received goods, never one still on order.
     expect([...res.procurements].sort()).toEqual(["PR-2027-006", "PR-2027-007"]);
     // One result for the target named in the package settings, made from the record already entered.

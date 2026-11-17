@@ -222,6 +222,7 @@ function Detail({
   onOpen: (id: string) => void;
 }) {
   const { signIn, money, user, mode } = useSession();
+  const projectCode = useCurrentProject().project.id;
   const [raising, setRaising] = useState<string | null>(null);
   const [pending, setPending] = useState<Outcome | null>(null);
   const [note, setNote] = useState("");
@@ -231,6 +232,7 @@ function Detail({
   const mine = !!role && owner === role;
   const blocks = openBlocking(item);
   const checksOk = allChecksPass(item, ctx);
+  const awaiting = item.kind === "farmer" && item.step === "distribute" ? item.awaiting : undefined;
 
   const log = (i: FieldItem, what: string): FieldItem => ({ ...i, timeline: [...i.timeline, { date: today(), who: role ?? "manager", what }] });
 
@@ -332,7 +334,23 @@ function Detail({
           switchLabel={ownerUser ? `Sign in as ${ownerUser.name.split(" ")[0]} (demo)` : undefined}
           footer={
             <>
-              {mine && (
+              {awaiting && (
+                <div className={`border-t px-5 py-4 text-sm ${awaiting.status === "pending" ? "border-line bg-mist" : "border-clay/30 bg-clay-soft"}`}>
+                  {awaiting.status === "pending" ? (
+                    <p>
+                      <span className="font-semibold">Distribution recorded.</span> Waiting for {fieldPerson("manager")} to approve it; the farmer moves on to planting once approved.
+                    </p>
+                  ) : (
+                    <p>
+                      <span className="font-semibold text-clay">Sent back by the project manager:</span> {awaiting.note}
+                    </p>
+                  )}
+                  <Link href={`/approve/${encodeURIComponent(projectCode)}/${awaiting.id}`} className="btn-link mt-3">
+                    {awaiting.status === "pending" ? "See the distribution record →" : "Fix it and send it again →"}
+                  </Link>
+                </div>
+              )}
+              {mine && !awaiting && (
                 <div className="space-y-3 border-t border-line px-5 py-4">
                   {blocks.length > 0 && <p className="text-sm font-medium text-clay">An open issue is holding this step.</p>}
                   {item.step === "decide" && checksOk && blocks.length === 0 && (

@@ -136,6 +136,14 @@ export async function stockFor(code: string) {
   return stock ? { stock, block: gate(itemsFor(ctx.setup), ctx.procs, ctx.given, ctx.setup).block } : null;
 }
 
+/** Changes a farmer's Field activities record inside a transaction; `change` returns null to leave it. */
+async function changeFarmer(tx: Tx, projectId: string, farmerCode: string, change: (f: Farmer) => Farmer | null) {
+  const [item] = await tx.select().from(s.fieldItems).where(and(eq(s.fieldItems.projectId, projectId), eq(s.fieldItems.itemKey, farmerCode))).limit(1);
+  if (!item) return;
+  const next = change(item.data as Farmer);
+  if (next) await tx.update(s.fieldItems).set({ data: next, updatedAt: new Date() }).where(eq(s.fieldItems.id, item.id));
+}
+
 async function farmerOf(projectId: string, code: string) {
   const [item] = await db.select().from(s.fieldItems).where(and(eq(s.fieldItems.projectId, projectId), eq(s.fieldItems.itemKey, code))).limit(1);
   return item ? (item.data as Farmer) : null;
@@ -278,6 +286,8 @@ async function prepare(code: string, project: Project, id: string, m: Omit<DistM
   meta.notified = { to: held ? [] : managers.map((x) => x.user.id), at: new Date().toISOString(), emailed, ...(why ? { why } : {}) };
   await db.transaction(async (tx) => {
     await putMeta(tx, project.id, id, meta);
+    // The farmer waits at "distribute" for the decision (Field activities shows it, Home skips it).
+    await changeFarmer(tx, project.id, m.farmerId, (f) => (f.step === "distribute" ? { ...f, awaiting: { id, status: "pending" } } : null));
     await tx.insert(s.auditLog).values({ projectId: project.id, entity: "distribution", entityId: id, action: again ? "distribution_resubmitted" : fromKobo && m.koboChecked ? "distribution_sent_to_manager" : "distribution_recorded", detail: { flags: meta.flags.map((f) => f.id), blocked: !meta.gate.ok, emailed, why: why ?? null, to: meta.notified!.to, ...(again ? { by: again.by, fixed: again.note, items: meta.items } : {}) } });
   });
 }
@@ -540,16 +550,12 @@ export async function decideDistribution(code: string, id: string, decision: "ap
         const made = await insertResult(tx, project, input, recorder?.id ?? (row.source === "kobo" ? by.id : (row.completedBy ?? by.id)));
         result = made.id;
       }
-      // Field: a Kobo distribution moves the farmer on, as the in-app one already did.
-      if (row.source === "kobo" && row.farmerCode) {
-        const [item] = await tx.select().from(s.fieldItems).where(and(eq(s.fieldItems.projectId, project.id), eq(s.fieldItems.itemKey, row.farmerCode))).limit(1);
-        const f = item?.data as Farmer | undefined;
-        if (item && f?.step === "distribute")
-          await tx
-            .update(s.fieldItems)
-            .set({ data: { ...f, step: "plant", timeline: [...f.timeline, { date: day, who: "manager", what: `Inputs distributed (Kobo), approved by ${by.name}` }] }, updatedAt: now })
-            .where(eq(s.fieldItems.id, item.id));
-      }
+      // Field: approval is what moves the farmer on to planting, from the app or KoboCollect alike.
+      if (row.farmerCode)
+        await changeFarmer(tx, project.id, row.farmerCode, (f) => {
+          if (f.step !== "distribute") return f.awaiting?.id === id ? { ...f, awaiting: undefined } : null;
+          return { ...f, step: "plant", awaiting: undefined, timeline: [...f.timeline, { date: day, who: "manager", what: `Distribution${row.source === "kobo" ? " (KoboCollect)" : ""} approved by ${by.name}: moved to planting` }] };
+        });
     } else {
       await tx
         .insert(s.workItems)
@@ -569,6 +575,11 @@ export async function decideDistribution(code: string, id: string, decision: "ap
           target: [s.workItems.projectId, s.workItems.sourceKey],
           set: { title: `Fix the distribution record for ${row.farmerCode ?? "a farmer"}: ${note!.trim().slice(0, 120)}`, date: day, assignee: fixer, notes: fixNotes(code, id, by.name, note!.trim()), doneAt: null, doneBy: null, updatedAt: now },
         });
+      // The farmer stays at "distribute", showing why it came back, until it is fixed and approved.
+      if (row.farmerCode)
+        await changeFarmer(tx, project.id, row.farmerCode, (f) =>
+          f.step === "distribute" ? { ...f, awaiting: { id, status: "sent_back", note: note!.trim() }, timeline: [...f.timeline, { date: day, who: "manager", what: `Distribution sent back by ${by.name}: ${note!.trim()}` }] } : null,
+        );
     }
 
     await tx.insert(s.auditLog).values({

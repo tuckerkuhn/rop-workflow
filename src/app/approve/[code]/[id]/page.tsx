@@ -9,5 +9,6 @@ export const metadata: Metadata = { title: "Approve a distribution · ROP Workfl
 export default async function Page({ params, searchParams }: { params: Promise<{ code: string; id: string }>; searchParams: Promise<{ t?: string }> }) {
   const { code, id } = await params;
   const { t } = await searchParams;
-  return <ApprovePanel code={decodeURIComponent(code)} id={id} token={t ?? ""} />;
+  // Keyed on the record, so moving to the next distribution starts with a fresh page, not the last decision.
+  return <ApprovePanel key={id} code={decodeURIComponent(code)} id={id} token={t ?? ""} />;
 }

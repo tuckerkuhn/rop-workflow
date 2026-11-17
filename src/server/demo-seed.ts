@@ -112,7 +112,11 @@ async function loadDemoState(projectId: string, organizationId: string) {
   // The story starts from today: every date in the sample data moves by the same number of days
   // (lib/clock shiftDates), so its history is in the past and its deadlines are just ahead.
   const days = daysFromDemo(realToday());
-  const field = shiftDates(seedField(), days);
+  const subs = shiftDates(seedSubmissions(seedField()), days);
+  // A farmer whose distribution still waits for the project manager stays at "distribute" until
+  // it is approved (server/distribution), as on a real project.
+  const waiting = new Set(subs.filter((x) => x.form === "distribution" && x.status === "pending").map((x) => x.farmerId));
+  const field = shiftDates(seedField(), days).map((i) => (i.kind === "farmer" && i.step === "plant" && waiting.has(i.id) ? { ...i, step: "distribute" } : i));
   await db.insert(s.fieldItems).values(
     field.map((i) => ({
       organizationId,
@@ -134,7 +138,6 @@ async function loadDemoState(projectId: string, organizationId: string) {
   await seedDesign(projectId);
   // Report deadlines name calendar months and years ("Monthly report: February"), so they stay as written.
   await seedDonors(projectId, organizationId);
-  const subs = shiftDates(seedSubmissions(seedField()), days);
   await seedResults(projectId, organizationId, subs);
   await db.insert(s.evidence).values(
     subs.map((sub) => ({

@@ -33,6 +33,8 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
   const [reached, setReached] = useState<string[]>([]);
   // The target the approval added a result to, when it added one.
   const [counted, setCounted] = useState<string | null>(null);
+  // Other distributions waiting for this person, oldest first: after a decision, the next one is a click away.
+  const [waiting, setWaiting] = useState<{ id: string; farmerId: string }[]>([]);
   const url = `/api/projects/${encodeURIComponent(code)}/distributions/${id}`;
   const headers = { "Content-Type": "application/json", "x-demo-user": user?.id ?? "" };
 
@@ -45,6 +47,7 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
     setCanDecide(body.canDecide);
     setCanFix(!!body.canFix);
     setCanCheckKobo(!!body.canCheckKobo);
+    setWaiting(body.waiting ?? []);
     // Every item of the farmer's planned package can be corrected, including one recorded as not given (0).
     setFix({ qty: Object.fromEntries(fixable(dist).map((i) => [i.key, String(dist.items.find((x) => x.key === i.key)?.qty ?? 0)])), signed: dist.signed, photo: dist.photo });
     setError("");
@@ -233,9 +236,16 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
               {done === "sent_back" && <p className="mt-1">{reached.length ? "The person who recorded it has a task to fix it and send it again. Nothing counts until you approve it." : "Nobody on this project can change field records, so no one has the task. Ask an administrator to add a storekeeper or extension agent."}</p>}
               {done === "resubmit" && <p className="mt-1">The project manager has been told and will check it again. Your task is closed.</p>}
               {user && (
-                <Link href="/home" className="mt-2 inline-block font-semibold text-forest hover:underline">
-                  Back to Home
-                </Link>
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  {waiting.length > 0 && (done === "approved" || done === "sent_back") && (
+                    <Link href={`/approve/${encodeURIComponent(code)}/${waiting[0].id}`} className={primaryBtn}>
+                      Next: farmer {waiting[0].farmerId} ({waiting.length} left) →
+                    </Link>
+                  )}
+                  <Link href="/home" className="font-semibold text-forest hover:underline">
+                    Back to Home
+                  </Link>
+                </div>
               )}
             </section>
           )}

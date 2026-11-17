@@ -118,6 +118,8 @@ export function fieldRows(items: Pick<FieldItem, "id" | "kind" | "step">[], role
   for (const i of items) {
     const owner = ownerOfItem(i as FieldItem);
     if (!owner || !roles.includes(owner)) continue;
+    // Recorded and waiting for the project manager: nothing for the field team to do yet.
+    if ((i as { awaiting?: { status: string } }).awaiting?.status === "pending") continue;
     by.set(i.step, [...(by.get(i.step) ?? []), i.id]);
   }
   return [...by.entries()]

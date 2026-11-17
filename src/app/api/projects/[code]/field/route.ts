@@ -84,10 +84,18 @@ export async function PUT(req: Request, { params }: { params: Promise<{ code: st
     const ctx = { stock: derivedBefore?.stock ?? field.stock ?? {}, stockNote: derivedBefore?.block ?? null, setup: field.setup ?? { items: [] }, today: today() };
     const wrong = items.map((i) => moveProblem(before.get(i.id), i) ?? (stored.has(i.id) ? stepRefusal(stored.get(i.id)!, i, v.user.field, ctx) : null)).find(Boolean);
     if (wrong) return NextResponse.json({ error: wrong }, { status: 409 });
+    // Server-owned: whether a distribution waits for approval is never taken from the page.
+    for (const i of items) {
+      const was = stored.get(i.id);
+      if (i.kind === "farmer") (i as Farmer).awaiting = was?.kind === "farmer" ? was.awaiting : undefined;
+    }
+    // Inputs handed out: the farmer stays at "distribute" until the project manager approves
+    // (server/distribution moves them on), the same as a distribution from KoboCollect.
     const handedOut = items.filter((i): i is Farmer => i.kind === "farmer" && before.get(i.id) === "distribute" && i.step === "plant");
+    const toSave = items.map((i) => (handedOut.includes(i as Farmer) ? { ...i, step: "distribute" } : i));
+    const revs = toSave.length ? await saveEdited(code, toSave) : {};
     const recorded: string[] = [];
     for (const f of handedOut) recorded.push(await recordFromApp(code, f, v.user, new URL(req.url).origin));
-    const revs = items.length ? await saveEdited(code, items) : {};
     // The store's stock follows the purchases when they supply the package; a typed figure is kept only when none does.
     const derived = await stockFor(code);
     const typed = body.stock && !derived ? body.stock : undefined;

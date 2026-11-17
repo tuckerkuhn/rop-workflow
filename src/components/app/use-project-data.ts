@@ -72,8 +72,14 @@ export function useFieldData(code = "A-2027") {
         const items = body.ids ? current.current.filter((i) => body.ids!.includes(i.id)).map((i) => ({ ...i, rev: revs.current.get(i.id) || undefined })) : undefined;
         if (body.ids && !items?.length) return;
         try {
-          const r = await call<{ revs?: Record<string, string>; stock?: Stock; stockNote?: string | null }>(`/api/projects/${code}/field`, user?.id, { method: "PUT", body: JSON.stringify({ items, stock: body.stock }) });
+          const r = await call<{ revs?: Record<string, string>; distributions?: string[]; stock?: Stock; stockNote?: string | null }>(`/api/projects/${code}/field`, user?.id, { method: "PUT", body: JSON.stringify({ items, stock: body.stock }) });
           for (const [id, rev] of Object.entries(r.revs ?? {})) revs.current.set(id, rev);
+          // A distribution was recorded: the server kept the farmer at "distribute", waiting for
+          // the project manager, so show what it saved.
+          if (r.distributions?.length) {
+            await reload();
+            return;
+          }
           // The store's stock comes from the purchases: after a save that moved a farmer, show the server's figure.
           if (items && r.stock) {
             setStockNote(r.stockNote ?? null);
