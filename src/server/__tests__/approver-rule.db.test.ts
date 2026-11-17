@@ -12,6 +12,7 @@ import { saveKoboApproval } from "@/server/kobo-approval";
 import { loadField, saveItems } from "@/server/field-store";
 import { loadHome } from "@/server/home-store";
 import { loadProcurements, saveProcurements } from "@/server/procurement-store";
+import { decide } from "@/server/review";
 import { ready } from "@/server/__tests__/test-db";
 
 /**
@@ -107,5 +108,30 @@ describe("the signed note closes a distribution", { timeout: 60_000 }, () => {
     const d = await row(unsigned);
     expect(d.closeBlock).toBeNull();
     expect((await decideDistribution(code, unsigned, "approved", nadia)).decision).toBe("approved");
+  });
+});
+
+describe("a readiness No goes back to the agent who made the visit", { timeout: 60_000 }, () => {
+  const readiness = async (uuid: string, farmerCode: string, account: string) => {
+    const project = (await db.select().from(s.projects).where(eq(s.projects.code, code)))[0];
+    const [r] = await db
+      .insert(s.evidence)
+      .values({ organizationId: project.organizationId, projectId: project.id, source: "kobo", form: "readiness", farmerCode, reviewStatus: "pending", completedBy: account, completedAt: new Date(), koboAssetUid: "aReady", koboSubmissionUuid: uuid, koboSubmissionId: 50, payload: { farmer: farmerCode, ready: "no", visit_type: "first", both_present: "yes", issue: "Ridges too shallow" } })
+      .returning({ id: s.evidence.id });
+    return r.id;
+  };
+  const taskFor = async (id: string) => (await db.select().from(s.workItems).where(eq(s.workItems.sourceKey, `correction:${id}`)))[0];
+
+  it("assigns the correction to the matched collector, and to the first agent when the account is unknown", async () => {
+    // A second extension agent, whose KoboCollect account the project has matched to her.
+    const [farida] = await db.select().from(s.staff).where(eq(s.staff.personId, "farida"));
+    await db.insert(s.staff).values({ organizationId: farida.organizationId, personId: "soraya", fullName: "Soraya Amiri", profile: farida.profile });
+    await saveKoboApproval(code, { who: "mel", accounts: { "soraya.kobo": "soraya" } });
+    const hers = await readiness("ready-1", "F-0011", "soraya.kobo");
+    await decide(code, hers, "accepted", omar);
+    expect((await taskFor(hers))?.assignee).toBe("soraya");
+    const unknown = await readiness("ready-2", "F-0009", "tablet-7");
+    await decide(code, unknown, "accepted", omar);
+    expect((await taskFor(unknown))?.assignee).toBe("farida");
   });
 });

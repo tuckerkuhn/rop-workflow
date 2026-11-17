@@ -674,9 +674,20 @@ export async function resubmitDistribution(code: string, id: string, by: { id: s
 
 /* ---------- readiness "No": a task for the extension agent ---------- */
 
-/** Called inside the readiness decision: a correction task with the deadline, for the extension agent. */
-export async function correctionTask(tx: Tx, project: { id: string; organizationId: string | null; code: string }, farmerCode: string, issue: string, deadline: string, evidenceId: string, by: string) {
-  const agent = (await people()).find((u) => u.field.includes("extension") && onProject(u, project.code));
+/**
+ * Who gets the correction after a readiness "No". `account` is the KoboCollect account that sent
+ * the readiness form: when the project has matched it to an extension agent, the agent who made
+ * the visit; otherwise the first extension agent on the project. Read before the decision's
+ * transaction opens, never inside it: a read on a second connection there can wait for ever.
+ */
+export async function correctionOwner(code: string, account: string | null): Promise<string | null> {
+  const agents = (await people()).filter((u) => u.field.includes("extension") && onProject(u, code));
+  const visited = account ? collectorOf(account, await koboApprovalFor(code), agents) : null;
+  return (agents.find((u) => u.id === visited) ?? agents[0])?.id ?? null;
+}
+
+/** Called inside the readiness decision: a correction task with the deadline, for `assignee` (correctionOwner). */
+export async function correctionTask(tx: Tx, project: { id: string; organizationId: string | null; code: string }, farmerCode: string, issue: string, deadline: string, evidenceId: string, by: string, assignee: string | null) {
   await tx
     .insert(s.workItems)
     .values({
@@ -685,7 +696,7 @@ export async function correctionTask(tx: Tx, project: { id: string; organization
       type: "task",
       title: `Correction for ${farmerCode}: ${issue.slice(0, 120)}`,
       date: deadline,
-      assignee: agent?.id ?? null,
+      assignee,
       createdBy: by,
       sourceKey: `correction:${evidenceId}`,
       notes: `Readiness check said No. Help the farmer fix this, then record the recheck in KoboCollect by ${deadline}: ${issue}`,

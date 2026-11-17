@@ -6,7 +6,7 @@ import { toSubmission } from "@/server/kobo";
 import { today } from "@/lib/clock";
 import { projectByCode } from "@/server/field-store";
 import { HttpError } from "@/server/guard";
-import { correctionTask } from "@/server/distribution";
+import { correctionOwner, correctionTask } from "@/server/distribution";
 
 /**
  * MEL decisions on the review queue. Accepting a Kobo readiness check, training attendance or farm
@@ -19,6 +19,9 @@ const later = (a: string, b: string) => (a > b ? a : b);
 /** `refusal(fromKobo, by)`: why this person may not decide this record (`by`: who sent or recorded it), or null when they may. */
 export async function decide(code: string, evidenceId: string, status: "accepted" | "queried", user: AppUser, note?: string, refusal?: (fromKobo: boolean, by: string | null) => string | null) {
   const project = await projectByCode(code);
+  // Who would get a correction, worked out before the transaction opens (server/distribution correctionOwner).
+  const [pre] = await db.select({ form: s.evidence.form, by: s.evidence.completedBy }).from(s.evidence).where(and(eq(s.evidence.id, evidenceId), eq(s.evidence.projectId, project.id))).limit(1);
+  const agent = pre?.form === "readiness" && status === "accepted" ? await correctionOwner(code, pre.by) : null;
   return db.transaction(async (tx) => {
     // Only a record of this project: an id from another project answers as if it did not exist.
     const [row] = await tx.select().from(s.evidence).where(and(eq(s.evidence.id, evidenceId), eq(s.evidence.projectId, project.id))).limit(1);
@@ -40,7 +43,7 @@ export async function decide(code: string, evidenceId: string, status: "accepted
 
     let applied: string | null = null;
     if (status === "accepted" && row.source === "kobo" && row.form === "readiness") {
-      applied = await applyReadiness(tx, row, user, { ...project, code });
+      applied = await applyReadiness(tx, row, user, { ...project, code }, agent);
     } else if (status === "accepted" && row.source === "kobo" && (row.form === "training" || row.form === "visit")) {
       applied = await (row.form === "training" ? applyTraining : applyVisit)(tx, row, user);
     }
@@ -59,7 +62,7 @@ export async function decide(code: string, evidenceId: string, status: "accepted
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /** Writes the readiness check and moves the farmer's step. Returns a one-line summary. */
-async function applyReadiness(tx: Tx, row: typeof s.evidence.$inferSelect, user: AppUser, project: { id: string; organizationId: string | null; code: string }): Promise<string> {
+async function applyReadiness(tx: Tx, row: typeof s.evidence.$inferSelect, user: AppUser, project: { id: string; organizationId: string | null; code: string }, agent: string | null): Promise<string> {
   const sub = toSubmission(row);
   const ready = sub.fields.result === "Yes";
   if (!sub.fields.result) return "No Yes/No result on the form; nothing recorded";
@@ -99,7 +102,7 @@ async function applyReadiness(tx: Tx, row: typeof s.evidence.$inferSelect, user:
     summary = ready ? "Readiness: Yes. Moved to distribution." : `Readiness: No. Correction opened, deadline ${deadline}.`;
     if (!ready && checkId) await tx.insert(s.corrections).values({ readinessCheckId: checkId, requiredAction: issue ?? "Not recorded on the form", deadline });
     // The extension agent gets it as a task with the deadline, so it shows on their Home and in Tasks.
-    if (!ready) await correctionTask(tx, project, code, issue ?? "Not recorded on the form", deadline, row.id, user.id);
+    if (!ready) await correctionTask(tx, project, code, issue ?? "Not recorded on the form", deadline, row.id, user.id, agent);
   } else if (from === "correct") {
     next = ready ? { ...f, step: "distribute", checks } : { ...f, step: "removal", checks };
     summary = ready ? "Recheck: Yes. Moved to distribution." : "Recheck: No. Sent to the project manager to remove or extend.";
