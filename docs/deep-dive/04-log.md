@@ -17,7 +17,7 @@ Branch `deep-dive/ux-and-connections`, 8 commits on top of `main` at `79b4f5a`, 
 ### Top 5 remaining issues
 
 1. **The KoboCollect path cannot be shown in the demo as it stands.** The demo's sample records are typed, on purpose, so the Director of MEL's Home is empty. Showing "field form on a phone, Director of MEL approves" needs A-2027 connected to a sandbox KoboToolbox account with the four forms. I have no Kobo access. See Decision 1.
-2. **"Instant" needs email switched on.** Without `RESEND_API_KEY` (and `NOTIFY_TEST_TO` in demo mode) the approver is told only on Home. Yours to set on the demo server.
+2. **"Instant" needs email switched on.** Done on the Vercel deployment (see 17 Nov note below); confirm the same two settings on whichever server runs the demo.
 3. **Templates stop at setup.** The season's steps are still one fixed path in code (`lib/field.ts`), and KoboCollect forms are still built by Python scripts by hand (plan batches 17 and 18). A coffee project in Guatemala gets maize-shaped steps.
 4. **The approval page, Field setup and the approver setting are English only** (batch 8). The approver in the demo reads Dari.
 5. **One farmer, two records; one person, two records** (batches 13 and 14). Nothing breaks today; it is the largest "entered once" debt.
@@ -88,7 +88,7 @@ Also answered: the instant notification is an email, so it only works once the e
 - Rows that drifted before today are put right the next time each farmer is saved. To do all at once: `npm run farmers:sync` lists the differences and changes nothing; `npm run farmers:sync -- --apply` fixes them. I have not run it against the live database.
 - Not done: dropping the now-redundant columns. That is a schema change on live data and waits for a backup and a rehearsal.
 
-**Resend.** No sign-up or message from Resend in the work mailbox, and nothing in the repo notes says an account exists. Not checked: personal Gmail, or an account under Spencer's name.
+**Resend is already set up and working** (checked in the Resend dashboard, 17 Nov). The sending domain `mail.rootsofpeace.org` is verified, there is a sending key named for the Vercel deployment that was last used two days earlier, and approval emails for input distributions show as delivered. So the instant notification works wherever that deployment runs. Still to confirm on the server the demo will use: that `RESEND_API_KEY` is set there too and that `NOTIFY_TEST_TO` points at an inbox you can show. My earlier note that no account existed was wrong: the account is not under the work mailbox I searched.
 
 ## Batch by batch
 
