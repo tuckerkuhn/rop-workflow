@@ -479,16 +479,16 @@ function Detail({
 function FarmerTableLink({ code, userId }: { code: string; userId: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const download = async () => {
+  const download = async (table: "farmers" | "records" = "farmers") => {
     setBusy(true);
     setError("");
     try {
-      const res = await fetch(`/api/projects/${encodeURIComponent(code)}/field/export`, { cache: "no-store", headers: { "x-demo-user": userId } });
+      const res = await fetch(`/api/projects/${encodeURIComponent(code)}/field/export${table === "records" ? "?table=records" : ""}`, { cache: "no-store", headers: { "x-demo-user": userId } });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? `Could not make the file (${res.status}).`);
       const url = URL.createObjectURL(await res.blob());
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${code}-farmers.csv`;
+      a.download = `${code}-${table === "records" ? "field-records" : "farmers"}.csv`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
@@ -499,10 +499,14 @@ function FarmerTableLink({ code, userId }: { code: string; userId: string }) {
   };
   return (
     <div className="mt-4 rounded-2xl border border-line bg-surface px-4 py-3 text-sm">
-      <button type="button" onClick={download} disabled={busy} className="font-semibold text-forest hover:underline disabled:opacity-60">
+      <button type="button" onClick={() => download("farmers")} disabled={busy} className="font-semibold text-forest hover:underline disabled:opacity-60">
         {busy ? "Making the file…" : "Download the farmer table (spreadsheet) ↓"}
       </button>
       <p className="mt-1 text-xs text-muted">One row per farmer, by number, never by name: each step&rsquo;s date, how the readiness check went, what they received and the days between steps.</p>
+      <button type="button" onClick={() => download("records")} disabled={busy} className="mt-3 font-semibold text-forest hover:underline disabled:opacity-60">
+        {busy ? "Making the file…" : "Download the field records table (spreadsheet) ↓"}
+      </button>
+      <p className="mt-1 text-xs text-muted">One row per record: every training attendance, readiness check, farm visit and distribution, with who collected it, the decision and how long it waited. Join it to the farmer table by farmer number.</p>
       {error && <p role="alert" className="mt-1 text-xs text-clay">{error}</p>}
     </div>
   );

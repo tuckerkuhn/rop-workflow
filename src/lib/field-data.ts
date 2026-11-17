@@ -55,3 +55,48 @@ export function toCsv(t: { headers: string[]; rows: string[][] }): string {
   };
   return [t.headers, ...t.rows].map((r) => r.map(cell).join(",")).join("\r\n") + "\r\n";
 }
+
+/* ---------- one row per field record ---------- */
+
+/** A field record as the table needs it: a training attendance, readiness check, farm visit or distribution. */
+export type FieldRecord = {
+  id: string;
+  form: string;
+  farmerId: string;
+  /** The day the form says the work happened. */
+  date: string;
+  /** "KoboCollect", "App" or "Sample". */
+  source: string;
+  /** Who collected it: a person's id when known, else the KoboCollect account. Staff, never a farmer. */
+  collector: string;
+  status: "pending" | "accepted" | "queried";
+  /** No longer in KoboToolbox: kept for audit, not counted. */
+  removed: boolean;
+  decidedBy: string;
+  decidedOn: string;
+  photo: boolean;
+  /** The form's own answers, already reduced to what the review queue shows (no GPS, no names). */
+  fields: Record<string, string>;
+};
+
+const STATUS: Record<FieldRecord["status"], string> = { pending: "Waiting", accepted: "Accepted", queried: "Sent back" };
+
+/**
+ * The field records table for analysis: one row per record, so a farmer visited three times has
+ * three rows. It answers what one row per farmer cannot: visits per farmer, attendance by
+ * session, who collected what, and how long a record waits for its decision. Farmers are numbers,
+ * never names. Each form's answers get their own columns, named "<form>: <question>", so records
+ * of different forms sit in one sheet and can be joined to the farmer table by farmer number.
+ */
+export function recordTable(records: FieldRecord[], formTitle: (form: string) => string): { headers: string[]; rows: string[][] } {
+  const sorted = [...records].sort((a, b) => a.date.localeCompare(b.date) || a.form.localeCompare(b.form) || a.farmerId.localeCompare(b.farmerId) || a.id.localeCompare(b.id));
+  // One column per form and question, in the order the forms and questions first appear by form name.
+  const answers = [...new Set([...sorted].sort((a, b) => a.form.localeCompare(b.form)).flatMap((r) => Object.keys(r.fields).map((k) => `${r.form}\u0000${k}`)))];
+  const headers = ["Record", "Form", "Farmer number", "Date", "Collected with", "Collected by", "Photo attached", "Decision", "Decided by", "Decided on", "Days to decision", "Still in KoboToolbox", ...answers.map((a) => `${formTitle(a.split("\u0000")[0])}: ${a.split("\u0000")[1].replace(/_/g, " ")}`)];
+  const rows = sorted.map((r) => [
+    r.id, formTitle(r.form), r.farmerId, r.date, r.source, r.collector, r.photo ? "Yes" : "No", STATUS[r.status], r.decidedBy, r.decidedOn,
+    r.status === "pending" ? "" : days(r.date, r.decidedOn), r.source === "KoboCollect" ? (r.removed ? "No" : "Yes") : "",
+    ...answers.map((a) => (a.split("\u0000")[0] === r.form ? (r.fields[a.split("\u0000")[1]] ?? "") : "")),
+  ]);
+  return { headers, rows };
+}

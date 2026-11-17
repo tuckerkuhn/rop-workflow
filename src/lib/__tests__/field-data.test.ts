@@ -42,3 +42,35 @@ describe("the farmer table", () => {
     expect(csv).toBe('a,b\r\n"He said ""hi""","x,y"\r\n\'=SUM(A1),-5\r\n"line\nbreak",\'@cmd\r\n');
   });
 });
+
+import { recordTable, type FieldRecord } from "@/lib/field-data";
+
+describe("the field records table: one row per record", () => {
+  const rec = (over: Partial<FieldRecord>): FieldRecord => ({ id: "R-1", form: "visit", farmerId: "F-0001", date: "2026-11-01", source: "KoboCollect", collector: "farida", status: "accepted", removed: false, decidedBy: "rahima", decidedOn: "2026-11-04", photo: true, fields: {}, ...over });
+  const title = (f: string) => ({ visit: "Farm visit", training: "Training attendance" })[f] ?? f;
+
+  it("keeps every record, so a farmer visited twice has two rows", () => {
+    const t = recordTable([rec({ id: "R-2", date: "2026-11-09" }), rec({ id: "R-1" })], title);
+    expect(t.rows.map((r) => [r[0], r[2], r[3]])).toEqual([["R-1", "F-0001", "2026-11-01"], ["R-2", "F-0001", "2026-11-09"]]);
+  });
+  it("says who collected, who decided and how long it waited", () => {
+    const t = recordTable([rec({})], title);
+    const row = Object.fromEntries(t.headers.map((h, i) => [h, t.rows[0][i]]));
+    expect(row).toMatchObject({ "Collected with": "KoboCollect", "Collected by": "farida", Decision: "Accepted", "Decided by": "rahima", "Days to decision": "3", "Still in KoboToolbox": "Yes" });
+  });
+  it("leaves the wait empty while a record is still waiting", () => {
+    const t = recordTable([rec({ status: "pending", decidedBy: "", decidedOn: "" })], title);
+    expect(t.rows[0][t.headers.indexOf("Days to decision")]).toBe("");
+    expect(t.rows[0][t.headers.indexOf("Decision")]).toBe("Waiting");
+  });
+  it("gives each form's answers their own columns, filled only for that form", () => {
+    const t = recordTable([rec({ fields: { planted_as_trained: "Yes" } }), rec({ id: "T-1", form: "training", fields: { attended: "Yes", session: "Land preparation" } })], title);
+    expect(t.headers.slice(12)).toEqual(["Training attendance: attended", "Training attendance: session", "Farm visit: planted as trained"]);
+    const visit = t.rows.find((r) => r[0] === "R-1")!;
+    expect(visit.slice(12)).toEqual(["", "", "Yes"]);
+    expect(t.rows.every((r) => r.length === t.headers.length)).toBe(true);
+  });
+  it("has no column for a name", () => {
+    expect(recordTable([rec({})], title).headers.some((h) => /name/i.test(h))).toBe(false);
+  });
+});
