@@ -44,7 +44,7 @@ describe("who can open proposals", { timeout: 60_000 }, () => {
     expect(await inProposalCore(orgId, peter)).toBe(true); // by name
     expect(await inProposalCore(orgId, sima)).toBe(false);
     expect(await inProposalCore(orgId, nadia)).toBe(false);
-    expect(Object.keys(await proposalAccessMap(orgId)).sort()).toEqual(["daniel", "grace", "karim", "peter", "tucker"]);
+    expect(Object.keys(await proposalAccessMap(orgId)).sort()).toEqual(["diego", "grace", "karim", "marcus", "peter"]);
     expect((await view(grace)).core!.members.find((m) => m.id === "karim")!.why).toBe("Programme management");
   });
   it("shows a contributor the proposal they are on, and tells them nothing else", async () => {
@@ -68,7 +68,7 @@ describe("who can open proposals", { timeout: 60_000 }, () => {
     // Technical leads are in now, by role type; programme management is out.
     expect(await inProposalCore(orgId, farid)).toBe(true);
     expect(await inProposalCore(orgId, karim)).toBe(false);
-    expect(await act({ action: "core", roles: ["ceo", "management"], people: ["peter", "tucker", "daniel"] }, grace)).toBeNull();
+    expect(await act({ action: "core", roles: ["ceo", "management"], people: ["peter", "marcus", "diego"] }, grace)).toBeNull();
     expect(await inProposalCore(orgId, karim)).toBe(true);
     expect(await inProposalCore(orgId, farid)).toBe(false);
   });

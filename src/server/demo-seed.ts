@@ -3,7 +3,7 @@ import { db, schema as s } from "@/db";
 import { daysFromDemo, realToday, shiftDates } from "@/lib/clock";
 import { NEW_PROJECT, ORG_ID, PROJECT } from "@/lib/demo";
 import { sampleProposal } from "@/lib/funding-proposals-sample";
-import { KOBO_APPROVAL_KEY, type KoboApproval } from "@/lib/kobo-approval";
+import { KOBO_APPROVAL_KEY, NEW_PROJECT_KOBO_APPROVAL, type KoboApproval } from "@/lib/kobo-approval";
 import { DEMO_SETUP, FIELD_SETUP_KEY } from "@/lib/package";
 import { SEASON, seedField, seedStock, type Farmer } from "@/lib/field";
 import { seedProcurements } from "@/lib/procurement";
@@ -56,8 +56,8 @@ export async function seedDatabase() {
   // type, and three people by name, so the demo's lead account can open it.
   await db
     .insert(s.organizationState)
-    .values({ organizationId: org.id, key: "proposal-core", data: { roles: ["ceo", "management"], people: ["peter", "tucker", "daniel"] } })
-    .onConflictDoUpdate({ target: [s.organizationState.organizationId, s.organizationState.key], set: { data: { roles: ["ceo", "management"], people: ["peter", "tucker", "daniel"] }, updatedAt: new Date() } });
+    .values({ organizationId: org.id, key: "proposal-core", data: { roles: ["ceo", "management"], people: ["peter", "marcus", "diego"] } })
+    .onConflictDoUpdate({ target: [s.organizationState.organizationId, s.organizationState.key], set: { data: { roles: ["ceo", "management"], people: ["peter", "marcus", "diego"] }, updatedAt: new Date() } });
   // One fictional proposal a week from its deadline (lib/funding-proposals-sample).
   await db
     .insert(s.organizationState)
@@ -134,14 +134,18 @@ export async function resetDemo(code: string) {
  */
 export async function resetNewProject(organizationId: string) {
   const [p] = await db.select().from(s.projects).where(eq(s.projects.code, NEW_PROJECT.id)).limit(1);
+  const named = (projectId: string) => db.insert(s.projectState).values({ projectId, key: KOBO_APPROVAL_KEY, data: NEW_PROJECT_KOBO_APPROVAL });
   if (!p) {
-    await db.insert(s.projects).values({ organizationId, code: NEW_PROJECT.id, name: NEW_PROJECT.name, country: NEW_PROJECT.country, donor: NEW_PROJECT.award, crop: NEW_PROJECT.crop, startDate: NEW_PROJECT.startDate, endDate: NEW_PROJECT.endDate, stage: "Design", kind: "sandbox" });
+    const [made] = await db.insert(s.projects).values({ organizationId, code: NEW_PROJECT.id, name: NEW_PROJECT.name, country: NEW_PROJECT.country, donor: NEW_PROJECT.award, crop: NEW_PROJECT.crop, startDate: NEW_PROJECT.startDate, endDate: NEW_PROJECT.endDate, stage: "Design", kind: "sandbox" }).returning();
+    await named(made.id);
     return;
   }
   if (p.kind !== "sandbox") return;
   await db.delete(s.projectState).where(eq(s.projectState.projectId, p.id));
   await db.delete(s.fieldItems).where(eq(s.fieldItems.projectId, p.id));
   await db.delete(s.indicators).where(eq(s.indicators.projectId, p.id));
+  // Like any project made from now on: one named approver for KoboCollect data, still to be chosen.
+  await named(p.id);
 }
 
 async function loadDemoState(projectId: string, organizationId: string) {

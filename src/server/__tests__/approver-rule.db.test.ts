@@ -134,4 +134,19 @@ describe("a readiness No goes back to the agent who made the visit", { timeout: 
     await decide(code, unknown, "accepted", omar);
     expect((await taskFor(unknown))?.assignee).toBe("farida");
   });
+
+  it("will not approve goods recorded as damaged at handover until that is put right", async () => {
+    const project = (await db.select().from(s.projects).where(eq(s.projects.code, code)))[0];
+    const [r] = await db
+      .insert(s.evidence)
+      .values({ organizationId: project.organizationId, projectId: project.id, source: "kobo", form: "distribution", farmerCode: "F-0008", reviewStatus: "pending", completedBy: "someone.else", completedAt: new Date(), koboAssetUid: "aDist", koboSubmissionUuid: "damaged-1", koboSubmissionId: 3, payload: { seed_given: "yes", seed_qty: "10", npk_given: "yes", npk_qty: "50", signed: "yes", list_photo: "l.jpg", condition: "some_damaged" } })
+      .returning({ id: s.evidence.id });
+    await listDistributions(code);
+    await checkKoboDistribution(code, r.id, { id: omar.id, name: omar.name }, "http://test");
+    expect((await row(r.id)).condition).toBe("some_damaged");
+    expect(await refusal(() => decideDistribution(code, r.id, "approved", nadia))).toMatch(/damaged at handover/);
+    await decideDistribution(code, r.id, "sent_back", nadia, "Replace the damaged bags.");
+    await resubmitDistribution(code, r.id, { id: bilal.id, name: bilal.name }, { conditionOk: true }, "Damaged bags replaced; recipient accepted", "http://test");
+    expect((await row(r.id)).closeBlock).toBeNull();
+  });
 });

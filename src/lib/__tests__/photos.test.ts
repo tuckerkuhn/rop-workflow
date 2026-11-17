@@ -32,7 +32,7 @@ describe("photo consent: how far a photo may go", () => {
   it("an approved story's consent covers its photos", () => {
     expect(shareLimit({ coach: coach({ people: "identifiable" }) }, ["comms"]).max).toBe("comms");
   });
-  it("pinned as it is today: consent for donor reports alone keeps a recognisable photo inside (question for Tucker)", () => {
+  it("pinned as it is today: consent for donor reports alone keeps a recognisable photo inside (question for the pilot lead)", () => {
     expect(shareLimit({ coach: coach({ people: "identifiable" }), consent: consent(["report"]) }, null).max).toBe("internal");
   });
   it("public social media needs public clearance; donors and newsletters need communications clearance", () => {

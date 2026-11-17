@@ -53,10 +53,10 @@ export type AppUser = {
 
 const ROP = "Roots of Peace";
 export const users: AppUser[] = [
-  { id: "tucker", name: "Tucker Kuhn", title: "Pilot lead", kind: "employee", org: ROP, field: [], procurement: [], project: ["plan-approver", "monthly-review", "report-release"], fieldAccess: "view", procurementAccess: "view", pii: false, lang: "en", admin: true },
-  { id: "daniel", name: "Daniel Sandoval", title: "Director of Global Operations", kind: "employee", org: ROP, reportsTo: "tucker", field: [], procurement: [], project: ["plan-approver", "monthly-review", "finance-import"], fieldAccess: "view", procurementAccess: "view", pii: false, lang: "en", admin: true },
-  { id: "karim", name: "Karim Ahmadi", title: "Country director", kind: "employee", org: ROP, reportsTo: "daniel", field: [], procurement: ["approver"], project: [], fieldAccess: "view", procurementAccess: "edit", pii: false, lang: "fa" },
-  { id: "sarah", name: "Sarah Lee", title: "Compliance reviewer, Home Office", kind: "employee", org: ROP, reportsTo: "daniel", field: [], procurement: ["ho"], project: [], fieldAccess: "view", procurementAccess: "edit", pii: false, lang: "en" },
+  { id: "marcus", name: "Marcus Bell", title: "Vice President, Programs", kind: "employee", org: ROP, field: [], procurement: [], project: ["plan-approver", "monthly-review", "report-release"], fieldAccess: "view", procurementAccess: "view", pii: false, lang: "en", admin: true },
+  { id: "diego", name: "Diego Paredes", title: "Director of Global Operations", kind: "employee", org: ROP, reportsTo: "marcus", field: [], procurement: [], project: ["plan-approver", "monthly-review", "finance-import"], fieldAccess: "view", procurementAccess: "view", pii: false, lang: "en", admin: true },
+  { id: "karim", name: "Karim Ahmadi", title: "Country director", kind: "employee", org: ROP, reportsTo: "diego", field: [], procurement: ["approver"], project: [], fieldAccess: "view", procurementAccess: "edit", pii: false, lang: "fa" },
+  { id: "sarah", name: "Sarah Lee", title: "Compliance reviewer, Home Office", kind: "employee", org: ROP, reportsTo: "diego", field: [], procurement: ["ho"], project: [], fieldAccess: "view", procurementAccess: "edit", pii: false, lang: "en" },
   { id: "nadia", name: "Nadia Rahimi", title: "Project manager", kind: "employee", org: ROP, reportsTo: "karim", field: ["manager"], procurement: ["holder"], project: [], fieldAccess: "edit", procurementAccess: "edit", pii: true, lang: "fa", feedback: { score: 4.6, n: 12 } },
   { id: "zahra", name: "Zahra Karimi", title: "Procurement officer", kind: "employee", org: ROP, reportsTo: "karim", field: [], procurement: ["procurement"], project: [], fieldAccess: "view", procurementAccess: "edit", pii: false, lang: "fa" },
   { id: "yusuf", name: "Yusuf Mohammadi", title: "Finance officer", kind: "employee", org: ROP, reportsTo: "karim", field: [], procurement: ["finance"], project: ["finance-import"], fieldAccess: "view", procurementAccess: "edit", pii: false, lang: "ps" },
@@ -64,7 +64,7 @@ export const users: AppUser[] = [
   { id: "omar", name: "Omar Sadiq", title: "MEL officer", kind: "employee", org: ROP, reportsTo: "nadia", field: ["mel"], procurement: [], project: ["mel-owner"], fieldAccess: "edit", procurementAccess: "none", pii: true, lang: "ps", feedback: { score: 4.4, n: 26 } },
   // The one person named to approve KoboCollect data on the demo project (lib/kobo-approval "named"), with Omar as stand-in.
   // Fictional. Sees field records but collects none, so the rule "nobody approves what they collected" never catches her.
-  { id: "rahima", name: "Rahima Stanikzai", title: "Director of MEL", kind: "employee", org: ROP, reportsTo: "daniel", field: [], procurement: [], project: [], fieldAccess: "view", procurementAccess: "none", pii: false, lang: "fa" },
+  { id: "rahima", name: "Rahima Stanikzai", title: "Director of MEL", kind: "employee", org: ROP, reportsTo: "diego", field: [], procurement: [], project: [], fieldAccess: "view", procurementAccess: "none", pii: false, lang: "fa" },
   { id: "bilal", name: "Bilal Haidari", title: "Storekeeper", kind: "employee", org: ROP, reportsTo: "nadia", field: ["store"], procurement: ["committee"], project: [], fieldAccess: "edit", procurementAccess: "edit", pii: true, lang: "fa", feedback: { score: 4.2, n: 31 } },
   // ACRP placeholders (fictional names, real titles from the ACRP budget). No sign-in.
   { id: "hamid", name: "Hamid Wardak", title: "Procurement manager", kind: "employee", org: ROP, reportsTo: "karim", field: [], procurement: ["procurement"], project: [], fieldAccess: "none", procurementAccess: "edit", pii: false, lang: "fa" },

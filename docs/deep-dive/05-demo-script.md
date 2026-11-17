@@ -9,7 +9,7 @@ Ten minutes, click by click. Two projects: **A-2027** (running) and **GT-2027** 
 1. Demo server settings in place: `DEMO_SIGN_IN=1`, `SITE_PASSWORD`, `RESEND_API_KEY`, `NOTIFY_TEST_TO` set to an inbox you can show on a phone.
 2. Reset the sample data: Field activities on A-2027, "Reset sample data" (or `npm run db:seed` on a demo-only database). The story is dated from the day it is loaded, and GT-2027 goes back to nothing set up.
 3. Two browser windows: a laptop window, and a phone or a narrow window for the field roles.
-4. Sign in as the pilot lead. Project picker on A-2027.
+4. Sign in as Marcus Bell (fictional, Vice President, Programs). Project picker on A-2027.
 
 ## The line to open with (30 seconds)
 
@@ -34,7 +34,7 @@ Ten minutes, click by click. Two projects: **A-2027** (running) and **GT-2027** 
 
 ### Step 7 without KoboCollect connected
 
-Skip step 7 as a click. Instead, as the pilot lead: Setup, KoboToolbox link, "Who approves KoboCollect data". Show "One named person: Rahima Stanikzai, stand-in Omar Sadiq" . Say the line from step 7.
+Skip step 7 as a click. Instead, as Marcus Bell: Setup, KoboToolbox link, "Who approves KoboCollect data". Show "One named person: Rahima Stanikzai, stand-in Omar Sadiq" . Say the line from step 7.
 
 ## Part 2. A project we just won (3 minutes)
 

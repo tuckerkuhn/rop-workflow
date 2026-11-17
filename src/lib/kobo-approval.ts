@@ -4,7 +4,8 @@
  * from a form (Results), a field record in the review queue (readiness and the like), and an input
  * distribution on its way to the project manager.
  *
- * Until a project chooses, the rule is the one the app always had: anyone with the MEL role.
+ * A project with nothing saved (those made before 17 Nov 2026) keeps the rule the app always had:
+ * anyone with the MEL role. A new project starts with one named person (NEW_PROJECT_KOBO_APPROVAL).
  */
 
 export type KoboApproval = {
@@ -22,6 +23,12 @@ export type KoboApproval = {
 };
 
 export const DEFAULT_KOBO_APPROVAL: KoboApproval = { who: "mel" };
+/**
+ * What a project made from now on starts with: one named person, still to be chosen. Until someone
+ * is named nothing from KoboCollect is approved by a group; a record falls to the person its
+ * collector reports to. Projects that already exist keep the rule they have.
+ */
+export const NEW_PROJECT_KOBO_APPROVAL: KoboApproval = { who: "named" };
 export const KOBO_APPROVAL_KEY = "kobo-approval";
 
 export const KOBO_APPROVAL_OPTIONS: { id: KoboApproval["who"]; label: string; help: string }[] = [
@@ -48,7 +55,7 @@ export function koboApprovers<P extends Person>(people: P[], rule: KoboApproval)
 /** "Omar Sadiq or Nadia Rahimi", or the role when nobody holds it yet. */
 export function approverNames(people: Person[], rule: KoboApproval): string {
   const names = koboApprovers(people, rule).map((p) => p.name);
-  if (!names.length) return rule.who === "manager" ? "the project manager" : rule.who === "named" ? "the person named to approve KoboCollect data" : "someone with the MEL role";
+  if (!names.length) return rule.who === "manager" ? "the project manager" : rule.who === "named" ? (rule.person ? "the person named to approve KoboCollect data" : "nobody yet: name the person who approves KoboCollect data in Set up") : "someone with the MEL role";
   return names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} or ${names.at(-1)}`;
 }
 

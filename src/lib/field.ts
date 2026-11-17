@@ -276,7 +276,7 @@ export const fieldSteps: Record<string, SStep> = {
         },
         fix: "Store is short for this package: check the procurement status.",
       },
-      { id: "recipient", label: "Recipient confirmed by signature or thumbprint", why: "Recipient, quantities and date are recorded together.", tag: "TS" },
+      { id: "recipient", label: "Recipient signed the goods received note", why: "By signature or thumbprint the recipient says they received the goods in acceptable condition and are responsible for them from then on.", tag: "TS" },
       { id: "voucher", label: "Store issue voucher number recorded", why: "Links the distribution to expenditure evidence on the package's budget lines.", tag: "TS" },
     ],
     outcomes: [

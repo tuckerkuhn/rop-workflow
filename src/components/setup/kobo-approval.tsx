@@ -72,6 +72,9 @@ export function KoboApprovalSetting({ code }: { code: string }) {
         ))}
         {rule.who === "named" && (
           <div className="grid gap-3 pt-1 sm:grid-cols-2">
+            {!v.rule.person && v.rule.who === "named" && (
+              <p className="rounded-xl bg-clay-soft px-3 py-2 text-sm text-clay sm:col-span-2">Nobody is named yet. Until someone is, each record from KoboCollect waits for the person its collector reports to. Choose the approver, usually the Director of MEL, and save.</p>
+            )}
             <label className="block text-sm font-medium">
               Approves
               <select value={rule.person ?? ""} onChange={(e) => pick({ person: e.target.value || undefined })} className={`mt-1 ${field}`}>

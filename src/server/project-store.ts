@@ -1,4 +1,5 @@
 import { and, asc, eq, notInArray } from "drizzle-orm";
+import { KOBO_APPROVAL_KEY, NEW_PROJECT_KOBO_APPROVAL } from "@/lib/kobo-approval";
 import { db, schema as s } from "@/db";
 import { THEMES, type ImpactTheme } from "@/lib/indicator-library";
 import type { IndicatorInput, ProjectDesign, ProjectKind, ProjectSummary } from "@/lib/project-setup";
@@ -84,6 +85,8 @@ export async function createProject(design: ProjectDesign) {
       .returning();
     await syncIndicators(tx, p.id, design.indicators);
     for (const name of design.donors ?? []) await tx.insert(s.donors).values({ projectId: p.id, organizationId: org.id, name });
+    // A new project starts with one named person approving KoboCollect data, still to be chosen in Set up.
+    await tx.insert(s.projectState).values({ projectId: p.id, key: KOBO_APPROVAL_KEY, data: NEW_PROJECT_KOBO_APPROVAL });
     return code;
   });
 }

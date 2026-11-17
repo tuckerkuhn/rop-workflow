@@ -50,7 +50,9 @@ export async function copySetup(fromCode: string, toCode: string, by: AppUser): 
     const hadPackage = !!current?.items?.length && !current.draft;
     if (!hadPackage) await put(FIELD_SETUP_KEY, setupForCopy(setup, fromCode, codes));
 
-    const hadApproval = !!(await state(to.id, KOBO_APPROVAL_KEY));
+    // A new project starts as "one named person" with nobody named: that is not a choice yet.
+    const mineRule = (await state(to.id, KOBO_APPROVAL_KEY)) as KoboApproval | null;
+    const hadApproval = !!mineRule && !(mineRule.who === "named" && !mineRule.person);
     const theirRule = (await state(from.id, KOBO_APPROVAL_KEY)) as KoboApproval | null;
     const rule = !hadApproval && theirRule ? approvalForCopy(theirRule, (id) => team.some((p) => p.id === id)) : null;
     if (rule) await put(KOBO_APPROVAL_KEY, rule);

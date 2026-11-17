@@ -28,7 +28,8 @@ describe("who approves KoboCollect data", () => {
     expect(koboApprovers(users, named).map((p) => p.id)).toEqual(["karim", "nadia"]);
     expect(approverNames(users, named)).toBe(`${u("karim").name} or ${u("nadia").name}`);
     expect(approverNames([], { who: "manager" })).toBe("the project manager");
-    expect(approverNames([], { who: "named" })).toBe("the person named to approve KoboCollect data");
+    expect(approverNames([], { who: "named" })).toBe("nobody yet: name the person who approves KoboCollect data in Set up");
+    expect(approverNames([], { who: "named", person: "gone" })).toBe("the person named to approve KoboCollect data");
   });
 
   it("refuses a named rule with nobody, a stranger, or the same person twice", () => {

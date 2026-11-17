@@ -8,7 +8,7 @@
  * sheet is read; the monthly ledger sheets, which name staff, are never touched.
  *
  *   npx tsx --env-file=.env.local src/db/import-bva-text.ts <export.txt> --project ACRP-2026 \
- *     --sheet "Budget Vs Actual" --name "<file name>" --url "<SharePoint link>" --by tucker [--apply]
+ *     --sheet "Budget Vs Actual" --name "<file name>" --url "<SharePoint link>" --by marcus [--apply]
  *
  * Dry run by default: shows months, totals and problems. --apply saves it like an upload would.
  */

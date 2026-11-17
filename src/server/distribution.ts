@@ -6,7 +6,7 @@ import type { AppUser } from "@/lib/demo";
 import { approverNames, collectorOf, deciderNames, decidersOf, needsKoboCheck, refusalFor } from "@/lib/kobo-approval";
 import { koboApprovalFor } from "@/server/kobo-approval";
 import { insertResult } from "@/server/results-store";
-import { addGiven, applyFix, approvalRefusal, approverNamesOf, approversOf, closeBlock, drawnFrom, fixOwner, flagsFor, gate, inProcUnit, lineOf, paymentDue, resultFor, storeStock, type DistItem, type Fix, type Flag, type Gate, type Given } from "@/lib/distribution";
+import { addGiven, applyFix, approvalRefusal, approverNamesOf, badCondition, approversOf, closeBlock, drawnFrom, fixOwner, flagsFor, gate, inProcUnit, lineOf, paymentDue, resultFor, storeStock, type DistItem, type Fix, type Flag, type Gate, type Given } from "@/lib/distribution";
 import { itemsFor, type FieldSetup } from "@/lib/package";
 import type { Farmer } from "@/lib/field";
 import type { Procurement } from "@/lib/procurement";
@@ -58,6 +58,8 @@ export type DistMeta = {
   /** Whether the signed list was photographed and the recipient's signature confirmed, once a fix has said so. */
   photo?: boolean;
   signed?: boolean;
+  /** A fix has said the recipient accepted what was finally handed over in acceptable condition. */
+  conditionOk?: boolean;
   /** Person id of who recorded it, when that is a person in the app (not a Kobo username). */
   recorderId?: string | null;
   notified?: { to: string[]; at: string; emailed: boolean; why?: string };
@@ -340,6 +342,8 @@ export type DistView = {
   gender: string | null;
   photo: boolean;
   signed: boolean;
+  /** From KoboCollect: the condition recorded at handover when it was not acceptable, until a fix puts it right. */
+  condition: string | null;
   gate: Gate;
   flags: Flag[];
   status: "pending" | "accepted" | "queried";
@@ -361,6 +365,13 @@ const photoOf = (r: { source: string; payload: unknown }) => {
   const p = (r.payload ?? {}) as Record<string, unknown>;
   return r.source === "kobo" ? typeof p.list_photo === "string" && !!p.list_photo : !!p.photo;
 };
+/** The condition at handover as the KoboCollect form recorded it; null from the app, where the recipient's tick covers it. */
+const conditionOf = (r: { source: string; payload: unknown }) => {
+  const c = ((r.payload ?? {}) as Record<string, unknown>).condition;
+  return r.source === "kobo" && typeof c === "string" && c ? c : null;
+};
+const sourceOf = (r: { source: string }) => (r.source === "kobo" ? ("kobo" as const) : ("app" as const));
+
 const signedOf = (r: { source: string; payload: unknown }) => {
   const p = (r.payload ?? {}) as Record<string, unknown>;
   const f = (typeof p.fields === "object" && p.fields ? p.fields : p) as Record<string, unknown>;
@@ -396,6 +407,7 @@ export async function listDistributions(code: string): Promise<DistView[]> {
         gender: m.gender,
         photo: m.photo ?? photoOf(r),
         signed: m.signed ?? signedOf(r),
+        condition: m.conditionOk ? null : badCondition(conditionOf(r)),
         // While it waits, the checks are worked out now, as approving will: a goods received note
         // signed since the record was made shows at once. Once decided, they stay as they were then.
         gate: r.reviewStatus === "pending" ? gate(m.items, procs, approved, setup) : m.gate,
@@ -411,7 +423,7 @@ export async function listDistributions(code: string): Promise<DistView[]> {
         planned: itemsFor(setup, hectares.get(r.farmerCode ?? "")),
         approvers: approversOf(team, recorderOf(r, m, rule, team)).map((p) => p.id),
         approverNames: approverNamesOf(team, recorderOf(r, m, rule, team)),
-        closeBlock: closeBlock({ signed: m.signed ?? signedOf(r) }),
+        closeBlock: closeBlock({ signed: m.signed ?? signedOf(r), photo: m.photo ?? photoOf(r), source: sourceOf(r), condition: m.conditionOk ? null : conditionOf(r) }),
       };
     })
     .sort((a, b) => (a.status === b.status ? b.date.localeCompare(a.date) : a.status === "pending" ? -1 : 1));
@@ -509,7 +521,7 @@ export async function decideDistribution(code: string, id: string, decision: "ap
   const g = gate(m.items, ctx.procs, ctx.given, ctx.setup);
   if (decision === "approved" && !g.ok) throw new HttpError(409, `Not approved: ${g.block}`);
   // The signed note closes it: no approval while the recipient's signature is not confirmed.
-  const unsigned = decision === "approved" ? closeBlock({ signed: m.signed ?? signedOf(row) }) : null;
+  const unsigned = decision === "approved" ? closeBlock({ signed: m.signed ?? signedOf(row), photo: m.photo ?? photoOf(row), source: sourceOf(row), condition: m.conditionOk ? null : conditionOf(row) }) : null;
   if (unsigned) throw new HttpError(409, `Not approved: ${unsigned}`);
 
   const finance = decision === "approved" ? (await people()).filter((u) => u.procurement.includes("finance") && onProject(u, code))[0] : undefined;
@@ -664,11 +676,12 @@ export async function resubmitDistribution(code: string, id: string, by: { id: s
   const items = applyFix(m.items, fix, planned);
   const photo = fix.photo ?? m.photo ?? photoOf(row);
   const signed = fix.signed ?? m.signed ?? signedOf(row);
+  const conditionOk = fix.conditionOk ?? m.conditionOk;
   const flags = flagsFor({ farmerId: row.farmerCode ?? m.farmerId, items, photo, signed, step: row.source === "kobo" ? (farmer?.step ?? "unknown") : null }, ctx.others, planned);
   const history = [...(m.history ?? []), ...(m.decided ? [{ sentBack: m.decided, fixed: { by: by.id, byName: by.name, at: now.toISOString(), note: note.trim() } }] : [])];
   const { decided: _decided, hash: _hash, hashes: _hashes, expires: _expires, notified: _notified, ...kept } = m;
   void [_decided, _hash, _hashes, _expires, _notified];
-  await prepare(code, project, id, { ...kept, items, photo, signed, gate: gate(items, ctx.procs, ctx.given, ctx.setup), flags, history }, origin, { by: by.name, note: note.trim() }, row.source === "kobo");
+  await prepare(code, project, id, { ...kept, items, photo, signed, ...(conditionOk === undefined ? {} : { conditionOk }), gate: gate(items, ctx.procs, ctx.given, ctx.setup), flags, history }, origin, { by: by.name, note: note.trim() }, row.source === "kobo");
   return { ok: true as const };
 }
 

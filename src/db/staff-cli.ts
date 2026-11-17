@@ -1,7 +1,7 @@
 /**
  * Who can sign in.
  *   npm run staff -- seed                                   demo people as staff profiles (no emails)
- *   npm run staff -- add --email you@org --person tucker    give an email access as that person
+ *   npm run staff -- add --email you@org --person marcus    give an email access as that person
  *   npm run staff -- add --email d@fdn.org --person ana --name "Ana Ruiz" --title "Program officer" --org "Foundation" --like elena
  *   npm run staff -- remove --person ana                    turn access off (history is kept)
  */

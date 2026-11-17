@@ -119,7 +119,13 @@ export function fixOwner(recordedBy: string | null, people: { id: string; field:
 }
 
 /** What the person fixing a sent-back distribution may correct. Quantities are in the items' own units. */
-export type Fix = { qty?: Record<string, number>; signed?: boolean; photo?: boolean };
+export type Fix = {
+  qty?: Record<string, number>;
+  signed?: boolean;
+  photo?: boolean;
+  /** The recipient accepted what was finally handed over in acceptable condition (damaged items replaced or left out). */
+  conditionOk?: boolean;
+};
 
 /**
  * The items after a fix: a corrected quantity replaces the recorded one and anything else stays.
@@ -171,7 +177,7 @@ export function flagsFor(d: { farmerId: string; items: DistItem[]; photo: boolea
     const asPlanned = p ? convert(it.qty, it.unit, p.unit) : null;
     if (p && asPlanned !== null && asPlanned > p.qty + 1e-9) out.push({ id: "aboveplan", text: `${it.item}: ${fmt(it.qty)} ${it.unit} given; the package plans ${fmt(p.qty)} ${p.unit}.` });
   }
-  if (!d.photo) out.push({ id: "nophoto", text: "No photo of the signed recipient list." });
+  if (!d.photo) out.push({ id: "nophoto", text: "No photo of the signed goods received note." });
   if (!d.signed) out.push({ id: "unsigned", text: "The recipient's signature or thumbprint is not confirmed." });
   // In the app the farmer has just moved on from "distribute"; from Kobo they should be at it.
   if (d.step !== null && !["distribute", "plant", "complete"].includes(d.step)) out.push({ id: "notready", text: `${d.farmerId} has not been cleared as ready (their step is "${d.step}").` });
@@ -234,11 +240,29 @@ export function approvalRefusal(by: string, people: Approver[], recorder: string
   return by === recorder ? `You recorded this distribution, so someone else approves it: ${who}.` : `Only ${who} can approve this distribution or send it back.`;
 }
 
+/** What the recipient signs, in one sentence: used on the approval page and wherever the rule is explained. */
+export const ACKNOWLEDGMENT = "The recipient signs or thumbprints a note saying they received the goods in acceptable condition and are responsible for them from then on.";
+
+/** Condition answers that mean the goods were accepted as they should be. Anything else recorded is not. */
+const ACCEPTABLE = ["good", "acceptable"];
+/** The recorded condition when it was not acceptable; null when it was, or when none was recorded. */
+export const badCondition = (c: string | null | undefined) => (c && !ACCEPTABLE.includes(c) ? c : null);
+
 /**
- * Why a distribution cannot close yet, apart from the goods received checks: the recipient's
- * signed note. A distribution is closed by its approval, and it is not approved until the
- * recipient's signature or thumbprint on the goods received note is confirmed. Null when it may.
+ * Why a distribution cannot close yet, apart from the goods received checks. For any distribution
+ * of goods the recipient signs a document acknowledging they received the goods in acceptable
+ * condition and take responsibility for them from then on. A distribution is closed by its
+ * approval, so it is not approved while:
+ *  - the signature or thumbprint is not confirmed;
+ *  - the condition recorded at handover was not acceptable (a damaged package is not accepted);
+ *  - it came from KoboCollect without the photo of the signed page (the form asks for it; a record
+ *    made in the app has no photo question at this step yet, so there it stays a flag).
+ * Null when it may be approved.
  */
-export function closeBlock(d: { signed: boolean }): string | null {
-  return d.signed ? null : "The recipient's signature or thumbprint on the goods received note is not confirmed. Send it back so the person who recorded it can get the note signed and confirm it; then it can be approved.";
+export function closeBlock(d: { signed: boolean; photo?: boolean; source?: "app" | "kobo"; condition?: string | null }): string | null {
+  const back = "Send it back so the person who recorded it can put it right; then it can be approved.";
+  if (!d.signed) return `The recipient's signature or thumbprint on the goods received note is not confirmed. ${ACKNOWLEDGMENT} ${back}`;
+  if (badCondition(d.condition)) return `The goods were recorded as damaged at handover, so the recipient has not accepted them in acceptable condition. ${back}`;
+  if (d.source === "kobo" && d.photo === false) return `There is no photo of the signed goods received note. ${ACKNOWLEDGMENT} The photo is the proof. ${back}`;
+  return null;
 }

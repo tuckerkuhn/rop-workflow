@@ -60,6 +60,21 @@ A new section, asked for after the summary above was written. Full write-up in `
 
 **Checks.** 551 tests pass, typecheck clean, lint 0 errors.
 
+## Added 17 Nov: decisions settled
+
+Tucker answered the four decisions. What was built for each:
+
+1. **KoboToolbox for the demo: a sandbox account.** Not built. It needs a sandbox KoboToolbox login, which this session does not have. Once there is one: add the server URL and API token to the demo server only, deploy the distribution form from `kobo/` and link it to A-2027 in Setup.
+2. **What "signed goods received note" means.** His rule: for any distribution of goods the recipient signs a document saying they received the goods in acceptable condition and take responsibility for them from then on. Now a distribution is not approved while any of these is true:
+   - the signature or thumbprint is not confirmed (as before, with the new wording);
+   - the condition recorded at handover in KoboCollect was "some damaged" or "damaged", until it is sent back and the recorder confirms the damaged items were replaced or taken off;
+   - it came from KoboCollect with no photo of the signed page.
+   Not done: a distribution recorded in the app still rests on a tick, because the Distribute step has no photo question yet. The KoboCollect question still says "sign or thumbprint the distribution list"; the acknowledgment sentence needs adding in English, Dari and Pashto by someone who reads all three.
+3. **One named approver as the starting rule.** Every project made from now on starts as "one named person" with nobody named yet. Setup shows a warning until someone is chosen; until then each KoboCollect record waits for the person its collector reports to. ACRP and A-2027 are untouched. Copying a setup from another project still brings its named approver across.
+4. **Real names out of the demo cast.** The two real names are now Marcus Bell (Vice President, Programs) and Diego Paredes (Director of Global Operations), both fictional, with new ids `marcus` and `diego`. "Pilot lead" is gone. Live staff records are not touched: they are rows in the database, not this list. Two cautions: older commits still hold the old names until the repo is private, and other docs in `docs/` (for example DATA-PROTECTION.md) name real staff on purpose.
+
+Also answered: the instant notification is an email, so it only works once the email service is set up (see "Before Jan 10"); translations wait until the rest is ready; farmers and staff are each kept in two places and that is next to fix, staff first.
+
 ## Batch by batch
 
 ### Docs (commit `5213148`)

@@ -24,7 +24,7 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
   const [canDecide, setCanDecide] = useState(false);
   const [canFix, setCanFix] = useState(false);
   const [canCheckKobo, setCanCheckKobo] = useState(false);
-  const [fix, setFix] = useState<{ qty: Record<string, string>; signed: boolean; photo: boolean }>({ qty: {}, signed: false, photo: false });
+  const [fix, setFix] = useState<{ qty: Record<string, string>; signed: boolean; photo: boolean; conditionOk: boolean }>({ qty: {}, signed: false, photo: false, conditionOk: false });
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -49,7 +49,7 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
     setCanCheckKobo(!!body.canCheckKobo);
     setWaiting(body.waiting ?? []);
     // Every item of the farmer's planned package can be corrected, including one recorded as not given (0).
-    setFix({ qty: Object.fromEntries(fixable(dist).map((i) => [i.key, String(dist.items.find((x) => x.key === i.key)?.qty ?? 0)])), signed: dist.signed, photo: dist.photo });
+    setFix({ qty: Object.fromEntries(fixable(dist).map((i) => [i.key, String(dist.items.find((x) => x.key === i.key)?.qty ?? 0)])), signed: dist.signed, photo: dist.photo, conditionOk: false });
     setError("");
   }, [url, token, user?.id]);
 
@@ -83,7 +83,7 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
   async function sendAgain() {
     const num = (v: string) => (v.trim() === "" || !Number.isFinite(Number(v)) || Number(v) < 0 ? undefined : Number(v));
     setBusy(true);
-    const res = await fetch(url, { method: "POST", headers, body: JSON.stringify({ decision: "resubmit", note: note.trim(), fix: { qty: Object.fromEntries(Object.entries(fix.qty).flatMap(([k, v]) => (num(v) === undefined ? [] : [[k, num(v)]]))), signed: fix.signed, photo: fix.photo } }) });
+    const res = await fetch(url, { method: "POST", headers, body: JSON.stringify({ decision: "resubmit", note: note.trim(), fix: { qty: Object.fromEntries(Object.entries(fix.qty).flatMap(([k, v]) => (num(v) === undefined ? [] : [[k, num(v)]]))), signed: fix.signed, photo: fix.photo, ...(d?.condition && fix.conditionOk ? { conditionOk: true } : {}) } }) });
     const body = await res.json().catch(() => ({}));
     setBusy(false);
     if (!res.ok) return setError(body.error ?? `Not sent (${res.status}).`);
@@ -212,12 +212,18 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
               </div>
               <label className="mt-3 flex items-start gap-2 text-sm">
                 <input type="checkbox" className="mt-0.5 h-4 w-4" checked={fix.signed} onChange={(e) => setFix((f) => ({ ...f, signed: e.target.checked }))} />
-                The recipient&apos;s signature or thumbprint is on the list
+                The recipient signed or thumbprinted the goods received note: received in acceptable condition and responsible from now on
               </label>
               <label className="mt-2 flex items-start gap-2 text-sm">
                 <input type="checkbox" className="mt-0.5 h-4 w-4" checked={fix.photo} onChange={(e) => setFix((f) => ({ ...f, photo: e.target.checked }))} />
-                A photo of the signed list is on the farmer&apos;s record
+                A photo of the signed note is on the farmer&apos;s record
               </label>
+              {d.condition && (
+                <label className="mt-2 flex items-start gap-2 text-sm">
+                  <input type="checkbox" className="mt-0.5 h-4 w-4" checked={fix.conditionOk} onChange={(e) => setFix((f) => ({ ...f, conditionOk: e.target.checked }))} />
+                  Damaged items were replaced or taken off the amounts above, and the recipient accepted the rest in acceptable condition
+                </label>
+              )}
               <label className="mt-3 block text-sm font-medium" htmlFor="fixed">
                 What you fixed
               </label>

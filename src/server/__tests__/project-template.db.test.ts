@@ -10,7 +10,7 @@ import { FIELD_SETUP_KEY } from "@/lib/package";
 import { resetNewProject, seedDatabase } from "@/server/demo-seed";
 import { projectByCode, projectsWithField, setupFor } from "@/server/field-store";
 import { koboApprovalFor } from "@/server/kobo-approval";
-import { listProjects } from "@/server/project-store";
+import { createProject, listProjects } from "@/server/project-store";
 import { copySetup, templateSources } from "@/server/project-template";
 import { ready } from "@/server/__tests__/test-db";
 
@@ -83,5 +83,13 @@ describe("starting the new project from the running one", { timeout: 60_000 }, (
   it("goes back to nothing set up when the demo is reset", async () => {
     expect(await state(fresh, FIELD_SETUP_KEY)).toBeUndefined();
     expect(await targets(fresh)).toHaveLength(0);
+  });
+});
+
+describe("a project made from now on", { timeout: 60_000 }, () => {
+  it("starts with one named approver for KoboCollect data, still to be chosen; the running project keeps its own", async () => {
+    const code = await createProject({ name: "Fictional Test Orchard", country: "GT", crop: "", goal: "", startDate: "2028-01-01", endDate: "2028-12-31", indicators: [], donors: [] } as never);
+    expect(await koboApprovalFor(code)).toEqual({ who: "named" });
+    expect(await koboApprovalFor("A-2027")).toEqual({ who: "named", person: "rahima", standIn: "omar" });
   });
 });

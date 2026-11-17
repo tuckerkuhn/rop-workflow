@@ -30,7 +30,7 @@ export async function seedStaff() {
 }
 
 /**
- * Gives an email access as an existing person (e.g. "tucker", "elena"), or as a new person
+ * Gives an email access as an existing person (e.g. "marcus", "elena"), or as a new person
  * copied from another's roles. Creates the Supabase Auth account so the person can request a
  * code; nothing is emailed until they do.
  */

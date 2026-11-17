@@ -265,7 +265,7 @@ function Overview({ u, state, setState, field, procs, roster, go }: SectionProps
           {[
             ["Donor-ready output", state.reportRelease ? `Released ${state.reportRelease.date}` : "Report not released yet", "Report goes out with light edits only"],
             ["Traceable", `${traceable(state)}% of report numbers link to evidence`, "Click any number, see its source"],
-            ["Daniel runs it unaided", "Not tested yet", "Week 6: log every point he gets stuck"],
+            ["Operations director runs it unaided", "Not tested yet", "Week 6: log every point they get stuck"],
             ["Report time", "Not timed yet", "Under 2 hours instead of days"],
           ].map(([t, v, s]) => (
             <div key={t} className="rounded-2xl border border-line bg-surface p-4">
