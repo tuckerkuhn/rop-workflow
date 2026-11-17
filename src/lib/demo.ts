@@ -62,6 +62,9 @@ export const users: AppUser[] = [
   { id: "yusuf", name: "Yusuf Mohammadi", title: "Finance officer", kind: "employee", org: ROP, reportsTo: "karim", field: [], procurement: ["finance"], project: ["finance-import"], fieldAccess: "view", procurementAccess: "edit", pii: false, lang: "ps" },
   { id: "farida", name: "Farida Noori", title: "Extension agent", kind: "employee", org: ROP, reportsTo: "nadia", field: ["extension"], procurement: [], project: [], fieldAccess: "edit", procurementAccess: "none", pii: true, lang: "fa", feedback: { score: 4.7, n: 38 } },
   { id: "omar", name: "Omar Sadiq", title: "MEL officer", kind: "employee", org: ROP, reportsTo: "nadia", field: ["mel"], procurement: [], project: ["mel-owner"], fieldAccess: "edit", procurementAccess: "none", pii: true, lang: "ps", feedback: { score: 4.4, n: 26 } },
+  // The one person named to approve KoboCollect data on the demo project (lib/kobo-approval "named"), with Omar as stand-in.
+  // Fictional. Sees field records but collects none, so the rule "nobody approves what they collected" never catches her.
+  { id: "rahima", name: "Rahima Stanikzai", title: "Director of MEL", kind: "employee", org: ROP, reportsTo: "daniel", field: [], procurement: [], project: [], fieldAccess: "view", procurementAccess: "none", pii: false, lang: "fa" },
   { id: "bilal", name: "Bilal Haidari", title: "Storekeeper", kind: "employee", org: ROP, reportsTo: "nadia", field: ["store"], procurement: ["committee"], project: [], fieldAccess: "edit", procurementAccess: "edit", pii: true, lang: "fa", feedback: { score: 4.2, n: 31 } },
   // ACRP placeholders (fictional names, real titles from the ACRP budget). No sign-in.
   { id: "hamid", name: "Hamid Wardak", title: "Procurement manager", kind: "employee", org: ROP, reportsTo: "karim", field: [], procurement: ["procurement"], project: [], fieldAccess: "none", procurementAccess: "edit", pii: false, lang: "fa" },
@@ -96,6 +99,13 @@ export const holderOf = (workspace: "field" | "procurement", role: string) =>
 export const projectRoleHolders = (r: ProjectRole) => users.filter((u) => u.project.includes(r));
 export const directReports = (id: string) => users.filter((u) => u.reportsTo === id);
 export const canSeePII = (u: AppUser | null | undefined) => !!u?.pii;
+
+/**
+ * The demo's second database project: just won, nothing set up yet. It is there to show a new
+ * project being set up from another project's setup in a few steps. Fictional, and a sandbox:
+ * writable, and left out of every total.
+ */
+export const NEW_PROJECT = { id: "GT-2027", name: "Highland Coffee Renewal (fictional, just won)", country: "GT", award: "Award GT-2027 (fictional)", startDate: "2027-02-01", endDate: "2029-01-31", crop: "Coffee" };
 
 export const PROJECT = {
   id: "A-2027",

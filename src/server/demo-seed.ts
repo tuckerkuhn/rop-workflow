@@ -1,7 +1,8 @@
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { daysFromDemo, realToday, shiftDates } from "@/lib/clock";
-import { ORG_ID, PROJECT } from "@/lib/demo";
+import { NEW_PROJECT, ORG_ID, PROJECT } from "@/lib/demo";
+import { KOBO_APPROVAL_KEY, type KoboApproval } from "@/lib/kobo-approval";
 import { DEMO_SETUP, FIELD_SETUP_KEY } from "@/lib/package";
 import { SEASON, seedField, seedStock, type Farmer } from "@/lib/field";
 import { seedProcurements } from "@/lib/procurement";
@@ -45,8 +46,11 @@ export async function seedDatabase() {
   const [org] = await db.insert(s.organizations).values({ name: "Roots of Peace (demo)" }).returning();
   const [project] = await db
     .insert(s.projects)
-    .values({ organizationId: org.id, code: PROJECT.id, name: PROJECT.name, country: "AF", donor: PROJECT.award, startDate: "2026-10-01", endDate: "2028-12-31" })
+    // Fully set up and running: its plan is signed off, so nobody is asked to sign it off again.
+    .values({ organizationId: org.id, code: PROJECT.id, name: PROJECT.name, country: "AF", donor: PROJECT.award, startDate: "2026-10-01", endDate: "2028-12-31", stage: "Execute" })
     .returning();
+  // The second demo project: just won, still to be set up (lib/demo NEW_PROJECT).
+  await resetNewProject(org.id);
   const [season] = await db.insert(s.seasons).values({ projectId: project.id, name: SEASON.name, startDate: "2027-01-01", endDate: "2027-10-31" }).returning();
   const [crop] = await db.insert(s.crops).values({ name: SEASON.crop }).returning();
 
@@ -106,6 +110,26 @@ export async function resetDemo(code: string) {
     .where(and(eq(s.evidence.projectId, project.id), eq(s.evidence.source, "kobo")));
 
   await loadDemoState(project.id, project.organizationId);
+  // The finished demo project is running; the just-won one goes back to having nothing set up.
+  await db.update(s.projects).set({ stage: "Execute", updatedAt: new Date() }).where(eq(s.projects.id, project.id));
+  await resetNewProject(project.organizationId);
+}
+
+/**
+ * The demo's second project (lib/demo NEW_PROJECT) as it is on the day it is won: there, with
+ * nothing set up. Made when missing; when present its setup, targets and field records are
+ * cleared, but only while it is still the fictional sandbox this file made.
+ */
+export async function resetNewProject(organizationId: string) {
+  const [p] = await db.select().from(s.projects).where(eq(s.projects.code, NEW_PROJECT.id)).limit(1);
+  if (!p) {
+    await db.insert(s.projects).values({ organizationId, code: NEW_PROJECT.id, name: NEW_PROJECT.name, country: NEW_PROJECT.country, donor: NEW_PROJECT.award, crop: NEW_PROJECT.crop, startDate: NEW_PROJECT.startDate, endDate: NEW_PROJECT.endDate, stage: "Design", kind: "sandbox" });
+    return;
+  }
+  if (p.kind !== "sandbox") return;
+  await db.delete(s.projectState).where(eq(s.projectState.projectId, p.id));
+  await db.delete(s.fieldItems).where(eq(s.fieldItems.projectId, p.id));
+  await db.delete(s.indicators).where(eq(s.indicators.projectId, p.id));
 }
 
 async function loadDemoState(projectId: string, organizationId: string) {
@@ -132,6 +156,9 @@ async function loadDemoState(projectId: string, organizationId: string) {
   // Its season is named for the year the window now falls in ("2027 Spring" would read oddly in another year).
   const setup = shiftDates(DEMO_SETUP, days);
   await db.insert(s.projectState).values({ projectId, key: FIELD_SETUP_KEY, data: days && setup.windowEnd ? { ...setup, season: `${setup.windowEnd.slice(0, 4)} season` } : setup });
+  // Who approves KoboCollect data here: one named person, the Director of MEL, with the MEL officer as stand-in.
+  const approval: KoboApproval = { who: "named", person: "rahima", standIn: "omar" };
+  await db.insert(s.projectState).values({ projectId, key: KOBO_APPROVAL_KEY, data: approval });
   await seedProcurementRows(projectId, organizationId, days);
   await seedWorkItems(projectId, organizationId, days);
   await seedIndicators(projectId);

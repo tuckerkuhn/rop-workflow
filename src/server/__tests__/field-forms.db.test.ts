@@ -116,6 +116,7 @@ describe("training attendance and farm visit forms", { timeout: 60_000 }, () => 
     const { submissions } = (await res.json()) as { submissions: { farmerId: string; status: string; form: string; mayDecide: boolean; deciders: string }[] };
     const mine = submissions.find((x) => x.farmerId === f.id && x.status === "pending" && x.form === "training")!;
     expect(mine.mayDecide).toBe(false);
-    expect(mine.deciders).toBe("Omar Sadiq");
+    // The demo project names the Director of MEL for KoboCollect data, with the MEL officer as stand-in.
+    expect(mine.deciders).toBe("Rahima Stanikzai or Omar Sadiq");
   });
 });
