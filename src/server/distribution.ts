@@ -249,10 +249,16 @@ export async function processPending(code: string, origin = appOrigin()) {
     const flags = flagsFor({ farmerId: code_, items, photo, signed, step: r.source === "kobo" ? (farmer?.step ?? "unknown") : null }, ctx.others, planned);
     if (farmer && r.source === "kobo") await db.update(s.evidence).set({ payload: { ...p, _rop_gender: farmer.gender }, updatedAt: new Date() }).where(eq(s.evidence.id, r.id));
     const gender = farmer?.gender ?? (f.gender === "Female" || f.gender === "Male" ? f.gender : null);
-    await prepare(code, project, r.id, { farmerId: code_, items, gender, village: farmer?.community ?? (typeof p.village === "string" ? p.village : ""), recordedBy: r.completedBy ?? "KoboCollect", recorderId: r.source === "kobo" ? null : r.completedBy, photo, signed, gate: g, flags }, origin, undefined, true);
+    await prepare(code, project, r.id, { farmerId: code_, items, gender, village: farmer?.community ?? (typeof p.village === "string" ? p.village : ""), recordedBy: await recorderName(r.completedBy), recorderId: r.source === "kobo" ? null : r.completedBy, photo, signed, gate: g, flags }, origin, undefined, r.source === "kobo");
     done++;
   }
   return done;
+}
+
+/** A record made in the app stores the person's id; show their name (a Kobo account name stays as it is). */
+async function recorderName(by: string | null) {
+  if (!by) return "KoboCollect";
+  return (await people()).find((u) => u.id === by)?.name ?? by;
 }
 
 /* ---------- 2–3. checks stored, manager told ---------- */

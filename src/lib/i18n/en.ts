@@ -253,6 +253,8 @@ export const en = {
   "track.behind": "Behind",
   "track.not_measured": "Not measured yet",
   "progress.thisPeriod": "{n} this period",
+  "progress.thisMonth": "{n} this month",
+  "progress.thisQuarter": "{n} this quarter",
   "progress.noData": "No data this period",
   "progress.endOfSeason": "Measured at the end of the season",
   "progress.pending": "{n} waiting for review",

@@ -3,6 +3,8 @@ import { proofCount, quarterRange } from "@/lib/results";
 import { loadBudgetView } from "@/server/budget-view-store";
 import { loadReview } from "@/server/monthly-review-store";
 import { loadActivities } from "@/server/activities-store";
+import { nextReport } from "@/server/next-report";
+import { preflightHref } from "@/lib/preflight";
 
 /**
  * The top of Progress: what deserves celebrating and what needs attention, each item specific and
@@ -100,8 +102,9 @@ export async function loadProgressSummary(code: string, u: AppUser) {
   if (queried) concerns.push({ key: "queried", level: "warning", text: `${queried} ${queried === 1 ? "result was" : "results were"} queried by MEL`, why: "The person who recorded each needs to answer it.", href: "/progress/results" });
   const noProof = accepted.filter((r) => r.date >= `${today.slice(0, 4)}-01-01` && !proofCount(r)).length;
   if (noProof) concerns.push({ key: "proof", level: "warning", text: `${noProof} accepted ${noProof === 1 ? "result has" : "results have"} no proof attached this year`, why: "Every figure in a donor report should click through to its evidence.", href: "/progress/results" });
-  const stops = v.checks.filter((c) => c.level === "stop").length;
-  if (stops) concerns.push({ key: "stops", level: "warning", text: `The ${qLabel(today)} report has ${stops} stop ${stops === 1 ? "item" : "items"}`, why: "It cannot be released until they are fixed.", href: "/progress/report" });
+  // What blocks the report, counted by pre-flight as Home counts it (server/next-report).
+  const nr = await nextReport(code).catch(() => null);
+  if (nr && !nr.released && nr.blocking) concerns.push({ key: "stops", level: "warning", text: `${nr.blocking} ${nr.blocking === 1 ? "thing blocks" : "things block"} the ${nr.quarter.replace("-", " ")} report`, why: "It cannot be released until they are fixed. Pre-flight lists each one and where to fix it.", href: preflightHref({ kind: "qpr", quarter: nr.quarter }) });
   // Impact first: results and the activities that deliver them, then money, then evidence and
   // workflow. Within each, what needs action now before what needs it soon.
   const group = (k: string) => (/^(late-|due$|unplanned-|acts-)/.test(k) ? 0 : /^(over-|forecast$)/.test(k) ? 1 : 2);

@@ -89,6 +89,6 @@ describe("reporting periods", () => {
     expect(reportPeriod(donor, "2026-11-09", "2026-01-01")).toMatchObject({ from: "2026-10-16", to: "2026-11-09", deadline: null });
   });
   it("no deadlines: the current month", () => {
-    expect(reportPeriod(null, "2026-11-09", "2026-01-01")).toMatchObject({ from: "2026-11-01", to: "2026-11-30", deadline: null });
+    expect(reportPeriod(null, "2026-11-09", "2026-01-01")).toMatchObject({ from: "2026-10-01", to: "2026-12-31", deadline: null });
   });
 });

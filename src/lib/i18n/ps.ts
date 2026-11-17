@@ -249,6 +249,8 @@ export const ps: Messages = {
   "track.behind": "وروسته",
   "track.not_measured": "لا نه دی اندازه شوی",
   "progress.thisPeriod": "{n} په دې موده کې",
+  "progress.thisMonth": "{n} په دې میاشت کې",
+  "progress.thisQuarter": "{n} په دې درې میاشتنۍ کې",
   "progress.noData": "په دې موده کې معلومات نشته",
   "progress.endOfSeason": "د فصل په پای کې اندازه کېږي",
   "progress.pending": "{n} د کتنې په تمه",

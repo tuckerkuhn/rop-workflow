@@ -249,6 +249,8 @@ export const fa: Messages = {
   "track.behind": "عقب",
   "track.not_measured": "هنوز اندازه‌گیری نشده",
   "progress.thisPeriod": "{n} در این دوره",
+  "progress.thisMonth": "{n} در این ماه",
+  "progress.thisQuarter": "{n} در این ربع",
   "progress.noData": "بدون داده در این دوره",
   "progress.endOfSeason": "در پایان فصل اندازه‌گیری می‌شود",
   "progress.pending": "{n} در انتظار بررسی",

@@ -33,9 +33,14 @@ export function NextReportPanel({ project, user, owners, data }: { project: stri
     };
   }, [project, user, data]);
   if (!v) return null;
-  // Each person sees their own part of what stands in the way; leads see all of it.
-  if (owners) v = { ...v, items: v.items.filter((i) => owners.includes(i.owner)) };
-  const blocking = v.items.filter((i) => i.blocks).length;
+  // The counts are always the whole report's, as on Home's tile and pre-flight, so the numbers agree
+  // wherever they show. The list is this person's own part (leads see all of it); the rest is
+  // named by who has it.
+  const all = v.items;
+  const blocking = all.filter((i) => i.blocks).length;
+  if (owners) v = { ...v, items: all.filter((i) => owners.includes(i.owner)) };
+  const others = all.filter((i) => !v!.items.includes(i));
+  const otherOwners = OWNERS.filter((o) => others.some((i) => i.owner === o));
   // One line until opened; open from the start when something stops the report going out.
   const shown = open ?? blocking > 0;
   const groups = OWNERS.filter((o) => v.items.some((i) => i.owner === o));
@@ -53,9 +58,9 @@ export function NextReportPanel({ project, user, owners, data }: { project: stri
             t("nr.noDeadline")
           )}
         </p>
-        {!v.released && v.items.length > 0 && (
+        {!v.released && all.length > 0 && (
           <button type="button" onClick={() => setOpen(!shown)} aria-expanded={shown} className="text-sm font-semibold text-forest hover:underline">
-            {blocking === 1 ? t("nr.blocksOne") : blocking ? t("nr.blocks", { n: blocking }) : t("nr.blocksNone")} · {t("nr.toDo", { n: v.items.length - blocking })} {shown ? "▴" : "▾"}
+            {blocking === 1 ? t("nr.blocksOne") : blocking ? t("nr.blocks", { n: blocking }) : t("nr.blocksNone")} · {t("nr.toDo", { n: all.length - blocking })} {shown ? "▴" : "▾"}
           </button>
         )}
         <span className="ms-auto flex flex-wrap gap-x-4 gap-y-1">
@@ -69,11 +74,19 @@ export function NextReportPanel({ project, user, owners, data }: { project: stri
       </div>
       {v.released ? (
         <p className="mt-2 text-sm text-leaf">{t("nr.released")}</p>
-      ) : v.items.length === 0 ? (
+      ) : all.length === 0 ? (
         <p className="mt-2 text-sm text-leaf">{t("nr.clear")}</p>
       ) : !shown ? null : (
         <>
-          <p className="mt-1 text-sm">{blocking === 1 ? t("nr.sumBlockedOne", { m: v.items.length - 1 }) : blocking ? t("nr.sumBlocked", { n: blocking, m: v.items.length - blocking }) : t("nr.sumOpen", { n: v.items.length })}</p>
+          <p className="mt-1 text-sm">
+            {blocking === 1 ? t("nr.sumBlockedOne", { m: all.length - 1 }) : blocking ? t("nr.sumBlocked", { n: blocking, m: all.length - blocking }) : t("nr.sumOpen", { n: all.length })}
+            {owners && others.length > 0 && (
+              <>
+                {" "}
+                {t("nr.yours", { n: v.items.length })} {t("nr.others", { n: others.length, who: otherOwners.map((o) => t(`pf.owner.${o}`)).join(", ") })}
+              </>
+            )}
+          </p>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             {groups.map((o) => (
               <div key={o}>

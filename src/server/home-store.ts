@@ -26,6 +26,7 @@ import { projectProcurementCards } from "@/server/boards-store";
 import { grantRules, loadGrantBook, mayApprove } from "@/server/grants-store";
 import { loadQpr } from "@/server/qpr-store";
 import { loadActivities } from "@/server/activities-store";
+import { reportQuarter } from "@/server/next-report";
 
 /**
  * Everything Home needs for a database project, computed once: where results stand against the
@@ -159,11 +160,13 @@ export async function loadHome(code: string, u: AppUser) {
   // The report's deadline comes from the same function as pre-flight (a "Report deadline" in Tasks,
   // else the donor's rule), so Home never shows a different date. Only when neither sets one does
   // Home fall back to the 10th of the month after the quarter, and says that it is not a set date.
-  const set = await reportDeadline(code, quarterRange(qLabel(thisQ)).to, 60, "quarterlyReportDays");
-  const reportDue = set.due ?? `${addQuarter(thisQ).slice(0, 7)}-10`;
+  // The report in question is the one pre-flight and Home's panel are about (server/next-report).
+  const rq = await reportQuarter(code, today);
+  const set = await reportDeadline(code, quarterRange(rq).to, 60, "quarterlyReportDays");
+  const reportDue = set.due ?? `${addQuarter(quarterRange(rq).from).slice(0, 7)}-10`;
   const dueNote = set.source?.kind === "milestone" ? `From Tasks: ${set.source.title}` : set.source?.kind === "policy" ? `${set.source.days} days after the quarter, from the project's reporting rules` : "No deadline is set in Tasks or in the donor's rules; ROP usually sends it about the 10th after each quarter";
   const deadlines = [
-    { key: "qpr", what: `${qLabel(thisQ).replace("-", " ")} report to the donor`, date: reportDue, days: days(today, reportDue), note: dueNote, href: "/progress/report" },
+    { key: "qpr", what: `${rq.replace("-", " ")} report to the donor`, date: reportDue, days: days(today, reportDue), note: dueNote, href: `/progress/report?q=${rq}` },
     { key: "review", what: `${new Date(`${month}-15T00:00:00Z`).toLocaleDateString("en-GB", { month: "long", timeZone: "UTC" })} monthly review`, date: new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5)), 0)).toISOString().slice(0, 10), days: 0, note: "Signed off at the month's end", href: "/progress/review" },
   ].map((d) => ({ ...d, days: days(today, d.date) }));
 
@@ -325,7 +328,7 @@ export async function loadHome(code: string, u: AppUser) {
     season,
     actions,
     kobo,
-    mel: { pending: allResults.filter((r) => r.status === "pending").length, queried: allResults.filter((r) => r.status === "queried").length, toCheck: allResults.filter((r) => r.status === "pending" && r.by !== u.id).length, noProof: proof, stops: report.checks.filter((c) => c.level === "stop").length, checks: report.checks.filter((c) => c.level === "check").length, quarter: qLabel(thisQ).replace("-", " ") },
+    mel: { pending: allResults.filter((r) => r.status === "pending").length, queried: allResults.filter((r) => r.status === "queried").length, toCheck: allResults.filter((r) => r.status === "pending" && r.by !== u.id).length, noProof: proof, quarter: rq.replace("-", " ") },
     field: { queried: myQueried.length, mine: allResults.filter((r) => r.by === u.id && r.date >= thisQ).length },
   };
 }

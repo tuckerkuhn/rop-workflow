@@ -143,13 +143,14 @@ export const BUILT_IN_SOURCES = ["training", "readiness", "distribution", "visit
 
 /**
  * The period a donor report covers: from the day after the donor's last deadline (or the
- * project start) to its next deadline. Without deadlines, the current month.
+ * project start) to its next deadline. Without deadlines, the calendar quarter under way.
  */
 export function reportPeriod(donor: DonorInfo | null, today: string, projectStart: string | null): Period & { deadline: Deadline | null } {
   const dates = [...(donor?.deadlines ?? [])].sort((a, b) => a.date.localeCompare(b.date));
   const next = dates.find((d) => d.date >= today) ?? null;
   const last = [...dates].reverse().find((d) => d.date < today);
-  if (!next && !last) return { ...periodOf("monthly", today)!, deadline: null };
+  // No deadlines: the calendar quarter under way, as the quarterly report and Progress's cards count.
+  if (!next && !last) return { ...periodOf("quarterly", today)!, deadline: null };
   const from = last ? addDays(last.date, 1) : (projectStart ?? `${today.slice(0, 7)}-01`);
   return { from, to: next?.date ?? today, deadline: next };
 }

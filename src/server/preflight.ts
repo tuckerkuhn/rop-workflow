@@ -55,7 +55,12 @@ export async function reportDeadline(code: string, end: string, window: number, 
   const days = rule && rules.values[rule] != null ? Number(rules.values[rule]) : null;
   const src = rule ? (line(rule)?.donor?.source ?? line(rule)?.org?.source ?? "") : "";
   const { items } = await listWorkItems(code);
-  const ms = items.filter((i) => i.type === "milestone" && i.milestoneKind === "report_deadline").map((i) => ({ title: i.title, date: i.date ?? "", done: !!i.doneAt }));
+  // A monthly report's deadline is not the quarterly or annual one ("Monthly report: January" fell
+  // inside the Q4 window and became its due date).
+  const monthly = /\bmonth(ly)?\b|\b(january|february|march|april|may|june|july|august|september|october|november|december)\b/i;
+  const ms = items
+    .filter((i) => i.type === "milestone" && i.milestoneKind === "report_deadline" && !(rule && monthly.test(i.title) && !/quarter|annual|year|q[1-4]/i.test(i.title)))
+    .map((i) => ({ title: i.title, date: i.date ?? "", done: !!i.doneAt }));
   return deadlineFor(end, window, ms, days, src, reviewDays);
 }
 

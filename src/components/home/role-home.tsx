@@ -142,9 +142,11 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
   const onTrack = s.counts.completed + s.counts.on_track;
   const late = s.counts.delayed + s.counts.not_implemented;
   const b = v.budget;
-  // One source for the report tile: pre-flight's quarter and counts when loaded, else the report's own checks.
-  const melBlocks = nr ? nr.blocking : v.mel.stops;
-  const melOther = nr ? nr.items.length - nr.blocking : v.mel.checks;
+  // One source for every count of what stands between the report and the donor: pre-flight
+  // (server/next-report), for the whole report. Until it loads, nothing is counted.
+  const melBlocks = nr?.blocking ?? 0;
+  const melOther = nr ? nr.items.length - nr.blocking : 0;
+  const reportState = !nr ? "" : nr.released ? `the ${nr.quarter.replace("-", " ")} report is released` : !nr.items.length ? `nothing stands in the way of the ${nr.quarter.replace("-", " ")} report` : `the ${nr.quarter.replace("-", " ")} report has ${melBlocks ? `${melBlocks} ${melBlocks === 1 ? "thing" : "things"} blocking it and ` : "nothing blocking it, "}${melOther} more to do`;
   const report = v.deadlines.find((d) => d.key === "qpr")!;
   const review = v.deadlines.find((d) => d.key === "review")!;
   const deadlineLevel: Level = report.days <= 14 ? "warning" : "good";
@@ -189,11 +191,11 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
       <Tile
         key="ready"
         label={t("ha.tile.label", { quarter: (nr?.quarter ?? v.mel.quarter).replace("-", " ") })}
-        value={melBlocks ? t("ha.tile.fix", { n: melBlocks }) : t("ha.tile.ready")}
-        level={melBlocks ? "critical" : melOther ? "warning" : "good"}
+        value={!nr ? "…" : melBlocks ? t("ha.tile.fix", { n: melBlocks }) : t("ha.tile.ready")}
+        level={!nr ? "good" : melBlocks ? "critical" : melOther ? "warning" : "good"}
         href="/progress/report"
       >
-        {t("ha.tile.body", { blocks: melBlocks, other: melOther })}
+        {nr ? t("ha.tile.body", { blocks: melBlocks, other: melOther }) : "Checking the report…"}
       </Tile>,
       <Tile key="proof" clear label="Missing proof" value={String(v.mel.noProof)} level={v.mel.noProof ? "warning" : "good"} href="/progress/results">
         Results accepted this quarter with no file or link.
@@ -246,9 +248,7 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
     lead: `${s.total ? `${v.project.short} is ${late ? `behind on ${late} ${late === 1 ? "target" : "targets"}` : "on schedule"}: ${onTrack} of ${s.total} targets done or on track${late ? "" : ", none late"}.` : `${v.project.short} has no targets yet, so there is nothing to be on or behind schedule against.`} ${
       b.spentPct === null ? "No spending is imported yet." : `It has spent ${pct(b.spentPct)} of its budget with ${pct(b.timePct)} of the time gone${b.overspent.length ? `, and ${b.overspent.length} ${b.overspent.length === 1 ? "line is" : "lines are"} overspent` : ""}.`
     }`,
-    mel: v.mel.toCheck
-      ? `${v.mel.toCheck} ${v.mel.toCheck === 1 ? "result is" : "results are"} waiting for you to check, and the ${v.mel.quarter} report has ${v.mel.stops} ${v.mel.stops === 1 ? "item" : "items"} to fix before release.`
-      : `No results are waiting for you; the ${v.mel.quarter} report has ${v.mel.stops} ${v.mel.stops === 1 ? "item" : "items"} to fix before release.`,
+    mel: `${v.mel.toCheck ? `${v.mel.toCheck} ${v.mel.toCheck === 1 ? "result is" : "results are"} waiting for you to check` : "No results are waiting for you"}${reportState ? `; ${reportState}` : ""}.`,
     finance: `Spending is imported to ${monthWord(b.importedTo)}: ${pct(b.spentPct)} spent with ${pct(b.timePct)} of the time gone, ${b.flagged} budget ${b.flagged === 1 ? "line" : "lines"} to explain.`,
     procurement: `${v.season.purchases.length} ${v.season.purchases.length === 1 ? "purchase starts" : "purchases start"} in the next 60 days; spending is at ${pct(b.spentPct)} of the budget.`,
     field: (() => {

@@ -69,7 +69,10 @@ export function QprPage() {
   const { project } = useCurrentProject();
   const params = useSearchParams();
   const router = useRouter();
-  const quarter = /^\d{4}-Q[1-4]$/.test(params.get("q") ?? "") ? params.get("q")! : lastEnded();
+  const asked = /^\d{4}-Q[1-4]$/.test(params.get("q") ?? "") ? params.get("q")! : null;
+  // The quarter Home and pre-flight call "the next report" (server/next-report): the page opens on it.
+  const [nextQ, setNextQ] = useState<string | null>(null);
+  const quarter = asked ?? nextQ ?? lastEnded();
   const [v, setV] = useState<QprView | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -82,15 +85,32 @@ export function QprPage() {
   const pf = usePreflight(project.id, user?.id, { kind: "qpr", quarter }, v);
   const blocking = pf && !pf.released ? pf.items.filter((i) => i.group === "blocks").length : 0;
 
+  useEffect(() => {
+    if (!ready || !user || !project.saved) return;
+    let live = true;
+    call<{ quarter: string }>(`/api/projects/${project.id}/report-quarter`, user.id)
+      .then((d) => {
+        if (!live) return;
+        setNextQ(d.quarter);
+        if (!asked) router.replace(`/progress/report?q=${d.quarter}${window.location.hash}`);
+      })
+      .catch(() => live && !asked && setNextQ(lastEnded()));
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, user?.id, project.id, project.saved]);
+
   const load = useCallback(async () => {
-    if (!user) return;
+    // Wait for the quarter to open on, so the page does not show one quarter and then another.
+    if (!user || (!asked && project.saved)) return;
     try {
       setV(await call<QprView>(url, user.id));
       setError("");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
-  }, [user, url]);
+  }, [user, url, asked, project.saved]);
   useEffect(() => {
     if (ready && user && project.saved) void load();
   }, [ready, user, project.saved, load]);
@@ -176,8 +196,9 @@ export function QprPage() {
   const stops = v?.checks.filter((c) => c.level === "stop") ?? [];
   const cannot = v ? cannotOnReport({ edit: v.mayEdit, accept: user.project.includes("mel-owner"), import: v.mayImport, release: v.mayRelease }) : [];
   const { from, to } = quarterRange(quarter);
-  // Home's "Next report" is the quarter under way; this page opens on the last one that ended.
-  const nowQ = quarterOf(new Date().toISOString().slice(0, 10));
+  // Home's "Next report" (the quarter just ended while its report is still due, else the one under way).
+  const nowQ = nextQ ?? quarterOf(new Date().toISOString().slice(0, 10));
+  const underWay = quarter === quarterOf(new Date().toISOString().slice(0, 10));
   const qLabel = (q: string) => q.replace("-", " ");
 
   return (
@@ -201,7 +222,7 @@ export function QprPage() {
         </p>
         <p className="mt-3 rounded-xl bg-sunken px-4 py-3 text-sm font-semibold">
           {quarter === nowQ ? (
-            t("rp.quarterNow", { q: qLabel(quarter), to })
+            underWay ? t("rp.quarterNow", { q: qLabel(quarter), to }) : t("rp.quarterDue", { q: qLabel(quarter), from, to })
           ) : (
             <>
               {t("rp.quarterPast", { q: qLabel(quarter), from, to, now: qLabel(nowQ) })}{" "}

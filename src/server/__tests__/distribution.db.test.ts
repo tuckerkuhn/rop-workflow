@@ -59,6 +59,9 @@ describe("input distribution, field to finance (demo project)", { timeout: 60_00
     expect((await loadHome(code, bilal)).actions.find((a) => a.key === "field:distribute")?.text).toBe("Distribute the input package: 2 farmers are waiting for you");
     const listed = await listDistributions(code);
     expect(listed.map((d) => [d.farmerId, d.status, d.gate.ok])).toEqual([["F-0002", "pending", true]]);
+    // Recorded in the app by the storekeeper: named, and never held for a KoboCollect check.
+    expect(listed[0].recordedBy).toBe("Bilal Haidari");
+    expect(listed[0].notified?.why ?? "").not.toMatch(/KoboCollect/);
     // The demo's waiting distribution keeps its farmer at "distribute", shown as waiting for approval.
     expect(await farmer("F-0002")).toMatchObject({ step: "distribute", awaiting: { status: "pending" } });
   });

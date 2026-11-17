@@ -92,7 +92,7 @@ describe("saving Field activities from the browser", { timeout: 60_000 }, () => 
     // The fertilizer's goods received note signed, so the package can go out.
     const p = (await loadProcurements(code)).find((x) => x.id === "PR-2027-011")!;
     await saveProcurements(code, [{ ...p, step: "package" }]);
-    const f = (await all()).find((i) => i.kind === "farmer" && i.step === "distribute") as Farmer;
+    const f = (await all()).find((i) => i.kind === "farmer" && i.step === "distribute" && !(i as Farmer).awaiting) as Farmer;
     const done = { ...f, checks: { ...f.checks, "distribute.recipient": true, "distribute.voucher": true }, step: "plant" };
     const res = await put("bilal", [done]);
     expect(res.status).toBe(200);

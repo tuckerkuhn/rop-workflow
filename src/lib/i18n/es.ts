@@ -249,6 +249,8 @@ export const es: Messages = {
   "track.behind": "Atrasado",
   "track.not_measured": "Aún sin medir",
   "progress.thisPeriod": "{n} en este período",
+  "progress.thisMonth": "{n} este mes",
+  "progress.thisQuarter": "{n} este trimestre",
   "progress.noData": "Sin datos en este período",
   "progress.endOfSeason": "Se mide al final de la temporada",
   "progress.pending": "{n} en espera de revisión",

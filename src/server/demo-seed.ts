@@ -139,7 +139,7 @@ async function loadDemoState(projectId: string, organizationId: string) {
   // Report deadlines name calendar months and years ("Monthly report: February"), so they stay as written.
   await seedDonors(projectId, organizationId);
   await seedResults(projectId, organizationId, subs);
-  await db.insert(s.evidence).values(
+  const rows = await db.insert(s.evidence).values(
     subs.map((sub) => ({
       organizationId,
       projectId,
@@ -153,7 +153,12 @@ async function loadDemoState(projectId: string, organizationId: string) {
       reviewedBy: sub.decidedBy ?? null,
       reviewedAt: sub.decidedOn ? new Date(`${sub.decidedOn}T12:00:00Z`) : null,
     })),
-  );
+  ).returning({ id: s.evidence.id, form: s.evidence.form, farmerCode: s.evidence.farmerCode, reviewStatus: s.evidence.reviewStatus });
+  // Those farmers wait at "distribute" on their own record, as distribution.prepare marks them.
+  for (const r of rows.filter((x) => x.form === "distribution" && x.reviewStatus === "pending" && x.farmerCode)) {
+    const [item] = await db.select().from(s.fieldItems).where(and(eq(s.fieldItems.projectId, projectId), eq(s.fieldItems.itemKey, r.farmerCode!))).limit(1);
+    if (item && (item.data as Farmer).step === "distribute") await db.update(s.fieldItems).set({ data: { ...(item.data as Farmer), awaiting: { id: r.id, status: "pending" } } }).where(eq(s.fieldItems.id, item.id));
+  }
 }
 
 /**

@@ -225,7 +225,7 @@ function IndicatorCard({ i, donorCode, canMap }: { i: IndicatorProgress; donorCo
         ) : missing ? (
           <span className="font-semibold text-clay">{t("progress.noData")}</span>
         ) : (
-          <span className="text-forest">{t("progress.thisPeriod", { n: i.period ?? 0 })}</span>
+          <span className="text-forest">{t(i.frequency === "monthly" ? "progress.thisMonth" : "progress.thisQuarter", { n: i.period ?? 0 })}</span>
         )}
         {i.pending > 0 && <span className="text-warn">{t("progress.pending", { n: i.pending })}</span>}
         {i.lastDate && <span className="text-muted">{t("progress.last", { date: date(i.lastDate) })}</span>}
