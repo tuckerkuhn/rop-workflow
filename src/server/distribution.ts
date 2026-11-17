@@ -6,7 +6,7 @@ import type { AppUser } from "@/lib/demo";
 import { approverNames, collectorOf, deciderNames, decidersOf, needsKoboCheck, refusalFor } from "@/lib/kobo-approval";
 import { koboApprovalFor } from "@/server/kobo-approval";
 import { insertResult } from "@/server/results-store";
-import { addGiven, applyFix, drawnFrom, fixOwner, flagsFor, gate, inProcUnit, lineOf, paymentDue, resultFor, storeStock, type DistItem, type Fix, type Flag, type Gate, type Given } from "@/lib/distribution";
+import { addGiven, applyFix, approvalRefusal, approverNamesOf, approversOf, closeBlock, drawnFrom, fixOwner, flagsFor, gate, inProcUnit, lineOf, paymentDue, resultFor, storeStock, type DistItem, type Fix, type Flag, type Gate, type Given } from "@/lib/distribution";
 import { itemsFor, type FieldSetup } from "@/lib/package";
 import type { Farmer } from "@/lib/field";
 import type { Procurement } from "@/lib/procurement";
@@ -149,15 +149,22 @@ async function farmerOf(projectId: string, code: string) {
   return item ? (item.data as Farmer) : null;
 }
 
-/** People on the project with a field role, with their email where the staff list has one. */
-async function holders(code: string, role: "manager" | "extension" | "store") {
-  const list = (await people()).filter((u) => u.field.includes(role) && onProject(u, code));
+/**
+ * Who a distribution goes to for approval, with their email: the project's managers, never the
+ * person who recorded or collected it; with no other manager, the person they report to
+ * (lib/distribution approversOf).
+ */
+async function approversFor(code: string, recorder: string | null) {
+  const team = (await people()).filter((u) => onProject(u, code));
   const rows = await db.select().from(s.staff).where(eq(s.staff.active, true));
   const email = new Map(rows.filter((r) => r.personId && r.profile && r.email).map((r) => [toAppUser(r).id, r.email!]));
-  // Demo mode: the fictional people have no addresses, so NOTIFY_TEST_TO receives their mail for testing.
   const test = demoMode() ? process.env.NOTIFY_TEST_TO?.trim() || null : null;
-  return list.map((u) => ({ user: u, email: test ?? email.get(u.id) ?? null }));
+  return { team, list: approversOf(team, recorder).map((u) => ({ user: u, email: test ?? email.get(u.id) ?? null })) };
 }
+
+/** The person who recorded a distribution in the app, or collected it in KoboCollect when their account is matched; null when unknown. */
+const recorderOf = (row: { source: string; completedBy: string | null }, m: Pick<DistMeta, "recorderId"> | undefined, rule: Parameters<typeof collectorOf>[1], team: Parameters<typeof collectorOf>[2]) =>
+  row.source === "kobo" ? collectorOf(row.completedBy, rule, team) : (m?.recorderId ?? row.completedBy ?? null);
 
 const qtyOf = (v: unknown) => {
   const n = typeof v === "string" ? Number(v) : typeof v === "number" ? v : NaN;
@@ -264,10 +271,14 @@ async function recorderName(by: string | null) {
 /* ---------- 2–3. checks stored, manager told ---------- */
 
 async function prepare(code: string, project: Project, id: string, m: Omit<DistMeta, "hash" | "expires" | "hashes">, origin: string, again?: { by: string; note: string }, fromKobo = false) {
-  const managers = await holders(code, "manager");
   // A record from KoboCollect that still waits for its check is not sent to the project manager
   // yet: no email and no link until the check is made (checkKoboDistribution sends it then).
   const rule = fromKobo ? await koboApprovalFor(code) : null;
+  // It goes to the project's managers, never to the person who recorded or collected it; when
+  // they are the only manager, to the person they report to.
+  const everyone = (await people()).filter((u) => onProject(u, code));
+  const recorder = fromKobo ? collectorOf(m.recordedBy, rule!, everyone) : (m.recorderId ?? null);
+  const { list: managers } = await approversFor(code, recorder);
   const held = !!rule && needsKoboCheck({ source: "kobo", koboChecked: m.koboChecked }, rule);
   const to = held ? [] : managers.filter((x) => x.email);
   // One link per manager: whoever uses theirs is the one the decision is recorded under.
@@ -278,7 +289,7 @@ async function prepare(code: string, project: Project, id: string, m: Omit<DistM
   let why: string | undefined;
   const team = held ? (await people()).filter((u) => onProject(u, code)) : [];
   if (held) why = `Waiting for ${deciderNames(team, { fromKobo: true, collector: collectorOf(m.recordedBy, rule!, team) }, rule!)} to check the KoboCollect record first`;
-  else if (!to.length) why = managers.length ? "No email address for the project manager in the staff list" : "No project manager on this project";
+  else if (!to.length) why = managers.length ? "No email address for the project manager in the staff list" : everyone.some((u) => u.field.includes("manager")) ? `Nobody can approve it yet: ${approverNamesOf(everyone, recorder)}` : "No project manager on this project";
   else if (!process.env.RESEND_API_KEY) why = "Email is not set up (RESEND_API_KEY)";
   else {
     try {
@@ -339,6 +350,11 @@ export type DistView = {
   history: NonNullable<DistMeta["history"]>;
   /** The farmer's package as planned, so a fix can add an item that was recorded as not given. */
   planned: DistItem[];
+  /** Who may approve it or send it back (person ids), and their names in words: never its recorder. */
+  approvers: string[];
+  approverNames: string;
+  /** Why it cannot close yet apart from the goods received checks (the recipient's signed note); null when it may. */
+  closeBlock: string | null;
 };
 
 const photoOf = (r: { source: string; payload: unknown }) => {
@@ -393,6 +409,9 @@ export async function listDistributions(code: string): Promise<DistView[]> {
         decided: m.decided ?? null,
         history: m.history ?? [],
         planned: itemsFor(setup, hectares.get(r.farmerCode ?? "")),
+        approvers: approversOf(team, recorderOf(r, m, rule, team)).map((p) => p.id),
+        approverNames: approverNamesOf(team, recorderOf(r, m, rule, team)),
+        closeBlock: closeBlock({ signed: m.signed ?? signedOf(r) }),
       };
     })
     .sort((a, b) => (a.status === b.status ? b.date.localeCompare(a.date) : a.status === "pending" ? -1 : 1));
@@ -456,8 +475,12 @@ export async function checkKoboDistribution(code: string, id: string, by: { id: 
 
 /* ---------- 4. approved or sent back ---------- */
 
-const isManager = (u: Pick<AppUser, "field">) => u.field.includes("manager");
-export const mayApprove = (u: AppUser, code: string) => isManager(u) && onProject(u, code);
+/**
+ * Whether this person could approve distributions on the project at all: staff who work on it.
+ * Whether they may decide one distribution is settled on the record itself (lib/distribution
+ * approversOf): its managers, never whoever recorded it, else the person the recorder reports to.
+ */
+export const mayApprove = (u: AppUser, code: string) => u.kind === "employee" && onProject(u, code);
 
 /**
  * The manager's decision. Approving re-runs the gate against what has been approved so far, then in
@@ -478,8 +501,16 @@ export async function decideDistribution(code: string, id: string, decision: "ap
   if (decision === "approved" && needsKoboCheck({ source: row.source, koboChecked: m.koboChecked }, rule))
     throw new HttpError(409, `Not approved yet: this record came from KoboCollect, and ${approverNames((await people()).filter((u) => onProject(u, code)), rule)} checks KoboCollect data on this project before it is approved.`);
 
+  // Nobody approves a distribution they recorded or collected themselves.
+  const everyone = (await people()).filter((u) => onProject(u, code));
+  const refused = by.id === "manager-link" ? null : approvalRefusal(by.id, everyone, recorderOf(row, m, rule, everyone));
+  if (refused) throw new HttpError(403, refused);
+
   const g = gate(m.items, ctx.procs, ctx.given, ctx.setup);
   if (decision === "approved" && !g.ok) throw new HttpError(409, `Not approved: ${g.block}`);
+  // The signed note closes it: no approval while the recipient's signature is not confirmed.
+  const unsigned = decision === "approved" ? closeBlock({ signed: m.signed ?? signedOf(row) }) : null;
+  if (unsigned) throw new HttpError(409, `Not approved: ${unsigned}`);
 
   const finance = decision === "approved" ? (await people()).filter((u) => u.procurement.includes("finance") && onProject(u, code))[0] : undefined;
   // Sent back to the person who recorded it; to the storekeeper or extension agent when that was a phone in the field.

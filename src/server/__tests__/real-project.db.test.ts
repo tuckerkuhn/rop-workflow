@@ -17,6 +17,11 @@ import { loadHome } from "@/server/home-store";
 import { loadProcurements, saveProcurements } from "@/server/procurement-store";
 import { ready } from "@/server/__tests__/test-db";
 
+// As the screen and the field route require before a distribution is recorded: the recipient's
+// signature or thumbprint is confirmed. Without it the distribution cannot be approved.
+const handedOut = (f: Farmer): Farmer => ({ ...f, checks: { ...f.checks, "distribute.recipient": true }, step: "plant" });
+
+
 /**
  * Field activities on a project that is not the demo: its own package (per hectare and per farmer,
  * three units), a farmer list from a spreadsheet, purchases bought in other units, and distribution
@@ -84,7 +89,7 @@ describe("Field activities on a real project", { timeout: 60_000 }, () => {
 
   it("refuses a distribution until each item has a purchase with a signed received note", async () => {
     const t1 = await farmer("T-001");
-    expect(await refusal(() => recordFromApp(code, { ...t1, step: "plant" }, bilal, "http://test"))).toMatch(/No purchase on budget line 3.1 supplies Grape cuttings/);
+    expect(await refusal(() => recordFromApp(code, handedOut(t1), bilal, "http://test"))).toMatch(/No purchase on budget line 3.1 supplies Grape cuttings/);
     const base = seedProcurements().find((p) => p.id === "PR-2027-006")!;
     const buy = (id: string, over: Partial<Procurement>) => ({ ...base, id, distribution: undefined, plan: undefined, ...over }) as Procurement;
     await saveProcurements(code, [
@@ -95,7 +100,7 @@ describe("Field activities on a real project", { timeout: 60_000 }, () => {
       buy("PR-T-3", { title: "Trellis", unit: "Set", qty: 10, budgetLine: "3.3", grn: { qty: 10, place: "Store A" }, step: "receive" }),
     ]);
     expect(await stock()).toEqual({ cuttings: 1000, fertilizer: 100, trellis: 0 });
-    expect(await refusal(() => recordFromApp(code, { ...t1, step: "plant" }, bilal, "http://test"))).toMatch(/Trellis set: the goods received note is not signed yet \(PR-T-3 is at Receive\)/);
+    expect(await refusal(() => recordFromApp(code, handedOut(t1), bilal, "http://test"))).toMatch(/Trellis set: the goods received note is not signed yet \(PR-T-3 is at Receive\)/);
     const p3 = (await loadProcurements(code)).find((p) => p.id === "PR-T-3")!;
     await saveProcurements(code, [{ ...p3, step: "package" }]);
     expect(await stock()).toEqual({ cuttings: 1000, fertilizer: 100, trellis: 10 });
@@ -103,14 +108,14 @@ describe("Field activities on a real project", { timeout: 60_000 }, () => {
 
   it("scales per-hectare items by the farmer's hectares, and refuses when one item runs short", async () => {
     const t1 = await farmer("T-001");
-    first = await recordFromApp(code, { ...t1, step: "plant" }, bilal, "http://test");
-    await saveItems(code, [{ ...t1, step: "plant" }]);
+    first = await recordFromApp(code, handedOut(t1), bilal, "http://test");
+    await saveItems(code, [handedOut(t1)]);
     const d = (await listDistributions(code)).find((x) => x.id === first)!;
     // 0.5 hectares.
     expect(d.items.map((i) => [i.key, i.qty])).toEqual([["cuttings", 200], ["fertilizer", 25], ["trellis", 1]]);
     expect(await stock()).toEqual({ cuttings: 800, fertilizer: 75, trellis: 9 });
     // 2 hectares needs 100 kg of fertilizer; 75 kg is left. The cuttings (800 of 800) are fine.
-    const msg = await refusal(async () => recordFromApp(code, { ...(await farmer("T-002")), step: "plant" }, bilal, "http://test"));
+    const msg = await refusal(async () => recordFromApp(code, handedOut((await farmer("T-002"))), bilal, "http://test"));
     expect(msg).toMatch(/DAP fertilizer: this package needs 100 kg, but only 75 kg of the 100 kg received is left/);
     expect(msg).not.toMatch(/Grape cuttings:/);
   });

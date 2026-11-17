@@ -18,6 +18,11 @@ import { loadProgress } from "@/server/progress-store";
 import { loadResults, reviewResult } from "@/server/results-store";
 import { ready } from "@/server/__tests__/test-db";
 
+// As the screen and the field route require before a distribution is recorded: the recipient's
+// signature or thumbprint is confirmed. Without it the distribution cannot be approved.
+const handedOut = (f: Farmer): Farmer => ({ ...f, checks: { ...f.checks, "distribute.recipient": true }, step: "plant" });
+
+
 /**
  * One input distribution on the demo project, field to finance, against a real database: the
  * goods-received gate, a retry, two people saving at once, sent back and fixed, approved, and what
@@ -41,7 +46,7 @@ const refusal = async (f: () => Promise<unknown>) => f().then(() => "", (e: Erro
 const record = async (id: string, by = farida) => {
   const f = await farmer(id);
   await saveItems(code, [f]);
-  return recordFromApp(code, { ...f, step: "plant" }, by, "http://test");
+  return recordFromApp(code, handedOut(f), by, "http://test");
 };
 
 let first = "";
@@ -87,7 +92,7 @@ describe("input distribution, field to finance (demo project)", { timeout: 60_00
 
   it("refuses a distribution before the fertilizer's received note is signed, and stores nothing", async () => {
     const f = await farmer("F-0007");
-    expect(await refusal(() => recordFromApp(code, { ...f, step: "plant" }, farida, "http://test"))).toMatch(/PR-2027-011 has been delivered: once its goods received note is signed/);
+    expect(await refusal(() => recordFromApp(code, handedOut(f), farida, "http://test"))).toMatch(/PR-2027-011 has been delivered: once its goods received note is signed/);
     expect(await evidence()).toHaveLength(2);
   });
 
@@ -96,9 +101,9 @@ describe("input distribution, field to finance (demo project)", { timeout: 60_00
     await saveProcurements(code, [{ ...p, step: "package" }]);
     expect(await stock()).toEqual({ seed: 380, npk: 600 });
     const f = await farmer("F-0007");
-    first = await recordFromApp(code, { ...f, step: "plant" }, farida, "http://test");
+    first = await recordFromApp(code, handedOut(f), farida, "http://test");
     // The same save arriving again (a retry, a double tap) is the same record.
-    expect(await recordFromApp(code, { ...f, step: "plant" }, farida, "http://test")).toBe(first);
+    expect(await recordFromApp(code, handedOut(f), farida, "http://test")).toBe(first);
     // The farmer waits at "distribute" for the project manager; nothing moves them on before that.
     expect(await farmer("F-0007")).toMatchObject({ step: "distribute", awaiting: { id: first, status: "pending" } });
     expect(await evidence()).toHaveLength(3);

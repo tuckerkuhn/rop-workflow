@@ -29,11 +29,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
       const d = all.find((x) => x.id === id);
       if (!d) throw new HttpError(404, "That distribution is not on this project.");
       const canCheckKobo = d.koboCheck.who.includes(v.user.id);
-      const canDecide = mayApprove(v.user, code);
+      // Its approvers are worked out on the record: managers, never whoever recorded or collected it.
+      const canDecide = mayApprove(v.user, code) && d.approvers.includes(v.user.id);
       if (v.user.fieldAccess === "none" && !canDecide && !canCheckKobo) throw new HttpError(403, "Your role does not open input distributions on this project.");
       // The others waiting for this person, oldest first, so the page can go straight to the next one.
       const waiting = all
-        .filter((x) => x.id !== id && x.status === "pending" && (canDecide ? !x.koboCheck.needed : x.koboCheck.needed && x.koboCheck.who.includes(v.user.id)))
+        .filter((x) => x.id !== id && x.status === "pending" && (canDecide ? !x.koboCheck.needed && x.approvers.includes(v.user.id) : x.koboCheck.needed && x.koboCheck.who.includes(v.user.id)))
         .reverse()
         .map((x) => ({ id: x.id, farmerId: x.farmerId }));
       return NextResponse.json({ distribution: d, canDecide, canFix: mayFix(v.user, code), canCheckKobo, waiting: canDecide || canCheckKobo ? waiting : [] });
@@ -79,7 +80,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
       const who = (await people()).find((u) => (opened.who ? u.id === opened.who : d.notified?.to.includes(u.id)));
       by = who ? { id: who.id, name: who.name } : { id: "manager-link", name: "Project manager (email link)" };
     } else {
-      const v = await requireViewer(req, { write: true, allow: (u) => mayApprove(u, code), why: "Only the project manager approves input distributions." });
+      const v = await requireViewer(req, { write: true, allow: (u) => mayApprove(u, code), why: "Only staff on this project approve input distributions." });
       if (v instanceof NextResponse) return v;
       by = { id: v.user.id, name: v.user.name };
     }

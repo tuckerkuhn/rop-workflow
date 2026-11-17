@@ -200,3 +200,45 @@ export function resultFor(d: { id: string; farmerId: string; village?: string; g
     distribution: d.id,
   };
 }
+
+/* ---------- who approves a distribution, and when it may close ---------- */
+
+type Approver = { id: string; name: string; field: string[]; reportsTo?: string; kind?: string };
+
+/**
+ * The people who may approve or send back a distribution: the project's managers, never the person
+ * who recorded it in the app or collected it in KoboCollect. Nobody approves their own work. When
+ * that leaves nobody (the recorder is the only manager), it goes to the person the recorder
+ * reports to. `people` are those on the project; `recorder` is a person id, or null when unknown.
+ */
+export function approversOf<P extends Approver>(people: P[], recorder: string | null): P[] {
+  const staff = people.filter((p) => (p.kind ?? "employee") === "employee");
+  const managers = staff.filter((p) => p.field.includes("manager"));
+  const others = managers.filter((p) => p.id !== recorder);
+  if (others.length || !recorder || !managers.some((p) => p.id === recorder)) return others;
+  const boss = staff.find((p) => p.id === managers.find((m) => m.id === recorder)?.reportsTo);
+  return boss ? [boss] : [];
+}
+
+/** "Nadia Rahimi", "Nadia Rahimi or Karim Ahmadi", or what to do when nobody can. */
+export function approverNamesOf(people: Approver[], recorder: string | null): string {
+  const names = approversOf(people, recorder).map((p) => p.name);
+  if (!names.length) return people.some((p) => p.field.includes("manager")) ? "nobody yet (add a second project manager, or set who the recorder reports to in the staff list)" : "nobody yet (no project manager is on this project)";
+  return names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} or ${names.at(-1)}`;
+}
+
+/** Why this person may not decide this distribution, in words; null when they may. */
+export function approvalRefusal(by: string, people: Approver[], recorder: string | null): string | null {
+  if (approversOf(people, recorder).some((p) => p.id === by)) return null;
+  const who = approverNamesOf(people, recorder);
+  return by === recorder ? `You recorded this distribution, so someone else approves it: ${who}.` : `Only ${who} can approve this distribution or send it back.`;
+}
+
+/**
+ * Why a distribution cannot close yet, apart from the goods received checks: the recipient's
+ * signed note. A distribution is closed by its approval, and it is not approved until the
+ * recipient's signature or thumbprint on the goods received note is confirmed. Null when it may.
+ */
+export function closeBlock(d: { signed: boolean }): string | null {
+  return d.signed ? null : "The recipient's signature or thumbprint on the goods received note is not confirmed. Send it back so the person who recorded it can get the note signed and confirm it; then it can be approved.";
+}

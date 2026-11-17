@@ -15,6 +15,11 @@ import { loadField } from "@/server/field-store";
 import { loadProcurements, saveProcurements } from "@/server/procurement-store";
 import { ready } from "@/server/__tests__/test-db";
 
+// As the screen and the field route require before a distribution is recorded: the recipient's
+// signature or thumbprint is confirmed. Without it the distribution cannot be approved.
+const handedOut = (f: Farmer): Farmer => ({ ...f, checks: { ...f.checks, "distribute.recipient": true }, step: "plant" });
+
+
 /** The emailed approval link: one per manager, opens once, and says whose it is. */
 const code = "A-2027";
 const bilal = userById("bilal")!;
@@ -31,7 +36,7 @@ beforeAll(async () => {
   const p = (await loadProcurements(code)).find((x) => x.id === "PR-2027-011")!;
   await saveProcurements(code, [{ ...p, step: "package" }]);
   const f = (await loadField(code, bilal)).items.find((i) => i.id === "F-0007") as Farmer;
-  id = await recordFromApp(code, { ...f, step: "plant" }, bilal, "https://app.test");
+  id = await recordFromApp(code, handedOut(f), bilal, "https://app.test");
 }, 120_000);
 
 describe("the emailed approval link", { timeout: 60_000 }, () => {

@@ -250,3 +250,44 @@ describe("an approved distribution becomes one result", () => {
     expect("female" in r || "male" in r).toBe(false);
   });
 });
+
+import { approvalRefusal, approverNamesOf, approversOf, closeBlock } from "@/lib/distribution";
+
+describe("nobody approves a distribution they recorded", () => {
+  const p = (id: string, field: string[], reportsTo?: string, kind = "employee") => ({ id, name: id.toUpperCase(), field, reportsTo, kind });
+  const team = [p("karim", []), p("nadia", ["manager"], "karim"), p("bilal", ["store"], "nadia"), p("elena", ["manager"], undefined, "donor")];
+
+  it("goes to the project's managers when a storekeeper recorded it", () => {
+    expect(approversOf(team, "bilal").map((x) => x.id)).toEqual(["nadia"]);
+    expect(approvalRefusal("nadia", team, "bilal")).toBeNull();
+  });
+  it("goes to the managers when nobody knows who collected it", () => {
+    expect(approversOf(team, null).map((x) => x.id)).toEqual(["nadia"]);
+  });
+  it("skips a manager who recorded it and goes to the other manager", () => {
+    const two = [...team, p("sami", ["manager"], "karim")];
+    expect(approversOf(two, "nadia").map((x) => x.id)).toEqual(["sami"]);
+  });
+  it("falls to the person the only manager reports to", () => {
+    expect(approversOf(team, "nadia").map((x) => x.id)).toEqual(["karim"]);
+    expect(approvalRefusal("nadia", team, "nadia")).toBe("You recorded this distribution, so someone else approves it: KARIM.");
+    expect(approvalRefusal("karim", team, "nadia")).toBeNull();
+  });
+  it("says so when nobody can, and never falls to a donor account", () => {
+    const alone = [p("nadia", ["manager"]), p("bilal", ["store"], "nadia")];
+    expect(approversOf(alone, "nadia")).toEqual([]);
+    expect(approverNamesOf(alone, "nadia")).toMatch(/^nobody yet \(add a second project manager/);
+    expect(approversOf(team, "bilal").some((x) => x.id === "elena")).toBe(false);
+  });
+  it("refuses anyone who is not an approver", () => {
+    expect(approvalRefusal("bilal", team, "bilal")).toMatch(/^You recorded this distribution/);
+    expect(approvalRefusal("karim", team, "bilal")).toBe("Only NADIA can approve this distribution or send it back.");
+  });
+});
+
+describe("the signed note closes a distribution", () => {
+  it("blocks approval until the recipient's signature is confirmed", () => {
+    expect(closeBlock({ signed: false })).toMatch(/signature or thumbprint on the goods received note is not confirmed/);
+    expect(closeBlock({ signed: true })).toBeNull();
+  });
+});

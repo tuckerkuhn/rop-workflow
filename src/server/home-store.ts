@@ -258,17 +258,20 @@ export async function loadHome(code: string, u: AppUser) {
     }).length;
     if (n) actions.push({ key: "field-forms", for: isMel ? "mel" : lenses[0], bucket: "approve", urgent: false, text: `Check ${n} field ${n === 1 ? "form" : "forms"} from KoboCollect (readiness, training, farm visits)`, msg: { key: n === 1 ? "ha.fieldForms1" : "ha.fieldForms", vars: { n } }, href: "/progress/results#field-records" });
   }
+  // Read once for both rows below.
+  const dists = await listDistributions(code).catch(() => []);
   if (koboRule.who !== "manager") {
-    const unchecked = (await listDistributions(code).catch(() => [])).filter((d) => d.koboCheck.needed && d.koboCheck.who.includes(u.id)).reverse();
+    const unchecked = dists.filter((d) => d.koboCheck.needed && d.koboCheck.who.includes(u.id)).reverse();
     const n = unchecked.length;
     if (n) actions.push({ key: "kobo-check", for: lenses[0], bucket: "approve", urgent: true, text: n === 1 ? `Check the KoboCollect distribution to ${unchecked[0].farmerId} before it goes to the project manager` : `Check ${n} KoboCollect distributions before they go to the project manager`, href: `/approve/${encodeURIComponent(code)}/${unchecked[0].id}` });
   }
   // Input distributions waiting for the project manager (server/distribution), oldest first.
   // One from KoboCollect is hers once it has been checked.
-  if (u.field.includes("manager")) {
-    const waiting = (await listDistributions(code).catch(() => [])).filter((d) => d.status === "pending" && !d.koboCheck.needed).reverse();
+  // Hers unless she recorded it herself: then it is for another manager, or the person she reports to.
+  {
+    const waiting = dists.filter((d) => d.status === "pending" && !d.koboCheck.needed && d.approvers.includes(u.id)).reverse();
     const n = waiting.length;
-    if (n) actions.push({ key: "distributions", for: lenses.includes("field") ? "field" : "lead", bucket: "approve", urgent: true, text: n === 1 ? `Approve the input distribution to ${waiting[0].farmerId}` : `Approve ${n} input distributions`, href: `/approve/${encodeURIComponent(code)}/${waiting[0].id}` });
+    if (n) actions.push({ key: "distributions", for: lenses.includes("field") ? "field" : (lenses[0] ?? "lead"), bucket: "approve", urgent: true, text: n === 1 ? `Approve the input distribution to ${waiting[0].farmerId}` : `Approve ${n} input distributions`, href: `/approve/${encodeURIComponent(code)}/${waiting[0].id}` });
   }
   const myQueried = allResults.filter((r) => r.status === "queried" && r.by === u.id);
   // Accepted results whose KoboToolbox submission was changed or deleted afterwards: MEL reopens them.

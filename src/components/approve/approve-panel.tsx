@@ -106,7 +106,8 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
         <>
           <p className="mt-2 text-sm text-muted">
             Recorded {d.date} by {d.recordedBy} {d.source === "kobo" ? "in KoboCollect" : "in the app"}.{" "}
-            {d.status === "accepted" ? `Approved by ${d.decided?.byName ?? "the project manager"}.` : sentBack ? `Sent back by ${d.decided?.byName ?? "the project manager"}.` : canDecide ? "Waiting for your approval." : "Waiting for the project manager to approve."}
+            {d.status === "accepted" ? `Approved by ${d.decided?.byName ?? "the project manager"}.` : sentBack ? `Sent back by ${d.decided?.byName ?? "the project manager"}.` : canDecide ? "Waiting for your approval." : `Waiting for ${d.approverNames ?? "the project manager"} to approve.`}
+            {pending && !canDecide && user && d.approvers && !d.approvers.includes(user.id) && user.field.includes("manager") ? " You recorded this one, and nobody approves their own record." : ""}
           </p>
 
           {sentBack && (
@@ -143,6 +144,14 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
             {!d.gate.ok && pending && <p className="mt-2 text-sm text-clay">{d.items.length ? "This can't be approved until the goods received note is signed and the quantity is within what was received." : d.gate.block}</p>}
           </section>
 
+          {/* The signed note closes a distribution: say so before the tap, with what to do instead. */}
+          {pending && d.closeBlock && (
+            <section className="mt-4 rounded-xl border border-clay/40 bg-clay-soft px-4 py-3 text-sm text-clay" aria-live="polite">
+              <p className="font-semibold">This cannot be approved yet</p>
+              <p className="mt-1">{d.closeBlock}</p>
+            </section>
+          )}
+
           <section className="mt-4 rounded-xl border border-line bg-surface px-4 py-3">
             <h2 className="font-medium">To look at</h2>
             {d.flags.length ? (
@@ -178,7 +187,7 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
               </label>
               <textarea id="note" value={note} onChange={(e) => setNote(e.target.value)} rows={3} className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm" placeholder="What needs fixing" />
               <div className="mt-3 flex flex-wrap gap-2">
-                <button type="button" className={primaryBtn} disabled={busy || !d.gate.ok || !!d.koboCheck?.needed} onClick={() => decide("approved")}>
+                <button type="button" className={primaryBtn} disabled={busy || !d.gate.ok || !!d.closeBlock || !!d.koboCheck?.needed} onClick={() => decide("approved")}>
                   Approve
                 </button>
                 <button type="button" className={quietBtn} disabled={busy || !note.trim()} onClick={() => decide("sent_back")}>
