@@ -1,3 +1,5 @@
+import { hoursLeft } from "@/lib/funding-proposals";
+import { proposalWork } from "@/server/funding-proposals-store";
 import { quarterRange } from "@/lib/results";
 import { reportDeadline } from "@/server/preflight";
 import { ourWork } from "@/lib/budget";
@@ -272,6 +274,18 @@ export async function loadHome(code: string, u: AppUser) {
     const waiting = dists.filter((d) => d.status === "pending" && !d.koboCheck.needed && d.approvers.includes(u.id)).reverse();
     const n = waiting.length;
     if (n) actions.push({ key: "distributions", for: lenses.includes("field") ? "field" : (lenses[0] ?? "lead"), bucket: "approve", urgent: true, text: n === 1 ? `Approve the input distribution to ${waiting[0].farmerId}` : `Approve ${n} input distributions`, href: `/approve/${encodeURIComponent(code)}/${waiting[0].id}` });
+  }
+  // Proposals belong to the organization, so their rows show on Home whichever project is open:
+  // what this person must sign first, then what they own (lib/funding-proposals mine).
+  if (project.organizationId) {
+    for (const w of await proposalWork(project.organizationId, u).catch(() => [])) {
+      const href = `/work/proposals?open=${w.proposal.id}`;
+      const lens = lenses[0] ?? "lead";
+      const left = w.proposal.deadline ? hoursLeft(w.proposal.deadline, new Date()) : null;
+      const when = left == null ? "" : left < 0 ? ", past the donor's deadline" : left < 72 ? `, ${left} hours to the donor's deadline` : `, ${Math.floor(left / 24)} days to the donor's deadline`;
+      if (w.toSign.length) actions.push({ key: `proposal-sign-${w.proposal.id}`, for: lens, bucket: "approve", urgent: true, text: `Sign ${w.toSign.length === 1 ? w.toSign[0].title : `${w.toSign.length} items`} for the proposal ${w.proposal.title}${when}`, href });
+      if (w.items.length) actions.push({ key: `proposal-${w.proposal.id}`, for: lens, bucket: "due", urgent: left != null && left < 72, text: `Proposal ${w.proposal.title}: ${w.items.length === 1 ? `${w.items[0].title} is yours` : `${w.items.length} items are yours`}${when}`, href });
+    }
   }
   const myQueried = allResults.filter((r) => r.status === "queried" && r.by === u.id);
   // Accepted results whose KoboToolbox submission was changed or deleted afterwards: MEL reopens them.

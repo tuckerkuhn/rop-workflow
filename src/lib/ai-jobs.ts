@@ -36,6 +36,8 @@ export const AI_JOBS = {
   postDraft: { label: "Draft a post from photos", voice: true, looksAt: "the photos' captions and their records, with names replaced" },
   // Opportunities are on the do-not-touch list: the brief's prompt is left exactly as written.
   opportunityBrief: { label: "Draft an opportunity match brief", voice: false, looksAt: "the opportunity's details and the projects' names and stages" },
+  proposalPlan: { label: "List what a call for proposals requires", voice: false, looksAt: "the call text you pasted and the win themes chosen for the proposal" },
+  proposalAssess: { label: "Rate a proposal section against the call's grid", voice: false, looksAt: "the section draft you pasted, what the grid asks for and the win themes" },
 } as const satisfies Record<string, AiJob>;
 export type AiJobName = keyof typeof AI_JOBS;
 

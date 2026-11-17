@@ -12,6 +12,7 @@ import { Board, ViewSwitch, cardClass } from "@/components/workspace/board";
 import { usePersistentState } from "@/components/workspace/ui";
 import { deadlineSoon, opportunityColumns } from "@/lib/boards";
 import { realToday } from "@/lib/clock";
+import { opensProposals } from "@/lib/org-areas";
 import type { MessageKey } from "@/lib/i18n";
 
 /** Develop: opportunities, their framing and match brief, and the match call. */
@@ -123,6 +124,7 @@ function PipelineBoard({ items, picked, pick }: { items: Opportunity[]; picked: 
 }
 
 function Card({ o, v, act }: { o: Opportunity; v: OpportunitiesView; act: (a: OppAction) => Promise<void> }) {
+  const { user } = useSession();
   const [editing, setEditing] = useState(false);
   const [deciding, setDeciding] = useState<boolean | null>(null);
   const [reason, setReason] = useState("");
@@ -236,6 +238,11 @@ function Card({ o, v, act }: { o: Opportunity; v: OpportunitiesView; act: (a: Op
             {o.status === "match" && (
               <Link href={`/setup?new=1&name=${encodeURIComponent(o.title)}`} className={primaryBtn}>
                 Start the design
+              </Link>
+            )}
+            {o.status === "match" && opensProposals(user) && (
+              <Link href={`/work/proposals?opportunity=${encodeURIComponent(o.id)}`} className={quietBtn}>
+                Start the proposal
               </Link>
             )}
             {(o.status === "match" || o.status === "no_match") && v.can.decide && (

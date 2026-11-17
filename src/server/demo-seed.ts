@@ -2,6 +2,7 @@ import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { daysFromDemo, realToday, shiftDates } from "@/lib/clock";
 import { NEW_PROJECT, ORG_ID, PROJECT } from "@/lib/demo";
+import { sampleProposal } from "@/lib/funding-proposals-sample";
 import { KOBO_APPROVAL_KEY, type KoboApproval } from "@/lib/kobo-approval";
 import { DEMO_SETUP, FIELD_SETUP_KEY } from "@/lib/package";
 import { SEASON, seedField, seedStock, type Farmer } from "@/lib/field";
@@ -51,6 +52,11 @@ export async function seedDatabase() {
     .returning();
   // The second demo project: just won, still to be set up (lib/demo NEW_PROJECT).
   await resetNewProject(org.id);
+  // One fictional proposal a week from its deadline (lib/funding-proposals-sample).
+  await db
+    .insert(s.organizationState)
+    .values({ organizationId: org.id, key: "funding-proposals", data: { items: [sampleProposal(new Date().toISOString().slice(0, 10))] } })
+    .onConflictDoUpdate({ target: [s.organizationState.organizationId, s.organizationState.key], set: { data: { items: [sampleProposal(new Date().toISOString().slice(0, 10))] }, updatedAt: new Date() } });
   const [season] = await db.insert(s.seasons).values({ projectId: project.id, name: SEASON.name, startDate: "2027-01-01", endDate: "2027-10-31" }).returning();
   const [crop] = await db.insert(s.crops).values({ name: SEASON.crop }).returning();
 

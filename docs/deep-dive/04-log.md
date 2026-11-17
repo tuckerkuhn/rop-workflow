@@ -42,6 +42,24 @@ Each has my recommended option first. I took the cautious default where one was 
 3. Decision 1, then connect the sandbox Kobo account.
 4. Reset the demo data the morning of the demo: its dates are counted from the day it is loaded.
 
+## Added 17 Nov: Proposals
+
+A new section, asked for after the summary above was written. Full write-up in `06-proposals.md`, with its own Decisions for Tucker.
+
+**What.** `/work/proposals`: a call for proposals as one list of checkbox, scored and decision items, each with an owner, status and file; "Can it be submitted?" and "How would it stand?" (a band, not a score); win themes; the call's budget limits; the donor's clock; start from the standard list, an earlier proposal or the call itself with AI. Open only to Country Directors, Home Office directors and above and Home Office program staff, plus anyone a lead names on one proposal.
+
+**Judgment calls.**
+- No migration: one document per organization in `organization_state`, like Opportunities.
+- Access is computed from the HR record's title and office on every request, not stored.
+- Named contributors are an addition to the three groups you gave. Without them a country-office writer could not see their own items.
+- Opportunities was marked do-not-touch. I added one link to it ("Start the proposal") and changed nothing else there.
+- The HR ledger cannot be read by the in-memory test database, so the database tests give the HR record as a fixture.
+- The sample proposal is invented. Nothing from the real call that informed the design is in the repo, and a test checks that.
+
+**Not run.** The two AI actions: no API key in my sandbox.
+
+**Checks.** 551 tests pass, typecheck clean, lint 0 errors.
+
 ## Batch by batch
 
 ### Docs (commit `5213148`)

@@ -78,7 +78,7 @@ const SECTIONS: Section[] = [
     id: "organization",
     href: "/organization",
     label: "nav.organization",
-    also: ["/people", "/payroll", "/onboarding", "/offboarding", "/work/plan", "/work/procurements", "/work/suppliers", "/work/bills", "/work/opportunities", "/work/closeout", "/portfolio", "/settings/organization", "/settings/people", "/settings/policy", "/settings/health"],
+    also: ["/people", "/payroll", "/onboarding", "/offboarding", "/work/plan", "/work/procurements", "/work/suppliers", "/work/bills", "/work/opportunities", "/work/proposals", "/work/closeout", "/portfolio", "/settings/organization", "/settings/people", "/settings/policy", "/settings/health"],
     icon: icon("M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6M9 10h.01M15 10h.01"),
     staffOnly: true,
     orgOnly: true,

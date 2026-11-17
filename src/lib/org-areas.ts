@@ -10,6 +10,17 @@ import { HR_ACCESS_ROLES, type HrRole } from "@/lib/hr";
 
 export type OrgArea = { id: string; href: string; title: string; help: string };
 
+/**
+ * Who may open Proposals, by person id. It depends on each person's title and office in the HR
+ * record (lib/funding-proposals accessOf), which the browser does not hold, so the session loads
+ * it once and registers it here. The API checks again on every request.
+ */
+let proposalAccess: Record<string, "lead" | "member"> = {};
+export function registerProposalAccess(m: Record<string, "lead" | "member"> | null | undefined) {
+  proposalAccess = m ?? {};
+}
+export const opensProposals = (u: AppUser | null) => !!u && !!proposalAccess[u.id];
+
 type Holds = (role: HrRole) => boolean;
 
 const hr = (holds: Holds) => HR_ACCESS_ROLES.some(holds);
@@ -24,6 +35,7 @@ export const ORG_AREAS: (OrgArea & { allow: (u: AppUser, holds: Holds) => boolea
   { id: "suppliers", href: "/work/suppliers", title: "Suppliers", help: "The supplier register and its screening.", allow: (u) => u.procurementAccess !== "none" },
   { id: "bills", href: "/work/bills", title: "Bills", help: "Bills to approve and pay.", allow: (u, h) => u.procurementAccess !== "none" || (["bills", "finance", "cfo"] as HrRole[]).some(h) },
   { id: "opportunities", href: "/work/opportunities", title: "Opportunities", help: "New funding: framing, the match brief and the match call.", allow: (u, h) => lead(u, h) },
+  { id: "proposals", href: "/work/proposals", title: "Proposals", help: "From a matched opportunity to submitted: what the call requires, who owns each item and how it would score.", allow: (u) => opensProposals(u) },
   { id: "portfolio", href: "/portfolio", title: "Portfolio", help: "Every project at a glance.", allow: (u, h) => lead(u, h) },
   { id: "settings", href: "/settings/organization", title: "Organization settings", help: "Policy, people's access and the organization's rules.", allow: (u) => !!u.admin },
   { id: "audit", href: "/organization/audit", title: "Organization audit log", help: "Every change in these areas: who, when and what.", allow: (u, h) => !!u.admin || hr(h) },
