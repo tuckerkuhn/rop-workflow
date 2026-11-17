@@ -1,4 +1,5 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { mirrorFarmer } from "@/server/farmer-mirror";
 import { and, eq, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { today } from "@/lib/clock";
@@ -8,7 +9,7 @@ import { koboApprovalFor } from "@/server/kobo-approval";
 import { insertResult } from "@/server/results-store";
 import { addGiven, applyFix, approvalRefusal, approverNamesOf, badCondition, approversOf, closeBlock, drawnFrom, fixOwner, flagsFor, gate, inProcUnit, lineOf, paymentDue, resultFor, storeStock, type DistItem, type Fix, type Flag, type Gate, type Given } from "@/lib/distribution";
 import { itemsFor, type FieldSetup } from "@/lib/package";
-import type { Farmer } from "@/lib/field";
+import { hasSignedNotePhoto, type Farmer } from "@/lib/field";
 import type { Procurement } from "@/lib/procurement";
 import type { Submission } from "@/lib/project";
 import { demoMode, onProject, people, toAppUser } from "@/server/auth";
@@ -143,7 +144,9 @@ async function changeFarmer(tx: Tx, projectId: string, farmerCode: string, chang
   const [item] = await tx.select().from(s.fieldItems).where(and(eq(s.fieldItems.projectId, projectId), eq(s.fieldItems.itemKey, farmerCode))).limit(1);
   if (!item) return;
   const next = change(item.data as Farmer);
-  if (next) await tx.update(s.fieldItems).set({ data: next, updatedAt: new Date() }).where(eq(s.fieldItems.id, item.id));
+  if (!next) return;
+  await tx.update(s.fieldItems).set({ data: next, updatedAt: new Date() }).where(eq(s.fieldItems.id, item.id));
+  await mirrorFarmer(tx, projectId, next);
 }
 
 async function farmerOf(projectId: string, code: string) {
@@ -194,7 +197,7 @@ export async function recordFromApp(code: string, farmer: Farmer, user: AppUser,
     const waiting = ctx.rows.find((r) => r.farmerCode === farmer.id && r.reviewStatus === "pending" && !r.koboRemovedAt && r.source === "manual" && (r.payload as { source?: string } | null)?.source === "app");
     if (waiting) return { id: waiting.id, next: null };
     const signed = !!farmer.checks["distribute.recipient"];
-    const photo = farmer.photos.some((p) => p.activity === "distribution");
+    const photo = hasSignedNotePhoto(farmer);
     const sub: Submission = {
       id: `DS-${farmer.id}-${today()}`,
       source: "app",
@@ -392,6 +395,9 @@ export async function listDistributions(code: string): Promise<DistView[]> {
   const approved: Given = {};
   for (const r of rows) if (r.reviewStatus === "accepted" && !r.koboRemovedAt) addGiven(approved, st.byId[r.id]?.items ?? itemsFor(setup), setup);
   const hectares = new Map((await db.select({ key: s.fieldItems.itemKey, data: s.fieldItems.data }).from(s.fieldItems).where(eq(s.fieldItems.projectId, project.id))).map((r) => [r.key, (r.data as { hectares?: number }).hectares]));
+  // Farmers whose record now holds a photo of the signed note: a record still waiting counts it at once.
+  const noted = new Set((await db.select({ key: s.fieldItems.itemKey, data: s.fieldItems.data }).from(s.fieldItems).where(eq(s.fieldItems.projectId, project.id))).filter((r) => hasSignedNotePhoto(r.data as Farmer)).map((r) => r.key));
+  const photoNow = (r: { source: string; payload: unknown; farmerCode: string | null; reviewStatus: string }, m: DistMeta) => (m.photo ?? photoOf(r)) || (r.reviewStatus === "pending" && noted.has(r.farmerCode ?? ""));
   return rows
     .filter((r) => st.byId[r.id] && !r.koboRemovedAt)
     .map((r) => {
@@ -405,7 +411,7 @@ export async function listDistributions(code: string): Promise<DistView[]> {
         recordedBy: m.recordedBy,
         items: m.items,
         gender: m.gender,
-        photo: m.photo ?? photoOf(r),
+        photo: photoNow(r, m),
         signed: m.signed ?? signedOf(r),
         condition: m.conditionOk ? null : badCondition(conditionOf(r)),
         // While it waits, the checks are worked out now, as approving will: a goods received note
@@ -423,7 +429,7 @@ export async function listDistributions(code: string): Promise<DistView[]> {
         planned: itemsFor(setup, hectares.get(r.farmerCode ?? "")),
         approvers: approversOf(team, recorderOf(r, m, rule, team)).map((p) => p.id),
         approverNames: approverNamesOf(team, recorderOf(r, m, rule, team)),
-        closeBlock: closeBlock({ signed: m.signed ?? signedOf(r), photo: m.photo ?? photoOf(r), source: sourceOf(r), condition: m.conditionOk ? null : conditionOf(r) }),
+        closeBlock: closeBlock({ signed: m.signed ?? signedOf(r), photo: photoNow(r, m), source: sourceOf(r), condition: m.conditionOk ? null : conditionOf(r) }),
       };
     })
     .sort((a, b) => (a.status === b.status ? b.date.localeCompare(a.date) : a.status === "pending" ? -1 : 1));
@@ -521,7 +527,7 @@ export async function decideDistribution(code: string, id: string, decision: "ap
   const g = gate(m.items, ctx.procs, ctx.given, ctx.setup);
   if (decision === "approved" && !g.ok) throw new HttpError(409, `Not approved: ${g.block}`);
   // The signed note closes it: no approval while the recipient's signature is not confirmed.
-  const unsigned = decision === "approved" ? closeBlock({ signed: m.signed ?? signedOf(row), photo: m.photo ?? photoOf(row), source: sourceOf(row), condition: m.conditionOk ? null : conditionOf(row) }) : null;
+  const unsigned = decision === "approved" ? closeBlock({ signed: m.signed ?? signedOf(row), photo: (m.photo ?? photoOf(row)) || hasSignedNotePhoto(row.farmerCode ? await farmerOf(project.id, row.farmerCode) : null), source: sourceOf(row), condition: m.conditionOk ? null : conditionOf(row) }) : null;
   if (unsigned) throw new HttpError(409, `Not approved: ${unsigned}`);
 
   const finance = decision === "approved" ? (await people()).filter((u) => u.procurement.includes("finance") && onProject(u, code))[0] : undefined;
@@ -674,7 +680,9 @@ export async function resubmitDistribution(code: string, id: string, by: { id: s
   const farmer = row.farmerCode ? await farmerOf(project.id, row.farmerCode) : null;
   const planned = itemsFor(ctx.setup, farmer?.hectares);
   const items = applyFix(m.items, fix, planned);
-  const photo = fix.photo ?? m.photo ?? photoOf(row);
+  // From the app the photo is the one on the farmer's record, looked at again now: a tick is not
+  // a document. From KoboCollect the image came with the form; a fix can say it has since been added.
+  const photo = row.source === "kobo" ? (fix.photo ?? m.photo ?? photoOf(row)) || hasSignedNotePhoto(farmer) : hasSignedNotePhoto(farmer) || !!m.photo;
   const signed = fix.signed ?? m.signed ?? signedOf(row);
   const conditionOk = fix.conditionOk ?? m.conditionOk;
   const flags = flagsFor({ farmerId: row.farmerCode ?? m.farmerId, items, photo, signed, step: row.source === "kobo" ? (farmer?.step ?? "unknown") : null }, ctx.others, planned);

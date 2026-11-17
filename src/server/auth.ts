@@ -7,6 +7,7 @@ import { loadOrgSettings, withSettings } from "@/server/org-settings-store";
 import { NextResponse } from "next/server";
 import { db, schema as s } from "@/db";
 import { userById, users, type AppUser } from "@/lib/demo";
+import { withReportingLine } from "@/server/reporting-line";
 
 /**
  * Who is making a request.
@@ -133,9 +134,10 @@ async function viewerAsStored(req: Request): Promise<Viewer | null> {
 
 /** Everyone the app can name: the database staff list in live mode, the fictional cast in demo mode. */
 export async function people(): Promise<AppUser[]> {
-  if (demoMode()) return users;
+  // Who reports to whom comes from the HR record when there is one (server/reporting-line).
+  if (demoMode()) return withReportingLine(users);
   const rows = await db.select().from(s.staff).where(eq(s.staff.active, true));
-  return rows.filter((r) => r.personId && r.profile).map(toAppUser);
+  return withReportingLine(rows.filter((r) => r.personId && r.profile).map(toAppUser));
 }
 
 const deny = (status: 401 | 403 | 404, error: string) => NextResponse.json({ error }, { status });

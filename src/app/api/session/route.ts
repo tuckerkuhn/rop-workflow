@@ -21,6 +21,9 @@ export async function GET(req: Request) {
     if (!v) return NextResponse.json({ mode: "live", configured: true, user: null, actor: null, viewingAs: false, people: [], plan: "free" });
     // The second step still to do: say so, and nothing more.
     if (v.twoStep) return NextResponse.json({ mode: "live", configured: true, user: null, actor: null, viewingAs: false, people: [], plan: "free", twoStep: v.twoStep, email: v.user.name });
-    return NextResponse.json({ mode: "live", configured: true, user: v.user, actor: v.actor, viewingAs: v.viewingAs, people: await people(), plan: await planFor(v), authority: await authority(), proposalAccess: await proposalAccessMap(await orgIdForPerson(v.user.id).catch(() => null)) });
+    // The signed-in person carries the same reporting line as the directory (server/reporting-line).
+    const list = await people();
+    const lined = <U extends { id: string; reportsTo?: string }>(u: U): U => ({ ...u, reportsTo: list.find((p) => p.id === u.id)?.reportsTo ?? u.reportsTo });
+    return NextResponse.json({ mode: "live", configured: true, user: lined(v.user), actor: lined(v.actor), viewingAs: v.viewingAs, people: list, plan: await planFor(v), authority: await authority(), proposalAccess: await proposalAccessMap(await orgIdForPerson(v.user.id).catch(() => null)) });
   });
 }

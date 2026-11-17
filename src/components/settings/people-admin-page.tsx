@@ -185,6 +185,7 @@ export function PeopleAdminPage() {
                       <PersonForm
                         v={v}
                         initial={strip(p)}
+                        hrSupervisor={v.supervisors[p.id]}
                         self={p.id === v.me}
                         email={p.email}
                         onCancel={() => setOpen(null)}
@@ -296,11 +297,14 @@ function PersonForm({
   initial,
   self,
   email,
+  hrSupervisor,
   onSave,
   onCancel,
 }: {
   v: PeopleView;
   initial: PersonInput;
+  /** Who this person reports to on the HR record, when they have one: shown here, changed there. */
+  hrSupervisor?: string;
   self?: boolean;
   email?: string | null;
   onSave: (p: PersonInput) => Promise<unknown>;
@@ -356,7 +360,7 @@ function PersonForm({
         </label>
         <label className="text-sm">
           Reports to
-          <select className={input} value={p.reportsTo ?? ""} disabled={locked} onChange={(e) => set("reportsTo", e.target.value || null)}>
+          <select className={input} value={hrSupervisor ?? p.reportsTo ?? ""} disabled={locked || !!hrSupervisor} onChange={(e) => set("reportsTo", e.target.value || null)}>
             <option value="">Nobody</option>
             {v.people
               .filter((x) => x.active && x.kind === "employee")
@@ -366,6 +370,7 @@ function PersonForm({
                 </option>
               ))}
           </select>
+          {hrSupervisor && <span className="mt-1 block text-xs text-muted">Set on the HR record, so it is changed there and nowhere else. Approvals follow it.</span>}
         </label>
         <label className="text-sm">
           Staff or donor

@@ -255,14 +255,14 @@ export const badCondition = (c: string | null | undefined) => (c && !ACCEPTABLE.
  * approval, so it is not approved while:
  *  - the signature or thumbprint is not confirmed;
  *  - the condition recorded at handover was not acceptable (a damaged package is not accepted);
- *  - it came from KoboCollect without the photo of the signed page (the form asks for it; a record
- *    made in the app has no photo question at this step yet, so there it stays a flag).
+ *  - there is no photo of the signed note: the image question on the KoboCollect form, or the
+ *    photo the recorder takes at the Distribute step in the app. The photo is the document on file.
  * Null when it may be approved.
  */
 export function closeBlock(d: { signed: boolean; photo?: boolean; source?: "app" | "kobo"; condition?: string | null }): string | null {
   const back = "Send it back so the person who recorded it can put it right; then it can be approved.";
   if (!d.signed) return `The recipient's signature or thumbprint on the goods received note is not confirmed. ${ACKNOWLEDGMENT} ${back}`;
   if (badCondition(d.condition)) return `The goods were recorded as damaged at handover, so the recipient has not accepted them in acceptable condition. ${back}`;
-  if (d.source === "kobo" && d.photo === false) return `There is no photo of the signed goods received note. ${ACKNOWLEDGMENT} The photo is the proof. ${back}`;
+  if (d.photo === false) return `There is no photo of the signed goods received note. ${ACKNOWLEDGMENT} The photo is the proof. ${back}`;
   return null;
 }

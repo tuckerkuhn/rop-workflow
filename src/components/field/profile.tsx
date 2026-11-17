@@ -464,7 +464,7 @@ export function FarmerProfile({ id }: { id: string }) {
 }
 
 /** The photo resized on the phone (long side at most `maxEdge` pixels) and kept as a JPEG data URL. */
-async function shrinkPhoto(file: File, q: { maxEdge: number; jpeg: number }): Promise<string> {
+export async function shrinkPhoto(file: File, q: { maxEdge: number; jpeg: number }): Promise<string> {
   const bitmap = await createImageBitmap(file);
   const scale = Math.min(1, q.maxEdge / Math.max(bitmap.width, bitmap.height));
   const canvas = document.createElement("canvas");

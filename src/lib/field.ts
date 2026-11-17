@@ -33,7 +33,17 @@ export type Stock = Record<string, number>;
 export const seedStock = (): Stock => ({ seed: 380, npk: 600 });
 
 export type Survey = { date: string; score: number; comment: string; by: string };
-export type Photo = { id: string; activity: PhotoKind; date: string; caption: string; src?: string };
+export type Photo = {
+  id: string;
+  activity: PhotoKind;
+  date: string;
+  caption: string;
+  src?: string;
+  /** The photo is of the goods received note the recipient signed or thumbprinted (lib/distribution closeBlock). */
+  signedNote?: boolean;
+};
+/** Whether the farmer's record holds a photo of the signed goods received note. */
+export const hasSignedNotePhoto = (f: { photos?: Photo[] } | null | undefined) => !!f?.photos?.some((p) => p.activity === "distribution" && p.signedNote);
 export type PhotoKind = "training" | "landprep" | "visit" | "distribution" | "planting";
 export type Story = { id: string; status: "note" | "completed"; title: string; text: string; date: string; by: string };
 

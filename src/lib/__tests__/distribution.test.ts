@@ -295,8 +295,9 @@ describe("the signed note closes a distribution", () => {
     expect(closeBlock({ signed: true, source: "kobo", photo: true, condition: "some_damaged" })).toMatch(/damaged at handover/);
     expect(closeBlock({ signed: true, source: "kobo", photo: true, condition: "good" })).toBeNull();
   });
-  it("needs the photo of the signed note from KoboCollect; in the app it stays a flag", () => {
+  it("needs the photo of the signed note, from KoboCollect or the app", () => {
     expect(closeBlock({ signed: true, source: "kobo", photo: false, condition: "good" })).toMatch(/no photo of the signed goods received note/);
-    expect(closeBlock({ signed: true, source: "app", photo: false })).toBeNull();
+    expect(closeBlock({ signed: true, source: "app", photo: false })).toMatch(/no photo of the signed goods received note/);
+    expect(closeBlock({ signed: true, source: "app", photo: true })).toBeNull();
   });
 });

@@ -214,10 +214,14 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
                 <input type="checkbox" className="mt-0.5 h-4 w-4" checked={fix.signed} onChange={(e) => setFix((f) => ({ ...f, signed: e.target.checked }))} />
                 The recipient signed or thumbprinted the goods received note: received in acceptable condition and responsible from now on
               </label>
-              <label className="mt-2 flex items-start gap-2 text-sm">
-                <input type="checkbox" className="mt-0.5 h-4 w-4" checked={fix.photo} onChange={(e) => setFix((f) => ({ ...f, photo: e.target.checked }))} />
-                A photo of the signed note is on the farmer&apos;s record
-              </label>
+              {d.source === "kobo" ? (
+                <label className="mt-2 flex items-start gap-2 text-sm">
+                  <input type="checkbox" className="mt-0.5 h-4 w-4" checked={fix.photo} onChange={(e) => setFix((f) => ({ ...f, photo: e.target.checked }))} />
+                  A photo of the signed note is on the farmer&apos;s record
+                </label>
+              ) : (
+                !d.photo && <p className="mt-2 text-sm">Add the photo of the signed note on the farmer&apos;s record in Field activities first. It is picked up when you send this again.</p>
+              )}
               {d.condition && (
                 <label className="mt-2 flex items-start gap-2 text-sm">
                   <input type="checkbox" className="mt-0.5 h-4 w-4" checked={fix.conditionOk} onChange={(e) => setFix((f) => ({ ...f, conditionOk: e.target.checked }))} />

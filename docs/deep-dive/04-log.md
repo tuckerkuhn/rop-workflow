@@ -75,6 +75,21 @@ Tucker answered the four decisions. What was built for each:
 
 Also answered: the instant notification is an email, so it only works once the email service is set up (see "Before Jan 10"); translations wait until the rest is ready; farmers and staff are each kept in two places and that is next to fix, staff first.
 
+## Added 17 Nov (later): photo rule, form wording, one source for staff and farmers
+
+**Photo of the signed note is now required everywhere.** The Distribute step in Field activities has a "Take or choose photo" button. "Record distribution" stays off until the photo is on the farmer's record, and approval is refused without it, whether the record came from the app or KoboCollect. A photo added while a record waits counts at once. The send-again form no longer takes a tick in place of the photo for app records.
+
+**Form wording.** Both KoboCollect distribution forms now ask in English whether the recipient signed the goods received note "saying they received the goods in acceptable condition and are responsible for them from now on". Dari and Pashto keep the old wording until translation. The files in `kobo/` are rebuilt; a form already deployed in KoboToolbox does not change until it is redeployed.
+
+**Who reports to whom: one source (the HR record).** `server/reporting-line.ts`. Anyone with a supervisor on the HR record reports to that person everywhere: approvals, the fallback when a manager records her own distribution, team views. The staff list's "Reports to" is used only for someone with no HR record, and Settings, People shows the HR value locked with a note. The demo cast was lined up with the HR sample (two people differed, which is the bug in miniature).
+- Check before this reaches the live app: open Settings, People and compare a few people's "Reports to" with what you expect. Where the HR record and the old staff list disagreed, approvals now follow HR.
+
+**Farmer details: one source (the working record).** `server/farmer-mirror.ts`. Village, status, contribution and enrollment date were kept in the `farmers` table and again in the working record, and only the second was kept current. Every save of a farmer now writes those details to the `farmers` row in the same step, and the KoboCollect farmer list reads the village from the working record. No table or column was changed or dropped, so there is no migration.
+- Rows that drifted before today are put right the next time each farmer is saved. To do all at once: `npm run farmers:sync` lists the differences and changes nothing; `npm run farmers:sync -- --apply` fixes them. I have not run it against the live database.
+- Not done: dropping the now-redundant columns. That is a schema change on live data and waits for a backup and a rehearsal.
+
+**Resend.** No sign-up or message from Resend in the work mailbox, and nothing in the repo notes says an account exists. Not checked: personal Gmail, or an account under Spencer's name.
+
 ## Batch by batch
 
 ### Docs (commit `5213148`)

@@ -44,7 +44,7 @@ describe("who approves an input distribution", { timeout: 60_000 }, () => {
   it("sends a distribution the project manager recorded herself to the person she reports to", async () => {
     const f = await farmer("F-0007");
     await saveItems(code, [f]);
-    own = await recordFromApp(code, { ...f, checks: { ...f.checks, "distribute.recipient": true }, step: "plant" }, nadia, "http://test");
+    own = await recordFromApp(code, { ...f, photos: [...f.photos, { id: "note", activity: "distribution" as const, date: "2027-01-01", caption: "Signed goods received note", signedNote: true }], checks: { ...f.checks, "distribute.recipient": true }, step: "plant" }, nadia, "http://test");
     const d = await row(own);
     expect(d.approvers).toEqual(["karim"]);
     expect(d.approverNames).toBe("Karim Ahmadi");
@@ -148,5 +148,17 @@ describe("a readiness No goes back to the agent who made the visit", { timeout: 
     await decideDistribution(code, r.id, "sent_back", nadia, "Replace the damaged bags.");
     await resubmitDistribution(code, r.id, { id: bilal.id, name: bilal.name }, { conditionOk: true }, "Damaged bags replaced; recipient accepted", "http://test");
     expect((await row(r.id)).closeBlock).toBeNull();
+  });
+
+  it("will not approve a distribution recorded in the app until the photo of the signed note is on the farmer's record", async () => {
+    const f = await farmer("F-0005");
+    await saveItems(code, [f]);
+    const id = await recordFromApp(code, { ...f, checks: { ...f.checks, "distribute.recipient": true }, step: "plant" }, bilal, "http://test");
+    expect((await row(id)).photo).toBe(false);
+    expect(await refusal(() => decideDistribution(code, id, "approved", nadia))).toMatch(/no photo of the signed goods received note/);
+    // The storekeeper adds the photo on the farmer's record: the waiting distribution counts it at once.
+    await saveItems(code, [{ ...f, photos: [...f.photos, { id: "note-5", activity: "distribution", date: "2027-01-01", caption: "Signed goods received note", signedNote: true }] }]);
+    expect((await row(id)).closeBlock).toBeNull();
+    expect((await decideDistribution(code, id, "approved", nadia)).decision).toBe("approved");
   });
 });

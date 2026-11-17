@@ -1,4 +1,5 @@
 import { EMPTY_FRAMEWORK, FRAMEWORK_KEY, type Framework } from "@/lib/framework";
+import { mirrorFarmer } from "@/server/farmer-mirror";
 import { loadProjectState, saveProjectState, type Reader } from "@/server/project-state";
 import { DEMO_SETUP, FIELD_SETUP_KEY, type FieldSetup } from "@/lib/package";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
@@ -135,6 +136,7 @@ export async function saveEdited(code: string, items: FieldItem[]): Promise<Reco
             .onConflictDoNothing()
             .returning({ at: s.fieldItems.updatedAt });
       if (!updated) throw new HttpError(409, `${item.kind === "farmer" ? `Farmer ${item.id}` : `Finding ${item.id}`} was changed by someone else since you opened this page, so your change was not saved. The page now shows the latest; make your change again.`);
+      await mirrorFarmer(tx, project.id, item);
       revs[item.id] = updated.at.toISOString();
     }
   });
@@ -151,6 +153,7 @@ export async function saveItems(code: string, items: FieldItem[]) {
       .insert(s.fieldItems)
       .values({ organizationId: project.organizationId, projectId: project.id, itemKey: item.id, kind: item.kind, data: item })
       .onConflictDoUpdate({ target: [s.fieldItems.projectId, s.fieldItems.itemKey], set: { data: item, kind: item.kind, updatedAt: new Date() } });
+    await mirrorFarmer(db, project.id, item);
   }
 }
 
@@ -181,8 +184,10 @@ export async function farmerListRows(code: string) {
     .where(and(eq(s.fieldItems.projectId, project.id), inArray(s.fieldItems.itemKey, farmers.map((f) => f.code).concat("__none__"))));
   const removed = new Set(active.filter((r) => (r.data as FieldItem).step === "removed").map((r) => r.key));
   const hectares = new Map(active.filter((r) => (r.data as FieldItem).kind === "farmer").map((r) => [r.key, (r.data as { hectares?: number }).hectares ?? null]));
+  // The village comes from the working record (server/farmer-mirror): it is the one kept up to date.
+  const village = new Map(active.map((r) => [r.key, (r.data as { community?: string }).community || null]));
   return farmers
     .filter((f) => !removed.has(f.code) && f.status !== "removed")
     .sort((a, b) => a.code.localeCompare(b.code))
-    .map((f) => ({ name: f.code, label: [f.code, f.village, f.householdHeadInitials].filter(Boolean).join(" · "), hectares: hectares.get(f.code) ?? null }));
+    .map((f) => ({ name: f.code, label: [f.code, village.get(f.code) ?? f.village, f.householdHeadInitials].filter(Boolean).join(" · "), hectares: hectares.get(f.code) ?? null }));
 }

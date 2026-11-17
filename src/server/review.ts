@@ -1,4 +1,5 @@
 import { and, eq } from "drizzle-orm";
+import { mirrorFarmer } from "@/server/farmer-mirror";
 import { db, schema as s } from "@/db";
 import { type AppUser } from "@/lib/demo";
 import { addDays, fieldSteps, type Farmer } from "@/lib/field";
@@ -115,6 +116,7 @@ async function applyReadiness(tx: Tx, row: typeof s.evidence.$inferSelect, user:
     timeline: [...f.timeline, { date: sub.date || today(), who: "mel", what: `${summary.split(".")[0]}${issue && !ready ? `: ${issue}` : ""} (Kobo ${kbo})` }],
   };
   await tx.update(s.fieldItems).set({ data: next, updatedAt: new Date() }).where(eq(s.fieldItems.id, item.id));
+  await mirrorFarmer(tx, row.projectId, next);
   return summary;
 }
 
@@ -126,7 +128,8 @@ async function farmerItem(tx: Tx, projectId: string, code: string) {
 
 async function saveFarmer(tx: Tx, id: string, f: Farmer, date: string, what: string) {
   const next: Farmer = { ...f, timeline: [...f.timeline, { date, who: "mel", what }] };
-  await tx.update(s.fieldItems).set({ data: next, updatedAt: new Date() }).where(eq(s.fieldItems.id, id));
+  const [saved] = await tx.update(s.fieldItems).set({ data: next, updatedAt: new Date() }).where(eq(s.fieldItems.id, id)).returning({ projectId: s.fieldItems.projectId });
+  if (saved) await mirrorFarmer(tx, saved.projectId, next);
 }
 
 /**

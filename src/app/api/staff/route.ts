@@ -25,6 +25,8 @@ async function view(me: string) {
     demoMode: process.env.DEMO_SIGN_IN === "1",
     canCreateAccounts: canCreateAccounts(),
     people,
+    // Who each person reports to on the HR record: the one source for the reporting line (server/reporting-line).
+    supervisors: Object.fromEntries(Object.entries(state.people).flatMap(([id, p]) => (typeof p.current.supervisor === "string" && p.current.supervisor ? [[id, p.current.supervisor]] : []))) as Record<string, string>,
     holders,
     log: await changeLog(),
   };

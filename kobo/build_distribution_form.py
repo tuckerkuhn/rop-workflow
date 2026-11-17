@@ -40,10 +40,10 @@ base.SURVEY = [
     (
         "select_one yes_no",
         "signed",
-        ("Did the recipient sign or thumbprint the distribution list?", "آیا دریافت‌کننده لیست توزیع را امضا یا انگشت زد؟", "ایا ترلاسه کوونکي د وېش لیست لاسلیک یا ګوته ولګوله؟"),
+        ("Did the recipient sign or thumbprint the goods received note, saying they received the goods in acceptable condition and are responsible for them from now on?", "آیا دریافت‌کننده لیست توزیع را امضا یا انگشت زد؟", "ایا ترلاسه کوونکي د وېش لیست لاسلیک یا ګوته ولګوله؟"),
         None, "yes", "", "", "", "",
     ),
-    ("image", "list_photo", ("Photo of the signed distribution list page", "عکس صفحه امضا‌شده لیست توزیع", "د وېش د لاسلیک شوي لیست د پاڼې انځور"), ("The page with this farmer's signature or thumbprint", "صفحه‌ای که امضا یا نشان انگشت این دهقان را دارد", "هغه پاڼه چې د دې بزګر لاسلیک یا ګوته پرې ده"), "yes", "", "", "", ""),
+    ("image", "list_photo", ("Photo of the signed goods received note", "عکس صفحه امضا‌شده لیست توزیع", "د وېش د لاسلیک شوي لیست د پاڼې انځور"), ("The page with this farmer's signature or thumbprint", "صفحه‌ای که امضا یا نشان انگشت این دهقان را دارد", "هغه پاڼه چې د دې بزګر لاسلیک یا ګوته پرې ده"), "yes", "", "", "", ""),
     ("image", "handover_photo", ("Photo of the handover (optional)", "عکس تحویل (اختیاری)", "د سپارلو انځور (اختیاري)"), None, "", "", "", "", ""),
     ("geopoint", "location", ("Location (GPS)", "موقعیت (GPS)", "ځای (GPS)"), None, "", "", "", "", ""),
     ("text", "notes", ("Anything else to note", "نکات دیگر", "نور یادښتونه"), None, "", "", "multiline", "", ""),

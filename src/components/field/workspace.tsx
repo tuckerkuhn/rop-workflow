@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useRequireUser, useSession } from "@/components/app/session";
+import { useFeature, useRequireUser, useSession } from "@/components/app/session";
+import { shrinkPhoto } from "@/components/field/profile";
+import { PHOTO_QUALITY } from "@/lib/plans";
 import { useFieldData } from "@/components/app/use-project-data";
 import { useCurrentProject } from "@/components/app/current-project";
 import { FarmerImport, PackageSetup } from "@/components/field/setup";
@@ -42,6 +44,7 @@ import {
   farmerLabel,
   farmerName,
   fieldSteps,
+  hasSignedNotePhoto,
   findingStages,
   historyBasis,
   issueHelp,
@@ -244,7 +247,22 @@ function Detail({
     setNote("");
   };
 
-  const canRun = (o: Outcome) => blocks.length === 0 && (o.requiresChecks === false || checksOk);
+  // Handing out goods needs the document on file: a photo of the note the recipient signed.
+  const fullPhotos = useFeature("full_photos");
+  const [noteError, setNoteError] = useState("");
+  const needsNote = item.kind === "farmer" && item.step === "distribute";
+  const noteOnFile = item.kind === "farmer" && hasSignedNotePhoto(item);
+  const addNote = (file: File | undefined) => {
+    if (!file) return;
+    if (file.size > 25_000_000) return setNoteError("That file is too large to be a photo. Choose a photo from the phone.");
+    void shrinkPhoto(file, fullPhotos ? PHOTO_QUALITY.full : PHOTO_QUALITY.small)
+      .then((src) => {
+        apply((i) => (i.kind === "farmer" ? { ...i, photos: [...i.photos, { id: `${i.id}-note-${Date.now()}`, activity: "distribution", date: today(), caption: `Signed goods received note · ${i.id}`, src, signedNote: true }] } : i));
+        setNoteError("");
+      })
+      .catch(() => setNoteError("The app could not read that image. Try a JPEG or PNG photo."));
+  };
+  const canRun = (o: Outcome) => blocks.length === 0 && (o.requiresChecks === false || (checksOk && (!needsNote || noteOnFile)));
   const end = ENDS[item.step];
 
   return (
@@ -362,6 +380,31 @@ function Detail({
                       />
                     </div>
                   )}
+                  {needsNote && (
+                    <div className={`rounded-xl border px-4 py-3 text-sm ${noteOnFile ? "border-line bg-mist" : "border-clay/40 bg-clay-soft"}`}>
+                      <p className="font-semibold">{noteOnFile ? "✓ Photo of the signed goods received note is on the record" : "Photo of the signed goods received note"}</p>
+                      {!noteOnFile && (
+                        <>
+                          <p className="mt-1">The recipient signs or thumbprints a note saying they received the goods in acceptable condition and are responsible for them from then on. Take a photo of it. The distribution cannot be recorded or approved without it.</p>
+                          <label className={`${primaryBtn} mt-3 inline-flex cursor-pointer`}>
+                            Take or choose photo
+                            <input
+                              type="file"
+                              accept="image/*"
+                              capture="environment"
+                              className="sr-only"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                e.target.value = "";
+                                addNote(file);
+                              }}
+                            />
+                          </label>
+                          {noteError && <p className="mt-2 text-clay">{noteError}</p>}
+                        </>
+                      )}
+                    </div>
+                  )}
                   {pending ? (
                     <form
                       className="flex flex-wrap gap-2"
@@ -406,7 +449,7 @@ function Detail({
                       )}
                     </div>
                   )}
-                  {!checksOk && blocks.length === 0 && <p className="text-xs text-muted">Complete every item above to continue.</p>}
+                  {(!checksOk || (needsNote && !noteOnFile)) && blocks.length === 0 && <p className="text-xs text-muted">{checksOk ? "Add the photo of the signed note to continue." : "Complete every item above to continue."}</p>}
                 </div>
               )}
               {raising !== null && role && (
