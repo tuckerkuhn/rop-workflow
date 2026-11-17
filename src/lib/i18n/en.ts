@@ -376,6 +376,7 @@ export const en = {
   "budget.total": "Total budget",
   "budget.toProcure": "To procure",
   "budget.lines": "{n} lines",
+  "budget.line1": "1 line",
   "budget.spentSoFar": "Spent so far",
   "budget.filter.all": "All",
   "budget.filter.procure": "To procure",

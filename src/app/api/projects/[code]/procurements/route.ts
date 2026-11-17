@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { actOnPlan } from "@/server/procurement-plan-store";
 import { z } from "zod";
 import type { Procurement } from "@/lib/procurement";
 import { requireViewer } from "@/server/auth";
@@ -64,6 +65,15 @@ export async function PUT(req: Request, { params }: { params: Promise<{ code: st
         if (!g || g.type !== "inKind" || g.status !== "open") return NextResponse.json({ error: `${x.id}: ${x.grant} is not an open in-kind grant on this project.` }, { status: 409 });
       }
     }
+    // A new request made from the calendar starts that calendar item here, with the save: the two
+    // never disagree (an item marked started with no request, or a request on an item still open).
+    if (calendar)
+      for (const x of items.filter((y) => !stored.has(y.id) && y.plan)) {
+        const item = calendar.find((i) => i.key === x.plan!.key);
+        if (item?.status !== "approved") continue;
+        const r = await actOnPlan(code, item.key, { action: "start", procurementKey: x.id }, v.user);
+        if ("error" in r) return NextResponse.json({ error: `${x.id}: ${r.error}` }, { status: 409 });
+      }
     const saved = items.map((x) => ({ ...x, rev: (stored.get(x.id)?.rev ?? 0) + 1 }));
     await saveProcurements(code, saved);
     const project = await projectByCode(code);

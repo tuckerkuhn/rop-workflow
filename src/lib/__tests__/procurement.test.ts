@@ -115,3 +115,19 @@ describe("payment check with nothing to pay", () => {
     expect(check("match")).toMatchObject({ ok: false, detail: expect.stringMatching(/^Not recorded: the supplier, the invoice number, the invoice date/) });
   });
 });
+
+describe("source selection memo", () => {
+  it("names the bid marked chosen and its price, and lists every quotation", async () => {
+    const { documentFor } = await import("@/lib/procurement-docs");
+    const usd = (n: number) => "USD " + n;
+    const bids = [
+      { id: "b1", supplier: "Low Co", receivedAt: "2026-11-16T09:00", amount: 480, currency: "USD", pass: "pass" },
+      { id: "b2", supplier: "Mid Co", receivedAt: "2026-11-16T10:00", amount: 520, currency: "USD", pass: "pass" },
+    ];
+    const p = { ...base(), supplier: undefined, bids, selectedBid: "b1" } as unknown as Procurement;
+    const rows = Object.fromEntries(documentFor(p, "Source selection memo", usd, usd).rows);
+    expect(rows["Recommended supplier"]).toBe("Low Co");
+    expect(rows["Award value"]).toMatch(/^USD 480/);
+    expect(rows["Quotations"]).toBe("Low Co: USD 480 (chosen); Mid Co: USD 520");
+  });
+});

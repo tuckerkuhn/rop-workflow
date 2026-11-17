@@ -127,18 +127,55 @@ export function ProcurementPlanPage() {
         </p>
       )}
 
+      {canBuild && plan.budget && plan.budget.lines.length > 0 && (
+        <details open={!plan.budget.lines.some((l) => l.procure)} className="mt-6 rounded-2xl border border-line bg-surface p-4">
+          <summary className="cursor-pointer text-sm font-semibold">
+            Budget lines to buy · {plan.budget.lines.filter((l) => l.procure).length} of {plan.budget.lines.length} marked
+          </summary>
+          <p className="mt-2 max-w-2xl text-xs text-muted">
+            Tick the lines bought through procurement; staff time, fees and charges are not. This moves no money, so it is not a plan change for the monthly review; each change is kept in the audit trail. Then press {plan.items.length ? "Update from budget" : "Build from budget"}.
+          </p>
+          <ul className="mt-3 divide-y divide-line text-sm">
+            {plan.budget.lines.map((l) => (
+              <li key={l.code}>
+                <label className="flex items-center gap-3 py-2">
+                  <input
+                    type="checkbox"
+                    checked={l.procure}
+                    disabled={busy}
+                    onChange={async (e) => {
+                      setBusy(true);
+                      try {
+                        await plan.markProcure({ [l.code]: e.target.checked });
+                        setNote(`${l.code} ${e.target.checked ? "marked to buy" : "no longer marked to buy"}. Press ${plan.items.length ? "Update from budget" : "Build from budget"} to update the calendar.`);
+                      } catch (err) {
+                        setNote(err instanceof Error ? err.message : String(err));
+                      } finally {
+                        setBusy(false);
+                      }
+                    }}
+                    className="h-5 w-5 accent-forest"
+                  />
+                  <span className="w-20 font-mono text-xs">{l.code}</span>
+                  <span className="min-w-0 flex-1">{l.description}</span>
+                  <span className="tabular-nums text-muted">{Math.round(l.total).toLocaleString("en-US")}</span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+
       {plan.status === "loading" ? (
         <p className="py-16 text-center text-sm text-muted">Loading…</p>
       ) : !plan.items.length ? (
         <div className="mt-8 rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">
           {plan.budget?.lines.length && !plan.budget.lines.some((l) => l.procure) ? (
-            <>
-              None of the {plan.budget.lines.length} budget lines is marked to procure, so the calendar has nothing to plan. Tick &ldquo;Procure&rdquo; on the lines that are bought in{" "}
-              <Link href="/setup?step=budget" className="font-semibold text-forest underline-offset-2 hover:underline">
-                project setup, Budget
-              </Link>
-              , then build the calendar.
-            </>
+            canBuild ? (
+              <>None of the {plan.budget.lines.length} budget lines is marked to buy, so the calendar has nothing to plan. Tick the lines that are bought under &ldquo;Budget lines to buy&rdquo; below, then build the calendar.</>
+            ) : (
+              <>None of the {plan.budget.lines.length} budget lines is marked to buy yet. The project manager or the procurement manager marks them here, then builds the calendar.</>
+            )
           ) : plan.budget?.lines.length ? (
             canBuild ? (
               "No calendar yet. Build it from the budget."

@@ -145,7 +145,8 @@ function checkAgainstCalendar(next: Procurement, calendar: PlanItem[]): string |
   if (item.status !== "approved" && item.status !== "started") return `${item.key} needs both approvals on the procurement calendar first.`;
   if ((item.budgetCode ?? "") !== next.plan.budgetCode || (item.budgetCode ?? "") !== next.budgetLine) return `The request must charge ${item.key}'s budget line ${item.budgetCode ?? "(none)"}.`;
   if (Math.abs(item.usd - next.plan.leftUsd) > 1 || item.value !== next.plan.left || item.currency !== next.plan.currency) return `The money left on ${item.key} is taken from the calendar, not changed in the request.`;
-  if (/fictional|demo/i.test(next.funding)) return "The funding source names the demo award.";
+  // The demo's own award, not any project that calls itself fictional (the test bench does).
+  if (/Award A-2027|demo award/i.test(next.funding)) return "The funding source names the demo award.";
   return null;
 }
 

@@ -786,7 +786,6 @@ export function ProcurementWorkspace() {
   const plan = usePlan(project.saved ? project.id : null);
   const donors = useDonors(project.id);
   const [planKey, setPlanKey] = useState<string | null>(null);
-  const [planError, setPlanError] = useState("");
   // `?grant=G-003`: the request buys an in-kind grant's equipment.
   const [grantId, setGrantId] = useState<string | null>(null);
   const [forGrant, setForGrant] = useState<ForGrant | null>(null);
@@ -963,9 +962,9 @@ export function ProcurementWorkspace() {
               setMobileDetail(true);
             }}
           />
-          {(error || planError) && (
+          {error && (
             <p role="alert" className="px-4 pt-3 text-sm text-clay sm:px-6">
-              {error || planError}
+              {error}
             </p>
           )}
           <QueueFooter
@@ -1025,9 +1024,7 @@ export function ProcurementWorkspace() {
               setItems((all) => [p, ...all]);
               setSelected(p.id);
               setCreating(false);
-              // The calendar item is now started, linked to this request.
-              if (p.plan)
-                plan.act(p.plan.key, { action: "start", procurementKey: p.id }).catch((e) => setPlanError(`${p.id} was created, but the calendar was not updated: ${e instanceof Error ? e.message : e}`));
+              // The server starts the calendar item with the save (api/projects/[code]/procurements).
               setPlanKey(null);
               setGrantId(null);
               setForGrant(null);

@@ -4,7 +4,7 @@
  */
 
 import { PROJECT, holderOf } from "@/lib/demo";
-import { levelFor, lineOf, roleLabel, valueOf, type Money, type Procurement } from "@/lib/procurement";
+import { bidUsd, levelFor, lineOf, roleLabel, valueOf, type Money, type Procurement } from "@/lib/procurement";
 import { currentInstalment, expectedAfn, expectedUsd, invoiceUsd, receivedBefore, withholding } from "@/lib/payments";
 import { today } from "@/lib/clock";
 
@@ -25,6 +25,8 @@ export function documentFor(p: Procurement, doc: string, money: Money, other: Mo
   const both = (usd: number) => `${money(usd)} (${other(usd)})`;
   const holder = p.plan?.requestedBy ?? holderOf("procurement", "holder")?.name ?? roleLabel("holder");
   const level = levelFor(value);
+  const bids = p.bids ?? [];
+  const chosen = bids.find((b) => b.id === p.selectedBid);
   const method = level === "Micro" ? "Market pricing" : level === "Small" ? "Three written quotations" : "Request for quotation · lowest priced technically acceptable";
   const base: [string, string][] = [
     ["Procurement ID", p.id],
@@ -131,11 +133,13 @@ export function documentFor(p: Procurement, doc: string, money: Money, other: Mo
         rows: [
           ...base,
           ["Method", method],
-          ["Recommended supplier", p.supplier?.name ?? "Pending evaluation"],
-          ["Award value", both(value)],
+          // The bid marked chosen on this step: the memo is what the person signs, so it names it.
+          ["Recommended supplier", p.supplier?.name ?? chosen?.supplier ?? "Pending evaluation"],
+          ["Award value", both(chosen ? (bidUsd(chosen) ?? value) : value)],
+          ...(bids.length ? [["Quotations", bids.map((b) => `${b.supplier}: ${bidUsd(b) === null ? "—" : money(bidUsd(b)!)}${b.id === chosen?.id ? " (chosen)" : ""}`).join("; ")] as [string, string]] : []),
           ["Basis for award", "Lowest priced bid meeting every stated minimum requirement, exactly as published"],
         ],
-        notes: ["The comparative bid matrix and the committee's reasoning are attached."],
+        notes: [level === "Large" || level === "Medium" ? "The comparative bid matrix and the committee's reasoning are attached." : "Each quotation's signed copy is filed in SharePoint with this record."],
       };
     case "Contract / PO":
       return {

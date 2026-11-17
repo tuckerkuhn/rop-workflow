@@ -16,10 +16,12 @@ import { canEditProject, type AppUser } from "@/lib/demo";
 import { quartersLabel } from "@/lib/monthly-review";
 import { STATUS_LABEL, mayWriteReport, type Status } from "@/lib/qpr";
 import { procRolesFor } from "@/lib/procurement";
-import { projectByCode } from "@/server/field-store";
+import { projectByCode, setupFor } from "@/server/field-store";
+import { DONE, stepById } from "@/lib/procurement";
 import { handRecordedCounts } from "@/server/kobo-fed";
 import { loadReview, rawReview } from "@/server/monthly-review-store";
 import { loadPlan } from "@/server/procurement-plan-store";
+import { awaiting as awaitingPlan } from "@/lib/procurement-plan";
 import { STUCK_DAYS, approverFor, isStuck } from "@/lib/grants";
 import { realToday } from "@/lib/clock";
 import { projectProcurementCards } from "@/server/boards-store";
@@ -216,6 +218,19 @@ export async function loadHome(code: string, u: AppUser) {
     if (!lastReview.review.signedOff) actions.push({ key: "review-signoff", for: "lead", bucket: "approve", urgent: false, text: `Sign off the ${monthName(lastReview.month)} monthly review`, msg: { key: "ha.reviewSignoff", vars: { month: lastReview.month } }, href: "/progress/review" });
     if (!lastReport.released) actions.push({ key: "release", for: "lead", bucket: "approve", urgent: false, text: `Release the ${qLabel(lastQ).replace("-", " ")} report in the app`, msg: { key: "ha.release", vars: { quarter: qLabel(lastQ).replace("-", " ") } }, href: "/progress/report" });
   }
+  // The procurement calendar: items waiting for this person's approval (procurement manager or the
+  // line's technical lead), and approved items whose request this technical lead has not made yet.
+  // Without these, an approval or a late purchase waits on someone who was never told.
+  if (u.procurementAccess !== "none") {
+    const mine = awaitingPlan(allPlan, u);
+    const toApprove = [...new Map([...mine.asManager, ...mine.asLead].map((i) => [i.key, i])).values()];
+    if (toApprove.length)
+      actions.push({ key: "plan-approve", for: lenses.includes("procurement") ? "procurement" : lenses[0], bucket: "approve", urgent: toApprove.some((i) => i.startBy <= today), text: toApprove.length === 1 ? `Approve ${toApprove[0].key} ${toApprove[0].title} on the procurement calendar` : `Approve ${toApprove.length} purchases on the procurement calendar`, href: "/work/plan" });
+    const toStart = allPlan.filter((i) => i.status === "approved" && i.techLead === u.id && days(today, i.startBy) <= 14);
+    for (const i of toStart)
+      actions.push({ key: `plan-start:${i.key}`, for: lenses.includes("procurement") ? "procurement" : lenses[0], bucket: "due", urgent: i.startBy < today, text: `Make the request for ${i.key} ${i.title}: ${i.startBy < today ? `it was due to start ${i.startBy}` : `start by ${i.startBy}`}`, href: "/work/plan" });
+  }
+
   // Who approves KoboCollect data on this project (lib/kobo-approval): results made from a form
   // and distributions from a phone wait for that person, not for anyone with the MEL role.
   const koboRule = await koboApprovalFor(code);
@@ -290,15 +305,22 @@ export async function loadHome(code: string, u: AppUser) {
       if (dist && short) dist.text = `${dist.text.replace(/ waiting for you$/, " waiting")}, but the store has nothing to hand out yet. ${short}`;
       actions.push(...rows);
     }
-    if (manages && short)
+    if (manages && short) {
+      // A purchase already under way on the package's budget lines: say where it is, and open it.
+      const lines = new Set(((await setupFor(code).catch(() => null))?.items ?? []).map((i) => i.budgetLine));
+      const coming = (await loadProcurements(code).catch(() => [])).filter((p) => p.step !== DONE && lines.has(p.budgetLine) && !p.grn);
+      const who = waiting.length === 1 ? "1 farmer is" : `${waiting.length} farmers are`;
       actions.push({
         key: "restock",
         for: lenses.includes("lead") ? "lead" : lenses[0],
-        bucket: "fix",
-        urgent: true,
-        text: `The store cannot supply the input package: ${waiting.length === 1 ? "1 farmer is" : `${waiting.length} farmers are`} waiting at Distribute. ${short}`,
-        href: "/work/plan",
+        bucket: coming.length ? "due" : "fix",
+        urgent: !coming.length,
+        text: coming.length
+          ? `${who.replace(/ is$| are$/, "")} waiting at Distribute for inputs on the way: ${coming.map((p) => `${p.id} ${p.title} (${stepById[p.step]?.title ?? p.step})`).join("; ")}.`
+          : `The store cannot supply the input package: ${who} waiting at Distribute. ${short}`,
+        href: coming.length ? `/work?source=procurement&open=${encodeURIComponent(coming[0].id)}&project=${encodeURIComponent(code)}` : "/work/plan",
       });
+    }
   }
 
   // Tasks made at a handoff (a distribution sent back, a readiness correction, a payment to

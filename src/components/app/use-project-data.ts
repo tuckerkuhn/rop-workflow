@@ -174,9 +174,10 @@ export function useProcurements(code = "A-2027") {
           current.current = current.current.map((p) => (r.revs[p.id] !== undefined ? { ...p, rev: r.revs[p.id] } : p));
           setItemsState(current.current);
         } catch (e) {
-          setError(`Not saved: ${e instanceof Error ? e.message : e}`);
-          // A stale copy, or a refusal: show what is actually saved.
+          // A stale copy, or a refusal: show what is actually saved, and keep the reason on screen
+          // (the reload clears errors, so it is set after).
           await reload();
+          setError(`Not saved: ${e instanceof Error ? e.message : e}`);
         }
       });
     },
@@ -254,7 +255,16 @@ export function usePlan(code: string | null) {
     [code, user?.id],
   );
 
-  return { items: data?.items ?? [], budget: data?.budget ?? null, workplan: data?.workplan ?? [], status, error, reload, rebuild, act };
+  /** Marks budget lines to buy through procurement (or not), then reloads. */
+  const markProcure = useCallback(
+    async (procure: Record<string, boolean>) => {
+      await call(`/api/projects/${code}/budget`, user?.id, { method: "PATCH", body: JSON.stringify({ procure }) });
+      await reload();
+    },
+    [code, user?.id, reload],
+  );
+
+  return { items: data?.items ?? [], budget: data?.budget ?? null, workplan: data?.workplan ?? [], status, error, reload, rebuild, act, markProcure };
 }
 
 /** Months closed by Finance, and closing one. */

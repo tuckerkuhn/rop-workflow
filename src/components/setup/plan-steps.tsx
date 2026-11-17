@@ -286,7 +286,7 @@ export function BudgetStep({ code, onDone }: { code: string; onDone: () => void 
             <div className="rounded-2xl bg-sunken p-3">
               <dt className="text-xs text-muted">{t("budget.toProcure")}</dt>
               <dd className="text-xl tabular-nums font-semibold">
-                {money(procured.reduce((s, l) => s + l.total, 0))} <span className="text-sm text-muted">· {t("budget.lines", { n: procured.length })}</span>
+                {money(procured.reduce((s, l) => s + l.total, 0))} <span className="text-sm text-muted">· {procured.length === 1 ? t("budget.line1") : t("budget.lines", { n: procured.length })}</span>
               </dd>
             </div>
             <div className="rounded-2xl bg-sunken p-3">
