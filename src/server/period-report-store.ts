@@ -6,7 +6,8 @@ import { activityOf, photosFor, SECTIONS, type Row } from "@/lib/qpr";
 import { projectByCode, donorNameOf } from "@/server/field-store";
 import { donorPhotoRule } from "@/server/photo-consent";
 import { loadProjectState } from "@/server/project-state";
-import { rawQpr, spendFor } from "@/server/qpr-store";
+import { loadCopies, rawQpr, spendFor } from "@/server/qpr-store";
+import { quarterRange, totalsOf } from "@/lib/results";
 import { loadResults, loadUpdates } from "@/server/results-store";
 
 /**
@@ -64,6 +65,20 @@ export async function periodReport(code: string, p: Period) {
   const photos = quarters.flatMap((q) => photosFor(pseudoRows, results, updates, q)).filter((ph) => photoOk(ph.hash).ok);
   const lessons = learning.lessons.filter((l) => l.date >= from && l.date <= to).sort((a, b) => a.date.localeCompare(b.date));
   const open = results.filter((r) => r.status !== "accepted" && r.date >= from && r.date <= to).length;
+  // Figures the donor already has: each released quarter's frozen copy against the records now.
+  // A record corrected after release changes the year's total, so the difference is named, not hidden.
+  const changed: { code: string; donorCode: string; quarter: string; then: number; now: number }[] = [];
+  for (const [q, r] of reports) {
+    if (!r!.released) continue;
+    const copy = (await loadCopies(code, q)).find((c) => c.kind === "release");
+    if (!copy) continue;
+    const range = quarterRange(q);
+    for (const row of copy.data.rows) {
+      if (!indicators.some((i) => i.code === row.code)) continue;
+      const now = totalsOf(results.filter((x) => x.indicator === row.code), range.from, range.to).value;
+      if (Math.abs(now - row.quarter) > 1e-9) changed.push({ code: row.code, donorCode: row.donorCode || row.code, quarter: q, then: row.quarter, now });
+    }
+  }
   return {
     project: { code, name: project.name, donor: await donorNameOf(project), start: project.startDate, end: project.endDate },
     period: p,
@@ -76,6 +91,7 @@ export async function periodReport(code: string, p: Period) {
     spend,
     photos,
     open,
+    changed,
     closed: learning.closed,
   };
 }

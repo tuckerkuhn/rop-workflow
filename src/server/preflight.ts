@@ -159,6 +159,10 @@ async function annual(c: Ctx, year: number): Promise<Omit<Preflight, "items" | "
   const open = ended.filter((q) => !released.has(q));
   for (const q of open) add(c, { group: "blocks", owner: "writers", text: `The ${q.replace("-", " ")} quarterly report is not released, so its text and figures are not final`, key: "pf.c.quarterOpen", vars: { q: q.replace("-", " ") }, href: `/progress/report?q=${q}` });
   if (ended.length && !open.length) ok(c, "pf.ok.quarters");
+  if (v.changed.length) {
+    const list = v.changed.map((x) => `${x.donorCode} ${x.quarter.replace("-", " ")}: ${x.then} sent, ${x.now} now`).join("; ");
+    add(c, { group: "fix", owner: "mel", text: `${n(v.changed.length, "figure", "figures")} changed since the quarter was released (${list}): explain the correction in this report, or put the record back`, key: "pf.c.changedSince", vars: { n: v.changed.length, list }, href: "/progress/annual#changed" });
+  }
   const results = await loadResults(c.code);
   const inY = results.filter((r) => r.date >= from && r.date <= to);
   const pending = inY.filter((r) => r.status === "pending").length;

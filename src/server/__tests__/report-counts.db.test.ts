@@ -6,7 +6,13 @@ import { userById } from "@/lib/demo";
 import { seedDatabase } from "@/server/demo-seed";
 import { loadHome } from "@/server/home-store";
 import { nextReport, reportQuarter } from "@/server/next-report";
-import { reportDeadline } from "@/server/preflight";
+import { preflight, reportDeadline } from "@/server/preflight";
+import { eq } from "drizzle-orm";
+import { db, schema as s } from "@/db";
+import { periodReport } from "@/server/period-report-store";
+import { addCopy, copyOf, qprData, rawQpr, saveQpr } from "@/server/qpr-store";
+import { loadResults } from "@/server/results-store";
+import { projectByCode } from "@/server/field-store";
 import { loadProgressSummary } from "@/server/progress-summary-store";
 import { ready } from "@/server/__tests__/test-db";
 
@@ -51,5 +57,27 @@ describe("counts of what blocks the next report", { timeout: 60_000 }, () => {
   it("do not take a monthly report's deadline as the quarterly one", async () => {
     const d = await reportDeadline(code, "2026-12-31", 60, "quarterlyReportDays");
     expect(d.source?.kind === "milestone" ? d.source.title : "").not.toMatch(/monthly/i);
+  });
+
+  it("name a figure changed after its quarter was released, on the annual report and its pre-flight", async () => {
+    const r = (await loadResults(code)).find((x) => x.status === "accepted" && x.value > 0)!;
+    const q = r.quarter;
+    const project = await projectByCode(code);
+    const d = await qprData(code, q);
+    const saved = { ...((await rawQpr(project.id, q)) ?? d.saved), released: { by: "nadia", at: "2026-11-01T00:00:00Z" } };
+    await saveQpr(code, q, saved);
+    await addCopy(code, q, { kind: "release", by: "nadia", at: "2026-11-01T00:00:00Z", work: { minutes: 0, sittings: 0, first: null, last: null }, data: copyOf({ ...d, saved }) });
+    const year = Number(q.slice(0, 4));
+    expect((await periodReport(code, { kind: "annual", year })).changed).toEqual([]);
+
+    // The record is corrected after release.
+    const [row] = await db.select().from(s.evidence).where(eq(s.evidence.id, r.id));
+    await db.update(s.evidence).set({ payload: { ...(row.payload as object), value: r.value + 5 } }).where(eq(s.evidence.id, r.id));
+    const changed = (await periodReport(code, { kind: "annual", year })).changed;
+    expect(changed).toHaveLength(1);
+    expect(changed[0]).toMatchObject({ code: r.indicator, quarter: q });
+    expect(changed[0].now - changed[0].then).toBe(5);
+    const pf = await preflight(code, { kind: "annual", year });
+    expect(pf.items.some((i) => i.key === "pf.c.changedSince")).toBe(true);
   });
 });

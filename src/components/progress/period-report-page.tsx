@@ -117,6 +117,24 @@ export function PeriodReportPage() {
               {met} of {v.rows.length} targets met {annual ? "for the year" : "for the life of the project"}
               {v.open ? `; ${v.open} ${v.open === 1 ? "result" : "results"} from the period ${v.open === 1 ? "is" : "are"} still waiting for MEL and not counted` : ""}.
             </p>
+            {v.changed.length > 0 && (
+              <div id="changed" className="mt-4 scroll-mt-24 rounded-xl border border-clay/40 bg-clay-soft px-4 py-3 text-sm">
+                <p className="font-semibold text-clay">
+                  {v.changed.length === 1 ? "1 figure no longer matches" : `${v.changed.length} figures no longer match`} what a released quarterly report sent the donor
+                </p>
+                <ul className="mt-1 space-y-0.5">
+                  {v.changed.map((x) => (
+                    <li key={`${x.code}-${x.quarter}`}>
+                      {x.donorCode}, {x.quarter.replace("-", " ")}: {x.then.toLocaleString("en-US")} sent, {x.now.toLocaleString("en-US")} in the records now.{" "}
+                      <Link href={`/progress/results?indicator=${x.code}&q=${x.quarter}`} className="font-semibold text-forest underline">
+                        See the records
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-1 text-muted">This table uses the records as they are now. Say why each changed in the report, or put the record back if the change was a mistake.</p>
+              </div>
+            )}
             <div className="mt-4 overflow-x-auto rounded-2xl border border-line bg-surface print:overflow-visible">
               <table className="w-full min-w-[720px] text-sm">
                 <thead className="bg-sunken text-left text-xs text-muted">
