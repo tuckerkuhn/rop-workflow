@@ -72,6 +72,49 @@ export function DocumentViewer({
             </tbody>
           </table>
 
+          {d.ledger && (
+            <section className="mt-6">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">Accounting section</h3>
+              <div className="mt-2 overflow-x-auto">
+                <table className="w-full min-w-[40rem] text-xs">
+                  <thead className="border-b border-ink text-left text-muted">
+                    <tr>
+                      <th className="py-1.5 pr-2 font-semibold"></th>
+                      <th className="py-1.5 pr-2 font-semibold">GL code</th>
+                      <th className="py-1.5 pr-2 font-semibold">Dept</th>
+                      <th className="py-1.5 pr-2 font-semibold">Contract</th>
+                      <th className="py-1.5 pr-2 font-semibold">Budget code</th>
+                      <th className="py-1.5 pr-2 font-semibold">Location</th>
+                      <th className="py-1.5 pr-2 font-semibold">Description</th>
+                      <th className="py-1.5 pr-2 text-right font-semibold">AFS</th>
+                      <th className="py-1.5 text-right font-semibold">US$</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-line align-top">
+                    {d.ledger.lines.map((l, i) => (
+                      <tr key={i}>
+                        <td className="py-1.5 pr-2 font-semibold">{l.side}</td>
+                        <td className="py-1.5 pr-2">{l.gl}</td>
+                        <td className="py-1.5 pr-2">{l.dept}</td>
+                        <td className="py-1.5 pr-2">{l.contract}</td>
+                        <td className="py-1.5 pr-2">{l.budgetCode}</td>
+                        <td className="py-1.5 pr-2">{l.location}</td>
+                        <td className="py-1.5 pr-2">{l.description}</td>
+                        <td className="py-1.5 pr-2 text-right tabular-nums">{l.afn}</td>
+                        <td className="py-1.5 text-right tabular-nums">{l.usd}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="mt-2 text-xs tabular-nums">
+                Debits {d.ledger.totals.dr} · Credits {d.ledger.totals.cr} ·{" "}
+                <span className={d.ledger.balanced ? "font-semibold text-forest" : "font-semibold text-clay"}>{d.ledger.balanced ? "Balance" : "Out of balance"}</span>
+              </p>
+              <p className="text-xs text-muted">{d.ledger.rate}</p>
+            </section>
+          )}
+
           {d.notes.length > 0 && (
             <ul className="mt-6 space-y-1.5 text-xs leading-relaxed text-muted">
               {d.notes.map((n) => (

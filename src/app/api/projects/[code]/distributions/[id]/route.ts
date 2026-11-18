@@ -43,7 +43,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
       return NextResponse.json({ distribution: d, notePhoto: await noteOf(code, d), canDecide, canFix: mayFix(v.user, code), canCheckKobo, waiting: canDecide || canCheckKobo ? waiting : [] });
     }
     const d = await view(code, id);
-    return NextResponse.json({ distribution: d, notePhoto: await noteOf(code, d), canDecide: true, canFix: false });
+    // The photo can show farmers' names, so the email link alone does not open it: only a signed-in employee sees it.
+    const signedIn = await requireViewer(req, { allow: (u) => u.kind === "employee" });
+    const photo = await noteOf(code, d);
+    const shown = signedIn instanceof NextResponse ? null : photo;
+    return NextResponse.json({ distribution: d, notePhoto: shown, photoNeedsSignIn: !!photo && !shown, canDecide: true, canFix: false });
   });
 }
 

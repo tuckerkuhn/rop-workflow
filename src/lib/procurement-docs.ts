@@ -4,12 +4,20 @@
  */
 
 import { PROJECT, holderOf } from "@/lib/demo";
-import { bidUsd, levelFor, lineOf, registered, roleLabel, stepsFor, valueOf, type Money, type Procurement } from "@/lib/procurement";
+import { bidUsd, levelFor, lineOf, registered, roleLabel, stepsFor, valueOf, vendbillOf, type Money, type Procurement } from "@/lib/procurement";
 import { lastScreening } from "@/lib/suppliers";
-import { currentInstalment, expectedAfn, expectedUsd, invoiceUsd, receivedBefore, withholding } from "@/lib/payments";
+import { currentInstalment, expectedAfn, expectedUsd, invoiceUsd, receivedBefore, voucherBook, withholding } from "@/lib/payments";
+import { DEPARTMENTS, GL_EXPENSE, LOCATIONS, codeLabel } from "@/lib/voucher-codes";
 import { today } from "@/lib/clock";
 
-export type GeneratedDoc = { title: string; number: string; rows: [string, string][]; notes: string[] };
+export type GeneratedDoc = {
+  title: string;
+  number: string;
+  rows: [string, string][];
+  notes: string[];
+  /** The expense voucher's accounting section: debit and credit lines in afghani and dollars. */
+  ledger?: { lines: { side: "Dr" | "Cr"; gl: string; dept: string; contract: string; budgetCode: string; location: string; description: string; usd: string; afn: string }[]; totals: { dr: string; cr: string }; balanced: boolean; rate: string };
+};
 
 const slug = (doc: string) =>
   doc
@@ -57,29 +65,48 @@ export function documentFor(p: Procurement, doc: string, money: Money, other: Mo
 
   switch (doc) {
     case "Expense voucher": {
-      const signed = Object.entries(p.signatures).flatMap(([d, list]) => list.map((x) => `${x.as}: ${x.name}, ${x.date} (${d})`));
+      const v = p.voucher;
+      const book = voucherBook(p, v?.date ?? today());
+      const afs = (n: number) => (book.rate || cur === "AFN" ? `AFS ${Math.round(n).toLocaleString("en-US")}` : "—");
+      const usd = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      const fill = (x: string) => x || "[to code]";
       return {
         title: "Expense voucher",
-        number: p.voucher?.number ?? `EV-${p.id}`,
+        number: vendbillOf(v) ? `VENDBILL # ${vendbillOf(v)}` : "VENDBILL # [entered in NetSuite]",
         rows: [
-          ...base,
-          ["Payee", p.supplier?.name ?? "[supplier]"],
+          ["Expense voucher date", v?.date || "[date]"],
+          ["Accrued month", v?.month || "[month]"],
+          ["Payment from / to", p.supplier?.name ?? "[supplier]"],
+          ["Amount", `${usd(book.dr.usd)} USD`],
+          ["Memo", book.memo],
           ...instRow,
           ["Gross amount", p.invoice ? `${inCur(p.invoice.amount)}${cur === "AFN" && invoiceUsd(p.invoice) !== null ? ` (${money(invoiceUsd(p.invoice)!)})` : ""}` : `${both(value)} (order value; no invoice recorded)`],
           ["Tax withheld", tax ? `${inCur(tax.amount)} (${tax.pct}%), payable to the Ministry of Finance` : "—"],
           ["Net paid to supplier", p.invoice && tax ? inCur(p.invoice.amount - tax.amount) : "—"],
           ["Budget line", line ? `${line.code} ${line.name}` : p.budgetLine],
           ["Funding source", p.funding],
-          ["Activity", p.activity],
-          ["Order", `${p.id} · ${p.qty} ${p.unit}`],
+          ["Procurement", `${p.id} · ${p.qty} ${p.unit}`],
           ["Goods received", p.grn ? `${p.grn.qty} ${p.unit} at ${p.grn.place}` : "[goods received note]"],
           ["Invoice", p.invoice ? `${p.invoice.number ?? ""} ${p.invoice.date ?? ""} · ${inCur(p.invoice.amount)} for ${p.invoice.qty} ${p.unit}`.trim() : "[invoice]"],
-          ["Approvals", signed.join("; ") || "—"],
-          ["Filed in SharePoint", p.voucher?.sharepointUrl || "—"],
-          ["NetSuite reference", p.voucher?.netsuiteRef || "—"],
-          ["Closeout month", p.voucher?.month || "—"],
+          ["Filed in SharePoint", v?.sharepointUrl || "—"],
         ],
-        notes: ["Generated from the procurement record. File it in SharePoint, then post it in NetSuite, and record both above."],
+        ledger: {
+          lines: book.lines.map((l) => ({
+            side: l.side,
+            gl: fill(l.side === "Dr" ? codeLabel(GL_EXPENSE, l.gl) : l.gl),
+            dept: fill(codeLabel(DEPARTMENTS, l.dept)),
+            contract: fill(l.contract),
+            budgetCode: fill(l.budgetCode),
+            location: fill(codeLabel(LOCATIONS, l.location)),
+            description: l.description,
+            usd: usd(l.usd),
+            afn: afs(l.afn),
+          })),
+          totals: { dr: `${afs(book.dr.afn)} · ${usd(book.dr.usd)}`, cr: `${afs(book.cr.afn)} · ${usd(book.cr.usd)}` },
+          balanced: book.balanced,
+          rate: book.rate ? `Monthly average exchange rate: AFS ${book.rate} to USD 1` : "Monthly average exchange rate: [to add]",
+        },
+        notes: ["Generated from the procurement record. Enter it in NetSuite, type the VENDBILL number on the record, then file the signed voucher in SharePoint."],
       };
     }
     case "Purchase requisition":

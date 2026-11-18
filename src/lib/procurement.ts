@@ -14,6 +14,8 @@ import { DEMO_DATE, today } from "@/lib/clock";
 import { lastScreening, sameSupplierName, supplierGaps, type Supplier, screeningStale } from "@/lib/suppliers";
 import {
   closeInstalment,
+  voucherBook,
+  voucherGaps,
   contractCurrency,
   duplicateInvoices,
   invoiceMatches,
@@ -307,12 +309,31 @@ export type Procurement = {
 export type DocLink = { title: string; url: string; step: string; by: string; date: string };
 
 export type Voucher = {
+  /** The VENDBILL number NetSuite gives the bill when Finance enters it. It is the voucher's number. */
   number: string;
-  /** Month it belongs to for monthly closeout, "2027-03". */
+  /** Accrued month, for monthly closeout, "2027-03". */
   month: string;
   sharepointUrl: string;
+  /** Older records kept the NetSuite number here; new ones use `number`. */
   netsuiteRef: string;
+  /** Expense voucher date. */
+  date?: string;
+  /** Accounting codes (lib/voucher-codes): expense account, department, contract, budget code, location. */
+  gl?: string;
+  dept?: string;
+  contract?: string;
+  budgetCode?: string;
+  location?: string;
+  /** The bank or cash account it is paid from, typed by Finance ("1020 Citibank"). */
+  bankGl?: string;
+  /** The account the withheld tax is held in until it is paid to the Ministry of Finance. */
+  taxGl?: string;
+  /** Monthly average rate, afghani per dollar, from NetSuite. */
+  rate?: number;
 };
+
+/** The NetSuite VENDBILL number of a voucher, from either field. */
+export const vendbillOf = (v: Voucher | undefined) => (v?.number.trim() && !/^EV-/.test(v.number) ? v.number.trim() : v?.netsuiteRef.trim() || "");
 
 export const isSharePointUrl = (u: string) => /^https:\/\/[a-z0-9-]+\.sharepoint\.com\/\S+$/i.test(u.trim());
 
@@ -1300,29 +1321,68 @@ export const steps: Step[] = [
   {
     id: "voucher",
     stage: 6,
-    title: "Prepare the expense voucher and file it",
+    title: "Prepare the expense voucher and enter it in NetSuite",
     owner: "finance",
     levels: ALL,
-    action: "Record as filed",
-    done: "Expense voucher filed in SharePoint and posted in NetSuite",
-    produces: ["Expense voucher"],
-    signs: { doc: "Expense voucher", as: "Prepared by (finance)" },
-    note: "The voucher is generated from the record. File it in SharePoint, then post it in NetSuite.",
+    action: "Send for review",
+    done: "Expense voucher prepared and entered in NetSuite",
+    produces: [],
+    signs: { doc: "Expense voucher", as: "Prepared and entered by (finance)" },
+    note: "The voucher is generated from the record. Code it, enter the bill in NetSuite, and type the VENDBILL number NetSuite gives it.",
     checks: [
+      {
+        id: "coded",
+        label: "Coded: date, month, accounts, department, contract, budget code, location and rate",
+        why: "The codes decide where the cost lands in the ledger and in the donor's budget.",
+        tag: "Finance Manual",
+        auto: (p) => {
+          const gaps = voucherGaps(p);
+          return { ok: !gaps.length, detail: gaps.length ? `Add ${gaps.join(", ")}` : "Coded" };
+        },
+      },
       { id: "matches", label: "Payee, amount and budget line match the package", why: "The voucher is the accounting record of this purchase.", tag: "Finance Manual" },
+      {
+        id: "netsuite",
+        label: "Entered in NetSuite",
+        why: "NetSuite is the ledger; the VENDBILL number ties this record to it.",
+        tag: "CUR",
+        auto: (p) => {
+          const n = vendbillOf(p.voucher);
+          return { ok: !!n, detail: n ? `VENDBILL # ${n}` : "Type the VENDBILL number above" };
+        },
+      },
+    ],
+  },
+  {
+    id: "voucherReview",
+    stage: 6,
+    title: "Review and approve the expense voucher, then file it",
+    owner: "finance",
+    levels: ALL,
+    action: "Approve and record as filed",
+    done: "Expense voucher reviewed, approved and filed in SharePoint",
+    canReturn: true,
+    produces: ["Expense voucher"],
+    signs: { doc: "Expense voucher", as: "Reviewed and approved by (finance)" },
+    note: "A different Finance person from the one who prepared it. File the signed voucher in SharePoint.",
+    checks: [
+      {
+        id: "balance",
+        label: "Debits equal credits",
+        why: "An unbalanced voucher cannot be posted.",
+        tag: "Finance Manual",
+        auto: (p) => {
+          const b = voucherBook(p, p.voucher?.date ?? today());
+          return { ok: b.balanced, detail: b.balanced ? "Balance" : "Out of balance" };
+        },
+      },
+      { id: "codes", label: "Accounts and codes are right for this cost", why: "A second Finance person checks the coding before it is filed.", tag: "Finance Manual" },
       {
         id: "sharepoint",
         label: "Filed in SharePoint",
         why: "The voucher and the package are kept together where auditors look.",
         tag: "CUR",
         auto: (p) => ({ ok: !!p.voucher && isSharePointUrl(p.voucher.sharepointUrl), detail: p.voucher?.sharepointUrl ? (isSharePointUrl(p.voucher.sharepointUrl) ? "Link recorded" : "That is not a SharePoint link") : "Paste the SharePoint link above" }),
-      },
-      {
-        id: "netsuite",
-        label: "Posted in NetSuite",
-        why: "NetSuite is the ledger; the reference ties this record to it.",
-        tag: "CUR",
-        auto: (p) => ({ ok: !!p.voucher?.netsuiteRef.trim(), detail: p.voucher?.netsuiteRef.trim() ? `NetSuite ${p.voucher.netsuiteRef.trim()}` : "Add the NetSuite reference above" }),
       },
     ],
   },
@@ -1708,3 +1768,12 @@ export const issueHelp: Record<Issue["type"], string> = {
   "Post-facto action": "Something was done without the approval it needed. Write what happened, why, the cost and the prevention.",
   "Objection memo": "You think this should be delayed, changed or cancelled. It stays on file; the approver still decides.",
 };
+
+/** The project's last coded voucher, same budget line first: a new voucher starts from its codes. */
+export function lastVoucher(set: Procurement[], p: Procurement): Voucher | undefined {
+  const all = set
+    .flatMap((q) => [...(q.payments ?? []).map((r) => ({ v: r.voucher, line: q.budgetLine })), ...(q.id === p.id ? [] : [{ v: q.voucher, line: q.budgetLine }])])
+    .filter((x): x is { v: Voucher; line: string } => !!x.v?.gl)
+    .sort((a, b) => (b.v.date ?? b.v.month).localeCompare(a.v.date ?? a.v.month));
+  return (all.find((x) => x.line === p.budgetLine) ?? all[0])?.v;
+}

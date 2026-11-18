@@ -74,6 +74,8 @@ import {
   type DocLink,
   requesterOf,
   soloBarred,
+  lastVoucher,
+  type Voucher,
 } from "@/lib/procurement";
 import { holdersOfType } from "@/lib/authority";
 import { ROLE_LABEL } from "@/lib/hr";
@@ -455,7 +457,10 @@ function Detail({
   register,
   links,
   viaField = false,
+  previousVoucher,
 }: {
+  /** The project's last coded voucher (same budget line first): a new voucher starts from its codes. */
+  previousVoucher?: Voucher;
   register?: SupplierRow[] | null;
   /** Its goods are in the Field input package: handed out farmer by farmer in Field activities. */
   viaField?: boolean;
@@ -676,10 +681,12 @@ function Detail({
           {p.step === "contract" && <SchedulePanel p={p} editable={mine} update={update} />}
           {p.step === "receive" && <ReceiptPanel p={p} editable={mine} update={update} />}
           {p.step === "payForm" && <PayFormPanel p={p} editable={mine} update={update} />}
-          {(p.step === "payReady" || p.step === "approvePay" || p.step === "voucher") && <PayFormSummary p={p} />}
+          {(p.step === "payReady" || p.step === "approvePay" || p.step === "voucher" || p.step === "voucherReview") && <PayFormSummary p={p} />}
           {p.step === "paid" && <PaidPanel p={p} editable={mine} update={update} />}
           {user && (receivedQty(p) > 0 || p.distribution) && <DistributionPanel p={p} viaField={viaField} resultLink={links ? (people) => resultHref(links.project, { from: p.id, ...people, note: `${p.id}: ${p.title} handed to ${people.value} people (${people.female} women)${people.place ? ` at ${people.place}` : ""}, from signed distribution lists.` }) : undefined} canEdit={user.procurementAccess === "edit"} update={update} me={{ id: user.id, name: user.name }} />}
-          {p.step === "voucher" && <VoucherPanel p={p} editable={mine} update={update} />}
+          {(p.step === "voucher" || p.step === "voucherReview") && (
+            <VoucherPanel p={p} editable={mine} update={update} previous={previousVoucher} preparedByMe={!!user && (p.signatures["Expense voucher"] ?? []).some((x) => x.as === "Prepared and entered by (finance)" && x.name === user.name)} />
+          )}
           {step.checks.some((c) => c.ai) && <AiCheck p={p} editable={mine} onCheck={onCheck} />}
           <ul className="divide-y divide-line px-5">
             {step.checks.map((c) => {
@@ -1038,7 +1045,7 @@ export function ProcurementWorkspace() {
           )
         ) : current ? (
           <div className="mx-auto max-w-3xl">
-            <Detail key={current.id} register={register} p={current} viaField={packageLines.includes(current.budgetLine)} links={{ project: project.id, activity: activityOf(current) }} role={role} update={update(current.id)} onBack={() => setMobileDetail(false)} onDraft={(kind) => draftDoc(current.id, kind)} onCheck={() => runCheck(current.id, current.step)} />
+            <Detail key={current.id} register={register} p={current} previousVoucher={lastVoucher(items, current)} viaField={packageLines.includes(current.budgetLine)} links={{ project: project.id, activity: activityOf(current) }} role={role} update={update(current.id)} onBack={() => setMobileDetail(false)} onDraft={(kind) => draftDoc(current.id, kind)} onCheck={() => runCheck(current.id, current.step)} />
           </div>
         ) : (
           <div className="grid h-full place-items-center py-24 text-center">

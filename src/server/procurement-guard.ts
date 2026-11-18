@@ -95,7 +95,7 @@ const FIELD_STEPS: Record<string, string[]> = {
   schedule: ["contract"],
   grn: ["receive"],
   invoice: ["payForm"],
-  voucher: ["voucher"],
+  voucher: ["voucher", "voucherReview"],
   paid: ["paid"],
   plan: [],
   budgetLine: [],
@@ -230,6 +230,7 @@ export function validateProcurementSave(prev: Procurement | undefined, next: Pro
     } else {
       const atStep = { ...next, step: prev.step };
       if (!archived && !ready(atStep)) return `“${stepById[prev.step]?.title ?? prev.step}” is not complete: finish its checks, review its document and close blocking issues first.`;
+      if (prev.step === "voucherReview" && (prev.signatures["Expense voucher"] ?? []).some((x) => x.as === "Prepared and entered by (finance)" && x.name === u.name)) return "The voucher must be reviewed and approved by someone other than the person who prepared it.";
       if (prev.step === "verifyPay" && (prev.signatures["Payment approval form"] ?? []).some((x) => x.as === "Checked by (finance)" && x.name === u.name)) return "The second Finance check must be done by someone other than the first.";
       if (!archived && next.step !== nextStep(atStep)) return `That is not the next step after “${stepById[prev.step]?.title ?? prev.step}”.`;
     }
@@ -263,6 +264,9 @@ export function validateProcurementSave(prev: Procurement | undefined, next: Pro
   // Each part of the record changes only at its own steps.
   const outOfStep = fieldsChanged.find((k) => k in FIELD_STEPS && !FIELD_STEPS[k].includes(prev.step));
   if (outOfStep) return `${outOfStep} cannot change at “${stepById[prev.step]?.title ?? prev.step}”.`;
+  // The reviewer files the voucher; its coding and number stay as the preparer entered them in NetSuite.
+  if (prev.step === "voucherReview" && fieldsChanged.includes("voucher") && !same({ ...prev.voucher, sharepointUrl: "" }, { ...next.voucher, sharepointUrl: "" }))
+    return "At review only the SharePoint link is added. To change the coding, send the voucher back to the person who prepared it.";
   if (fieldsChanged.length && !ownsStep) return `Only the ${owner ? roleLabel(owner) : "step's owner"} can change this procurement's details at “${stepById[prev.step]?.title ?? prev.step}” (${fieldsChanged.slice(0, 3).join(", ")}).`;
   return null;
 }

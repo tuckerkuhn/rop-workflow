@@ -71,7 +71,7 @@ export function setPaymentRules(values: Record<string, unknown>) {
 export const TAX_SOURCE = "Income Tax Law 2009 Art. 72 (Guide 21)";
 
 /** The steps that repeat for each instalment, in order. */
-export const PAY_LOOP = ["receive", "package", "payForm", "payReady", "verifyPay", "approvePay", "voucher", "paid"] as const;
+export const PAY_LOOP = ["receive", "package", "payForm", "payReady", "verifyPay", "approvePay", "voucher", "voucherReview", "paid"] as const;
 /** Documents made once per instalment. */
 export const PAY_DOCS = ["Goods received note", "Procurement package", "Payment approval form", "Checklist pass 2", "Expense voucher"];
 
@@ -297,3 +297,58 @@ export function asPaid(p: Procurement, r: PaymentRecord): Procurement {
 
 /** Paid instalments whose withheld tax has not been recorded as remitted. */
 export const taxOutstanding = (p: Procurement) => paidSoFar(p).filter((r) => r.tax.amount > 0 && !r.paid.taxRef);
+
+
+/* ---------- Expense voucher ---------- */
+
+export type VoucherLine = { side: "Dr" | "Cr"; gl: string; dept: string; contract: string; budgetCode: string; location: string; description: string; usd: number; afn: number };
+export type VoucherBook = { memo: string; rate: number | null; lines: VoucherLine[]; dr: { usd: number; afn: number }; cr: { usd: number; afn: number }; balanced: boolean };
+
+/**
+ * The voucher's accounting section, as on ROP's Excel expense voucher: the expense is debited
+ * gross; the bank is credited the net paid and, when tax is withheld, the tax account the rest.
+ * Afghani at the voucher's monthly average rate (an afghani invoice keeps its own amounts).
+ */
+export function voucherBook(p: Procurement, on: string): VoucherBook {
+  const v = p.voucher;
+  const inv = p.invoice;
+  const rate = v?.rate && v.rate > 0 ? v.rate : inv?.currency === "AFN" && inv.rate && inv.rate > 0 ? inv.rate : null;
+  const afnInvoice = inv?.currency === "AFN";
+  const gross = inv?.amount ?? 0;
+  const tax = withholding(p, on)?.amount ?? 0;
+  const both = (n: number) => (afnInvoice ? { afn: Math.round(n), usd: rate ? round2(n / rate) : 0 } : { usd: round2(n), afn: rate ? Math.round(n * rate) : 0 });
+  const inst = currentInstalment(p);
+  const memo = `${inst.of > 1 ? `${inst.label} (${inst.pct}%) ` : ""}Payment to ${p.supplier?.name ?? "[supplier]"} for ${p.qty} ${p.unit} ${p.title} (${p.id})`;
+  const codes = { contract: v?.contract ?? "", budgetCode: v?.budgetCode ?? p.budgetLine, location: v?.location ?? "" };
+  const lines: VoucherLine[] = [
+    { side: "Dr", gl: v?.gl ?? "", dept: v?.dept ?? "", ...codes, description: memo, ...both(gross) },
+    { side: "Cr", gl: v?.bankGl ?? "", dept: "11", ...codes, description: `Account for payment: ${memo}`, ...both(gross - tax) },
+    ...(tax > 0 ? [{ side: "Cr" as const, gl: v?.taxGl ?? "", dept: "11", ...codes, description: `Tax withheld from ${p.supplier?.name ?? "the supplier"}, payable to the Ministry of Finance`, ...both(tax) }] : []),
+  ];
+  // Rounding each line separately can leave the afghani or cents a unit apart; put it on the bank line, as Finance would.
+  const sum = (side: "Dr" | "Cr", k: "usd" | "afn") => round2(lines.filter((l) => l.side === side).reduce((s, l) => s + l[k], 0));
+  for (const k of ["usd", "afn"] as const) {
+    const gap = round2(sum("Dr", k) - sum("Cr", k));
+    if (gap && Math.abs(gap) <= (k === "afn" ? 2 : 0.02)) lines[1][k] = round2(lines[1][k] + gap);
+  }
+  const dr = { usd: sum("Dr", "usd"), afn: sum("Dr", "afn") };
+  const cr = { usd: sum("Cr", "usd"), afn: sum("Cr", "afn") };
+  return { memo, rate, lines, dr, cr, balanced: dr.usd === cr.usd && dr.afn === cr.afn && gross > 0 };
+}
+
+/** What the voucher still needs before it can be entered in NetSuite. */
+export function voucherGaps(p: Procurement): string[] {
+  const v = p.voucher;
+  return [
+    !v?.date && "the voucher date",
+    !v?.month && "the accrued month",
+    !v?.gl?.trim() && "the expense account",
+    !v?.dept?.trim() && "the department",
+    !v?.contract?.trim() && "the contract",
+    !(v?.budgetCode ?? p.budgetLine)?.trim() && "the budget code",
+    !v?.location?.trim() && "the location",
+    !v?.bankGl?.trim() && "the account it is paid from",
+    (withholding(p, v?.date ?? "")?.amount ?? 0) > 0 && !v?.taxGl?.trim() && "the account for the withheld tax",
+    !(v?.rate && v.rate > 0) && !(p.invoice?.currency === "AFN" && p.invoice.rate) && "the monthly average rate",
+  ].filter((x): x is string => !!x);
+}

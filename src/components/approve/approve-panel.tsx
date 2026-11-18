@@ -23,6 +23,8 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
   const { user, ready } = useSession();
   const [d, setD] = useState<DistView | null>(null);
   const [notePhoto, setNotePhoto] = useState<{ src: string; date: string } | null>(null);
+  // From the email link without signing in, the photo is held back: it can show farmers' names.
+  const [photoNeedsSignIn, setPhotoNeedsSignIn] = useState(false);
   const [canDecide, setCanDecide] = useState(false);
   const [canFix, setCanFix] = useState(false);
   const [canCheckKobo, setCanCheckKobo] = useState(false);
@@ -47,6 +49,7 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
     const dist = body.distribution as DistView;
     setD(dist);
     setNotePhoto(body.notePhoto ?? null);
+    setPhotoNeedsSignIn(!!body.photoNeedsSignIn);
     setCanDecide(body.canDecide);
     setCanFix(!!body.canFix);
     setCanCheckKobo(!!body.canCheckKobo);
@@ -132,8 +135,16 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
             </ul>
             <p className="mt-2 text-sm text-muted">
               Recipient: {d.gender ?? "sex not recorded"} · Signature or thumbprint: {d.signed ? "confirmed" : "not confirmed"} · Photo of the signed goods received note:{" "}
-              {d.photo ? (d.source === "kobo" ? "attached in KoboToolbox" : "below") : "missing"}
+              {d.photo ? (d.source === "kobo" ? "attached in KoboToolbox" : photoNeedsSignIn ? "sign in to see it" : "below") : "missing"}
             </p>
+            {photoNeedsSignIn && (
+              <p className="mt-2 text-sm">
+                The photo can show farmers&rsquo; names, so it opens only when you are signed in.{" "}
+                <Link href={`/approve/${encodeURIComponent(code)}/${id}`} className="font-medium text-forest underline">
+                  Sign in to see the photo
+                </Link>
+              </p>
+            )}
             {notePhoto && (
               <figure className="mt-3">
                 {/* eslint-disable-next-line @next/next/no-img-element -- a stored data URL, not a static asset */}
