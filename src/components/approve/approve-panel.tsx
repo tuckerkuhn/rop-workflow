@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useSession } from "@/components/app/session";
 import { primaryBtn, quietBtn } from "@/components/workspace/ui";
 import type { DistView } from "@/server/distribution";
+import { qtyUnit } from "@/lib/package";
 
 /**
  * The project manager's one screen for an input distribution: what went out, the goods received
@@ -21,6 +22,7 @@ const fixable = (d: DistView) => [...d.items, ...d.planned.filter((p) => !d.item
 export function ApprovePanel({ code, id, token }: { code: string; id: string; token: string }) {
   const { user, ready } = useSession();
   const [d, setD] = useState<DistView | null>(null);
+  const [notePhoto, setNotePhoto] = useState<{ src: string; date: string } | null>(null);
   const [canDecide, setCanDecide] = useState(false);
   const [canFix, setCanFix] = useState(false);
   const [canCheckKobo, setCanCheckKobo] = useState(false);
@@ -44,6 +46,7 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
     if (!res.ok) return setError(body.error ?? `Could not open it (${res.status}).`);
     const dist = body.distribution as DistView;
     setD(dist);
+    setNotePhoto(body.notePhoto ?? null);
     setCanDecide(body.canDecide);
     setCanFix(!!body.canFix);
     setCanCheckKobo(!!body.canCheckKobo);
@@ -122,14 +125,24 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
             <ul className="mt-1 text-sm">
               {d.items.map((i) => (
                 <li key={i.key}>
-                  {i.qty} {i.unit} {i.item}
+                  {qtyUnit(i.qty, i.unit)} {i.item}
                 </li>
               ))}
               {!d.items.length && <li className="text-clay">Nothing is recorded as given.</li>}
             </ul>
             <p className="mt-2 text-sm text-muted">
-              Recipient: {d.gender ?? "sex not recorded"} · Signature or thumbprint: {d.signed ? "confirmed" : "not confirmed"} · Photo of the signed list: {d.photo ? "attached" : "missing"}
+              Recipient: {d.gender ?? "sex not recorded"} · Signature or thumbprint: {d.signed ? "confirmed" : "not confirmed"} · Photo of the signed goods received note:{" "}
+              {d.photo ? (d.source === "kobo" ? "attached in KoboToolbox" : "below") : "missing"}
             </p>
+            {notePhoto && (
+              <figure className="mt-3">
+                {/* eslint-disable-next-line @next/next/no-img-element -- a stored data URL, not a static asset */}
+                <img src={notePhoto.src} alt={`Signed goods received note for ${d.farmerId}`} className="max-h-96 w-full rounded-lg border border-line bg-mist object-contain" />
+                <figcaption className="mt-1 text-xs text-muted">
+                  Signed goods received note, photographed {notePhoto.date}. Check the signature or thumbprint and the quantities before approving.
+                </figcaption>
+              </figure>
+            )}
           </section>
 
           <section className="mt-4 rounded-xl border border-line bg-surface px-4 py-3">

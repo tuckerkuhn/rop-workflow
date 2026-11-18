@@ -363,9 +363,13 @@ function Detail({
                       <span className="font-semibold text-clay">Sent back by the project manager:</span> {awaiting.note}
                     </p>
                   )}
-                  <Link href={`/approve/${encodeURIComponent(projectCode)}/${awaiting.id}`} className="btn-link mt-3">
-                    {awaiting.status === "pending" ? "See the distribution record →" : "Fix it and send it again →"}
-                  </Link>
+                  {awaiting.id ? (
+                    <Link href={`/approve/${encodeURIComponent(projectCode)}/${awaiting.id}`} className="btn-link mt-3">
+                      {awaiting.status === "pending" ? "See the distribution record →" : "Fix it and send it again →"}
+                    </Link>
+                  ) : (
+                    <p className="mt-2 text-xs text-muted">Saving the record…</p>
+                  )}
                 </div>
               )}
               {mine && !awaiting && (

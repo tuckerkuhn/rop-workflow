@@ -4,7 +4,8 @@
  */
 
 import { PROJECT, holderOf } from "@/lib/demo";
-import { bidUsd, levelFor, lineOf, roleLabel, valueOf, type Money, type Procurement } from "@/lib/procurement";
+import { bidUsd, levelFor, lineOf, registered, roleLabel, stepsFor, valueOf, type Money, type Procurement } from "@/lib/procurement";
+import { lastScreening } from "@/lib/suppliers";
 import { currentInstalment, expectedAfn, expectedUsd, invoiceUsd, receivedBefore, withholding } from "@/lib/payments";
 import { today } from "@/lib/clock";
 
@@ -141,6 +142,47 @@ export function documentFor(p: Procurement, doc: string, money: Money, other: Mo
         ],
         notes: [level === "Large" || level === "Medium" ? "The comparative bid matrix and the committee's reasoning are attached." : "Each quotation's signed copy is filed in SharePoint with this record."],
       };
+    case "Screening record": {
+      // What was screened, against which lists, with what result: from the supplier register.
+      const r = registered(p);
+      const sc = r ? lastScreening(r) : null;
+      return {
+        title: "Screening record",
+        number,
+        rows: [
+          ...base,
+          ["Value", both(chosen ? (bidUsd(chosen) ?? value) : value)],
+          ["Supplier", p.supplier?.name ?? chosen?.supplier ?? "Not chosen yet"],
+          ...(r ? ([["Supplier register", r.id]] as [string, string][]) : []),
+          ["Screened on", sc?.date ?? p.supplier?.screenedOn ?? "Not screened yet"],
+          ["Lists checked", sc?.lists ?? "—"],
+          ["Result", sc ? (sc.result === "clear" ? "Clear: no match on any list" : `Match: ${sc.note || "see the evidence"}`) : "—"],
+          ...(sc?.note && sc.result === "clear" ? ([["Note", sc.note]] as [string, string][]) : []),
+          ["Screening evidence", sc?.evidence ?? "—"],
+          ["Recorded in the register by", sc?.byName ?? "—"],
+        ],
+        notes: ["Screened before award against every list the rules require; any match is resolved with reasons before anything is committed to the supplier."],
+      };
+    }
+    case "Due diligence": {
+      const r = registered(p);
+      return {
+        title: "Due diligence",
+        number,
+        rows: [
+          ...base,
+          ["Supplier", p.supplier?.name ?? chosen?.supplier ?? "Not chosen yet"],
+          ...(r ? ([["Supplier register", r.id]] as [string, string][]) : []),
+          ["Licence", r?.licenceNo ? `${r.licenceNo}, valid to ${r.licenceExpiry || "[expiry not recorded]"}` : "Not on file"],
+          ["Licence evidence", r?.licenceEvidence || "—"],
+          // The owner's ID number stays in the register; the document only says it was seen.
+          ["Owner's ID (tazkira)", r?.ownerId ? "On file in the supplier register" : "Not on file"],
+          ["Bank details", r?.bank ? `${r.bank.bank}, account ending ${r.bank.accountEnd}; confirmed by ${r.bank.confirmedByName} on ${r.bank.on} (${r.bank.how})` : "Not confirmed"],
+          ["No staff connection", r?.noStaffLink ? `Declaration filed ${r.noStaffLink.on}` : "No declaration on file"],
+        ],
+        notes: ["Evidence (licence, bank letter, declaration) stays in SharePoint; the supplier register keeps the links and who checked each one."],
+      };
+    }
     case "Contract / PO":
       return {
         title: level === "Large" ? "Supply contract" : "Purchase order",
@@ -170,7 +212,11 @@ export function documentFor(p: Procurement, doc: string, money: Money, other: Mo
           ["Place of receipt", p.grn?.place ?? p.place],
           ["Requesting department", holder],
         ],
-        notes: ["Inspected against the contract, the delivery note and the invoice by the person who requested the goods."],
+        notes: [
+          stepsFor(p).some((s) => s.id === "contract")
+            ? "Inspected against the contract, the delivery note and the invoice by the person who requested the goods."
+            : "Inspected against the specification, the chosen quotation and the delivery note by the person who requested the goods (a micro purchase has no contract).",
+        ],
       };
     case "Checklist pass 2":
       return {

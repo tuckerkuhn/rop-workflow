@@ -7,7 +7,7 @@ import { handle } from "@/server/guard";
 import { loadProcurements, saveProcurements } from "@/server/procurement-store";
 import { db } from "@/db";
 import { logAudit } from "@/server/audit";
-import { projectByCode } from "@/server/field-store";
+import { projectByCode, setupOf } from "@/server/field-store";
 import { DEMO_PROJECT, applyProcurementContext, describeProcurementSave, loadProcurementContext, validateProcurementSave } from "@/server/procurement-guard";
 import { loadPlan } from "@/server/procurement-plan-store";
 import { loadGrantBook } from "@/server/grants-store";
@@ -19,7 +19,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
   return handle(async () => {
     const v = await requireViewer(req, { allow: (u) => u.procurementAccess !== "none" });
     if (v instanceof NextResponse) return v;
-    return NextResponse.json({ items: await loadProcurements(code) });
+    // The budget lines the Field input package draws from: goods on them are handed out farmer by
+    // farmer in Field activities, and each approved distribution is added to the purchase's list.
+    const setup = await setupOf(await projectByCode(code)).catch(() => null);
+    const packageLines = [...new Set((setup?.items ?? []).map((i) => i.budgetLine).filter(Boolean))];
+    return NextResponse.json({ items: await loadProcurements(code), packageLines });
   });
 }
 

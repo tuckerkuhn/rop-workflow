@@ -59,6 +59,7 @@ import {
   stages,
   stepById,
   stepsFor,
+  actionFor,
   valueOf,
   type Issue,
   type Procurement,
@@ -453,8 +454,11 @@ function Detail({
   onCheck,
   register,
   links,
+  viaField = false,
 }: {
   register?: SupplierRow[] | null;
+  /** Its goods are in the Field input package: handed out farmer by farmer in Field activities. */
+  viaField?: boolean;
   /** Where it sits among the other workflows: its project, and the workplan sub-activity it serves. */
   links?: { project: string; activity: { code: string; title: string } | null };
   p: Procurement;
@@ -541,7 +545,7 @@ function Detail({
       </div>
 
       <div className="rounded-2xl border border-line bg-surface px-4 py-4">
-        <Tracker labels={stages} current={p.step === DONE ? stages.length : step.stage} marks={gates} />
+        <Tracker labels={stages} current={p.step === DONE ? stages.length : step.stage} marks={gates} skipped={stages.map((_, i) => i).filter((i) => !stepsFor(p).some((s) => s.stage === i))} />
       </div>
 
       {p.step === DONE ? (
@@ -578,7 +582,7 @@ function Detail({
                       <p className="text-sm text-warn">The person who requested a purchase cannot approve it, so someone else signs here.{ownBarred && solo ? ` ${ownBarred}` : ""}</p>
                     ) : (
                       <button type="button" disabled={!isReady} onClick={() => (mayOwn ? setSelfing(true) : complete())} className={primaryBtn}>
-                        {step.signs && !/^sign\b/i.test(step.action) ? `Sign and ${lowerFirst(step.action)}` : step.action} →
+                        {step.signs && !/^sign\b/i.test(actionFor(p, step)) ? `Sign and ${lowerFirst(actionFor(p, step))}` : actionFor(p, step)} →
                       </button>
                     )}
                     {selfing && (
@@ -674,7 +678,7 @@ function Detail({
           {p.step === "payForm" && <PayFormPanel p={p} editable={mine} update={update} />}
           {(p.step === "payReady" || p.step === "approvePay" || p.step === "voucher") && <PayFormSummary p={p} />}
           {p.step === "paid" && <PaidPanel p={p} editable={mine} update={update} />}
-          {user && (receivedQty(p) > 0 || p.distribution) && <DistributionPanel p={p} resultLink={links ? (people) => resultHref(links.project, { from: p.id, ...people, note: `${p.id}: ${p.title} handed to ${people.value} people (${people.female} women)${people.place ? ` at ${people.place}` : ""}, from signed distribution lists.` }) : undefined} canEdit={user.procurementAccess === "edit"} update={update} me={{ id: user.id, name: user.name }} />}
+          {user && (receivedQty(p) > 0 || p.distribution) && <DistributionPanel p={p} viaField={viaField} resultLink={links ? (people) => resultHref(links.project, { from: p.id, ...people, note: `${p.id}: ${p.title} handed to ${people.value} people (${people.female} women)${people.place ? ` at ${people.place}` : ""}, from signed distribution lists.` }) : undefined} canEdit={user.procurementAccess === "edit"} update={update} me={{ id: user.id, name: user.name }} />}
           {p.step === "voucher" && <VoucherPanel p={p} editable={mine} update={update} />}
           {step.checks.some((c) => c.ai) && <AiCheck p={p} editable={mine} onCheck={onCheck} />}
           <ul className="divide-y divide-line px-5">
@@ -782,7 +786,7 @@ export function ProcurementWorkspace() {
   const { user } = useRequireUser();
   const myRoles = procRolesFor(user);
   const { project } = useCurrentProject();
-  const { items, setItems, error, reset, draft: draftDoc, check: runCheck } = useProcurements(project.id);
+  const { items, packageLines, setItems, error, reset, draft: draftDoc, check: runCheck } = useProcurements(project.id);
   const plan = usePlan(project.saved ? project.id : null);
   const donors = useDonors(project.id);
   const [planKey, setPlanKey] = useState<string | null>(null);
@@ -1034,7 +1038,7 @@ export function ProcurementWorkspace() {
           )
         ) : current ? (
           <div className="mx-auto max-w-3xl">
-            <Detail key={current.id} register={register} p={current} links={{ project: project.id, activity: activityOf(current) }} role={role} update={update(current.id)} onBack={() => setMobileDetail(false)} onDraft={(kind) => draftDoc(current.id, kind)} onCheck={() => runCheck(current.id, current.step)} />
+            <Detail key={current.id} register={register} p={current} viaField={packageLines.includes(current.budgetLine)} links={{ project: project.id, activity: activityOf(current) }} role={role} update={update(current.id)} onBack={() => setMobileDetail(false)} onDraft={(kind) => draftDoc(current.id, kind)} onCheck={() => runCheck(current.id, current.step)} />
           </div>
         ) : (
           <div className="grid h-full place-items-center py-24 text-center">

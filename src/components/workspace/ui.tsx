@@ -60,10 +60,20 @@ export function SectionLabel({ children }: { children: React.ReactNode }) {
 }
 
 /** Horizontal progress: done, current, upcoming. `marks` labels a stage (e.g. a gate). */
-export function Tracker({ labels, current, marks = {}, warn = false }: { labels: string[]; current: number; marks?: Record<number, string>; warn?: boolean }) {
+export function Tracker({ labels, current, marks = {}, warn = false, skipped = [] }: { labels: string[]; current: number; marks?: Record<number, string>; warn?: boolean; skipped?: number[] }) {
   return (
     <ol className="flex items-start" aria-label="Progress">
       {labels.map((label, i) => {
+        // A stage this record does not go through (a micro purchase has no award or contract): shown as not needed, never as done.
+        if (skipped.includes(i))
+          return (
+            <li key={label} className="relative flex flex-1 flex-col items-center text-center" title={`${label}: not needed for this one`}>
+              {i > 0 && <span aria-hidden className={`absolute right-1/2 top-[11px] h-0.5 w-full ${i <= current ? "bg-forest" : "bg-line"}`} />}
+              <span className="relative z-10 grid h-6 w-6 place-items-center rounded-full border-2 border-dashed border-line bg-surface text-[10px] text-muted">–</span>
+              <span className="mt-1.5 hidden text-[11px] leading-tight text-muted line-through sm:block">{label}</span>
+              <span className="mt-0.5 hidden text-[9px] text-muted sm:block">not needed</span>
+            </li>
+          );
         const done = i < current;
         const now = i === current;
         const nowTone = warn ? "border-clay text-clay ring-clay/15" : "border-forest text-forest ring-forest/15";

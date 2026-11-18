@@ -1391,6 +1391,11 @@ export const steps: Step[] = [
 export const stepById = Object.fromEntries(steps.map((s) => [s.id, s])) as Record<string, Step>;
 /** The steps this procurement goes through under the rules in force. A step already under way stays in its path even if the rules have since changed. */
 export const stepsFor = (p: Procurement) => steps.filter((s) => s.id === p.step || (s.levels.includes(levelFor(valueOf(p))) && (!s.when || s.when(p))));
+/**
+ * The button's words for this record's step. Screening leads to the award where there is one; a
+ * micro purchase has no award or contract, so the supplier is cleared to deliver straight away.
+ */
+export const actionFor = (p: Procurement, s: Step) => (s.id === "screen" && !stepsFor(p).some((x) => x.id === "approveAward") ? "Clear the supplier to deliver" : s.action);
 export const DONE = "done";
 
 export function nextStep(p: Procurement): string {

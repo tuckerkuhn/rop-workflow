@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { people, requireViewer } from "@/server/auth";
-import { checkKoboDistribution, decideDistribution, listDistributions, mayApprove, mayFix, resubmitDistribution, tokenOpens } from "@/server/distribution";
+import { checkKoboDistribution, decideDistribution, listDistributions, mayApprove, mayFix, resubmitDistribution, signedNotePhoto, tokenOpens } from "@/server/distribution";
 import { handle, HttpError, readBody } from "@/server/guard";
 
 /**
@@ -15,6 +15,9 @@ async function view(code: string, id: string) {
   if (!d) throw new HttpError(404, "That distribution is not on this project.");
   return d;
 }
+
+/** The signed note's photo for the approver to see; app records only (lib/field Photo.signedNote). */
+const noteOf = (code: string, d: { source?: string; farmerId: string }) => (d.source === "kobo" ? Promise.resolve(null) : signedNotePhoto(code, d.farmerId));
 
 export async function GET(req: Request, { params }: { params: Promise<{ code: string; id: string }> }) {
   const { code: raw, id } = await params;
@@ -37,9 +40,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
         .filter((x) => x.id !== id && x.status === "pending" && (canDecide ? !x.koboCheck.needed && x.approvers.includes(v.user.id) : x.koboCheck.needed && x.koboCheck.who.includes(v.user.id)))
         .reverse()
         .map((x) => ({ id: x.id, farmerId: x.farmerId }));
-      return NextResponse.json({ distribution: d, canDecide, canFix: mayFix(v.user, code), canCheckKobo, waiting: canDecide || canCheckKobo ? waiting : [] });
+      return NextResponse.json({ distribution: d, notePhoto: await noteOf(code, d), canDecide, canFix: mayFix(v.user, code), canCheckKobo, waiting: canDecide || canCheckKobo ? waiting : [] });
     }
-    return NextResponse.json({ distribution: await view(code, id), canDecide: true, canFix: false });
+    const d = await view(code, id);
+    return NextResponse.json({ distribution: d, notePhoto: await noteOf(code, d), canDecide: true, canFix: false });
   });
 }
 

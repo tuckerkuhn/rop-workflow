@@ -131,3 +131,35 @@ describe("source selection memo", () => {
     expect(rows["Quotations"]).toBe("Low Co: USD 480 (chosen); Mid Co: USD 520");
   });
 });
+
+describe("screening record and due diligence", () => {
+  it("name the supplier, the lists, the result and the bank's last digits from the register, never the owner's ID number", async () => {
+    const { documentFor } = await import("@/lib/procurement-docs");
+    const { setSupplierRegister } = await import("@/lib/procurement");
+    const usd = (n: number) => "USD " + n;
+    setSupplierRegister([
+      {
+        id: "SUP-1", name: "Test Co (fictional)", aka: [], licenceNo: "LIC-1", licenceExpiry: "2027-12-31", licenceEvidence: "https://x.sharepoint.com/l", ownerId: "TZ-999", phone: "", address: "",
+        bank: { bank: "Test Bank", accountEnd: "0000", evidence: "https://x.sharepoint.com/b", confirmedBy: "yusuf", confirmedByName: "Yusuf", on: "2026-11-17", how: "call" },
+        screenings: [{ date: "2026-11-17", lists: "UN, OFAC", result: "clear", note: "", evidence: "https://x.sharepoint.com/s", by: "zahra", byName: "Zahra" }],
+        noStaffLink: { on: "2026-11-17", evidence: "https://x.sharepoint.com/d" }, status: "active", suspendedWhy: "", history: [],
+      },
+    ]);
+    const p = { ...base(), supplier: { id: "SUP-1", name: "Test Co (fictional)", screenedOn: "2026-11-17" } } as unknown as Procurement;
+    const sr = Object.fromEntries(documentFor(p, "Screening record", usd, usd).rows);
+    expect(sr).toMatchObject({ Supplier: "Test Co (fictional)", "Screened on": "2026-11-17", "Lists checked": "UN, OFAC", Result: "Clear: no match on any list" });
+    const dd = documentFor(p, "Due diligence", usd, usd);
+    const rows = Object.fromEntries(dd.rows);
+    expect(rows["Bank details"]).toMatch(/Test Bank, account ending 0000/);
+    expect(JSON.stringify(dd)).not.toContain("TZ-999");
+    setSupplierRegister(null);
+  });
+});
+
+describe("the screening button on a micro purchase", () => {
+  it("clears the supplier to deliver, since there is no award", async () => {
+    const { actionFor, stepById } = await import("@/lib/procurement");
+    expect(actionFor({ ...base(), route: "direct", qty: 1, unitPrice: 400 }, stepById.screen)).toBe("Clear the supplier to deliver");
+    expect(actionFor({ ...base(), route: "rfq", qty: 1, unitPrice: 30000 }, stepById.screen)).toBe("Send for award");
+  });
+});

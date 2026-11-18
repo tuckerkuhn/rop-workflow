@@ -238,7 +238,10 @@ export function DistributionPanel({
   update,
   me,
   resultLink,
+  viaField = false,
 }: {
+  /** The goods are in the Field input package: each approved distribution in Field activities is added here, so no list is typed. */
+  viaField?: boolean;
   p: Procurement;
   canEdit: boolean;
   update: Update;
@@ -276,11 +279,18 @@ export function DistributionPanel({
     <section className={box}>
       <div className="flex flex-wrap items-center gap-3">
         <p className="flex-1 text-sm font-semibold">Distribution to participants</p>
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" disabled={!canEdit || (d.forParticipants && d.lists.length > 0)} checked={d.forParticipants} onChange={(e) => put({ forParticipants: e.target.checked })} />
-          These goods go to participants
-        </label>
+        {!viaField && (
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" disabled={!canEdit || (d.forParticipants && d.lists.length > 0)} checked={d.forParticipants} onChange={(e) => put({ forParticipants: e.target.checked })} />
+            These goods go to participants
+          </label>
+        )}
       </div>
+      {viaField && (
+        <p className="mt-1 text-sm text-muted">
+          These goods are in the Field input package, so they are handed out farmer by farmer in Field activities. Each distribution the project manager approves is added below; nothing is typed here.
+        </p>
+      )}
       {d.forParticipants && (
         <>
           {state && <p className={`mt-2 text-sm ${state.ok ? "text-forest" : "text-warn"}`}>{state.detail}</p>}
@@ -331,6 +341,7 @@ export function DistributionPanel({
                 <span className="shrink-0 text-muted">Still in stock ({p.unit})</span>
                 <input inputMode="decimal" value={String(d.inStock)} onChange={(e) => put({ inStock: Number(e.target.value) || 0 })} className={`${field} tabular-nums`} />
               </label>
+              {!viaField && (
               <form
                 className="mt-4 grid gap-2 border-t border-line pt-3 sm:grid-cols-3"
                 onSubmit={(e) => {
@@ -352,6 +363,7 @@ export function DistributionPanel({
                 </button>
                 {!listOk && started(list) && <p className="text-xs text-muted sm:col-span-3">Still needed: {listMissing.join("; ")}.</p>}
               </form>
+              )}
               {d.lists.length > 0 &&
                 (distributor ? (
                   <p className="mt-3 text-xs text-muted">You recorded a list, so someone else verifies a sample of {sampleNeeded(people)} recipients.</p>

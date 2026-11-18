@@ -102,9 +102,15 @@ export function useFieldData(code = "A-2027") {
   const setItems = useCallback(
     (next: FieldItem[] | ((all: FieldItem[]) => FieldItem[])) => {
       const before = new Map(current.current.map((i) => [i.id, JSON.stringify(i)]));
+      const steps = new Map(current.current.map((i) => [i.id, i.step]));
       const value = typeof next === "function" ? next(current.current) : next;
       current.current = value;
-      setItemsState(value);
+      // Recording a distribution sends the farmer on to planting, but the server keeps them at
+      // Distribute until the project manager approves (server/distribution). Show that at once,
+      // not planting, while the save and the reload after it are on their way.
+      const held = (i: FieldItem): FieldItem =>
+        i.kind === "farmer" && steps.get(i.id) === "distribute" && i.step === "plant" && !i.awaiting ? { ...i, step: "distribute", awaiting: { id: "", status: "pending" } } : i;
+      setItemsState(value.map(held));
       const changed = value.filter((i) => before.get(i.id) !== JSON.stringify(i)).map((i) => i.id);
       if (changed.length) void save({ ids: changed });
     },
@@ -134,6 +140,8 @@ export function useFieldData(code = "A-2027") {
 export function useProcurements(code = "A-2027") {
   const { user, ready } = useSession();
   const [items, setItemsState] = useState<Procurement[]>([]);
+  /** Budget lines of the Field input package: their goods go out through Field activities. */
+  const [packageLines, setPackageLines] = useState<string[]>([]);
   const [status, setStatus] = useState<Load>("loading");
   const [error, setError] = useState("");
   const current = useRef<Procurement[]>([]);
@@ -141,9 +149,10 @@ export function useProcurements(code = "A-2027") {
 
   const reload = useCallback(async () => {
     try {
-      const r = await call<{ items: Procurement[] }>(`/api/projects/${code}/procurements`, user?.id);
+      const r = await call<{ items: Procurement[]; packageLines?: string[] }>(`/api/projects/${code}/procurements`, user?.id);
       current.current = r.items;
       setItemsState(r.items);
+      setPackageLines(r.packageLines ?? []);
       setStatus("ready");
       setError("");
     } catch (e) {
@@ -212,7 +221,7 @@ export function useProcurements(code = "A-2027") {
     await reload();
   }, [code, user?.id, reload]);
 
-  return { items, setItems, status, error, reload, reset, draft, check };
+  return { items, packageLines, setItems, status, error, reload, reset, draft, check };
 }
 
 /** The procurement calendar of a project, with the budget and workplan behind it. */

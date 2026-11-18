@@ -155,6 +155,18 @@ async function farmerOf(projectId: string, code: string) {
 }
 
 /**
+ * The photo of the signed goods received note on the farmer's record, newest first, so whoever
+ * approves can see the proof and not only that it exists. Null when there is none in the app
+ * (a KoboCollect photo stays in KoboToolbox). Read for one distribution only: photos are large.
+ */
+export async function signedNotePhoto(code: string, farmerCode: string): Promise<{ src: string; date: string } | null> {
+  const project = await projectByCode(code);
+  const f = await farmerOf(project.id, farmerCode);
+  const p = [...(f?.photos ?? [])].reverse().find((x) => x.activity === "distribution" && x.signedNote && x.src);
+  return p?.src ? { src: p.src, date: p.date } : null;
+}
+
+/**
  * Who a distribution goes to for approval, with their email: the project's managers, never the
  * person who recorded or collected it; with no other manager, the person they report to
  * (lib/distribution approversOf).
