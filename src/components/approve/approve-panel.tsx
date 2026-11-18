@@ -135,7 +135,7 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
             </ul>
             <p className="mt-2 text-sm text-muted">
               Recipient: {d.gender ?? "sex not recorded"} · Signature or thumbprint: {d.signed ? "confirmed" : "not confirmed"} · Photo of the signed goods received note:{" "}
-              {d.photo ? (d.source === "kobo" ? "attached in KoboToolbox" : photoNeedsSignIn ? "sign in to see it" : "below") : "missing"}
+              {d.source === "kobo" ? (d.photo ? "attached in KoboToolbox" : "missing") : notePhoto ? "below" : photoNeedsSignIn ? "sign in to see it" : <span className="text-clay">{d.photo ? "ticked as taken, but none is attached" : "missing"}</span>}
             </p>
             {photoNeedsSignIn && (
               <p className="mt-2 text-sm">

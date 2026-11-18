@@ -19,7 +19,7 @@ import { ready } from "@/server/__tests__/test-db";
 
 // As the screen and the field route require before a distribution is recorded: the recipient's
 // signature or thumbprint is confirmed. Without it the distribution cannot be approved.
-const handedOut = (f: Farmer): Farmer => ({ ...f, photos: [...f.photos, { id: "note", activity: "distribution" as const, date: "2027-01-01", caption: "Signed goods received note", signedNote: true }], checks: { ...f.checks, "distribute.recipient": true }, step: "plant" });
+const handedOut = (f: Farmer): Farmer => ({ ...f, photos: [...f.photos, { id: "note", activity: "distribution" as const, date: "2027-01-01", caption: "Signed goods received note", src: "data:image/png;base64,AA==", signedNote: true }], checks: { ...f.checks, "distribute.recipient": true }, step: "plant" });
 
 
 /**

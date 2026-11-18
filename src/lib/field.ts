@@ -43,7 +43,29 @@ export type Photo = {
   signedNote?: boolean;
 };
 /** Whether the farmer's record holds a photo of the signed goods received note. */
-export const hasSignedNotePhoto = (f: { photos?: Photo[] } | null | undefined) => !!f?.photos?.some((p) => p.activity === "distribution" && p.signedNote);
+export const hasSignedNotePhoto = (f: { photos?: Photo[] } | null | undefined) => !!f?.photos?.some((p) => p.activity === "distribution" && p.signedNote && !!p.src);
+
+/**
+ * A stand-in photo of a signed goods received note for the demo farmers: a drawn form with the
+ * farmer's ID, the package and a thumbprint. No names. Real records hold the photo Bilal takes.
+ */
+export function sampleNotePhoto(farmerId: string, date: string): string {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="480" height="340" viewBox="0 0 480 340">
+<rect width="480" height="340" fill="#e9e4d8"/><rect x="24" y="16" width="432" height="308" fill="#fffdf6" stroke="#c9c2b0" transform="rotate(-1.2 240 170)"/>
+<g font-family="Georgia, serif" fill="#2b2b2b" transform="rotate(-1.2 240 170)">
+<text x="48" y="52" font-size="18" font-weight="bold">Roots of Peace · Goods received note</text>
+<text x="48" y="80" font-size="13">Farmer ID: ${farmerId}    Date: ${date}</text>
+<line x1="48" y1="94" x2="432" y2="94" stroke="#999"/>
+<text x="48" y="120" font-size="13">Certified maize seed ........ 10 kg</text>
+<text x="48" y="144" font-size="13">NPK 17-17-17 ................. 50 kg</text>
+<text x="48" y="176" font-size="12" fill="#555">Received in good condition.</text>
+<text x="48" y="262" font-size="12">Recipient (signature or thumbprint):</text>
+<ellipse cx="330" cy="250" rx="22" ry="28" fill="#4a5a8a" opacity="0.55"/>
+<text x="48" y="300" font-size="12">Storekeeper: ________ (signed)</text>
+<text x="292" y="300" font-size="10" fill="#999">SAMPLE · demo data</text>
+</g></svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
 export type PhotoKind = "training" | "landprep" | "visit" | "distribution" | "planting";
 export type Story = { id: string; status: "note" | "completed"; title: string; text: string; date: string; by: string };
 
@@ -520,7 +542,8 @@ function farmer(
     const outcome = s === "verify" && (step === "correct" || step === "removal") ? "Readiness: No" : fieldSteps[s].outcomes[0].done;
     const date = addDays(TODAY, -(reached - k) * 5);
     timeline.push({ date, who: owners[s], what: outcome });
-    if (s !== "verify" || k % 2 === 0) photos.push({ id: `${id}-${s}`, activity: photoFor[s], date, caption: `${fieldSteps[s].title} · ${id}` });
+    if (s === "distribute") photos.push({ id: `${id}-note`, activity: "distribution", date, caption: `Signed goods received note · ${id}`, src: sampleNotePhoto(id, date), signedNote: true });
+    else if (s !== "verify" || k % 2 === 0) photos.push({ id: `${id}-${s}`, activity: photoFor[s], date, caption: `${fieldSteps[s].title} · ${id}` });
   });
   if (step === "removal") timeline.push({ date: addDays(TODAY, -2), who: "extension", what: "Recheck: No, sent for decision" });
   doneChecks.forEach((c) => (checks[`${step}.${c}`] = true));
