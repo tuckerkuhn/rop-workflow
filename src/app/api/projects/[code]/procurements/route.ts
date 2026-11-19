@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { stampHistory } from "@/lib/history";
 import { EMPTY_VOUCHER_SETUP, VOUCHER_SETUP_KEY, type VoucherSetup } from "@/lib/voucher-setup";
 import { loadProjectState } from "@/server/project-state";
 import { actOnPlan } from "@/server/procurement-plan-store";
@@ -82,7 +83,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ code: st
         const r = await actOnPlan(code, item.key, { action: "start", procurementKey: x.id }, v.user);
         if ("error" in r) return NextResponse.json({ error: `${x.id}: ${r.error}` }, { status: 409 });
       }
-    const saved = items.map((x) => ({ ...x, rev: (stored.get(x.id)?.rev ?? 0) + 1 }));
+    // Each new history entry gets the time it was saved; older ones keep theirs (lib/history).
+    const now = new Date();
+    const saved = items.map((x) => ({ ...x, timeline: stampHistory(stored.get(x.id)?.timeline, x.timeline ?? [], now), rev: (stored.get(x.id)?.rev ?? 0) + 1 }));
     await saveProcurements(code, saved);
     const project = await projectByCode(code);
     for (const next of items) await logAudit(db, project.id, { entity: "procurement", entityId: project.id, action: "procurement_saved", by: v.user.id, detail: describeProcurementSave(stored.get(next.id), next) });

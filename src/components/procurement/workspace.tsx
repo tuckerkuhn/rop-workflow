@@ -682,10 +682,10 @@ function Detail({
           {p.step === "contract" && <SchedulePanel p={p} editable={mine} update={update} />}
           {p.step === "receive" && <ReceiptPanel p={p} editable={mine} update={update} />}
           {p.step === "payForm" && <PayFormPanel p={p} editable={mine} update={update} />}
-          {(p.step === "payReady" || p.step === "approvePay" || p.step === "voucher" || p.step === "voucherReview") && <PayFormSummary p={p} />}
+          {(p.step === "payReady" || p.step === "approvePay" || p.step === "voucher" || p.step === "voucherReview" || p.step === "voucherApprove") && <PayFormSummary p={p} />}
           {p.step === "paid" && <PaidPanel p={p} editable={mine} update={update} />}
           {user && (receivedQty(p) > 0 || p.distribution) && <DistributionPanel p={p} viaField={viaField} resultLink={links ? (people) => resultHref(links.project, { from: p.id, ...people, note: `${p.id}: ${p.title} handed to ${people.value} people (${people.female} women)${people.place ? ` at ${people.place}` : ""}, from signed distribution lists.` }) : undefined} canEdit={user.procurementAccess === "edit"} update={update} me={{ id: user.id, name: user.name }} />}
-          {(p.step === "voucher" || p.step === "voucherReview") && (
+          {(p.step === "voucher" || p.step === "voucherReview" || p.step === "voucherApprove") && (
             <VoucherPanel p={p} editable={mine} update={update} coding={coding} preparedByMe={!!user && (p.signatures["Expense voucher"] ?? []).some((x) => x.as === "Prepared and entered by (finance)" && x.name === user.name)} />
           )}
           {step.checks.some((c) => c.ai) && <AiCheck p={p} editable={mine} onCheck={onCheck} />}

@@ -113,7 +113,7 @@ async function applyReadiness(tx: Tx, row: typeof s.evidence.$inferSelect, user:
 
   next = {
     ...next,
-    timeline: [...f.timeline, { date: sub.date || today(), who: "mel", what: `${summary.split(".")[0]}${issue && !ready ? `: ${issue}` : ""} (Kobo ${kbo})` }],
+    timeline: [...f.timeline, { date: sub.date || today(), who: "mel", what: `${summary.split(".")[0]}${issue && !ready ? `: ${issue}` : ""} (Kobo ${kbo})`, at: new Date().toISOString() }],
   };
   await tx.update(s.fieldItems).set({ data: next, updatedAt: new Date() }).where(eq(s.fieldItems.id, item.id));
   await mirrorFarmer(tx, row.projectId, next);
@@ -127,7 +127,7 @@ async function farmerItem(tx: Tx, projectId: string, code: string) {
 }
 
 async function saveFarmer(tx: Tx, id: string, f: Farmer, date: string, what: string) {
-  const next: Farmer = { ...f, timeline: [...f.timeline, { date, who: "mel", what }] };
+  const next: Farmer = { ...f, timeline: [...f.timeline, { date, who: "mel", what, at: new Date().toISOString() }] };
   const [saved] = await tx.update(s.fieldItems).set({ data: next, updatedAt: new Date() }).where(eq(s.fieldItems.id, id)).returning({ projectId: s.fieldItems.projectId });
   if (saved) await mirrorFarmer(tx, saved.projectId, next);
 }

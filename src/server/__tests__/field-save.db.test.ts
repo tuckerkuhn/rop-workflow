@@ -222,3 +222,19 @@ describe("planting a crop counted one by one", { timeout: 60_000 }, () => {
     await saveSetup(code, setup);
   });
 });
+
+describe("history save times", { timeout: 60_000 }, () => {
+  it("stamps a new history line with the time it was saved and keeps it through the next save", async () => {
+    const f = (await all()).find((i) => i.kind === "farmer" && i.step === "train") as Farmer;
+    const first = await put("farida", [{ ...f, timeline: [...f.timeline, { date: "2026-11-20", who: "extension", what: "Visited", at: "2030-01-01T00:00:00.000Z" }] }]);
+    expect(first.status).toBe(200);
+    const saved = (await farmer(f.id)).timeline.at(-1) as { at?: string };
+    expect(saved.at).toBeTruthy();
+    expect(saved.at).not.toBe("2030-01-01T00:00:00.000Z");
+    // The screen's copy has no times; saving it again keeps the stored one.
+    const again = await farmer(f.id);
+    const bare = again.timeline.map((t) => ({ date: t.date, who: t.who, what: t.what }));
+    expect((await put("farida", [{ ...again, timeline: bare, checks: { ...again.checks, "train.attended": true } }])).status).toBe(200);
+    expect(((await farmer(f.id)).timeline.at(-1) as { at?: string }).at).toBe(saved.at);
+  });
+});

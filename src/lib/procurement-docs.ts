@@ -186,7 +186,7 @@ export function documentFor(p: Procurement, doc: string, money: Money, other: Mo
           ["Result", sc ? (sc.result === "clear" ? "Clear: no match on any list" : `Match: ${sc.note || "see the evidence"}`) : "—"],
           ...(sc?.note && sc.result === "clear" ? ([["Note", sc.note]] as [string, string][]) : []),
           ["Screening evidence", sc?.evidence ?? "—"],
-          ["Recorded in the register by", sc?.byName ?? "—"],
+          ["Screened by", sc?.byName ?? "—"],
         ],
         notes: ["Screened before award against every list the rules require; any match is resolved with reasons before anything is committed to the supplier."],
       };
@@ -278,6 +278,13 @@ export function documentFor(p: Procurement, doc: string, money: Money, other: Mo
           ["Tax withheld", paid.some((r) => r.tax.amount > 0) ? paid.map((r) => `${r.tax.amount} (${r.tax.pct}%)${r.paid.taxDate ? `, remitted ${r.paid.taxDate}` : ", not yet remitted"}`).join("; ") : "None withheld"],
           ["Goods received", `${receivedQty(p)} of ${p.qty} ${p.unit}`],
           ["Distribution", dist ? dist.detail : "Not for participants"],
+          // Closing does not wait for handouts (decided 2026-11-20): say plainly what is left to give out.
+          ...(p.distribution?.forParticipants
+            ? ([["Still to hand out", (() => {
+                const left = receivedQty(p) - p.distribution!.lists.reduce((t, l) => t + l.qty, 0);
+                return left > 1e-9 ? `${Math.round(left * 100) / 100} ${p.unit}: handing out continues in Field activities after this purchase closes` : "Nothing: everything received has been handed out";
+              })()]] as [string, string][])
+            : []),
           ["Closeout checklist and vendor performance", big ? "Required: contract over $5,000 (D1 §4.15)" : "Not needed: under $5,000 (D1 §4.15)"],
           ["Documents on file", `${docs.length}: ${docs.join(", ")}`],
           ["Open issues", p.issues.filter((i) => i.status === "open").map((i) => i.type).join(", ") || "None"],

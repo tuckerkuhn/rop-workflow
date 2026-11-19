@@ -341,12 +341,14 @@ function CodeSelect({ codes, value, onChange, disabled, label }: { codes: Code[]
 
 /**
  * Finance codes the expense voucher and enters it in NetSuite, typing the VENDBILL number it gets;
- * a second Finance person reviews it and files it in SharePoint. The codes start from the last
+ * a second Finance person reviews it, and an approver (a third where Finance has one) approves it and files it in SharePoint. The codes start from the last
  * voucher on this project (same budget line first), so they are chosen once and then checked.
  */
 export function VoucherPanel({ p, editable, update, coding, preparedByMe }: { p: Procurement; editable: boolean; update: Update; coding?: VoucherSetup | null; preparedByMe: boolean }) {
   const set0 = codingFor(coding, p.budgetLine);
-  const reviewing = p.step === "voucherReview";
+  // Review and approval read the voucher; only the approver adds the SharePoint link when filing it.
+  const reviewing = p.step === "voucherReview" || p.step === "voucherApprove";
+  const approving = p.step === "voucherApprove";
   const fresh: Voucher = {
     number: "",
     month: today().slice(0, 7),
@@ -374,11 +376,13 @@ export function VoucherPanel({ p, editable, update, coding, preparedByMe }: { p:
     <div className={box}>
       <p className="text-sm font-semibold">Expense voucher{v.number ? ` · NetSuite bill number (VENDBILL #) ${v.number}` : ""}</p>
       <p className="mt-1 text-xs text-muted">
-        {reviewing
-          ? "Open the voucher below and check the coding and the balance. If something is wrong, send it back to the person who prepared it. Then file the signed voucher in SharePoint."
+        {approving
+          ? "Open the voucher below. If it is in order, approve it and file the signed voucher in SharePoint. If not, send it back."
+          : reviewing
+          ? "Open the voucher below and check the coding and the balance. If something is wrong, send it back to the person who prepared it."
           : "Choose the expense account and department. The contract, budget code, location and accounts come from project setup. Then enter the bill in NetSuite and type the VENDBILL number it gives."}
       </p>
-      {reviewing && preparedByMe && <p className="mt-2 text-sm text-clay">You prepared this voucher, so someone else in Finance reviews and approves it.</p>}
+      {reviewing && preparedByMe && <p className="mt-2 text-sm text-clay">You prepared this voucher, so someone else in Finance {approving ? "approves" : "reviews"} it.</p>}
 
       <div className="mt-3 grid gap-3 sm:grid-cols-3">
         <label>
@@ -412,7 +416,7 @@ export function VoucherPanel({ p, editable, update, coding, preparedByMe }: { p:
         </div>
       )}
 
-      {reviewing && (
+      {approving && (
         <label className="mt-4 block">
           <span className="text-xs font-medium text-muted">SharePoint link to the signed voucher</span>
           <input

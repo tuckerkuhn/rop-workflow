@@ -1,4 +1,5 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { stampHistory } from "@/lib/history";
 import { mirrorFarmer } from "@/server/farmer-mirror";
 import { and, eq, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
@@ -143,8 +144,10 @@ export async function stockFor(code: string) {
 async function changeFarmer(tx: Tx, projectId: string, farmerCode: string, change: (f: Farmer) => Farmer | null) {
   const [item] = await tx.select().from(s.fieldItems).where(and(eq(s.fieldItems.projectId, projectId), eq(s.fieldItems.itemKey, farmerCode))).limit(1);
   if (!item) return;
-  const next = change(item.data as Farmer);
-  if (!next) return;
+  const changed = change(item.data as Farmer);
+  if (!changed) return;
+  // New history lines get the time they were saved (lib/history).
+  const next = { ...changed, timeline: stampHistory((item.data as Farmer).timeline, changed.timeline ?? []) };
   await tx.update(s.fieldItems).set({ data: next, updatedAt: new Date() }).where(eq(s.fieldItems.id, item.id));
   await mirrorFarmer(tx, projectId, next);
 }

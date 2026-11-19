@@ -13,6 +13,10 @@ import { ROP, type Value } from "@/lib/policy";
 import { DEMO_DATE, today } from "@/lib/clock";
 import { lastScreening, sameSupplierName, supplierGaps, type Supplier, screeningStale } from "@/lib/suppliers";
 import {
+  type YearPaid,
+  solarYear,
+  setYearPaidLookup,
+  invoiceAfn,
   closeInstalment,
   orderUsd,
   voucherBook,
@@ -119,6 +123,22 @@ let everyProcurement: Procurement[] = [];
 export function setProcurementSet(items: Procurement[]) {
   everyProcurement = items;
 }
+
+/**
+ * What the chosen supplier has been paid in the payment's tax year (solar Hijri) on this project's
+ * other purchases and earlier instalments of this one, in afghani: the AFN 500,000 withholding
+ * threshold counts the year's payments, not one contract. Payments without a rate are counted apart.
+ */
+export function supplierPaidThisYear(p: Procurement, on: string): YearPaid {
+  const year = solarYear(on);
+  const vendor = vendorOf(p);
+  const records = [p, ...everyProcurement.filter((o) => o.id !== p.id)]
+    .flatMap((o) => o.payments ?? [])
+    .filter((r) => r.paid?.date && solarYear(r.paid.date) === year && (p.supplier?.id && r.supplierId ? r.supplierId === p.supplier.id : sameVendor(r.supplier, vendor)));
+  const known = records.map((r) => invoiceAfn(r.invoice));
+  return { year, afn: known.reduce<number>((t, a) => t + (a ?? 0), 0), payments: known.filter((a) => a !== null).length, unknown: known.filter((a) => a === null).length };
+}
+setYearPaidLookup(supplierPaidThisYear);
 const LEVELS: Level[] = ["Micro", "Small", "Medium", "Large"];
 /** When a request was made: its first recorded step, else when it is needed. */
 const madeOn = (p: Procurement) => p.timeline[0]?.date ?? p.neededBy;
@@ -197,7 +217,15 @@ export type Issue = {
   resolution?: string;
 };
 
-export type TimelineEvent = { date: string; who: Role; what: string; /** The person who did it; older entries name only the role. */ by?: string };
+export type TimelineEvent = {
+  date: string;
+  who: Role;
+  what: string;
+  /** The person who did it; older entries name only the role. */
+  by?: string;
+  /** When it was saved (ISO), set by the server (lib/history); older entries have the date only. */
+  at?: string;
+};
 
 /** `self`: solo mode, the person who requested the purchase approves it, having confirmed so (server/solo.ts). */
 export type Signature = { as: string; name: string; role: Role; date: string; self?: { note: string } };
@@ -395,11 +423,9 @@ export type PlanLink = {
  * otherwise the role's holder in the demo team.
  */
 /** Someone holding the role other than the named person (a second signer), or null. */
-export function otherHolder(p: Procurement, role: Role, not: string) {
-  const type = typeFor(p, role);
-  const ids = type ? holdersOfType(type) : [];
-  const pool = ids.length ? ids.map((id) => users.find((u) => u.id === id)).filter((u): u is (typeof users)[number] => !!u) : users.filter((u) => u.procurement.includes(role as ProcRole));
-  return pool.find((u) => u.name !== not) ?? null;
+export function otherHolder(p: Procurement, role: Role, not: string | string[]) {
+  const nots = Array.isArray(not) ? not : [not];
+  return holdersFor(p, role).find((u) => !nots.includes(u.name)) ?? null;
 }
 
 export function holderFor(p: Procurement, role: Role) {
@@ -1014,7 +1040,9 @@ export const steps: Step[] = [
     action: "Send for award",
     done: "Supplier screened",
     produces: ["Screening record", "Due diligence"],
-    signs: { doc: "Screening record", as: "Screened and reviewed by" },
+    // The person who screened records it in the supplier register ("Screened by" on the record);
+    // whoever completes this step reviews the result and signs for that.
+    signs: { doc: "Screening record", as: "Reviewed by (procurement)" },
     checks: [
       {
         id: "lists",
@@ -1167,8 +1195,9 @@ export const steps: Step[] = [
     title: "Assemble the procurement package",
     owner: "procurement",
     levels: ALL,
-    action: "Send to Finance",
-    done: "Procurement package sent to Finance",
+    // Procurement still prepares the payment approval form next; the package goes to Finance with it.
+    action: "Mark the package complete",
+    done: "Procurement package assembled",
     produces: ["Procurement package"],
     signs: { doc: "Procurement package", as: "Prepared by (procurement)" },
     note: "One file for Finance: every document, approval and check, with a cover memo.",
@@ -1191,7 +1220,7 @@ export const steps: Step[] = [
     owner: "procurement",
     levels: ALL,
     action: "Send to Finance",
-    done: "Payment approval form prepared",
+    done: "Payment approval form and procurement package sent to Finance",
     produces: ["Payment approval form"],
     signs: { doc: "Payment approval form", as: "Prepared by (procurement)" },
     note: "Enter the invoice and the supplier's licence. The form works out the tax to withhold and the amount to pay.",
@@ -1377,18 +1406,20 @@ export const steps: Step[] = [
       },
     ],
   },
+  // The paper voucher has three signatures, three Finance people: prepared and entered, reviewed,
+  // approved (ROP expense voucher form). Here: review, then approve and file.
   {
     id: "voucherReview",
     stage: 6,
-    title: "Review and approve the expense voucher, then file it",
+    title: "Review the expense voucher",
     owner: "finance",
     levels: ALL,
-    action: "Record as filed",
-    done: "Expense voucher reviewed, approved and filed in SharePoint",
+    action: "Send for approval",
+    done: "Expense voucher reviewed",
     canReturn: true,
-    produces: ["Expense voucher"],
-    signs: { doc: "Expense voucher", as: "Reviewed and approved by (finance)" },
-    note: "A different Finance person from the one who prepared it. File the signed voucher in SharePoint.",
+    produces: [],
+    signs: { doc: "Expense voucher", as: "Reviewed by (finance)" },
+    note: "A different Finance person from the one who prepared it.",
     checks: [
       {
         id: "balance",
@@ -1400,7 +1431,23 @@ export const steps: Step[] = [
           return { ok: b.balanced, detail: b.balanced ? "Balance" : "Out of balance" };
         },
       },
-      { id: "codes", label: "Accounts and codes are right for this cost", why: "A second Finance person checks the coding before it is filed.", tag: "Finance Manual" },
+      { id: "codes", label: "Accounts and codes are right for this cost", why: "A second Finance person checks the coding before it is approved.", tag: "Finance Manual" },
+    ],
+  },
+  {
+    id: "voucherApprove",
+    stage: 6,
+    title: "Approve the expense voucher, then file it",
+    owner: "finance",
+    levels: ALL,
+    action: "Approve and record as filed",
+    done: "Expense voucher approved and filed in SharePoint",
+    canReturn: true,
+    produces: ["Expense voucher"],
+    signs: { doc: "Expense voucher", as: "Approved by (finance)" },
+    note: "Not the person who prepared it. Where Finance has a third person, not the reviewer either. File the signed voucher in SharePoint.",
+    checks: [
+      { id: "approve", label: "Reviewed, and right to approve", why: "The approver signs that the cost, its coding and its support are in order.", tag: "Finance Manual" },
       {
         id: "sharepoint",
         label: "Filed in SharePoint",
@@ -1533,11 +1580,27 @@ export function ready(p: Procurement) {
 }
 
 /** Every signature line a document will carry for this procurement, filled where already signed. */
+/** Signature lines renamed since: an older record signed under the old name still shows as signed. */
+const RENAMED_LINES: Record<string, string> = { "Reviewed by (procurement)": "Screened and reviewed by" };
+
+/** Before 2026-11-20 one Finance person signed the voucher as reviewed and approved in one line. */
+export const VOUCHER_REVIEWED_AND_APPROVED = "Reviewed and approved by (finance)";
+
 export function signatureLines(p: Procurement, doc: string) {
   const signed = p.signatures[doc] ?? [];
-  return stepsFor(p)
+  const lines = stepsFor(p)
     .filter((s) => s.signs?.doc === doc)
-    .map((s) => ({ as: s.signs!.as, role: s.owner, signed: signed.find((x) => x.as === s.signs!.as) }));
+    .map((s) => ({ as: s.signs!.as, role: s.owner, signed: signed.find((x) => x.as === s.signs!.as) ?? signed.find((x) => x.as === RENAMED_LINES[s.signs!.as]) }));
+  // An older voucher keeps the one line it was signed with, not two empty ones.
+  const legacy = doc === "Expense voucher" ? signed.find((x) => x.as === VOUCHER_REVIEWED_AND_APPROVED) : undefined;
+  return legacy ? [...lines.filter((l) => l.as !== "Reviewed by (finance)" && l.as !== "Approved by (finance)"), { as: legacy.as, role: "finance" as Role, signed: legacy }] : lines;
+}
+
+/** Everyone holding a role on this procurement (the authority table first, the demo team as fallback). */
+export function holdersFor(p: Procurement, role: Role) {
+  const type = typeFor(p, role);
+  const ids = type ? holdersOfType(type) : [];
+  return ids.length ? ids.map((id) => users.find((u) => u.id === id)).filter((u): u is (typeof users)[number] => !!u) : users.filter((u) => u.procurement.includes(role as ProcRole));
 }
 
 export const ownerOf = (p: Procurement): Role | null => stepById[p.step]?.owner ?? null;

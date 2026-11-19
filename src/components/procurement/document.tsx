@@ -126,9 +126,17 @@ export function DocumentViewer({
           {lines.length > 0 && (
             <section className="mt-8 grid gap-6 sm:grid-cols-2">
               {lines.map((l) => {
-                // The voucher's reviewer is a second Finance person: never name the one who prepared it.
-                const preparer = (p.signatures["Expense voucher"] ?? []).find((x) => x.as === "Prepared and entered by (finance)")?.name;
-                const who = l.as === "Reviewed and approved by (finance)" && preparer ? (otherHolder(p, l.role, preparer)?.name ?? "a second Finance person") : holderFor(p, l.role)?.name;
+                // The voucher's reviewer and approver are other Finance people: never name the one who prepared it,
+                // and for the approver not the reviewer either while Finance has a third person.
+                const vs = p.signatures["Expense voucher"] ?? [];
+                const preparer = vs.find((x) => x.as === "Prepared and entered by (finance)")?.name;
+                const reviewer = vs.find((x) => x.as === "Reviewed by (finance)")?.name ?? (preparer ? otherHolder(p, l.role, preparer)?.name : undefined);
+                const who =
+                  l.as === "Reviewed by (finance)" && preparer
+                    ? (otherHolder(p, l.role, preparer)?.name ?? "a second Finance person")
+                    : l.as === "Approved by (finance)" && preparer
+                      ? (otherHolder(p, l.role, [preparer, reviewer ?? ""])?.name ?? otherHolder(p, l.role, preparer)?.name ?? "a Finance person who did not prepare it")
+                      : holderFor(p, l.role)?.name;
                 const isPending = pendingAs === l.as && !l.signed;
                 return (
                   <div key={l.as}>

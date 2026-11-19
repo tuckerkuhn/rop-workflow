@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { stampHistory } from "@/lib/history";
 import { PHOTO_MAX_CHARS } from "@/lib/plans";
 import { z } from "zod";
 import type { FieldItem } from "@/lib/field";
@@ -107,7 +108,11 @@ export async function PUT(req: Request, { params }: { params: Promise<{ code: st
     // Inputs handed out: the farmer stays at "distribute" until the project manager approves
     // (server/distribution moves them on), the same as a distribution from KoboCollect.
     const handedOut = items.filter((i): i is Farmer => i.kind === "farmer" && before.get(i.id) === "distribute" && i.step === "plant");
-    const toSave = items.map((i) => (handedOut.includes(i as Farmer) ? { ...i, step: "distribute" } : i));
+    // Each new history entry gets the time it was saved; older ones keep theirs (lib/history).
+    const now = new Date();
+    const toSave = items
+      .map((i) => (handedOut.includes(i as Farmer) ? { ...i, step: "distribute" } : i))
+      .map((i) => ({ ...i, timeline: stampHistory(stored.get(i.id)?.timeline, i.timeline ?? [], now) }) as FieldItem);
     const revs = toSave.length ? await saveEdited(code, toSave) : {};
     const recorded: string[] = [];
     for (const f of handedOut) recorded.push(await recordFromApp(code, f, v.user, new URL(req.url).origin));

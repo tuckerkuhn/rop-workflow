@@ -1,6 +1,6 @@
 import { currentInstalment, expectedUsd, invoiceUsd, orderUsd, scheduleOf, withholding } from "@/lib/payments";
 import { z } from "zod";
-import { bidUsd, holderFor, levelFor, rulesInForce, stepsFor, valueOf, type Draft, type Procurement } from "@/lib/procurement";
+import { bidUsd, holderFor, levelFor, rulesInForce, stepsFor, valueOf, type Draft, type Procurement, supplierPaidThisYear } from "@/lib/procurement";
 import { lastScreening, type Supplier } from "@/lib/suppliers";
 import { today } from "@/lib/clock";
 import { asIs, askAi, DRAFT_MODEL, DraftingUnavailable } from "@/server/ai";
@@ -111,6 +111,8 @@ function recordOf(p: Procurement, ctx: Context = {}) {
     instalment_under_way: currentInstalment(p),
     due_this_instalment_usd: expectedUsd(p),
     tax_to_withhold: withholding(p, today()),
+    // The AFN 500,000 threshold counts the supplier's payments over the tax year, not one contract.
+    supplier_paid_this_tax_year_afn: supplierPaidThisYear(p, today()),
     payments_already_made: (p.payments ?? []).map((r) => ({ n: r.n, label: r.label, pct: r.pct, grn: r.grn, invoice: r.invoice, tax: r.tax, net: r.net, paid: r.paid })),
     order_value_usd: Math.round(orderUsd(p) * 100) / 100,
     estimated_value_note: "estimated_value_usd is the request's estimate, which sets the level; order_value_usd is what was agreed (the chosen quotation or the contract).",
@@ -157,7 +159,7 @@ const CHECKS: Record<string, string> = {
   package:
     "Check the procurement package for completeness and consistency before it goes to Finance. Look for: documents the route and level require that are missing; approvals missing or signed out of order (requisition approved before any supplier contact; sole source approved before the supplier was engaged; award before contract); order value above what was left on the budget line; received quantity or place different from the order; invoice different from the order or the receipt; screening missing or older than six months; open issues.",
   payReady:
-    "Review this procurement as Finance does before payment. It may be paid in instalments: compare the invoice with the amount due for the instalment under way (due_this_instalment_usd), and the goods received or verified progress with what this instalment pays for, counting earlier payments. Check the tax to withhold against the supplier's licence expiry on the payment date (2% licensed, 7% without a valid licence). Compare the order value, the goods received note and the invoice (amount and quantity); check the budget line and funding; check approvals and signatures are present and in order; check supplier screening is current (six months); note open issues and anything that would stop payment.",
+    "Review this procurement as Finance does before payment. It may be paid in instalments: compare the invoice with the amount due for the instalment under way (due_this_instalment_usd), and the goods received or verified progress with what this instalment pays for, counting earlier payments. Check the tax to withhold against the supplier's licence expiry on the payment date (2% licensed, 7% without a valid licence), and against what this supplier has been paid this tax year (supplier_paid_this_tax_year_afn): below AFN 500,000 nothing is withheld unless the year's payments with this one pass it. Compare the order value, the goods received note and the invoice (amount and quantity); check the budget line and funding; check approvals and signatures are present and in order; check supplier screening is current (six months); note open issues and anything that would stop payment.",
   contract:
     "Check the contract record for conformity with the request and the award: supplier, value, quantity, delivery place and date, funding source and required clauses. Only what the record shows.",
   hoReview:

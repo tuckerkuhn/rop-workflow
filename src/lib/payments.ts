@@ -70,8 +70,26 @@ export function setPaymentRules(values: Record<string, unknown>) {
 }
 export const TAX_SOURCE = "Income Tax Law 2009 Art. 72 (Guide 21)";
 
+/** An amount in afghani: as invoiced in afghani, or at the invoice's own rate; null without a rate. */
+export const invoiceAfn = (inv: Invoice | undefined): number | null =>
+  !inv ? null : (inv.currency ?? "USD") === "AFN" ? inv.amount : inv.rate && inv.rate > 0 ? Math.round(inv.amount * inv.rate) : null;
+
+/** The Afghan tax year (solar Hijri) a date falls in, e.g. 1405. */
+export function solarYear(iso: string): number {
+  const parts = new Intl.DateTimeFormat("en-u-ca-persian-nu-latn", { year: "numeric", timeZone: "UTC" }).formatToParts(new Date(`${iso}T12:00:00Z`));
+  return Number(parts.find((x) => x.type === "year")?.value);
+}
+
+/** What this supplier has been paid this tax year on the project's other purchases (set by lib/procurement). */
+export type YearPaid = { afn: number; payments: number; unknown: number; year: number };
+let yearPaidLookup: ((p: Procurement, on: string) => YearPaid) | null = null;
+export function setYearPaidLookup(fn: (p: Procurement, on: string) => YearPaid) {
+  yearPaidLookup = fn;
+}
+export const yearPaidFor = (p: Procurement, on: string): YearPaid | null => yearPaidLookup?.(p, on) ?? null;
+
 /** The steps that repeat for each instalment, in order. */
-export const PAY_LOOP = ["receive", "package", "payForm", "payReady", "verifyPay", "approvePay", "voucher", "voucherReview", "paid"] as const;
+export const PAY_LOOP = ["receive", "package", "payForm", "payReady", "verifyPay", "approvePay", "voucher", "voucherReview", "voucherApprove", "paid"] as const;
 /** Documents made once per instalment. */
 export const PAY_DOCS = ["Goods received note", "Procurement package", "Payment approval form", "Checklist pass 2", "Expense voucher"];
 
@@ -179,11 +197,20 @@ export function withholding(p: Procurement, on: string): Withholding | null {
   const rate = inv.rate && inv.rate > 0 ? inv.rate : null;
   // The contract's value in afghani decides the threshold; it needs the month's rate.
   const contractAfn = contractAfnOf(p) ?? (rate ? orderUsd(p) * rate : null);
-  if (contractAfn !== null && contractAfn < taxRules.taxThresholdAfn)
-    return { pct: 0, amount: 0, why: `Contract under AFN ${taxRules.taxThresholdAfn.toLocaleString("en-US")}: no withholding unless this supplier's payments this year pass it (${TAX_SOURCE}).` };
   const expiry = p.supplier?.licenceExpiry;
   const valid = licenceValid(expiry, on);
   const pct = valid ? taxRules.taxLicensedPct : taxRules.taxUnlicensedPct;
+  const limit = `AFN ${taxRules.taxThresholdAfn.toLocaleString("en-US")}`;
+  if (contractAfn !== null && contractAfn < taxRules.taxThresholdAfn) {
+    // Under the threshold, unless this supplier's payments this tax year pass it with this one.
+    const year = yearPaidFor(p, on);
+    const thisAfn = invoiceAfn(inv);
+    const total = year && thisAfn !== null ? year.afn + thisAfn : null;
+    if (year && total !== null && total >= taxRules.taxThresholdAfn)
+      return { pct, amount: Math.round((inv.amount * pct) / 100), why: `This supplier's payments in tax year ${year.year} reach AFN ${total.toLocaleString("en-US")} with this one, past ${limit}: ${valid ? `licence valid until ${expiry}` : expiry ? `licence expired ${expiry}` : "no business licence recorded"}, ${pct}% (${TAX_SOURCE}).` };
+    const so = year ? ` Paid to this supplier so far in tax year ${year.year}: AFN ${year.afn.toLocaleString("en-US")} in ${year.payments} ${year.payments === 1 ? "payment" : "payments"}${year.unknown ? ` (${year.unknown} more without an exchange rate, not counted: check them)` : ""}.` : "";
+    return { pct: 0, amount: 0, why: `Contract under ${limit}: no withholding unless this supplier's payments this year pass it (${TAX_SOURCE}).${so}` };
+  }
   const why = valid
     ? `Business licence valid until ${expiry}: ${pct}% (${TAX_SOURCE}).`
     : expiry

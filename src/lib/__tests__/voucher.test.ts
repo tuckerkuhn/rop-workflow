@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { distributionState, seedProcurements, setProcurementRules, setProcurementSet, stepById, vendbillOf, type Procurement, type Voucher } from "@/lib/procurement";
-import { voucherBook, voucherGaps, withholding } from "@/lib/payments";
+import { distributionState, seedProcurements, setProcurementRules, setProcurementSet, signatureLines, stepById, vendbillOf, type Procurement, type Voucher } from "@/lib/procurement";
+import { PAY_LOOP, voucherBook, voucherGaps, withholding } from "@/lib/payments";
 import { documentFor } from "@/lib/procurement-docs";
 import { GL_EXPENSE, LOCATIONS, codeLabel } from "@/lib/voucher-codes";
 import { codingFor } from "@/lib/voucher-setup";
@@ -76,10 +76,20 @@ describe("expense voucher", () => {
     expect(distributionState(typed)?.detail).toContain("1 recipient on 1 list");
   });
 
-  it("is prepared by one Finance person and reviewed by another, each signing", () => {
+  it("carries the paper form's three signatures: prepared and entered, reviewed, approved", () => {
     expect(stepById.voucher.signs?.as).toBe("Prepared and entered by (finance)");
-    expect(stepById.voucherReview.signs?.as).toBe("Reviewed and approved by (finance)");
-    expect(stepById.voucherReview.produces).toContain("Expense voucher");
+    expect(stepById.voucherReview.signs?.as).toBe("Reviewed by (finance)");
+    expect(stepById.voucherApprove.signs?.as).toBe("Approved by (finance)");
+    expect(stepById.voucherApprove.produces).toContain("Expense voucher");
+    expect(PAY_LOOP.indexOf("voucherApprove")).toBe(PAY_LOOP.indexOf("voucherReview") + 1);
+  });
+
+  it("keeps an older voucher's single reviewed-and-approved line, not two empty ones", () => {
+    const p = { ...withInvoice(25300.07), signatures: { "Expense voucher": [{ as: "Prepared and entered by (finance)", name: "Yusuf Mohammadi", role: "finance" as const, date: "2026-11-01" }, { as: "Reviewed and approved by (finance)", name: "Omid Rahmani", role: "finance" as const, date: "2026-11-02" }] } } as Procurement;
+    expect(signatureLines(p, "Expense voucher").map((l) => [l.as, l.signed?.name ?? null])).toEqual([
+      ["Prepared and entered by (finance)", "Yusuf Mohammadi"],
+      ["Reviewed and approved by (finance)", "Omid Rahmani"],
+    ]);
   });
 
   it("prints the accounting section with the code names", () => {

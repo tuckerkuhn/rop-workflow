@@ -8,6 +8,7 @@ import { useCurrentProject } from "@/components/app/current-project";
 import { useT } from "@/components/app/i18n";
 import { Arrow } from "@/components/app/arrow";
 import { msg } from "@/lib/i18n/text";
+import { timeOf } from "@/lib/history";
 import type { MessageKey } from "@/lib/i18n";
 import { CurrencyToggle, Initials, useSession } from "@/components/app/session";
 import { TaskSourceSwitch } from "@/components/tasks/sources";
@@ -389,7 +390,7 @@ function IssueRow({ issue, roleLabel, canResolve, onResolve }: { issue: Issue; r
 
 /* ---------- history ---------- */
 
-export type TimelineEvent = { date: string; who: string; what: string; by?: string };
+export type TimelineEvent = { date: string; who: string; what: string; by?: string; at?: string };
 
 export function History({ events, roleLabel }: { events: TimelineEvent[]; roleLabel: (r: string) => string }) {
   const { tx } = useT();
@@ -404,7 +405,9 @@ export function History({ events, roleLabel }: { events: TimelineEvent[]; roleLa
             <p className="leading-snug">{e.what}</p>
             <p className="text-xs text-muted">
               {/* The person who did it, with their role; older entries name the role's holder. */}
-              {e.date} · {e.by ? `${e.by}${roleLabel(e.who).match(/ \(.*\)$/)?.[0] ?? ""}` : roleLabel(e.who)}
+              {/* The time it was saved, where the record has it, so same-day steps show their order. */}
+              {e.date}
+              {e.at && ` ${timeOf(e.at)}`} · {e.by ? `${e.by}${roleLabel(e.who).match(/ \(.*\)$/)?.[0] ?? ""}` : roleLabel(e.who)}
             </p>
           </li>
         ))}

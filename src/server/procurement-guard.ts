@@ -1,7 +1,8 @@
 import { registerAuthority } from "@/lib/authority";
+import { sameHistory } from "@/lib/history";
 import type { AppUser } from "@/lib/demo";
 import type { Value } from "@/lib/policy";
-import { DONE, requesterOf, soloBarred, setProcurementSet, setSupplierRegister, maySign, nextStep, ownerOf, prevStep, procRolesFor, ready, roleLabel, setProcurementRules, stepById, type Procurement, type Role } from "@/lib/procurement";
+import { DONE, requesterOf, soloBarred, setProcurementSet, setSupplierRegister, maySign, nextStep, ownerOf, prevStep, procRolesFor, ready, roleLabel, setProcurementRules, stepById, type Procurement, type Role, holdersFor, otherHolder } from "@/lib/procurement";
 import { closeInstalment } from "@/lib/payments";
 import type { Authority } from "@/lib/authority";
 import type { PlanItem } from "@/lib/procurement-plan";
@@ -95,7 +96,7 @@ const FIELD_STEPS: Record<string, string[]> = {
   schedule: ["contract"],
   grn: ["receive"],
   invoice: ["payForm"],
-  voucher: ["voucher", "voucherReview"],
+  voucher: ["voucher", "voucherReview", "voucherApprove"],
   paid: ["paid"],
   plan: [],
   budgetLine: [],
@@ -177,7 +178,7 @@ export function validateProcurementSave(prev: Procurement | undefined, next: Pro
   if (next.id !== prev.id) return "A procurement's reference cannot change.";
 
   // History: append-only.
-  if ((next.timeline ?? []).length < (prev.timeline ?? []).length || !same((next.timeline ?? []).slice(0, prev.timeline.length), prev.timeline)) return "The procurement's history cannot be changed or removed.";
+  if ((next.timeline ?? []).length < (prev.timeline ?? []).length || !sameHistory((next.timeline ?? []).slice(0, prev.timeline.length), prev.timeline)) return "The procurement's history cannot be changed or removed.";
   if ((next.timeline ?? []).slice((prev.timeline ?? []).length).some((t) => t.by !== undefined && t.by !== u.name)) return "A history entry is recorded in your own name.";
 
   const fieldsChanged = [...new Set([...Object.keys(prev), ...Object.keys(next)])].filter((k) => !FREE.has(k) && !same((prev as Record<string, unknown>)[k], (next as Record<string, unknown>)[k]));
@@ -231,7 +232,14 @@ export function validateProcurementSave(prev: Procurement | undefined, next: Pro
     } else {
       const atStep = { ...next, step: prev.step };
       if (!archived && !ready(atStep)) return `“${stepById[prev.step]?.title ?? prev.step}” is not complete: finish its checks, review its document and close blocking issues first.`;
-      if (prev.step === "voucherReview" && (prev.signatures["Expense voucher"] ?? []).some((x) => x.as === "Prepared and entered by (finance)" && x.name === u.name)) return "The voucher must be reviewed and approved by someone other than the person who prepared it.";
+      const sigs = prev.signatures["Expense voucher"] ?? [];
+      const preparer = sigs.find((x) => x.as === "Prepared and entered by (finance)")?.name;
+      const reviewer = sigs.find((x) => x.as === "Reviewed by (finance)")?.name;
+      if ((prev.step === "voucherReview" || prev.step === "voucherApprove") && preparer === u.name)
+        return prev.step === "voucherReview" ? "The voucher must be reviewed by someone other than the person who prepared it." : "The voucher must be approved by someone other than the person who prepared it.";
+      // Three signatures, three people where Finance has three: the reviewer approves only on a smaller team.
+      if (prev.step === "voucherApprove" && reviewer === u.name && holdersFor(prev, "finance").some((h) => h.name !== preparer && h.name !== reviewer))
+        return `The voucher must be approved by a third Finance person: ${otherHolder(prev, "finance", [preparer ?? "", reviewer ?? ""])?.name ?? "someone other than the reviewer"}.`;
       if (prev.step === "verifyPay" && (prev.signatures["Payment approval form"] ?? []).some((x) => x.as === "Checked by (finance)" && x.name === u.name)) return "The second Finance check must be done by someone other than the first.";
       if (!archived && next.step !== nextStep(atStep)) return `That is not the next step after “${stepById[prev.step]?.title ?? prev.step}”.`;
     }
@@ -265,9 +273,9 @@ export function validateProcurementSave(prev: Procurement | undefined, next: Pro
   // Each part of the record changes only at its own steps.
   const outOfStep = fieldsChanged.find((k) => k in FIELD_STEPS && !FIELD_STEPS[k].includes(prev.step));
   if (outOfStep) return `${outOfStep} cannot change at “${stepById[prev.step]?.title ?? prev.step}”.`;
-  // The reviewer files the voucher; its coding and number stay as the preparer entered them in NetSuite.
-  if (prev.step === "voucherReview" && fieldsChanged.includes("voucher") && !same({ ...prev.voucher, sharepointUrl: "" }, { ...next.voucher, sharepointUrl: "" }))
-    return "At review only the SharePoint link is added. To change the coding, send the voucher back to the person who prepared it.";
+  // Review and approval do not recode the voucher: its coding and number stay as the preparer entered them in NetSuite. The approver files it.
+  if ((prev.step === "voucherReview" || prev.step === "voucherApprove") && fieldsChanged.includes("voucher") && !same({ ...prev.voucher, sharepointUrl: "" }, { ...next.voucher, sharepointUrl: "" }))
+    return "At review and approval only the SharePoint link is added. To change the coding, send the voucher back to the person who prepared it.";
   if (fieldsChanged.length && !ownsStep) return `Only the ${owner ? roleLabel(owner) : "step's owner"} can change this procurement's details at “${stepById[prev.step]?.title ?? prev.step}” (${fieldsChanged.slice(0, 3).join(", ")}).`;
   return null;
 }
