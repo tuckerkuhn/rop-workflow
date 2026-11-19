@@ -21,6 +21,15 @@ describe("withholding over the tax year", () => {
     expect(solarYear("2026-03-19")).toBe(1404);
   });
 
+  it("does not break on a payment with no date yet (a voucher still being prepared)", () => {
+    expect(solarYear("")).toBeNull();
+    expect(solarYear(undefined)).toBeNull();
+    const p = small(1000);
+    setProcurementSet([p]);
+    expect(() => withholding(p, "")).not.toThrow();
+    expect(withholding(p, "")!.amount).toBe(0);
+  });
+
   it("withholds nothing on a small contract while the year's payments stay under AFN 500,000", () => {
     const p = small(1000); // AFN 70,000
     setProcurementSet([p, { ...small(0, "PR-T-2"), payments: [paid(200_000, "2026-06-01")] }]);

@@ -74,9 +74,11 @@ export const TAX_SOURCE = "Income Tax Law 2009 Art. 72 (Guide 21)";
 export const invoiceAfn = (inv: Invoice | undefined): number | null =>
   !inv ? null : (inv.currency ?? "USD") === "AFN" ? inv.amount : inv.rate && inv.rate > 0 ? Math.round(inv.amount * inv.rate) : null;
 
-/** The Afghan tax year (solar Hijri) a date falls in, e.g. 1405. */
-export function solarYear(iso: string): number {
-  const parts = new Intl.DateTimeFormat("en-u-ca-persian-nu-latn", { year: "numeric", timeZone: "UTC" }).formatToParts(new Date(`${iso}T12:00:00Z`));
+/** The Afghan tax year (solar Hijri) a date falls in, e.g. 1405; null for a missing or unreadable date. */
+export function solarYear(iso: string | undefined | null): number | null {
+  const d = new Date(`${iso ?? ""}T12:00:00Z`);
+  if (!iso || Number.isNaN(d.getTime())) return null;
+  const parts = new Intl.DateTimeFormat("en-u-ca-persian-nu-latn", { year: "numeric", timeZone: "UTC" }).formatToParts(d);
   return Number(parts.find((x) => x.type === "year")?.value);
 }
 

@@ -130,7 +130,8 @@ export function setProcurementSet(items: Procurement[]) {
  * threshold counts the year's payments, not one contract. Payments without a rate are counted apart.
  */
 export function supplierPaidThisYear(p: Procurement, on: string): YearPaid {
-  const year = solarYear(on);
+  // A payment not dated yet (a voucher still being prepared) counts in the current tax year.
+  const year = solarYear(on) ?? solarYear(today()) ?? 0;
   const vendor = vendorOf(p);
   const records = [p, ...everyProcurement.filter((o) => o.id !== p.id)]
     .flatMap((o) => o.payments ?? [])
