@@ -7,7 +7,7 @@ import { db, schema as s } from "@/db";
 import { userById } from "@/lib/demo";
 import type { Farmer } from "@/lib/field";
 import { seedDatabase } from "@/server/demo-seed";
-import { checkKoboDistribution, decideDistribution, listDistributions, recordFromApp, resubmitDistribution, stockFor } from "@/server/distribution";
+import { checkKoboDistribution, countApprovedDistributions, decideDistribution, listDistributions, recordFromApp, resubmitDistribution, stockFor } from "@/server/distribution";
 import { saveKoboApproval } from "@/server/kobo-approval";
 import { saveMappings } from "@/server/kobo-link";
 import { realToday } from "@/lib/clock";
@@ -231,6 +231,15 @@ describe("input distribution, field to finance (demo project)", { timeout: 60_00
     const made = (await loadResults(code)).filter((r) => r.distribution);
     expect(made.map((r) => r.distribution).sort()).toEqual([first, third].sort());
     expect(await audits("distribution_sent_back")).toHaveLength(2);
+  });
+
+  it("counts a distribution approved before a target was named once the target is set, and never twice", async () => {
+    const setup = (await setupFor(code))!;
+    // "second" was approved while no target was named (above): it is the one not yet counted.
+    expect(await countApprovedDistributions(code, setup.target!)).toBe(1);
+    expect(await countApprovedDistributions(code, setup.target!)).toBe(0);
+    const made = (await loadResults(code)).filter((r) => r.distribution);
+    expect(made.map((r) => r.distribution).sort()).toEqual([first, second, third].sort());
   });
 
   it("counts a KoboCollect distribution toward the same target, once checked and approved, under its collector", async () => {

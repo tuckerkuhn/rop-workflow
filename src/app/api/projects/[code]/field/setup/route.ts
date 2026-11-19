@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { countApprovedDistributions } from "@/server/distribution";
 import { and, asc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db, schema as s } from "@/db";
@@ -80,6 +81,8 @@ export async function PUT(req: Request, { params }: Ctx) {
     const before = await setupOf(project);
     await saveProjectState(project.id, FIELD_SETUP_KEY, setup);
     await audit(code, { entity: "field", entityId: crypto.randomUUID(), action: "field_setup_saved", by: v.user.id, detail: { before: before?.items ?? null, after: setup.items, target: { before: before?.target ?? null, after: setup.target ?? null } } });
-    return NextResponse.json({ setup });
+    // A target named now also counts the distributions already approved (server/distribution).
+    const counted = setup.target && setup.target !== before?.target ? await countApprovedDistributions(code, setup.target) : 0;
+    return NextResponse.json({ setup, counted });
   });
 }

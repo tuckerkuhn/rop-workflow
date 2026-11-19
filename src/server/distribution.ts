@@ -736,3 +736,38 @@ export async function correctionTask(tx: Tx, project: { id: string; organization
     })
     .onConflictDoNothing();
 }
+
+/**
+ * When the project first names (or changes) the target distributions count toward, the ones the
+ * project manager already approved are counted too, so nobody types them again on the Results
+ * page. Each becomes one result waiting for MEL, exactly as at approval; one already counted is
+ * never counted twice. Returns how many were added.
+ */
+export async function countApprovedDistributions(code: string, target: string): Promise<number> {
+  const project = await projectByCode(code);
+  const indicator = (await db.select({ code: s.indicators.code }).from(s.indicators).where(and(eq(s.indicators.projectId, project.id), eq(s.indicators.code, target), eq(s.indicators.source, "results"))).limit(1))[0];
+  if (!indicator) return 0;
+  const rows = await db.select().from(s.evidence).where(and(eq(s.evidence.projectId, project.id), eq(s.evidence.form, "distribution"), eq(s.evidence.reviewStatus, "accepted")));
+  if (!rows.length) return 0;
+  const counted = new Set(
+    (await db.select({ payload: s.evidence.payload }).from(s.evidence).where(and(eq(s.evidence.projectId, project.id), eq(s.evidence.form, "result"))))
+      .map((r) => (r.payload as { distribution?: string; indicator?: string } | null))
+      .filter((p) => p?.distribution && p.indicator === target)
+      .map((p) => p!.distribution!),
+  );
+  const st = await loadState(project.id);
+  const team = await people();
+  const rule = await koboApprovalFor(code);
+  let added = 0;
+  await db.transaction(async (tx) => {
+    for (const row of rows) {
+      const m = st.byId[row.id];
+      if (!m || row.koboRemovedAt || !row.farmerCode || counted.has(row.id) || m.decided?.decision !== "approved") continue;
+      const recorder = team.find((u) => u.id === (row.source === "kobo" ? collectorOf(row.completedBy, rule, team) : (m.recorderId ?? row.completedBy)));
+      const input = resultFor({ id: row.id, farmerId: row.farmerCode, village: m.village, gender: m.gender ?? undefined, date: (row.completedAt ?? new Date()).toISOString().slice(0, 10), items: m.items, recordedBy: recorder?.name ?? "the field team", approvedBy: m.decided.byName }, target);
+      await insertResult(tx, project, input, recorder?.id ?? m.decided.by);
+      added += 1;
+    }
+  });
+  return added;
+}

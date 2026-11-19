@@ -651,6 +651,7 @@ function CorrectForm({ r, act, onClose }: { r: Res; act: (a: ResultAction, msg: 
 }
 
 function ResultCard({ r, ind, act, mayAddProof, me }: { r: Res; ind?: Ind; act: (a: ResultAction, msg: string) => Promise<void>; mayAddProof: boolean; me: string }) {
+  const { project } = useCurrentProject();
   const { t } = useT();
   const [selfing, setSelfing] = useState(false);
   const { user } = useSession();
@@ -694,8 +695,8 @@ function ResultCard({ r, ind, act, mayAddProof, me }: { r: Res; ind?: Ind; act: 
       <OriginalText original={r.original} />
       {(r.female !== undefined || r.male !== undefined || r.womenLed !== undefined || r.menLed !== undefined) && (
         <p className="mt-1 text-xs text-muted">
-          {r.female !== undefined && `${r.female} women`}
-          {r.male !== undefined && ` · ${r.male} men`}
+          {r.female !== undefined && `${r.female} ${r.female === 1 ? "woman" : "women"}`}
+          {r.male !== undefined && ` · ${r.male} ${r.male === 1 ? "man" : "men"}`}
           {r.womenLed !== undefined && ` · ${r.womenLed} women-led`}
           {r.menLed !== undefined && ` · ${r.menLed} men-led`}
         </p>
@@ -717,6 +718,11 @@ function ResultCard({ r, ind, act, mayAddProof, me }: { r: Res; ind?: Ind; act: 
             {l.title} <span aria-hidden>↗</span>
           </a>
         ))}
+        {r.distribution && (
+          <a href={`/approve/${encodeURIComponent(project.id)}/${r.distribution}`} className="rounded-lg border border-line px-2 py-1 text-xs font-semibold text-forest hover:bg-sunken">
+            Distribution record: signed note and approval <span aria-hidden>→</span>
+          </a>
+        )}
         {!proofCount(r) && r.noFile && <span className="text-xs text-clay">No file: {r.noFile}</span>}
         {mayAddProof && !adding && (
           <button type="button" className="rounded-lg px-2 py-1 text-xs font-semibold text-forest hover:bg-sunken" onClick={() => setAdding(true)}>
@@ -726,8 +732,8 @@ function ResultCard({ r, ind, act, mayAddProof, me }: { r: Res; ind?: Ind; act: 
       </div>
       {adding && <AddProof r={r} act={act} onClose={() => setAdding(false)} />}
       <p className="mt-2 text-xs text-muted">
-        {r.kobo ? `From KoboToolbox${r.kobo.id ? `, submission ${r.kobo.id}` : ""}` : `Recorded by ${r.by}`}
-        {r.reviewedBy && ` · ${r.status === "accepted" ? "accepted" : "queried"} by ${r.reviewedBy}`}
+        {r.kobo ? `From KoboToolbox${r.kobo.id ? `, submission ${r.kobo.id}` : ""}` : `Recorded by ${r.byName ?? r.by}`}
+        {r.reviewedBy && ` · ${r.status === "accepted" ? "accepted" : "queried"} by ${r.reviewedByName ?? r.reviewedBy}`}
         {r.koboChanged && <span className="font-semibold text-clay"> · Changed in KoboToolbox since it was accepted: reopen it to check the new figure</span>}
         {/* A field's exact location is personal data: only for people who see participants' names. */}
         {r.gps && user?.pii && (

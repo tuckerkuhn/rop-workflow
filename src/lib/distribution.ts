@@ -193,7 +193,7 @@ export function flagsFor(d: { farmerId: string; items: DistItem[]; photo: boolea
  * second time on the Results page. The farmer is named by number and village only.
  */
 export function resultFor(d: { id: string; farmerId: string; village?: string; gender?: string; date: string; items: DistItem[]; recordedBy: string; approvedBy: string }, target: string): ResultInput {
-  const given = d.items.filter((i) => i.qty > 0).map((i) => `${i.qty} ${i.unit} ${i.item}`).join(", ");
+  const given = d.items.filter((i) => i.qty > 0).map((i) => `${qtyUnit(i.qty, i.unit)} ${i.item}`).join(", ");
   return {
     indicator: target,
     date: d.date,

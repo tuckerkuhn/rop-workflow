@@ -7,6 +7,7 @@ import { logAudit } from "@/server/audit";
 
 type CorrectionInput = z.infer<typeof correctionSchema>;
 import { projectByCode } from "@/server/field-store";
+import { people } from "@/server/auth";
 
 /** Recorded results, kept as evidence records (source "manual", form "result"). */
 
@@ -31,7 +32,11 @@ export async function loadResults(code: string): Promise<ResultRecord[]> {
     .select()
     .from(s.evidence)
     .where(and(eq(s.evidence.projectId, project.id), eq(s.evidence.source, "manual"), eq(s.evidence.form, "result")));
-  return rows.map(toRecord).sort((a, b) => b.date.localeCompare(a.date));
+  const names = new Map((await people()).map((u) => [u.id, u.name]));
+  return rows
+    .map(toRecord)
+    .map((r) => ({ ...r, byName: names.get(r.by) ?? r.by, reviewedByName: r.reviewedBy ? (names.get(r.reviewedBy) ?? r.reviewedBy) : null }))
+    .sort((a, b) => b.date.localeCompare(a.date));
 }
 
 /**

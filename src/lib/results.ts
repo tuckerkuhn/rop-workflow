@@ -87,7 +87,8 @@ export const resultSchema = z
 export const YOUTH = { label: "Young people (18–35)", source: "Afghanistan National Youth Policy" };
 
 /** Files and links on a result: the proof behind it. */
-export const proofCount = (r: Pick<ResultInput, "files" | "links">) => r.files.length + (r.links?.length ?? 0);
+/** Files and links, plus the approved distribution record behind a result made from one (its signed note, photo and approval). */
+export const proofCount = (r: Pick<ResultInput, "files" | "links"> & { distribution?: string }) => r.files.length + (r.links?.length ?? 0) + (r.distribution ? 1 : 0);
 export type ResultInput = z.infer<typeof resultSchema>;
 
 export type ResultStatus = "pending" | "accepted" | "queried";
@@ -115,6 +116,9 @@ export type ResultRecord = ResultInput & {
   quarter: string;
   status: ResultStatus;
   by: string;
+  /** The names of who recorded and who reviewed it, for the screen (by and reviewedBy are ids). */
+  byName?: string;
+  reviewedByName?: string | null;
   at: string;
   reviewedBy: string | null;
   reviewedAt: string | null;

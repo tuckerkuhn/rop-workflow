@@ -109,18 +109,35 @@ export function PackageSetup({ code, onSaved, onCancel }: { code: string; onSave
   const problem = setupProblem(built);
   const set = (k: number, patch: Partial<Draft>) => setItems((all) => all.map((d, j) => (j === k ? { ...d, ...patch } : d)));
 
+  const [countedNow, setCountedNow] = useState<{ n: number; setup: FieldSetup } | null>(null);
+
   async function save() {
     setBusy(true);
     try {
-      const r = await api<{ setup: FieldSetup }>(`/api/projects/${encodeURIComponent(code)}/field/setup`, user?.id, { method: "PUT", body: JSON.stringify(built) });
+      const r = await api<{ setup: FieldSetup; counted?: number }>(`/api/projects/${encodeURIComponent(code)}/field/setup`, user?.id, { method: "PUT", body: JSON.stringify(built) });
       setError("");
-      onSaved(r.setup);
+      // Distributions approved before the target was named are counted now: say so before closing.
+      if (r.counted) setCountedNow({ n: r.counted, setup: r.setup });
+      else onSaved(r.setup);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
   }
+
+  if (countedNow)
+    return (
+      <div className="rounded-2xl border border-line bg-surface p-5 text-sm">
+        <p className="font-semibold">Saved.</p>
+        <p className="mt-1">
+          {countedNow.n} {countedNow.n === 1 ? "distribution" : "distributions"} approved before the target was chosen {countedNow.n === 1 ? "now counts" : "now count"} toward it, waiting for MEL on the Results page like any other result.
+        </p>
+        <button type="button" onClick={() => onSaved(countedNow.setup)} className="mt-3 font-semibold text-forest underline">
+          Continue
+        </button>
+      </div>
+    );
 
   const editable = canEdit || canEditProject(user);
   return (
