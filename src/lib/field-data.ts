@@ -36,7 +36,7 @@ export function farmerTable(items: FieldItem[], given: Given[], stepTitle: (step
     // The farmer's latest distribution that was not sent back ("queried").
     const got = given.filter((g) => g.farmerId === f.id && g.status !== "queried").sort((a, b) => b.date.localeCompare(a.date))[0];
     const packageOn = got?.date ?? first(f, "Inputs distributed");
-    const planted = first(f, "Planting recorded");
+    const planted = f.planting?.date ?? first(f, "Planting recorded");
     return [
       f.id, f.community, f.gender, f.ageBand, String(f.householdSize), String(f.hectares), f.enrolledOn, f.contributionPaid ? "Yes" : "No", stepTitle(f.step),
       trained, first(f, "Readiness visit requested"), firstCheck?.date ?? "", readyAtFirst, firstCheck ? String(corrections) : "", ready,

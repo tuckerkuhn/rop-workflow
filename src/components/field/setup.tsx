@@ -38,6 +38,8 @@ export function PackageSetup({ code, onSaved, onCancel }: { code: string; onSave
   const [windowEnd, setWindowEnd] = useState("");
   // The target an approved distribution adds a farmer to, and the targets to choose from.
   const [target, setTarget] = useState("");
+  // When a farmer counts toward it: at the approved distribution, or when planting is recorded.
+  const [targetAt, setTargetAt] = useState<"distribution" | "planting">("distribution");
   const [targets, setTargets] = useState<{ code: string; name: string; unit: string }[]>([]);
   const [fromDraft, setFromDraft] = useState(false);
   // A draft copied from another project says which one (lib/project-template).
@@ -77,6 +79,7 @@ export function PackageSetup({ code, onSaved, onCancel }: { code: string; onSave
           setCrop(s.crop ?? "");
           setWindowEnd(s.windowEnd ?? "");
           setTarget(s.target ?? "");
+          setTargetAt(s.targetAt ?? "distribution");
         }
       })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
@@ -105,11 +108,12 @@ export function PackageSetup({ code, onSaved, onCancel }: { code: string; onSave
     ...(crop.trim() ? { crop: crop.trim() } : {}),
     ...(windowEnd ? { windowEnd } : {}),
     ...(target ? { target } : {}),
+    ...(target && targetAt === "planting" ? { targetAt } : {}),
   };
   const problem = setupProblem(built);
   const set = (k: number, patch: Partial<Draft>) => setItems((all) => all.map((d, j) => (j === k ? { ...d, ...patch } : d)));
 
-  const [countedNow, setCountedNow] = useState<{ n: number; setup: FieldSetup } | null>(null);
+  const [countedNow, setCountedNow] = useState<{ n: number; setup: FieldSetup; at: "distribution" | "planting" } | null>(null);
 
   async function save() {
     setBusy(true);
@@ -117,7 +121,7 @@ export function PackageSetup({ code, onSaved, onCancel }: { code: string; onSave
       const r = await api<{ setup: FieldSetup; counted?: number }>(`/api/projects/${encodeURIComponent(code)}/field/setup`, user?.id, { method: "PUT", body: JSON.stringify(built) });
       setError("");
       // Distributions approved before the target was named are counted now: say so before closing.
-      if (r.counted) setCountedNow({ n: r.counted, setup: r.setup });
+      if (r.counted) setCountedNow({ n: r.counted, setup: r.setup, at: r.setup.targetAt ?? "distribution" });
       else onSaved(r.setup);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -131,7 +135,10 @@ export function PackageSetup({ code, onSaved, onCancel }: { code: string; onSave
       <div className="rounded-2xl border border-line bg-surface p-5 text-sm">
         <p className="font-semibold">Saved.</p>
         <p className="mt-1">
-          {countedNow.n} {countedNow.n === 1 ? "distribution" : "distributions"} approved before the target was chosen {countedNow.n === 1 ? "now counts" : "now count"} toward it, waiting for MEL on the Results page like any other result.
+          {countedNow.at === "planting"
+            ? `${countedNow.n} ${countedNow.n === 1 ? "farmer" : "farmers"} whose planting was already recorded ${countedNow.n === 1 ? "now counts" : "now count"} toward it`
+            : `${countedNow.n} ${countedNow.n === 1 ? "distribution" : "distributions"} approved before the target was chosen ${countedNow.n === 1 ? "now counts" : "now count"} toward it`}
+          , waiting for MEL on the Results page like any other result. A farmer already counted is never counted twice.
         </p>
         <button type="button" onClick={() => onSaved(countedNow.setup)} className="mt-3 font-semibold text-forest underline">
           Continue
@@ -263,8 +270,8 @@ export function PackageSetup({ code, onSaved, onCancel }: { code: string; onSave
       <fieldset disabled={!editable} className="rounded-2xl border border-line bg-surface p-4">
         <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-muted">Count it toward a target (optional)</legend>
         <label className="block text-sm font-medium">
-          Target for farmers who received the package
-          <span className="mt-0.5 block text-xs font-normal text-muted">Each distribution the project manager approves adds one farmer, from KoboCollect or recorded in the app. This is the only place distributions are counted.</span>
+          Target this package counts toward
+          <span className="mt-0.5 block text-xs font-normal text-muted">Each farmer adds one, from KoboCollect or recorded in the app. This is the only place they are counted, so nobody records them again on the Results page.</span>
           <select value={target} onChange={(e) => setTarget(e.target.value)} className={`mt-1 ${field}`}>
             <option value="">Do not count distributions toward a target</option>
             {/* A saved target no longer on the list stays visible, so saving again does not drop it without anyone noticing. */}
@@ -276,9 +283,30 @@ export function PackageSetup({ code, onSaved, onCancel }: { code: string; onSave
             ))}
           </select>
         </label>
+        {target && (
+          <div className="mt-3 text-sm" role="radiogroup" aria-label="When a farmer counts">
+            <p className="font-medium">A farmer counts when</p>
+            {(
+              [
+                ["distribution", "Their package is handed out and the project manager approves it", "For targets such as farmers who received inputs."],
+                ["planting", "Their planting is recorded", "For targets met in the field, such as trellis systems installed or hectares planted."],
+              ] as const
+            ).map(([v, label, help]) => (
+              <label key={v} className="mt-2 flex items-start gap-2">
+                <input type="radio" name="target-at" checked={targetAt === v} onChange={() => setTargetAt(v)} className="mt-1" />
+                <span>
+                  {label}
+                  <span className="block text-xs text-muted">{help}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+        )}
         <p className="mt-2 text-sm text-muted">
           {target
-            ? "Each distribution the project manager approves adds one farmer to this target. It counts once MEL accepts it, so nobody records the same distribution a second time."
+            ? targetAt === "planting"
+              ? "Each farmer whose planting the extension agent records adds one to this target, counted once MEL accepts it. The distribution alone does not count."
+              : "Each distribution the project manager approves adds one farmer to this target. It counts once MEL accepts it, so nobody records the same distribution a second time."
             : targets.length
               ? "Choose a target and each approved distribution adds one farmer to it. Left empty, distributions have to be recorded again on the Results page to count."
               : "This project has no targets that take recorded results yet. Add them in the project design, then choose one here."}

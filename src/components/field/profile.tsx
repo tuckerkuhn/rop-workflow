@@ -196,6 +196,11 @@ export function FarmerProfile({ id }: { id: string }) {
             </section>
 
             {/* Summary */}
+            {farmer.planting && (
+              <p className="rounded-xl border border-line bg-mist px-4 py-2 text-sm">
+                <span className="font-semibold">Planted {farmer.planting.date}</span> · {farmer.planting.hectares} of {farmer.hectares} ha
+              </p>
+            )}
             <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-4">
               {[
                 ["Engagements", String(engagements.length)],

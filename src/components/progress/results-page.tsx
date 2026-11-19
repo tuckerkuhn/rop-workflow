@@ -723,6 +723,11 @@ function ResultCard({ r, ind, act, mayAddProof, me }: { r: Res; ind?: Ind; act: 
             Distribution record: signed note and approval <span aria-hidden>→</span>
           </a>
         )}
+        {r.planting && (
+          <a href={`/field/farmers/${encodeURIComponent(r.planting)}`} className="rounded-lg border border-line px-2 py-1 text-xs font-semibold text-forest hover:bg-sunken">
+            Planting record: farmer {r.planting} <span aria-hidden>→</span>
+          </a>
+        )}
         {!proofCount(r) && r.noFile && <span className="text-xs text-clay">No file: {r.noFile}</span>}
         {mayAddProof && !adding && (
           <button type="button" className="rounded-lg px-2 py-1 text-xs font-semibold text-forest hover:bg-sunken" onClick={() => setAdding(true)}>

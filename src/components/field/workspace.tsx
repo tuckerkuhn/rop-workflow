@@ -45,6 +45,8 @@ import {
   farmerName,
   fieldSteps,
   hasSignedNotePhoto,
+  handedOutOn,
+  plantingProblem,
   findingStages,
   historyBasis,
   issueHelp,
@@ -237,7 +239,7 @@ function Detail({
   const checksOk = allChecksPass(item, ctx);
   const awaiting = item.kind === "farmer" && item.step === "distribute" ? item.awaiting : undefined;
 
-  const log = (i: FieldItem, what: string): FieldItem => ({ ...i, timeline: [...i.timeline, { date: today(), who: role ?? "manager", what }] });
+  const log = (i: FieldItem, what: string): FieldItem => ({ ...i, timeline: [...i.timeline, { date: today(), who: role ?? "manager", what, ...(user ? { by: user.name } : {}) }] });
 
   const run = (o: Outcome, n: string) => {
     const r = o.effect?.(item, n, ctx);
@@ -261,6 +263,18 @@ function Detail({
         setNoteError("");
       })
       .catch(() => setNoteError("The app could not read that image. Try a JPEG or PNG photo."));
+  };
+  // Planting: the record and an optional photo of the planted plot.
+  const [plantPhotoError, setPlantPhotoError] = useState("");
+  const addPlantPhoto = (file: File | undefined) => {
+    if (!file) return;
+    if (file.size > 25_000_000) return setPlantPhotoError("That file is too large to be a photo. Choose a photo from the phone.");
+    void shrinkPhoto(file, fullPhotos ? PHOTO_QUALITY.full : PHOTO_QUALITY.small)
+      .then((src) => {
+        apply((i) => (i.kind === "farmer" ? { ...i, photos: [...i.photos, { id: `${i.id}-planting-${Date.now()}`, activity: "planting", date: today(), caption: `Planted plot · ${i.id}`, src }] } : i));
+        setPlantPhotoError("");
+      })
+      .catch(() => setPlantPhotoError("The app could not read that image. Try a JPEG or PNG photo."));
   };
   const canRun = (o: Outcome) => blocks.length === 0 && (o.requiresChecks === false || (checksOk && (!needsNote || noteOnFile)));
   const end = ENDS[item.step];
@@ -409,6 +423,15 @@ function Detail({
                       )}
                     </div>
                   )}
+                  {item.kind === "farmer" && item.step === "plant" && (
+                    <PlantingForm
+                      farmer={item}
+                      today={ctx.today}
+                      onSave={(p) => apply((i) => log({ ...(i as Farmer), planting: p }, `Planting record: planted ${p.date}, ${p.hectares} ha`))}
+                      onPhoto={addPlantPhoto}
+                      photoError={plantPhotoError}
+                    />
+                  )}
                   {pending ? (
                     <form
                       className="flex flex-wrap gap-2"
@@ -513,6 +536,90 @@ function Detail({
       />
 
       <History events={item.timeline} roleLabel={fieldPerson} />
+    </div>
+  );
+}
+
+/* ---------- planting record ---------- */
+
+/**
+ * What the extension agent records at "Plant and follow up": the day the farmer planted and the
+ * area planted, saved once with a button, and an optional photo of the planted plot. The checks
+ * above read it (lib/field plantingProblem), and the server refuses a record that breaks them.
+ */
+function PlantingForm({ farmer, today: now, onSave, onPhoto, photoError }: { farmer: Farmer; today: string; onSave: (p: { date: string; hectares: number }) => void; onPhoto: (f: File | undefined) => void; photoError: string }) {
+  const saved = farmer.planting;
+  const [editing, setEditing] = useState(!saved);
+  const [date, setDate] = useState(saved?.date ?? now);
+  const [ha, setHa] = useState(String(saved?.hectares ?? farmer.hectares));
+  const draft = { date, hectares: Number(ha) };
+  const problem = ha.trim() === "" ? "Enter the area planted." : plantingProblem({ ...farmer, planting: draft }, now);
+  const given = handedOutOn(farmer);
+  const photo = farmer.photos.filter((p) => p.activity === "planting" && p.src).at(-1);
+  return (
+    <div className={`rounded-xl border px-4 py-3 text-sm ${saved && !editing ? "border-line bg-mist" : "border-clay/40 bg-clay-soft"}`}>
+      {saved && !editing ? (
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <p className="font-semibold">
+            ✓ Planted {saved.date} · {saved.hectares} of {farmer.hectares} ha
+          </p>
+          <button type="button" onClick={() => setEditing(true)} className="text-xs font-semibold text-forest underline">
+            Change
+          </button>
+        </div>
+      ) : (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (problem) return;
+            onSave(draft);
+            setEditing(false);
+          }}
+        >
+          <p className="font-semibold">Planting record</p>
+          <p className="mt-1 text-muted">The day the farmer planted and how much of the plot. {given ? `Inputs were handed out ${given}.` : ""}</p>
+          <div className="mt-3 flex flex-wrap items-end gap-3">
+            <label className="text-xs font-semibold">
+              Planted on
+              <input type="date" value={date} max={now} min={given ?? undefined} onChange={(e) => setDate(e.target.value)} className="mt-1 block rounded-lg border border-line bg-surface px-3 py-2 text-sm font-normal" />
+            </label>
+            <label className="text-xs font-semibold">
+              Area planted (ha, plot is {farmer.hectares})
+              <input type="number" min={0} max={farmer.hectares} step="any" inputMode="decimal" value={ha} onChange={(e) => setHa(e.target.value)} className="mt-1 block w-32 rounded-lg border border-line bg-surface px-3 py-2 text-sm font-normal" />
+            </label>
+            <button type="submit" disabled={!!problem} className={primaryBtn}>
+              Save planting record
+            </button>
+            {saved && (
+              <button type="button" onClick={() => setEditing(false)} className="px-2 text-sm text-muted">
+                Cancel
+              </button>
+            )}
+          </div>
+          {problem && <p className="mt-2 text-clay">{problem}</p>}
+        </form>
+      )}
+      <div className="mt-3 border-t border-line/60 pt-3">
+        {photo ? (
+          <p className="text-muted">✓ Photo of the planted plot on the record ({photo.date}).</p>
+        ) : (
+          <label className="inline-flex cursor-pointer items-center gap-1 text-sm font-semibold text-forest underline">
+            Add a photo of the planted plot (optional)
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="sr-only"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = "";
+                onPhoto(file);
+              }}
+            />
+          </label>
+        )}
+        {photoError && <p className="mt-2 text-clay">{photoError}</p>}
+      </div>
     </div>
   );
 }

@@ -77,6 +77,8 @@ export const resultSchema = z
     kobo: z.object({ asset: z.string().max(80), uuid: z.string().max(80), id: z.number().int().optional(), /** The KoboCollect account that sent it. */ by: z.string().max(120).optional() }).optional(),
     /** The input distribution it was made from (its record id), when the project manager's approval made it. */
     distribution: z.string().max(80).optional(),
+    /** The farmer whose planting record it was made from, when recording planting made it. */
+    planting: z.string().max(80).optional(),
     /** Why there is no file yet, when there is none. */
     noFile: z.string().trim().max(300).optional(),
   })
@@ -88,7 +90,7 @@ export const YOUTH = { label: "Young people (18–35)", source: "Afghanistan Nat
 
 /** Files and links on a result: the proof behind it. */
 /** Files and links, plus the approved distribution record behind a result made from one (its signed note, photo and approval). */
-export const proofCount = (r: Pick<ResultInput, "files" | "links"> & { distribution?: string }) => r.files.length + (r.links?.length ?? 0) + (r.distribution ? 1 : 0);
+export const proofCount = (r: Pick<ResultInput, "files" | "links"> & { distribution?: string; planting?: string }) => r.files.length + (r.links?.length ?? 0) + (r.distribution || r.planting ? 1 : 0);
 export type ResultInput = z.infer<typeof resultSchema>;
 
 export type ResultStatus = "pending" | "accepted" | "queried";

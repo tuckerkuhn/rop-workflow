@@ -7,8 +7,8 @@ import type { AppUser } from "@/lib/demo";
 import { approverNames, collectorOf, deciderNames, decidersOf, needsKoboCheck, refusalFor } from "@/lib/kobo-approval";
 import { koboApprovalFor } from "@/server/kobo-approval";
 import { insertResult } from "@/server/results-store";
-import { addGiven, applyFix, approvalRefusal, approverNamesOf, badCondition, approversOf, closeBlock, drawnFrom, fixOwner, flagsFor, gate, inProcUnit, lineOf, paymentDue, resultFor, storeStock, type DistItem, type Fix, type Flag, type Gate, type Given } from "@/lib/distribution";
-import { itemsFor, type FieldSetup } from "@/lib/package";
+import { addGiven, applyFix, approvalRefusal, approverNamesOf, badCondition, approversOf, closeBlock, drawnFrom, fixOwner, flagsFor, gate, inProcUnit, lineOf, paymentDue, resultFor, resultForPlanting, storeStock, type DistItem, type Fix, type Flag, type Gate, type Given } from "@/lib/distribution";
+import { countsAtPlanting, itemsFor, type FieldSetup } from "@/lib/package";
 import { hasSignedNotePhoto, type Farmer } from "@/lib/field";
 import type { Procurement } from "@/lib/procurement";
 import type { Submission } from "@/lib/project";
@@ -551,7 +551,8 @@ export async function decideDistribution(code: string, id: string, decision: "ap
   const team = decision === "approved" ? await people() : [];
   // The target approved distributions count toward (lib/package `target`), when the project has
   // named one and it takes recorded results.
-  const counts = decision === "approved" && ctx.setup.target ? ((await db.select({ code: s.indicators.code, name: s.indicators.name }).from(s.indicators).where(and(eq(s.indicators.projectId, project.id), eq(s.indicators.code, ctx.setup.target), eq(s.indicators.source, "results"))).limit(1))[0] ?? null) : null;
+  // A target that counts at planting is counted when planting is recorded (countPlanting), not here.
+  const counts = decision === "approved" && ctx.setup.target && !countsAtPlanting(ctx.setup) ? ((await db.select({ code: s.indicators.code, name: s.indicators.name }).from(s.indicators).where(and(eq(s.indicators.projectId, project.id), eq(s.indicators.code, ctx.setup.target), eq(s.indicators.source, "results"))).limit(1))[0] ?? null) : null;
   let result: string | null = null;
 
   await db.transaction(async (tx) => {
@@ -745,6 +746,7 @@ export async function correctionTask(tx: Tx, project: { id: string; organization
  */
 export async function countApprovedDistributions(code: string, target: string): Promise<number> {
   const project = await projectByCode(code);
+  if (countsAtPlanting(await setupOf(project))) return countPlantedFarmers(code, target);
   const indicator = (await db.select({ code: s.indicators.code }).from(s.indicators).where(and(eq(s.indicators.projectId, project.id), eq(s.indicators.code, target), eq(s.indicators.source, "results"))).limit(1))[0];
   if (!indicator) return 0;
   const rows = await db.select().from(s.evidence).where(and(eq(s.evidence.projectId, project.id), eq(s.evidence.form, "distribution"), eq(s.evidence.reviewStatus, "accepted")));
@@ -755,6 +757,13 @@ export async function countApprovedDistributions(code: string, target: string): 
       .filter((p) => p?.distribution && p.indicator === target)
       .map((p) => p!.distribution!),
   );
+  // A farmer already counted from their planting (when the target counted at planting before) is not counted again.
+  const planted = new Set(
+    (await db.select({ payload: s.evidence.payload }).from(s.evidence).where(and(eq(s.evidence.projectId, project.id), eq(s.evidence.form, "result"))))
+      .map((r) => r.payload as { planting?: string; indicator?: string } | null)
+      .filter((p) => p?.planting && p.indicator === target)
+      .map((p) => p!.planting!),
+  );
   const st = await loadState(project.id);
   const team = await people();
   const rule = await koboApprovalFor(code);
@@ -762,10 +771,75 @@ export async function countApprovedDistributions(code: string, target: string): 
   await db.transaction(async (tx) => {
     for (const row of rows) {
       const m = st.byId[row.id];
-      if (!m || row.koboRemovedAt || !row.farmerCode || counted.has(row.id) || m.decided?.decision !== "approved") continue;
+      if (!m || row.koboRemovedAt || !row.farmerCode || counted.has(row.id) || planted.has(row.farmerCode) || m.decided?.decision !== "approved") continue;
       const recorder = team.find((u) => u.id === (row.source === "kobo" ? collectorOf(row.completedBy, rule, team) : (m.recorderId ?? row.completedBy)));
       const input = resultFor({ id: row.id, farmerId: row.farmerCode, village: m.village, gender: m.gender ?? undefined, date: (row.completedAt ?? new Date()).toISOString().slice(0, 10), items: m.items, recordedBy: recorder?.name ?? "the field team", approvedBy: m.decided.byName }, target);
       await insertResult(tx, project, input, recorder?.id ?? m.decided.by);
+      added += 1;
+    }
+  });
+  return added;
+}
+
+/* ---------- a recorded planting counts toward a target ---------- */
+
+/**
+ * The farmers already counted toward a target: by a result made from their planting, or from one
+ * of their distributions. A farmer counts once, whichever way the project counted them before.
+ */
+async function farmersCounted(tx: Tx | typeof db, projectId: string, target: string): Promise<Set<string>> {
+  const results = (await tx.select({ payload: s.evidence.payload }).from(s.evidence).where(and(eq(s.evidence.projectId, projectId), eq(s.evidence.form, "result"))))
+    .map((r) => r.payload as { distribution?: string; planting?: string; indicator?: string } | null)
+    .filter((p) => p?.indicator === target);
+  const out = new Set(results.map((p) => p!.planting).filter((x): x is string => !!x));
+  const dists = new Set(results.map((p) => p!.distribution).filter((x): x is string => !!x));
+  if (dists.size)
+    for (const row of await tx.select({ id: s.evidence.id, farmer: s.evidence.farmerCode }).from(s.evidence).where(and(eq(s.evidence.projectId, projectId), eq(s.evidence.form, "distribution"))))
+      if (dists.has(row.id) && row.farmer) out.add(row.farmer);
+  return out;
+}
+
+/**
+ * When the project's target counts at planting (lib/package targetAt), recording a farmer's
+ * planting adds them to it: one result waiting for MEL, never twice for the same farmer. Returns
+ * the result's id, or null when the target does not count at planting or already counts them.
+ */
+export async function countPlanting(code: string, f: Farmer, by: { id: string; name: string }): Promise<string | null> {
+  const project = await projectByCode(code);
+  const setup = await setupOf(project);
+  if (!countsAtPlanting(setup) || !f.planting) return null;
+  const target = setup!.target!;
+  const indicator = (await db.select({ code: s.indicators.code }).from(s.indicators).where(and(eq(s.indicators.projectId, project.id), eq(s.indicators.code, target), eq(s.indicators.source, "results"))).limit(1))[0];
+  if (!indicator) return null;
+  return db.transaction(async (tx) => {
+    if ((await farmersCounted(tx, project.id, target)).has(f.id)) return null;
+    const r = await insertResult(tx, project, resultForPlanting({ ...f, planting: f.planting! }, target, setup!.crop, by.name), by.id);
+    return r.id;
+  });
+}
+
+/**
+ * When a target that counts at planting is first named (or switched to planting), the farmers
+ * whose planting is already recorded are counted, once each. Returns how many were added.
+ */
+export async function countPlantedFarmers(code: string, target: string): Promise<number> {
+  const project = await projectByCode(code);
+  const setup = await setupOf(project);
+  const indicator = (await db.select({ code: s.indicators.code }).from(s.indicators).where(and(eq(s.indicators.projectId, project.id), eq(s.indicators.code, target), eq(s.indicators.source, "results"))).limit(1))[0];
+  if (!indicator) return 0;
+  const rows = await db.select().from(s.fieldItems).where(and(eq(s.fieldItems.projectId, project.id), eq(s.fieldItems.kind, "farmer")));
+  const planted = rows.map((r) => r.data as Farmer).filter((f) => f.step === "complete" && !!f.planting);
+  if (!planted.length) return 0;
+  const team = await people();
+  let added = 0;
+  await db.transaction(async (tx) => {
+    const counted = await farmersCounted(tx, project.id, target);
+    for (const f of planted) {
+      if (counted.has(f.id)) continue;
+      // The person who recorded the planting, from the history; the field team when not known.
+      const who = [...f.timeline].reverse().find((t) => t.what.startsWith("Planting recorded"));
+      const by = team.find((u) => u.name === (who as { by?: string } | undefined)?.by) ?? team.find((u) => u.field?.includes("extension") && onProject(u, code));
+      await insertResult(tx, project, resultForPlanting({ ...f, planting: f.planting! }, target, setup?.crop, by?.name ?? "the field team"), by?.id ?? "system");
       added += 1;
     }
   });

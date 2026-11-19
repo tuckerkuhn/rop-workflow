@@ -4,7 +4,7 @@ import { z } from "zod";
 import type { FieldItem } from "@/lib/field";
 import { requireViewer } from "@/server/auth";
 import { loadField, saveEdited, saveStock } from "@/server/field-store";
-import { recordFromApp, stockFor } from "@/server/distribution";
+import { countPlanting, recordFromApp, stockFor } from "@/server/distribution";
 import { moveProblem, stepRefusal, type Farmer } from "@/lib/field";
 import { today } from "@/lib/clock";
 import { audit, handle, HttpError, readBody } from "@/server/guard";
@@ -46,6 +46,7 @@ const farmer = z.looseObject({
   surveys: z.array(z.looseObject({ date: short, score: z.number(), comment: z.string().max(4000), by: short })).max(200),
   photos: z.array(z.looseObject({ id: short, activity: z.enum(["training", "landprep", "visit", "distribution", "planting"]), date: short, caption: z.string().max(1000), src: z.string().max(PHOTO_MAX_CHARS).optional() })).max(200),
   stories: z.array(z.looseObject({ id: short, status: z.enum(["note", "completed"]), title: short, text: z.string().max(20000), date: short, by: short })).max(100),
+  planting: z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), hectares: z.number().min(0).max(100000) }).optional(),
 });
 const finding = z.looseObject({
   ...common,
@@ -84,6 +85,16 @@ export async function PUT(req: Request, { params }: { params: Promise<{ code: st
     const ctx = { stock: derivedBefore?.stock ?? field.stock ?? {}, stockNote: derivedBefore?.block ?? null, setup: field.setup ?? { items: [] }, today: today() };
     const wrong = items.map((i) => moveProblem(before.get(i.id), i) ?? (stored.has(i.id) ? stepRefusal(stored.get(i.id)!, i, v.user.field, ctx) : null)).find(Boolean);
     if (wrong) return NextResponse.json({ error: wrong }, { status: 409 });
+    // The planting record is entered at "Plant and follow up", by the extension agent, and is
+    // fixed once planting is recorded: the result counted from it never changes under MEL.
+    for (const i of items) {
+      if (i.kind !== "farmer") continue;
+      const was = stored.get(i.id);
+      const before = was?.kind === "farmer" ? was.planting : undefined;
+      if (JSON.stringify(before ?? null) === JSON.stringify(i.planting ?? null)) continue;
+      if (was?.step !== "plant") return NextResponse.json({ error: `Farmer ${i.id}: the planting record can only be entered at "Plant and follow up"${was?.step === "complete" ? ", and this farmer's planting is already recorded" : ""}.` }, { status: 409 });
+      if (!v.user.field.includes("extension")) return NextResponse.json({ error: `Farmer ${i.id}: the planting record is for the extension agent to enter.` }, { status: 403 });
+    }
     // Server-owned: whether a distribution waits for approval is never taken from the page.
     for (const i of items) {
       const was = stored.get(i.id);
@@ -96,12 +107,19 @@ export async function PUT(req: Request, { params }: { params: Promise<{ code: st
     const revs = toSave.length ? await saveEdited(code, toSave) : {};
     const recorded: string[] = [];
     for (const f of handedOut) recorded.push(await recordFromApp(code, f, v.user, new URL(req.url).origin));
+    // Planting recorded: when the project's target counts at planting, the farmer counts toward it now.
+    const results: string[] = [];
+    for (const i of items)
+      if (i.kind === "farmer" && before.get(i.id) === "plant" && i.step === "complete") {
+        const r = await countPlanting(code, i, v.user);
+        if (r) results.push(r);
+      }
     // The store's stock follows the purchases when they supply the package; a typed figure is kept only when none does.
     const derived = await stockFor(code);
     const typed = body.stock && !derived ? body.stock : undefined;
     if (typed) await saveStock(code, typed);
     if (items.length || typed)
-      await audit(code, { entity: "field", entityId: crypto.randomUUID(), action: "field_saved", by: v.user.id, detail: { items: items.map((i) => ({ id: i.id, kind: i.kind, step: i.step })), ...(typed ? { stock: typed } : {}), ...(recorded.length ? { distributions: recorded } : {}) } });
-    return NextResponse.json({ ok: true, revs, distributions: recorded, ...(derived ? { stock: derived.stock, stockNote: derived.block } : {}) });
+      await audit(code, { entity: "field", entityId: crypto.randomUUID(), action: "field_saved", by: v.user.id, detail: { items: items.map((i) => ({ id: i.id, kind: i.kind, step: i.step })), ...(typed ? { stock: typed } : {}), ...(recorded.length ? { distributions: recorded } : {}), ...(results.length ? { results } : {}) } });
+    return NextResponse.json({ ok: true, revs, distributions: recorded, results, ...(derived ? { stock: derived.stock, stockNote: derived.block } : {}) });
   });
 }

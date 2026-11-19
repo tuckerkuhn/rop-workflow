@@ -207,6 +207,25 @@ export function resultFor(d: { id: string; farmerId: string; village?: string; g
   };
 }
 
+/**
+ * The result a farmer's recorded planting adds to the project's target, when the target counts at
+ * planting (lib/package targetAt): one farmer, on the day they planted, with the planting record as
+ * its proof. The farmer is named by number and village only.
+ */
+export function resultForPlanting(f: { id: string; community?: string; gender?: string; planting: { date: string; hectares: number } }, target: string, crop: string | undefined, recordedBy: string): ResultInput {
+  return {
+    indicator: target,
+    date: f.planting.date,
+    value: 1,
+    ...(f.gender === "Female" ? { female: 1, male: 0 } : f.gender === "Male" ? { female: 0, male: 1 } : {}),
+    ...(f.community ? { district: f.community.slice(0, 80) } : {}),
+    note: `Farmer ${f.id}${f.community ? ` in ${f.community}` : ""} planted ${f.planting.hectares} ha${crop ? ` of ${crop.toLowerCase()}` : ""} on ${f.planting.date}. Recorded by ${recordedBy}.`.slice(0, 2000),
+    files: [],
+    noFile: "The proof is the farmer's planting record in Field activities, after the approved distribution.",
+    planting: f.id,
+  };
+}
+
 /* ---------- who approves a distribution, and when it may close ---------- */
 
 type Approver = { id: string; name: string; field: string[]; reportsTo?: string; kind?: string };

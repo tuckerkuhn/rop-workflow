@@ -67,6 +67,36 @@ export function sampleNotePhoto(farmerId: string, date: string): string {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 export type PhotoKind = "training" | "landprep" | "visit" | "distribution" | "planting";
+
+/** What the extension agent records at planting: the day the farmer planted and the area planted. */
+export type Planting = { date: string; hectares: number };
+
+/**
+ * The day the farmer's input package was handed out: the date on the photo of the signed goods
+ * received note, else the history line for it. Null when neither is on the record.
+ */
+export function handedOutOn(f: Pick<Farmer, "photos" | "timeline">): string | null {
+  const note = [...(f.photos ?? [])].reverse().find((p) => p.activity === "distribution" && p.signedNote);
+  if (note) return note.date;
+  return [...(f.timeline ?? [])].reverse().find((t) => /^Inputs distributed|^Distribution.* approved by /.test(t.what))?.date ?? null;
+}
+
+/**
+ * What is wrong with a farmer's planting record, in words the extension agent can act on; null
+ * when it can be recorded. Planting cannot come before the package was handed out or after today,
+ * and the area planted is at most the farmer's plot.
+ */
+export function plantingProblem(f: Pick<Farmer, "planting" | "hectares" | "photos" | "timeline">, today: string): string | null {
+  const p = f.planting;
+  if (!p) return "Record the day the farmer planted and the area planted.";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(p.date) || Number.isNaN(Date.parse(p.date))) return "The planting date must be a date.";
+  if (p.date > today) return `The planting date ${p.date} is after today.`;
+  const given = handedOutOn(f);
+  if (given && p.date < given) return `Planted ${p.date}, before the inputs were handed out on ${given}. Check the date.`;
+  if (!(p.hectares > 0)) return "The area planted must be above zero.";
+  if (p.hectares > f.hectares + 1e-9) return `${p.hectares} ha planted is more than the farmer's plot (${f.hectares} ha). Check the area, or correct the plot size on the farmer's profile.`;
+  return null;
+}
 export type Story = { id: string; status: "note" | "completed"; title: string; text: string; date: string; by: string };
 
 export type Gender = "Female" | "Male";
@@ -95,6 +125,8 @@ export type Farmer = {
   surveys: Survey[];
   photos: Photo[];
   stories: Story[];
+  /** The planting record, entered at "Plant and follow up" and fixed once planting is recorded. */
+  planting?: Planting;
   /**
    * An input distribution recorded for this farmer and not yet approved (server-set, from
    * server/distribution): waiting for the project manager, or sent back to be fixed. The farmer
@@ -331,15 +363,29 @@ export const fieldSteps: Record<string, SStep> = {
     owner: "extension",
     checks: [
       {
+        id: "recorded",
+        label: "Planting date and area recorded",
+        why: "The day and the area are the evidence that the inputs went into the ground, for MEL and the donor report.",
+        tag: "TS",
+        auto: (i, ctx) => {
+          const f = asFarmer(i);
+          const problem = plantingProblem(f, ctx.today);
+          return problem ? { ok: false, detail: problem } : { ok: true, detail: `Planted ${f.planting!.date} · ${f.planting!.hectares} of ${f.hectares} ha` };
+        },
+      },
+      {
         id: "window",
         label: "Planted within the planting window",
         why: "The targeted crop at the right time.",
         tag: "TS",
-        auto: (_, ctx) => {
+        auto: (i, ctx) => {
           const end = ctx.setup.windowEnd;
           if (!end) return null;
+          const p = asFarmer(i).planting;
+          // Judged on the day the farmer planted, not on today.
+          if (p) return { ok: p.date <= end, detail: p.date <= end ? `Planted ${p.date}, window closes ${end}` : `Planted ${p.date}, after the window closed ${end}` };
           const left = daysBetween(ctx.today, end);
-          return { ok: left >= 0, detail: left >= 0 ? `Window closes ${end} · ${left} days left` : `Window closed ${end}` };
+          return { ok: false, detail: left >= 0 ? `Window closes ${end} · ${left} days left · record the planting date` : `Window closed ${end} · record the planting date` };
         },
       },
       { id: "manner", label: "Planted at the right spacing and depth", why: "The right manner, as trained.", tag: "TS" },
@@ -537,11 +583,13 @@ function farmer(
   const timeline: TimelineEvent[] = [];
   const photos: Photo[] = [];
   const checks: Record<string, boolean> = {};
+  const extraPlanting: Partial<Farmer> = {};
   farmerPath.slice(0, reached).forEach((s, k) => {
     fieldSteps[s].checks.forEach((c) => (checks[`${s}.${c.id}`] = true));
     const outcome = s === "verify" && (step === "correct" || step === "removal") ? "Readiness: No" : fieldSteps[s].outcomes[0].done;
     const date = addDays(TODAY, -(reached - k) * 5);
     timeline.push({ date, who: owners[s], what: outcome });
+    if (s === "plant") extraPlanting.planting = { date, hectares };
     if (s === "distribute") photos.push({ id: `${id}-note`, activity: "distribution", date, caption: `Signed goods received note · ${id}`, src: sampleNotePhoto(id, date), signedNote: true });
     else if (s !== "verify" || k % 2 === 0) photos.push({ id: `${id}-${s}`, activity: photoFor[s], date, caption: `${fieldSteps[s].title} · ${id}` });
   });
@@ -577,6 +625,7 @@ function farmer(
     surveys,
     photos,
     stories: [],
+    ...extraPlanting,
     ...extra,
   };
 }

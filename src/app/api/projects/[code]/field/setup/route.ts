@@ -59,6 +59,7 @@ const body = z.object({
   crop: z.string().trim().max(80).optional(),
   windowEnd: z.union([z.string().regex(/^\d{4}-\d{2}-\d{2}$/), z.literal("")]).optional(),
   target: z.union([z.string().regex(/^IND-\d+$/), z.literal("")]).optional(),
+  targetAt: z.enum(["distribution", "planting"]).optional(),
 });
 
 /** Saves the package. From then on the project has Field activities. */
@@ -68,7 +69,7 @@ export async function PUT(req: Request, { params }: Ctx) {
     const v = await requireViewer(req, { write: true, allow: (u) => canEditProject(u) && u.kind === "employee", why: "Only the project manager and plan approvers can set up the input package." });
     if (v instanceof NextResponse) return v;
     const b = await readBody(req, body, "The package could not be saved: check each item has a name, unit, amount and budget line.");
-    const setup: FieldSetup = { ...b, windowEnd: b.windowEnd || undefined, target: b.target || undefined };
+    const setup: FieldSetup = { ...b, windowEnd: b.windowEnd || undefined, target: b.target || undefined, targetAt: b.target && b.targetAt === "planting" ? "planting" : undefined };
     const problem = setupProblem(setup);
     if (problem) return NextResponse.json({ error: problem }, { status: 400 });
     const budget = await loadBudget(code).catch(() => null);
@@ -80,9 +81,10 @@ export async function PUT(req: Request, { params }: Ctx) {
     if (setup.target && !takes.some((i) => i.code === setup.target)) return NextResponse.json({ error: "That target is not one of this project's targets that take recorded results." }, { status: 400 });
     const before = await setupOf(project);
     await saveProjectState(project.id, FIELD_SETUP_KEY, setup);
-    await audit(code, { entity: "field", entityId: crypto.randomUUID(), action: "field_setup_saved", by: v.user.id, detail: { before: before?.items ?? null, after: setup.items, target: { before: before?.target ?? null, after: setup.target ?? null } } });
-    // A target named now also counts the distributions already approved (server/distribution).
-    const counted = setup.target && setup.target !== before?.target ? await countApprovedDistributions(code, setup.target) : 0;
+    await audit(code, { entity: "field", entityId: crypto.randomUUID(), action: "field_setup_saved", by: v.user.id, detail: { before: before?.items ?? null, after: setup.items, target: { before: before?.target ?? null, after: setup.target ?? null }, targetAt: { before: before?.targetAt ?? "distribution", after: setup.targetAt ?? "distribution" } } });
+    // A target named now (or now counted at planting) also counts what is already recorded: the
+    // approved distributions, or the recorded plantings (server/distribution). Never twice.
+    const counted = setup.target && (setup.target !== before?.target || setup.targetAt !== before?.targetAt) ? await countApprovedDistributions(code, setup.target) : 0;
     return NextResponse.json({ setup, counted });
   });
 }

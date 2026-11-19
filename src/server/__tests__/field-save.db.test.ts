@@ -6,7 +6,10 @@ import { PUT } from "@/app/api/projects/[code]/field/route";
 import { userById } from "@/lib/demo";
 import type { Farmer, FieldItem } from "@/lib/field";
 import { seedDatabase } from "@/server/demo-seed";
-import { loadField } from "@/server/field-store";
+import { loadField, saveItems, saveSetup, setupFor } from "@/server/field-store";
+import { handedOutOn } from "@/lib/field";
+import { countApprovedDistributions } from "@/server/distribution";
+import { loadResults } from "@/server/results-store";
 import { loadProcurements, saveProcurements } from "@/server/procurement-store";
 import { ready } from "@/server/__tests__/test-db";
 
@@ -22,7 +25,7 @@ const all = async () => (await loadField(code, farida)).items;
 const farmer = async (id: string) => (await all()).find((i) => i.id === id) as Farmer;
 async function put(as: string, items: FieldItem[]) {
   const res = await PUT(new Request(`http://test/api/projects/${code}/field`, { method: "PUT", headers: { "x-demo-user": as, "content-type": "application/json" }, body: JSON.stringify({ items }) }), { params: Promise.resolve({ code }) });
-  return { status: res.status, body: (await res.json()) as { error?: string; revs?: Record<string, string> } };
+  return { status: res.status, body: (await res.json()) as { error?: string; revs?: Record<string, string>; results?: string[] } };
 }
 
 beforeAll(async () => {
@@ -113,5 +116,56 @@ describe("saving Field activities from the browser", { timeout: 60_000 }, () => 
     const { db, schema: s } = await import("@/db");
     const rows = await db.select().from(s.fieldItems);
     expect(rows.every((r) => !("rev" in (r.data as object)))).toBe(true);
+  });
+});
+
+describe("recording planting", { timeout: 60_000 }, () => {
+  // A farmer whose distribution the project manager approved: at "Plant and follow up".
+  beforeAll(async () => {
+    const f = await farmer("F-0002");
+    const day = (await all()).find((i) => i.kind === "farmer" && i.planting)?.timeline[0]?.date ?? "2026-11-01";
+    await saveItems(code, [{ ...f, step: "plant", awaiting: undefined, photos: [...f.photos, { id: "F-0002-n", activity: "distribution", date: day, caption: "Signed goods received note", src: "data:image/png;base64,AA==", signedNote: true }] }]);
+  });
+  const plantFarmer = () => farmer("F-0002");
+  const ticked = (f: Farmer) => ({ ...f, checks: { ...f.checks, "plant.manner": true, "plant.followup": true } });
+
+  it("refuses planting recorded without the day and the area", async () => {
+    const f = ticked(await plantFarmer());
+    const r = await put("farida", [{ ...f, step: "complete" }]);
+    expect(r.status).toBe(409);
+    expect(r.body.error).toMatch(/Not done: Planting date and area recorded/);
+  });
+
+  it("lets only the extension agent enter the planting record", async () => {
+    const f = await plantFarmer();
+    const r = await put("bilal", [{ ...f, planting: { date: handedOutOn(f)!, hectares: f.hectares } }]);
+    expect(r.status).toBe(403);
+    expect(r.body.error).toMatch(/for the extension agent to enter/);
+  });
+
+  it("counts the farmer toward a target that counts at planting, once, and then fixes the record", async () => {
+    const setup = (await setupFor(code))!;
+    await saveSetup(code, { ...setup, target: "IND-2", targetAt: "planting" });
+    const f = ticked(await plantFarmer());
+    const planting = { date: handedOutOn(f)!, hectares: f.hectares };
+    const r = await put("farida", [{ ...f, planting, step: "complete" }]);
+    expect(r.status).toBe(200);
+    expect(r.body.results).toHaveLength(1);
+    const made = (await loadResults(code)).filter((x) => x.planting === f.id);
+    expect(made).toHaveLength(1);
+    expect(made[0]).toMatchObject({ indicator: "IND-2", date: planting.date, value: 1, status: "pending", by: "farida" });
+    expect((await farmer(f.id)).planting).toEqual(planting);
+    // Filed: the record that was counted cannot be changed afterwards.
+    const after = await farmer(f.id);
+    const change = await put("farida", [{ ...after, planting: { ...planting, hectares: 0.1 } }]);
+    expect(change.status).toBe(409);
+    expect(change.body.error).toMatch(/already recorded/);
+    // Naming the target again counts farmers planted before, never one already counted.
+    const backfill = await countApprovedDistributions(code, "IND-2");
+    expect((await loadResults(code)).filter((x) => x.planting === f.id)).toHaveLength(1);
+    expect(await countApprovedDistributions(code, "IND-2")).toBe(0);
+    // F-0001 planted last season in the sample story and was never counted.
+    expect(backfill).toBe(1);
+    await saveSetup(code, setup);
   });
 });

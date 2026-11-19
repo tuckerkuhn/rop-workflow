@@ -37,7 +37,16 @@ export type FieldSetup = {
    * like any other result, so nobody types the same distribution in twice.
    */
   target?: string;
+  /**
+   * When a farmer counts toward the target: when their package is handed out and approved (the
+   * default), or when their planting is recorded, for a target such as "trellis systems
+   * installed" that is met in the field rather than at the store.
+   */
+  targetAt?: "distribution" | "planting";
 };
+
+/** Whether the target counts farmers at planting rather than at the approved distribution. */
+export const countsAtPlanting = (s: Pick<FieldSetup, "target" | "targetAt"> | null | undefined) => !!s?.target && s.targetAt === "planting";
 
 export const FIELD_SETUP_KEY = "field-setup";
 
