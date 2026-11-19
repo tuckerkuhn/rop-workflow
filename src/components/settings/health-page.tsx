@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useT } from "@/components/app/i18n";
 import { useRequireUser } from "@/components/app/session";
-import { TopBar } from "@/components/workspace/ui";
+import { TopBar, Loading } from "@/components/workspace/ui";
 import type { health } from "@/server/limits";
 
 type Health = Awaited<ReturnType<typeof health>>;
@@ -35,6 +35,7 @@ export function HealthPage() {
         </Link>
         <h1 className="mt-2 font-display text-4xl tracking-tight">Health</h1>
         {error && <p className="mt-4 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">{error}</p>}
+        {!h && !error && <Loading className="mt-6" />}
         {h && (
           <>
             <ul className="mt-6 grid gap-3 sm:grid-cols-3">

@@ -1,5 +1,7 @@
 "use client";
 
+import { plainError } from "@/lib/plain-error";
+import { askConfirm } from "@/components/app/dialogs";
 import { useCallback, useEffect, useState } from "react";
 import { useT } from "@/components/app/i18n";
 import { useRequireUser, useSession } from "@/components/app/session";
@@ -39,7 +41,7 @@ import { ROLE_HELP, SIGNATURES, SIGNER_LABEL } from "@/lib/authority";
 async function call<T>(url: string, user: string | undefined, init?: RequestInit): Promise<T> {
   const res = await fetch(url, { cache: "no-store", ...init, headers: { "Content-Type": "application/json", "x-demo-user": user ?? "", ...(init?.headers ?? {}) } });
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error((body as { error?: string }).error ?? `Request failed (${res.status})`);
+  if (!res.ok) throw new Error((body as { error?: string }).error ?? plainError(res.status));
   return body as T;
 }
 
@@ -614,7 +616,7 @@ function ProposalCard({ p, view, fmt, act, onDone }: { p: ProposalView; view: Hr
             </>
           )}
           {p.canWithdraw && (
-            <button type="button" disabled={busy} className={quietBtn} onClick={() => run({ action: "withdraw", proposal: p.id }, `Withdrew #${p.id}.`)}>
+            <button type="button" disabled={busy} className={quietBtn} onClick={() => void askConfirm({ message: "Withdraw this proposal? It stays on the record as withdrawn and nothing in it takes effect.", confirm: "Withdraw proposal" }).then((ok) => (ok ? run({ action: "withdraw", proposal: p.id }, `Withdrew #${p.id}.`) : undefined))}>
               Withdraw
             </button>
           )}
@@ -634,6 +636,7 @@ function ProposalCard({ p, view, fmt, act, onDone }: { p: ProposalView; view: Hr
               Cancel
             </button>
           </div>
+          {back.trim().length < 3 && <p className="mt-1 text-xs text-muted">Write a few words on what needs fixing to send it back.</p>}
         </div>
       )}
     </article>
@@ -680,7 +683,7 @@ function ChangeForm({ state, view, onClose, submit }: { state: FormState; view: 
         {state.type !== "separate" &&
           groups.map((g) => (
             <fieldset key={g}>
-              <legend className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">{GROUP_LABEL[g]}</legend>
+              <legend className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">{GROUP_LABEL[g]}</legend>
               <div className="mt-2 grid gap-3 sm:grid-cols-2">
                 {fieldsIn(g).map((k) => (
                   <FieldInput key={k} k={k} value={k in values ? values[k] : (person?.fields[k] ?? null)} directory={view.directory} required={state.type === "hire" && HIRE_REQUIRED.includes(k)} onChange={(val) => setValues((s) => ({ ...s, [k]: val }))} />
@@ -713,6 +716,8 @@ function ChangeForm({ state, view, onClose, submit }: { state: FormState; view: 
           </button>
         </div>
         {missing.length > 0 && <p className="text-xs text-muted">Still needed: {missing.map((k) => FIELDS[k].label).join(", ")}.</p>}
+        {state.type === "update" && !changed.length && <p className="text-xs text-muted">Change at least one detail above to propose it.</p>}
+        {reason.trim().length < 3 && <p className="text-xs text-muted">Write the reason for this change to propose it.</p>}
       </div>
     </Modal>
   );
@@ -1061,7 +1066,7 @@ function Ledger({ view, fmt, seal, reset, onDone }: { view: HrView; fmt: (iso: s
           Seal now
         </button>
         {reset && (
-          <button type="button" disabled={busy} className={quietBtn} onClick={() => run(async () => { await reset(); return "Sample records restored."; })}>
+          <button type="button" disabled={busy} className={quietBtn} onClick={() => void askConfirm({ message: "Restore the sample records? Every change made to the fictional people and pay since they were loaded is undone.", confirm: "Restore sample records", danger: true }).then((ok) => (ok ? run(async () => { await reset(); return "Sample records restored."; }) : undefined))}>
             Reset sample records
           </button>
         )}

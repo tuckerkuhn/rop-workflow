@@ -24,7 +24,7 @@ export function ReportView({ doc }: { doc: ReportDoc }) {
           <h4 className="text-lg font-semibold">{tbl.heading}</h4>
           <div className="mt-2 overflow-x-auto">
             <table className="w-full min-w-[560px] text-sm">
-              <thead className="text-start text-[11px] uppercase tracking-wide text-muted">
+              <thead className="text-start text-xs uppercase tracking-wide text-muted">
                 <tr>
                   {tbl.columns.map((c) => (
                     <th key={c} className="py-2 pe-3 text-start font-semibold">

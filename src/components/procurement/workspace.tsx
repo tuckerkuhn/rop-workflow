@@ -35,6 +35,7 @@ import {
   StepCard,
   Tracker,
   primaryBtn,
+  stickyActions,
   quietBtn,
 } from "@/components/workspace/ui";
 import { AFN_PER_USD, projectPath, stepHistory, userById } from "@/lib/demo";
@@ -321,7 +322,7 @@ function NewRequest({ onCancel, onCreate, from, grant }: { onCancel: () => void;
       </div>
       {item && from && (
         <section className="rounded-2xl border border-line bg-surface p-4 text-sm">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">From the plan</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">From the plan</p>
           <dl className="mt-2 grid gap-x-4 gap-y-1.5 sm:grid-cols-[9rem_1fr]">
             <dt className="text-muted">Budget line</dt>
             <dd>
@@ -426,7 +427,7 @@ function NewRequest({ onCancel, onCreate, from, grant }: { onCancel: () => void;
           ["Left on line", money(bl.remainingValue)],
         ].map(([k, v]) => (
           <div key={k} className="bg-surface px-4 py-3">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">{k}</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted">{k}</p>
             <p className={`mt-1 font-semibold text-xl tabular-nums ${k === "Left on line" && value > bl.remainingValue ? "text-clay" : ""}`}>{v}</p>
           </div>
         ))}
@@ -541,7 +542,7 @@ function Detail({
             ["Needed by", p.neededBy],
           ].map(([k, v]) => (
             <div key={k} className="min-w-0">
-              <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted">{k}</dt>
+              <dt className="text-xs font-semibold uppercase tracking-wide text-muted">{k}</dt>
               <dd className="mt-0.5 truncate tabular-nums">{v}</dd>
             </div>
           ))}
@@ -578,7 +579,7 @@ function Detail({
           footer={
             <>
               {mine && (
-                <div className="space-y-3 border-t border-line px-5 py-4">
+                <div className={stickyActions}>
                   {blocks.length > 0 && (
                     <p className="text-sm font-medium text-clay">{blocks.length === 1 ? "An open issue is" : `${blocks.length} open issues are`} holding this step.</p>
                   )}
@@ -713,7 +714,7 @@ function Detail({
             })}
             {step.signs && (
               <li className="flex items-start gap-3 py-3">
-                <span className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full text-[11px] font-bold text-white ${reviewed ? "bg-leaf" : "bg-line"}`}>{reviewed ? "✓" : ""}</span>
+                <span className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full text-xs font-bold text-white ${reviewed ? "bg-leaf" : "bg-line"}`}>{reviewed ? "✓" : ""}</span>
                 <div className="min-w-0 flex-1">
                   <p className="leading-snug">Review the generated {step.signs.doc.toLowerCase()}</p>
                   <p className="mt-0.5 text-sm text-muted">
@@ -761,7 +762,7 @@ function Detail({
                         ▤
                       </span>
                       <span className="min-w-0 flex-1 truncate">{d}</span>
-                      {signed > 0 && <span className="shrink-0 text-[11px] text-leaf">✍ {signed}</span>}
+                      {signed > 0 && <span className="shrink-0 text-xs text-leaf">✍ {signed}</span>}
                     </button>
                   </li>
                 );
@@ -943,7 +944,7 @@ export function ProcurementWorkspace() {
                     }}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-mono text-[11px] text-muted">{p.id}</span>
+                      <span className="font-mono text-xs text-muted">{p.id}</span>
                       <span className="text-xs tabular-nums text-muted">{money(orderUsd(p))}</span>
                     </div>
                     <p className="mt-1 font-medium leading-snug">{p.title}</p>
@@ -958,7 +959,7 @@ export function ProcurementWorkspace() {
                       )}
                       {blockingIssues(p).length > 0 && <Pill tone="clay">Issue</Pill>}
                       {late && <Pill tone="ochre">Past needed-by</Pill>}
-                      {(showAll || readOnly) && o && o !== role && <span className="text-[11px] text-muted">{holderFor(p, o)?.name}</span>}
+                      {(showAll || readOnly) && o && o !== role && <span className="text-xs text-muted">{holderFor(p, o)?.name}</span>}
                     </div>
                   </QueueItem>
                 );

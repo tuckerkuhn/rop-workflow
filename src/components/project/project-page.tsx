@@ -147,7 +147,7 @@ function Overview({ u, state, setState, field, procs, roster, go }: SectionProps
         ].map((c) => {
           const body = (
             <>
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">{c.k}</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted">{c.k}</p>
               <p className="mt-1 font-display text-3xl tabular-nums">{c.v}</p>
               <p className="mt-1 truncate text-xs text-muted">{c.s}</p>
             </>
@@ -168,7 +168,7 @@ function Overview({ u, state, setState, field, procs, roster, go }: SectionProps
       <section className="rounded-2xl border border-line bg-surface">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-plum">AI draft · Monthly reviewer</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-plum">AI draft · Monthly reviewer</p>
             <h3 className="mt-1 font-display text-2xl tracking-tight">March monthly review</h3>
           </div>
           <p className="text-xs text-muted">For the CEO, Director of Programs or Country Director. Sources listed below each part.</p>
@@ -194,7 +194,7 @@ function Overview({ u, state, setState, field, procs, roster, go }: SectionProps
                   );
                 })}
             </ul>
-            <p className="mt-2 text-[11px] text-muted">Source: accepted Kobo submissions</p>
+            <p className="mt-2 text-xs text-muted">Source: accepted Kobo submissions</p>
           </div>
           <div>
             <p className="text-sm font-semibold">Budget and spending</p>
@@ -213,7 +213,7 @@ function Overview({ u, state, setState, field, procs, roster, go }: SectionProps
               {openFindings.length > 0 && <li>{openFindings.length} MEL findings still open.</li>}
               {flagged.length > 0 && <li>{flagged.length} new submissions have quality flags.</li>}
             </ul>
-            <p className="mt-2 text-[11px] text-muted">Sources: activity plan, Field activities, Procurement, review queue</p>
+            <p className="mt-2 text-xs text-muted">Sources: activity plan, Field activities, Procurement, review queue</p>
           </div>
           <div>
             <p className="text-sm font-semibold">Proposed changes</p>
@@ -322,7 +322,7 @@ function Plan({ state, field, procs, openEvidence }: SectionProps & { openEviden
                         <li key={i.id} className="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1 text-sm">
                           <span>
                             <span className="font-mono text-xs text-muted">{i.id}</span> {i.name}
-                            {i.library && <span className="ml-2 rounded bg-plum-soft px-1.5 py-0.5 text-[10px] font-semibold text-plum">Library: {i.library}</span>}
+                            {i.library && <span className="ml-2 rounded bg-plum-soft px-1.5 py-0.5 text-xs font-semibold text-plum">Library: {i.library}</span>}
                           </span>
                           <button type="button" onClick={() => openEvidence(i)} className="text-right tabular-nums hover:text-forest hover:underline" disabled={i.source === "survey"}>
                             {a.value ?? "—"} / {i.target}
@@ -574,7 +574,7 @@ function Budget({ u, state, setState }: SectionProps) {
         </div>
         <div className="mt-3 overflow-x-auto rounded-2xl border border-line bg-surface">
           <table className="w-full min-w-[640px] text-sm">
-            <thead className="border-b border-line text-left text-[11px] uppercase tracking-wide text-muted">
+            <thead className="border-b border-line text-left text-xs uppercase tracking-wide text-muted">
               <tr>
                 <th className="px-4 py-2 font-semibold">Budget line</th>
                 <th className="px-4 py-2 text-right font-semibold">Planned</th>
@@ -667,7 +667,7 @@ function Report({ u, state, setState, field, openEvidence }: SectionProps & { op
 
       <article id="report-doc" className="rounded-2xl border border-line bg-surface px-6 py-8 sm:px-10">
         <header className="border-b-2 border-ink pb-4">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted">Roots of Peace · {view === "rop" ? "Progress report" : "Donor progress report (mapped)"}</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">Roots of Peace · {view === "rop" ? "Progress report" : "Donor progress report (mapped)"}</p>
           <h2 className="mt-1 font-display text-3xl tracking-tight">Village B Smallholder Maize (demo)</h2>
           <p className="text-sm text-muted">
             {PERIOD} · {state.reportRelease ? `Released by ${name(state.reportRelease.by)} on ${state.reportRelease.date}` : "Draft, not released"}
@@ -683,7 +683,7 @@ function Report({ u, state, setState, field, openEvidence }: SectionProps & { op
         <section className="mt-6">
           <h3 className="text-xl font-semibold">Results</h3>
           <table className="mt-2 w-full text-sm">
-            <thead className="text-left text-[11px] uppercase tracking-wide text-muted">
+            <thead className="text-left text-xs uppercase tracking-wide text-muted">
               <tr>
                 <th className="py-2 pr-3 font-semibold">{view === "donor" ? "Target, as the donor names it" : "Target"}</th>
                 <th className="py-2 pr-3 text-right font-semibold">How many</th>
@@ -748,11 +748,11 @@ function Report({ u, state, setState, field, openEvidence }: SectionProps & { op
 
       {!state.reportRelease && u.kind === "employee" && (
         <section className="rounded-2xl border-2 border-line bg-surface p-5">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">Report release · signed by {projectRoleHolders("report-release").map((x) => x.name).join(", ")}</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Report release · signed by {projectRoleHolders("report-release").map((x) => x.name).join(", ")}</p>
           <ul className="mt-3 space-y-1.5">
             {checklist.map((c) => (
               <li key={c.text} className="flex items-center gap-2 text-sm">
-                <span className={`grid h-5 w-5 place-items-center rounded-full text-[11px] font-bold text-white ${c.ok ? "bg-leaf" : "bg-clay"}`}>{c.ok ? "✓" : "!"}</span>
+                <span className={`grid h-5 w-5 place-items-center rounded-full text-xs font-bold text-white ${c.ok ? "bg-leaf" : "bg-clay"}`}>{c.ok ? "✓" : "!"}</span>
                 {c.text}
               </li>
             ))}

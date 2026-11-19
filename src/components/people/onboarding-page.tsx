@@ -1,5 +1,6 @@
 "use client";
 
+import { plainError } from "@/lib/plain-error";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useT } from "@/components/app/i18n";
@@ -17,7 +18,7 @@ import type { OnboardingView } from "@/app/api/onboarding/route";
 async function call<T>(url: string, user: string | undefined, init?: RequestInit): Promise<T> {
   const res = await fetch(url, { cache: "no-store", ...init, headers: { ...(init?.body instanceof FormData ? {} : { "Content-Type": "application/json" }), "x-demo-user": user ?? "", ...(init?.headers ?? {}) } });
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error((body as { error?: string }).error ?? `Request failed (${res.status})`);
+  if (!res.ok) throw new Error((body as { error?: string }).error ?? plainError(res.status));
   return body as T;
 }
 
@@ -264,6 +265,7 @@ function StepCard({ i, s, o, v, own, fmt, act }: { i: number; s: Step; o: NonNul
                     <span className="font-medium">Type your full name to sign</span>
                     <input value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={o.name} disabled={!opened} className={input} autoComplete="name" />
                     <span className="mt-1 block text-xs text-muted">{opened ? `Exactly as in your record: ${o.name}.` : "Open the contract first."} Your signature names this exact file.</span>
+                    {opened && typed.trim() && typed.trim().toLowerCase() !== o.name.toLowerCase() && <span className="mt-1 block text-xs text-clay">The name does not match your record yet: {o.name}.</span>}
                   </label>
                   <button type="button" disabled={busy || typed.trim().toLowerCase() !== o.name.toLowerCase()} className={primaryBtn} onClick={() => void send({ kind: "sign", file: o.contract.hash, typedName: typed }, "Signed. Welcome aboard.")}>
                     Sign the contract

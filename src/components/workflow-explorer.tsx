@@ -42,12 +42,12 @@ function Node({
       }`}
     >
       <span className="flex items-center justify-between gap-2">
-        <span className={`font-mono text-[11px] tracking-wider ${active ? "text-forest-ink/70" : "text-muted"}`}>
+        <span className={`font-mono text-xs tracking-wider ${active ? "text-forest-ink/70" : "text-muted"}`}>
           {step.label}
         </span>
         {k.tag && (
           <span
-            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
+            className={`rounded-full px-2 py-0.5 text-xs font-semibold uppercase tracking-wider ${
               active ? "bg-forest-ink/15 text-forest-ink" : k.chip
             }`}
           >
@@ -87,7 +87,7 @@ function Detail({ step }: { step: WorkflowStep }) {
         <h3 className="mt-3 font-display text-3xl leading-tight tracking-tight sm:text-4xl">{step.title}</h3>
         <div className="mt-5 flex flex-wrap gap-1.5">
           {step.links.map((l) => (
-            <span key={l} className="rounded-md border border-line bg-paper px-2 py-1 font-mono text-[11px] text-muted">
+            <span key={l} className="rounded-md border border-line bg-paper px-2 py-1 font-mono text-xs text-muted">
               {l}
             </span>
           ))}
@@ -110,7 +110,7 @@ function Detail({ step }: { step: WorkflowStep }) {
           ["Record or result", step.record],
         ].map(([term, desc]) => (
           <div key={term} className="border-t border-line pt-4">
-            <dt className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">{term}</dt>
+            <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">{term}</dt>
             <dd className="mt-2 text-[0.95rem] leading-relaxed">{desc}</dd>
           </div>
         ))}
@@ -180,9 +180,9 @@ export function WorkflowExplorer() {
                 }`}
               >
                 <span className={`relative z-10 h-3 w-3 shrink-0 rounded-full ring-4 ${on ? "bg-ochre ring-forest" : `${k.dot} ring-surface`}`} />
-                <span className="font-mono text-[11px] opacity-70">{s.label}</span>
+                <span className="font-mono text-xs opacity-70">{s.label}</span>
                 <span className="font-display">{s.title}</span>
-                {k.tag && <span className="ml-auto text-[10px] font-semibold uppercase tracking-wider opacity-80">{k.tag}</span>}
+                {k.tag && <span className="ml-auto text-xs font-semibold uppercase tracking-wider opacity-80">{k.tag}</span>}
               </button>
             </li>
           );

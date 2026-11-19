@@ -1,5 +1,6 @@
 "use client";
 
+import { plainError } from "@/lib/plain-error";
 import { NON_CONTRACT } from "@/lib/timesheet";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
@@ -8,7 +9,7 @@ import { useRequireUser, useSession } from "@/components/app/session";
 import { useT } from "@/components/app/i18n";
 import { SelfConfirmSheet } from "@/components/app/self-confirm";
 import { openReceipt, shrink } from "@/components/people/expense-page";
-import { Pill, SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn } from "@/components/workspace/ui";
+import { Pill, SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn, Loading } from "@/components/workspace/ui";
 import { BILL_CATEGORIES, BILL_CATEGORY_KEYS, type BillAction, type BillCategory } from "@/lib/bills";
 import type { Receipt } from "@/lib/expense";
 import type { BillsView } from "@/app/api/projects/[code]/bills/route";
@@ -21,7 +22,7 @@ import type { BillsView } from "@/app/api/projects/[code]/bills/route";
 async function call<T>(url: string, user: string | undefined, init?: RequestInit): Promise<T> {
   const res = await fetch(url, { cache: "no-store", ...init, headers: { ...(init?.body instanceof FormData ? {} : { "Content-Type": "application/json" }), "x-demo-user": user ?? "", ...(init?.headers ?? {}) } });
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error((body as { error?: string }).error ?? `Request failed (${res.status})`);
+  if (!res.ok) throw new Error((body as { error?: string }).error ?? plainError(res.status));
   return body as T;
 }
 
@@ -92,6 +93,7 @@ export function BillsPage() {
             {notice}
           </p>
         )}
+        {!v && !error && <Loading className="mt-6" />}
         {v && (
           <>
             {!v.record ? (

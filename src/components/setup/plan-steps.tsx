@@ -1,5 +1,6 @@
 "use client";
 
+import { plainError } from "@/lib/plain-error";
 import { changeReasonHeader } from "@/components/setup/change-reason";
 import { useEffect, useMemo, useState } from "react";
 import { useT } from "@/components/app/i18n";
@@ -37,7 +38,7 @@ const colName = (c: number) => (c >= 26 ? String.fromCharCode(64 + Math.floor(c 
 async function api<T>(url: string, user: string | undefined, init?: RequestInit): Promise<T> {
   const res = await fetch(url, { cache: "no-store", ...init, headers: { "Content-Type": "application/json", "x-demo-user": user ?? "", ...(init?.method === "PUT" ? changeReasonHeader(url) : {}) } });
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error((body as { error?: string }).error ?? `Request failed (${res.status})`);
+  if (!res.ok) throw new Error((body as { error?: string }).error ?? plainError(res.status));
   return body as T;
 }
 
@@ -333,11 +334,11 @@ export function BudgetStep({ code, onDone }: { code: string; onDone: () => void 
                     </td>
                     <td className="px-1 py-1 font-mono text-xs">
                       <input value={l.code} onChange={(e) => setLine(i, { code: e.target.value })} className={`${cellInput} w-28`} aria-label={t("budget.col.code")} />
-                      {l.activityCode && <span className="block px-1.5 text-[11px] text-muted">{t("budget.activityN", { n: l.activityCode })}</span>}
+                      {l.activityCode && <span className="block px-1.5 text-xs text-muted">{t("budget.activityN", { n: l.activityCode })}</span>}
                     </td>
                     <td className="px-1 py-1">
                       <textarea value={l.description} rows={2} onChange={(e) => setLine(i, { description: e.target.value })} className={`${cellInput} min-w-[16rem] resize-y`} aria-label={t("budget.col.description")} />
-                      {sources[i] && <span className="block px-1.5 text-[11px] text-muted">{t("ag.source", { source: sources[i] })}</span>}
+                      {sources[i] && <span className="block px-1.5 text-xs text-muted">{t("ag.source", { source: sources[i] })}</span>}
                     </td>
                     <td className="px-1 py-1">
                       <select value={l.kind} onChange={(e) => setLine(i, { kind: e.target.value as BudgetKind })} className="w-32 rounded-lg border border-line bg-surface px-2 py-1 text-sm" aria-label={t("budget.kind")}>

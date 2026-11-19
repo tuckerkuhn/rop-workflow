@@ -1,5 +1,6 @@
 "use client";
 
+import { plainError } from "@/lib/plain-error";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useSession } from "@/components/app/session";
@@ -45,7 +46,7 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
   const load = useCallback(async () => {
     const res = await fetch(`${url}${token ? `?t=${encodeURIComponent(token)}` : ""}`, { cache: "no-store", headers: { "x-demo-user": user?.id ?? "" } });
     const body = await res.json().catch(() => ({}));
-    if (!res.ok) return setError(body.error ?? `Could not open it (${res.status}).`);
+    if (!res.ok) return setError(body.error ?? plainError(res.status));
     const dist = body.distribution as DistView;
     setD(dist);
     setNotePhoto(body.notePhoto ?? null);
@@ -68,7 +69,7 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
     const res = await fetch(url, { method: "POST", headers, body: JSON.stringify({ decision, note: note.trim() || undefined, token: token || undefined }) });
     const body = await res.json().catch(() => ({}));
     setBusy(false);
-    if (!res.ok) return setError(body.error ?? `Not saved (${res.status}).`);
+    if (!res.ok) return setError(body.error ?? plainError(res.status));
     setD(body.distribution);
     setError("");
     setDone(decision);
@@ -81,7 +82,7 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
     const res = await fetch(url, { method: "POST", headers, body: JSON.stringify({ decision: "kobo_checked" }) });
     const body = await res.json().catch(() => ({}));
     setBusy(false);
-    if (!res.ok) return setError(body.error ?? `Not saved (${res.status}).`);
+    if (!res.ok) return setError(body.error ?? plainError(res.status));
     setD(body.distribution);
     setError("");
   }
@@ -92,7 +93,7 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
     const res = await fetch(url, { method: "POST", headers, body: JSON.stringify({ decision: "resubmit", note: note.trim(), fix: { qty: Object.fromEntries(Object.entries(fix.qty).flatMap(([k, v]) => (num(v) === undefined ? [] : [[k, num(v)]]))), signed: fix.signed, photo: fix.photo, ...(d?.condition && fix.conditionOk ? { conditionOk: true } : {}) } }) });
     const body = await res.json().catch(() => ({}));
     setBusy(false);
-    if (!res.ok) return setError(body.error ?? `Not sent (${res.status}).`);
+    if (!res.ok) return setError(body.error ?? plainError(res.status));
     setD(body.distribution);
     setNote("");
     setError("");

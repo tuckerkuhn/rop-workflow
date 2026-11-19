@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser, useSession } from "@/components/app/session";
-import { Pill, TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
+import { Pill, TopBar, primaryBtn, quietBtn, Loading } from "@/components/workspace/ui";
 import { AUDIENCES, AUDIENCE_TEXT, LABEL_TEXT, PUBLIC_AUDIENCES, SHARE, SHARE_TEXT, needs, rank, type Audience, type PhotoAction, type PhotoLabel, type Share } from "@/lib/photos";
 import { CONSENT_HOW, CONSENT_USES, HOW_LABEL, USE_LABEL } from "@/lib/stories";
 import type { photosView } from "@/server/photos-store";
@@ -302,6 +302,7 @@ export function PhotosPage() {
         {error && <p className="mt-4 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">{error}</p>}
         {notice && <p className="mt-4 rounded-xl bg-mist px-4 py-3 text-sm text-leaf">{notice}</p>}
 
+        {!v && !error && <Loading className="mt-6" />}
         {v && mine && (
           <section className="mt-5 rounded-2xl border border-line bg-surface p-4">
             <h2 className="text-xl font-semibold">Your photos, the last two weeks</h2>

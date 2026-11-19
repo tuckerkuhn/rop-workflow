@@ -69,7 +69,7 @@ export function CalendarView({ rows, actions }: { rows: Row[]; actions: RowActio
       <div className="mt-4 overflow-hidden rounded-2xl border border-line bg-line">
         <div className="grid grid-cols-7 gap-px" aria-hidden>
           {days.slice(0, 7).map((d) => (
-            <div key={d} className="bg-sunken py-1.5 text-center text-[11px] font-semibold uppercase tracking-wide text-muted">
+            <div key={d} className="bg-sunken py-1.5 text-center text-xs font-semibold uppercase tracking-wide text-muted">
               {date(d, { weekday: "narrow" })}
             </div>
           ))}
@@ -101,12 +101,12 @@ export function CalendarView({ rows, actions }: { rows: Row[]; actions: RowActio
                   {/* Wider screens: titles. */}
                   <span className="hidden flex-col gap-0.5 lg:flex" aria-hidden>
                     {items.slice(0, 3).map((r) => (
-                      <span key={r.key} className="flex items-center gap-1 truncate text-[11px] leading-tight">
+                      <span key={r.key} className="flex items-center gap-1 truncate text-xs leading-tight">
                         <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dotOf(r)}`} />
                         <span className={`truncate ${r.kind === "task" && r.done ? "text-muted line-through" : ""}`}>{r.title}</span>
                       </span>
                     ))}
-                    {items.length > 3 && <span className="text-[11px] text-muted">{t("calendar.more", { n: items.length - 3 })}</span>}
+                    {items.length > 3 && <span className="text-xs text-muted">{t("calendar.more", { n: items.length - 3 })}</span>}
                   </span>
                 </button>
               );

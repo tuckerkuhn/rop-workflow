@@ -1,5 +1,7 @@
 "use client";
 
+import { plainError } from "@/lib/plain-error";
+import { askConfirm } from "@/components/app/dialogs";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -49,7 +51,7 @@ const here = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
 async function call(user: string, init?: RequestInit): Promise<ProposalsView> {
   const res = await fetch("/api/proposals", { cache: "no-store", ...init, headers: { "Content-Type": "application/json", "x-demo-user": user } });
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error((body as { error?: string }).error ?? `Request failed (${res.status})`);
+  if (!res.ok) throw new Error((body as { error?: string }).error ?? plainError(res.status));
   return body as ProposalsView;
 }
 
@@ -406,7 +408,7 @@ function ItemRow({ p, i, v, me, act, busy }: { p: P; i: Item; v: ProposalsView; 
                   <button type="button" className={quietBtn} onClick={() => setEditing(true)}>
                     Edit
                   </button>
-                  <button type="button" className={quietBtn} disabled={busy} onClick={() => confirm(`Remove "${i.title}" from this proposal?`) && void act({ action: "removeItem", id: p.id, item: i.id })}>
+                  <button type="button" className={quietBtn} disabled={busy} onClick={() => void askConfirm({ message: `Remove "${i.title}" from this proposal?`, confirm: "Remove", danger: true }).then((ok) => (ok ? act({ action: "removeItem", id: p.id, item: i.id }) : undefined))}>
                     Remove
                   </button>
                 </div>
@@ -760,7 +762,7 @@ function Detail({ p, v, me, act, busy }: { p: P; v: ProposalsView; me: string; a
               </>
             )}
             {v.can.run && live && (
-              <button type="button" className={quietBtn} disabled={busy} onClick={() => confirm("Withdraw this proposal? It is kept, and can be reopened.") && void act({ action: "outcome", id: p.id, outcome: "withdrawn", confirmation: "", note: "" })}>
+              <button type="button" className={quietBtn} disabled={busy} onClick={() => void askConfirm({ message: "Withdraw this proposal? It is kept, and can be reopened.", confirm: "Withdraw proposal" }).then((ok) => (ok ? act({ action: "outcome", id: p.id, outcome: "withdrawn", confirmation: "", note: "" }) : undefined))}>
                 Withdraw
               </button>
             )}

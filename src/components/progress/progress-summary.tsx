@@ -1,5 +1,6 @@
 "use client";
 
+import { Loading } from "@/components/workspace/ui";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { ProgressSummary } from "@/server/progress-summary-store";
@@ -34,9 +35,8 @@ export function ProgressSummaryPanel({ projectId, userId }: { projectId: string;
   if (error) return <p className="mt-6 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">{error}</p>;
   if (!v)
     return (
-      <div aria-busy className="mt-6 grid gap-4 lg:grid-cols-2">
-        <div className="h-56 animate-pulse rounded-2xl bg-sunken" />
-        <div className="h-56 animate-pulse rounded-2xl bg-sunken" />
+      <div className="mt-6">
+        <Loading />
       </div>
     );
 
@@ -93,7 +93,7 @@ export function ProgressSummaryPanel({ projectId, userId }: { projectId: string;
               {v.concerns.map((c, k) => (
                 <li key={c.key} className={k >= 4 && !allConcerns ? "hidden lg:block" : ""}>
                   <Link href={c.href} className="flex gap-3 py-2.5 hover:text-forest">
-                    <span className={`mt-0.5 shrink-0 self-start rounded-full px-2 py-0.5 text-[11px] font-semibold ${c.level === "critical" ? "bg-clay-soft text-clay" : "bg-ochre-soft text-warn"}`}>
+                    <span className={`mt-0.5 shrink-0 self-start rounded-full px-2 py-0.5 text-xs font-semibold ${c.level === "critical" ? "bg-clay-soft text-clay" : "bg-ochre-soft text-warn"}`}>
                       {c.level === "critical" ? "Now" : "Soon"}
                     </span>
                     <span className="min-w-0 flex-1">

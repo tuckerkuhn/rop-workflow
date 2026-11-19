@@ -85,7 +85,7 @@ export function GatedSections({ tab, state, stage, openTarget }: { tab: string; 
     return (
       <div className="space-y-6">
         <section className={`rounded-2xl border p-5 ${missing.length ? "border-clay/40 bg-clay-soft/40" : "border-forest/30 bg-mist"}`}>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">Design gate · market window</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Design gate · market window</p>
           {missing.length ? (
             <>
               <p className="mt-1 font-semibold text-clay">Blocking: this project cannot move to Execute yet.</p>
@@ -137,7 +137,7 @@ export function GatedSections({ tab, state, stage, openTarget }: { tab: string; 
     return (
       <article className="rounded-2xl border border-line bg-surface px-6 py-8 sm:px-10">
         <header className="border-b-2 border-ink pb-4">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted">Roots of Peace · Progress report</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">Roots of Peace · Progress report</p>
           <h2 className="mt-1 font-display text-3xl tracking-tight">Afghan Table Grapes</h2>
           <p className="text-sm text-muted">Draft, not released · stage {stage}</p>
         </header>

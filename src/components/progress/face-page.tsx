@@ -1,5 +1,6 @@
 "use client";
 
+import { plainError } from "@/lib/plain-error";
 import Link from "next/link";
 import { MoneySourceLink } from "@/components/progress/proof-panel";
 import { useT } from "@/components/app/i18n";
@@ -7,7 +8,7 @@ import { beforeDownload, PreflightButton, usePreflight } from "@/components/prog
 import { useCallback, useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser, useSession } from "@/components/app/session";
-import { TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
+import { TopBar, primaryBtn, quietBtn, Loading } from "@/components/workspace/ui";
 import type { FaceHeader, FacePatch } from "@/lib/face";
 import type { FaceView } from "@/server/face-store";
 
@@ -27,7 +28,7 @@ const num = (s: string) => {
 async function call<T>(url: string, user: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, { cache: "no-store", ...init, headers: { "Content-Type": "application/json", "x-demo-user": user } });
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error((body as { error?: string }).error ?? `Request failed (${res.status})`);
+  if (!res.ok) throw new Error((body as { error?: string }).error ?? plainError(res.status));
   return body as T;
 }
 
@@ -96,6 +97,7 @@ export function FacePage() {
         </Link>
         <div className="mt-2 flex flex-wrap items-end gap-3">
           <h1 className="min-w-0 flex-1 font-display text-4xl tracking-tight">FACE form</h1>
+          {!v && !error && <Loading className="mt-6" />}
           {v && (
             <label className="text-sm">
               Month

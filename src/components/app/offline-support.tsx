@@ -1,5 +1,6 @@
 "use client";
 
+import { askConfirm } from "@/components/app/dialogs";
 import { useEffect, useState } from "react";
 import { useSession } from "@/components/app/session";
 import { onOutboxChange, outbox, removeFromOutbox, sendOutbox, type OutboxEntry } from "@/lib/outbox";
@@ -56,7 +57,7 @@ export function OfflineSupport() {
                   {e.error && <span className="block text-clay">Refused: {e.error}</span>}
                 </span>
                 {e.error && (
-                  <button type="button" className="text-muted hover:text-clay" onClick={() => window.confirm("Remove this from the phone? It was not saved.") && void removeFromOutbox(e.id)}>
+                  <button type="button" className="text-muted hover:text-clay" onClick={() => void askConfirm({ message: "Remove this from the phone? It was not saved.", confirm: "Remove", danger: true }).then((ok) => (ok ? removeFromOutbox(e.id) : undefined))}>
                     Remove
                   </button>
                 )}

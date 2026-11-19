@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser } from "@/components/app/session";
-import { TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
+import { TopBar, primaryBtn, quietBtn, Loading } from "@/components/workspace/ui";
 import { quarterRange } from "@/lib/results";
 
 /** The project's audit trail for a period, with a CSV export for auditors (e.g. UNDP's HACT spot checks). */
@@ -90,6 +90,7 @@ export function AuditPage() {
                 {error}
               </p>
             )}
+            {!rows && !error && <Loading className="mt-5" />}
             {rows && (
               <div className="mt-5 overflow-x-auto rounded-2xl border border-line bg-surface">
                 {rows.length === 0 ? (

@@ -1,5 +1,6 @@
 "use client";
 
+import { plainError } from "@/lib/plain-error";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
@@ -35,7 +36,7 @@ const field = "rounded-lg border border-line bg-surface px-3 py-2 text-sm";
 async function call(url: string, user: string, init?: RequestInit): Promise<ActivitiesView> {
   const res = await fetch(url, { cache: "no-store", ...init, headers: { "Content-Type": "application/json", "x-demo-user": user } });
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error((body as { error?: string }).error ?? `Request failed (${res.status})`);
+  if (!res.ok) throw new Error((body as { error?: string }).error ?? plainError(res.status));
   return body as ActivitiesView;
 }
 

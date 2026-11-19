@@ -1,12 +1,13 @@
 "use client";
 
+import { askConfirm, askReason } from "@/components/app/dialogs";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { shrink } from "@/components/people/expense-page";
 import { FieldHelp } from "@/components/app/field-help";
-import { Pill, TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
+import { Pill, TopBar, primaryBtn, quietBtn, Loading } from "@/components/workspace/ui";
 import type { Receipt } from "@/lib/expense";
 import { CONSENT_HOW, CONSENT_USES, HOW_LABEL, USE_LABEL, type StoryAction, type StoryInput } from "@/lib/stories";
 import type { storiesView } from "@/server/stories-store";
@@ -230,7 +231,7 @@ function Editor({ v, start, user, act, onClose }: { v: View; start: StoryRow | n
             disabled={!!busy || (!s.notes.trim() && !s.links.length)}
             onClick={async () => {
               // A draft replaces the story text: ask first when someone has already written it.
-              if (s.text.trim() && !window.confirm("Replace the story text with a new draft? What is written now will be lost.")) return;
+              if (s.text.trim() && !(await askConfirm({ message: "Replace the story text with a new draft? What is written now will be lost.", confirm: "Replace with a draft" }))) return;
               const sid = await save();
               if (!sid) return;
               setBusy("draft");
@@ -307,6 +308,7 @@ export function StoriesPage() {
         </p>
         {error && <p className="mt-4 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">{error}</p>}
         {notice && <p className="mt-4 rounded-xl bg-mist px-4 py-3 text-sm text-leaf">{notice}</p>}
+        {!v && !error && <Loading className="mt-6" />}
         {v && open !== null && <Editor v={v} start={editing} user={user.id} act={act} onClose={() => setOpen(null)} />}
         {v && open === null && (
           <ul className="mt-5 space-y-3">
@@ -343,8 +345,9 @@ export function StoriesPage() {
                       type="button"
                       className={quietBtn}
                       onClick={() =>
-                        window.confirm(`Use this as the ${quarterNow().replace("-", " ")} report's Human Interest Story? It replaces what is there.`) &&
-                        void act({ action: "to-report", id: s.id, quarter: quarterNow() }, "Placed in the report's Human Interest Story.")
+                        void askConfirm({ message: `Use this as the ${quarterNow().replace("-", " ")} report's Human Interest Story? It replaces what is there.`, confirm: "Use in the report" }).then(
+                          (ok) => (ok ? act({ action: "to-report", id: s.id, quarter: quarterNow() }, "Placed in the report's Human Interest Story.") : undefined),
+                        )
                       }
                     >
                       Use in the {quarterNow().replace("-", " ")} report
@@ -355,8 +358,8 @@ export function StoriesPage() {
                     <button
                       type="button"
                       className="text-xs text-muted hover:text-ink"
-                      onClick={() => {
-                        const reason = window.prompt("Why withdraw the approval?");
+                      onClick={async () => {
+                        const reason = await askReason({ message: "Why withdraw the approval?", confirm: "Withdraw approval" });
                         if (reason) void act({ action: "unapprove", id: s.id, reason }, "Approval withdrawn.");
                       }}
                     >
@@ -364,7 +367,7 @@ export function StoriesPage() {
                     </button>
                   )}
                   {s.status === "draft" && (s.by === v.me || v.may.approve) && (
-                    <button type="button" className="text-xs text-muted hover:text-clay" onClick={() => window.confirm("Remove this story?") && void act({ action: "remove", id: s.id }, "Removed.")}>
+                    <button type="button" className="text-xs text-muted hover:text-clay" onClick={() => void askConfirm({ message: "Remove this story?", confirm: "Remove", danger: true }).then((ok) => (ok ? act({ action: "remove", id: s.id }, "Removed.") : undefined))}>
                       Remove
                     </button>
                   )}

@@ -33,7 +33,7 @@ export function TimelineView({ rows }: { rows: Row[] }) {
   return (
     <div className="overflow-x-auto rounded-2xl border border-line bg-surface">
       <div className="min-w-[640px]">
-        <div className="flex border-b border-line text-[11px] font-semibold uppercase tracking-wide text-muted">
+        <div className="flex border-b border-line text-xs font-semibold uppercase tracking-wide text-muted">
           <div className="w-44 shrink-0 px-3 py-2 sm:w-60" />
           <div className="relative h-8 flex-1">
             {months.map((m) => (

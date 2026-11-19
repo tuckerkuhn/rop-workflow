@@ -1,5 +1,7 @@
 "use client";
 
+import { plainError } from "@/lib/plain-error";
+import { askConfirm } from "@/components/app/dialogs";
 import { FieldHelp } from "@/components/app/field-help";
 import Link from "next/link";
 import { useT } from "@/components/app/i18n";
@@ -27,7 +29,7 @@ import { NamesWarning } from "@/components/progress/names-warning";
 async function call<T>(url: string, user: string | undefined, init?: RequestInit): Promise<T> {
   const res = await fetch(url, { cache: "no-store", ...init, headers: { "Content-Type": "application/json", "x-demo-user": user ?? "", ...(init?.headers ?? {}) } });
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error((body as { error?: string }).error ?? `Request failed (${res.status})`);
+  if (!res.ok) throw new Error((body as { error?: string }).error ?? plainError(res.status));
   return body as T;
 }
 
@@ -243,7 +245,7 @@ function ItemCard({ it, v, user, act }: { it: Item; v: WeeklyView; user: string;
           <button type="button" className="font-semibold text-forest hover:underline" onClick={() => setEditing(true)}>
             Edit
           </button>
-          <button type="button" className="text-muted hover:text-clay" onClick={() => window.confirm("Remove this item from the week?") && void act({ action: "update-remove", id: it.id }, "Removed.").catch(() => undefined)}>
+          <button type="button" className="text-muted hover:text-clay" onClick={() => void askConfirm({ message: "Remove this item from the week?", confirm: "Remove", danger: true }).then((ok) => (ok ? act({ action: "update-remove", id: it.id }, "Removed.").catch(() => undefined) : undefined))}>
             Remove
           </button>
         </div>
@@ -541,7 +543,7 @@ export function WeeklyPage() {
                   <button
                     type="button"
                     className={`${dangerBtn} ms-auto`}
-                    onClick={() => window.confirm(`Mark update #${w.n} as sent? It is locked after that: nothing dated ${w.from} to ${w.to} can be added or changed.`) && void save({ action: "send", from: w.from }, `Update #${w.n} marked sent.`).catch(() => undefined)}
+                    onClick={() => void askConfirm({ message: `Mark update #${w.n} as sent? It is locked after that: nothing dated ${w.from} to ${w.to} can be added or changed.`, confirm: "Mark as sent" }).then((ok) => (ok ? save({ action: "send", from: w.from }, `Update #${w.n} marked sent.`).catch(() => undefined) : undefined))}
                   >
                     Mark as sent
                   </button>

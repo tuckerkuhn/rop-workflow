@@ -1,5 +1,6 @@
 "use client";
 
+import { OFFLINE, plainError } from "@/lib/plain-error";
 import type { VoucherSetup } from "@/lib/voucher-setup";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "@/components/app/session";
@@ -22,9 +23,12 @@ import type { NewWorkItem, WorkItem } from "@/lib/work-items";
 type Load = "loading" | "ready" | "error";
 
 async function call<T>(url: string, user: string | undefined, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, { cache: "no-store", ...init, headers: { "Content-Type": "application/json", "x-demo-user": user ?? "", ...(init?.headers ?? {}) } });
+  // A request that never reached the server (no signal) says so, not "Failed to fetch".
+  const res = await fetch(url, { cache: "no-store", ...init, headers: { "Content-Type": "application/json", "x-demo-user": user ?? "", ...(init?.headers ?? {}) } }).catch(() => {
+    throw new Error(OFFLINE);
+  });
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error((body as { error?: string }).error ?? `Request failed (${res.status})`);
+  if (!res.ok) throw new Error((body as { error?: string }).error ?? plainError(res.status));
   return body as T;
 }
 

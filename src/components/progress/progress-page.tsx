@@ -185,7 +185,7 @@ function IndicatorCard({ i, donorCode, canMap }: { i: IndicatorProgress; donorCo
     <li className="rounded-2xl border border-line bg-surface p-5">
       <div className="flex items-start justify-between gap-3">
         <h3 className="font-medium leading-snug">{i.name}</h3>
-        <span className="shrink-0 font-mono text-[11px] text-muted">{donorCode || i.code}</span>
+        <span className="shrink-0 font-mono text-xs text-muted">{donorCode || i.code}</span>
       </div>
         {i.theme && (THEMES as readonly string[]).includes(i.theme) && <span className="mt-1 inline-block rounded-full bg-mist px-2 py-0.5 text-xs font-semibold text-forest">{t(THEME_LABEL[i.theme as ImpactTheme])}</span>}
       <p className="mt-3 flex items-baseline gap-2">

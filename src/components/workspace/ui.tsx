@@ -52,26 +52,29 @@ export function Pill({ tone, children }: { tone: Tone; children: React.ReactNode
     sky: "bg-sky-soft text-sky",
     plum: "bg-plum-soft text-plum",
   }[tone];
-  return <span className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold ${t}`}>{children}</span>;
+  return <span className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${t}`}>{children}</span>;
 }
 
 export function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <h4 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">{children}</h4>;
+  return <h4 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">{children}</h4>;
 }
 
 /** Horizontal progress: done, current, upcoming. `marks` labels a stage (e.g. a gate). */
 export function Tracker({ labels, current, marks = {}, warn = false, skipped = [] }: { labels: string[]; current: number; marks?: Record<number, string>; warn?: boolean; skipped?: number[] }) {
+  // On a phone the step names do not fit under the circles: the current one is written out below.
+  const at = Math.min(Math.max(current, 0), labels.length - 1);
   return (
+    <div>
     <ol className="flex items-start" aria-label="Progress">
       {labels.map((label, i) => {
         // A stage this record does not go through (a micro purchase has no award or contract): shown as not needed, never as done.
         if (skipped.includes(i))
           return (
             <li key={label} className="relative flex flex-1 flex-col items-center text-center" title={`${label}: not needed for this one`}>
-              {i > 0 && <span aria-hidden className={`absolute right-1/2 top-[11px] h-0.5 w-full ${i <= current ? "bg-forest" : "bg-line"}`} />}
-              <span className="relative z-10 grid h-6 w-6 place-items-center rounded-full border-2 border-dashed border-line bg-surface text-[10px] text-muted">–</span>
-              <span className="mt-1.5 hidden text-[11px] leading-tight text-muted line-through sm:block">{label}</span>
-              <span className="mt-0.5 hidden text-[9px] text-muted sm:block">not needed</span>
+              {i > 0 && <span aria-hidden className={`absolute right-1/2 top-[13px] h-0.5 w-full ${i <= current ? "bg-forest" : "bg-line"}`} />}
+              <span className="relative z-10 grid h-7 w-7 place-items-center rounded-full border-2 border-dashed border-line bg-surface text-xs text-muted">–</span>
+              <span className="mt-1.5 hidden text-xs leading-tight text-muted line-through sm:block">{label}</span>
+              <span className="mt-0.5 hidden text-xs text-muted sm:block">not needed</span>
             </li>
           );
         const done = i < current;
@@ -79,20 +82,30 @@ export function Tracker({ labels, current, marks = {}, warn = false, skipped = [
         const nowTone = warn ? "border-clay text-clay ring-clay/15" : "border-forest text-forest ring-forest/15";
         return (
           <li key={label} className="relative flex flex-1 flex-col items-center text-center">
-            {i > 0 && <span aria-hidden className={`absolute right-1/2 top-[11px] h-0.5 w-full ${i <= current ? "bg-forest" : "bg-line"}`} />}
+            {i > 0 && <span aria-hidden className={`absolute right-1/2 top-[13px] h-0.5 w-full ${i <= current ? "bg-forest" : "bg-line"}`} />}
             <span
-              className={`relative z-10 grid h-6 w-6 place-items-center rounded-full border-2 text-[10px] font-bold ${
+              className={`relative z-10 grid h-7 w-7 place-items-center rounded-full border-2 text-xs font-bold ${
                 done ? "border-forest bg-forest text-forest-ink" : now ? `bg-surface ring-4 ${nowTone}` : "border-line bg-surface text-muted"
               }`}
             >
               {done ? "✓" : now && warn ? "!" : i + 1}
             </span>
-            <span className={`mt-1.5 hidden text-[11px] leading-tight sm:block ${now ? "font-semibold text-ink" : "text-muted"}`}>{label}</span>
-            {marks[i] && <span className={`mt-0.5 hidden font-mono text-[9px] sm:block ${done ? "text-forest" : "text-warn"}`}>{marks[i]}</span>}
+            <span className={`mt-1.5 hidden text-xs leading-tight sm:block ${now ? "font-semibold text-ink" : "text-muted"}`}>{label}</span>
+            {marks[i] && <span className={`mt-0.5 hidden font-mono text-xs sm:block ${done ? "text-forest" : "text-warn"}`}>{marks[i]}</span>}
           </li>
         );
       })}
     </ol>
+    {labels.length > 0 && current >= 0 && current < labels.length && (
+      <p className={`mt-3 text-center text-sm sm:hidden ${warn ? "text-clay" : "text-ink"}`}>
+        <span className="text-muted">
+          Step {at + 1} of {labels.length}:
+        </span>{" "}
+        <span className="font-semibold">{labels[at]}</span>
+      </p>
+    )}
+    {current >= labels.length && <p className="mt-3 text-center text-sm font-semibold text-forest sm:hidden">All steps done</p>}
+    </div>
   );
 }
 
@@ -131,7 +144,7 @@ export function CheckRow({
         {c.auto ? (
           <span
             title="Checked by the system"
-            className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full text-[11px] font-bold text-white ${c.ok ? "bg-leaf" : "bg-clay"}`}
+            className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full text-xs font-bold text-white ${c.ok ? "bg-leaf" : "bg-clay"}`}
           >
             {c.ok ? "✓" : "!"}
           </span>
@@ -148,8 +161,8 @@ export function CheckRow({
         <div className="min-w-0 flex-1">
           <label htmlFor={c.key} className={`block leading-snug ${!c.auto && canEdit ? "cursor-pointer" : ""}`}>
             {c.label}
-            {c.auto && <span className="ml-2 text-[11px] font-semibold uppercase tracking-wide text-muted">auto</span>}
-            {c.findings && <span className="ml-2 rounded bg-plum-soft px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-plum">AI pre-check</span>}
+            {c.auto && <span className="ml-2 text-xs font-semibold uppercase tracking-wide text-muted">auto</span>}
+            {c.findings && <span className="ml-2 rounded bg-plum-soft px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-plum">AI pre-check</span>}
           </label>
           {c.detail && <p className={`mt-0.5 text-sm ${c.ok ? "text-muted" : "font-medium text-clay"}`}>{c.detail}</p>}
           {c.findings && (
@@ -405,7 +418,7 @@ export function StepCard({
     <section className={`rounded-2xl border-2 bg-surface ${mine ? "border-forest" : "border-line"}`}>
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-line px-5 py-4">
         <div>
-          <p className={`text-[11px] font-semibold uppercase tracking-[0.14em] ${mine ? "text-forest" : "text-muted"}`}>
+          <p className={`text-xs font-semibold uppercase tracking-[0.14em] ${mine ? "text-forest" : "text-muted"}`}>
             {mine ? "Your turn" : `Waiting on ${ownerLabel}`}
             {eyebrow && <span className="ml-2 text-warn">· {eyebrow}</span>}
           </p>
@@ -428,6 +441,14 @@ export function StepCard({
     </section>
   );
 }
+
+/**
+ * The step's action buttons: on a phone they stay at the bottom of the screen, above the tab bar,
+ * while the step's checks scroll past, so the next action is always in reach. Put it as the step
+ * card's own last block (a direct child), after the checks.
+ */
+export const stickyActions =
+  "sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-20 space-y-2 rounded-b-2xl border-t border-line bg-surface/95 px-5 py-3 backdrop-blur lg:static lg:bg-surface lg:py-4 lg:backdrop-blur-none";
 
 export const primaryBtn =
   "rounded-full bg-forest px-6 py-3 text-sm font-semibold text-forest-ink shadow-[0_12px_24px_-14px_rgb(49_77_47/0.8)] transition enabled:hover:-translate-y-0.5 enabled:hover:bg-forest-hover disabled:cursor-not-allowed disabled:opacity-35 disabled:shadow-none";
@@ -491,6 +512,20 @@ export function TopBar({ active, children }: { active?: "design" | "project" | "
   const router = useRouter();
   const [menu, setMenu] = useState(false);
   const [switchError, setSwitchError] = useState("");
+  // On a phone the header slides away while scrolling down and comes back on any scroll up, so
+  // the work has the screen. On a wide screen it always stays.
+  const [tucked, setTucked] = useState(false);
+  useEffect(() => {
+    let last = window.scrollY;
+    const onScroll = () => {
+      const y = window.scrollY;
+      if (Math.abs(y - last) < 8) return;
+      setTucked(y > last && y > 120);
+      last = y;
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
   const switchTo = (id: string | null) => {
     setSwitchError("");
     viewAs(id)
@@ -501,7 +536,7 @@ export function TopBar({ active, children }: { active?: "design" | "project" | "
       .catch((e: Error) => setSwitchError(e.message));
   };
   return (
-    <header className="sticky top-0 z-40 border-b border-line bg-paper/90 backdrop-blur-xl">
+    <header className={`sticky top-0 z-40 border-b border-line bg-paper/90 backdrop-blur-xl transition-transform duration-200 lg:translate-y-0 ${tucked && !menu ? "-translate-y-full" : ""}`}>
       {viewingAs && user && actor && (
         <div role="status" className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-ochre-soft px-4 py-2 text-center text-sm">
           <span>{t("banner.viewingAs", { name: user.name, actor: actor.name.split(" ")[0] })}</span>
@@ -624,7 +659,7 @@ export function AppShell({
                 >
                   {r.short}
                   {counts[r.id] > 0 && (
-                    <span className={`grid h-5 min-w-5 place-items-center rounded-full px-1 text-[11px] font-bold tabular-nums ${role === r.id ? "bg-forest-ink/20" : "bg-ochre-soft text-warn"}`}>
+                    <span className={`grid h-5 min-w-5 place-items-center rounded-full px-1 text-xs font-bold tabular-nums ${role === r.id ? "bg-forest-ink/20" : "bg-ochre-soft text-warn"}`}>
                       {counts[r.id]}
                     </span>
                   )}
@@ -658,14 +693,14 @@ export function ComingUp({
   if (items.length === 0) return null;
   return (
     <div className="border-t border-line px-4 py-4 sm:px-6">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">Coming to you · projected</p>
+      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Coming to you · projected</p>
       <ul className="mt-2 space-y-2">
         {items.map((c) => (
           <li key={c.id + c.step}>
             <button type="button" onClick={() => onOpen?.(c.id)} className="w-full text-left text-sm hover:text-forest" title={c.basis}>
               <span className="flex items-baseline justify-between gap-2">
                 <span className="min-w-0 truncate font-medium">{c.title}</span>
-                <span className="shrink-0 font-mono text-[11px] text-warn">~{c.eta.slice(5)}</span>
+                <span className="shrink-0 font-mono text-xs text-warn">~{c.eta.slice(5)}</span>
               </span>
               <span className="block truncate text-xs text-muted">
                 {c.step} · now {c.via}
@@ -674,7 +709,7 @@ export function ComingUp({
           </li>
         ))}
       </ul>
-      <p className="mt-2 text-[11px] text-muted">Estimated from how long each step took in past cases.</p>
+      <p className="mt-2 text-xs text-muted">Estimated from how long each step took in past cases.</p>
     </div>
   );
 }
@@ -736,12 +771,26 @@ export function QueueFooter({ onReset, note = "Fictional records, saved in this 
   );
 }
 
+/**
+ * What a page shows while its data is on the way: a visible "Loading…", never a blank screen that
+ * looks broken on a slow connection.
+ */
+export function Loading({ what, className = "" }: { what?: string; className?: string }) {
+  const { t } = useT();
+  return (
+    <div role="status" aria-live="polite" className={`flex items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-4 text-sm text-muted ${className}`}>
+      <span aria-hidden className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-line border-t-forest" />
+      {what ?? t("load.wait")}
+    </div>
+  );
+}
+
 /** An empty list: "all caught up" only once the list has loaded, never while it is still on its way. */
 export function EmptyQueue({ onShowAll, loading = false }: { onShowAll: () => void; loading?: boolean }) {
   if (loading)
     return (
-      <div className="px-4 py-10 text-center sm:px-6" aria-busy="true">
-        <p className="text-sm text-muted">Loading…</p>
+      <div className="px-3 py-6 sm:px-4">
+        <Loading />
       </div>
     );
   return (

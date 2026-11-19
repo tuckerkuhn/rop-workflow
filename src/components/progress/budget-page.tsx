@@ -215,7 +215,7 @@ function LineText({ l }: { l: LineView }) {
 
 /** Approved, spent and forecast as three labelled figures, for the stacked view. */
 function Figures({ x, warn }: { x: { approved: number | null; spent: number | null; spentPct: number | null; forecast: number | null; forecastPct: number | null }; warn?: boolean }) {
-  const head = "text-[11px] uppercase tracking-wide text-muted";
+  const head = "text-xs uppercase tracking-wide text-muted";
   return (
     <dl className="mt-2 grid grid-cols-3 gap-2 text-sm tabular-nums">
       <div>

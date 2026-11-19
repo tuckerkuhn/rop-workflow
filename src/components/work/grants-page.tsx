@@ -1,5 +1,6 @@
 "use client";
 
+import { plainError } from "@/lib/plain-error";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
@@ -46,7 +47,7 @@ async function call<T>(url: string, user: string, init?: RequestInit): Promise<T
   const res = await fetch(url, { cache: "no-store", ...init, headers: { "Content-Type": "application/json", "x-demo-user": user } });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const err = new Error((body as { error?: string }).error ?? `Request failed (${res.status})`) as Error & { view?: T };
+    const err = new Error((body as { error?: string }).error ?? plainError(res.status)) as Error & { view?: T };
     err.view = (body as { view?: T }).view;
     throw err;
   }
@@ -162,7 +163,7 @@ function CardBody({ g, left, today, stepTag }: { g: Pick<Grant, "business" | "va
         {g.womenOwned && <Pill tone="plum">{t("gr.womenTag")}</Pill>}
         {g.status === "done" ? <Pill tone="forest">{t("gr.doneTag")}</Pill> : g.status === "open" ? left ? <Pill tone="muted">{t("gr.left", { n: left })}</Pill> : <Pill tone="forest">{t("gr.ready")}</Pill> : null}
       </span>
-      {g.status === "open" && <span className={`mt-1 block text-[11px] ${isStuck(g.since, today) ? "font-semibold text-warn" : "text-muted"}`}>{t(isStuck(g.since, today) ? "bd.stuck" : "bd.days", { n: days })}</span>}
+      {g.status === "open" && <span className={`mt-1 block text-xs ${isStuck(g.since, today) ? "font-semibold text-warn" : "text-muted"}`}>{t(isStuck(g.since, today) ? "bd.stuck" : "bd.days", { n: days })}</span>}
       {g.closedWhy && <span className="mt-1 block text-xs text-muted">{g.closedWhy}</span>}
     </>
   );
@@ -251,7 +252,7 @@ function Detail({ g, v, act }: { g: Grant; v: GrantsView; act: (a: GrantAction) 
 
           {open && (
             <>
-              <h3 className="mt-4 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
+              <h3 className="mt-4 text-xs font-semibold uppercase tracking-[0.14em] text-muted">
                 {t("gr.thisStep")}: {name(g.step)}
               </h3>
               <ul className="mt-1">{itemsFor(g, g.step).map((c) => checkRow(c.id))}</ul>
@@ -622,7 +623,7 @@ function AllGrants({ user }: { user: string }) {
       .sort((a, b) => a.since.localeCompare(b.since))
       .map((g) => (
         <Link key={`${g.project.code}/${g.id}`} href={`/work/grants?project=${encodeURIComponent(g.project.code)}&open=${g.id}`} className={cardClass(g.status === "open" && isStuck(g.since, today))}>
-          <span className="mb-1 flex flex-wrap gap-1 text-[11px] text-muted">
+          <span className="mb-1 flex flex-wrap gap-1 text-xs text-muted">
             {g.project.code}
             {g.project.sandbox && <Pill tone="sky">{t("bd.sandbox")}</Pill>}
           </span>

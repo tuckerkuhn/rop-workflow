@@ -136,7 +136,7 @@ export default function About() {
                 <Reveal key={m.label} delay={i * 90} className="lg:px-8 lg:first:pl-0">
                   <p className="font-display text-5xl tracking-tight text-forest">{m.value}</p>
                   <p className="mt-3 text-sm leading-relaxed">{m.label}</p>
-                  <p className="mt-1 font-mono text-[11px] text-muted">{m.note}</p>
+                  <p className="mt-1 font-mono text-xs text-muted">{m.note}</p>
                 </Reveal>
               ))}
             </div>
@@ -179,7 +179,7 @@ export default function About() {
               <ol className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {["Need", "Requisition", "Authorize", "Select", "Contract", "Receive", "Pay-ready", "Close"].map((s, i) => (
                   <li key={s} className="rounded-xl border border-line bg-surface px-3 py-3">
-                    <span className="font-mono text-[10px] text-muted">{String(i + 1).padStart(2, "0")}</span>
+                    <span className="font-mono text-xs text-muted">{String(i + 1).padStart(2, "0")}</span>
                     <span className="mt-1 block text-sm font-semibold">{s}</span>
                   </li>
                 ))}
@@ -208,7 +208,7 @@ export default function About() {
                   <div className="flex items-start justify-between">
                     <span className="font-display text-5xl italic opacity-40">{i + 1}</span>
                     {s.mvp && (
-                      <span className="rounded-full bg-ochre px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-[#1b140a]">
+                      <span className="rounded-full bg-ochre px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-[#1b140a]">
                         In MVP
                       </span>
                     )}
@@ -283,13 +283,13 @@ export default function About() {
                   <p className="mt-3 text-[0.95rem] leading-relaxed text-muted">{c.body}</p>
                   <div className="mt-8 flex flex-wrap gap-1.5">
                     {c.tags.map((t) => (
-                      <span key={t} className="rounded-md border border-line bg-paper px-2 py-1 font-mono text-[11px] text-muted">
+                      <span key={t} className="rounded-md border border-line bg-paper px-2 py-1 font-mono text-xs text-muted">
                         {t}
                       </span>
                     ))}
                   </div>
                   {i < 2 && (
-                    <span aria-hidden className="absolute -right-[11px] top-1/2 z-10 hidden h-5 w-5 -translate-y-1/2 place-items-center rounded-full border border-line bg-surface text-[10px] text-muted lg:grid">
+                    <span aria-hidden className="absolute -right-[11px] top-1/2 z-10 hidden h-5 w-5 -translate-y-1/2 place-items-center rounded-full border border-line bg-surface text-xs text-muted lg:grid">
                       →
                     </span>
                   )}

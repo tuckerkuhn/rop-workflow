@@ -1,5 +1,6 @@
 "use client";
 
+import { askConfirm } from "@/components/app/dialogs";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -82,7 +83,7 @@ export function PreflightPage() {
     <li>
       <Link href={i.href} className="flex min-h-12 items-center gap-3 rounded-xl border border-line bg-surface px-3 py-2 hover:border-forest">
         <span className="flex-1 text-sm">{itemText(t, i)}</span>
-        <span className="shrink-0 rounded-full bg-mist px-2 py-0.5 text-[11px] font-semibold text-muted">{t(`pf.owner.${i.owner}` as MessageKey)}</span>
+        <span className="shrink-0 rounded-full bg-mist px-2 py-0.5 text-xs font-semibold text-muted">{t(`pf.owner.${i.owner}` as MessageKey)}</span>
         <span aria-hidden className="inline-block text-forest rtl:rotate-180">
           →
         </span>
@@ -253,11 +254,11 @@ export async function beforeDownload(project: string, user: string, loaded: Pref
     p = await fetch(`/api/projects/${project}/preflight?report=${report.kind}&period=${periodOf(report)}`, { cache: "no-store", headers: { "x-demo-user": user } })
       .then((r) => (r.ok ? (r.json() as Promise<Preflight>) : null))
       .catch(() => null);
-    if (!p) return window.confirm(uncheckedText ?? "Pre-flight could not be checked just now. The file will be marked \"Draft, not checked\". Download it anyway?") ? UNCHECKED : null;
+    if (!p) return (await askConfirm({ message: uncheckedText ?? "Pre-flight could not be checked just now. The file will be marked \"Draft, not checked\". Download it anyway?", confirm: "Download anyway" })) ? UNCHECKED : null;
   }
   const n = p && !p.released ? p.items.filter((i) => i.group === "blocks").length : 0;
   if (!n || !p) return 0;
-  if (!window.confirm(confirmText(n))) return null;
+  if (!(await askConfirm({ message: confirmText(n), confirm: "Download anyway" }))) return null;
   await fetch(`/api/projects/${project}/preflight`, { method: "POST", headers: { "Content-Type": "application/json", "x-demo-user": user }, body: JSON.stringify({ action: "exported", report: p.report.kind, period: periodOf(p.report) }) }).catch(() => undefined);
   return n;
 }

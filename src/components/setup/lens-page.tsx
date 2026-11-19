@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser } from "@/components/app/session";
-import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
+import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn, Loading } from "@/components/workspace/ui";
 import { userById } from "@/lib/demo";
 import { LENSES, type Finding, type LensAction, type LensReview } from "@/lib/lens-review";
 
@@ -63,6 +63,8 @@ export function LensPage() {
         </p>
         {!project.saved ? (
           <p className="mt-6 rounded-xl bg-sunken px-4 py-3 text-sm text-muted">This demo project is kept in this browser only.</p>
+        ) : !v ? (
+          !error && <Loading className="mt-6" />
         ) : (
           v && (
             <>

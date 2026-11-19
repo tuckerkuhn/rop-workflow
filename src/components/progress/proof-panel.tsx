@@ -121,7 +121,7 @@ export function ProofNumber({
         {shown}
       </button>
       {proof === 0 && (
-        <span className="ms-1 whitespace-nowrap rounded-full bg-ochre-soft px-1.5 py-0.5 text-[10px] font-semibold text-warn">
+        <span className="ms-1 whitespace-nowrap rounded-full bg-ochre-soft px-1.5 py-0.5 text-xs font-semibold text-warn">
           {t("ev.noProof")}
         </span>
       )}

@@ -452,6 +452,7 @@ export const fa: Messages = {
   "progress.sync": "همگام‌سازی KoboToolbox",
   "progress.lastSync": "آخرین همگام‌سازی {date}",
   "assistant.name": "دستیار هوش مصنوعی",
+  "assistant.tab": "دستیار",
   "assistant.open": "باز کردن دستیار هوش مصنوعی",
   "assistant.close": "بستن دستیار",
   "assistant.for": "برای {project}",

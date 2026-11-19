@@ -19,12 +19,12 @@ export function FarmerCard() {
               <p className="text-xs text-muted">Village B · Maize · 0.8 ha · 2027 Spring</p>
             </div>
           </div>
-          <span className="rounded-full bg-mist px-2.5 py-1 text-[11px] font-semibold text-leaf">Enrolled</span>
+          <span className="rounded-full bg-mist px-2.5 py-1 text-xs font-semibold text-leaf">Enrolled</span>
         </div>
 
         <div className="space-y-5 px-6 py-5">
           <section>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">Ready for inputs?</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Ready for inputs?</p>
             <div className="mt-2 flex items-center gap-3">
               <span className="grid h-7 w-7 place-items-center rounded-full bg-leaf text-white">
                 <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" aria-hidden>
@@ -36,7 +36,7 @@ export function FarmerCard() {
           </section>
 
           <section>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">What happened?</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">What happened?</p>
             <ol className="relative mt-3 space-y-3">
               <span aria-hidden className="absolute bottom-1.5 left-[5px] top-1.5 w-px bg-line" />
               {timeline.map((t) => (
@@ -46,7 +46,7 @@ export function FarmerCard() {
                       t.tone === "no" ? "bg-clay" : "bg-leaf"
                     }`}
                   />
-                  <span className="w-12 shrink-0 font-mono text-[11px] text-muted">{t.date}</span>
+                  <span className="w-12 shrink-0 font-mono text-xs text-muted">{t.date}</span>
                   <span>{t.label}</span>
                 </li>
               ))}
@@ -54,7 +54,7 @@ export function FarmerCard() {
           </section>
 
           <section className="rounded-2xl bg-ochre-soft px-4 py-3.5">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-warn">Needs action</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-warn">Needs action</p>
             <div className="mt-1.5 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
               <span className="font-medium">Planting follow-up visit</span>
               <span className="font-mono text-xs text-muted">Eli · Extension · due 25 Mar</span>
@@ -81,7 +81,7 @@ export function FarmerCard() {
         </span>
         <div className="leading-tight">
           <p className="text-xs font-semibold">Kobo submission synced</p>
-          <p className="text-[11px] text-muted">Recorded offline · linked to P-0009</p>
+          <p className="text-xs text-muted">Recorded offline · linked to P-0009</p>
         </div>
       </div>
     </div>

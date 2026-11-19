@@ -478,6 +478,7 @@ export const es: Messages = {
   "progress.sync": "Sincronizar KoboToolbox",
   "progress.lastSync": "Última sincronización {date}",
   "assistant.name": "Asistente de IA",
+  "assistant.tab": "Asistente",
   "assistant.open": "Abrir el asistente de IA",
   "assistant.close": "Cerrar el asistente",
   "assistant.for": "Para {project}",

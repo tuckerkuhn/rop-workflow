@@ -1,5 +1,7 @@
 "use client";
 
+import { plainError } from "@/lib/plain-error";
+import { askConfirm } from "@/components/app/dialogs";
 import Link from "next/link";
 import { SelfConfirmSheet } from "@/components/app/self-confirm";
 import { useSearchParams } from "next/navigation";
@@ -35,7 +37,7 @@ async function call<T>(url: string, user: string | undefined, init?: RequestInit
     headers: { ...(init?.body instanceof FormData ? {} : { "Content-Type": "application/json" }), "x-demo-user": user ?? "", ...(init?.headers ?? {}) },
   });
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error((body as { error?: string }).error ?? `Request failed (${res.status})`);
+  if (!res.ok) throw new Error((body as { error?: string }).error ?? plainError(res.status));
   return body as T;
 }
 
@@ -1186,7 +1188,7 @@ function WhatNeedsDoing({ v, me, onRecord, act, onReview }: { v: ResultsView; me
               <button
                 type="button"
                 className={`${primaryBtn} min-h-12`}
-                onClick={() => window.confirm(t("rq.confirm", { n: clean.length })) && void act({ action: "accept-many", ids: clean.map((r) => r.id) }, t("rq.accepted", { n: clean.length })).catch(() => undefined)}
+                onClick={() => void askConfirm({ message: t("rq.confirm", { n: clean.length }), confirm: t("rq.accept", { n: clean.length }) }).then((ok) => (ok ? act({ action: "accept-many", ids: clean.map((r) => r.id) }, t("rq.accepted", { n: clean.length })).catch(() => undefined) : undefined))}
               >
                 {t("rq.accept", { n: clean.length })}
               </button>

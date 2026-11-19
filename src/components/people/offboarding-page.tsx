@@ -1,5 +1,6 @@
 "use client";
 
+import { plainError } from "@/lib/plain-error";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useRequireUser, useSession } from "@/components/app/session";
@@ -12,7 +13,7 @@ import type { OffboardingView } from "@/server/offboarding-view";
 async function call(user: string, init?: RequestInit): Promise<OffboardingView> {
   const res = await fetch("/api/offboarding", { cache: "no-store", ...init, headers: { "Content-Type": "application/json", "x-demo-user": user } });
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error((body as { error?: string }).error ?? `Request failed (${res.status})`);
+  if (!res.ok) throw new Error((body as { error?: string }).error ?? plainError(res.status));
   return body as OffboardingView;
 }
 

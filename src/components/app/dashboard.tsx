@@ -55,8 +55,8 @@ function Pipeline({ cards }: { cards: WorkCard[] }) {
                   className={`block rounded-xl border px-3 py-2 transition hover:border-forest ${c.late ? "border-clay/50 bg-clay-soft/50" : c.now ? "border-forest/40 bg-mist/60" : "border-dashed border-line bg-paper"}`}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-[10px] font-semibold uppercase tracking-wide text-muted">{c.space}</span>
-                    <span className={`font-mono text-[11px] ${c.late ? "text-clay" : c.now ? "text-forest" : "text-warn"}`}>
+                    <span className="text-xs font-semibold uppercase tracking-wide text-muted">{c.space}</span>
+                    <span className={`font-mono text-xs ${c.late ? "text-clay" : c.now ? "text-forest" : "text-warn"}`}>
                       {c.late ? "late · " : c.now ? "" : "~"}
                       {c.date.slice(5)}
                     </span>
@@ -124,7 +124,7 @@ function Team({ u, data, viewer, onView }: { u: AppUser; data: Data; viewer: App
                   ].map(([k, v]) => (
                     <div key={k} className="rounded-lg bg-paper py-2">
                       <dd className={`font-display text-2xl tabular-nums ${k === "Late" && Number(v) > 0 ? "text-clay" : ""}`}>{v}</dd>
-                      <dt className="text-[10px] uppercase tracking-wide text-muted">{k}</dt>
+                      <dt className="text-xs uppercase tracking-wide text-muted">{k}</dt>
                     </div>
                   ))}
                 </dl>
@@ -161,7 +161,7 @@ function EmployeeHome({ u, data, viewer, readOnly, onView }: { u: AppUser; data:
           ["Roles", String(roleNames.length), roleNames.join(" · ") || "View only"],
         ].map(([k, v, s]) => (
           <div key={k} className="bg-surface px-5 py-4">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">{k}</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted">{k}</p>
             <p className={`mt-1 font-display text-4xl tabular-nums ${k === "Running late" && v !== "0" ? "text-clay" : ""}`}>{v}</p>
             <p className="mt-1 truncate text-xs text-muted">{s}</p>
           </div>
@@ -205,7 +205,7 @@ function DonorHome({ field, project }: { field: FieldItem[]; project: ProjectSta
           ["Success stories", String(stories.length)],
         ].map(([k, v]) => (
           <div key={k} className="bg-surface px-5 py-4">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">{k}</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted">{k}</p>
             <p className="mt-1 font-display text-3xl tabular-nums">{v}</p>
           </div>
         ))}

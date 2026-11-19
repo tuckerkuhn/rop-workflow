@@ -1,9 +1,10 @@
 "use client";
 
+import { plainError } from "@/lib/plain-error";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRequireUser, useSession } from "@/components/app/session";
-import { Pill, SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn } from "@/components/workspace/ui";
+import { Pill, SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn, Loading } from "@/components/workspace/ui";
 import { ACCESS_LABEL, FIELD_ROLES, LANGS, PROC_ROLES, PROJECT_ROLES, ROLE_PRESETS, presetOf, type PersonInput, type StaffAction } from "@/lib/access";
 import type { PeopleView } from "@/app/api/staff/route";
 
@@ -16,7 +17,7 @@ import type { PeopleView } from "@/app/api/staff/route";
 async function call<T>(user: string | undefined, init?: RequestInit): Promise<T> {
   const res = await fetch("/api/staff", { cache: "no-store", ...init, headers: { "Content-Type": "application/json", "x-demo-user": user ?? "", ...(init?.headers ?? {}) } });
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error((body as { error?: string }).error ?? `Request failed (${res.status})`);
+  if (!res.ok) throw new Error((body as { error?: string }).error ?? plainError(res.status));
   return body as T;
 }
 
@@ -131,6 +132,7 @@ export function PeopleAdminPage() {
           </p>
         )}
 
+        {!v && !error && <Loading className="mt-6" />}
         {v && (
           <>
             <div className="mt-6 flex flex-wrap items-center gap-3">

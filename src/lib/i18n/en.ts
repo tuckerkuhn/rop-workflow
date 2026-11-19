@@ -549,6 +549,7 @@ export const en = {
   "progress.sync": "Sync KoboToolbox",
   "progress.lastSync": "Last synced {date}",
   "assistant.name": "AI assistant",
+  "assistant.tab": "Assistant",
   "assistant.open": "Open the AI assistant",
   "assistant.close": "Close the assistant",
   "assistant.for": "For {project}",

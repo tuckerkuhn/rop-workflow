@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Pill } from "@/components/workspace/ui";
+import { Pill, Loading } from "@/components/workspace/ui";
 import { NextReportPanel } from "@/components/home/next-report";
 import { Families } from "@/components/home/families";
 import { GettingStarted } from "@/components/home/getting-started";
@@ -127,11 +127,7 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
   if (error) return <p className="rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">{error}</p>;
   if (!v)
     return (
-      <div aria-busy className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {[0, 1, 2, 3].map((i) => (
-          <div key={i} className="h-32 animate-pulse rounded-2xl bg-sunken" />
-        ))}
-      </div>
+      <Loading what="Loading your work…" />
     );
 
   const lens: Lens = chosen && v.lenses.includes(chosen) ? chosen : v.lenses[0];

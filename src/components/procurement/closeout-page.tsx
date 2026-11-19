@@ -6,7 +6,7 @@ import { useCurrentProject } from "@/components/app/current-project";
 import { useT } from "@/components/app/i18n";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { useCloseouts, useProcurements } from "@/components/app/use-project-data";
-import { Pill, SectionLabel, TopBar, primaryBtn } from "@/components/workspace/ui";
+import { Pill, SectionLabel, TopBar, primaryBtn, Loading } from "@/components/workspace/ui";
 import { blockers, fromBill, fromProcurement, monthsOf, total } from "@/lib/closeout";
 import type { Bill } from "@/lib/bills";
 import { procRolesFor, stepById } from "@/lib/procurement";
@@ -73,7 +73,8 @@ export function CloseoutPage() {
             {t("closeout.loadFailed")}
           </p>
         )}
-        {!months.length && !billsFailed && !closeouts.error && <p className="mt-10 rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">No expense vouchers yet. They appear here once Finance prepares them.</p>}
+        {procs.status === "loading" && <Loading className="mt-6" />}
+        {procs.status !== "loading" && !months.length && !billsFailed && !closeouts.error && <p className="mt-10 rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">No expense vouchers yet. They appear here once Finance prepares them.</p>}
         {months.map(([m, list]) => {
           const closed = closeouts.months[m];
           const open = blockers(list);

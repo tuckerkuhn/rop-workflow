@@ -1,3 +1,4 @@
+import { DialogHost } from "@/components/app/dialogs";
 import type { Metadata } from "next";
 import { Fraunces, Inter, JetBrains_Mono, Vazirmatn } from "next/font/google";
 import { cookies } from "next/headers";
@@ -51,6 +52,7 @@ export default async function RootLayout({
           <SessionProvider>
             {children}
             <OfflineSupport />
+            <DialogHost />
           </SessionProvider>
         </I18nProvider>
       </body>

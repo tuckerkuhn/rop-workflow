@@ -30,6 +30,7 @@ import {
   dangerBtn,
   primaryBtn,
   quietBtn,
+  stickyActions,
 } from "@/components/workspace/ui";
 import { holderOf, type AppUser } from "@/lib/demo";
 import { NoAccess } from "@/components/workspace/ui";
@@ -306,7 +307,7 @@ function Detail({
               ["Input package", packageUsd(ctx.setup, item.hectares) ? money(packageUsd(ctx.setup, item.hectares)) : `${ctx.setup.items.length} items`],
             ].map(([k, v]) => (
               <div key={k}>
-                <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted">{k}</dt>
+                <dt className="text-xs font-semibold uppercase tracking-wide text-muted">{k}</dt>
                 <dd className={`mt-0.5 tabular-nums ${v === "Not paid" ? "font-medium text-clay" : ""}`}>{v}</dd>
               </div>
             ))}
@@ -322,13 +323,13 @@ function Detail({
           <p className="mt-3 max-w-2xl leading-relaxed text-muted">{item.summary}</p>
           {item.sources.length > 0 && (
             <div className="mt-3 flex flex-wrap items-center gap-1.5">
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">Sources</span>
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted">Sources</span>
               {item.sources.map((s) => (
                 <button
                   key={s}
                   type="button"
                   onClick={() => onOpen(s)}
-                  className="rounded-md border border-line bg-paper px-2 py-0.5 font-mono text-[11px] text-muted transition hover:border-forest hover:text-forest"
+                  className="rounded-md border border-line bg-paper px-2 py-0.5 font-mono text-xs text-muted transition hover:border-forest hover:text-forest"
                 >
                   {s} →
                 </button>
@@ -389,7 +390,8 @@ function Detail({
                 </div>
               )}
               {mine && !awaiting && (
-                <div className="space-y-3 border-t border-line px-5 py-4">
+                <>
+                <div className="space-y-3 border-t border-line px-5 py-4 empty:hidden">
                   {blocks.length > 0 && <p className="text-sm font-medium text-clay">An open issue is holding this step.</p>}
                   {item.step === "decide" && checksOk && blocks.length === 0 && (
                     <div className="rounded-xl border border-line bg-paper p-4">
@@ -435,6 +437,8 @@ function Detail({
                       photoError={plantPhotoError}
                     />
                   )}
+                </div>
+                <div className={stickyActions}>
                   {pending ? (
                     <form
                       className="flex flex-wrap gap-2"
@@ -481,6 +485,7 @@ function Detail({
                   )}
                   {(!checksOk || (needsNote && !noteOnFile)) && blocks.length === 0 && <p className="text-xs text-muted">{checksOk ? "Add the photo of the signed note to continue." : "Complete every item above to continue."}</p>}
                 </div>
+                </>
               )}
               {raising !== null && role && (
                 <div className="border-t border-line px-5 py-4">
@@ -777,18 +782,18 @@ export function FieldWorkspace() {
         <>
           <DataBanner status={status} error={error} />
           <div className="mx-3 mt-4 rounded-xl border border-line bg-surface px-3 py-3 sm:mx-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
               {[ctx.setup.season, ctx.setup.village, status === "loading" ? "" : `${farmers.length} ${farmers.length === 1 ? "farmer" : "farmers"}`].filter(Boolean).join(" · ")}
             </p>
-            <ol className="mt-2 grid grid-cols-6 gap-1 text-center">
+            <ol className="mt-2 grid grid-cols-3 gap-x-1 gap-y-3 text-center sm:grid-cols-6">
               {pipeline.map((s) => (
                 <li key={s.label}>
                   <p className="text-xl tabular-nums font-semibold">{status === "loading" ? "–" : s.n}</p>
-                  <p className="text-[10px] leading-tight text-muted">{s.label}</p>
+                  <p className="text-xs leading-tight text-muted">{s.label}</p>
                 </li>
               ))}
             </ol>
-            <p className="mt-2 border-t border-line pt-2 text-[11px] text-muted">
+            <p className="mt-2 border-t border-line pt-2 text-xs text-muted">
               Store: {status === "loading" ? "…" : ctx.setup.items.map((p) => qtyItem(stock[p.key] ?? 0, p.unit, p.item)).join(" · ")}
             </p>
             {mayManage && (
@@ -828,7 +833,7 @@ export function FieldWorkspace() {
                     }}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-mono text-[11px] text-muted">{i.id}</span>
+                      <span className="font-mono text-xs text-muted">{i.id}</span>
                       <span className="text-xs text-muted">{i.kind === "farmer" ? `${i.hectares} ha` : "Finding"}</span>
                     </div>
                     <p className="mt-1 font-medium leading-snug">{i.kind === "farmer" ? farmerName(i, user) : i.title}</p>
@@ -840,7 +845,7 @@ export function FieldWorkspace() {
                       )}
                       {left !== null && <Pill tone={left < 0 ? "clay" : "ochre"}>{left < 0 ? "Deadline passed" : `${left} days to fix`}</Pill>}
                       {openBlocking(i).length > 0 && <Pill tone="clay">Issue</Pill>}
-                      {(showAll || readOnly) && o && o !== role && <span className="text-[11px] text-muted">{holderOf("field", o)?.name}</span>}
+                      {(showAll || readOnly) && o && o !== role && <span className="text-xs text-muted">{holderOf("field", o)?.name}</span>}
                     </div>
                   </QueueItem>
                 );

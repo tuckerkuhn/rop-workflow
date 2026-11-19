@@ -1,10 +1,11 @@
 "use client";
 
+import { plainError } from "@/lib/plain-error";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser, useSession } from "@/components/app/session";
-import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
+import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn, Loading } from "@/components/workspace/ui";
 import { canEditProject } from "@/lib/demo";
 import { setProcurementRules } from "@/lib/procurement";
 import { GapPanel } from "@/components/settings/gap-panel";
@@ -19,7 +20,7 @@ import type { PolicyView } from "@/app/api/projects/[code]/policy/route";
 async function call<T>(url: string, user: string | undefined, init?: RequestInit): Promise<T> {
   const res = await fetch(url, { cache: "no-store", ...init, headers: { "Content-Type": "application/json", "x-demo-user": user ?? "", ...(init?.headers ?? {}) } });
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error((body as { error?: string }).error ?? `Request failed (${res.status})`);
+  if (!res.ok) throw new Error((body as { error?: string }).error ?? plainError(res.status));
   return body as T;
 }
 
@@ -93,6 +94,7 @@ export function PolicyPage() {
             {notice}
           </p>
         )}
+        {!v && !error && <Loading className="mt-6" />}
         {v && (
           <>
             <section className="mt-6 grid gap-3 sm:grid-cols-2">

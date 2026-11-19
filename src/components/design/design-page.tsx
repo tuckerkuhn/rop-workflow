@@ -105,7 +105,7 @@ function Explore({ u, state, setState, locked, cal, setCal, crop, setCrop, intel
           { k: "Data freshness", v: `${age} months`, s: `Latest source ${DATA_AS_OF} · entered by hand` },
         ].map((c) => (
           <div key={c.k} className="bg-surface px-5 py-4">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">{c.k}</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted">{c.k}</p>
             <p className="mt-1 font-display text-3xl tabular-nums">{c.v}</p>
             <p className="mt-1 truncate text-xs text-muted">{c.s}</p>
           </div>
@@ -223,7 +223,7 @@ function CheckItem({ win, item, u, state, setState, editable, cal }: { win: Mark
   return (
     <li className="py-3">
       <div className="flex items-start gap-3">
-        <span className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full text-[11px] font-bold text-white ${done ? "bg-leaf" : "bg-line"}`}>{done ? "✓" : ""}</span>
+        <span className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full text-xs font-bold text-white ${done ? "bg-leaf" : "bg-line"}`}>{done ? "✓" : ""}</span>
         <div className="min-w-0 flex-1">
           <p className="leading-snug">{item.label(area.name)}</p>
           {done ? (
@@ -380,7 +380,7 @@ function Choose({ u, state, setState, locked, cal, projectId, openTarget, intel 
         <p className="mt-1 max-w-2xl text-sm text-muted">Only a validated window can be chosen. The choice and reason go on the project record and into its reports.</p>
       </div>
       <div className="rounded-2xl border-2 border-line bg-surface p-5">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">Decision · target market window</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Decision · target market window</p>
         {!editing && savedWin ? (
           <div className="mt-2">
             <button type="button" onClick={openTarget} className="text-xl text-forest underline decoration-dotted underline-offset-4 font-semibold">

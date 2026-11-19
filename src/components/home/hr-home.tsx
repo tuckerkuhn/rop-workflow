@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Pill } from "@/components/workspace/ui";
+import { Pill, Loading } from "@/components/workspace/ui";
 import type { HrHomeView } from "@/server/hr-home";
 
 /**
@@ -48,11 +48,7 @@ export function HrHome({ userId }: { userId: string }) {
   if (error) return <p className="rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">{error}</p>;
   if (!v)
     return (
-      <div aria-busy className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {[0, 1, 2, 3].map((i) => (
-          <div key={i} className="h-32 animate-pulse rounded-2xl bg-sunken" />
-        ))}
-      </div>
+      <Loading />
     );
 
   const m = monthName(v.month);

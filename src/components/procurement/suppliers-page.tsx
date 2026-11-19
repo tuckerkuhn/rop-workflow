@@ -1,5 +1,6 @@
 "use client";
 
+import { plainError } from "@/lib/plain-error";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useRequireUser, useSession } from "@/components/app/session";
@@ -17,7 +18,7 @@ export type SupplierRow = Supplier & { gaps: string[] };
 async function call(user: string | undefined, init?: RequestInit): Promise<SuppliersView> {
   const res = await fetch("/api/suppliers", { cache: "no-store", ...init, headers: { "Content-Type": "application/json", "x-demo-user": user ?? "" } });
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error((body as { error?: string }).error ?? `Request failed (${res.status})`);
+  if (!res.ok) throw new Error((body as { error?: string }).error ?? plainError(res.status));
   return body as SuppliersView;
 }
 
@@ -116,7 +117,7 @@ function SupplierCard({ s, can, act }: { s: SupplierRow; can: SuppliersView["can
         <div className="min-w-0 flex-1">
           <p className="font-semibold">{s.name}</p>
           {s.aka.length > 0 && <p className="text-xs text-muted">Also: {s.aka.join(", ")}</p>}
-          <p className="mt-0.5 font-mono text-[11px] text-muted">{s.id}</p>
+          <p className="mt-0.5 font-mono text-xs text-muted">{s.id}</p>
         </div>
         {s.status === "suspended" ? <Pill tone="clay">Suspended</Pill> : s.gaps.length ? <Pill tone="ochre">{s.gaps.length} to resolve</Pill> : <Pill tone="forest">Ready</Pill>}
       </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import { askConfirm } from "@/components/app/dialogs";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { ProofNumber } from "@/components/progress/proof-panel";
@@ -8,7 +9,7 @@ import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser } from "@/components/app/session";
 import { useT } from "@/components/app/i18n";
 import { SelfConfirmSheet, useSolo } from "@/components/app/self-confirm";
-import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
+import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn, Loading } from "@/components/workspace/ui";
 import { userById } from "@/lib/demo";
 import { describeChange, lastMonth, quartersLabel, type Change, type ChangeInput, type ReviewAction } from "@/lib/monthly-review";
 import { STATUS_LABEL, type Status } from "@/lib/qpr";
@@ -99,6 +100,7 @@ export function ReviewPage() {
                 {error}
               </p>
             )}
+            {!v && !error && <Loading className="mt-6" />}
             {v && (
               <>
                 <p className="mt-1 text-sm text-muted">
@@ -181,9 +183,9 @@ export function ReviewPage() {
 
                 {v.mayEdit && (
                   <div className="mt-6 flex flex-wrap items-center gap-3">
-                    <button type="button" className={quietBtn} disabled={busy} onClick={() => {
+                    <button type="button" className={quietBtn} disabled={busy} onClick={async () => {
                       // A draft replaces both notes: ask first when someone has already written them.
-                      if ((v.review.summary?.text.trim() || v.review.attention?.text.trim()) && !window.confirm("Replace the summary and the needs-attention note with a new draft? What is written now will be lost.")) return;
+                      if ((v.review.summary?.text.trim() || v.review.attention?.text.trim()) && !(await askConfirm({ message: "Replace the summary and the needs-attention note with a new draft? What is written now will be lost.", confirm: "Replace with a draft" }))) return;
                       void act({ action: "draft" });
                     }}>
                       {busy ? "Working…" : v.review.summary ? "Redraft summary and needs attention with AI" : "Draft summary and needs attention with AI"}

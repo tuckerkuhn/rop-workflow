@@ -1,5 +1,6 @@
 "use client";
 
+import { plainError } from "@/lib/plain-error";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
@@ -38,7 +39,7 @@ export function TargetDetailsPage() {
     try {
       const res = await fetch(url, { cache: "no-store", headers: { "x-demo-user": userId } });
       const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error((body as { error?: string }).error ?? `Request failed (${res.status})`);
+      if (!res.ok) throw new Error((body as { error?: string }).error ?? plainError(res.status));
       setGot({ url, view: body as TargetDetailsView });
       setError("");
     } catch (e) {

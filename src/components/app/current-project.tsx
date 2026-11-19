@@ -1,5 +1,6 @@
 "use client";
 
+import { Loading } from "@/components/workspace/ui";
 import { useSearchParams } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useT } from "@/components/app/i18n";
@@ -142,9 +143,7 @@ export function CurrentProjectProvider({ children }: { children: React.ReactNode
   if (waiting)
     return (
       <div aria-busy="true" aria-label="Loading" className="mx-auto max-w-[1400px] space-y-4 px-4 py-10 sm:px-6">
-        <div className="h-10 w-64 animate-pulse rounded-xl bg-sunken" />
-        <div className="h-28 animate-pulse rounded-2xl bg-sunken" />
-        <div className="h-28 animate-pulse rounded-2xl bg-sunken" />
+        <Loading />
       </div>
     );
   return <Ctx.Provider value={{ project, setProject, projects, reload, rulesFor }}>{children}</Ctx.Provider>;

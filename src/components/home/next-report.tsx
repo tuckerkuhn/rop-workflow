@@ -90,7 +90,7 @@ export function NextReportPanel({ project, user, owners, data }: { project: stri
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             {groups.map((o) => (
               <div key={o}>
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">{t(`pf.owner.${o}`)}</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted">{t(`pf.owner.${o}`)}</p>
                 <ul className="mt-1 space-y-1 text-sm">
                   {v.items
                     .filter((i) => i.owner === o)

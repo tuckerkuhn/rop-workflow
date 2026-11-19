@@ -16,7 +16,10 @@ import type { MessageKey } from "@/lib/i18n";
 
 const EXAMPLES: MessageKey[] = ["assistant.ex.late", "assistant.ex.noData", "assistant.ex.report"];
 
-function Sparkle({ className }: { className: string }) {
+/** The phone tab bar opens the assistant with this event (on phones it has no floating button). */
+export const OPEN_ASSISTANT = "rop:open-assistant";
+
+export function Sparkle({ className }: { className: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden className={className}>
       <path d="M12 3v3M12 18v3M3 12h3M18 12h3M12 8l1.5 2.5L16 12l-2.5 1.5L12 16l-1.5-2.5L8 12l2.5-1.5Z" />
@@ -61,6 +64,13 @@ export function Assistant() {
     }
   };
 
+  // On phones the tab bar's Assistant tab opens it.
+  useEffect(() => {
+    const toggle = () => setOpen((o) => !o);
+    window.addEventListener(OPEN_ASSISTANT, toggle);
+    return () => window.removeEventListener(OPEN_ASSISTANT, toggle);
+  }, []);
+
   // Focus moves into the panel on open and back to the button on close.
   useEffect(() => {
     if (open) closer.current?.focus();
@@ -82,7 +92,7 @@ export function Assistant() {
         aria-controls="assistant-panel"
         aria-label={t("assistant.open")}
         title={t("assistant.name")}
-        className={`fixed end-4 z-40 grid h-14 w-14 place-items-center rounded-full bg-forest text-forest-ink shadow-[0_12px_24px_-10px_rgb(31_77_54/0.8)] transition hover:-translate-y-0.5 bottom-[calc(5rem+env(safe-area-inset-bottom))] lg:end-6 lg:bottom-6 ${open ? "hidden lg:grid" : ""}`}
+        className="fixed end-6 bottom-6 z-40 hidden h-14 w-14 place-items-center rounded-full bg-forest text-forest-ink shadow-[0_12px_24px_-10px_rgb(31_77_54/0.8)] transition hover:-translate-y-0.5 lg:grid"
       >
         <Sparkle className="h-6 w-6" />
         {!allowed && (
@@ -120,7 +130,7 @@ export function Assistant() {
                 {!turns.length && (
                   <>
                     <p className="text-sm">{t("assistant.intro")}</p>
-                    <p className="mt-5 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">{t("assistant.examples")}</p>
+                    <p className="mt-5 text-xs font-semibold uppercase tracking-[0.14em] text-muted">{t("assistant.examples")}</p>
                     <ul className="mt-2 space-y-2">
                       {EXAMPLES.map((k) => (
                         <li key={k}>
@@ -164,7 +174,7 @@ export function Assistant() {
                     )}
                   </div>
                 ))}
-                {turns.length > 0 && <p className="text-[11px] text-muted">{t("assistant.note")}</p>}
+                {turns.length > 0 && <p className="text-xs text-muted">{t("assistant.note")}</p>}
               </div>
               <form
                 onSubmit={(e) => {

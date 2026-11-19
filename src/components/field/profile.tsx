@@ -84,7 +84,7 @@ function SatisfactionChart({ surveys }: { surveys: Farmer["surveys"] }) {
       {[1, 3, 5].map((s) => (
         <g key={s}>
           <line x1="22" x2={w - 10} y1={y(s)} y2={y(s)} className="stroke-line" strokeDasharray="2 3" />
-          <text x="8" y={y(s) + 3} className="fill-muted text-[9px]">
+          <text x="8" y={y(s) + 3} className="fill-muted text-xs">
             {s}
           </text>
         </g>
@@ -93,7 +93,7 @@ function SatisfactionChart({ surveys }: { surveys: Farmer["surveys"] }) {
       {surveys.map((s, k) => (
         <g key={s.date}>
           <circle cx={x(k)} cy={y(s.score)} r={k === surveys.length - 1 ? 5 : 3.5} className="fill-forest" />
-          <text x={x(k)} y={h - 4} textAnchor="middle" className="fill-muted text-[9px]">
+          <text x={x(k)} y={h - 4} textAnchor="middle" className="fill-muted text-xs">
             {s.date.slice(0, 7)}
           </text>
         </g>
@@ -209,7 +209,7 @@ export function FarmerProfile({ id }: { id: string }) {
                 ["Inputs received", gotInputs ? (packageUsd(setup, farmer.hectares) ? money(packageUsd(setup, farmer.hectares)) : "Yes") : "Not yet"],
               ].map(([k, v]) => (
                 <div key={k} className="bg-surface px-4 py-3">
-                  <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted">{k}</dt>
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-muted">{k}</dt>
                   <dd className="mt-1 font-display text-2xl tabular-nums">{v}</dd>
                 </div>
               ))}
@@ -338,7 +338,7 @@ export function FarmerProfile({ id }: { id: string }) {
                       ) : (
                         <>
                           <PhotoArt kind={p.activity} />
-                          <span className="absolute left-2 top-2 rounded bg-surface/85 px-1.5 py-0.5 text-[10px] text-muted">Placeholder</span>
+                          <span className="absolute left-2 top-2 rounded bg-surface/85 px-1.5 py-0.5 text-xs text-muted">Placeholder</span>
                         </>
                       )}
                     </div>
@@ -423,7 +423,7 @@ export function FarmerProfile({ id }: { id: string }) {
                   <li key={k} className="relative text-sm">
                     <span aria-hidden className="absolute -left-[21px] top-1.5 h-2 w-2 rounded-full bg-forest" />
                     <p className="leading-snug">
-                      <span className="mr-2 text-[11px] font-semibold uppercase tracking-wide text-muted">{e.kind}</span>
+                      <span className="mr-2 text-xs font-semibold uppercase tracking-wide text-muted">{e.kind}</span>
                       {maskName(e.text, farmer, user)}
                     </p>
                     <p className="text-xs text-muted">

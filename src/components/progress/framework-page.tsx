@@ -1,5 +1,6 @@
 "use client";
 
+import { plainError } from "@/lib/plain-error";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
@@ -21,7 +22,7 @@ const n = (v: number) => v.toLocaleString("en-US", { maximumFractionDigits: 1 })
 async function call(url: string, user: string, init?: RequestInit): Promise<FrameworkView> {
   const res = await fetch(url, { cache: "no-store", ...init, headers: { "Content-Type": "application/json", "x-demo-user": user } });
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error((body as { error?: string }).error ?? `Request failed (${res.status})`);
+  if (!res.ok) throw new Error((body as { error?: string }).error ?? plainError(res.status));
   return body as FrameworkView;
 }
 
@@ -59,7 +60,7 @@ function Wording({ k, level, text, source, suggested, canEdit, save }: { k: stri
       ) : (
         <p className="text-sm italic text-muted">Not worded yet.</p>
       )}
-      <p className="text-[11px] text-muted">
+      <p className="text-xs text-muted">
         {source ?? (suggested ? `From ${suggested.source}` : "")}
         {canEdit && (
           <>
@@ -84,7 +85,7 @@ function Node({ node, canEdit, save, year }: { node: TreeNode; canEdit: boolean;
   const wrap = depth === 1 ? "mt-6 rounded-2xl border border-line bg-surface p-4" : depth === 2 ? "mt-4 border-s-2 border-forest/40 ps-4" : "mt-3 rounded-xl bg-paper p-3";
   return (
     <section className={wrap} aria-label={`${node.level} ${node.key}`}>
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-warn">
+      <p className="text-xs font-semibold uppercase tracking-wide text-warn">
         {node.level} {node.key}
       </p>
       {node.level === "Activity" ? <p className="text-sm font-semibold">{node.text ?? "—"}</p> : <Wording k={node.key} level={node.level} text={node.text} source={node.source} suggested={node.suggested} canEdit={canEdit} save={save} />}
@@ -181,7 +182,7 @@ export function FrameworkPage() {
         {v && (
           <>
             <section className="mt-6 rounded-2xl bg-mist p-4" aria-label="Goal">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-forest">Goal</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-forest">Goal</p>
               <Wording k="goal" level="Goal" text={v.goal.text} source={v.goal.source} suggested={v.goal.suggested} canEdit={v.can.edit} save={save} />
             </section>
             {v.outcomes.map((o) => (

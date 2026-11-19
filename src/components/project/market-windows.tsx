@@ -34,15 +34,15 @@ export const statusPill: Record<MarketWindow["status"], { tone: "forest" | "clay
 
 export function SampleTag({ validated = false }: { validated?: boolean }) {
   return validated ? (
-    <span className="rounded bg-mist px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-leaf">Validated</span>
+    <span className="rounded bg-mist px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-leaf">Validated</span>
   ) : (
-    <span className="rounded bg-ochre-soft px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-warn">{SAMPLE_LABEL}</span>
+    <span className="rounded bg-ochre-soft px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-warn">{SAMPLE_LABEL}</span>
   );
 }
 
 export function Sources({ sources, prefix = "Sources" }: { sources: Source[]; prefix?: string }) {
   return (
-    <p className="text-[11px] text-muted">
+    <p className="text-xs text-muted">
       {prefix}:{" "}
       {sources.length === 0
         ? "none yet"
@@ -123,7 +123,7 @@ export function TargetPanel({ state, onClose }: { state: ProjectState; onClose: 
             ["Chosen", `${personName(target.by)} on ${target.date}`],
           ].map(([k, v]) => (
             <div key={k}>
-              <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted">{k}</dt>
+              <dt className="text-xs font-semibold uppercase tracking-wide text-muted">{k}</dt>
               <dd className="mt-0.5 leading-relaxed">{v}</dd>
             </div>
           ))}
@@ -135,7 +135,7 @@ export function TargetPanel({ state, onClose }: { state: ProjectState; onClose: 
               const c = checkDone(state, win.id, i.id);
               return (
                 <li key={i.id} className="flex gap-2">
-                  <span className={`mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full text-[10px] font-bold text-white ${c ? "bg-leaf" : "bg-line"}`}>{c ? "✓" : ""}</span>
+                  <span className={`mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full text-xs font-bold text-white ${c ? "bg-leaf" : "bg-line"}`}>{c ? "✓" : ""}</span>
                   <span>
                     {i.label(target.area?.name ?? "the production area")}
                     {c && (
@@ -182,7 +182,7 @@ export function MarketTargetCard({ state, onOpen }: { state: ProjectState; onOpe
     <section className={`rounded-2xl border p-5 ${win ? "border-line bg-surface" : "border-clay/40 bg-clay-soft/40"}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">Market target</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Market target</p>
           <div className="mt-1">
             <TargetLine state={state} onOpen={onOpen} />
           </div>
@@ -284,9 +284,9 @@ function RowLabel({ title, sub, edit, onEdit, indent = false }: { title: string;
     <span className={`flex flex-col pr-2 ${indent ? "ml-2 border-l-2 border-clay/30 pl-2" : ""}`}>
       <span className={`leading-tight ${indent ? "text-xs" : "text-sm font-medium"}`}>{title}</span>
       {sub}
-      {edit && <span className="text-[10px] leading-tight text-muted">edited by {personName(edit.by).split(" ")[0]} {edit.date}</span>}
+      {edit && <span className="text-xs leading-tight text-muted">edited by {personName(edit.by).split(" ")[0]} {edit.date}</span>}
       {onEdit && (
-        <button type="button" onClick={onEdit} className="w-fit text-[11px] font-semibold text-forest hover:underline">
+        <button type="button" onClick={onEdit} className="w-fit text-xs font-semibold text-forest hover:underline">
           Edit
         </button>
       )}
@@ -328,7 +328,7 @@ export function Calendar({
   return (
     <div className="overflow-x-auto rounded-2xl border border-line bg-surface">
       <div className="min-w-[760px] p-4">
-        <div className={`${cols} gap-px text-center text-[11px] text-muted`}>
+        <div className={`${cols} gap-px text-center text-xs text-muted`}>
           <span />
           {MONTHS.map((m, i) => (
             <span key={m} className={`py-1 ${harvest.includes(i + 1) ? "font-semibold text-warn" : ""}`}>
@@ -338,7 +338,7 @@ export function Calendar({
         </div>
 
         {/* Our production: each province when looking at all Afghanistan, otherwise the chosen area */}
-        <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-muted">Afghan harvest</p>
+        <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-muted">Afghan harvest</p>
         <div className="mt-1 space-y-1">
           {harvestRows.map((a) => {
             const combined = a.id === "all";
@@ -362,10 +362,10 @@ export function Calendar({
             );
           })}
         </div>
-        <p className="mt-1 pl-[11rem] text-[11px] text-muted">{area.note}</p>
+        <p className="mt-1 pl-[11rem] text-xs text-muted">{area.note}</p>
 
         {/* Markets, each with the origins competing there */}
-        <p className="mt-4 text-[11px] font-semibold uppercase tracking-wide text-muted">{showCompetition ? "Import markets and competing supply" : "Import markets"}</p>
+        <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-muted">{showCompetition ? "Import markets and competing supply" : "Import markets"}</p>
         <div className="mt-1 space-y-3">
           {windowsFor(crop).map((win) => {
             const pill = statusPill[win.status];
@@ -407,7 +407,7 @@ export function Calendar({
                       </span>
                     );
                   })}
-                  <span className="col-span-12 col-start-2 pt-0.5 text-[11px] text-muted">
+                  <span className="col-span-12 col-start-2 pt-0.5 text-xs text-muted">
                     {win.status === "open"
                       ? ov.length
                         ? `Open ${monthsLabel(win.months)} · overlaps our harvest in ${monthsLabel(ov)}${contested.size ? ` · competition in ${monthsLabel([...contested])}` : showCompetition ? " · no competing supply in those months" : ""}`
@@ -429,7 +429,7 @@ export function Calendar({
                             indent
                             title={c.origin}
                             sub={
-                              <span className={`text-[10px] leading-tight ${hits.length ? "font-semibold text-clay" : "text-muted"}`}>
+                              <span className={`text-xs leading-tight ${hits.length ? "font-semibold text-clay" : "text-muted"}`}>
                                 {win.status !== "open" ? `supplies ${monthsLabel(c.months)}` : hits.length ? `competes ${monthsLabel(hits)}` : "no overlap with us"}
                               </span>
                             }
@@ -439,7 +439,7 @@ export function Calendar({
                           {MONTHS.map((m, i) => (
                             <span key={m} className={`mt-0.5 h-4 ${c.months.includes(i + 1) ? `${HATCH_COMP} border border-clay/40` : "bg-sunken/40"} ${cell(i)}`} />
                           ))}
-                          <span className="col-span-12 col-start-2 pl-2 text-[11px] leading-snug text-muted">
+                          <span className="col-span-12 col-start-2 pl-2 text-xs leading-snug text-muted">
                             {c.note}
                             {c.sources.map((s) => (
                               <a key={s.url} href={s.url} target="_blank" rel="noreferrer" className="ml-1 underline decoration-dotted underline-offset-2 hover:text-forest">
@@ -469,7 +469,7 @@ export function Calendar({
           })}
         </div>
 
-        <div className="mt-3 flex flex-wrap gap-4 border-t border-line pt-3 text-[11px] text-muted">
+        <div className="mt-3 flex flex-wrap gap-4 border-t border-line pt-3 text-xs text-muted">
           {[
             ["bg-forest", "Open and in our harvest"],
             ["bg-forest/35", "Open, outside our harvest"],

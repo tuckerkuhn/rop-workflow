@@ -1,5 +1,7 @@
 "use client";
 
+import { plainError } from "@/lib/plain-error";
+import { askReason } from "@/components/app/dialogs";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useRequireUser, useSession } from "@/components/app/session";
@@ -25,7 +27,7 @@ const EMPTY: Fields = { title: "", donor: "", source: "Donor call", link: "", co
 async function call(user: string, init?: RequestInit): Promise<OpportunitiesView> {
   const res = await fetch("/api/opportunities", { cache: "no-store", ...init, headers: { "Content-Type": "application/json", "x-demo-user": user } });
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error((body as { error?: string }).error ?? `Request failed (${res.status})`);
+  if (!res.ok) throw new Error((body as { error?: string }).error ?? plainError(res.status));
   return body as OpportunitiesView;
 }
 
@@ -116,7 +118,7 @@ function PipelineBoard({ items, picked, pick }: { items: Opportunity[]; picked: 
           {o.country ? ` · ${o.country}` : ""}
         </span>
         {o.deadline && <span className={`mt-1 block text-xs ${deadlineSoon(o.deadline, today) ? "font-semibold text-clay" : "text-muted"}`}>{t("bd.opp.deadline", { date: date(o.deadline) })}</span>}
-        <span className="mt-1 block text-[11px] text-muted">{o.source}</span>
+        <span className="mt-1 block text-xs text-muted">{o.source}</span>
       </button>
     )),
   }));
@@ -161,7 +163,7 @@ function Card({ o, v, act }: { o: Opportunity; v: OpportunitiesView; act: (a: Op
         <>
           {b ? (
             <div className="mt-3 space-y-1.5 rounded-xl bg-paper p-3 text-sm">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">Match brief (AI draft, {b.at}): check it before the call</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted">Match brief (AI draft, {b.at}): check it before the call</p>
               <p>{b.summary}</p>
               <p>
                 <span className="font-semibold">Fit: </span>
@@ -246,7 +248,11 @@ function Card({ o, v, act }: { o: Opportunity; v: OpportunitiesView; act: (a: Op
               </Link>
             )}
             {(o.status === "match" || o.status === "no_match") && v.can.decide && (
-              <button type="button" className="text-xs text-muted hover:text-ink" onClick={() => void act({ action: "reopen", id: o.id, reason: window.prompt("Why reopen it?") ?? "" })}>
+              <button type="button" className="text-xs text-muted hover:text-ink" onClick={async () => {
+                // Cancel means do not reopen: before, it reopened with an empty reason.
+                const reason = await askReason({ message: "Why reopen it?", confirm: "Reopen" });
+                if (reason) void act({ action: "reopen", id: o.id, reason });
+              }}>
                 Reopen
               </button>
             )}

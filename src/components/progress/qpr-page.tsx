@@ -1,5 +1,7 @@
 "use client";
 
+import { plainError } from "@/lib/plain-error";
+import { askConfirm } from "@/components/app/dialogs";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -32,7 +34,7 @@ import type { QprView } from "@/app/api/projects/[code]/qpr/route";
 async function call<T>(url: string, user: string | undefined, init?: RequestInit): Promise<T> {
   const res = await fetch(url, { cache: "no-store", ...init, headers: { "Content-Type": "application/json", "x-demo-user": user ?? "", ...(init?.headers ?? {}) } });
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error((body as { error?: string }).error ?? `Request failed (${res.status})`);
+  if (!res.ok) throw new Error((body as { error?: string }).error ?? plainError(res.status));
   return body as T;
 }
 
@@ -295,9 +297,15 @@ export function QprPage() {
                 </button>
               )}
               {v.mayRelease && (
-                <button type="button" className={primaryBtn} disabled={!!busy || stops.length > 0 || blocking > 0} title={stops.length || blocking ? `Pre-flight lists ${Math.max(blocking, stops.length)} ${Math.max(blocking, stops.length) === 1 ? "thing" : "things"} that block the report: fix ${Math.max(blocking, stops.length) === 1 ? "it" : "them"} first.` : ""} onClick={() => window.confirm(`Mark the ${quarter} report final? It is locked for good: this copy is what the donor receives. To rehearse, use Practice release instead.`) && quiet(act({ action: "release" }, "Released: the report is final and can no longer be changed."))}>
+                <button type="button" className={primaryBtn} disabled={!!busy || stops.length > 0 || blocking > 0} title={stops.length || blocking ? `Pre-flight lists ${Math.max(blocking, stops.length)} ${Math.max(blocking, stops.length) === 1 ? "thing" : "things"} that block the report: fix ${Math.max(blocking, stops.length) === 1 ? "it" : "them"} first.` : ""} onClick={() => void askConfirm({ message: `Mark the ${quarter} report final? It is locked for good: this copy is what the donor receives. To rehearse, use Practice release instead.`, confirm: "Mark final" }).then((ok) => (ok ? quiet(act({ action: "release" }, "Released: the report is final and can no longer be changed.")) : undefined))}>
                   Mark final{blocking ? ` (${blocking} blocking)` : ""}
                 </button>
+              )}
+              {/* Why it cannot be marked final, in the page: a hover title never shows on a phone. */}
+              {v.mayRelease && (stops.length > 0 || blocking > 0) && (
+                <p className="basis-full text-sm text-clay">
+                  Pre-flight lists {Math.max(blocking, stops.length)} {Math.max(blocking, stops.length) === 1 ? "thing" : "things"} that block the report. Fix {Math.max(blocking, stops.length) === 1 ? "it" : "them"} first, then mark it final.
+                </p>
               )}
             </div>
 
@@ -620,8 +628,8 @@ function Section({ v, k, heading, act, busy, draftable }: { v: QprView; k: strin
                 type="button"
                 className={quietBtn}
                 disabled={!!busy}
-                onClick={() => {
-                  if (text.trim() && !window.confirm("Replace this text with a new draft?")) return;
+                onClick={async () => {
+                  if (text.trim() && !(await askConfirm({ message: "Replace this text with a new draft?", confirm: "Replace with a draft" }))) return;
                   void act({ action: "draft", keys: [k] }, "Drafted. Read and correct it before the report goes out.").catch(() => undefined);
                 }}
               >
@@ -661,7 +669,7 @@ function IndicatorTable({ v, act }: { v: QprView; act: Act }) {
       </div>
     <div className="mt-3 hidden overflow-x-auto lg:block">
       <table className="w-full min-w-[820px] text-sm">
-        <thead className="text-start text-[11px] uppercase tracking-wide text-muted">
+        <thead className="text-start text-xs uppercase tracking-wide text-muted">
           <tr>
             <th className="py-2 pe-3 text-start">Output indicator</th>
             <th className="py-2 pe-3 text-end">{t("rp.col.target", { year })}</th>
@@ -776,7 +784,7 @@ function IndicatorRow({ r, v, act, card }: { r: Row; v: QprView; act: Act; card?
         )}
     </>
   );
-  const head = "text-[11px] uppercase tracking-wide text-muted";
+  const head = "text-xs uppercase tracking-wide text-muted";
   if (card)
     return (
       <div className="py-3 text-sm">

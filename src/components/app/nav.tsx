@@ -6,7 +6,7 @@ import { useCurrentProject } from "@/components/app/current-project";
 import { taskHref, taskSources } from "@/components/tasks/sources";
 import { useSession } from "@/components/app/session";
 import { useT } from "@/components/app/i18n";
-import { Assistant } from "@/components/app/assistant";
+import { Assistant, OPEN_ASSISTANT, Sparkle } from "@/components/app/assistant";
 import { Logo } from "@/components/logo";
 import type { MessageKey } from "@/lib/i18n";
 import { orgAreasFor } from "@/lib/org-areas";
@@ -154,13 +154,13 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Room at the bottom for the tab bar and, for staff, the assistant button, so they never cover the last row. */}
-      <div className={user.kind === "employee" ? "pb-[calc(9rem+env(safe-area-inset-bottom))] lg:ps-56 lg:pb-24" : "pb-[calc(4rem+env(safe-area-inset-bottom))] lg:ps-56 lg:pb-0"}>{children}</div>
+      <div className={user.kind === "employee" ? "pb-[calc(5rem+env(safe-area-inset-bottom))] lg:ps-56 lg:pb-24" : "pb-[calc(4rem+env(safe-area-inset-bottom))] lg:ps-56 lg:pb-0"}>{children}</div>
 
       <nav
         aria-label={t("nav.label")}
         className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-paper/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden"
       >
-        <ul className="grid" style={{ gridTemplateColumns: `repeat(${shown.filter((x) => !x.wideOnly).length}, minmax(0, 1fr))` }}>
+        <ul className="grid" style={{ gridTemplateColumns: `repeat(${shown.filter((x) => !x.wideOnly).length + (user.kind === "employee" ? 1 : 0)}, minmax(0, 1fr))` }}>
           {shown.filter((x) => !x.wideOnly).map((s) => {
             const on = isActive(s);
             return (
@@ -168,7 +168,7 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
                 <Link
                   href={s.href}
                   aria-current={on ? "page" : undefined}
-                  className={`flex h-16 flex-col items-center justify-center gap-0.5 text-[11px] ${on ? "font-semibold text-forest" : "text-muted"}`}
+                  className={`flex h-16 flex-col items-center justify-center gap-0.5 text-xs ${on ? "font-semibold text-forest" : "text-muted"}`}
                 >
                   {s.icon}
                   {t(s.label)}
@@ -176,6 +176,15 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
               </li>
             );
           })}
+          {/* On phones the assistant is a tab here, not a button floating over the work. */}
+          {user.kind === "employee" && (
+            <li>
+              <button type="button" onClick={() => window.dispatchEvent(new Event(OPEN_ASSISTANT))} className="flex h-16 w-full flex-col items-center justify-center gap-0.5 text-xs text-muted">
+                <Sparkle className="h-5 w-5" />
+                {t("assistant.tab")}
+              </button>
+            </li>
+          )}
         </ul>
       </nav>
 

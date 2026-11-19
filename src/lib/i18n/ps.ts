@@ -452,6 +452,7 @@ export const ps: Messages = {
   "progress.sync": "KoboToolbox همغږي کول",
   "progress.lastSync": "وروستۍ همغږي {date}",
   "assistant.name": "د مصنوعي ځيرکتيا مرستندوی",
+  "assistant.tab": "مرستندوی",
   "assistant.open": "د مصنوعي ځيرکتيا مرستندوی پرانیستل",
   "assistant.close": "مرستندوی بندول",
   "assistant.for": "د {project} لپاره",

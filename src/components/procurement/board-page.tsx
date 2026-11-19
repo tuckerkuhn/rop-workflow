@@ -1,5 +1,6 @@
 "use client";
 
+import { plainError } from "@/lib/plain-error";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useT } from "@/components/app/i18n";
@@ -28,7 +29,7 @@ export function ProcurementBoardPage() {
     fetch(`/api/boards/procurements${medium ? "?medium=1" : ""}`, { cache: "no-store", headers: { "x-demo-user": user.id } })
       .then(async (r) => {
         const body = await r.json().catch(() => ({}));
-        if (!r.ok) throw new Error((body as { error?: string }).error ?? `Request failed (${r.status})`);
+        if (!r.ok) throw new Error((body as { error?: string }).error ?? plainError(r.status));
         if (live) setData(body as { cards: ProcCard[]; limit: number });
       })
       .catch((e) => live && setError(e instanceof Error ? e.message : String(e)));
@@ -49,7 +50,7 @@ export function ProcurementBoardPage() {
           const stuck = p.stage >= 0 && isStuck(p.since, today);
           return (
             <Link key={`${p.project.code}/${p.id}`} href={`/work?source=procurement&open=${encodeURIComponent(p.id)}&project=${encodeURIComponent(p.project.code)}`} className={cardClass(stuck)}>
-              <span className="mb-1 flex flex-wrap items-center gap-1 text-[11px] text-muted">
+              <span className="mb-1 flex flex-wrap items-center gap-1 text-xs text-muted">
                 {p.id} · {p.project.code}
                 {p.project.sandbox && <Pill tone="sky">{t("bd.sandbox")}</Pill>}
               </span>
@@ -58,7 +59,7 @@ export function ProcurementBoardPage() {
                 ${Math.round(p.value).toLocaleString("en-US")} · {p.level} · {p.stepTitle}
               </span>
               {p.waitingOn && <span className="mt-1 block text-xs">{t("bd.proc.waiting", { who: p.waitingOn })}</span>}
-              {p.stage >= 0 && p.since && <span className={`mt-1 block text-[11px] ${stuck ? "font-semibold text-warn" : "text-muted"}`}>{t(stuck ? "bd.stuck" : "bd.days", { n: daysSince(p.since, today) })}</span>}
+              {p.stage >= 0 && p.since && <span className={`mt-1 block text-xs ${stuck ? "font-semibold text-warn" : "text-muted"}`}>{t(stuck ? "bd.stuck" : "bd.days", { n: daysSince(p.since, today) })}</span>}
             </Link>
           );
         }),

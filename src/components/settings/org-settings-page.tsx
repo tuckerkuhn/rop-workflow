@@ -1,11 +1,12 @@
 "use client";
 
+import { plainError } from "@/lib/plain-error";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { useT } from "@/components/app/i18n";
 import { GapPanel } from "@/components/settings/gap-panel";
-import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
+import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn, Loading } from "@/components/workspace/ui";
 import { layerable, show, type Area, type ParamDef, type Value } from "@/lib/policy";
 import { kindOf } from "@/lib/presets";
 import type { OrgSettingsView } from "@/app/api/org/settings/route";
@@ -20,7 +21,7 @@ import type { OrgSettingsView } from "@/app/api/org/settings/route";
 async function call<T>(user: string | undefined, init?: RequestInit): Promise<T> {
   const res = await fetch("/api/org/settings", { cache: "no-store", ...init, headers: { "Content-Type": "application/json", "x-demo-user": user ?? "", ...(init?.headers ?? {}) } });
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error((body as { error?: string }).error ?? `Request failed (${res.status})`);
+  if (!res.ok) throw new Error((body as { error?: string }).error ?? plainError(res.status));
   return body as T;
 }
 
@@ -123,6 +124,7 @@ export function OrgSettingsPage() {
             {notice}
           </p>
         )}
+        {!v && !error && <Loading className="mt-6" />}
         {v && !v.admin && <p className="mt-4 rounded-xl bg-sunken px-4 py-3 text-sm text-muted">Only an administrator adds to these. You can see every rule and where it comes from.</p>}
 
         {v && (
