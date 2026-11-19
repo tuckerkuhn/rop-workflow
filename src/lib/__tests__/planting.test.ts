@@ -63,10 +63,33 @@ describe("a target counted at planting", () => {
   });
 
   it("makes one result for the farmer, dated the day planted, with the planting record as proof", () => {
-    const r = resultForPlanting({ id: "F-0002", community: "Village B", gender: "Female", planting: { date: "2027-03-01", hectares: 0.8 } }, "IND-2", "Maize", "Farida Noori");
+    const r = resultForPlanting({ id: "F-0002", community: "Village B", gender: "Female", planting: { date: "2027-03-01", hectares: 0.8 } }, "IND-2", { crop: "Maize", recordedBy: "Farida Noori", unit: "farmers" });
     expect(r).toMatchObject({ indicator: "IND-2", date: "2027-03-01", value: 1, female: 1, male: 0, district: "Village B", planting: "F-0002" });
     expect(r.note).toBe("Farmer F-0002 in Village B planted 0.8 ha of maize on 2027-03-01. Recorded by Farida Noori.");
     expect(proofCount(r)).toBe(1);
     expect(resultSchema.safeParse(r).success).toBe(true);
+  });
+});
+
+describe("a crop counted one by one", () => {
+  const grapes = { by: "count" as const, unit: "vines", rowM: 3, plantM: 1.5 };
+  const f = at("plant");
+  const given = handedOutOn(f)!;
+
+  it("checks the count and the area worked out from it", () => {
+    expect(plantingProblem({ ...f, planting: { date: given, count: 0, hectares: 0 } }, "2099-01-01")).toMatch(/how many were planted/);
+    expect(plantingProblem({ ...f, planting: { date: given, count: 1.5, hectares: 0.01 } }, "2099-01-01")).toMatch(/whole number/);
+    expect(plantingProblem({ ...f, hectares: 0.5, planting: { date: given, count: 2000, hectares: 0.9 } }, "2099-01-01")).toMatch(/^2000 planted at this spacing takes 0.9 ha, more than the farmer's plot \(0.5 ha\)/);
+    expect(plantingProblem({ ...f, hectares: 0.5, planting: { date: given, count: 1000, hectares: 0.45 } }, "2099-01-01")).toBeNull();
+  });
+
+  it("adds vines to a target in vines, hectares to one in hectares, and one farmer otherwise", () => {
+    const planting = { date: "2027-03-01", count: 1000, hectares: 0.45 };
+    const base = { id: "F-1", community: "Village B", gender: "Male", planting };
+    expect(resultForPlanting(base, "IND-3", { recordedBy: "Farida Noori", unit: "vines", plan: grapes })).toMatchObject({ value: 1000 });
+    expect(resultForPlanting(base, "IND-3", { recordedBy: "Farida Noori", unit: "vines", plan: grapes }).male).toBeUndefined();
+    expect(resultForPlanting(base, "IND-4", { recordedBy: "Farida Noori", unit: "hectares", plan: grapes })).toMatchObject({ value: 0.45 });
+    expect(resultForPlanting(base, "IND-2", { crop: "Grapes", recordedBy: "Farida Noori", unit: "trellis systems", plan: grapes })).toMatchObject({ value: 1, male: 1, female: 0 });
+    expect(resultForPlanting(base, "IND-2", { crop: "Grapes", recordedBy: "Farida Noori", unit: "farmers", plan: grapes }).note).toBe("Farmer F-1 in Village B planted 1,000 vines on 0.45 ha of grapes on 2027-03-01. Recorded by Farida Noori.");
   });
 });

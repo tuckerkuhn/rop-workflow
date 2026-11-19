@@ -1,3 +1,4 @@
+import { CROP_PLAN_KEY, type CropPlan } from "@/lib/crops";
 import { EMPTY_FRAMEWORK, FRAMEWORK_KEY, type Framework } from "@/lib/framework";
 import { mirrorFarmer } from "@/server/farmer-mirror";
 import { loadProjectState, saveProjectState, type Reader } from "@/server/project-state";
@@ -52,8 +53,13 @@ export const DEMO_FIELD_PROJECT = "A-2027";
 export async function setupOf(project: { id: string; code: string | null }, q?: Reader): Promise<FieldSetup | null> {
   // A draft (pre-filled for a manager to confirm) does not switch Field activities on.
   const stored = await loadProjectState<(FieldSetup & { draft?: boolean }) | null>(project.id, FIELD_SETUP_KEY, null, q);
-  if (stored?.items?.length && !stored.draft) return stored;
-  return project.code === DEMO_FIELD_PROJECT ? DEMO_SETUP : null;
+  const setup = stored?.items?.length && !stored.draft ? stored : project.code === DEMO_FIELD_PROJECT ? DEMO_SETUP : null;
+  if (!setup) return null;
+  // The crop plan decided at initiation (Set up → Crop) rides along, for planting and its checks.
+  const plan = await loadProjectState<CropPlan | null>(project.id, CROP_PLAN_KEY, null, q);
+  const { plan: _old, ...rest } = setup;
+  void _old;
+  return plan ? { ...rest, plan } : rest;
 }
 /** Codes of the projects with an input package (not a draft), so Field activities runs on them. */
 export async function projectsWithField(): Promise<Set<string>> {
@@ -69,7 +75,10 @@ export const setupFor = async (code: string) => setupOf(await projectByCode(code
 
 export async function saveSetup(code: string, setup: FieldSetup) {
   const project = await projectByCode(code);
-  await saveProjectState(project.id, FIELD_SETUP_KEY, setup);
+  // The crop plan belongs to the project design, not the package: never stored here.
+  const { plan: _plan, ...rest } = setup;
+  void _plan;
+  await saveProjectState(project.id, FIELD_SETUP_KEY, rest);
 }
 
 /** Copy of an item safe to store: no name. */

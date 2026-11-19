@@ -1,3 +1,4 @@
+import { cropPlanProblem, cropPlanSchema } from "@/lib/crops";
 import { z } from "zod";
 import { THEMES } from "@/lib/indicator-library";
 
@@ -30,6 +31,8 @@ export const projectDesignSchema = z
     name: z.string().trim().min(1).max(200),
     country: z.string().regex(/^[A-Z]{2}$/),
     crop: z.string().trim().max(100),
+    /** How the crop is planted and its spacing (lib/crops), decided at initiation. */
+    cropPlan: cropPlanSchema.optional(),
     startDate: isoDate,
     endDate: isoDate,
     goal: z.string().trim().max(500),
@@ -37,7 +40,11 @@ export const projectDesignSchema = z
     /** New projects only; afterwards donors are managed in project settings. */
     donors: z.array(z.string().trim().min(1).max(200)).max(10).optional(),
   })
-  .refine((p) => p.endDate >= p.startDate, { message: "The end date is before the start date.", path: ["endDate"] });
+  .refine((p) => p.endDate >= p.startDate, { message: "The end date is before the start date.", path: ["endDate"] })
+  .superRefine((p, ctx) => {
+    const problem = cropPlanProblem(p.cropPlan);
+    if (problem) ctx.addIssue({ code: "custom", message: problem, path: ["cropPlan"] });
+  });
 export type ProjectDesign = z.infer<typeof projectDesignSchema>;
 
 /** A project from the database, for the project picker. */

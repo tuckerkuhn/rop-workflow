@@ -1,5 +1,7 @@
 "use client";
 
+import { CROP_NAMES, densityOf, suggestedPlan, type CropPlan } from "@/lib/crops";
+
 import { Arrow } from "@/components/app/arrow";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -87,6 +89,8 @@ function Wizard({ code: initialCode, first }: { code: string | null; first: Step
   const [error, setError] = useState("");
   const [fromDocs, setFromDocs] = useState<string[] | null>(null);
   const [docSources, setDocSources] = useState<string[]>([]);
+  // Whether the crop plan was changed by hand: then picking another crop no longer replaces it.
+  const [planEdited, setPlanEdited] = useState(!!initialCode);
 
   // Editing: start from the saved design.
   useEffect(() => {
@@ -95,7 +99,13 @@ function Wizard({ code: initialCode, first }: { code: string | null; first: Step
       .then((r) => r.json())
       .then((d: ProjectDesign & { error?: string }) => {
         if (d.error) setError(d.error);
-        else setDraft({ ...empty, ...d, crop: d.crop ?? "", goal: d.goal ?? "", startDate: d.startDate ?? realToday(), endDate: d.endDate ?? realToday(), donors: [] });
+        else {
+          // A project made before crop plans starts from its crop's suggested plan, to confirm and save.
+          const suggested = !d.cropPlan && d.crop ? suggestedPlan(d.crop) : null;
+          const { note: _note, ...plan } = suggested ?? { by: "area" as const };
+          void _note;
+          setDraft({ ...empty, ...d, ...(suggested ? { cropPlan: plan } : {}), crop: d.crop ?? "", goal: d.goal ?? "", startDate: d.startDate ?? realToday(), endDate: d.endDate ?? realToday(), donors: [] });
+        }
         setLoaded(true);
       })
       .catch((e) => setError(String(e)));
@@ -210,12 +220,36 @@ function Wizard({ code: initialCode, first }: { code: string | null; first: Step
         {step === "country" && <CountryQuestion value={draft.country} onChange={(country) => set({ country })} />}
         {step === "crop" && (
           <Question title={t("setup.q.crop")} help={t("setup.h.crop")}>
-            <input value={draft.crop} onChange={(e) => set({ crop: e.target.value })} list="crops" maxLength={100} autoFocus className={field} aria-label={t("setup.q.crop")} />
+            <input
+              value={draft.crop}
+              onChange={(e) => {
+                // A crop from the list brings its suggested plan, until the manager changes the plan themselves.
+                const s = suggestedPlan(e.target.value);
+                const { note: _note, ...plan } = s ?? { by: "area" as const };
+                void _note;
+                set({ crop: e.target.value, ...(!planEdited && s ? { cropPlan: plan } : {}) });
+              }}
+              list="crops"
+              maxLength={100}
+              autoFocus
+              className={field}
+              aria-label={t("setup.q.crop")}
+            />
             <datalist id="crops">
-              {["Maize", "Wheat", "Grapes", "Pomegranates", "Onions", "Saffron", "Almonds", "Coffee", "Cacao", "Rice"].map((c) => (
+              {CROP_NAMES.map((c) => (
                 <option key={c} value={c} />
               ))}
             </datalist>
+            {draft.crop.trim() && (
+              <CropPlanForm
+                crop={draft.crop}
+                plan={draft.cropPlan}
+                onChange={(cropPlan) => {
+                  setPlanEdited(true);
+                  set({ cropPlan });
+                }}
+              />
+            )}
           </Question>
         )}
         {step === "dates" && (
@@ -501,7 +535,7 @@ function Review({ draft, editing, onEdit }: { draft: ProjectDesign; editing: boo
   const rows: { step: Step; label: string; value: string }[] = [
     { step: "name", label: t("setup.r.name"), value: draft.name },
     { step: "country", label: t("setup.r.country"), value: country },
-    { step: "crop", label: t("setup.r.crop"), value: draft.crop || "—" },
+    { step: "crop", label: t("setup.r.crop"), value: draft.crop ? `${draft.crop}${draft.cropPlan?.by === "count" && densityOf(draft.cropPlan) ? ` · ${draft.cropPlan.rowM} m × ${draft.cropPlan.plantM} m, ${densityOf(draft.cropPlan)!.toLocaleString("en-US")} ${draft.cropPlan.unit} per ha${draft.cropPlan.trellis ? ", trellised" : ""}` : draft.cropPlan?.by === "area" ? " · sown by area" : ""}` : "—" },
     { step: "dates", label: t("setup.r.dates"), value: `${date(draft.startDate, { day: "numeric", month: "short", year: "numeric" })} – ${date(draft.endDate, { day: "numeric", month: "short", year: "numeric" })}` },
     { step: "goal", label: t("setup.r.goal"), value: draft.goal || "—" },
     { step: "indicators", label: t("setup.r.indicators"), value: draft.indicators.map((i) => `${i.name} (${i.target} ${i.unit})`).join("; ") || "—" },
@@ -536,5 +570,69 @@ function Review({ draft, editing, onEdit }: { draft: ProjectDesign; editing: boo
         </p>
       )}
     </Question>
+  );
+}
+
+/**
+ * How the project's crop is planted (lib/crops), asked once at initiation. A crop planted by the
+ * tree or vine takes its spacing, and the app works out the planting density from it, so at
+ * planting only the number planted is typed and the hectares follow.
+ */
+function CropPlanForm({ crop, plan, onChange }: { crop: string; plan: CropPlan | undefined; onChange: (p: CropPlan) => void }) {
+  const p: CropPlan = plan ?? { by: "area" };
+  const s = suggestedPlan(crop);
+  const density = densityOf(p);
+  const num = (v: string) => (v.trim() === "" ? undefined : Number(v));
+  const input = "mt-1 block w-28 rounded-lg border border-line bg-surface px-3 py-2 text-sm font-normal";
+  return (
+    <div className="mt-5 space-y-4 rounded-xl border border-line bg-paper p-4 text-sm">
+      <fieldset>
+        <legend className="font-medium">How is it planted?</legend>
+        {(
+          [
+            ["count", "Counted one by one: trees, vines or seedlings", "Grapes, pomegranates, almonds, coffee. Field records how many were planted; the hectares follow from the spacing."],
+            ["area", "Sown over an area: seed", "Maize, wheat, onions. Field records the area planted."],
+          ] as const
+        ).map(([v, label, help]) => (
+          <label key={v} className="mt-2 flex items-start gap-2">
+            <input type="radio" name="crop-by" checked={p.by === v} onChange={() => onChange(v === "count" ? { ...(s?.by === "count" ? s : {}), ...p, by: "count" } : { by: "area" })} className="mt-1" />
+            <span>
+              {label}
+              <span className="block text-xs text-muted">{help}</span>
+            </span>
+          </label>
+        ))}
+      </fieldset>
+      {p.by === "count" && (
+        <>
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="text-xs font-semibold">
+              Counted as
+              <input value={p.unit ?? ""} onChange={(e) => onChange({ ...p, unit: e.target.value })} placeholder="vines" maxLength={40} className={input} />
+            </label>
+            <label className="text-xs font-semibold">
+              Between rows (m)
+              <input type="number" min={0} step="any" inputMode="decimal" value={p.rowM ?? ""} onChange={(e) => onChange({ ...p, rowM: num(e.target.value) })} className={input} />
+            </label>
+            <label className="text-xs font-semibold">
+              Between plants (m)
+              <input type="number" min={0} step="any" inputMode="decimal" value={p.plantM ?? ""} onChange={(e) => onChange({ ...p, plantM: num(e.target.value) })} className={input} />
+            </label>
+            <label className="text-xs font-semibold">
+              Years to first harvest
+              <input type="number" min={0} max={30} step={1} value={p.yearsToHarvest ?? ""} onChange={(e) => onChange({ ...p, yearsToHarvest: num(e.target.value) })} className={input} />
+            </label>
+          </div>
+          <label className="flex items-center gap-2">
+            <input type="checkbox" checked={!!p.trellis} onChange={(e) => onChange({ ...p, trellis: e.target.checked })} />
+            Grown on a trellis the project installs
+          </label>
+          <p className={density ? "text-ink" : "text-muted"}>
+            {density ? `${density.toLocaleString("en-US")} ${p.unit || "plants"} per hectare.` : "Enter both spacings to work out the planting density."}
+            {s?.by === "count" && s.rowM && ` Suggested for ${crop}: ${s.rowM} m × ${s.plantM} m.`} Confirm the spacing with the technical team for the variety and site.
+          </p>
+        </>
+      )}
+    </div>
   );
 }

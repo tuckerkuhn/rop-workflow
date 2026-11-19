@@ -1,3 +1,4 @@
+import type { CropPlan } from "@/lib/crops";
 import { PROJECT } from "@/lib/demo";
 
 /**
@@ -43,6 +44,8 @@ export type FieldSetup = {
    * installed" that is met in the field rather than at the store.
    */
   targetAt?: "distribution" | "planting";
+  /** The project's crop plan (lib/crops), from the project design. Read only here; set in Set up → Crop. */
+  plan?: CropPlan;
 };
 
 /** Whether the target counts farmers at planting rather than at the approved distribution. */

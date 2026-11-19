@@ -1,3 +1,4 @@
+import { plantingValue, type CropPlan } from "@/lib/crops";
 import { received } from "@/lib/connections";
 import { convert, fmtQty as fmt, itemsFor, qtyUnit, type DistItem, type FieldSetup } from "@/lib/package";
 import { receivedQty, stages, stepById, type Procurement } from "@/lib/procurement";
@@ -212,14 +213,21 @@ export function resultFor(d: { id: string; farmerId: string; village?: string; g
  * planting (lib/package targetAt): one farmer, on the day they planted, with the planting record as
  * its proof. The farmer is named by number and village only.
  */
-export function resultForPlanting(f: { id: string; community?: string; gender?: string; planting: { date: string; hectares: number } }, target: string, crop: string | undefined, recordedBy: string): ResultInput {
+export function resultForPlanting(
+  f: { id: string; community?: string; gender?: string; planting: { date: string; hectares: number; count?: number } },
+  target: string,
+  o: { crop?: string; recordedBy: string; unit?: string; plan?: CropPlan | null },
+): ResultInput {
+  // What it adds follows the target's unit: hectares, plants counted, or one farmer (lib/crops).
+  const { value, people } = plantingValue(o.unit ?? "", f.planting, o.plan);
+  const what = `${f.planting.count !== undefined ? `${f.planting.count.toLocaleString("en-US")} ${o.plan?.unit ?? "plants"} on ` : ""}${f.planting.hectares} ha`;
   return {
     indicator: target,
     date: f.planting.date,
-    value: 1,
-    ...(f.gender === "Female" ? { female: 1, male: 0 } : f.gender === "Male" ? { female: 0, male: 1 } : {}),
+    value,
+    ...(people && f.gender === "Female" ? { female: 1, male: 0 } : people && f.gender === "Male" ? { female: 0, male: 1 } : {}),
     ...(f.community ? { district: f.community.slice(0, 80) } : {}),
-    note: `Farmer ${f.id}${f.community ? ` in ${f.community}` : ""} planted ${f.planting.hectares} ha${crop ? ` of ${crop.toLowerCase()}` : ""} on ${f.planting.date}. Recorded by ${recordedBy}.`.slice(0, 2000),
+    note: `Farmer ${f.id}${f.community ? ` in ${f.community}` : ""} planted ${what}${o.crop ? ` of ${o.crop.toLowerCase()}` : ""} on ${f.planting.date}. Recorded by ${o.recordedBy}.`.slice(0, 2000),
     files: [],
     noFile: "The proof is the farmer's planting record in Field activities, after the approved distribution.",
     planting: f.id,

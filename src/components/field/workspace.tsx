@@ -10,7 +10,8 @@ import { useCurrentProject } from "@/components/app/current-project";
 import { FarmerImport, PackageSetup } from "@/components/field/setup";
 import { today } from "@/lib/clock";
 import { canEditProject } from "@/lib/demo";
-import { packageUsd, type FieldSetup } from "@/lib/package";
+import { itemsFor, packageUsd, type FieldSetup } from "@/lib/package";
+import { densityOf, hectaresFor, plantedItem } from "@/lib/crops";
 import {
   AppShell,
   BackLink,
@@ -60,6 +61,7 @@ import {
   type FieldRole,
   type Finding,
   type Outcome,
+  type Planting,
   type Stock,
 } from "@/lib/field";
 
@@ -426,8 +428,9 @@ function Detail({
                   {item.kind === "farmer" && item.step === "plant" && (
                     <PlantingForm
                       farmer={item}
+                      setup={ctx.setup}
                       today={ctx.today}
-                      onSave={(p) => apply((i) => log({ ...(i as Farmer), planting: p }, `Planting record: planted ${p.date}, ${p.hectares} ha`))}
+                      onSave={(p) => apply((i) => log({ ...(i as Farmer), planting: p }, `Planting record: planted ${p.date}, ${p.count !== undefined ? `${p.count} ${ctx.setup.plan?.unit ?? "plants"}, ` : ""}${p.hectares} ha`))}
                       onPhoto={addPlantPhoto}
                       photoError={plantPhotoError}
                     />
@@ -547,13 +550,21 @@ function Detail({
  * area planted, saved once with a button, and an optional photo of the planted plot. The checks
  * above read it (lib/field plantingProblem), and the server refuses a record that breaks them.
  */
-function PlantingForm({ farmer, today: now, onSave, onPhoto, photoError }: { farmer: Farmer; today: string; onSave: (p: { date: string; hectares: number }) => void; onPhoto: (f: File | undefined) => void; photoError: string }) {
+function PlantingForm({ farmer, setup, today: now, onSave, onPhoto, photoError }: { farmer: Farmer; setup: FieldSetup; today: string; onSave: (p: Planting) => void; onPhoto: (f: File | undefined) => void; photoError: string }) {
   const saved = farmer.planting;
+  // A crop counted one by one (Set up → Crop): Field types how many went in; the hectares follow from the spacing.
+  const plan = setup.plan;
+  const density = densityOf(plan);
+  const counted = !!density;
+  const unit = plan?.unit ?? "plants";
+  // Pre-filled with what the farmer was given, so usually only the date is typed.
+  const givenItem = plantedItem(itemsFor(setup, farmer.hectares), plan);
   const [editing, setEditing] = useState(!saved);
   const [date, setDate] = useState(saved?.date ?? now);
   const [ha, setHa] = useState(String(saved?.hectares ?? farmer.hectares));
-  const draft = { date, hectares: Number(ha) };
-  const problem = ha.trim() === "" ? "Enter the area planted." : plantingProblem({ ...farmer, planting: draft }, now);
+  const [count, setCount] = useState(String(saved?.count ?? (givenItem ? Math.round(givenItem.qty) : "")));
+  const draft: Planting = counted ? { date, count: Number(count), hectares: hectaresFor(Number(count), plan) ?? 0 } : { date, hectares: Number(ha) };
+  const problem = (counted ? count.trim() === "" : ha.trim() === "") ? (counted ? `Enter how many ${unit} were planted.` : "Enter the area planted.") : plantingProblem({ ...farmer, planting: draft }, now);
   const given = handedOutOn(farmer);
   const photo = farmer.photos.filter((p) => p.activity === "planting" && p.src).at(-1);
   return (
@@ -561,7 +572,8 @@ function PlantingForm({ farmer, today: now, onSave, onPhoto, photoError }: { far
       {saved && !editing ? (
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <p className="font-semibold">
-            ✓ Planted {saved.date} · {saved.hectares} of {farmer.hectares} ha
+            ✓ Planted {saved.date} · {saved.count !== undefined ? `${saved.count.toLocaleString("en-US")} ${unit}, ` : ""}
+            {saved.hectares} of {farmer.hectares} ha
           </p>
           <button type="button" onClick={() => setEditing(true)} className="text-xs font-semibold text-forest underline">
             Change
@@ -577,16 +589,30 @@ function PlantingForm({ farmer, today: now, onSave, onPhoto, photoError }: { far
           }}
         >
           <p className="font-semibold">Planting record</p>
-          <p className="mt-1 text-muted">The day the farmer planted and how much of the plot. {given ? `Inputs were handed out ${given}.` : ""}</p>
+          <p className="mt-1 text-muted">
+            {counted ? `The day the farmer planted and how many ${unit} went in the ground. The area follows from the spacing (${density!.toLocaleString("en-US")} per ha).` : "The day the farmer planted and how much of the plot."} {given ? `Inputs were handed out ${given}.` : ""}
+          </p>
           <div className="mt-3 flex flex-wrap items-end gap-3">
             <label className="text-xs font-semibold">
               Planted on
               <input type="date" value={date} max={now} min={given ?? undefined} onChange={(e) => setDate(e.target.value)} className="mt-1 block rounded-lg border border-line bg-surface px-3 py-2 text-sm font-normal" />
             </label>
-            <label className="text-xs font-semibold">
-              Area planted (ha, plot is {farmer.hectares})
-              <input type="number" min={0} max={farmer.hectares} step="any" inputMode="decimal" value={ha} onChange={(e) => setHa(e.target.value)} className="mt-1 block w-32 rounded-lg border border-line bg-surface px-3 py-2 text-sm font-normal" />
-            </label>
+            {counted ? (
+              <>
+                <label className="text-xs font-semibold">
+                  {unit[0].toUpperCase() + unit.slice(1)} planted{givenItem ? ` (given ${Math.round(givenItem.qty).toLocaleString("en-US")})` : ""}
+                  <input type="number" min={0} step={1} inputMode="numeric" value={count} onChange={(e) => setCount(e.target.value)} className="mt-1 block w-32 rounded-lg border border-line bg-surface px-3 py-2 text-sm font-normal" />
+                </label>
+                <p className="pb-2 text-xs text-muted">
+                  = {draft.hectares} ha of the {farmer.hectares} ha plot
+                </p>
+              </>
+            ) : (
+              <label className="text-xs font-semibold">
+                Area planted (ha, plot is {farmer.hectares})
+                <input type="number" min={0} max={farmer.hectares} step="any" inputMode="decimal" value={ha} onChange={(e) => setHa(e.target.value)} className="mt-1 block w-32 rounded-lg border border-line bg-surface px-3 py-2 text-sm font-normal" />
+              </label>
+            )}
             <button type="submit" disabled={!!problem} className={primaryBtn}>
               Save planting record
             </button>

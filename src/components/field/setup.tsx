@@ -289,7 +289,7 @@ export function PackageSetup({ code, onSaved, onCancel }: { code: string; onSave
             {(
               [
                 ["distribution", "Their package is handed out and the project manager approves it", "For targets such as farmers who received inputs."],
-                ["planting", "Their planting is recorded", "For targets met in the field, such as trellis systems installed or hectares planted."],
+                ["planting", "Their planting is recorded", "For targets met in the field: trellis systems installed, trees planted, hectares planted. A target counted in trees, vines or hectares adds what was planted; any other adds one farmer."],
               ] as const
             ).map(([v, label, help]) => (
               <label key={v} className="mt-2 flex items-start gap-2">

@@ -69,7 +69,13 @@ export function sampleNotePhoto(farmerId: string, date: string): string {
 export type PhotoKind = "training" | "landprep" | "visit" | "distribution" | "planting";
 
 /** What the extension agent records at planting: the day the farmer planted and the area planted. */
-export type Planting = { date: string; hectares: number };
+export type Planting = {
+  date: string;
+  /** Hectares planted: typed for a crop sown by area, worked out from the count and spacing for one counted (lib/crops). */
+  hectares: number;
+  /** How many trees, vines or seedlings went in the ground, for a crop counted one by one. */
+  count?: number;
+};
 
 /**
  * The day the farmer's input package was handed out: the date on the photo of the signed goods
@@ -93,8 +99,9 @@ export function plantingProblem(f: Pick<Farmer, "planting" | "hectares" | "photo
   if (p.date > today) return `The planting date ${p.date} is after today.`;
   const given = handedOutOn(f);
   if (given && p.date < given) return `Planted ${p.date}, before the inputs were handed out on ${given}. Check the date.`;
-  if (!(p.hectares > 0)) return "The area planted must be above zero.";
-  if (p.hectares > f.hectares + 1e-9) return `${p.hectares} ha planted is more than the farmer's plot (${f.hectares} ha). Check the area, or correct the plot size on the farmer's profile.`;
+  if (p.count !== undefined && !(Number.isInteger(p.count) && p.count > 0)) return "Enter how many were planted, a whole number above zero.";
+  if (!(p.hectares > 0)) return p.count !== undefined ? "The area worked out from the count is zero. Check the number planted." : "The area planted must be above zero.";
+  if (p.hectares > f.hectares + 1e-9) return p.count !== undefined ? `${p.count} planted at this spacing takes ${p.hectares} ha, more than the farmer's plot (${f.hectares} ha). Check the number, or correct the plot size on the farmer's profile.` : `${p.hectares} ha planted is more than the farmer's plot (${f.hectares} ha). Check the area, or correct the plot size on the farmer's profile.`;
   return null;
 }
 export type Story = { id: string; status: "note" | "completed"; title: string; text: string; date: string; by: string };
@@ -370,7 +377,8 @@ export const fieldSteps: Record<string, SStep> = {
         auto: (i, ctx) => {
           const f = asFarmer(i);
           const problem = plantingProblem(f, ctx.today);
-          return problem ? { ok: false, detail: problem } : { ok: true, detail: `Planted ${f.planting!.date} · ${f.planting!.hectares} of ${f.hectares} ha` };
+          const p = f.planting!;
+          return problem ? { ok: false, detail: problem } : { ok: true, detail: `Planted ${p.date} · ${p.count !== undefined ? `${p.count.toLocaleString("en-US")} ${ctx.setup.plan?.unit ?? "plants"}, ` : ""}${p.hectares} of ${f.hectares} ha` };
         },
       },
       {

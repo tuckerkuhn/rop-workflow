@@ -3,6 +3,8 @@ import { KOBO_APPROVAL_KEY, NEW_PROJECT_KOBO_APPROVAL } from "@/lib/kobo-approva
 import { db, schema as s } from "@/db";
 import { THEMES, type ImpactTheme } from "@/lib/indicator-library";
 import type { IndicatorInput, ProjectDesign, ProjectKind, ProjectSummary } from "@/lib/project-setup";
+import { CROP_PLAN_KEY, type CropPlan } from "@/lib/crops";
+import { loadProjectState, saveProjectState } from "@/server/project-state";
 
 /** Projects and their design (goal, dates, indicators) in Postgres, written by project setup. */
 
@@ -36,8 +38,10 @@ export async function projectDesign(code: string) {
   const [p] = await db.select().from(s.projects).where(eq(s.projects.code, code)).limit(1);
   if (!p) return null;
   const inds = await db.select().from(s.indicators).where(eq(s.indicators.projectId, p.id)).orderBy(asc(s.indicators.position));
+  const cropPlan = await loadProjectState<CropPlan | null>(p.id, CROP_PLAN_KEY, null);
   return {
     ...summary(p),
+    ...(cropPlan ? { cropPlan } : {}),
     indicators: inds.map((i) => ({ code: i.code, ...(i.donorCode ? { donorCode: i.donorCode } : {}), name: i.name, unit: i.unit, target: Number(i.target), level: i.level, frequency: i.frequency, forecast: i.forecast, theme: (THEMES as readonly string[]).includes(i.theme ?? "") ? (i.theme as ImpactTheme) : null })),
   };
 }
@@ -87,6 +91,7 @@ export async function createProject(design: ProjectDesign) {
     for (const name of design.donors ?? []) await tx.insert(s.donors).values({ projectId: p.id, organizationId: org.id, name });
     // A new project starts with one named person approving KoboCollect data, still to be chosen in Set up.
     await tx.insert(s.projectState).values({ projectId: p.id, key: KOBO_APPROVAL_KEY, data: NEW_PROJECT_KOBO_APPROVAL });
+    if (design.cropPlan) await tx.insert(s.projectState).values({ projectId: p.id, key: CROP_PLAN_KEY, data: design.cropPlan });
     return code;
   });
 }
@@ -101,5 +106,7 @@ export async function updateProject(code: string, design: ProjectDesign) {
       .where(eq(s.projects.id, p.id));
     await syncIndicators(tx, p.id, design.indicators);
   });
+  // Kept as it was when the form sends none (an older page); replaced when it sends one.
+  if (design.cropPlan) await saveProjectState(p.id, CROP_PLAN_KEY, design.cropPlan);
   return true;
 }

@@ -809,11 +809,11 @@ export async function countPlanting(code: string, f: Farmer, by: { id: string; n
   const setup = await setupOf(project);
   if (!countsAtPlanting(setup) || !f.planting) return null;
   const target = setup!.target!;
-  const indicator = (await db.select({ code: s.indicators.code }).from(s.indicators).where(and(eq(s.indicators.projectId, project.id), eq(s.indicators.code, target), eq(s.indicators.source, "results"))).limit(1))[0];
+  const indicator = (await db.select({ code: s.indicators.code, unit: s.indicators.unit }).from(s.indicators).where(and(eq(s.indicators.projectId, project.id), eq(s.indicators.code, target), eq(s.indicators.source, "results"))).limit(1))[0];
   if (!indicator) return null;
   return db.transaction(async (tx) => {
     if ((await farmersCounted(tx, project.id, target)).has(f.id)) return null;
-    const r = await insertResult(tx, project, resultForPlanting({ ...f, planting: f.planting! }, target, setup!.crop, by.name), by.id);
+    const r = await insertResult(tx, project, resultForPlanting({ ...f, planting: f.planting! }, target, { crop: setup!.crop, recordedBy: by.name, unit: indicator.unit, plan: setup!.plan }), by.id);
     return r.id;
   });
 }
@@ -825,7 +825,7 @@ export async function countPlanting(code: string, f: Farmer, by: { id: string; n
 export async function countPlantedFarmers(code: string, target: string): Promise<number> {
   const project = await projectByCode(code);
   const setup = await setupOf(project);
-  const indicator = (await db.select({ code: s.indicators.code }).from(s.indicators).where(and(eq(s.indicators.projectId, project.id), eq(s.indicators.code, target), eq(s.indicators.source, "results"))).limit(1))[0];
+  const indicator = (await db.select({ code: s.indicators.code, unit: s.indicators.unit }).from(s.indicators).where(and(eq(s.indicators.projectId, project.id), eq(s.indicators.code, target), eq(s.indicators.source, "results"))).limit(1))[0];
   if (!indicator) return 0;
   const rows = await db.select().from(s.fieldItems).where(and(eq(s.fieldItems.projectId, project.id), eq(s.fieldItems.kind, "farmer")));
   const planted = rows.map((r) => r.data as Farmer).filter((f) => f.step === "complete" && !!f.planting);
@@ -839,7 +839,7 @@ export async function countPlantedFarmers(code: string, target: string): Promise
       // The person who recorded the planting, from the history; the field team when not known.
       const who = [...f.timeline].reverse().find((t) => t.what.startsWith("Planting recorded"));
       const by = team.find((u) => u.name === (who as { by?: string } | undefined)?.by) ?? team.find((u) => u.field?.includes("extension") && onProject(u, code));
-      await insertResult(tx, project, resultForPlanting({ ...f, planting: f.planting! }, target, setup?.crop, by?.name ?? "the field team"), by?.id ?? "system");
+      await insertResult(tx, project, resultForPlanting({ ...f, planting: f.planting! }, target, { crop: setup?.crop, recordedBy: by?.name ?? "the field team", unit: indicator.unit, plan: setup?.plan }), by?.id ?? "system");
       added += 1;
     }
   });

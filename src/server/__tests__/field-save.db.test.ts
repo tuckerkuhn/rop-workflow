@@ -12,6 +12,9 @@ import { countApprovedDistributions } from "@/server/distribution";
 import { loadResults } from "@/server/results-store";
 import { loadProcurements, saveProcurements } from "@/server/procurement-store";
 import { ready } from "@/server/__tests__/test-db";
+import { saveProjectState } from "@/server/project-state";
+import { projectByCode } from "@/server/field-store";
+import { CROP_PLAN_KEY } from "@/lib/crops";
 
 /**
  * Saving Field activities from the browser (PUT /api/projects/[code]/field): the server applies the
@@ -167,5 +170,31 @@ describe("recording planting", { timeout: 60_000 }, () => {
     // F-0001 planted last season in the sample story and was never counted.
     expect(backfill).toBe(1);
     await saveSetup(code, setup);
+  });
+});
+
+describe("planting a crop counted one by one", { timeout: 60_000 }, () => {
+  beforeAll(async () => {
+    const project = await projectByCode(code);
+    await saveProjectState(project.id, CROP_PLAN_KEY, { by: "count", unit: "vines", rowM: 3, plantM: 1.5 });
+    const f = await farmer("F-0008");
+    await saveItems(code, [{ ...f, step: "plant", awaiting: undefined, photos: [...f.photos, { id: "F-0008-n", activity: "distribution", date: "2026-01-01", caption: "Signed goods received note", src: "data:image/png;base64,AA==", signedNote: true }] }]);
+  });
+
+  it("carries the project's crop plan to Field, and keeps it out of the package settings", async () => {
+    expect((await loadField(code, farida)).setup?.plan).toMatchObject({ unit: "vines", rowM: 3 });
+    const setup = (await setupFor(code))!;
+    await saveSetup(code, setup);
+    expect((await setupFor(code))!.plan).toMatchObject({ unit: "vines" });
+  });
+
+  it("refuses hectares that do not follow from the count, and saves those that do", async () => {
+    const f = await farmer("F-0008");
+    const wrong = await put("farida", [{ ...f, planting: { date: "2026-01-02", count: 1000, hectares: 0.6 } }]);
+    expect(wrong.status).toBe(400);
+    expect(wrong.body.error).toMatch(/1000 planted at the project's spacing is 0.45 ha, not 0.6/);
+    const right = await put("farida", [{ ...f, planting: { date: "2026-01-02", count: 1000, hectares: 0.45 } }]);
+    expect(right.status).toBe(200);
+    expect((await farmer("F-0008")).planting).toEqual({ date: "2026-01-02", count: 1000, hectares: 0.45 });
   });
 });

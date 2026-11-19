@@ -7,6 +7,7 @@ import { loadField, saveEdited, saveStock } from "@/server/field-store";
 import { countPlanting, recordFromApp, stockFor } from "@/server/distribution";
 import { moveProblem, stepRefusal, type Farmer } from "@/lib/field";
 import { today } from "@/lib/clock";
+import { hectaresFor } from "@/lib/crops";
 import { audit, handle, HttpError, readBody } from "@/server/guard";
 
 /** Field activities state for a project. Names are included only for roles allowed to see them. */
@@ -46,7 +47,7 @@ const farmer = z.looseObject({
   surveys: z.array(z.looseObject({ date: short, score: z.number(), comment: z.string().max(4000), by: short })).max(200),
   photos: z.array(z.looseObject({ id: short, activity: z.enum(["training", "landprep", "visit", "distribution", "planting"]), date: short, caption: z.string().max(1000), src: z.string().max(PHOTO_MAX_CHARS).optional() })).max(200),
   stories: z.array(z.looseObject({ id: short, status: z.enum(["note", "completed"]), title: short, text: z.string().max(20000), date: short, by: short })).max(100),
-  planting: z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), hectares: z.number().min(0).max(100000) }).optional(),
+  planting: z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), hectares: z.number().min(0).max(100000), count: z.number().int().min(0).max(1e7).optional() }).optional(),
 });
 const finding = z.looseObject({
   ...common,
@@ -94,6 +95,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ code: st
       if (JSON.stringify(before ?? null) === JSON.stringify(i.planting ?? null)) continue;
       if (was?.step !== "plant") return NextResponse.json({ error: `Farmer ${i.id}: the planting record can only be entered at "Plant and follow up"${was?.step === "complete" ? ", and this farmer's planting is already recorded" : ""}.` }, { status: 409 });
       if (!v.user.field.includes("extension")) return NextResponse.json({ error: `Farmer ${i.id}: the planting record is for the extension agent to enter.` }, { status: 403 });
+      // For a crop counted one by one, the hectares are worked out from the count, never typed (lib/crops).
+      const fromCount = i.planting?.count !== undefined ? hectaresFor(i.planting.count, ctx.setup.plan) : null;
+      if (i.planting && fromCount !== null && Math.abs(fromCount - i.planting.hectares) > 0.005) return NextResponse.json({ error: `Farmer ${i.id}: ${i.planting.count} planted at the project's spacing is ${fromCount} ha, not ${i.planting.hectares}. Reload and save again.` }, { status: 400 });
     }
     // Server-owned: whether a distribution waits for approval is never taken from the page.
     for (const i of items) {
