@@ -178,6 +178,7 @@ export function validateProcurementSave(prev: Procurement | undefined, next: Pro
 
   // History: append-only.
   if ((next.timeline ?? []).length < (prev.timeline ?? []).length || !same((next.timeline ?? []).slice(0, prev.timeline.length), prev.timeline)) return "The procurement's history cannot be changed or removed.";
+  if ((next.timeline ?? []).slice((prev.timeline ?? []).length).some((t) => t.by !== undefined && t.by !== u.name)) return "A history entry is recorded in your own name.";
 
   const fieldsChanged = [...new Set([...Object.keys(prev), ...Object.keys(next)])].filter((k) => !FREE.has(k) && !same((prev as Record<string, unknown>)[k], (next as Record<string, unknown>)[k]));
 

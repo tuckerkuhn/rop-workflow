@@ -148,6 +148,7 @@ export function useProcurements(code = "A-2027") {
   const [error, setError] = useState("");
   const current = useRef<Procurement[]>([]);
   const queue = useRef<Promise<void>>(Promise.resolve());
+  const pendingSaves = useRef<{ snap: Procurement[] }[]>([]);
 
   const reload = useCallback(async () => {
     try {
@@ -177,9 +178,18 @@ export function useProcurements(code = "A-2027") {
       setItemsState(value);
       const changed = value.filter((p) => before.get(p.id) !== JSON.stringify(p)).map((p) => p.id);
       if (!changed.length) return;
-      // Saves go one after another, each sending the latest copy with the version it is based on.
+      // Saves go one after another, each sending the record as this change left it, so a step moved on
+      // never reaches the server ahead of the fields it depends on. Typing at the same step is merged:
+      // a save still waiting is skipped when a later one of the same records, at the same steps, follows.
+      const snap = value.filter((p) => changed.includes(p.id));
+      const entry = { snap };
+      pendingSaves.current.push(entry);
       queue.current = queue.current.then(async () => {
-        const send = current.current.filter((p) => changed.includes(p.id));
+        pendingSaves.current.splice(pendingSaves.current.indexOf(entry), 1);
+        const sameRecords = (later: Procurement[]) => later.length === snap.length && later.every((x) => snap.some((y) => y.id === x.id && y.step === x.step));
+        if (pendingSaves.current.some((e) => sameRecords(e.snap))) return;
+        const revs = new Map(current.current.map((p) => [p.id, p.rev]));
+        const send = snap.map((p) => ({ ...p, rev: revs.get(p.id) ?? p.rev }));
         if (!send.length) return;
         try {
           const r = await call<{ revs: Record<string, number> }>(`/api/projects/${code}/procurements`, user?.id, { method: "PUT", body: JSON.stringify({ items: send }) });

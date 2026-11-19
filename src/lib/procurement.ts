@@ -14,6 +14,7 @@ import { DEMO_DATE, today } from "@/lib/clock";
 import { lastScreening, sameSupplierName, supplierGaps, type Supplier, screeningStale } from "@/lib/suppliers";
 import {
   closeInstalment,
+  orderUsd,
   voucherBook,
   voucherGaps,
   contractCurrency,
@@ -188,7 +189,7 @@ export type Issue = {
   resolution?: string;
 };
 
-export type TimelineEvent = { date: string; who: Role; what: string };
+export type TimelineEvent = { date: string; who: Role; what: string; /** The person who did it; older entries name only the role. */ by?: string };
 
 /** `self`: solo mode, the person who requested the purchase approves it, having confirmed so (server/solo.ts). */
 export type Signature = { as: string; name: string; role: Role; date: string; self?: { note: string } };
@@ -385,6 +386,14 @@ export type PlanLink = {
  * belong to their technical lead, and their procurement steps to the procurement manager;
  * otherwise the role's holder in the demo team.
  */
+/** Someone holding the role other than the named person (a second signer), or null. */
+export function otherHolder(p: Procurement, role: Role, not: string) {
+  const type = typeFor(p, role);
+  const ids = type ? holdersOfType(type) : [];
+  const pool = ids.length ? ids.map((id) => users.find((u) => u.id === id)).filter((u): u is (typeof users)[number] => !!u) : users.filter((u) => u.procurement.includes(role as ProcRole));
+  return pool.find((u) => u.name !== not) ?? null;
+}
+
 export function holderFor(p: Procurement, role: Role) {
   if (p.plan && role === "holder") return users.find((u) => u.id === p.plan!.requestedById) ?? users.find((u) => u.name === p.plan!.requestedBy);
   // The authority table names who holds each role type; the old per-person roles are the fallback.
@@ -483,7 +492,7 @@ export function distributionState(p: Procurement): { ok: boolean; detail: string
   // Handouts approved one by one in Field activities (signed note, photo, the manager's approval) need no
   // recipient sample: no ROP manual sets one, and each handout has already been checked.
   const typed = d.lists.filter((l) => !fromField(l));
-  if (!typed.length) return { ok: true, detail: `${fmt(given)} ${p.unit} to ${fmt(people)} ${people === 1 ? "person" : "people"}, each handout approved in Field activities; ${fmt(d.inStock)} in stock` };
+  if (!typed.length) return { ok: true, detail: `${fmt(given)} ${given === 1 ? p.unit.replace(/s$/, "") : p.unit} to ${fmt(people)} ${people === 1 ? "person" : "people"}, each handout approved in Field activities; ${fmt(d.inStock)} in stock` };
   const distributors = new Set(d.lists.map((l) => l.by));
   const valid = d.checks.filter((c) => !distributors.has(c.by));
   const sampled = valid.reduce((s, c) => s + c.sampled, 0);
@@ -1186,8 +1195,9 @@ export const steps: Step[] = [
         tag: "Finance Manual",
         auto: (p) => {
           const i = p.invoice;
-          const ok = !!i && !!i.number?.trim() && !!i.date && i.amount > 0 && ((i.currency ?? "USD") === "USD" || (i.rate ?? 0) > 0);
-          return { ok, detail: i ? `Invoice ${i.number || "[number]"} of ${i.date || "[date]"} · ${i.currency ?? "USD"} ${i.amount.toLocaleString("en-US")}${(i.currency ?? "USD") === "AFN" && !i.rate ? " · add the exchange rate" : ""}` : "Enter the invoice above" };
+          // The month's rate is needed in dollars too: the AFN 500,000 tax threshold is in afghani.
+          const ok = !!i && !!i.number?.trim() && !!i.date && i.amount > 0 && (i.rate ?? 0) > 0;
+          return { ok, detail: i ? `Invoice ${i.number || "[number]"} of ${i.date || "[date]"} · ${i.currency ?? "USD"} ${i.amount.toLocaleString("en-US")}${!i.rate ? " · add the month's exchange rate" : ""}` : "Enter the invoice above" };
         },
       },
       {
@@ -1365,7 +1375,7 @@ export const steps: Step[] = [
     title: "Review and approve the expense voucher, then file it",
     owner: "finance",
     levels: ALL,
-    action: "Approve and record as filed",
+    action: "Record as filed",
     done: "Expense voucher reviewed, approved and filed in SharePoint",
     canReturn: true,
     produces: ["Expense voucher"],
@@ -1448,8 +1458,9 @@ export const steps: Step[] = [
           return { ok: left <= 0 && !owed.length, detail: left > 0 ? `${left} instalment${left === 1 ? "" : "s"} still to pay` : owed.length ? `Tax remittance still to record for ${owed.map((r) => `payment ${r.n} (due ${r.taxDue})`).join(", ")}` : `${paidSoFar(p).length} paid · tax remitted` };
         },
       },
-      { id: "closeout", label: "Closeout checklist complete (contracts over $5,000)", why: "New work: not done in any country office today.", tag: "D1 §4.15; CUR" },
-      { id: "vendor", label: "Vendor performance recorded", why: "Scores feed future sourcing.", tag: "D1 §4.15" },
+      // Both are for contracts over $5,000 only (D1 §4.15): below that they are not asked for.
+      { id: "closeout", label: "Closeout checklist complete (contracts over $5,000)", why: "New work: not done in any country office today.", tag: "D1 §4.15; CUR", auto: (p) => (orderUsd(p) <= 5000 ? { ok: true, detail: "Not needed: under $5,000" } : null) },
+      { id: "vendor", label: "Vendor performance recorded (contracts over $5,000)", why: "Scores feed future sourcing.", tag: "D1 §4.15", auto: (p) => (orderUsd(p) <= 5000 ? { ok: true, detail: "Not needed: under $5,000" } : null) },
     ],
   },
 ];

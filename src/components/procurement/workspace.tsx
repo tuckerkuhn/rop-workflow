@@ -502,7 +502,7 @@ function Detail({
   stepsFor(p).forEach((s) => s.gate && (letters[s.stage] = [...(letters[s.stage] ?? []), s.gate]));
   const gates = Object.fromEntries(Object.entries(letters).map(([k, g]) => [k, `${g.length > 1 ? "Gates" : "Gate"} ${g.join("·")}`]));
 
-  const log = (q: Procurement, what: string): Procurement => ({ ...q, timeline: [...q.timeline, { date: today(), who: role ?? "procurement", what }] });
+  const log = (q: Procurement, what: string): Procurement => ({ ...q, timeline: [...q.timeline, { date: today(), who: role ?? "procurement", what, ...(user ? { by: user.name } : {}) }] });
 
   const complete = (self?: { note: string }) =>
     update((q) => {

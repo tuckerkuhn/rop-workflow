@@ -353,7 +353,7 @@ function IssueRow({ issue, roleLabel, canResolve, onResolve }: { issue: Issue; r
 
 /* ---------- history ---------- */
 
-export type TimelineEvent = { date: string; who: string; what: string };
+export type TimelineEvent = { date: string; who: string; what: string; by?: string };
 
 export function History({ events, roleLabel }: { events: TimelineEvent[]; roleLabel: (r: string) => string }) {
   return (
@@ -366,7 +366,8 @@ export function History({ events, roleLabel }: { events: TimelineEvent[]; roleLa
             <span aria-hidden className="absolute -left-[21px] top-1.5 h-2 w-2 rounded-full bg-forest" />
             <p className="leading-snug">{e.what}</p>
             <p className="text-xs text-muted">
-              {e.date} · {roleLabel(e.who)}
+              {/* The person who did it, with their role; older entries name the role's holder. */}
+              {e.date} · {e.by ? `${e.by}${roleLabel(e.who).match(/ \(.*\)$/)?.[0] ?? ""}` : roleLabel(e.who)}
             </p>
           </li>
         ))}

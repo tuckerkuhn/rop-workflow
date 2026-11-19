@@ -104,7 +104,8 @@ function recordOf(p: Procurement, ctx: Context = {}) {
     advertised_days: p.advertisedDays ?? null,
     closing_date: p.closingDate ?? null,
     goods_received: p.grn ?? null,
-    invoice: p.invoice ? { ...p.invoice, currency: p.invoice.currency ?? "USD", amount_usd: invoiceUsd(p.invoice) } : null,
+    // "rate" alone reads as a unit price: name it as the exchange rate it is.
+    invoice: p.invoice ? { number: p.invoice.number, date: p.invoice.date, total_amount: p.invoice.amount, quantity: p.invoice.qty, currency: p.invoice.currency ?? "USD", afghani_per_us_dollar: p.invoice.rate ?? null, amount_usd: invoiceUsd(p.invoice) } : null,
     payment_schedule: scheduleOf(p),
     contract_currency: p.contractCurrency ?? "USD",
     instalment_under_way: currentInstalment(p),

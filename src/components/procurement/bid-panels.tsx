@@ -298,7 +298,7 @@ export function DistributionPanel({
             <ul className="mt-3 space-y-1 text-sm">
               {d.lists.map((l, i) => (
                 <li key={i}>
-                  {l.date} · {l.place}: {l.qty.toLocaleString("en-US")} {p.unit} to {l.recipients} {l.recipients === 1 ? "person" : "people"} ({l.women} {l.women === 1 ? "woman" : "women"}), {fromField(l) ? "approved by" : "recorded by"} {l.byName}{" "}
+                  {l.date} · {l.place}: {l.qty.toLocaleString("en-US")} {l.qty === 1 ? p.unit.replace(/s$/, "") : p.unit} to {l.recipients} {l.recipients === 1 ? "person" : "people"} ({l.women} {l.women === 1 ? "woman" : "women"}), {fromField(l) ? "approved by" : "recorded by"} {l.byName}{" "}
                   <a href={l.evidence} target="_blank" rel="noreferrer" className="text-forest hover:underline">
                     signed list
                   </a>
@@ -364,7 +364,7 @@ export function DistributionPanel({
                 {!listOk && started(list) && <p className="text-xs text-muted sm:col-span-3">Still needed: {listMissing.join("; ")}.</p>}
               </form>
               )}
-              {d.lists.length > 0 &&
+              {d.lists.some((l) => !fromField(l)) &&
                 (distributor ? (
                   <p className="mt-3 text-xs text-muted">You recorded a list, so someone else verifies a sample of {sampleNeeded(people)} recipients.</p>
                 ) : (

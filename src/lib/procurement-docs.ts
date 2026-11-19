@@ -4,9 +4,9 @@
  */
 
 import { PROJECT, holderOf } from "@/lib/demo";
-import { bidUsd, levelFor, lineOf, registered, roleLabel, stepsFor, valueOf, vendbillOf, type Money, type Procurement } from "@/lib/procurement";
+import { bidUsd, distributionState, documentsOf, levelFor, lineOf, receivedQty, registered, roleLabel, stepsFor, valueOf, vendbillOf, type Money, type Procurement } from "@/lib/procurement";
 import { lastScreening } from "@/lib/suppliers";
-import { currentInstalment, expectedAfn, expectedUsd, invoiceUsd, receivedBefore, voucherBook, withholding } from "@/lib/payments";
+import { currentInstalment, expectedAfn, expectedUsd, invoiceUsd, orderUsd, receivedBefore, voucherBook, withholding } from "@/lib/payments";
 import { DEPARTMENTS, GL_EXPENSE, LOCATIONS, codeLabel } from "@/lib/voucher-codes";
 import { today } from "@/lib/clock";
 
@@ -260,6 +260,31 @@ export function documentFor(p: Procurement, doc: string, money: Money, other: Mo
         ],
         notes: ["No payment without a complete file, a certified receipt and screening evidence. Payment approval follows the Finance Manual."],
       };
+    case "Closeout checklist": {
+      // What closing confirms, from the record: paid in full, tax settled, goods received and accounted for, file complete.
+      const paid = p.payments ?? [];
+      const paidUsd = paid.reduce((t, r) => t + (invoiceUsd(r.invoice) ?? 0), 0);
+      const dist = distributionState(p);
+      const big = orderUsd(p) > 5000;
+      const docs = documentsOf(p);
+      return {
+        title: "Closeout checklist",
+        number,
+        rows: [
+          ...base,
+          ["Supplier", p.supplier?.name ?? "[supplier]"],
+          ["Order value", both(orderUsd(p))],
+          ["Paid", paid.length ? `${money(paidUsd)} in ${paid.length} ${paid.length === 1 ? "payment" : "payments"}: ${paid.map((r) => `${r.label}, ${r.paid.date}, ref ${r.paid.ref}${r.voucher?.number ? `, VENDBILL # ${r.voucher.number}` : ""}`).join("; ")}` : "[no payment recorded]"],
+          ["Tax withheld", paid.some((r) => r.tax.amount > 0) ? paid.map((r) => `${r.tax.amount} (${r.tax.pct}%)${r.paid.taxDate ? `, remitted ${r.paid.taxDate}` : ", not yet remitted"}`).join("; ") : "None withheld"],
+          ["Goods received", `${receivedQty(p)} of ${p.qty} ${p.unit}`],
+          ["Distribution", dist ? dist.detail : "Not for participants"],
+          ["Closeout checklist and vendor performance", big ? "Required: contract over $5,000 (D1 §4.15)" : "Not needed: under $5,000 (D1 §4.15)"],
+          ["Documents on file", `${docs.length}: ${docs.join(", ")}`],
+          ["Open issues", p.issues.filter((i) => i.status === "open").map((i) => i.type).join(", ") || "None"],
+        ],
+        notes: ["Generated from the procurement record. Closing files the record: after this only documents and issues can be added."],
+      };
+    }
     case "Payment approval form": {
       const inv = p.invoice;
       return {
@@ -270,7 +295,9 @@ export function documentFor(p: Procurement, doc: string, money: Money, other: Mo
           ...instRow,
           ["Payee", p.supplier?.name ?? "[supplier]"],
           ["Business licence", p.supplier?.licenceNo ? `${p.supplier.licenceNo}, valid until ${p.supplier.licenceExpiry ?? "[date]"}` : p.supplier?.licenceExpiry ? `Valid until ${p.supplier.licenceExpiry}` : "[licence]"],
-          ["Contract value", p.contractAfn && p.contractCurrency === "AFN" ? `AFN ${p.contractAfn.toLocaleString("en-US")}` : both(value)],
+          stepsFor(p).some((s) => s.id === "contract")
+            ? ["Contract value", p.contractAfn && p.contractCurrency === "AFN" ? `AFN ${p.contractAfn.toLocaleString("en-US")}` : both(value)]
+            : ["Order value (chosen quotation)", both(orderUsd(p))],
           ["Due for this payment", expectedAfn(p) !== null ? `AFN ${expectedAfn(p)!.toLocaleString("en-US")}` : money(expectedUsd(p))],
           ["Invoice", inv ? `${inv.number ?? "[number]"} of ${inv.date ?? "[date]"}` : "[invoice]"],
           ["Gross amount", inv ? `${inCur(inv.amount)}${cur === "AFN" && inv.rate ? ` at AFN ${inv.rate} per USD = ${money(invoiceUsd(inv)!)}` : ""}` : "—"],
