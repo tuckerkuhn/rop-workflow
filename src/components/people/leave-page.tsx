@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useT } from "@/components/app/i18n";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { openReceipt, shrink } from "@/components/people/expense-page";
-import { Pill, SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn } from "@/components/workspace/ui";
+import { Pill, SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn, StatusPill } from "@/components/workspace/ui";
 import type { Receipt } from "@/lib/expense";
 import type { MessageKey } from "@/lib/i18n";
 import { GROUP_LABEL, workingDays, type Group, type LeaveKind, type LvAction } from "@/lib/leave";
@@ -341,7 +341,7 @@ function RequestCard({ r, v, span, act, onError, compact }: { r: Req; v: LeaveVi
   return (
     <article className="rounded-2xl border border-line bg-surface p-4">
       <div className="flex flex-wrap items-center gap-2">
-        <Pill tone={STATUS[r.status].tone}>{t(STATUS[r.status].text)}</Pill>
+        <StatusPill tone={STATUS[r.status].tone}>{t(STATUS[r.status].text)}</StatusPill>
         <span className="font-medium">
           {compact ? "" : t("lv.card.who", { name: name(r.person) })}
           {t("lv.card.what", { type: t(TYPE_KEY[r.kind]), dates: span(r.start, r.end) })}

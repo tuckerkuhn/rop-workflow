@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRequireUser } from "@/components/app/session";
-import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
+import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn, StatusPill } from "@/components/workspace/ui";
 import {
   BANDS,
   BAND_HELP,
@@ -43,7 +43,8 @@ import type { ProposalsView } from "@/server/funding-proposals-store";
 type P = ProposalsView["items"][number];
 const input = "mt-1 block w-full rounded-xl border border-line bg-paper px-3 py-2.5 text-base";
 const BAND_TONE: Record<Band, "forest" | "sky" | "ochre" | "clay"> = { differentiator: "forest", competitive: "sky", fringe: "ochre", not_competitive: "clay" };
-const STATUS_TONE: Record<Status, "muted" | "ochre" | "sky" | "plum" | "forest"> = { todo: "muted", drafting: "ochre", review: "sky", sign: "plum", final: "forest", na: "muted" };
+// Shared meanings (StatusPill): being drafted is moving; ready to review or sign waits on someone.
+const STATUS_TONE: Record<Status, "muted" | "ochre" | "sky" | "plum" | "forest"> = { todo: "muted", drafting: "sky", review: "ochre", sign: "ochre", final: "forest", na: "muted" };
 const KIND_TONE = { checkbox: "muted", scored: "sky", decision: "plum" } as const;
 const ZONES = ["Asia/Kabul", "America/Los_Angeles", "America/New_York", "America/Guatemala", "Europe/Brussels", "Europe/London", "Asia/Ho_Chi_Minh", "UTC"];
 const here = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -282,7 +283,7 @@ function ItemRow({ p, i, v, me, act, busy }: { p: P; i: Item; v: ProposalsView; 
             ))}
           </select>
         ) : (
-          <Pill tone={STATUS_TONE[i.status]}>{STATUS_LABEL[i.status]}</Pill>
+          <StatusPill tone={STATUS_TONE[i.status]}>{STATUS_LABEL[i.status]}</StatusPill>
         )}
       </div>
       {open && (
@@ -650,7 +651,7 @@ function Detail({ p, v, me, act, busy }: { p: P; v: ProposalsView; me: string; a
                       {i.final ? <span className="font-semibold">{i.final} </span> : null}
                       {i.title}
                     </span>
-                    <Pill tone={STATUS_TONE[i.status]}>{STATUS_LABEL[i.status]}</Pill>
+                    <StatusPill tone={STATUS_TONE[i.status]}>{STATUS_LABEL[i.status]}</StatusPill>
                   </li>
                 ))}
               </ol>

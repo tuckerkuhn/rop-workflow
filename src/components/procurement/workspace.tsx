@@ -37,6 +37,7 @@ import {
   primaryBtn,
   stickyActions,
   quietBtn,
+  StatusPill,
 } from "@/components/workspace/ui";
 import { AFN_PER_USD, projectPath, stepHistory, userById } from "@/lib/demo";
 import {
@@ -948,7 +949,7 @@ export function ProcurementWorkspace() {
                     <p className="mt-1 font-medium leading-snug">{p.title}</p>
                     <div className="mt-2 flex flex-wrap items-center gap-1.5">
                       {p.step === DONE ? (
-                        <Pill tone="forest">Closed</Pill>
+                        <StatusPill tone="forest">Closed</StatusPill>
                       ) : (
                         <Pill tone={o === role ? "forest" : "muted"}>
                           {s.title}

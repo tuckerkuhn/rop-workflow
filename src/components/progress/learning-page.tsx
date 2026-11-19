@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser, useSession } from "@/components/app/session";
-import { Pill, TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
+import { Pill, TopBar, primaryBtn, quietBtn, StatusPill } from "@/components/workspace/ui";
 import { LESSON_AREAS, type LearningAction } from "@/lib/learning";
 import type { LearningView } from "@/server/learning-store";
 
@@ -213,7 +213,7 @@ export function LearningPage() {
                       <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
                         <Pill tone="muted">{l.area}</Pill>
                         {l.date} · {l.byName}
-                        {l.applied ? <Pill tone="forest">Applied</Pill> : <Pill tone="ochre">To apply</Pill>}
+                        {l.applied ? <StatusPill tone="forest">Applied</StatusPill> : <StatusPill tone="ochre">To apply</StatusPill>}
                       </div>
                       <p className="mt-2 text-sm">
                         <span className="font-semibold">What happened: </span>

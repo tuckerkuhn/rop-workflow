@@ -4,7 +4,7 @@ import { plainError } from "@/lib/plain-error";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useRequireUser, useSession } from "@/components/app/session";
-import { Pill, TopBar, dangerBtn, primaryBtn, quietBtn } from "@/components/workspace/ui";
+import { Pill, TopBar, dangerBtn, primaryBtn, quietBtn, StatusPill } from "@/components/workspace/ui";
 import { lastScreening, type Supplier, type SupplierAction } from "@/lib/suppliers";
 import type { SuppliersView } from "@/app/api/suppliers/route";
 
@@ -119,7 +119,7 @@ function SupplierCard({ s, can, act }: { s: SupplierRow; can: SuppliersView["can
           {s.aka.length > 0 && <p className="text-xs text-muted">Also: {s.aka.join(", ")}</p>}
           <p className="mt-0.5 font-mono text-xs text-muted">{s.id}</p>
         </div>
-        {s.status === "suspended" ? <Pill tone="clay">Suspended</Pill> : s.gaps.length ? <Pill tone="ochre">{s.gaps.length} to resolve</Pill> : <Pill tone="forest">Ready</Pill>}
+        {s.status === "suspended" ? <StatusPill tone="clay">Suspended</StatusPill> : s.gaps.length ? <Pill tone="ochre">{s.gaps.length} to resolve</Pill> : <StatusPill tone="forest">Ready</StatusPill>}
       </div>
       <dl className="mt-3 grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[9rem_1fr]">
         <dt className="text-muted">Licence</dt>

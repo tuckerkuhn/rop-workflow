@@ -6,7 +6,7 @@ import { useCurrentProject } from "@/components/app/current-project";
 import { useT } from "@/components/app/i18n";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { useCloseouts, useProcurements } from "@/components/app/use-project-data";
-import { Pill, SectionLabel, TopBar, primaryBtn, Loading } from "@/components/workspace/ui";
+import { Pill, SectionLabel, TopBar, primaryBtn, Loading, StatusPill } from "@/components/workspace/ui";
 import { blockers, fromBill, fromProcurement, monthsOf, total } from "@/lib/closeout";
 import type { Bill } from "@/lib/bills";
 import { procRolesFor, stepById } from "@/lib/procurement";
@@ -153,7 +153,7 @@ export function CloseoutPage() {
                           )}
                         </td>
                         <td className="px-3 py-2">{p.voucher!.netsuiteRef || <span className="text-clay">Missing</span>}</td>
-                        <td className="px-3 py-2 text-xs">{p.filed ? <Pill tone="forest">Filed</Pill> : <span className="text-muted">{p.stage}</span>}</td>
+                        <td className="px-3 py-2 text-xs">{p.filed ? <StatusPill tone="forest">Filed</StatusPill> : <span className="text-muted">{p.stage}</span>}</td>
                       </tr>
                     ))}
                   </tbody>

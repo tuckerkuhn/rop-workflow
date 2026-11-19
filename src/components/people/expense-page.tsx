@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useT } from "@/components/app/i18n";
 import { useRequireUser, useSession } from "@/components/app/session";
-import { Pill, SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn } from "@/components/workspace/ui";
+import { Pill, SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn, StatusPill } from "@/components/workspace/ui";
 import { CATEGORIES, CATEGORY_KEYS, FIRST_LAST_DAY, MILEAGE_RATE, amountOf, mileageRateOf, perDiemOf, summary, type Category, type ExAction, type ExpenseLine, type Receipt, type Report } from "@/lib/expense";
 import type { ExpenseView } from "@/app/api/expenses/route";
 import type { MessageKey } from "@/lib/i18n";
@@ -285,7 +285,7 @@ function List({ title, items, v, monthName, onOpen, highlight }: { title: string
                 </span>
               </span>
               <span className="tabular-nums">{money(r.total, r.currency)}</span>
-              {r.paid ? <Pill tone={r.paid.status === "approved" ? "forest" : "sky"}>{r.paid.status === "approved" ? t("exp.paidList", { month: r.paid.month }) : t("exp.inPayroll")}</Pill> : <Pill tone={STATUS[r.status].tone}>{t(STATUS[r.status].text)}</Pill>}
+              {r.paid ? <StatusPill tone={r.paid.status === "approved" ? "forest" : "sky"}>{r.paid.status === "approved" ? t("exp.paidList", { month: r.paid.month }) : t("exp.inPayroll")}</StatusPill> : <StatusPill tone={STATUS[r.status].tone}>{t(STATUS[r.status].text)}</StatusPill>}
             </button>
           </li>
         ))}
@@ -321,7 +321,7 @@ function Detail({ v, monthName, back, act, revise }: { v: ExpenseView; monthName
         <h2 className="text-xl font-semibold">
           {r.person === v.me ? t("exp.yourExpenses", { month: monthName(r.report.month) }) : t("exp.theirExpenses", { name: name(r.person), month: monthName(r.report.month) })}
         </h2>
-        {r.paid ? <Pill tone="forest">{r.paid.status === "approved" ? t("exp.paidDetail", { month: r.paid.month }) : t("exp.inPayroll")}</Pill> : <Pill tone={STATUS[r.status].tone}>{t(STATUS[r.status].text)}</Pill>}
+        {r.paid ? <Pill tone="forest">{r.paid.status === "approved" ? t("exp.paidDetail", { month: r.paid.month }) : t("exp.inPayroll")}</Pill> : <StatusPill tone={STATUS[r.status].tone}>{t(STATUS[r.status].text)}</StatusPill>}
       </div>
       <p className="text-sm text-muted">
         {t("exp.submitted", { version: r.version, date: date(r.at.slice(0, 10)) })}

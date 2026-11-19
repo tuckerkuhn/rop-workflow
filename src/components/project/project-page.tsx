@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useFieldData, useSubmissions } from "@/components/app/use-project-data";
 import { useRequireUser, useSession } from "@/components/app/session";
-import { Pill, SectionLabel, TODAY, TopBar, primaryBtn, quietBtn, usePersistentState } from "@/components/workspace/ui";
+import { Pill, SectionLabel, TODAY, TopBar, primaryBtn, quietBtn, usePersistentState, StatusPill } from "@/components/workspace/ui";
 import { STAGES, holderOf, projectRoleHolders, userById, type AppUser } from "@/lib/demo";
 import { useCurrentProject } from "@/components/app/current-project";
 import { GatedSections, MoveToExecute } from "@/components/project/gated-project";
@@ -403,7 +403,7 @@ function Execute({ field, procs }: SectionProps) {
                 {a.start} → {a.end}
               </div>
               <div className="col-start-2 flex items-center gap-2 sm:col-start-auto sm:justify-end">
-                <Pill tone={st.status === "Done" ? "forest" : st.status === "Late" ? "clay" : st.status === "In progress" ? "ochre" : "muted"}>{st.status}</Pill>
+                <StatusPill tone={st.status === "Done" ? "forest" : st.status === "Late" ? "clay" : st.status === "In progress" ? "sky" : "muted"}>{st.status}</StatusPill>
                 {link && (
                   <Link href={link} className="text-xs font-semibold text-forest hover:underline">
                     Open
@@ -940,7 +940,7 @@ export function ProjectPage({ id }: { id: string }) {
             <span className="font-mono text-xs text-muted">
               {project.id} · org {project.orgId}
             </span>
-            <Pill tone={project.status === "Active" ? "forest" : "muted"}>{project.status}</Pill>
+            <StatusPill tone={project.status === "Active" ? "forest" : "muted"}>{project.status}</StatusPill>
             <span className="text-xs text-muted">
               {project.country} · {project.award}
             </span>

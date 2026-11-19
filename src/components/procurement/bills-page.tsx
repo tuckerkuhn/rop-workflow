@@ -9,7 +9,7 @@ import { useRequireUser, useSession } from "@/components/app/session";
 import { useT } from "@/components/app/i18n";
 import { SelfConfirmSheet } from "@/components/app/self-confirm";
 import { openReceipt, shrink } from "@/components/people/expense-page";
-import { Pill, SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn, Loading } from "@/components/workspace/ui";
+import { Pill, SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn, Loading, StatusPill } from "@/components/workspace/ui";
 import { BILL_CATEGORIES, BILL_CATEGORY_KEYS, type BillAction, type BillCategory } from "@/lib/bills";
 import type { Receipt } from "@/lib/expense";
 import type { BillsView } from "@/app/api/projects/[code]/bills/route";
@@ -141,7 +141,7 @@ function BillCard({ b, v, act }: { b: Item; v: BillsView; act: (a: BillAction, m
   return (
     <article className="rounded-2xl border border-line bg-surface p-4">
       <div className="flex flex-wrap items-center gap-2">
-        <Pill tone={STATUS[b.status].tone}>{STATUS[b.status].text}</Pill>
+        <StatusPill tone={STATUS[b.status].tone}>{STATUS[b.status].text}</StatusPill>
         <span className="font-mono text-xs text-muted">{b.id}</span>
         <span className="ms-auto font-semibold tabular-nums">{money(b.amount, b.currency)}</span>
       </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import { unitOf } from "@/lib/package";
 import { plainError } from "@/lib/plain-error";
 import { askConfirm } from "@/components/app/dialogs";
 import Link from "next/link";
@@ -11,7 +12,7 @@ import { useRequireUser, useSession } from "@/components/app/session";
 import { useT } from "@/components/app/i18n";
 import { openReceipt, shrink } from "@/components/people/expense-page";
 import { OriginalText } from "@/components/progress/original-text";
-import { Pill, SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn } from "@/components/workspace/ui";
+import { Pill, SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn, StatusPill } from "@/components/workspace/ui";
 import type { Receipt } from "@/lib/expense";
 import { readWorkbook } from "@/lib/read-sheet";
 import { TEMPLATE_CSV, parseCsv, readResults, type ImportRow } from "@/lib/results-import";
@@ -43,7 +44,7 @@ async function call<T>(url: string, user: string | undefined, init?: RequestInit
 
 const input = "mt-1 block w-full rounded-xl border border-line bg-paper px-3 py-2.5 text-base";
 const num = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 2 });
-const STATUS = { pending: { tone: "ochre", text: "Waiting for MEL" }, accepted: { tone: "forest", text: "Accepted" }, queried: { tone: "clay", text: "Queried" } } as const;
+const STATUS = { pending: { tone: "ochre", text: "Waiting for MEL" }, accepted: { tone: "forest", text: "Accepted" }, queried: { tone: "clay", text: "Sent back with a question" } } as const;
 
 type Ind = ResultsView["indicators"][number];
 type Res = ResultsView["results"][number];
@@ -676,9 +677,9 @@ function ResultCard({ r, ind, act, mayAddProof, me }: { r: Res; ind?: Ind; act: 
   return (
     <article className="rounded-xl border border-line bg-paper p-3">
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <Pill tone={STATUS[r.status].tone}>{STATUS[r.status].text}</Pill>
+        <StatusPill tone={STATUS[r.status].tone}>{STATUS[r.status].text}</StatusPill>
         <span className="font-semibold tabular-nums">
-          {num(r.value)} {ind?.unit}
+          {num(r.value)} {ind?.unit ? unitOf(r.value, ind.unit) : ""}
         </span>
         <span className="text-muted">
           {r.date} · {quarterOf(r.date)}

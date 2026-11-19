@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser, useSession } from "@/components/app/session";
-import { Pill, TopBar, primaryBtn, quietBtn, Loading } from "@/components/workspace/ui";
+import { Pill, TopBar, primaryBtn, quietBtn, Loading, StatusPill } from "@/components/workspace/ui";
 import { AUDIENCES, AUDIENCE_TEXT, LABEL_TEXT, PUBLIC_AUDIENCES, SHARE, SHARE_TEXT, needs, rank, type Audience, type PhotoAction, type PhotoLabel, type Share } from "@/lib/photos";
 import { CONSENT_HOW, CONSENT_USES, HOW_LABEL, USE_LABEL } from "@/lib/stories";
 import type { photosView } from "@/server/photos-store";
@@ -163,7 +163,7 @@ function PostCard({ p, v, user, act }: { p: View["posts"][number]; v: View; user
     <li className="rounded-2xl border border-line bg-surface p-4">
       <div className="flex flex-wrap items-center gap-2">
         <p className="min-w-0 flex-1 font-semibold">{AUDIENCE_TEXT[p.audience]}</p>
-        <Pill tone={p.status === "sent" ? "forest" : p.status === "approved" ? "forest" : "ochre"}>{p.status === "sent" ? `Sent · ${p.sent?.where}` : p.status === "approved" ? "Approved" : "Draft"}</Pill>
+        <StatusPill tone={p.status === "sent" ? "forest" : p.status === "approved" ? "forest" : "ochre"}>{p.status === "sent" ? `Sent · ${p.sent?.where}` : p.status === "approved" ? "Approved" : "Draft"}</StatusPill>
       </div>
       <div className="mt-2 flex gap-2">
         {p.photos.map((h) => (

@@ -7,7 +7,7 @@ import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { shrink } from "@/components/people/expense-page";
 import { FieldHelp } from "@/components/app/field-help";
-import { Pill, TopBar, primaryBtn, quietBtn, Loading } from "@/components/workspace/ui";
+import { Pill, TopBar, primaryBtn, quietBtn, Loading, StatusPill } from "@/components/workspace/ui";
 import type { Receipt } from "@/lib/expense";
 import { CONSENT_HOW, CONSENT_USES, HOW_LABEL, USE_LABEL, type StoryAction, type StoryInput } from "@/lib/stories";
 import type { storiesView } from "@/server/stories-store";
@@ -317,7 +317,7 @@ export function StoriesPage() {
               <li key={s.id} className="rounded-2xl border border-line bg-surface p-4">
                 <div className="flex flex-wrap items-start gap-2">
                   <p className="min-w-0 flex-1 font-semibold">{s.title}</p>
-                  <Pill tone={s.status === "approved" ? "forest" : "ochre"}>{s.status === "approved" ? "Approved" : "Draft"}</Pill>
+                  <StatusPill tone={s.status === "approved" ? "forest" : "ochre"}>{s.status === "approved" ? "Approved" : "Draft"}</StatusPill>
                   {!s.consent && <Pill tone="clay">No consent recorded</Pill>}
                 </div>
                 <p className="mt-1 text-xs text-muted">

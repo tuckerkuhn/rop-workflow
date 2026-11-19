@@ -2,7 +2,7 @@
 
 import { unitOf } from "@/lib/package";
 import Link from "next/link";
-import { Pill, Loading } from "@/components/workspace/ui";
+import { Pill, Loading, StatusPill } from "@/components/workspace/ui";
 import { NextReportPanel } from "@/components/home/next-report";
 import { Families } from "@/components/home/families";
 import { GettingStarted } from "@/components/home/getting-started";
@@ -310,7 +310,7 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
                     <span className="font-semibold tabular-nums">{r.value.toLocaleString("en-US")}</span> {unitOf(r.value, r.unit)} · {r.target}
                     <span className="block text-xs text-muted">{date(r.date, { day: "numeric", month: "long" })}</span>
                   </span>
-                  <Pill tone={r.status === "accepted" ? "forest" : r.status === "queried" ? "clay" : "ochre"}>{t(`home.kobo.${r.status}`)}</Pill>
+                  <StatusPill tone={r.status === "accepted" ? "forest" : r.status === "queried" ? "clay" : "ochre"}>{t(`home.kobo.${r.status}`)}</StatusPill>
                 </li>
               ))}
             </ul>

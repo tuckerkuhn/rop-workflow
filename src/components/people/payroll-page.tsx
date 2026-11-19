@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useT } from "@/components/app/i18n";
 import { useRequireUser, useSession } from "@/components/app/session";
-import { Pill, SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn } from "@/components/workspace/ui";
+import { Pill, SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn, StatusPill } from "@/components/workspace/ui";
 import { ROLE_LABEL } from "@/lib/hr";
 import {
   ADJUSTMENTS,
@@ -352,13 +352,13 @@ function RunCard({
     <article className="mt-6 rounded-2xl border border-line bg-paper p-4 sm:p-5">
       <div className="flex flex-wrap items-center gap-2">
         {r.status === "approved" ? (
-          <Pill tone="forest">Approved</Pill>
+          <StatusPill tone="forest">Approved</StatusPill>
         ) : r.status === "pending" ? (
-          <Pill tone="ochre">Waiting for signatures</Pill>
+          <StatusPill tone="ochre">Waiting for signatures</StatusPill>
         ) : r.status === "rejected" ? (
-          <Pill tone="clay">Sent back</Pill>
+          <StatusPill tone="clay">Sent back</StatusPill>
         ) : (
-          <Pill tone="muted">Withdrawn</Pill>
+          <StatusPill tone="muted">Withdrawn</StatusPill>
         )}
         {r.supplemental && <Pill tone="plum">Supplemental</Pill>}
         <span className="text-xs text-muted">

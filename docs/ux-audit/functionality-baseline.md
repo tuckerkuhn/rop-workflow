@@ -41,6 +41,12 @@ walk-through of the screens; roles in brackets.
   Settings); phones have a More tab listing every section and page (Organization and Resources moved
   there from the tab bar); the large-purchase board is "Large purchases across your projects" under
   Organization and no longer lights up this project's Procurement tab. No function removed.
+- Batch E (consistency): one status look everywhere (StatusPill): amber ◷ waiting for someone,
+  green ✓ done or approved, red ! needs fixing or sent back, blue → moving along, grey – not
+  active; "Delayed" is red on every page; proposals' "being drafted" is blue and "ready to review /
+  sign" amber; a result MEL queried reads "Sent back with a question"; a step check not done yet is
+  amber, not red; buttons that record the right thing ("Record contribution received") are green.
+  No function or status removed; only words and colours of labels.
 
 ## Home `/home`
 Role dashboard: next step, Waiting on you (Approve / Fix / Due), Getting started checklist, quarter

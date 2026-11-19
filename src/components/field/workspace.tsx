@@ -31,6 +31,7 @@ import {
   primaryBtn,
   quietBtn,
   stickyActions,
+  StatusPill,
 } from "@/components/workspace/ui";
 import { holderOf, type AppUser } from "@/lib/demo";
 import { NoAccess } from "@/components/workspace/ui";
@@ -291,7 +292,7 @@ function Detail({
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-mono text-xs text-muted">{item.id}</span>
             {ctx.setup.season && <Pill tone="muted">{ctx.setup.season}</Pill>}
-            {item.step === "correct" && <Pill tone="clay">Correcting</Pill>}
+            {item.step === "correct" && <StatusPill tone="clay">Correcting</StatusPill>}
           </div>
           <div className="mt-2 flex flex-wrap items-baseline justify-between gap-3">
             <h2 className="font-display text-3xl leading-tight tracking-tight">{farmerName(item, user)}</h2>
@@ -308,7 +309,7 @@ function Detail({
             ].map(([k, v]) => (
               <div key={k}>
                 <dt className="text-xs font-semibold uppercase tracking-wide text-muted">{k}</dt>
-                <dd className={`mt-0.5 tabular-nums ${v === "Not paid" ? "font-medium text-clay" : ""}`}>{v}</dd>
+                <dd className={`mt-0.5 tabular-nums ${v === "Not paid" ? "font-medium text-warn" : ""}`}>{v}</dd>
               </div>
             ))}
           </dl>

@@ -6,7 +6,7 @@ import { useCurrentProject } from "@/components/app/current-project";
 import { useT } from "@/components/app/i18n";
 import { useRequireUser } from "@/components/app/session";
 import { usePlan } from "@/components/app/use-project-data";
-import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn, type Tone } from "@/components/workspace/ui";
+import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn, type Tone, StatusPill } from "@/components/workspace/ui";
 import type { BudgetLine, WorkplanItem } from "@/lib/budget";
 import { canEditProject, userById, users, type AppUser } from "@/lib/demo";
 import { METHOD, awaiting, isManager, procurementManager, type PlanItem, type PlanStatus } from "@/lib/procurement-plan";
@@ -247,7 +247,7 @@ export function ProcurementPlanPage() {
                               <span className="block tabular-nums text-sm">{money(i.value)}</span>
                               <span className="mt-1 flex justify-end gap-1">
                                 <Pill tone={LEVEL_TONE[i.level]}>{i.level}</Pill>
-                                <Pill tone={STATUS[i.status].tone}>{STATUS[i.status].label}</Pill>
+                                <StatusPill tone={STATUS[i.status].tone}>{STATUS[i.status].label}</StatusPill>
                               </span>
                               <span className={`mt-1 block text-xs ${i.startBy < today() && i.status !== "started" ? "font-semibold text-clay" : "text-muted"}`}>
                                 Start by {date(i.startBy)}
@@ -386,7 +386,7 @@ function Detail({
             {item.title}
           </h2>
           <p className="mt-2 flex flex-wrap gap-1">
-            <Pill tone={STATUS[item.status].tone}>{STATUS[item.status].label}</Pill>
+            <StatusPill tone={STATUS[item.status].tone}>{STATUS[item.status].label}</StatusPill>
             <Pill tone={LEVEL_TONE[item.level]}>{item.level}</Pill>
           </p>
         </div>

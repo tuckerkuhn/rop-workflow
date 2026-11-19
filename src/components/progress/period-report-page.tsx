@@ -7,7 +7,7 @@ import { ProofNumber } from "@/components/progress/proof-panel";
 import { useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser, useSession } from "@/components/app/session";
-import { Pill, TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
+import { Pill, TopBar, primaryBtn, quietBtn, StatusPill } from "@/components/workspace/ui";
 import { periodLabel, type Period } from "@/lib/period-report";
 import { YOUTH } from "@/lib/results";
 import type { PeriodReportView } from "@/server/period-report-store";
@@ -180,7 +180,7 @@ export function PeriodReportPage() {
                         </td>
                       )}
                       <td className="px-3 py-2">
-                        <Pill tone={VERDICT[r.verdict].tone}>{VERDICT[r.verdict].text}</Pill>
+                        <StatusPill tone={VERDICT[r.verdict].tone}>{VERDICT[r.verdict].text}</StatusPill>
                       </td>
                     </tr>
                   ))}

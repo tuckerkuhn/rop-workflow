@@ -5,7 +5,7 @@ import { askConfirm } from "@/components/app/dialogs";
 import { useCallback, useEffect, useState } from "react";
 import { useT } from "@/components/app/i18n";
 import { useRequireUser, useSession } from "@/components/app/session";
-import { Pill, SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn } from "@/components/workspace/ui";
+import { Pill, SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn, StatusPill as Status } from "@/components/workspace/ui";
 import {
   CHANGE_KINDS,
   FIELDS,
@@ -264,7 +264,7 @@ export function PeoplePage() {
                           </span>
                         </span>
                         {p.separated && <Pill tone="muted">Left {fmt(p.separated.effective)}</Pill>}
-                        {v.proposals.some((x) => x.subject === p.id && x.status === "pending") && <Pill tone="ochre">Change pending</Pill>}
+                        {v.proposals.some((x) => x.subject === p.id && x.status === "pending") && <Status tone="ochre">Change pending</Status>}
                         {v.relations.some((r) => r.a === p.id || r.b === p.id) && <Pill tone="plum">Related party</Pill>}
                       </button>
                     </li>
@@ -483,10 +483,10 @@ function PersonRecord({
 }
 
 function StatusPill({ p }: { p: ProposalView }) {
-  if (p.status === "approved") return <Pill tone="forest">Approved</Pill>;
-  if (p.status === "rejected") return <Pill tone="clay">Sent back</Pill>;
-  if (p.status === "withdrawn") return <Pill tone="muted">Withdrawn</Pill>;
-  return <Pill tone="ochre">Waiting</Pill>;
+  if (p.status === "approved") return <Status tone="forest">Approved</Status>;
+  if (p.status === "rejected") return <Status tone="clay">Sent back</Status>;
+  if (p.status === "withdrawn") return <Status tone="muted">Withdrawn</Status>;
+  return <Status tone="ochre">Waiting</Status>;
 }
 
 function Diff({ p, names, currency }: { p: ProposalView; names: Record<string, string>; currency?: Value }) {

@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { useT } from "@/components/app/i18n";
 import { GapPanel } from "@/components/settings/gap-panel";
-import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn, Loading } from "@/components/workspace/ui";
+import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn, Loading, StatusPill } from "@/components/workspace/ui";
 import { layerable, show, type Area, type ParamDef, type Value } from "@/lib/policy";
 import { kindOf } from "@/lib/presets";
 import type { OrgSettingsView } from "@/app/api/org/settings/route";
@@ -140,7 +140,7 @@ export function OrgSettingsPage() {
                     <div key={p.id} className={`flex flex-col rounded-2xl border p-4 ${profile === p.id ? "border-forest bg-mist" : "border-line bg-surface"}`}>
                       <div className="flex items-start justify-between gap-2">
                         <p className="font-semibold">{p.name}</p>
-                        {n > 0 ? <Pill tone="ochre">{n} {n === 1 ? "gap" : "gaps"}</Pill> : <Pill tone="forest">Met</Pill>}
+                        {n > 0 ? <Pill tone="ochre">{n} {n === 1 ? "gap" : "gaps"}</Pill> : <StatusPill tone="forest">Met</StatusPill>}
                       </div>
                       <p className="mt-1 flex-1 text-sm text-muted">{p.summary}</p>
                       <button type="button" onClick={() => setProfile(profile === p.id ? null : p.id)} className={`${quietBtn} mt-3 self-start`}>

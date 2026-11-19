@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Pill } from "@/components/workspace/ui";
+import { Pill, StatusPill } from "@/components/workspace/ui";
 import {
   HARVEST,
   MONTHS,
@@ -388,7 +388,7 @@ export function Calendar({
                     title={win.market}
                     sub={
                       <span>
-                        <Pill tone={pill.tone}>{pill.label}</Pill>
+                        <StatusPill tone={pill.tone}>{pill.label}</StatusPill>
                       </span>
                     }
                   />

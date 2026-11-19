@@ -9,7 +9,7 @@ import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser } from "@/components/app/session";
 import { useT } from "@/components/app/i18n";
 import { SelfConfirmSheet, useSolo } from "@/components/app/self-confirm";
-import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn, Loading } from "@/components/workspace/ui";
+import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn, Loading, StatusPill } from "@/components/workspace/ui";
 import { userById } from "@/lib/demo";
 import { describeChange, lastMonth, quartersLabel, type Change, type ChangeInput, type ReviewAction } from "@/lib/monthly-review";
 import { STATUS_LABEL, type Status } from "@/lib/qpr";
@@ -21,7 +21,7 @@ import type { ReviewView } from "@/server/monthly-review-store";
  * approves them. Closed with a sign-off; every step is in the audit trail.
  */
 
-const TONE: Record<Status, "forest" | "sky" | "ochre" | "clay" | "muted"> = { completed: "forest", on_track: "sky", delayed: "ochre", not_implemented: "clay", not_started: "muted" };
+const TONE: Record<Status, "forest" | "sky" | "ochre" | "clay" | "muted"> = { completed: "forest", on_track: "sky", delayed: "clay", not_implemented: "clay", not_started: "muted" };
 const field = "mt-1 w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm";
 const money = (n: number | null) => (n === null ? "—" : Math.round(n).toLocaleString("en-US"));
 const who = (id?: string) => (id ? (userById(id)?.name ?? id) : "");
@@ -139,7 +139,7 @@ export function ReviewPage() {
                               / {i.yearTarget.toLocaleString("en-US")} {i.unit}
                             </td>
                             <td className="px-3 py-2">
-                              <Pill tone={TONE[i.status]}>{STATUS_LABEL[i.status]}</Pill>
+                              <StatusPill tone={TONE[i.status]}>{STATUS_LABEL[i.status]}</StatusPill>
                             </td>
                             <td className="px-4 py-2 text-xs text-muted">{i.planned === null ? "Not linked" : i.planned.length ? i.planned.map((q) => `Q${q}`).join(", ") : `Not in ${v.year}`}</td>
                           </tr>

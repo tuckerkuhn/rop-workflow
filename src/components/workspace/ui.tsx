@@ -56,6 +56,21 @@ export function Pill({ tone, children }: { tone: Tone; children: React.ReactNode
   return <span className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${t}`}>{children}</span>;
 }
 
+/**
+ * One look for a status everywhere in the app, by what it means for the person reading it:
+ * amber ◷ waiting for someone, green ✓ done or approved, red ! needs fixing or sent back,
+ * blue → moving along, grey – not active. The mark means colour is never the only signal.
+ */
+const STATUS_MARK: Record<Tone, string> = { ochre: "◷", forest: "✓", clay: "!", sky: "→", muted: "–", plum: "•" };
+export function StatusPill({ tone, children }: { tone: Tone; children: React.ReactNode }) {
+  return (
+    <Pill tone={tone}>
+      <span aria-hidden>{STATUS_MARK[tone]}</span>
+      {children}
+    </Pill>
+  );
+}
+
 export function SectionLabel({ children }: { children: React.ReactNode }) {
   return <h4 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">{children}</h4>;
 }
@@ -145,7 +160,8 @@ export function CheckRow({
         {c.auto ? (
           <span
             title="Checked by the app"
-            className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full text-xs font-bold text-white ${c.ok ? "bg-leaf" : "bg-clay"}`}
+            // Not done yet is amber (something to do), not the red used for errors and things sent back.
+            className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full text-xs font-bold ${c.ok ? "bg-leaf text-white" : "bg-ochre text-ink"}`}
           >
             {c.ok ? "✓" : "!"}
           </span>
@@ -165,7 +181,7 @@ export function CheckRow({
             {c.auto && <span className="ms-2 text-xs text-muted">· checked by the app</span>}
             {c.findings && <span className="ms-2 rounded bg-plum-soft px-1.5 py-0.5 text-xs font-semibold text-plum">AI suggestions</span>}
           </label>
-          {c.detail && <p className={`mt-0.5 text-sm ${c.ok ? "text-muted" : "font-medium text-clay"}`}>{c.detail}</p>}
+          {c.detail && <p className={`mt-0.5 text-sm ${c.ok ? "text-muted" : "font-medium text-warn"}`}>{c.detail}</p>}
           {c.findings && (
             <ul className="mt-2 space-y-1.5 rounded-lg border border-plum/25 bg-plum-soft/50 p-3 text-sm">
               {c.findings.map((f) => (
@@ -185,12 +201,12 @@ export function CheckRow({
           {!c.ok && c.auto && canEdit && (c.resolve || c.fix) && (
             <div className="mt-2 flex flex-wrap gap-2">
               {c.resolve && (
-                <button type="button" onClick={onResolve} className="rounded-full bg-clay px-3 py-1 text-xs font-semibold text-white transition hover:opacity-90">
+                <button type="button" onClick={onResolve} className="rounded-full bg-forest px-3 py-1.5 text-xs font-semibold text-forest-ink transition hover:bg-forest-hover">
                   {c.resolve}
                 </button>
               )}
               {c.fix && (
-                <button type="button" onClick={() => onRaise(c.fix!)} className="rounded-full border border-clay/40 px-3 py-1 text-xs font-semibold text-clay hover:border-clay">
+                <button type="button" onClick={() => onRaise(c.fix!)} className="rounded-full border border-line px-3 py-1.5 text-xs font-semibold text-ink hover:border-forest hover:text-forest">
                   Raise as an issue
                 </button>
               )}

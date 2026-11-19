@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useT } from "@/components/app/i18n";
 import { localeOf, type MessageKey } from "@/lib/i18n";
 import { useRequireUser, useSession } from "@/components/app/session";
-import { Pill, SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn } from "@/components/workspace/ui";
+import { Pill, SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn, StatusPill } from "@/components/workspace/ui";
 import {
   ALLOWANCE_TYPES,
   HOLIDAYS,
@@ -655,7 +655,7 @@ function Overview({ v, monthName, go }: { v: TimesheetView; monthName: (m: strin
               <span className="min-w-0 flex-1 truncate">{v.names[o.person] ?? o.person}</span>
               {o.by && o.by !== o.person && <span className="text-xs text-muted">{t("ts.enteredByHr")}</span>}
               {o.revised && <Pill tone="plum">{t("ts.revised")}</Pill>}
-              <Pill tone={tone[o.status as keyof typeof tone]}>{t(text[o.status as keyof typeof text])}</Pill>
+              <StatusPill tone={tone[o.status as keyof typeof tone]}>{t(text[o.status as keyof typeof text])}</StatusPill>
             </button>
           </li>
         ))}

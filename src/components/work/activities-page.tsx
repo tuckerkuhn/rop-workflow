@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useT } from "@/components/app/i18n";
 import { useRequireUser, useSession } from "@/components/app/session";
-import { Pill, TopBar, primaryBtn } from "@/components/workspace/ui";
+import { Pill, TopBar, primaryBtn, StatusPill } from "@/components/workspace/ui";
 import { ACTIVITY_STATUSES, type ActivityAction, type ActivityStatus, type Timing } from "@/lib/activities";
 import { clip, resultHref } from "@/lib/connections";
 import type { MessageKey } from "@/lib/i18n";
@@ -143,7 +143,7 @@ function ActivityRow({ r, v, act, project, focus }: { r: Row; v: ActivitiesView;
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {r.status !== "done" && r.status !== "not_started" && <Pill tone="muted">{t(`act.s.${r.status}` as ActKey)}</Pill>}
-          <Pill tone={tm.tone}>{t(tm.text)}</Pill>
+          <StatusPill tone={tm.tone}>{t(tm.text)}</StatusPill>
         </div>
       </div>
       {may && (

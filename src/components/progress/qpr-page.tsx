@@ -8,7 +8,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { openReceipt } from "@/components/people/expense-page";
 import { useRequireUser, useSession } from "@/components/app/session";
-import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
+import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn, StatusPill } from "@/components/workspace/ui";
 import { OverspendReasonPicker } from "@/components/progress/overspend-reason";
 import { SECTIONS, STATUSES, STATUS_LABEL, cannotOnReport, durationOf, overspentLines, quarterSpendOf, type QprPatch, type Row, type Status } from "@/lib/qpr";
 import { qprDocx, type Images } from "@/lib/qpr-docx";
@@ -40,7 +40,7 @@ async function call<T>(url: string, user: string | undefined, init?: RequestInit
 
 const input = "mt-1 block w-full rounded-xl border border-line bg-paper px-3 py-2 text-base";
 const num = (v: number) => v.toLocaleString("en-US", { maximumFractionDigits: 2 });
-const TONE: Record<Status, "forest" | "sky" | "ochre" | "clay" | "muted"> = { completed: "forest", on_track: "sky", delayed: "ochre", not_implemented: "clay", not_started: "muted" };
+const TONE: Record<Status, "forest" | "sky" | "ochre" | "clay" | "muted"> = { completed: "forest", on_track: "sky", delayed: "clay", not_implemented: "clay", not_started: "muted" };
 
 /** Quarters from the project's start to the last one that has ended (real date, not the demo date). */
 function quartersFor(start: string | null) {
@@ -772,7 +772,7 @@ function IndicatorRow({ r, v, act, card }: { r: Row; v: QprView; act: Act; card?
           </div>
         ) : (
           <div>
-            <Pill tone={TONE[r.status]}>{STATUS_LABEL[r.status]}</Pill>
+            <StatusPill tone={TONE[r.status]}>{STATUS_LABEL[r.status]}</StatusPill>
             {!r.edited && <span className="ms-2 text-xs text-muted">suggested</span>}
             <p className="mt-1">{r.comment}</p>
             {v.mayEdit && (

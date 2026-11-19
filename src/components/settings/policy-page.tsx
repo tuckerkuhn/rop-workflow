@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser, useSession } from "@/components/app/session";
-import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn, Loading } from "@/components/workspace/ui";
+import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn, Loading, StatusPill } from "@/components/workspace/ui";
 import { canEditProject } from "@/lib/demo";
 import { setProcurementRules } from "@/lib/procurement";
 import { GapPanel } from "@/components/settings/gap-panel";
@@ -288,7 +288,7 @@ function Row({ l, d }: { l: Line; d: ParamDef }) {
           </span>
         )}
         <span className="block text-xs text-muted">{l.conflict && !l.decision ? l.conflict : l.why}</span>
-        {(l.org?.confidence === "to verify" || l.donor?.confidence === "to verify") && <Pill tone="ochre">To verify</Pill>}
+        {(l.org?.confidence === "to verify" || l.donor?.confidence === "to verify") && <StatusPill tone="ochre">To verify</StatusPill>}
       </td>
     </tr>
   );
