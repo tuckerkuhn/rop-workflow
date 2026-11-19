@@ -101,7 +101,7 @@ export function plantingProblem(f: Pick<Farmer, "planting" | "hectares" | "photo
   if (given && p.date < given) return `Planted ${p.date}, before the inputs were handed out on ${given}. Check the date.`;
   if (p.count !== undefined && !(Number.isInteger(p.count) && p.count > 0)) return "Enter how many were planted, a whole number above zero.";
   if (!(p.hectares > 0)) return p.count !== undefined ? "The area worked out from the count is zero. Check the number planted." : "The area planted must be above zero.";
-  if (p.hectares > f.hectares + 1e-9) return p.count !== undefined ? `${p.count} planted at this spacing takes ${p.hectares} ha, more than the farmer's plot (${f.hectares} ha). Check the number, or correct the plot size on the farmer's profile.` : `${p.hectares} ha planted is more than the farmer's plot (${f.hectares} ha). Check the area, or correct the plot size on the farmer's profile.`;
+  if (p.hectares > f.hectares + 1e-9) return p.count !== undefined ? `${p.count.toLocaleString("en-US")} planted at this spacing takes ${p.hectares} ha, more than the farmer's plot (${f.hectares} ha). Check the number, or correct the plot size on the farmer's profile.` : `${p.hectares} ha planted is more than the farmer's plot (${f.hectares} ha). Check the area, or correct the plot size on the farmer's profile.`;
   return null;
 }
 export type Story = { id: string; status: "note" | "completed"; title: string; text: string; date: string; by: string };

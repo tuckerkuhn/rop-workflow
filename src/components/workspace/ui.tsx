@@ -736,7 +736,14 @@ export function QueueFooter({ onReset, note = "Fictional records, saved in this 
   );
 }
 
-export function EmptyQueue({ onShowAll }: { onShowAll: () => void }) {
+/** An empty list: "all caught up" only once the list has loaded, never while it is still on its way. */
+export function EmptyQueue({ onShowAll, loading = false }: { onShowAll: () => void; loading?: boolean }) {
+  if (loading)
+    return (
+      <div className="px-4 py-10 text-center sm:px-6" aria-busy="true">
+        <p className="text-sm text-muted">Loading…</p>
+      </div>
+    );
   return (
     <div className="px-4 py-10 text-center sm:px-6">
       <p className="text-sm text-muted">You are all caught up.</p>

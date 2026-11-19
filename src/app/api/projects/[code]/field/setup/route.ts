@@ -39,6 +39,8 @@ export async function GET(req: Request, { params }: Ctx) {
       // The targets an approved distribution can count toward: the ones that take recorded results.
       targets: await resultTargets(project.id),
       canEdit: canEditProject(v.user) && v.user.kind === "employee",
+      // The crop comes from the project design (Set up → Crop), shown here, not asked again.
+      crop: project.crop ?? null,
     });
   });
 }

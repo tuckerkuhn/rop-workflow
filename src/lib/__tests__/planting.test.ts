@@ -79,7 +79,7 @@ describe("a crop counted one by one", () => {
   it("checks the count and the area worked out from it", () => {
     expect(plantingProblem({ ...f, planting: { date: given, count: 0, hectares: 0 } }, "2099-01-01")).toMatch(/how many were planted/);
     expect(plantingProblem({ ...f, planting: { date: given, count: 1.5, hectares: 0.01 } }, "2099-01-01")).toMatch(/whole number/);
-    expect(plantingProblem({ ...f, hectares: 0.5, planting: { date: given, count: 2000, hectares: 0.9 } }, "2099-01-01")).toMatch(/^2000 planted at this spacing takes 0.9 ha, more than the farmer's plot \(0.5 ha\)/);
+    expect(plantingProblem({ ...f, hectares: 0.5, planting: { date: given, count: 2000, hectares: 0.9 } }, "2099-01-01")).toMatch(/^2,000 planted at this spacing takes 0.9 ha, more than the farmer's plot \(0.5 ha\)/);
     expect(plantingProblem({ ...f, hectares: 0.5, planting: { date: given, count: 1000, hectares: 0.45 } }, "2099-01-01")).toBeNull();
   });
 

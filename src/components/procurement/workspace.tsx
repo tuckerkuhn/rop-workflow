@@ -793,7 +793,7 @@ export function ProcurementWorkspace() {
   const { user } = useRequireUser();
   const myRoles = procRolesFor(user);
   const { project } = useCurrentProject();
-  const { items, packageLines, coding, setItems, error, reset, draft: draftDoc, check: runCheck } = useProcurements(project.id);
+  const { items, packageLines, coding, setItems, status, error, reset, draft: draftDoc, check: runCheck } = useProcurements(project.id);
   const plan = usePlan(project.saved ? project.id : null);
   const donors = useDonors(project.id);
   const [planKey, setPlanKey] = useState<string | null>(null);
@@ -920,12 +920,12 @@ export function ProcurementWorkspace() {
             </div>
           )}
           <QueueHeader
-            title={readOnly || showAll ? "All procurements" : mineList.length ? `${mineList.length} waiting on you` : "Nothing waiting on you"}
+            title={status === "loading" ? "Loading…" : readOnly || showAll ? "All procurements" : mineList.length ? `${mineList.length} waiting on you` : "Nothing waiting on you"}
             toggleLabel={readOnly ? "" : showAll ? "Mine" : "Show all"}
             onToggle={() => setShowAll(!showAll)}
           />
           {list.length === 0 ? (
-            <EmptyQueue onShowAll={() => setShowAll(true)} />
+            <EmptyQueue loading={status === "loading"} onShowAll={() => setShowAll(true)} />
           ) : (
             <ul className="space-y-1.5 px-2 pb-6 sm:px-3">
               {list.map((p) => {
@@ -1050,8 +1050,8 @@ export function ProcurementWorkspace() {
         ) : (
           <div className="grid h-full place-items-center py-24 text-center">
             <div>
-              <p className="font-display text-2xl">Nothing selected</p>
-              <p className="mt-1 text-sm text-muted">Pick a procurement from the list, or start a new request.</p>
+              <p className="font-display text-2xl">{status === "loading" ? "Loading…" : "Nothing selected"}</p>
+              {status !== "loading" && <p className="mt-1 text-sm text-muted">Pick a procurement from the list, or start a new request.</p>}
             </div>
           </div>
         )

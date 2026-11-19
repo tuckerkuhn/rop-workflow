@@ -54,11 +54,12 @@ export function PackageSetup({ code, onSaved, onCancel }: { code: string; onSave
 
   useEffect(() => {
     if (!user) return;
-    api<{ setup: FieldSetup | null; draft: (FieldSetup & { from?: string }) | null; lines: Line[]; targets?: { code: string; name: string; unit: string }[]; canEdit: boolean }>(`/api/projects/${encodeURIComponent(code)}/field/setup`, user.id)
+    api<{ setup: FieldSetup | null; draft: (FieldSetup & { from?: string }) | null; lines: Line[]; targets?: { code: string; name: string; unit: string }[]; canEdit: boolean; crop?: string | null }>(`/api/projects/${encodeURIComponent(code)}/field/setup`, user.id)
       .then((r) => {
         setLines(r.lines);
         setCanEdit(r.canEdit);
         setTargets(r.targets ?? []);
+        setCrop(r.crop ?? "");
         const s = r.setup ?? r.draft;
         setFromDraft(!r.setup && !!r.draft);
         setCopiedFrom(!r.setup ? (r.draft?.from ?? "") : "");
@@ -76,7 +77,6 @@ export function PackageSetup({ code, onSaved, onCancel }: { code: string; onSave
           setItems(s.items.map(toDraft).map((d) => (!r.setup && !known.has(d.budgetLine) ? { ...d, budgetLine: "" } : d)));
           setSeason(s.season ?? "");
           setVillage(s.village ?? "");
-          setCrop(s.crop ?? "");
           setWindowEnd(s.windowEnd ?? "");
           setTarget(s.target ?? "");
           setTargetAt(s.targetAt ?? "distribution");
@@ -105,7 +105,6 @@ export function PackageSetup({ code, onSaved, onCancel }: { code: string; onSave
     items: items.map((d) => ({ key: d.key || keyFrom(d.item), item: d.item.trim(), unit: d.unit.trim(), qty: Number(d.qty), per: d.per, budgetLine: d.budgetLine, ...(d.unitUsd.trim() ? { unitUsd: Number(d.unitUsd) } : {}) })),
     ...(season.trim() ? { season: season.trim() } : {}),
     ...(village.trim() ? { village: village.trim() } : {}),
-    ...(crop.trim() ? { crop: crop.trim() } : {}),
     ...(windowEnd ? { windowEnd } : {}),
     ...(target ? { target } : {}),
     ...(target && targetAt === "planting" ? { targetAt } : {}),
@@ -258,10 +257,11 @@ export function PackageSetup({ code, onSaved, onCancel }: { code: string; onSave
           Distribution point
           <input value={village} onChange={(e) => setVillage(e.target.value)} placeholder="Where the store is" className={`mt-1 ${field}`} />
         </label>
-        <label className="block text-sm font-medium">
+        <div className="block text-sm font-medium">
           Crop
-          <input value={crop} onChange={(e) => setCrop(e.target.value)} placeholder="e.g. Grapes" className={`mt-1 ${field}`} />
-        </label>
+          <p className="mt-1 rounded-lg border border-line bg-sunken px-3 py-2 font-normal">{crop || "Not set"}</p>
+          <span className="mt-0.5 block text-xs font-normal text-muted">From the project design. Change it in Set up → Crop.</span>
+        </div>
         <label className="block text-sm font-medium">
           Planting window ends
           <input type="date" value={windowEnd} onChange={(e) => setWindowEnd(e.target.value)} className={`mt-1 ${field}`} />

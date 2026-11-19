@@ -81,10 +81,24 @@ export const packageUsd = (setup: FieldSetup, hectares = 1) => itemsFor(setup, h
 
 /** "10 kg certified maize seed and 50 kg NPK 17-17-17" (per-hectare items say so). */
 export const describePackage = (setup: FieldSetup) =>
-  setup.items.map((p) => `${fmtQty(p.qty)} ${p.unit} ${p.item}${p.per === "hectare" ? " per hectare" : ""}`).join(" and ");
+  setup.items.map((p) => `${qtyItem(p.qty, p.unit, p.item)}${p.per === "hectare" ? " per hectare" : ""}`).join(" and ");
 
 export const fmtQty = (n: number) => (Math.round(n * 100) / 100).toLocaleString("en-US");
 /** "1 kit", "2 kits", "1 kg": a counted unit written in the plural loses its "s" for exactly one. */
+/**
+ * "1 Trellis kit", "4 Trellis kits", "10 kg Certified maize seed": when the item's name already ends
+ * in its unit, the unit is not said twice.
+ */
+export function qtyItem(n: number, unit: string, item: string): string {
+  const one = (w: string) => w.toLowerCase().replace(/s$/, "");
+  const words = item.trim().split(/\s+/);
+  const last = words.at(-1) ?? "";
+  if (last && one(last) === one(unit) && /^[a-z]{3,}$/i.test(unit)) {
+    const plural = Math.abs(n - 1) < 1e-9 ? last.replace(/s$/i, "") : /s$/i.test(last) ? last : `${last}s`;
+    return `${fmtQty(n)} ${[...words.slice(0, -1), plural].join(" ")}`;
+  }
+  return `${qtyUnit(n, unit)} ${item}`;
+}
 export const qtyUnit = (n: number, unit: string) => `${fmtQty(n)} ${Math.abs(n - 1) < 1e-9 && /^[a-z]{3,}s$/i.test(unit) ? unit.slice(0, -1) : unit}`;
 
 /** A quantity in kilograms, or null for a unit that is not a weight. */

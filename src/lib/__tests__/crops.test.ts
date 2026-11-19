@@ -44,3 +44,14 @@ describe("the crop plan decided at initiation", () => {
     expect(plantingValue("trees", { hectares: 1 }, null)).toEqual({ value: 1, people: true });
   });
 });
+
+describe("quantities with their item", () => {
+  it("does not say the unit twice when the item's name ends in it", async () => {
+    const { qtyItem, describePackage } = await import("@/lib/package");
+    expect(qtyItem(1, "kits", "Trellis kit")).toBe("1 Trellis kit");
+    expect(qtyItem(4, "kits", "Trellis kit")).toBe("4 Trellis kits");
+    expect(qtyItem(10, "kg", "Certified maize seed")).toBe("10 kg Certified maize seed");
+    expect(qtyItem(1, "cuttings", "Grape planting cuttings")).toBe("1 Grape planting cutting");
+    expect(describePackage({ items: [{ key: "t", item: "Trellis kit", qty: 1, unit: "kits", per: "farmer", budgetLine: "S-102" }] })).toBe("1 Trellis kit");
+  });
+});

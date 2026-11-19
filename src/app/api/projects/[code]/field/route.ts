@@ -113,10 +113,12 @@ export async function PUT(req: Request, { params }: { params: Promise<{ code: st
     for (const f of handedOut) recorded.push(await recordFromApp(code, f, v.user, new URL(req.url).origin));
     // Planting recorded: when the project's target counts at planting, the farmer counts toward it now.
     const results: string[] = [];
+    let planted = 0;
     for (const i of items)
       if (i.kind === "farmer" && before.get(i.id) === "plant" && i.step === "complete") {
         const r = await countPlanting(code, i, v.user);
-        if (r) results.push(r);
+        if (r) planted += 1;
+        if (r?.result) results.push(r.result);
       }
     // The store's stock follows the purchases when they supply the package; a typed figure is kept only when none does.
     const derived = await stockFor(code);
@@ -124,6 +126,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ code: st
     if (typed) await saveStock(code, typed);
     if (items.length || typed)
       await audit(code, { entity: "field", entityId: crypto.randomUUID(), action: "field_saved", by: v.user.id, detail: { items: items.map((i) => ({ id: i.id, kind: i.kind, step: i.step })), ...(typed ? { stock: typed } : {}), ...(recorded.length ? { distributions: recorded } : {}), ...(results.length ? { results } : {}) } });
-    return NextResponse.json({ ok: true, revs, distributions: recorded, results, ...(derived ? { stock: derived.stock, stockNote: derived.block } : {}) });
+    // planted: the farmer's history gained a line saying whether it counted; the page reloads to show it.
+    return NextResponse.json({ ok: true, revs, distributions: recorded, results, planted, ...(derived ? { stock: derived.stock, stockNote: derived.block } : {}) });
   });
 }

@@ -8,7 +8,7 @@ import { approverNames, collectorOf, deciderNames, decidersOf, needsKoboCheck, r
 import { koboApprovalFor } from "@/server/kobo-approval";
 import { insertResult } from "@/server/results-store";
 import { addGiven, applyFix, approvalRefusal, approverNamesOf, badCondition, approversOf, closeBlock, drawnFrom, fixOwner, flagsFor, gate, inProcUnit, lineOf, paymentDue, resultFor, resultForPlanting, storeStock, type DistItem, type Fix, type Flag, type Gate, type Given } from "@/lib/distribution";
-import { countsAtPlanting, itemsFor, type FieldSetup } from "@/lib/package";
+import { countsAtPlanting, itemsFor, qtyItem, type FieldSetup } from "@/lib/package";
 import { hasSignedNotePhoto, type Farmer } from "@/lib/field";
 import type { Procurement } from "@/lib/procurement";
 import type { Submission } from "@/lib/project";
@@ -329,7 +329,7 @@ async function prepare(code: string, project: Project, id: string, m: Omit<DistM
 const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
 function approvalEmail(name: string, code: string, m: DistMeta, link: string, again?: { by: string; note: string }) {
-  const what = m.items.map((i) => `${i.qty} ${i.unit} ${i.item}`).join(", ");
+  const what = m.items.map((i) => qtyItem(i.qty, i.unit, i.item)).join(", ");
   const subject = `${m.gate.ok ? (again ? "Fixed, approval needed" : "Approval needed") : "On hold"}: input distribution in ${m.village || code}${m.flags.length ? ` (${m.flags.length} to check)` : ""}`;
   const fixed = again ? `You sent this back. ${again.by} fixed it and sent it again: ${again.note}` : "";
   const flags = m.flags.length ? m.flags.map((f) => f.text) : ["Nothing flagged."];
@@ -787,34 +787,41 @@ export async function countApprovedDistributions(code: string, target: string): 
  * The farmers already counted toward a target: by a result made from their planting, or from one
  * of their distributions. A farmer counts once, whichever way the project counted them before.
  */
-async function farmersCounted(tx: Tx | typeof db, projectId: string, target: string): Promise<Set<string>> {
+async function farmersCounted(tx: Tx | typeof db, projectId: string, target: string): Promise<Map<string, { how: "handout" | "planting"; date: string }>> {
   const results = (await tx.select({ payload: s.evidence.payload }).from(s.evidence).where(and(eq(s.evidence.projectId, projectId), eq(s.evidence.form, "result"))))
-    .map((r) => r.payload as { distribution?: string; planting?: string; indicator?: string } | null)
+    .map((r) => r.payload as { distribution?: string; planting?: string; indicator?: string; date?: string } | null)
     .filter((p) => p?.indicator === target);
-  const out = new Set(results.map((p) => p!.planting).filter((x): x is string => !!x));
-  const dists = new Set(results.map((p) => p!.distribution).filter((x): x is string => !!x));
+  const out = new Map<string, { how: "handout" | "planting"; date: string }>();
+  for (const p of results) if (p!.planting) out.set(p!.planting, { how: "planting", date: p!.date ?? "" });
+  const dists = new Map(results.filter((p) => p!.distribution).map((p) => [p!.distribution!, p!.date ?? ""]));
   if (dists.size)
     for (const row of await tx.select({ id: s.evidence.id, farmer: s.evidence.farmerCode }).from(s.evidence).where(and(eq(s.evidence.projectId, projectId), eq(s.evidence.form, "distribution"))))
-      if (dists.has(row.id) && row.farmer) out.add(row.farmer);
+      if (dists.has(row.id) && row.farmer && !out.has(row.farmer)) out.set(row.farmer, { how: "handout", date: dists.get(row.id)! });
   return out;
 }
 
 /**
  * When the project's target counts at planting (lib/package targetAt), recording a farmer's
- * planting adds them to it: one result waiting for MEL, never twice for the same farmer. Returns
- * the result's id, or null when the target does not count at planting or already counts them.
+ * planting adds them to it: one result waiting for MEL, never twice for the same farmer. Either
+ * way the farmer's history says what happened, so the extension agent sees it at once. Returns the
+ * result's id when one was made, `already` when the farmer was counted before, or null when the
+ * target does not count at planting.
  */
-export async function countPlanting(code: string, f: Farmer, by: { id: string; name: string }): Promise<string | null> {
+export async function countPlanting(code: string, f: Farmer, by: { id: string; name: string }): Promise<{ result: string | null; already: boolean } | null> {
   const project = await projectByCode(code);
   const setup = await setupOf(project);
   if (!countsAtPlanting(setup) || !f.planting) return null;
   const target = setup!.target!;
-  const indicator = (await db.select({ code: s.indicators.code, unit: s.indicators.unit }).from(s.indicators).where(and(eq(s.indicators.projectId, project.id), eq(s.indicators.code, target), eq(s.indicators.source, "results"))).limit(1))[0];
+  const indicator = (await db.select({ code: s.indicators.code, name: s.indicators.name, unit: s.indicators.unit }).from(s.indicators).where(and(eq(s.indicators.projectId, project.id), eq(s.indicators.code, target), eq(s.indicators.source, "results"))).limit(1))[0];
   if (!indicator) return null;
   return db.transaction(async (tx) => {
-    if ((await farmersCounted(tx, project.id, target)).has(f.id)) return null;
-    const r = await insertResult(tx, project, resultForPlanting({ ...f, planting: f.planting! }, target, { crop: setup!.crop, recordedBy: by.name, unit: indicator.unit, plan: setup!.plan }), by.id);
-    return r.id;
+    const before = (await farmersCounted(tx, project.id, target)).get(f.id);
+    const r = before ? null : await insertResult(tx, project, resultForPlanting({ ...f, planting: f.planting! }, target, { crop: setup!.crop, recordedBy: by.name, unit: indicator.unit, plan: setup!.plan }), by.id);
+    const what = before
+      ? `Already counted toward "${indicator.name}" ${before.how === "handout" ? "when the package was handed out" : "from an earlier planting"}${before.date ? ` (${before.date})` : ""}: not counted again`
+      : `Counted toward "${indicator.name}": waiting for MEL to accept it on the Results page`;
+    await changeFarmer(tx, project.id, f.id, (x) => ({ ...x, timeline: [...x.timeline, { date: today(), who: "system", what, by: "ROP Workflow" }] }));
+    return { result: r?.id ?? null, already: !!before };
   });
 }
 

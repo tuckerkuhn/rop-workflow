@@ -8,7 +8,19 @@ import { useEffect, useState } from "react";
  * and writes it to the audit trail.
  */
 
-const key = (code: string) => `rop-change-reason:${code}`;
+/**
+ * Per project and per person: a reason typed by one person is never sent with another's save after
+ * they switch accounts in the same browser.
+ */
+const key = (code: string) => {
+  let who = "";
+  try {
+    who = (JSON.parse(localStorage.getItem("rop-session-v1") ?? "{}") as { userId?: string }).userId ?? "";
+  } catch {
+    /* no session stored: the project alone */
+  }
+  return `rop-change-reason:${who}:${code}`;
+};
 
 export function changeReasonHeader(url: string): Record<string, string> {
   const code = url.match(/\/api\/projects\/([^/?]+)/)?.[1];

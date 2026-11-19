@@ -50,16 +50,18 @@ export const DEMO_FIELD_PROJECT = "A-2027";
  * A project's input package and season. The demo project has one built in; any other project has
  * one once its manager sets it up in Field activities, and until then has no field workflow.
  */
-export async function setupOf(project: { id: string; code: string | null }, q?: Reader): Promise<FieldSetup | null> {
+export async function setupOf(project: { id: string; code: string | null; crop?: string | null }, q?: Reader): Promise<FieldSetup | null> {
   // A draft (pre-filled for a manager to confirm) does not switch Field activities on.
   const stored = await loadProjectState<(FieldSetup & { draft?: boolean }) | null>(project.id, FIELD_SETUP_KEY, null, q);
   const setup = stored?.items?.length && !stored.draft ? stored : project.code === DEMO_FIELD_PROJECT ? DEMO_SETUP : null;
   if (!setup) return null;
   // The crop plan decided at initiation (Set up → Crop) rides along, for planting and its checks.
   const plan = await loadProjectState<CropPlan | null>(project.id, CROP_PLAN_KEY, null, q);
+  // The crop is the project's, from its design: asked once, never again for the package.
+  const crop = project.crop !== undefined ? project.crop : ((await (q ?? db).select({ crop: s.projects.crop }).from(s.projects).where(eq(s.projects.id, project.id)).limit(1))[0]?.crop ?? null);
   const { plan: _old, ...rest } = setup;
   void _old;
-  return plan ? { ...rest, plan } : rest;
+  return { ...rest, ...(crop ? { crop } : {}), ...(plan ? { plan } : {}) };
 }
 /** Codes of the projects with an input package (not a draft), so Field activities runs on them. */
 export async function projectsWithField(): Promise<Set<string>> {

@@ -158,6 +158,8 @@ describe("recording planting", { timeout: 60_000 }, () => {
     expect(made).toHaveLength(1);
     expect(made[0]).toMatchObject({ indicator: "IND-2", date: planting.date, value: 1, status: "pending", by: "farida" });
     expect((await farmer(f.id)).planting).toEqual(planting);
+    // The extension agent sees at once that it counted.
+    expect((await farmer(f.id)).timeline.at(-1)).toMatchObject({ who: "system", by: "ROP Workflow", what: expect.stringMatching(/^Counted toward ".+": waiting for MEL to accept it on the Results page$/) });
     // Filed: the record that was counted cannot be changed afterwards.
     const after = await farmer(f.id);
     const change = await put("farida", [{ ...after, planting: { ...planting, hectares: 0.1 } }]);
@@ -196,5 +198,27 @@ describe("planting a crop counted one by one", { timeout: 60_000 }, () => {
     const right = await put("farida", [{ ...f, planting: { date: "2026-01-02", count: 1000, hectares: 0.45 } }]);
     expect(right.status).toBe(200);
     expect((await farmer("F-0008")).planting).toEqual({ date: "2026-01-02", count: 1000, hectares: 0.45 });
+  });
+
+  it("tells the extension agent when a farmer counted at handout is not counted again at planting", async () => {
+    const setup = (await setupFor(code))!;
+    await saveSetup(code, { ...setup, target: "IND-2", targetAt: "planting" });
+    // F-0007's distribution was approved and counted toward IND-2 at the time.
+    const farmerId = "F-0007";
+    const { db: d, schema: sc } = await import("@/db");
+    const project = await projectByCode(code);
+    const [dist] = await d.insert(sc.evidence).values({ organizationId: project.organizationId, projectId: project.id, source: "manual", form: "distribution", reviewStatus: "accepted", farmerCode: farmerId, completedAt: new Date("2026-01-01T12:00:00Z"), payload: {} }).returning();
+    await d.insert(sc.evidence).values({ organizationId: project.organizationId, projectId: project.id, source: "manual", form: "result", reviewStatus: "accepted", completedBy: "farida", completedAt: new Date("2026-01-01T12:00:00Z"), payload: { indicator: "IND-2", date: "2026-01-01", value: 1, note: "Input package given to farmer F-0007.", files: [], noFile: "Distribution record", distribution: dist.id } });
+    const f = await farmer(farmerId);
+    await saveItems(code, [{ ...f, step: "plant", awaiting: undefined }]);
+    const got = await farmer(farmerId);
+    const at = { ...got, checks: { ...got.checks, "plant.manner": true, "plant.followup": true } };
+    const given = handedOutOn(at) ?? "2026-01-01";
+    const before = (await loadResults(code)).length;
+    const r = await put("farida", [{ ...at, planting: { date: given, count: 100, hectares: 0.05 }, step: "complete" }]);
+    expect(r.status).toBe(200);
+    expect((await loadResults(code)).length).toBe(before);
+    expect((await farmer(farmerId)).timeline.at(-1)!.what).toMatch(/^Already counted toward ".+" when the package was handed out \(\d{4}-\d{2}-\d{2}\): not counted again$/);
+    await saveSetup(code, setup);
   });
 });

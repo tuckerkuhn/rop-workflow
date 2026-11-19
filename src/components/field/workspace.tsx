@@ -10,7 +10,7 @@ import { useCurrentProject } from "@/components/app/current-project";
 import { FarmerImport, PackageSetup } from "@/components/field/setup";
 import { today } from "@/lib/clock";
 import { canEditProject } from "@/lib/demo";
-import { itemsFor, packageUsd, type FieldSetup } from "@/lib/package";
+import { itemsFor, packageUsd, qtyItem, type FieldSetup } from "@/lib/package";
 import { densityOf, hectaresFor, plantedItem } from "@/lib/crops";
 import {
   AppShell,
@@ -778,18 +778,18 @@ export function FieldWorkspace() {
           <DataBanner status={status} error={error} />
           <div className="mx-3 mt-4 rounded-xl border border-line bg-surface px-3 py-3 sm:mx-4">
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
-              {[ctx.setup.season, ctx.setup.village, `${farmers.length} farmers`].filter(Boolean).join(" · ")}
+              {[ctx.setup.season, ctx.setup.village, status === "loading" ? "" : `${farmers.length} ${farmers.length === 1 ? "farmer" : "farmers"}`].filter(Boolean).join(" · ")}
             </p>
             <ol className="mt-2 grid grid-cols-6 gap-1 text-center">
               {pipeline.map((s) => (
                 <li key={s.label}>
-                  <p className="text-xl tabular-nums font-semibold">{s.n}</p>
+                  <p className="text-xl tabular-nums font-semibold">{status === "loading" ? "–" : s.n}</p>
                   <p className="text-[10px] leading-tight text-muted">{s.label}</p>
                 </li>
               ))}
             </ol>
             <p className="mt-2 border-t border-line pt-2 text-[11px] text-muted">
-              Store: {ctx.setup.items.map((p) => `${stock[p.key] ?? 0} ${p.unit} ${p.item}`).join(" · ")}
+              Store: {status === "loading" ? "…" : ctx.setup.items.map((p) => qtyItem(stock[p.key] ?? 0, p.unit, p.item)).join(" · ")}
             </p>
             {mayManage && (
               <div className="mt-2 flex flex-wrap gap-3 border-t border-line pt-2 text-xs font-semibold">
@@ -803,12 +803,12 @@ export function FieldWorkspace() {
             )}
           </div>
           <QueueHeader
-            title={readOnly ? "Everything this season" : showAll ? "Everything this season" : mineList.length ? `${mineList.length} waiting on you` : "Nothing waiting on you"}
+            title={status === "loading" ? "Loading…" : readOnly ? "Everything this season" : showAll ? "Everything this season" : mineList.length ? `${mineList.length} waiting on you` : "Nothing waiting on you"}
             toggleLabel={readOnly ? "" : showAll ? "Mine" : "Show all"}
             onToggle={() => setShowAll(!showAll)}
           />
           {list.length === 0 ? (
-            <EmptyQueue onShowAll={() => setShowAll(true)} />
+            <EmptyQueue loading={status === "loading"} onShowAll={() => setShowAll(true)} />
           ) : (
             <ul className="space-y-1.5 px-2 pb-6 sm:px-3">
               {list.map((i) => {
@@ -905,8 +905,8 @@ export function FieldWorkspace() {
         ) : (
           <div className="grid h-full place-items-center py-24 text-center">
             <div>
-              <p className="font-display text-2xl">Nothing selected</p>
-              <p className="mt-1 text-sm text-muted">Pick a farmer or finding from the list.</p>
+              <p className="font-display text-2xl">{status === "loading" ? "Loading…" : "Nothing selected"}</p>
+              {status !== "loading" && <p className="mt-1 text-sm text-muted">Pick a farmer or finding from the list.</p>}
             </div>
           </div>
         )
