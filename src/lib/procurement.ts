@@ -761,7 +761,7 @@ export const steps: Step[] = [
     owner: "approver",
     levels: ALL,
     action: "Approve requisition",
-    done: "Requisition approved (Gate A)",
+    done: "Requisition approved",
     gate: "A",
     canReturn: true,
     produces: [],
@@ -948,7 +948,7 @@ export const steps: Step[] = [
     owner: "approver",
     levels: OPEN_COMP,
     action: "Approve solicitation",
-    done: "Solicitation approved (Gate B)",
+    done: "Solicitation approved",
     gate: "B",
     canReturn: true,
     produces: [],
@@ -1098,7 +1098,7 @@ export const steps: Step[] = [
     owner: "approver",
     levels: SMALL_UP,
     action: "Approve award",
-    done: "Award approved (Gate C)",
+    done: "Award approved",
     gate: "C",
     canReturn: true,
     produces: ["Unsuccessful bidder notices"],
@@ -1147,7 +1147,7 @@ export const steps: Step[] = [
     owner: "approver",
     levels: SMALL_UP,
     action: "Approve and sign",
-    done: "Contract signed (Gate D)",
+    done: "Contract signed",
     gate: "D",
     canReturn: true,
     produces: [],
@@ -1270,7 +1270,7 @@ export const steps: Step[] = [
     owner: "finance",
     levels: ALL,
     action: "Send for approval",
-    done: "Payment checked and verified by Finance (Gate E)",
+    done: "Payment checked and verified by Finance",
     gate: "E",
     produces: ["Invoice match", "Payee verification", "Checklist pass 2"],
     signs: { doc: "Payment approval form", as: "Checked by (finance)" },
@@ -1441,7 +1441,7 @@ export const steps: Step[] = [
     title: "Approve the expense voucher, then file it",
     owner: "finance",
     levels: ALL,
-    action: "Approve and record as filed",
+    action: "Sign, approve and record as filed",
     done: "Expense voucher approved and filed in SharePoint",
     canReturn: true,
     produces: ["Expense voucher"],
@@ -1595,6 +1595,24 @@ export function signatureLines(p: Procurement, doc: string) {
   // An older voucher keeps the one line it was signed with, not two empty ones.
   const legacy = doc === "Expense voucher" ? signed.find((x) => x.as === VOUCHER_REVIEWED_AND_APPROVED) : undefined;
   return legacy ? [...lines.filter((l) => l.as !== "Reviewed by (finance)" && l.as !== "Approved by (finance)"), { as: legacy.as, role: "finance" as Role, signed: legacy }] : lines;
+}
+
+/**
+ * Why this person may not review or approve the expense voucher, or null when they may: the
+ * preparer never does either; while Finance has a third person, the reviewer does not approve.
+ * The screen and the server both use it.
+ */
+export function voucherBarred(p: Procurement, name: string | undefined): string | null {
+  if (!name || (p.step !== "voucherReview" && p.step !== "voucherApprove")) return null;
+  const sigs = p.signatures["Expense voucher"] ?? [];
+  const preparer = sigs.find((x) => x.as === "Prepared and entered by (finance)")?.name;
+  const reviewer = sigs.find((x) => x.as === "Reviewed by (finance)")?.name;
+  if (preparer === name) return p.step === "voucherReview" ? "You prepared this voucher, so someone else in Finance reviews it." : "You prepared this voucher, so someone else in Finance approves it.";
+  if (p.step === "voucherApprove" && reviewer === name) {
+    const third = holdersFor(p, "finance").find((h) => h.name !== preparer && h.name !== reviewer);
+    if (third) return `You reviewed this voucher, so a third Finance person approves it: ${third.name}.`;
+  }
+  return null;
 }
 
 /** Everyone holding a role on this procurement (the authority table first, the demo team as fallback). */

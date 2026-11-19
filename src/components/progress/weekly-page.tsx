@@ -1,5 +1,6 @@
 "use client";
 
+import { userById } from "@/lib/demo";
 import { plainError } from "@/lib/plain-error";
 import { askConfirm } from "@/components/app/dialogs";
 import { FieldHelp } from "@/components/app/field-help";
@@ -221,7 +222,7 @@ function ItemCard({ it, v, user, act }: { it: Item; v: WeeklyView; user: string;
     <li className="rounded-xl border border-line bg-paper p-3">
       <p className="text-xs text-muted">
         {it.activity}
-        {activity ? `: ${activity.name}` : ""} · {it.date} · {it.by}
+        {activity ? `: ${activity.name}` : ""} · {it.date} · {userById(it.by)?.name ?? it.by}
       </p>
       <p className="mt-1 text-sm">
         {it.title && <span className="font-semibold">{it.title}: </span>}
@@ -487,7 +488,7 @@ export function WeeklyPage() {
               <WeekBox v={v} save={save} />
               {w.sent && (
                 <p className="mt-3 rounded-lg bg-mist px-3 py-2 text-sm text-forest">
-                  Sent by {w.sent.by} on {longDate(w.sent.at.slice(0, 10))}. It can no longer be changed.
+                  Sent by {userById(w.sent.by)?.name ?? w.sent.by} on {longDate(w.sent.at.slice(0, 10))}. It can no longer be changed.
                 </p>
               )}
             </section>
@@ -542,7 +543,7 @@ export function WeeklyPage() {
                 {v.may.send && (
                   <button
                     type="button"
-                    className={`${dangerBtn} ms-auto`}
+                    className={`${primaryBtn} ms-auto`}
                     onClick={() => void askConfirm({ message: `Mark update #${w.n} as sent? It is locked after that: nothing dated ${w.from} to ${w.to} can be added or changed.`, confirm: "Mark as sent" }).then((ok) => (ok ? save({ action: "send", from: w.from }, `Update #${w.n} marked sent.`).catch(() => undefined) : undefined))}
                   >
                     Mark as sent

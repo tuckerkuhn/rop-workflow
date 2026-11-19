@@ -100,8 +100,10 @@ export function qtyItem(n: number, unit: string, item: string): string {
   return `${qtyUnit(n, unit)} ${item}`;
 }
 /** The unit alone, "farmer" for one and "farmers" otherwise: for a number shown on its own. */
-export const unitOf = (n: number, unit: string) => (Math.abs(n - 1) < 1e-9 && /^[a-z]{3,}s$/i.test(unit) ? unit.slice(0, -1) : unit);
-export const qtyUnit = (n: number, unit: string) => `${fmtQty(n)} ${Math.abs(n - 1) < 1e-9 && /^[a-z]{3,}s$/i.test(unit) ? unit.slice(0, -1) : unit}`;
+/** A plural ending in a plain "s" ("kits", "farmers"), not a word that ends in s ("trellis", "glass", "bus"). */
+const pluralS = (w: string) => /^[a-z]{3,}s$/i.test(w) && !/(is|ss|us)$/i.test(w);
+export const unitOf = (n: number, unit: string) => (Math.abs(n - 1) < 1e-9 && pluralS(unit) ? unit.slice(0, -1) : unit);
+export const qtyUnit = (n: number, unit: string) => `${fmtQty(n)} ${unitOf(n, unit)}`;
 
 /** A quantity in kilograms, or null for a unit that is not a weight. */
 export function toKg(qty: number, unit: string): number | null {

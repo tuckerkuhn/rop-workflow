@@ -2,7 +2,7 @@ import { registerAuthority } from "@/lib/authority";
 import { sameHistory } from "@/lib/history";
 import type { AppUser } from "@/lib/demo";
 import type { Value } from "@/lib/policy";
-import { DONE, requesterOf, soloBarred, setProcurementSet, setSupplierRegister, maySign, nextStep, ownerOf, prevStep, procRolesFor, ready, roleLabel, setProcurementRules, stepById, type Procurement, type Role, holdersFor, otherHolder } from "@/lib/procurement";
+import { DONE, requesterOf, soloBarred, setProcurementSet, setSupplierRegister, maySign, nextStep, ownerOf, prevStep, procRolesFor, ready, roleLabel, setProcurementRules, stepById, type Procurement, type Role, holdersFor, otherHolder, voucherBarred } from "@/lib/procurement";
 import { closeInstalment } from "@/lib/payments";
 import type { Authority } from "@/lib/authority";
 import type { PlanItem } from "@/lib/procurement-plan";
@@ -262,6 +262,8 @@ export function validateProcurementSave(prev: Procurement | undefined, next: Pro
   // Checks and fields: only the step's owner (the budget holder while the request is being prepared).
   const checksChanged = [...new Set([...Object.keys(prev.checks ?? {}), ...Object.keys(next.checks ?? {})])].filter((k) => !!prev.checks?.[k] !== !!next.checks?.[k]);
   if (!archived && checksChanged.length) {
+    const barred = voucherBarred(prev, u.name);
+    if (barred) return barred;
     if (!ownsStep) return `Only the ${owner ? roleLabel(owner) : "step's owner"} can tick the checks for “${stepById[prev.step]?.title ?? prev.step}”.`;
     const mine = (k: string) => k === `review.${prev.step}` || k.startsWith(`${prev.step}.`) || k.startsWith(`fix.${prev.step}.`);
     const other = checksChanged.find((k) => !mine(k));

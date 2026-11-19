@@ -52,6 +52,10 @@ describe("quantities with their item", () => {
     expect(qtyItem(4, "kits", "Trellis kit")).toBe("4 Trellis kits");
     expect(qtyItem(10, "kg", "Certified maize seed")).toBe("10 kg Certified maize seed");
     expect(qtyItem(1, "cuttings", "Grape planting cuttings")).toBe("1 Grape planting cutting");
+    const { unitOf } = await import("@/lib/package");
+    expect(unitOf(1, "trellis")).toBe("trellis");
+    expect(unitOf(1, "farmers")).toBe("farmer");
+    expect(unitOf(2, "farmers")).toBe("farmers");
     expect(describePackage({ items: [{ key: "t", item: "Trellis kit", qty: 1, unit: "kits", per: "farmer", budgetLine: "S-102" }] })).toBe("1 Trellis kit");
   });
 });

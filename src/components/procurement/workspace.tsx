@@ -79,6 +79,7 @@ import {
   type DocLink,
   requesterOf,
   soloBarred,
+  voucherBarred,
 } from "@/lib/procurement";
 import { holdersOfType } from "@/lib/authority";
 import { ROLE_LABEL } from "@/lib/hr";
@@ -194,10 +195,14 @@ function RequisitionForm({ p, editable, update }: { p: Procurement; editable: bo
           <span className="text-xs font-medium text-muted">Delivery place</span>
           <input id="rq-place" disabled={!editable} value={p.place} onChange={(e) => set({ place: e.target.value })} className={`mt-1 ${fieldCls}`} />
         </label>
-        <label className="flex items-end gap-2 pb-2 text-sm">
-          <input id="rq-urgent" type="checkbox" disabled={!editable} checked={p.urgent} onChange={(e) => set({ urgent: e.target.checked })} className="h-4 w-4 accent-[var(--forest)]" />
-          {p.plan ? `From procurement calendar ${p.plan.key}` : "Urgent (not in the procurement plan)"}
-        </label>
+        {p.plan ? (
+          <p className="flex items-end pb-2 text-sm text-muted">From procurement calendar {p.plan.key}</p>
+        ) : (
+          <label className="flex items-end gap-2 pb-2 text-sm">
+            <input id="rq-urgent" type="checkbox" disabled={!editable} checked={p.urgent} onChange={(e) => set({ urgent: e.target.checked })} className="h-4 w-4 accent-[var(--forest)]" />
+            Urgent (not in the procurement plan)
+          </label>
+        )}
         <label className="sm:col-span-2">
           <span className="text-xs font-medium text-muted">Environmental or social risk</span>
           <input
@@ -489,7 +494,9 @@ function Detail({
   const ownerUser = owner ? holderFor(p, owner) : undefined;
   // The second Finance check is someone other than the person who did the first.
   const checkedBySelf = p.step === "verifyPay" && !!user && (p.signatures["Payment approval form"] ?? []).some((x) => x.as === "Checked by (finance)" && x.name === user.name);
-  const mine = !!role && owner === role && maySign(user, p, role) && !checkedBySelf;
+  // Nor does the voucher's preparer review or approve it (lib/procurement voucherBarred).
+  const voucherBar = voucherBarred(p, user?.name);
+  const mine = !!role && owner === role && maySign(user, p, role) && !checkedBySelf && !voucherBar;
   // A step this person's role covers but whose signature needs another role type (a large award, a sole source).
   const needsOther = !!role && owner === role && !mine && !checkedBySelf ? typeFor(p, role) : null;
   // The requester approving their own purchase: only in solo mode, confirmed, and never a large award, sole source or exception.
@@ -607,7 +614,7 @@ function Detail({
                       </button>
                     )}
                     {raising === null && (
-                      <button type="button" onClick={() => setRaising("")} className="rounded-full px-4 py-3 text-sm font-medium text-muted hover:text-ink">
+                      <button type="button" onClick={() => setRaising("")} className="rounded-full px-2 py-2 text-sm font-medium text-muted hover:text-ink sm:px-4 sm:py-3">
                         + Raise issue
                       </button>
                     )}

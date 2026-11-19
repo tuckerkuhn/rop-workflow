@@ -326,7 +326,7 @@ function Detail({
               { k: "village", label: tx("Village"), v: item.community, warn: false },
               { k: "plot", label: tx("Plot"), v: ctx.setup.crop ? tx("{n} ha {crop}", { n: item.hectares, crop: ctx.setup.crop.toLowerCase() }) : tx("{n} ha", { n: item.hectares }), warn: false },
               { k: "contribution", label: tx("Contribution"), v: item.contributionPaid ? tx("Paid") : tx("Not paid"), warn: !item.contributionPaid },
-              { k: "package", label: tx("Input package"), v: packageUsd(ctx.setup, item.hectares) ? money(packageUsd(ctx.setup, item.hectares)) : tx("{n} items", { n: ctx.setup.items.length }), warn: false },
+              { k: "package", label: tx("Input package"), v: packageUsd(ctx.setup, item.hectares) ? money(packageUsd(ctx.setup, item.hectares)) : ctx.setup.items.length === 1 ? tx("1 item") : tx("{n} items", { n: ctx.setup.items.length }), warn: false },
             ].map(({ k, label, v, warn }) => (
               <div key={k}>
                 <dt className="text-xs font-semibold uppercase tracking-wide text-muted">{label}</dt>
@@ -499,7 +499,7 @@ function Detail({
                         </button>
                       ))}
                       {raising === null && (
-                        <button type="button" onClick={() => setRaising("")} className="rounded-full px-4 py-3 text-sm font-medium text-muted hover:text-ink">
+                        <button type="button" onClick={() => setRaising("")} className="rounded-full px-2 py-2 text-sm font-medium text-muted hover:text-ink sm:px-4 sm:py-3">
                           {tx("+ Raise issue")}
                         </button>
                       )}

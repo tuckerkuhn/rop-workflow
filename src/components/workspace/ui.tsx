@@ -488,7 +488,7 @@ export function StepCard({
  * card's own last block (a direct child), after the checks.
  */
 export const stickyActions =
-  "sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-20 space-y-2 rounded-b-2xl border-t border-line bg-surface/95 px-5 py-3 backdrop-blur lg:static lg:bg-surface lg:py-4 lg:backdrop-blur-none";
+  "sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-20 space-y-1.5 rounded-b-2xl border-t border-line bg-surface/95 px-4 py-2.5 backdrop-blur sm:px-5 lg:static lg:space-y-2 lg:bg-surface lg:py-4 lg:backdrop-blur-none";
 
 export const primaryBtn =
   "rounded-full bg-forest px-6 py-3 text-sm font-semibold text-forest-ink shadow-[0_12px_24px_-14px_rgb(49_77_47/0.8)] transition enabled:hover:-translate-y-0.5 enabled:hover:bg-forest-hover disabled:cursor-not-allowed disabled:opacity-35 disabled:shadow-none";

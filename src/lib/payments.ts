@@ -210,7 +210,11 @@ export function withholding(p: Procurement, on: string): Withholding | null {
     const total = year && thisAfn !== null ? year.afn + thisAfn : null;
     if (year && total !== null && total >= taxRules.taxThresholdAfn)
       return { pct, amount: Math.round((inv.amount * pct) / 100), why: `This supplier's payments in tax year ${year.year} reach AFN ${total.toLocaleString("en-US")} with this one, past ${limit}: ${valid ? `licence valid until ${expiry}` : expiry ? `licence expired ${expiry}` : "no business licence recorded"}, ${pct}% (${TAX_SOURCE}).` };
-    const so = year ? ` Paid to this supplier so far in tax year ${year.year}: AFN ${year.afn.toLocaleString("en-US")} in ${year.payments} ${year.payments === 1 ? "payment" : "payments"}${year.unknown ? ` (${year.unknown} more without an exchange rate, not counted: check them)` : ""}.` : "";
+    const so = !year
+      ? ""
+      : year.payments || year.unknown
+        ? ` Paid to this supplier so far in tax year ${year.year}: AFN ${year.afn.toLocaleString("en-US")} in ${year.payments} ${year.payments === 1 ? "payment" : "payments"}${year.unknown ? ` (${year.unknown} more without an exchange rate, not counted: check them)` : ""}.`
+        : ` Nothing paid to this supplier yet in tax year ${year.year}.`;
     return { pct: 0, amount: 0, why: `Contract under ${limit}: no withholding unless this supplier's payments this year pass it (${TAX_SOURCE}).${so}` };
   }
   const why = valid

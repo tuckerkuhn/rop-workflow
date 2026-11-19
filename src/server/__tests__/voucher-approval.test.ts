@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { registerAuthority } from "@/lib/authority";
 import { userById } from "@/lib/demo";
-import { reviewKey, seedProcurements, setProcurementSet, type Procurement } from "@/lib/procurement";
+import { reviewKey, seedProcurements, setProcurementSet, voucherBarred, type Procurement } from "@/lib/procurement";
 import { validateProcurementSave } from "@/server/procurement-guard";
 
 /**
@@ -49,5 +49,13 @@ describe("approving the expense voucher", () => {
     registerAuthority({ finance: ["yusuf", "omid"] });
     const p = atApprove();
     expect(validateProcurementSave(p, approve(p), omid)).toBeNull();
+  });
+
+  it("does not let the preparer tick the review's checks, and tells the screen it is not their turn", () => {
+    registerAuthority({ finance: ["yusuf", "omid"] });
+    const at = { ...atApprove(), step: "voucherReview", checks: {} } as Procurement;
+    expect(voucherBarred(at, yusuf.name)).toBe("You prepared this voucher, so someone else in Finance reviews it.");
+    expect(validateProcurementSave(at, { ...at, checks: { "voucherReview.codes": true } }, yusuf)).toBe("You prepared this voucher, so someone else in Finance reviews it.");
+    expect(validateProcurementSave(at, { ...at, checks: { "voucherReview.codes": true } }, omid)).toBeNull();
   });
 });

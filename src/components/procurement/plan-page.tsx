@@ -144,10 +144,12 @@ export function ProcurementPlanPage() {
                     checked={l.procure}
                     disabled={busy}
                     onChange={async (e) => {
+                      // Read before the save: by the time it returns the box has been drawn again.
+                      const on = e.target.checked;
                       setBusy(true);
                       try {
-                        await plan.markProcure({ [l.code]: e.target.checked });
-                        setNote(`${l.code} ${e.target.checked ? "marked to buy" : "no longer marked to buy"}. Press ${plan.items.length ? "Update from budget" : "Build from budget"} to update the calendar.`);
+                        await plan.markProcure({ [l.code]: on });
+                        setNote(`${l.code} ${on ? "marked to buy" : "no longer marked to buy"}. Press ${plan.items.length ? "Update from budget" : "Build from budget"} to update the calendar.`);
                       } catch (err) {
                         setNote(err instanceof Error ? err.message : String(err));
                       } finally {

@@ -178,6 +178,7 @@ export function useProcurements(code = "A-2027") {
   const setItems = useCallback(
     (next: Procurement[] | ((all: Procurement[]) => Procurement[])) => {
       const before = new Map(current.current.map((p) => [p.id, JSON.stringify(p)]));
+      const stepBefore = new Map(current.current.map((p) => [p.id, p.step]));
       const value = typeof next === "function" ? next(current.current) : next;
       current.current = value;
       setItemsState(value);
@@ -187,12 +188,16 @@ export function useProcurements(code = "A-2027") {
       // never reaches the server ahead of the fields it depends on. Typing at the same step is merged:
       // a save still waiting is skipped when a later one of the same records, at the same steps, follows.
       const snap = value.filter((p) => changed.includes(p.id));
+      // A save that moves a step on is never skipped: a later save at the new step (a box ticked
+      // there while this one was still on its way) would otherwise carry the move and the new step's
+      // checks together, which the server rightly refuses.
+      const moves = snap.some((p) => stepBefore.has(p.id) && stepBefore.get(p.id) !== p.step);
       const entry = { snap };
       pendingSaves.current.push(entry);
       queue.current = queue.current.then(async () => {
         pendingSaves.current.splice(pendingSaves.current.indexOf(entry), 1);
         const sameRecords = (later: Procurement[]) => later.length === snap.length && later.every((x) => snap.some((y) => y.id === x.id && y.step === x.step));
-        if (pendingSaves.current.some((e) => sameRecords(e.snap))) return;
+        if (!moves && pendingSaves.current.some((e) => sameRecords(e.snap))) return;
         const revs = new Map(current.current.map((p) => [p.id, p.rev]));
         const send = snap.map((p) => ({ ...p, rev: revs.get(p.id) ?? p.rev }));
         if (!send.length) return;

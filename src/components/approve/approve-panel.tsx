@@ -8,7 +8,7 @@ import { useSession } from "@/components/app/session";
 import { useT } from "@/components/app/i18n";
 import { primaryBtn, quietBtn } from "@/components/workspace/ui";
 import type { DistView } from "@/server/distribution";
-import { qtyUnit } from "@/lib/package";
+import { qtyItem } from "@/lib/package";
 
 /**
  * The project manager's one screen for an input distribution: what went out, the goods received
@@ -144,7 +144,7 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
             <ul className="mt-1 text-sm">
               {d.items.map((i) => (
                 <li key={i.key}>
-                  {qtyUnit(i.qty, i.unit)} {i.item}
+                  {qtyItem(i.qty, i.unit, i.item)}
                 </li>
               ))}
               {!d.items.length && <li className="text-clay">{tx("Nothing is recorded as given.")}</li>}
@@ -228,7 +228,7 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
               <textarea id="note" value={note} onChange={(e) => setNote(e.target.value)} rows={3} className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm" placeholder={tx("What needs fixing")} />
               <div className="mt-3 flex flex-wrap gap-2">
                 <button type="button" className={primaryBtn} disabled={busy || !d.gate.ok || !!d.closeBlock || !!d.koboCheck?.needed} onClick={() => decide("approved")}>
-                  {tx("Approve")}
+                  {busy ? tx("Saving…") : tx("Approve")}
                 </button>
                 <button type="button" className={quietBtn} disabled={busy || !note.trim()} onClick={() => decide("sent_back")}>
                   {tx("Send back")}
