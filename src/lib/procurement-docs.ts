@@ -166,6 +166,8 @@ export function documentFor(p: Procurement, doc: string, money: Money, other: Mo
           ["Award value", both(chosen ? (bidUsd(chosen) ?? value) : value)],
           ...(bids.length ? [["Quotations", bids.map((b) => `${b.supplier}: ${bidUsd(b) === null ? "—" : money(bidUsd(b)!)}${b.id === chosen?.id ? " (chosen)" : ""}`).join("; ")] as [string, string]] : []),
           ["Basis for award", "Lowest priced bid meeting every stated minimum requirement, exactly as published"],
+          // Fewer than three quotations: the reason given when it was recorded, and where its memo is.
+          ...(p.overrides?.["fix.quotes.three"] ? ([["Why fewer than three quotations", `${p.overrides["fix.quotes.three"].why} (${p.overrides["fix.quotes.three"].by}, ${p.overrides["fix.quotes.three"].date})`]] as [string, string][]) : []),
         ],
         notes: [level === "Large" || level === "Medium" ? "The comparative bid matrix and the committee's reasoning are attached." : "Each quotation's signed copy is filed in SharePoint with this record."],
       };

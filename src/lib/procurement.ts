@@ -311,6 +311,11 @@ export type Procurement = {
   paid?: Paid;
   ai?: Record<string, string[]>;
   issues: Issue[];
+  /**
+   * Why an automatic check was overridden (e.g. fewer than three quotations), by check key
+   * ("fix.quotes.three"): the reason, and where a memo is filed when there is one.
+   */
+  overrides?: Record<string, { why: string; by: string; date: string }>;
   timeline: TimelineEvent[];
   /**
    * Started from the procurement calendar: the plan item and the project budget line it buys
@@ -399,8 +404,10 @@ export type Draft = {
   model: string;
   at: string;
   by: string;
-  /** Changed by a person after drafting. */
+  /** Changed by a person after drafting, or read through and confirmed as it stands. */
   edited: boolean;
+  /** Read through and confirmed with no changes needed (edited is true too). */
+  asIs?: boolean;
 };
 
 export type PlanLink = {
@@ -681,6 +688,15 @@ const competitive = (p: Procurement) => p.route !== "sole";
 const evaluated = (p: Procurement) => competitive(p) || (p.route === "sole" && rules.soleSourceKeepsSteps === true);
 const fmt = (n: number) => n.toLocaleString("en-US");
 
+/**
+ * An "AI check reviewed" tick: only once the step's AI check has run and its findings are there to
+ * read. Where AI is not available, the person overrides it with the reason (checked by hand).
+ */
+const AI_GATE = {
+  auto: (p: Procurement) => (p.ai?.[p.step] ? null : { ok: false, detail: "Run the AI check above first, then read its findings" }),
+  resolve: "AI check not available: checked by hand",
+};
+
 export const steps: Step[] = [
   {
     id: "need",
@@ -902,7 +918,14 @@ export const steps: Step[] = [
     checks: [
       { id: "three", label: "Three suppliers priced (written quotes above $500)", why: "Micro: market pricing from three suppliers. Small: three written quotations, or a memo explaining why fewer.", tag: "D1 §5.1, §5.2", resolve: "Memo explaining fewer quotations filed", auto: (p) => quotesCheck(p) },
       { id: "lowest", label: "Lowest price that meets the specification chosen", why: "Small purchases are awarded to the lowest compliant quotation.", tag: "D1 §5.2", auto: (p, money) => lowestCheck(p, money) },
-      { id: "screened", label: "Supplier screened and the result reviewed by a person", why: "No order or payment to any party before screening. A person reviews every result.", tag: "D1 §4.8; TS" },
+      {
+        id: "screened",
+        label: "Supplier screened and the result reviewed by a person",
+        why: "No order or payment to any party before screening. A person reviews every result.",
+        tag: "D1 §4.8; TS",
+        // Where the purchase has its own screening step next, it is done there, not promised here.
+        auto: (p) => (stepsFor(p).some((s) => s.id === "screen") ? { ok: true, detail: "Done at the next step: Screen the chosen supplier" } : null),
+      },
     ],
   },
   {
@@ -936,7 +959,7 @@ export const steps: Step[] = [
     signs: { doc: "Solicitation (RFQ/RFP)", as: "Compliance cleared by (Home Office)" },
     note: "Target: 3 working days from a complete submission.",
     checks: [
-      { id: "aiSol", label: "AI consistency pre-check reviewed", why: "Weights sum as stated, every annex exists, thresholds read the same everywhere. AI flags; the reviewer decides.", tag: "D1 §5.4; TS", ai: true },
+      { id: "aiSol", label: "AI consistency pre-check reviewed", why: "Weights sum as stated, every annex exists, thresholds read the same everywhere. AI flags; the reviewer decides.", tag: "D1 §5.4; TS", ai: true, ...AI_GATE },
       { id: "fixes", label: "Required corrections confirmed as applied", why: "The reviewer who required a correction confirms it in writing.", tag: "D1 §4.17" },
     ],
   },
@@ -1121,7 +1144,7 @@ export const steps: Step[] = [
     signs: { doc: "Contract / PO", as: "Prepared and checked by (procurement)" },
     checks: [
       { id: "clauses", label: "Required clauses present", why: "Audit, records, anti-corruption, safeguarding, labor, E&S, data, IP, termination, subcontracting.", tag: "D1 §4.11" },
-      { id: "aiConform", label: "AI conformity check reviewed", why: "Contract compared with the solicitation, winning bid and donor annex before signature. AI flags; a person records the check.", tag: "D1 §4.11; TS", ai: true },
+      { id: "aiConform", label: "AI conformity check reviewed", why: "Contract compared with the solicitation, winning bid and donor annex before signature. AI flags; a person records the check.", tag: "D1 §4.11; TS", ai: true, ...AI_GATE },
       { id: "pass1", label: "Checklist pass 1 complete", why: "The first of two points where a procurement can still be stopped.", tag: "D1 §4.17" },
       {
         id: "schedule",
@@ -1208,9 +1231,9 @@ export const steps: Step[] = [
         label: "Cover memo drafted and corrected",
         why: "Summarises what was bought, how, from whom, for how much, and anything outstanding.",
         tag: "TS",
-        auto: (p) => ({ ok: !!p.drafts?.["Procurement package"]?.edited, detail: !p.drafts?.["Procurement package"] ? "Draft it above" : p.drafts["Procurement package"].edited ? "Corrected" : "Drafted: read and correct it" }),
+        auto: (p) => ({ ok: !!p.drafts?.["Procurement package"]?.edited, detail: !p.drafts?.["Procurement package"] ? "Draft it above" : p.drafts["Procurement package"].edited ? (p.drafts["Procurement package"].asIs ? "Read: no changes needed" : "Corrected") : "Drafted: read and correct it" }),
       },
-      { id: "aiPackage", label: "AI completeness check reviewed", why: "Missing documents, approvals out of order and figures that do not match. AI flags; procurement decides.", tag: "D1 §4.17; TS", ai: true },
+      { id: "aiPackage", label: "AI completeness check reviewed", why: "Missing documents, approvals out of order and figures that do not match. AI flags; procurement decides.", tag: "D1 §4.17; TS", ai: true, ...AI_GATE },
       { id: "filed", label: "Every document filed under the procurement ID", why: "Finance and auditors find the whole record in one place.", tag: "D1 §4.16" },
     ],
   },
@@ -1335,7 +1358,7 @@ export const steps: Step[] = [
         },
       },
       { id: "pass2", label: "Checklist pass 2 complete (file, receipt, screening, tax)", why: "No payment without a complete file, a certified receipt and screening evidence.", tag: "D1 §4.13, §4.17" },
-      { id: "aiFinance", label: "AI finance review read", why: "Order, received note, invoice, budget line, approvals and screening compared. AI flags; Finance decides.", tag: "TS", ai: true },
+      { id: "aiFinance", label: "AI finance review read", why: "Order, received note, invoice, budget line, approvals and screening compared. AI flags; Finance decides.", tag: "TS", ai: true, ...AI_GATE },
     ],
   },
   {
@@ -1563,7 +1586,8 @@ export function completeStep(p: Procurement, sig: { name: string; date: string; 
 
 export function checkState(p: Procurement, c: Check, money: Money = usdFmt): { ok: boolean; auto: boolean; detail?: string } {
   const r = c.auto?.(p, money);
-  if (r && !r.ok && p.checks[`fix.${p.step}.${c.id}`]) return { ok: true, auto: true, detail: `${r.detail} · ${c.resolve}` };
+  const key = `fix.${p.step}.${c.id}`;
+  if (r && !r.ok && p.checks[key]) return { ok: true, auto: true, detail: `${r.detail} · ${c.resolve}${p.overrides?.[key] ? `: ${p.overrides[key].why}` : ""}` };
   if (r) return { ok: r.ok, auto: true, detail: r.detail };
   return { ok: !!p.checks[`${p.step}.${c.id}`], auto: false };
 }

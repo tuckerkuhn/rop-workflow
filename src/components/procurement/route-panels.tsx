@@ -117,6 +117,17 @@ export function SupplierField({ p, editable, update, register }: { p: Procuremen
           </Link>{" "}
           with its licence, then screen it.
         </p>
+        {/* The supplier of the chosen quotation, when it is in the register and not picked yet. */}
+        {!chosen &&
+          (() => {
+            const bid = (p.bids ?? []).find((b) => b.id === p.selectedBid);
+            const r = bid?.supplierId ? register.find((x) => x.id === bid.supplierId) : undefined;
+            return r && editable ? (
+              <button type="button" onClick={() => pick(r.id)} className="mt-2 rounded-full bg-forest px-4 py-2 text-sm font-semibold text-forest-ink">
+                Use {r.name}, from the chosen quotation
+              </button>
+            ) : null;
+          })()}
         <select id={`supplier-${p.id}`} value={chosen?.id ?? ""} onChange={(e) => pick(e.target.value)} className={`mt-2 ${field}`}>
           <option value="">{name && !chosen ? `${name} (not in the register: pick its record)` : "Pick a supplier"}</option>
           {register
@@ -213,7 +224,7 @@ export function DraftPanel({
       setBusy(false);
     }
   };
-  const setDraft = (next: Draft) => update((q) => ({ ...q, drafts: { ...q.drafts, [doc]: { ...next, edited: true } }, checks: unreview(q) }));
+  const setDraft = (next: Draft) => update((q) => ({ ...q, drafts: { ...q.drafts, [doc]: { ...next, edited: true, asIs: false } }, checks: unreview(q) }));
 
   return (
     <div className={box}>
@@ -222,10 +233,20 @@ export function DraftPanel({
         {draft && (
           <p className="text-xs text-muted">
             AI draft ({draft.model}), {draft.at}
-            {draft.edited ? " · corrected" : " · not yet corrected"}
+            {draft.edited ? (draft.asIs ? " · read, no changes needed" : " · corrected") : " · not yet read"}
           </p>
         )}
       </div>
+      {/* A draft that is right as it stands: the person says they read it, rather than making a token edit. */}
+      {draft && editable && !draft.edited && (
+        <button
+          type="button"
+          onClick={() => update((q) => ({ ...q, drafts: { ...q.drafts, [doc]: { ...draft, edited: true, asIs: true } }, checks: unreview(q) }))}
+          className="mt-2 rounded-full border border-line px-4 py-2 text-sm font-medium hover:bg-sunken"
+        >
+          I have read it all: no changes needed
+        </button>
+      )}
       {!draft ? (
         <p className="mt-1 text-sm text-muted">
           {editable ? "Draft it from the approved request with AI, then read and correct every section. Takes about a minute." : "Procurement drafts this from the request."}

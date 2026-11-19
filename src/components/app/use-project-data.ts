@@ -1,5 +1,6 @@
 "use client";
 
+import { trackSave } from "@/components/app/saving-sign";
 import { OFFLINE, plainError } from "@/lib/plain-error";
 import type { VoucherSetup } from "@/lib/voucher-setup";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -73,7 +74,7 @@ export function useFieldData(code = "A-2027") {
   const queue = useRef<Promise<void>>(Promise.resolve());
   const save = useCallback(
     (body: { ids?: string[]; stock?: Stock }) => {
-      queue.current = queue.current.then(async () => {
+      queue.current = trackSave(queue.current.then(async () => {
         const items = body.ids ? current.current.filter((i) => body.ids!.includes(i.id)).map((i) => ({ ...i, rev: revs.current.get(i.id) || undefined })) : undefined;
         if (body.ids && !items?.length) return;
         try {
@@ -98,7 +99,7 @@ export function useFieldData(code = "A-2027") {
           await reload();
           setError(`Not saved: ${e instanceof Error ? e.message : e}`);
         }
-      });
+      }));
       return queue.current;
     },
     [code, user?.id, reload],
@@ -194,7 +195,7 @@ export function useProcurements(code = "A-2027") {
       const moves = snap.some((p) => stepBefore.has(p.id) && stepBefore.get(p.id) !== p.step);
       const entry = { snap };
       pendingSaves.current.push(entry);
-      queue.current = queue.current.then(async () => {
+      queue.current = trackSave(queue.current.then(async () => {
         pendingSaves.current.splice(pendingSaves.current.indexOf(entry), 1);
         const sameRecords = (later: Procurement[]) => later.length === snap.length && later.every((x) => snap.some((y) => y.id === x.id && y.step === x.step));
         if (!moves && pendingSaves.current.some((e) => sameRecords(e.snap))) return;
@@ -211,7 +212,7 @@ export function useProcurements(code = "A-2027") {
           await reload();
           setError(`Not saved: ${e instanceof Error ? e.message : e}`);
         }
-      });
+      }));
     },
     [code, user?.id, reload],
   );

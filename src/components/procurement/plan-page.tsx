@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useT } from "@/components/app/i18n";
 import { useRequireUser } from "@/components/app/session";
@@ -35,6 +35,11 @@ export function ProcurementPlanPage() {
   const { date } = useT();
   const [filter, setFilter] = useState<Filter>("all");
   const [open, setOpen] = useState<string | null>(null);
+  // On a phone the details sit below the list: bring them into view when a purchase is opened.
+  const detailRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (open && window.matchMedia("(max-width: 1023px)").matches) detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [open]);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -265,6 +270,7 @@ export function ProcurementPlanPage() {
             </div>
             <div className="lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:self-start lg:overflow-y-auto lg:rounded-2xl">
               {current ? (
+                <div ref={detailRef} className="scroll-mt-20">
                 <Detail
                   key={current.key}
                   item={current}
@@ -276,6 +282,7 @@ export function ProcurementPlanPage() {
                   onAct={plan.act}
                   onClose={() => setOpen(null)}
                 />
+                </div>
               ) : (
                 <p className="hidden rounded-2xl border border-dashed border-line p-6 text-center text-sm text-muted lg:block">Open a purchase to see what it is for, how it will be bought and who approves it.</p>
               )}

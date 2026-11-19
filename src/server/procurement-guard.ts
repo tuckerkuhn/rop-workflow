@@ -103,7 +103,7 @@ const FIELD_STEPS: Record<string, string[]> = {
   funding: [],
 };
 /** Parts of the record anyone with procurement access may add to at any stage. */
-const FREE = new Set(["timeline", "links", "issues", "signatures", "checks", "step", "payments", "updatedAt", "distribution", "rev"]);
+const FREE = new Set(["timeline", "links", "issues", "signatures", "checks", "step", "payments", "updatedAt", "distribution", "rev", "overrides"]);
 
 /**
  * Distribution to participants: lists and checks are added, never changed, each in the name of

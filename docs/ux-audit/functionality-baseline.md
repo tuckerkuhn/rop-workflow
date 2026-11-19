@@ -55,6 +55,16 @@ walk-through of the screens; roles in brackets.
   Dari and Pashto; English text inside a Dari/Pashto page reads the right way round. Nothing
   translated yet; untranslated text shows in English as before. No function removed. One fix on
   the way: "1 days to fix" now reads "1 day to fix".
+- After the test-bench pass (2026-11-19): quotations show whether the supplier is in the register
+  (with a link to add it), and choosing a registered supplier's quotation carries it on to
+  screening; "Supplier screened" at the quotation step passes itself where a screening step
+  follows (still a tick where none does); overriding an automatic check (e.g. fewer than three
+  quotations) asks why and for the memo link, kept on the record, in its history and on the source
+  selection memo; "AI … reviewed" ticks open once the AI check has run, or are overridden with a
+  reason where AI is not available; AI drafts can be confirmed "read, no changes needed" as well as
+  edited; the package AI check no longer flags invoice and tax before those steps; on phones the
+  calendar's details scroll into view; a "Saving… / Saved" sign shows while field and procurement
+  changes are on their way. No function removed.
 
 ## Home `/home`
 Role dashboard: next step, Waiting on you (Approve / Fix / Due), Getting started checklist, quarter

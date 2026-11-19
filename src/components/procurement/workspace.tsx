@@ -1,5 +1,6 @@
 "use client";
 
+import { askReason } from "@/components/app/dialogs";
 import { Arrow } from "@/components/app/arrow";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -715,7 +716,22 @@ function Detail({
                   canEdit={mine}
                   onToggle={() => update((q) => ({ ...q, checks: { ...q.checks, [`${q.step}.${c.id}`]: !q.checks[`${q.step}.${c.id}`] } }))}
                   onRaise={(note) => setRaising(note)}
-                  onResolve={() => update((q) => log({ ...q, checks: { ...q.checks, [`fix.${q.step}.${c.id}`]: true } }, c.resolve!))}
+                  onResolve={async () => {
+                    // Overriding an automatic check always says why, and where any memo is filed.
+                    const why = await askReason({
+                      message: `${c.resolve}. Say why, and paste the SharePoint link to the memo if there is one.`,
+                      placeholder: "e.g. Only two suppliers sell this in the district. Memo: https://rootsofpeace.sharepoint.com/...",
+                      confirm: c.resolve!,
+                      min: 10,
+                    });
+                    if (!why) return;
+                    update((q) =>
+                      log(
+                        { ...q, checks: { ...q.checks, [`fix.${q.step}.${c.id}`]: true }, overrides: { ...q.overrides, [`fix.${q.step}.${c.id}`]: { why, by: user?.name ?? "", date: today() } } },
+                        `${c.resolve}: ${why}`,
+                      ),
+                    );
+                  }}
                 />
               );
             })}

@@ -1,5 +1,6 @@
 "use client";
 
+import { lastScreening } from "@/lib/suppliers";
 import Link from "next/link";
 import { useState } from "react";
 import type { SupplierRow } from "@/components/procurement/suppliers-page";
@@ -67,6 +68,20 @@ export function BidsPanel({ p, editable, update, register, money }: { p: Procure
                   ) : (
                     <input disabled={!receiving} value={b.supplier} onChange={(e) => setBid(b.id, { supplier: e.target.value })} className={`mt-1 ${field}`} />
                   )}
+                  {/* Whether this supplier is in the register yet: it must be before it is cleared to deliver. */}
+                  {register && b.supplier.trim() && (() => {
+                    const r = register.find((x) => x.id === b.supplierId);
+                    if (r) return <span className={`mt-1 block text-xs ${r.gaps.length ? "text-warn" : "text-muted"}`}>{r.gaps.length ? `In the supplier register, ${r.gaps.length} to resolve: ${r.gaps.join("; ")}` : "✓ In the supplier register, ready"}</span>;
+                    return (
+                      <span className="mt-1 block text-xs text-warn">
+                        Not in the supplier register yet.{" "}
+                        <Link href="/work/suppliers" className="font-semibold text-forest underline">
+                          Add it
+                        </Link>{" "}
+                        with its licence and bank details before it is cleared to deliver; then pick it here.
+                      </span>
+                    );
+                  })()}
                 </label>
                 <label>
                   <span className={lbl}>Received</span>
@@ -133,7 +148,14 @@ export function BidsPanel({ p, editable, update, register, money }: { p: Procure
                     </label>
                   )}
                   <label className="flex items-center gap-2 text-sm sm:col-span-2">
-                    <input type="radio" name={`chosen-${p.id}`} checked={p.selectedBid === b.id} disabled={b.passes !== true} onChange={() => set(() => ({ selectedBid: b.id }))} />
+                    <input type="radio" name={`chosen-${p.id}`} checked={p.selectedBid === b.id} disabled={b.passes !== true} onChange={() =>
+                      set(() => {
+                        // A registered supplier chosen here carries on to screening; at the quotation step the record takes it now.
+                        const r = register?.find((x) => x.id === b.supplierId);
+                        return p.step === "quotes" && r ? { selectedBid: b.id, supplier: { id: r.id, name: r.name, screenedOn: lastScreening(r)?.date ?? "", licenceNo: r.licenceNo, licenceExpiry: r.licenceExpiry } } : { selectedBid: b.id };
+                      })
+                    }
+                  />
                     Chosen
                   </label>
                 </div>

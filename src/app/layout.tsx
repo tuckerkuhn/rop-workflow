@@ -1,4 +1,5 @@
 import { DialogHost } from "@/components/app/dialogs";
+import { SavingSign } from "@/components/app/saving-sign";
 import type { Metadata } from "next";
 import { Fraunces, Inter, JetBrains_Mono, Vazirmatn } from "next/font/google";
 import { cookies } from "next/headers";
@@ -53,6 +54,7 @@ export default async function RootLayout({
             {children}
             <OfflineSupport />
             <DialogHost />
+            <SavingSign />
           </SessionProvider>
         </I18nProvider>
       </body>
