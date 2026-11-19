@@ -18,7 +18,7 @@ import { canEditProject, type AppUser } from "@/lib/demo";
 import { quartersLabel } from "@/lib/monthly-review";
 import { STATUS_LABEL, mayWriteReport, type Status } from "@/lib/qpr";
 import { procRolesFor } from "@/lib/procurement";
-import { projectByCode, setupFor } from "@/server/field-store";
+import { farmerNames, projectByCode, setupFor } from "@/server/field-store";
 import { DONE, stepById } from "@/lib/procurement";
 import { handRecordedCounts } from "@/server/kobo-fed";
 import { loadReview, rawReview } from "@/server/monthly-review-store";
@@ -262,10 +262,13 @@ export async function loadHome(code: string, u: AppUser) {
   }
   // Read once for both rows below.
   const dists = await listDistributions(code).catch(() => []);
+  // The farmer's name first for people allowed to see it ("Shirin Ahmadi (F-0007)"); the number alone for anyone else.
+  const names = dists.length ? await farmerNames(project.id, u) : new Map<string, string>();
+  const farmerOf = (id: string) => (names.get(id) ? `${names.get(id)} (${id})` : id);
   if (koboRule.who !== "manager") {
     const unchecked = dists.filter((d) => d.koboCheck.needed && d.koboCheck.who.includes(u.id)).reverse();
     const n = unchecked.length;
-    if (n) actions.push({ key: "kobo-check", for: lenses[0], bucket: "approve", urgent: true, text: n === 1 ? `Check the KoboCollect distribution to ${unchecked[0].farmerId} before it goes to the project manager` : `Check ${n} KoboCollect distributions before they go to the project manager`, href: `/approve/${encodeURIComponent(code)}/${unchecked[0].id}` });
+    if (n) actions.push({ key: "kobo-check", for: lenses[0], bucket: "approve", urgent: true, text: n === 1 ? `Check the KoboCollect distribution to ${farmerOf(unchecked[0].farmerId)} before it goes to the project manager` : `Check ${n} KoboCollect distributions before they go to the project manager`, href: `/approve/${encodeURIComponent(code)}/${unchecked[0].id}` });
   }
   // Input distributions waiting for the project manager (server/distribution), oldest first.
   // One from KoboCollect is hers once it has been checked.
@@ -273,7 +276,7 @@ export async function loadHome(code: string, u: AppUser) {
   {
     const waiting = dists.filter((d) => d.status === "pending" && !d.koboCheck.needed && d.approvers.includes(u.id)).reverse();
     const n = waiting.length;
-    if (n) actions.push({ key: "distributions", for: lenses.includes("field") ? "field" : (lenses[0] ?? "lead"), bucket: "approve", urgent: true, text: n === 1 ? `Approve the input distribution to ${waiting[0].farmerId}` : `Approve ${n} input distributions`, href: `/approve/${encodeURIComponent(code)}/${waiting[0].id}` });
+    if (n) actions.push({ key: "distributions", for: lenses.includes("field") ? "field" : (lenses[0] ?? "lead"), bucket: "approve", urgent: true, text: n === 1 ? `Approve the input distribution to ${farmerOf(waiting[0].farmerId)}` : `Approve ${n} input distributions`, href: `/approve/${encodeURIComponent(code)}/${waiting[0].id}` });
   }
   // Proposals belong to the organization, so their rows show on Home whichever project is open:
   // what this person must sign first, then what they own (lib/funding-proposals mine).
@@ -333,7 +336,7 @@ export async function loadHome(code: string, u: AppUser) {
         bucket: coming.length ? "due" : "fix",
         urgent: !coming.length,
         text: coming.length
-          ? `${who.replace(/ is$| are$/, "")} waiting at Distribute for inputs on the way: ${coming.map((p) => `${p.id} ${p.title} (${stepById[p.step]?.title ?? p.step})`).join("; ")}.`
+          ? `${who} waiting for inputs still being bought: ${coming.map((p) => `${p.title} (${p.id}, now at "${stepById[p.step]?.title ?? p.step}")`).join("; ")}.`
           : `The store cannot supply the input package: ${who} waiting at Distribute. ${short}`,
         href: coming.length ? `/work?source=procurement&open=${encodeURIComponent(coming[0].id)}&project=${encodeURIComponent(code)}` : "/work/plan",
       });

@@ -121,7 +121,7 @@ describe("Field activities on a real project", { timeout: 60_000 }, () => {
   });
 
   it("shows the approval and the waiting farmer on Home, as on the demo project", async () => {
-    expect((await loadHome(code, nadia)).actions.find((a) => a.key === "distributions")?.text).toBe("Approve the input distribution to T-001");
+    expect((await loadHome(code, nadia)).actions.find((a) => a.key === "distributions")?.text).toBe("Approve the input distribution to Test Person One (T-001)");
     expect((await loadHome(code, bilal)).actions.find((a) => a.key === "field:distribute")?.text).toBe("Distribute the input package: 1 farmer is waiting for you");
   });
 

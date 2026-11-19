@@ -76,6 +76,14 @@ export function levelFor(value: number): Level {
   return "Large";
 }
 
+/** "Medium purchase ($5,000 to $25,000)": the level with the range it covers, from the thresholds in force. */
+export function levelText(level: Level): string {
+  const usd = (n: number) => `$${n.toLocaleString("en-US")}`;
+  const micro = rule("microMaxUsd", 500), small = rule("smallMaxUsd", 5000), large = rule("largeAboveUsd", 25000);
+  const range = level === "Micro" ? `up to ${usd(micro)}` : level === "Small" ? `${usd(micro)} to ${usd(small)}` : level === "Medium" ? `${usd(small)} to ${usd(large)}` : `over ${usd(large)}`;
+  return `${level} purchase (${range})`;
+}
+
 /** A bid committee: always for best value; for lowest price above the committee threshold (below it, programme management may waive it). */
 export const committeeNeeded = (p: Procurement) => (p.evaluation === "bestValue" && rules.committeeForBestValue !== false) || valueOf(p) > rule("committeeAboveUsd", 25000);
 

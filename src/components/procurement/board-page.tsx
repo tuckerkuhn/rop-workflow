@@ -68,7 +68,8 @@ export function ProcurementBoardPage() {
 
   return (
     <div className="min-h-screen">
-      <TopBar active="procurement" />
+      {/* The organization's view across projects: not this project's Procurement tab. */}
+      <TopBar />
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
         <Link href="/organization" className="text-sm text-muted hover:text-ink">
           ← {t("nav.organization")}

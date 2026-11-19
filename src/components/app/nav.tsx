@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { MY_WORK } from "@/components/workspace/ui";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useCurrentProject } from "@/components/app/current-project";
 import { taskHref, taskSources } from "@/components/tasks/sources";
@@ -108,7 +110,13 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const source = useSearchParams().get("source");
   const { project } = useCurrentProject();
+  const [more, setMore] = useState(false);
+  // A new page closes the More sheet.
+  useEffect(() => setMore(false), [path, source]);
   if (!user) return <>{children}</>;
+  const staff = user.kind === "employee";
+  // The phone tab bar: the daily sections. Organization and Resources are under More.
+  const tabs = shown.filter((x) => !x.wideOnly && (!staff || x.id !== "organization"));
   // The workflows this person can open on this project come first under Record.
   const workflows = taskSources(user, project).map((w) => ({ href: taskHref(w), label: (w === "field" ? "tasks.field" : "tasks.procurement") as MessageKey, source: w as string }));
   const placesOf = (sec: Section): { href: string; label: MessageKey; source?: string }[] => (sec.id === "record" ? [...workflows, ...(sec.places ?? [])] : (sec.places ?? []));
@@ -160,9 +168,9 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
         aria-label={t("nav.label")}
         className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-paper/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden"
       >
-        <ul className="grid" style={{ gridTemplateColumns: `repeat(${shown.filter((x) => !x.wideOnly).length + (user.kind === "employee" ? 1 : 0)}, minmax(0, 1fr))` }}>
-          {shown.filter((x) => !x.wideOnly).map((s) => {
-            const on = isActive(s);
+        <ul className="grid" style={{ gridTemplateColumns: `repeat(${tabs.length + (staff ? 2 : 0)}, minmax(0, 1fr))` }}>
+          {tabs.map((s) => {
+            const on = isActive(s) && !more;
             return (
               <li key={s.id}>
                 <Link
@@ -177,7 +185,7 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
             );
           })}
           {/* On phones the assistant is a tab here, not a button floating over the work. */}
-          {user.kind === "employee" && (
+          {staff && (
             <li>
               <button type="button" onClick={() => window.dispatchEvent(new Event(OPEN_ASSISTANT))} className="flex h-16 w-full flex-col items-center justify-center gap-0.5 text-xs text-muted">
                 <Sparkle className="h-5 w-5" />
@@ -185,8 +193,72 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
               </button>
             </li>
           )}
+          {/* More: every section and its pages, which the tab bar has no room for. */}
+          {staff && (
+            <li>
+              <button
+                type="button"
+                onClick={() => setMore(!more)}
+                aria-expanded={more}
+                aria-controls="more-sheet"
+                className={`flex h-16 w-full flex-col items-center justify-center gap-0.5 text-xs ${more || (!tabs.some((s) => isActive(s)) && shown.some((s) => isActive(s))) ? "font-semibold text-forest" : "text-muted"}`}
+              >
+                {icon("M4 6h16M4 12h16M4 18h16")}
+                {t("nav.more")}
+              </button>
+            </li>
+          )}
         </ul>
       </nav>
+
+      {more && (
+        // Above the header, and ending at the tab bar so the tabs stay visible and usable.
+        <div className="fixed inset-x-0 top-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-[45] lg:hidden" onClick={() => setMore(false)}>
+          <div aria-hidden className="absolute inset-0 bg-black/30" />
+          <section
+            id="more-sheet"
+            role="dialog"
+            aria-label={t("nav.moreTitle")}
+            onClick={(e) => e.stopPropagation()}
+            className="absolute inset-x-0 bottom-0 max-h-[85%] overflow-y-auto rounded-t-2xl border border-line bg-paper px-4 pb-4 pt-3 shadow-[0_-20px_40px_-20px_rgb(19_32_26/0.5)]"
+          >
+            <p className="px-2 pb-2 text-sm font-semibold">{t("nav.moreTitle")}</p>
+            <ul className="space-y-3">
+              {shown.map((s) => (
+                <li key={s.id}>
+                  <Link href={s.href} onClick={() => setMore(false)} aria-current={isActive(s) ? "page" : undefined} className={`flex min-h-11 items-center gap-3 rounded-xl px-2 text-base ${isActive(s) ? "font-semibold text-forest" : "text-ink"}`}>
+                    {s.icon}
+                    {t(s.label)}
+                  </Link>
+                  {placesOf(s).length > 0 && (
+                    <ul className="ms-11 border-s border-line ps-3">
+                      {placesOf(s).map((pl) => (
+                        <li key={pl.href}>
+                          <Link href={pl.href} onClick={() => setMore(false)} className="flex min-h-11 items-center text-sm text-muted hover:text-ink">
+                            {t(pl.label)}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              ))}
+              <li>
+                <p className="flex min-h-11 items-center gap-3 px-2 text-base">{icon("M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z")}{t("menu.myWork")}</p>
+                <ul className="ms-11 border-s border-line ps-3">
+                  {MY_WORK.map((l) => (
+                    <li key={l.href}>
+                      <Link href={l.href} onClick={() => setMore(false)} className="flex min-h-11 items-center text-sm text-muted hover:text-ink">
+                        {t(l.label)}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            </ul>
+          </section>
+        </div>
+      )}
 
       {/* The assistant works on project data, so it is for staff, not donors. */}
       {user.kind === "employee" && <Assistant />}

@@ -1,5 +1,6 @@
 "use client";
 
+import { unitOf } from "@/lib/package";
 import Link from "next/link";
 import { Pill, Loading } from "@/components/workspace/ui";
 import { NextReportPanel } from "@/components/home/next-report";
@@ -28,7 +29,7 @@ const LEVEL: Record<Level, { word: string; icon: string; chip: string }> = {
   critical: { word: "Act now", icon: "!", chip: "bg-clay-soft text-clay" },
   unknown: { word: "No data", icon: "–", chip: "bg-sunken text-muted" },
 };
-const LENS_LABEL: Record<Lens, string> = { lead: "Leadership", hr: "People", mel: "MEL", finance: "Finance", procurement: "Procurement", field: "Delivery" };
+const LENS_LABEL: Record<Lens, string> = { lead: "Leadership", hr: "People", mel: "Monitoring (MEL)", finance: "Finance", procurement: "Procurement", field: "Delivery" };
 
 const pct = (n: number | null) => (n === null ? "—" : `${Math.round(n)}%`);
 const compact = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}K` : String(Math.round(n)));
@@ -306,7 +307,7 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
               {v.kobo.recent.map((r) => (
                 <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5 text-sm">
                   <span className="min-w-0 flex-1">
-                    <span className="font-semibold tabular-nums">{r.value.toLocaleString("en-US")}</span> {r.unit} · {r.target}
+                    <span className="font-semibold tabular-nums">{r.value.toLocaleString("en-US")}</span> {unitOf(r.value, r.unit)} · {r.target}
                     <span className="block text-xs text-muted">{date(r.date, { day: "numeric", month: "long" })}</span>
                   </span>
                   <Pill tone={r.status === "accepted" ? "forest" : r.status === "queried" ? "clay" : "ochre"}>{t(`home.kobo.${r.status}`)}</Pill>

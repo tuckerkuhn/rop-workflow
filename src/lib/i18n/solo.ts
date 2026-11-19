@@ -5,7 +5,7 @@
 
 export const soEn = {
   "so.title": "Solo sign-off (small teams)",
-  "so.help": "Two people sign by default: whoever prepared something does not approve it. For a small team where one person holds several roles, an administrator can let that person approve their own result, monthly review change, bill or purchase. Each time they confirm it, and it is marked self-approved in the audit log, pre-flight and the evidence packs.",
+  "so.help": "Two people sign by default: whoever prepared something does not approve it. For a small team where one person holds several roles, an administrator can let that person approve their own result, monthly review change, bill or purchase. Each time they confirm it, and it is marked self-approved in the audit log, the report check and the evidence packs.",
   "so.never": "Never alone, even in solo mode: large awards, sole sources and exceptions, and any project whose donor requires a second person.",
   "so.on": "Solo mode is on",
   "so.off": "Solo mode is off",

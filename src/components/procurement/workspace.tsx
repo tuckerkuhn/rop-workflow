@@ -49,6 +49,7 @@ import {
   issueHelp,
   issueTypes,
   levelFor,
+  levelText,
   lineOf,
   ownerOf,
   prevStep,
@@ -499,9 +500,6 @@ function Detail({
   const blocks = blockingIssues(p);
   const docs = documentsOf(p);
   const reviewed = !!p.checks[reviewKey(p)];
-  const letters: Record<number, string[]> = {};
-  stepsFor(p).forEach((s) => s.gate && (letters[s.stage] = [...(letters[s.stage] ?? []), s.gate]));
-  const gates = Object.fromEntries(Object.entries(letters).map(([k, g]) => [k, `${g.length > 1 ? "Gates" : "Gate"} ${g.join("·")}`]));
 
   const log = (q: Procurement, what: string): Procurement => ({ ...q, timeline: [...q.timeline, { date: today(), who: role ?? "procurement", what, ...(user ? { by: user.name } : {}) }] });
 
@@ -518,7 +516,7 @@ function Detail({
       <div>
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-mono text-xs text-muted">{p.id}</span>
-          <Pill tone="muted">{levelFor(value)}</Pill>
+          <Pill tone="muted">{levelText(levelFor(value))}</Pill>
           {p.urgent && <Pill tone="clay">Urgent</Pill>}
           {p.feeds && <Pill tone="sky">Feeds field inputs</Pill>}
           {p.grant && links && (
@@ -551,7 +549,7 @@ function Detail({
       </div>
 
       <div className="rounded-2xl border border-line bg-surface px-4 py-4">
-        <Tracker labels={stages} current={p.step === DONE ? stages.length : step.stage} marks={gates} skipped={stages.map((_, i) => i).filter((i) => !stepsFor(p).some((s) => s.stage === i))} />
+        <Tracker labels={stages} current={p.step === DONE ? stages.length : step.stage} skipped={stages.map((_, i) => i).filter((i) => !stepsFor(p).some((s) => s.stage === i))} />
       </div>
 
       {p.step === DONE ? (
@@ -571,7 +569,7 @@ function Detail({
         <StepCard
           mine={mine}
           ownerLabel={rolePersonFor(p, owner!)}
-          eyebrow={step.gate && `Gate ${step.gate}`}
+          info={step.gate ? `In the procurement policy this step is sign-off point ${step.gate} ("gate ${step.gate}"): the purchase cannot go further until it is signed.` : undefined}
           title={step.title}
           note={step.note}
           onViewAs={ownerUser && mode === "demo" ? () => signIn(ownerUser.id) : undefined}
@@ -954,7 +952,6 @@ export function ProcurementWorkspace() {
                       ) : (
                         <Pill tone={o === role ? "forest" : "muted"}>
                           {s.title}
-                          {s.gate && ` · ${s.gate}`}
                         </Pill>
                       )}
                       {blockingIssues(p).length > 0 && <Pill tone="clay">Issue</Pill>}

@@ -372,7 +372,7 @@ export function VoucherPanel({ p, editable, update, coding, preparedByMe }: { p:
   );
   return (
     <div className={box}>
-      <p className="text-sm font-semibold">Expense voucher{v.number ? ` · VENDBILL # ${v.number}` : ""}</p>
+      <p className="text-sm font-semibold">Expense voucher{v.number ? ` · NetSuite bill number (VENDBILL #) ${v.number}` : ""}</p>
       <p className="mt-1 text-xs text-muted">
         {reviewing
           ? "Open the voucher below and check the coding and the balance. If something is wrong, send it back to the person who prepared it. Then file the signed voucher in SharePoint."
@@ -405,7 +405,7 @@ export function VoucherPanel({ p, editable, update, coding, preparedByMe }: { p:
       {!reviewing && (
         <div className="mt-4 grid gap-3 sm:grid-cols-[16rem_1fr] sm:items-end">
           <label>
-            <span className="text-xs font-medium text-muted">VENDBILL # from NetSuite</span>
+            <span className="text-xs font-medium text-muted">NetSuite bill number (VENDBILL #)</span>
             <input disabled={!codingOn || gaps.length > 0} value={v.number} onChange={(e) => set({ number: e.target.value.trim() })} className={`mt-1 ${field}`} />
           </label>
           <p className="text-xs text-muted">{gaps.length ? `Before entering it in NetSuite, add ${gaps.join(", ")}.` : "Coded. Enter it in NetSuite and type the number it gets."}</p>

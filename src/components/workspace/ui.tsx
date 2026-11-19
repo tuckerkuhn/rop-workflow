@@ -6,12 +6,13 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useT } from "@/components/app/i18n";
+import type { MessageKey } from "@/lib/i18n";
 import { CurrencyToggle, Initials, useSession } from "@/components/app/session";
 import { TaskSourceSwitch } from "@/components/tasks/sources";
 import { LogoMark } from "@/components/logo";
 import { canEditProject, langLabel, users } from "@/lib/demo";
 import { LANGS, isLang } from "@/lib/i18n";
-import { Tagged } from "@/components/status-tag";
+import { plainSources } from "@/components/status-tag";
 
 /** Shared building blocks for the Field activities and Procurement workspaces. */
 
@@ -143,7 +144,7 @@ export function CheckRow({
       <div className="flex items-start gap-3">
         {c.auto ? (
           <span
-            title="Checked by the system"
+            title="Checked by the app"
             className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full text-xs font-bold text-white ${c.ok ? "bg-leaf" : "bg-clay"}`}
           >
             {c.ok ? "✓" : "!"}
@@ -161,8 +162,8 @@ export function CheckRow({
         <div className="min-w-0 flex-1">
           <label htmlFor={c.key} className={`block leading-snug ${!c.auto && canEdit ? "cursor-pointer" : ""}`}>
             {c.label}
-            {c.auto && <span className="ml-2 text-xs font-semibold uppercase tracking-wide text-muted">auto</span>}
-            {c.findings && <span className="ml-2 rounded bg-plum-soft px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-plum">AI pre-check</span>}
+            {c.auto && <span className="ms-2 text-xs text-muted">· checked by the app</span>}
+            {c.findings && <span className="ms-2 rounded bg-plum-soft px-1.5 py-0.5 text-xs font-semibold text-plum">AI suggestions</span>}
           </label>
           {c.detail && <p className={`mt-0.5 text-sm ${c.ok ? "text-muted" : "font-medium text-clay"}`}>{c.detail}</p>}
           {c.findings && (
@@ -197,7 +198,8 @@ export function CheckRow({
           )}
           {open && (
             <p className="mt-1.5 text-sm leading-relaxed text-muted">
-              {c.why} {c.tag && <Tagged text={`[${c.tag}]`} />}
+              {c.why}
+              {c.tag && <span className="mt-1 block text-xs">Where this comes from: {plainSources(c.tag)}</span>}
             </p>
           )}
         </div>
@@ -398,6 +400,7 @@ export function StepCard({
   eyebrow,
   title,
   note,
+  info,
   onViewAs,
   switchLabel,
   children,
@@ -408,12 +411,15 @@ export function StepCard({
   eyebrow?: string;
   title: string;
   note?: string;
+  /** Background for the step (e.g. which policy sign-off point it is), behind a "?" beside the title. */
+  info?: string;
   /** Demo shortcut: sign in as the person whose turn it is. */
   onViewAs?: () => void;
   switchLabel?: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
 }) {
+  const [showInfo, setShowInfo] = useState(false);
   return (
     <section className={`rounded-2xl border-2 bg-surface ${mine ? "border-forest" : "border-line"}`}>
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-line px-5 py-4">
@@ -422,7 +428,15 @@ export function StepCard({
             {mine ? "Your turn" : `Waiting on ${ownerLabel}`}
             {eyebrow && <span className="ml-2 text-warn">· {eyebrow}</span>}
           </p>
-          <h3 className="mt-1 font-display text-2xl tracking-tight">{title}</h3>
+          <h3 className="mt-1 font-display text-2xl tracking-tight">
+            {title}
+            {info && (
+              <button type="button" onClick={() => setShowInfo(!showInfo)} aria-expanded={showInfo} aria-label="About this step" className="ms-2 inline-grid h-6 w-6 place-items-center rounded-full border border-line align-middle font-sans text-xs font-semibold text-muted hover:border-forest hover:text-forest">
+                ?
+              </button>
+            )}
+          </h3>
+          {info && showInfo && <p className="mt-1 text-sm text-muted">{info}</p>}
           {note && <p className="mt-1 text-sm text-muted">{note}</p>}
         </div>
         {!mine && onViewAs && (
@@ -506,6 +520,15 @@ function LanguagePicker() {
 }
 
 /** Top bar used on every signed-in page: current project, the page's own controls, currency, and who you are. */
+/** A person's own pages, from the person menu and the phone's More tab: not hidden behind Home cards. */
+export const MY_WORK: { href: string; label: MessageKey }[] = [
+  { href: "/people/me", label: "home.myDetails" },
+  { href: "/timesheets", label: "ts.title" },
+  { href: "/leave", label: "lv.title" },
+  { href: "/expenses", label: "exp.title" },
+  { href: "/settings", label: "menu.settings" },
+];
+
 export function TopBar({ active, children }: { active?: "design" | "project" | "tasks" | "field" | "procurement"; children?: React.ReactNode }) {
   const { user, actor, viewingAs, viewAs, mode, signOut } = useSession();
   const { t } = useT();
@@ -570,6 +593,16 @@ export function TopBar({ active, children }: { active?: "design" | "project" | "
                   <p className="px-2 text-xs text-muted">
                     {user.title} · {user.org}
                   </p>
+                  {user.kind === "employee" && (
+                    <nav aria-label={t("menu.myWork")} className="mt-2 border-t border-line pt-2">
+                      <p className="px-2 pb-1 text-xs font-semibold uppercase tracking-wide text-muted">{t("menu.myWork")}</p>
+                      {MY_WORK.map((l) => (
+                        <Link key={l.href} href={l.href} onClick={() => setMenu(false)} className="block rounded-lg px-2 py-1.5 text-sm hover:bg-sunken">
+                          {t(l.label)}
+                        </Link>
+                      ))}
+                    </nav>
+                  )}
                   <div className="mt-2 border-t border-line pt-2">
                     <LanguagePicker />
                     <Link href="/about" className="block rounded-lg px-2 py-1.5 text-sm hover:bg-sunken">

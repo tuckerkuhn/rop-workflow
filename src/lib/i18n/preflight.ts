@@ -5,7 +5,7 @@
  */
 
 export const pfEn = {
-  "pf.title": "Pre-flight",
+  "pf.title": "Report check",
   "pf.intro": "Everything between this report and the donor. Fix what blocks it; the rest is worth doing before it goes out.",
   "pf.report": "Report",
   "pf.kind.qpr": "Quarterly report",
@@ -33,8 +33,8 @@ export const pfEn = {
   "pf.warn.near": "{n} days to the internal review date.",
   "pf.warn.missedAim": "The internal review date has passed. {n} days left before the donor's deadline.",
   "pf.warn.past": "The donor's deadline passed on {date}.",
-  "pf.button": "Pre-flight",
-  "pf.buttonBlocks": "Pre-flight: {n} blocking",
+  "pf.button": "Report check",
+  "pf.buttonBlocks": "Report check: {n} blocking",
   "pf.draftConfirm": "{n} items still block this report. The file will be marked \"Draft, not checked\". Download it anyway?",
 
   "pf.c.signOff": "The plan and budget are not signed off yet (the project is still in Design)",

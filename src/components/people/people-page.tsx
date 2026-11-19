@@ -1063,7 +1063,7 @@ function Ledger({ view, fmt, seal, reset, onDone }: { view: HrView; fmt: (iso: s
       </p>
       <div className="flex flex-wrap gap-2">
         <button type="button" disabled={busy} className={quietBtn} onClick={() => run(async () => { const r = await seal(); return r.sealed ? "Sealed." : (r.why ?? "Not sealed."); })}>
-          Seal now
+          Seal now (lock today&rsquo;s fingerprint)
         </button>
         {reset && (
           <button type="button" disabled={busy} className={quietBtn} onClick={() => void askConfirm({ message: "Restore the sample records? Every change made to the fictional people and pay since they were loaded is undone.", confirm: "Restore sample records", danger: true }).then((ok) => (ok ? run(async () => { await reset(); return "Sample records restored."; }) : undefined))}>
@@ -1097,7 +1097,7 @@ function Ledger({ view, fmt, seal, reset, onDone }: { view: HrView; fmt: (iso: s
               <th className="px-3 py-2 text-start font-medium">When</th>
               <th className="px-3 py-2 text-start font-medium">Who</th>
               <th className="px-3 py-2 text-start font-medium">What</th>
-              <th className="px-3 py-2 text-start font-medium">Fingerprint</th>
+              <th className="px-3 py-2 text-start font-medium">Tamper check (fingerprint)</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line">

@@ -1069,7 +1069,7 @@ export function ProjectPage({ id }: { id: string }) {
 function DatabaseProjectOverview() {
   const cards: { href: string; title: string; text: string }[] = [
     { href: "/setup", title: "Plan", text: "Goal and targets with their impact themes, budget lines and the workplan, as signed off." },
-    { href: "/setup/lens", title: "Lens review", text: "The plan read through ROP's reviewer lenses, with a decision on every gap." },
+    { href: "/setup/lens", title: "AI review of the plan", text: "AI reads the plan the way ROP's reviewers would and lists the gaps; someone decides on each one." },
     { href: "/progress/results", title: "Results and proof", text: "Results recorded with their documents and SharePoint links, checked and accepted by MEL." },
     { href: "/progress/budget", title: "Budget and spending", text: "Spending against the approved budget by activity, the forecast, and the lines to explain." },
     { href: "/progress/review", title: "Monthly review", text: "Where results and money stand, and changes to targets, budget and workplan approved by a second reviewer." },

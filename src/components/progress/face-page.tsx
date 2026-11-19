@@ -96,7 +96,7 @@ export function FacePage() {
           ← Report
         </Link>
         <div className="mt-2 flex flex-wrap items-end gap-3">
-          <h1 className="min-w-0 flex-1 font-display text-4xl tracking-tight">FACE form</h1>
+          <h1 className="min-w-0 flex-1 font-display text-4xl tracking-tight">Funding request (FACE form)</h1>
           {!v && !error && <Loading className="mt-6" />}
           {v && (
             <label className="text-sm">

@@ -362,7 +362,7 @@ function Detail({
         <StepCard
           mine={mine}
           ownerLabel={fieldPerson(owner!)}
-          eyebrow={item.step === "verify" ? "Yes / No gate" : undefined}
+          eyebrow={item.step === "verify" ? "Yes or no decision" : undefined}
           title={step.title}
           note={step.note?.(item)}
           onViewAs={ownerUser && mode === "demo" ? () => signIn(ownerUser.id) : undefined}

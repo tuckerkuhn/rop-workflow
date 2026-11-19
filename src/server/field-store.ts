@@ -88,6 +88,19 @@ function stripPII(item: FieldItem): FieldItem {
   return item.kind === "farmer" ? { ...item, name: "" } : item;
 }
 
+/** Farmers' names by farmer number, only for people allowed to see participants' names; empty for anyone else. */
+export async function farmerNames(projectId: string, user?: AppUser | null): Promise<Map<string, string>> {
+  const names = new Map<string, string>();
+  if (!canSeePII(user)) return names;
+  const pii = await db
+    .select({ code: s.farmers.code, name: s.farmerPii.fullName })
+    .from(s.farmerPii)
+    .innerJoin(s.farmers, eq(s.farmers.id, s.farmerPii.farmerId))
+    .where(eq(s.farmers.projectId, projectId));
+  pii.forEach((r) => names.set(r.code, r.name));
+  return names;
+}
+
 export async function loadField(code: string, user?: AppUser) {
   const project = await projectByCode(code);
   const rows = await db.select().from(s.fieldItems).where(eq(s.fieldItems.projectId, project.id));
@@ -97,15 +110,7 @@ export async function loadField(code: string, user?: AppUser) {
     .where(and(eq(s.projectState.projectId, project.id), eq(s.projectState.key, "stock")))
     .limit(1);
 
-  const names = new Map<string, string>();
-  if (canSeePII(user)) {
-    const pii = await db
-      .select({ code: s.farmers.code, name: s.farmerPii.fullName })
-      .from(s.farmerPii)
-      .innerJoin(s.farmers, eq(s.farmers.id, s.farmerPii.farmerId))
-      .where(eq(s.farmers.projectId, project.id));
-    pii.forEach((r) => names.set(r.code, r.name));
-  }
+  const names = await farmerNames(project.id, user);
 
   const items = rows
     .map((r) => ({ ...(r.data as FieldItem), rev: r.updatedAt.toISOString() }) as FieldItem)

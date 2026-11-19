@@ -254,7 +254,7 @@ export async function beforeDownload(project: string, user: string, loaded: Pref
     p = await fetch(`/api/projects/${project}/preflight?report=${report.kind}&period=${periodOf(report)}`, { cache: "no-store", headers: { "x-demo-user": user } })
       .then((r) => (r.ok ? (r.json() as Promise<Preflight>) : null))
       .catch(() => null);
-    if (!p) return (await askConfirm({ message: uncheckedText ?? "Pre-flight could not be checked just now. The file will be marked \"Draft, not checked\". Download it anyway?", confirm: "Download anyway" })) ? UNCHECKED : null;
+    if (!p) return (await askConfirm({ message: uncheckedText ?? "The report check could not run just now. The file will be marked \"Draft, not checked\". Download it anyway?", confirm: "Download anyway" })) ? UNCHECKED : null;
   }
   const n = p && !p.released ? p.items.filter((i) => i.group === "blocks").length : 0;
   if (!n || !p) return 0;

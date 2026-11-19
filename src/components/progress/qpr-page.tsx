@@ -297,7 +297,7 @@ export function QprPage() {
                 </button>
               )}
               {v.mayRelease && (
-                <button type="button" className={primaryBtn} disabled={!!busy || stops.length > 0 || blocking > 0} title={stops.length || blocking ? `Pre-flight lists ${Math.max(blocking, stops.length)} ${Math.max(blocking, stops.length) === 1 ? "thing" : "things"} that block the report: fix ${Math.max(blocking, stops.length) === 1 ? "it" : "them"} first.` : ""} onClick={() => void askConfirm({ message: `Mark the ${quarter} report final? It is locked for good: this copy is what the donor receives. To rehearse, use Practice release instead.`, confirm: "Mark final" }).then((ok) => (ok ? quiet(act({ action: "release" }, "Released: the report is final and can no longer be changed.")) : undefined))}>
+                <button type="button" className={primaryBtn} disabled={!!busy || stops.length > 0 || blocking > 0} title={stops.length || blocking ? `The report check lists ${Math.max(blocking, stops.length)} ${Math.max(blocking, stops.length) === 1 ? "thing" : "things"} that block the report: fix ${Math.max(blocking, stops.length) === 1 ? "it" : "them"} first.` : ""} onClick={() => void askConfirm({ message: `Mark the ${quarter} report final? It is locked for good: this copy is what the donor receives. To rehearse, use Practice release instead.`, confirm: "Mark final" }).then((ok) => (ok ? quiet(act({ action: "release" }, "Released: the report is final and can no longer be changed.")) : undefined))}>
                   Mark final{blocking ? ` (${blocking} blocking)` : ""}
                 </button>
               )}

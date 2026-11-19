@@ -29,6 +29,18 @@ walk-through of the screens; roles in brackets.
   scrolling down and returns on scroll up; the step's action buttons stay above the tab bar; the
   assistant is a tab; no text below 12 px; the field season summary wraps to two rows. No function
   removed.
+- Batch B (plain words): "auto" reads "checked by the app", "AI pre-check" reads "AI suggestions";
+  where a rule comes from is written out behind its "?" (e.g. "Draft procurement policy §4.15");
+  procurement gate letters moved from the tracker, heading and queue to the step's "?"; purchase
+  size shows its range; Home rows name the purchase before its number and, for people allowed to
+  see names, the farmer before the farmer number; the next-report summary reworded; "1 farmer";
+  Pre-flight is "Report check", Lens review is "AI review of the plan", the FACE form is "Funding
+  request (FACE)", VENDBILL reads "NetSuite bill number (VENDBILL #)", the HR ledger's fingerprint
+  and seal are explained; MEL spelled out where it first appears. Codes are kept beside the words.
+- Batch D (navigation): the person menu has My work (My details, Timesheets, Leave, Expense reports,
+  Settings); phones have a More tab listing every section and page (Organization and Resources moved
+  there from the tab bar); the large-purchase board is "Large purchases across your projects" under
+  Organization and no longer lights up this project's Procurement tab. No function removed.
 
 ## Home `/home`
 Role dashboard: next step, Waiting on you (Approve / Fix / Due), Getting started checklist, quarter

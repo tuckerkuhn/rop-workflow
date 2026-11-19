@@ -5,7 +5,7 @@
  */
 
 export const sgEn = {
-  "pf.uncheckedConfirm": "Pre-flight could not be checked just now, so the app cannot tell whether anything blocks this report. The file will be marked \"Draft, not checked\". Download it anyway?",
+  "pf.uncheckedConfirm": "The report check could not run just now, so the app cannot tell whether anything blocks this report. The file will be marked \"Draft, not checked\". Download it anyway?",
   "pf.c.typedSpend": "This quarter's spending is typed in as {typed}, but Finance's import says {imported}. The report will print the typed figure: clear it to use Finance's, or keep it and be ready to explain the difference.",
   "err.title": "This page could not load",
   "err.body": "Nothing you saved is lost. Check your connection and try again. If it keeps happening, tell an administrator.",
@@ -16,8 +16,8 @@ export const sgEn = {
   "closeout.loadFailed": "The bills could not be loaded, so vouchers may be missing from this list. Check your connection and reload the page.",
   "field.saveFailed": "The last change was not saved: {error} Check your connection, then make the change again.",
   "report.loading": "Loading the report…",
-  "report.blocked": "{n} things block this report, so it cannot be marked final yet. Pre-flight lists each one and where to fix it.",
-  "report.blockedOne": "1 thing blocks this report, so it cannot be marked final yet. Pre-flight shows what it is and where to fix it.",
+  "report.blocked": "{n} things block this report, so it cannot be marked final yet. The report check lists each one and where to fix it.",
+  "report.blockedOne": "1 thing blocks this report, so it cannot be marked final yet. The report check shows what it is and where to fix it.",
   "setup.saveFailed": "The project was not saved. Nothing you entered is lost: check your connection and press Save again.",
 };
 

@@ -19,7 +19,7 @@ export const agEn = {
   "ag.sources": "Where each answer came from",
   "ag.budgetFrom": "Proposed from {file}: check the lines, then save, or skip.",
   "ag.deadlines.title": "Report deadlines",
-  "ag.deadlines.help": "The reports the agreement requires, with their due dates over the project's life. Each one you keep becomes a Report deadline in Tasks, and pre-flight counts down to it.",
+  "ag.deadlines.help": "The reports the agreement requires, with their due dates over the project's life. Each one you keep becomes a Report deadline in Tasks, and the report check counts down to it.",
   "ag.deadlines.none": "No reporting obligations proposed. Upload the agreement above, or add deadlines in Tasks.",
   "ag.deadlines.days": "Due {days} days after each period ends",
   "ag.deadlines.format": "Format: {format}",

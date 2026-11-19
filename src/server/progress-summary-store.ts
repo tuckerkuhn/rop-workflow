@@ -104,7 +104,7 @@ export async function loadProgressSummary(code: string, u: AppUser) {
   if (noProof) concerns.push({ key: "proof", level: "warning", text: `${noProof} accepted ${noProof === 1 ? "result has" : "results have"} no proof attached this year`, why: "Every figure in a donor report should click through to its evidence.", href: "/progress/results" });
   // What blocks the report, counted by pre-flight as Home counts it (server/next-report).
   const nr = await nextReport(code).catch(() => null);
-  if (nr && !nr.released && nr.blocking) concerns.push({ key: "stops", level: "warning", text: `${nr.blocking} ${nr.blocking === 1 ? "thing blocks" : "things block"} the ${nr.quarter.replace("-", " ")} report`, why: "It cannot be released until they are fixed. Pre-flight lists each one and where to fix it.", href: preflightHref({ kind: "qpr", quarter: nr.quarter }) });
+  if (nr && !nr.released && nr.blocking) concerns.push({ key: "stops", level: "warning", text: `${nr.blocking} ${nr.blocking === 1 ? "thing blocks" : "things block"} the ${nr.quarter.replace("-", " ")} report`, why: "It cannot be released until they are fixed. The report check lists each one and where to fix it.", href: preflightHref({ kind: "qpr", quarter: nr.quarter }) });
   // Impact first: results and the activities that deliver them, then money, then evidence and
   // workflow. Within each, what needs action now before what needs it soon.
   const group = (k: string) => (/^(late-|due$|unplanned-|acts-)/.test(k) ? 0 : /^(over-|forecast$)/.test(k) ? 1 : 2);

@@ -1,6 +1,7 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element */
+import { unitOf } from "@/lib/package";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ProofNumber } from "@/components/progress/proof-panel";
@@ -54,7 +55,7 @@ export function Families({ project, user, mayWriteStory }: { project: string; us
                 <p className="text-base leading-snug">
                   <ProofNumber project={project} user={user} indicator={r.indicator} from={v.range.from} to={v.range.to} value={r.value} records={r.records} proof={r.proof} className="font-display text-2xl tabular-nums">
                     {n(r.value)}
-                  </ProofNumber> <span className="font-semibold">{r.unit}</span>
+                  </ProofNumber> <span className="font-semibold">{unitOf(r.value, r.unit)}</span>
                   <span className="text-muted"> · {r.what}</span>
                 </p>
                 {(r.women > 0 || r.men > 0) && (

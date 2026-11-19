@@ -91,4 +91,4 @@ export const preflightHref = (r: ReportRef) => `/progress/preflight?report=${r.k
 /** What `beforeDownload` returns when pre-flight could not be read at all: the file is still marked a draft. */
 export const UNCHECKED = -1;
 export const draftMark = (n: number) =>
-  n === UNCHECKED ? "DRAFT, NOT CHECKED: pre-flight could not be run when this file was made. Not for the donor." : `DRAFT, NOT CHECKED: ${n} ${n === 1 ? "item blocks" : "items block"} this report in pre-flight. Not for the donor.`;
+  n === UNCHECKED ? "DRAFT, NOT CHECKED: the report check could not be run when this file was made. Not for the donor." : `DRAFT, NOT CHECKED: ${n} ${n === 1 ? "item blocks" : "items block"} this report in the report check. Not for the donor.`;

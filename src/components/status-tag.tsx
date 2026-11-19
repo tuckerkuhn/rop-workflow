@@ -12,11 +12,36 @@ const tagStyles: Record<StatusKind, string> = {
 export function StatusTag({ kind, children }: { kind: StatusKind; children?: React.ReactNode }) {
   return (
     <span
-      className={`inline-block whitespace-nowrap rounded px-1.5 align-[1px] font-mono text-[10.5px] font-medium leading-[1.6] ${tagStyles[kind]}`}
+      className={`inline-block whitespace-nowrap rounded px-1.5 align-[1px] font-mono text-xs font-medium leading-[1.6] ${tagStyles[kind]}`}
     >
       {children ?? kind}
     </span>
   );
+}
+
+/** What each source code means, in plain words (docs/ROP-PROCUREMENT-BLUEPRINT.md, Status tags). */
+export const SOURCE_WORDS: Record<StatusKind, string> = {
+  CUR: "How it is done today",
+  D1: "Draft procurement policy",
+  "D1*": "Draft procurement policy, still to be confirmed",
+  TS: "The planned way of working",
+  OPEN: "Not decided yet",
+  PA: "Example for the prototype only",
+};
+
+/**
+ * "D1 §4.15; TS" as "Draft procurement policy §4.15 · The planned way of working". Sources that are
+ * already words ("Finance Manual", "Income Tax Law 2009 Art. 72") stay as they are.
+ */
+export function plainSources(tag: string): string {
+  return tag
+    .split(";")
+    .map((raw) => {
+      const p = raw.trim().match(PART);
+      return p ? `${SOURCE_WORDS[p[1] as StatusKind]}${p[2]}`.trim() : raw.trim();
+    })
+    .filter(Boolean)
+    .join(" · ");
 }
 
 // Each tag group like "[D1 §4.1; TS]" may hold several sources separated by ";".

@@ -138,7 +138,7 @@ export function ResultsPage() {
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-warn">{project.name}</p>
         <h1 className="mt-1 font-display text-3xl tracking-tight">Results and their proof</h1>
         <p className="mt-1 max-w-2xl text-sm text-muted">
-          Record each result with the attendance sheet, photos or verification report that proves it. MEL checks it; once accepted it counts in Progress and in the donor report, and every figure there
+          Record each result with the attendance sheet, photos or verification report that proves it. MEL (the monitoring, evaluation and learning team) checks it; once accepted it counts in Progress and in the donor report, and every figure there
           opens these records.
         </p>
         <p className="mt-2 flex gap-4 text-sm">

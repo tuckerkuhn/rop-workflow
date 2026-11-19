@@ -60,7 +60,8 @@ describe("who approves an input distribution", { timeout: 60_000 }, () => {
 
   it("puts it on his Home, not hers, and lets him approve", async () => {
     // Hers still lists the demo's own waiting distribution (recorded by the storekeeper), not this one.
-    expect(await homeRow(nadia)).toBe("Approve the input distribution to F-0002");
+    // Names come first for people allowed to see them (Nadia); Karim may not, so he sees the number only.
+    expect(await homeRow(nadia)).toBe("Approve the input distribution to Rahmatullah Sharifi (F-0002)");
     expect(await homeRow(karim)).toBe("Approve the input distribution to F-0007");
     const res = await decideDistribution(code, own, "approved", karim);
     expect(res.decision).toBe("approved");

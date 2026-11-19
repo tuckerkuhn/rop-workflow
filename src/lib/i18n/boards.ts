@@ -19,7 +19,7 @@ export const bdEn = {
   "bd.hide": "Hide",
   "bd.loading": "Loading…",
 
-  "bd.proc.title": "Large procurements",
+  "bd.proc.title": "Large purchases across your projects",
   "bd.proc.help": "Every procurement above {limit} in the projects you work on, by step. The longest wait is at the top of each column, and a card turns ochre after {days} days in one step.",
   "bd.proc.medium": "Include Medium procurements",
   "bd.proc.waiting": "Waiting on {who}",
@@ -162,7 +162,7 @@ export const bdEs: Record<keyof typeof bdEn, string> = {
   "bd.hide": "Ocultar",
   "bd.loading": "Cargando…",
 
-  "bd.proc.title": "Adquisiciones grandes",
+  "bd.proc.title": "Compras grandes en sus proyectos",
   "bd.proc.help": "Cada adquisición de más de {limit} en los proyectos donde trabajas, por paso. La espera más larga va arriba en cada columna, y una tarjeta se vuelve ocre después de {days} días en un paso.",
   "bd.proc.medium": "Incluir adquisiciones medianas",
   "bd.proc.waiting": "Esperando a {who}",

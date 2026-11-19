@@ -65,7 +65,7 @@ describe("input distribution, field to finance (demo project)", { timeout: 60_00
     // and the project manager is told to get it in.
     expect((await loadHome(code, bilal)).actions.find((a) => a.key === "field:distribute")?.text).toMatch(/^Distribute the input package: 2 farmers are waiting, but the store has nothing to hand out yet\. NPK 17-17-17:/);
     // Purchases for the package are already under way, so the row names them rather than asking for one.
-    expect((await loadHome(code, userById("nadia")!)).actions.find((a) => a.key === "restock")?.text).toMatch(/^2 farmers waiting at Distribute for inputs on the way: PR-2027-\d+ NPK fertilizer/);
+    expect((await loadHome(code, userById("nadia")!)).actions.find((a) => a.key === "restock")?.text).toMatch(/^2 farmers are waiting for inputs still being bought: NPK fertilizer 17-17-17 \(PR-2027-\d+, now at "/);
     const listed = await listDistributions(code);
     expect(listed.map((d) => [d.farmerId, d.status, d.gate.ok])).toEqual([["F-0002", "pending", true]]);
     // Recorded in the app by the storekeeper: named, and never held for a KoboCollect check.

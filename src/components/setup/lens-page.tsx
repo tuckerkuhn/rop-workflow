@@ -57,7 +57,7 @@ export function LensPage() {
     <div className="min-h-screen">
       <TopBar />
       <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
-        <h1 className="font-display text-4xl tracking-tight">Lens review</h1>
+        <h1 className="font-display text-4xl tracking-tight">AI review of the plan</h1>
         <p className="mt-1 max-w-2xl text-sm text-muted">
           AI reads the plan in setup (goal, indicators and targets, budget by activity, workplan) through each of ROP&rsquo;s reviewer lenses and lists the gaps. It decides nothing: for each finding, someone says what will change, or why it does not apply.
         </p>
