@@ -82,7 +82,7 @@ const chosenBidUsd = (p: Procurement) => {
   return b.currency === "AFN" ? (b.rate && b.rate > 0 ? b.amount / b.rate : null) : b.amount;
 };
 /** What was agreed, in dollars: the contract as signed, else the chosen quotation, else the request's estimate. */
-const orderUsd = (p: Procurement) => (contractCurrency(p) === "USD" && p.contractUsd && p.contractUsd > 0 ? p.contractUsd : (chosenBidUsd(p) ?? p.qty * p.unitPrice));
+export const orderUsd = (p: Procurement) => (contractCurrency(p) === "USD" && p.contractUsd && p.contractUsd > 0 ? p.contractUsd : (chosenBidUsd(p) ?? p.qty * p.unitPrice));
 /** Whether the agreed value is known, so invoices are matched to it rather than the estimate. */
 export const contractValueKnown = (p: Procurement) =>
   contractCurrency(p) === "AFN" ? !!(p.contractAfn && p.contractAfn > 0) : !!(p.contractUsd && p.contractUsd > 0) || chosenBidUsd(p) !== null || p.route === "direct";

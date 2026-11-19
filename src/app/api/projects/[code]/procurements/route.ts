@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { EMPTY_VOUCHER_SETUP, VOUCHER_SETUP_KEY, type VoucherSetup } from "@/lib/voucher-setup";
+import { loadProjectState } from "@/server/project-state";
 import { actOnPlan } from "@/server/procurement-plan-store";
 import { z } from "zod";
 import type { Procurement } from "@/lib/procurement";
@@ -23,7 +25,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
     // farmer in Field activities, and each approved distribution is added to the purchase's list.
     const setup = await setupOf(await projectByCode(code)).catch(() => null);
     const packageLines = [...new Set((setup?.items ?? []).map((i) => i.budgetLine).filter(Boolean))];
-    return NextResponse.json({ items: await loadProcurements(code), packageLines });
+    // The voucher coding set in project setup (lib/voucher-setup): a new voucher starts from it.
+    const coding = await loadProjectState<VoucherSetup>((await projectByCode(code)).id, VOUCHER_SETUP_KEY, EMPTY_VOUCHER_SETUP);
+    return NextResponse.json({ items: await loadProcurements(code), packageLines, coding });
   });
 }
 

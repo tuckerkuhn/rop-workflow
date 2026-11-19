@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import type { SupplierRow } from "@/components/procurement/suppliers-page";
-import { bidUsd, distributionState, isSharePointUrl, lateBids, lowBids, lowestPassing, reviewKey, sampleNeeded, type Bid, type CommitteeMember, type Procurement } from "@/lib/procurement";
+import { bidUsd, distributionState, fromField, isSharePointUrl, lateBids, lowBids, lowestPassing, reviewKey, sampleNeeded, type Bid, type CommitteeMember, type Procurement } from "@/lib/procurement";
 
 /**
  * Bids as records: each quotation or bid with its receipt time, amount and file; the opening; the
@@ -298,7 +298,7 @@ export function DistributionPanel({
             <ul className="mt-3 space-y-1 text-sm">
               {d.lists.map((l, i) => (
                 <li key={i}>
-                  {l.date} · {l.place}: {l.qty.toLocaleString("en-US")} {p.unit} to {l.recipients} {l.recipients === 1 ? "person" : "people"} ({l.women} {l.women === 1 ? "woman" : "women"}), recorded by {l.byName}{" "}
+                  {l.date} · {l.place}: {l.qty.toLocaleString("en-US")} {p.unit} to {l.recipients} {l.recipients === 1 ? "person" : "people"} ({l.women} {l.women === 1 ? "woman" : "women"}), {fromField(l) ? "approved by" : "recorded by"} {l.byName}{" "}
                   <a href={l.evidence} target="_blank" rel="noreferrer" className="text-forest hover:underline">
                     signed list
                   </a>

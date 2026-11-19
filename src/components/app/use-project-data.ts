@@ -1,5 +1,6 @@
 "use client";
 
+import type { VoucherSetup } from "@/lib/voucher-setup";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "@/components/app/session";
 import type { FieldItem, Stock } from "@/lib/field";
@@ -142,6 +143,7 @@ export function useProcurements(code = "A-2027") {
   const [items, setItemsState] = useState<Procurement[]>([]);
   /** Budget lines of the Field input package: their goods go out through Field activities. */
   const [packageLines, setPackageLines] = useState<string[]>([]);
+  const [coding, setCoding] = useState<VoucherSetup | null>(null);
   const [status, setStatus] = useState<Load>("loading");
   const [error, setError] = useState("");
   const current = useRef<Procurement[]>([]);
@@ -149,10 +151,11 @@ export function useProcurements(code = "A-2027") {
 
   const reload = useCallback(async () => {
     try {
-      const r = await call<{ items: Procurement[]; packageLines?: string[] }>(`/api/projects/${code}/procurements`, user?.id);
+      const r = await call<{ items: Procurement[]; packageLines?: string[]; coding?: VoucherSetup }>(`/api/projects/${code}/procurements`, user?.id);
       current.current = r.items;
       setItemsState(r.items);
       setPackageLines(r.packageLines ?? []);
+      setCoding(r.coding ?? null);
       setStatus("ready");
       setError("");
     } catch (e) {
@@ -221,7 +224,7 @@ export function useProcurements(code = "A-2027") {
     await reload();
   }, [code, user?.id, reload]);
 
-  return { items, packageLines, setItems, status, error, reload, reset, draft, check };
+  return { items, packageLines, coding, setItems, status, error, reload, reset, draft, check };
 }
 
 /** The procurement calendar of a project, with the budget and workplan behind it. */

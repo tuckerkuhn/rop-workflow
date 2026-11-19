@@ -7,6 +7,7 @@ import { primaryBtn } from "@/components/workspace/ui";
 import { voucherGaps, withholding } from "@/lib/payments";
 import { ROUTES, committeeNeeded, isSharePointUrl, levelFor, reviewKey, routesFor, rulesInForce, valueOf, vendbillOf, type Draft, type Procurement, type Voucher } from "@/lib/procurement";
 import { DEPARTMENTS, GL_EXPENSE, LOCATIONS, type Code } from "@/lib/voucher-codes";
+import { codingFor, type VoucherSetup } from "@/lib/voucher-setup";
 import { today } from "@/lib/clock";
 import { lastScreening, type Supplier } from "@/lib/suppliers";
 
@@ -343,7 +344,8 @@ function CodeSelect({ codes, value, onChange, disabled, label }: { codes: Code[]
  * a second Finance person reviews it and files it in SharePoint. The codes start from the last
  * voucher on this project (same budget line first), so they are chosen once and then checked.
  */
-export function VoucherPanel({ p, editable, update, previous, preparedByMe }: { p: Procurement; editable: boolean; update: Update; previous?: Voucher; preparedByMe: boolean }) {
+export function VoucherPanel({ p, editable, update, coding, preparedByMe }: { p: Procurement; editable: boolean; update: Update; coding?: VoucherSetup | null; preparedByMe: boolean }) {
+  const set0 = codingFor(coding, p.budgetLine);
   const reviewing = p.step === "voucherReview";
   const fresh: Voucher = {
     number: "",
@@ -351,14 +353,9 @@ export function VoucherPanel({ p, editable, update, previous, preparedByMe }: { 
     date: today(),
     sharepointUrl: "",
     netsuiteRef: "",
-    gl: previous?.gl ?? "",
-    dept: previous?.dept ?? "",
-    contract: previous?.contract ?? "",
-    budgetCode: previous && previous.budgetCode && previous.budgetCode !== p.budgetLine ? previous.budgetCode : p.budgetLine,
-    location: previous?.location ?? "",
-    bankGl: previous?.bankGl ?? "",
-    taxGl: previous?.taxGl ?? "",
-    ...(previous?.rate && previous.month === today().slice(0, 7) ? { rate: previous.rate } : {}),
+    gl: "",
+    dept: "",
+    ...set0,
   };
   // Older records carried a made-up "EV-" number; the voucher's number is now NetSuite's VENDBILL number.
   const v: Voucher = p.voucher ? { ...fresh, ...p.voucher, number: vendbillOf(p.voucher) } : fresh;
@@ -366,11 +363,11 @@ export function VoucherPanel({ p, editable, update, previous, preparedByMe }: { 
   const badLink = !!v.sharepointUrl && !isSharePointUrl(v.sharepointUrl);
   const taxed = (withholding(p, v.date ?? today())?.amount ?? 0) > 0;
   const gaps = voucherGaps({ ...p, voucher: v });
-  const coding = editable && !reviewing;
+  const codingOn = editable && !reviewing;
   const text = (k: "contract" | "budgetCode" | "bankGl" | "taxGl", label: string, placeholder: string) => (
     <label>
       <span className="text-xs font-medium text-muted">{label}</span>
-      <input disabled={!coding} value={v[k] ?? ""} onChange={(e) => set({ [k]: e.target.value })} placeholder={placeholder} className={`mt-1 ${field}`} />
+      <input disabled={!codingOn} value={v[k] ?? ""} onChange={(e) => set({ [k]: e.target.value })} placeholder={placeholder} className={`mt-1 ${field}`} />
     </label>
   );
   return (
@@ -379,26 +376,26 @@ export function VoucherPanel({ p, editable, update, previous, preparedByMe }: { 
       <p className="mt-1 text-xs text-muted">
         {reviewing
           ? "Open the voucher below and check the coding and the balance. If something is wrong, send it back to the person who prepared it. Then file the signed voucher in SharePoint."
-          : `Code the voucher, enter the bill in NetSuite, then type the VENDBILL number NetSuite gives it.${previous && !p.voucher ? " The codes start from this project's last voucher: check them." : ""}`}
+          : "Choose the expense account and department. The contract, budget code, location and accounts come from project setup. Then enter the bill in NetSuite and type the VENDBILL number it gives."}
       </p>
       {reviewing && preparedByMe && <p className="mt-2 text-sm text-clay">You prepared this voucher, so someone else in Finance reviews and approves it.</p>}
 
       <div className="mt-3 grid gap-3 sm:grid-cols-3">
         <label>
           <span className="text-xs font-medium text-muted">Voucher date</span>
-          <input disabled={!coding} type="date" value={v.date ?? ""} onChange={(e) => set({ date: e.target.value })} className={`mt-1 ${field}`} />
+          <input disabled={!codingOn} type="date" value={v.date ?? ""} onChange={(e) => set({ date: e.target.value })} className={`mt-1 ${field}`} />
         </label>
         <label>
           <span className="text-xs font-medium text-muted">Accrued month</span>
-          <input disabled={!coding} type="month" value={v.month} onChange={(e) => e.target.value && set({ month: e.target.value })} className={`mt-1 ${field}`} />
+          <input disabled={!codingOn} type="month" value={v.month} onChange={(e) => e.target.value && set({ month: e.target.value })} className={`mt-1 ${field}`} />
         </label>
         <label>
           <span className="text-xs font-medium text-muted">Monthly average rate (AFS to USD 1)</span>
-          <input disabled={!coding} type="number" min={1} step="0.001" value={v.rate ?? ""} onChange={(e) => set({ rate: e.target.value ? Number(e.target.value) : undefined })} placeholder="from NetSuite" className={`mt-1 ${field}`} />
+          <input disabled={!codingOn} type="number" min={1} step="0.001" value={v.rate ?? ""} onChange={(e) => set({ rate: e.target.value ? Number(e.target.value) : undefined })} placeholder="from NetSuite" className={`mt-1 ${field}`} />
         </label>
-        <CodeSelect label="Expense account (debit)" codes={GL_EXPENSE} value={v.gl ?? ""} onChange={(gl) => set({ gl })} disabled={!coding} />
-        <CodeSelect label="Department" codes={DEPARTMENTS} value={v.dept ?? ""} onChange={(dept) => set({ dept })} disabled={!coding} />
-        <CodeSelect label="Location" codes={LOCATIONS} value={v.location ?? ""} onChange={(location) => set({ location })} disabled={!coding} />
+        <CodeSelect label="Expense account (debit)" codes={GL_EXPENSE} value={v.gl ?? ""} onChange={(gl) => set({ gl })} disabled={!codingOn} />
+        <CodeSelect label="Department" codes={DEPARTMENTS} value={v.dept ?? ""} onChange={(dept) => set({ dept })} disabled={!codingOn} />
+        <CodeSelect label="Location" codes={LOCATIONS} value={v.location ?? ""} onChange={(location) => set({ location })} disabled={!codingOn} />
         {text("contract", "Contract", "e.g. ACRP-01003467")}
         {text("budgetCode", "Budget code", "e.g. PRG-1.2.2.D")}
         {text("bankGl", "Paid from (bank or cash account)", "e.g. 1020 Citibank")}
@@ -409,7 +406,7 @@ export function VoucherPanel({ p, editable, update, previous, preparedByMe }: { 
         <div className="mt-4 grid gap-3 sm:grid-cols-[16rem_1fr] sm:items-end">
           <label>
             <span className="text-xs font-medium text-muted">VENDBILL # from NetSuite</span>
-            <input disabled={!coding || gaps.length > 0} value={v.number} onChange={(e) => set({ number: e.target.value.trim() })} className={`mt-1 ${field}`} />
+            <input disabled={!codingOn || gaps.length > 0} value={v.number} onChange={(e) => set({ number: e.target.value.trim() })} className={`mt-1 ${field}`} />
           </label>
           <p className="text-xs text-muted">{gaps.length ? `Before entering it in NetSuite, add ${gaps.join(", ")}.` : "Coded. Enter it in NetSuite and type the number it gets."}</p>
         </div>

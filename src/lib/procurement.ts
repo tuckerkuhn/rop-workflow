@@ -216,7 +216,9 @@ export type Bid = {
   lowNote: string;
 };
 /** One signed distribution list: who received the goods, where and when. */
-export type DistributionList = { date: string; place: string; recipients: number; women: number; qty: number; evidence: string; by: string; byName: string };
+export type DistributionList = { date: string; place: string; recipients: number; women: number; qty: number; evidence: string; by: string; byName: string; /** Built from handouts the project manager approved in Field activities, one signed note and photo per farmer. */ viaField?: boolean };
+/** A list built from approved Field handouts (older ones are known by their evidence line). */
+export const fromField = (l: DistributionList) => !!l.viaField || l.evidence.startsWith("ROP Workflow distribution records");
 /** Someone other than the distributors contacted a sample of recipients to confirm they received it. */
 export type DistributionCheck = { on: string; sampled: number; confirmed: number; issues: string; evidence: string; by: string; byName: string };
 /**
@@ -478,12 +480,16 @@ export function distributionState(p: Procurement): { ok: boolean; detail: string
   if (!d.lists.length) return { ok: false, detail: "No distribution list recorded yet" };
   const gap = got - given - d.inStock;
   if (Math.abs(gap) > 1e-9) return { ok: false, detail: `Received ${fmt(got)} ${p.unit}, distributed ${fmt(given)}, in stock ${fmt(d.inStock)}: ${fmt(Math.abs(gap))} ${gap > 0 ? "unaccounted for" : "more than received"}` };
+  // Handouts approved one by one in Field activities (signed note, photo, the manager's approval) need no
+  // recipient sample: no ROP manual sets one, and each handout has already been checked.
+  const typed = d.lists.filter((l) => !fromField(l));
+  if (!typed.length) return { ok: true, detail: `${fmt(given)} ${p.unit} to ${fmt(people)} ${people === 1 ? "person" : "people"}, each handout approved in Field activities; ${fmt(d.inStock)} in stock` };
   const distributors = new Set(d.lists.map((l) => l.by));
   const valid = d.checks.filter((c) => !distributors.has(c.by));
   const sampled = valid.reduce((s, c) => s + c.sampled, 0);
   const confirmed = valid.reduce((s, c) => s + c.confirmed, 0);
   const need = sampleNeeded(people);
-  if (!valid.length) return { ok: false, detail: `${fmt(people)} recipients on ${d.lists.length} ${d.lists.length === 1 ? "list" : "lists"}; not yet verified by someone who did not distribute (sample of ${need} needed)` };
+  if (!valid.length) return { ok: false, detail: `${fmt(people)} ${people === 1 ? "recipient" : "recipients"} on ${d.lists.length} ${d.lists.length === 1 ? "list" : "lists"}; not yet verified by someone who did not distribute (sample of ${need} needed)` };
   if (sampled < need) return { ok: false, detail: `${sampled} of ${need} recipients contacted so far` };
   if (confirmed < sampled) return { ok: false, detail: `${sampled - confirmed} of ${sampled} contacted did not confirm receipt: ${valid.map((c) => c.issues).filter(Boolean).join("; ") || "record what was found"}` };
   return { ok: true, detail: `${fmt(given)} ${p.unit} to ${fmt(people)} people; ${confirmed} of ${sampled} sampled confirmed; ${fmt(d.inStock)} in stock` };
@@ -1769,11 +1775,3 @@ export const issueHelp: Record<Issue["type"], string> = {
   "Objection memo": "You think this should be delayed, changed or cancelled. It stays on file; the approver still decides.",
 };
 
-/** The project's last coded voucher, same budget line first: a new voucher starts from its codes. */
-export function lastVoucher(set: Procurement[], p: Procurement): Voucher | undefined {
-  const all = set
-    .flatMap((q) => [...(q.payments ?? []).map((r) => ({ v: r.voucher, line: q.budgetLine })), ...(q.id === p.id ? [] : [{ v: q.voucher, line: q.budgetLine }])])
-    .filter((x): x is { v: Voucher; line: string } => !!x.v?.gl)
-    .sort((a, b) => (b.v.date ?? b.v.month).localeCompare(a.v.date ?? a.v.month));
-  return (all.find((x) => x.line === p.budgetLine) ?? all[0])?.v;
-}

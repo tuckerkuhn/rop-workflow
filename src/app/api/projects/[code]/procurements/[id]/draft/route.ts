@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { loadSuppliers } from "@/server/suppliers-store";
 import { z } from "zod";
 import { requireViewer } from "@/server/auth";
 import { setProcurementRules } from "@/lib/procurement";
@@ -34,7 +35,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
       // and the thresholds the prompt states. Loaded first, then set with no await before the call reads them.
       const inForce = (await projectRules(code)).values;
       setProcurementRules(inForce);
-      const draft = await draftDocument(p, parsed.data.kind, v.user.name, v.user.id);
+      // The supplier's register entry, so the draft states the screening instead of asking about it.
+      const orgId = (await projectByCode(code)).organizationId;
+      const reg = p.supplier?.id && orgId ? ((await loadSuppliers(orgId).catch(() => null))?.suppliers.find((x) => x.id === p.supplier!.id) ?? null) : null;
+      setProcurementRules(inForce);
+      const draft = await draftDocument(p, parsed.data.kind, v.user.name, v.user.id, reg);
       // Applied to the latest copy (the draft took a while), and the version raised.
       const latest = (await loadProcurements(code)).find((x) => x.id === id) ?? p;
       const item = { ...latest, drafts: { ...latest.drafts, [DRAFT_KINDS[parsed.data.kind]]: draft }, rev: (latest.rev ?? 0) + 1 };

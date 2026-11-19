@@ -10,6 +10,7 @@ import { useRequireUser, useSession } from "@/components/app/session";
 import { KoboConnect, KoboDone, KoboForms, KoboMap } from "@/components/setup/kobo-steps";
 import { DeadlinesStep, RulesStep } from "@/components/setup/agreement-steps";
 import { BudgetStep, WorkplanStep } from "@/components/setup/plan-steps";
+import { VoucherCodingStep } from "@/components/setup/voucher-coding-step";
 import { Question, field } from "@/components/setup/question";
 import { TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { canEditProject } from "@/lib/demo";
@@ -28,7 +29,7 @@ import { realToday } from "@/lib/clock";
  */
 
 const DESIGN_STEPS = ["name", "country", "crop", "dates", "goal", "indicators", "donors", "review"] as const;
-const PLAN_STEPS = ["budget", "deadlines", "rules", "workplan"] as const;
+const PLAN_STEPS = ["budget", "coding", "deadlines", "rules", "workplan"] as const;
 const KOBO_STEPS = ["kobo-connect", "kobo-forms", "kobo-map", "done"] as const;
 type Step = (typeof DESIGN_STEPS)[number] | (typeof PLAN_STEPS)[number] | (typeof KOBO_STEPS)[number];
 
@@ -240,6 +241,7 @@ function Wizard({ code: initialCode, first }: { code: string | null; first: Step
         {step === "donors" && <DonorsQuestion list={draft.donors ?? []} onChange={(donors) => set({ donors })} />}
         {step === "review" && <Review draft={draft} editing={!!code} onEdit={go} />}
         {step === "budget" && code && <BudgetStep code={code} onDone={next} />}
+        {step === "coding" && code && <VoucherCodingStep code={code} onDone={next} />}
         {step === "deadlines" && code && <DeadlinesStep code={code} start={draft.startDate} end={draft.endDate} onDone={next} />}
         {step === "rules" && code && <RulesStep code={code} onDone={next} />}
         {step === "workplan" && code && <WorkplanStep code={code} projectStart={draft.startDate} onDone={next} />}

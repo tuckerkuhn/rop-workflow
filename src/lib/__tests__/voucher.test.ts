@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { lastVoucher, seedProcurements, setProcurementRules, setProcurementSet, stepById, vendbillOf, type Procurement, type Voucher } from "@/lib/procurement";
+import { distributionState, seedProcurements, setProcurementRules, setProcurementSet, stepById, vendbillOf, type Procurement, type Voucher } from "@/lib/procurement";
 import { voucherBook, voucherGaps, withholding } from "@/lib/payments";
 import { documentFor } from "@/lib/procurement-docs";
 import { GL_EXPENSE, LOCATIONS, codeLabel } from "@/lib/voucher-codes";
+import { codingFor } from "@/lib/voucher-setup";
 
 afterEach(() => {
   setProcurementRules(null);
@@ -57,14 +58,22 @@ describe("expense voucher", () => {
     expect(vendbillOf(coded)).toBe("ACRP-01003467");
   });
 
-  it("starts a new voucher from the project's last one on the same budget line", () => {
-    const [a, b, c] = seedProcurements();
-    const set = [
-      { ...a, budgetLine: "2.1", voucher: { ...coded, gl: "8140", date: "2027-02-01" } },
-      { ...b, budgetLine: "4.1", voucher: { ...coded, gl: "8500", date: "2027-03-01" } },
-    ];
-    expect(lastVoucher(set, { ...c, budgetLine: "2.1" })?.gl).toBe("8140");
-    expect(lastVoucher(set, { ...c, budgetLine: "9.9" })?.gl).toBe("8500");
+  it("starts from the coding set in project setup, with the GL account and department left to Finance", () => {
+    const setup = { contract: "ACRP-01003467", bankGl: "1020 Citibank", taxGl: "2300", location: "10080", lines: { "2.1": { budgetCode: "PRG-1.2.2.D", location: "10010" } } };
+    expect(codingFor(setup, "2.1")).toEqual({ contract: "ACRP-01003467", bankGl: "1020 Citibank", taxGl: "2300", budgetCode: "PRG-1.2.2.D", location: "10010" });
+    expect(codingFor(setup, "4.1")).toMatchObject({ budgetCode: "4.1", location: "10080" });
+    expect(codingFor(null, "4.1")).toMatchObject({ budgetCode: "4.1", location: "", contract: "" });
+    expect(codingFor(setup, "2.1")).not.toHaveProperty("gl");
+  });
+
+  it("needs no recipient sample for goods handed out and approved in Field activities", () => {
+    const p = { ...seedProcurements()[0], qty: 5, grn: { qty: 5, place: "Store", date: "2026-11-18" } } as unknown as Procurement;
+    const list = { date: "2026-11-18", place: "Village B", recipients: 1, women: 1, qty: 1, evidence: "ROP Workflow distribution records, approved by Nadia Rahimi", by: "nadia", byName: "Nadia Rahimi" };
+    const field = { ...p, payments: [], distribution: { forParticipants: true, lists: [list], inStock: 4, checks: [] } };
+    expect(distributionState(field)?.ok).toBe(true);
+    const typed = { ...field, distribution: { ...field.distribution, lists: [{ ...list, evidence: "https://x.sharepoint.com/list" }] } };
+    expect(distributionState(typed)).toMatchObject({ ok: false });
+    expect(distributionState(typed)?.detail).toContain("1 recipient on 1 list");
   });
 
   it("is prepared by one Finance person and reviewed by another, each signing", () => {

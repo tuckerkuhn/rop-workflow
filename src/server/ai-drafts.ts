@@ -1,6 +1,7 @@
-import { currentInstalment, expectedUsd, invoiceUsd, scheduleOf, withholding } from "@/lib/payments";
+import { currentInstalment, expectedUsd, invoiceUsd, orderUsd, scheduleOf, withholding } from "@/lib/payments";
 import { z } from "zod";
-import { holderFor, levelFor, rulesInForce, valueOf, type Draft, type Procurement } from "@/lib/procurement";
+import { bidUsd, holderFor, levelFor, rulesInForce, stepsFor, valueOf, type Draft, type Procurement } from "@/lib/procurement";
+import { lastScreening, type Supplier } from "@/lib/suppliers";
 import { today } from "@/lib/clock";
 import { asIs, askAi, DRAFT_MODEL, DraftingUnavailable } from "@/server/ai";
 
@@ -56,17 +57,37 @@ How to write:
 - Plain, direct English that translates well into Dari and Pashto. Short sentences. No marketing language.
 - Do not decide anything that belongs to a person: you do not approve, score, select a supplier or judge eligibility.`;
 
-function recordOf(p: Procurement) {
+/** What the drafter is told beyond the record itself: who asked for the draft and the supplier's register entry. */
+type Context = { preparedBy?: string; supplier?: Supplier | null };
+
+function recordOf(p: Procurement, ctx: Context = {}) {
   const usd = valueOf(p);
+  const chosen = p.bids?.find((b) => b.id === p.selectedBid);
+  const reg = ctx.supplier;
+  const screened = reg ? lastScreening(reg) : null;
   return {
     procurement_id: p.id,
+    prepared_by: ctx.preparedBy ?? null,
+    steps_this_purchase_goes_through: stepsFor(p).map((s) => s.title),
     project: p.plan?.project ?? null,
     item: p.title,
     specification: p.specification || null,
     quantity: p.qty,
     unit: p.unit,
     estimated_value_usd: Math.round(usd),
-    estimated_value_budget_currency: p.plan ? { amount: p.plan.left, currency: p.plan.currency } : null,
+    budget_line_left_before_this_purchase: p.plan ? { amount: p.plan.left, currency: p.plan.currency } : null,
+    level_rule: "The level is set by the app from the policy thresholds; a value exactly at a threshold is in the lower level.",
+    policy_notes: [
+      "Micro purchases need no purchase order or contract (Procurement Policy D1 §3.4, §4.11): the order is placed when procurement clears the screened supplier to deliver, so that date is the order date.",
+      "The requester, not procurement, performs the physical check and signs the goods received note (D1 §4.12). The requester receiving the goods is correct; procurement receiving them would not be.",
+      "Goods handed out farmer by farmer in Field activities are checked handout by handout (signed note, photo, the project manager's approval); no recipient sample is required by any ROP manual.",
+    ],
+    order_date: levelFor(usd) === "Micro" ? (p.signatures["Screening record"]?.[0]?.date ?? null) : null,
+    quotations: (p.bids ?? []).filter((b) => b.supplier.trim()).map((b) => ({ supplier: b.supplier, amount: b.amount, currency: b.currency, amount_usd: bidUsd(b), received: b.receivedAt, technically_acceptable: b.passes, chosen: b.id === p.selectedBid })),
+    chosen_quotation_usd: chosen ? bidUsd(chosen) : null,
+    supplier_register: reg
+      ? { id: reg.id, status: reg.status, licence_expiry: reg.licenceExpiry, last_screening: screened ? { date: screened.date, lists: screened.lists, result: screened.result, by: screened.byName } : null, no_staff_link_declared: !!reg.noStaffLink }
+      : null,
     level: levelFor(usd),
     budget_line: p.plan ? `${p.plan.budgetCode} ${p.plan.budgetName}` : p.budgetLine,
     activity: p.activity,
@@ -90,7 +111,8 @@ function recordOf(p: Procurement) {
     due_this_instalment_usd: expectedUsd(p),
     tax_to_withhold: withholding(p, today()),
     payments_already_made: (p.payments ?? []).map((r) => ({ n: r.n, label: r.label, pct: r.pct, grn: r.grn, invoice: r.invoice, tax: r.tax, net: r.net, paid: r.paid })),
-    order_value_usd: Math.round(usd * 100) / 100,
+    order_value_usd: Math.round(orderUsd(p) * 100) / 100,
+    estimated_value_note: "estimated_value_usd is the request's estimate, which sets the level; order_value_usd is what was agreed (the chosen quotation or the contract).",
     signatures: p.signatures,
     checks_done: Object.keys(p.checks).filter((k) => p.checks[k]),
     open_issues: p.issues.filter((i) => i.status === "open").map((i) => ({ type: i.type, note: i.note, blocking: i.blocking })),
@@ -111,13 +133,13 @@ const ASK: Record<DraftKind, string> = {
 };
 
 /** Drafts one document from the procurement record. Throws DraftingUnavailable when no API key is set. `by` is the person's name, kept on the draft; `byId` is who asked, for the audit row. */
-export async function draftDocument(p: Procurement, kind: DraftKind, by: string, byId: string = by): Promise<Draft> {
+export async function draftDocument(p: Procurement, kind: DraftKind, by: string, byId: string = by, supplier: Supplier | null = null): Promise<Draft> {
   const { out, model } = await askAi({
     job: "procurementDraft",
     by: byId,
     system: policyText(),
     task: ASK[kind],
-    facts: asIs(recordOf(p), RECORD),
+    facts: asIs(recordOf(p, { preparedBy: by, supplier }), RECORD),
     factsLabel: "The procurement record (JSON)",
     schema: draftSchema,
     maxTokens: 16000,

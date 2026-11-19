@@ -15,7 +15,8 @@ import { useSupplierRegister, type SupplierRow } from "@/components/procurement/
 import { BidsPanel, DistributionPanel } from "@/components/procurement/bid-panels";
 import { DocumentViewer } from "@/components/procurement/document";
 import { PaidPanel, PayFormPanel, PayFormSummary, PaymentsList, ReceiptPanel, SchedulePanel } from "@/components/procurement/payment-panels";
-import { asPaid, type PaymentRecord } from "@/lib/payments";
+import { asPaid, orderUsd, type PaymentRecord } from "@/lib/payments";
+import type { VoucherSetup } from "@/lib/voucher-setup";
 import {
   AppShell,
   BackLink,
@@ -74,8 +75,6 @@ import {
   type DocLink,
   requesterOf,
   soloBarred,
-  lastVoucher,
-  type Voucher,
 } from "@/lib/procurement";
 import { holdersOfType } from "@/lib/authority";
 import { ROLE_LABEL } from "@/lib/hr";
@@ -457,10 +456,10 @@ function Detail({
   register,
   links,
   viaField = false,
-  previousVoucher,
+  coding,
 }: {
-  /** The project's last coded voucher (same budget line first): a new voucher starts from its codes. */
-  previousVoucher?: Voucher;
+  /** The project's voucher coding from setup (lib/voucher-setup): a new voucher starts from it. */
+  coding?: VoucherSetup | null;
   register?: SupplierRow[] | null;
   /** Its goods are in the Field input package: handed out farmer by farmer in Field activities. */
   viaField?: boolean;
@@ -536,7 +535,8 @@ function Detail({
         <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4">
           {[
             ["Quantity", `${p.qty.toLocaleString("en-US")} ${p.unit}`],
-            ["Value", money(value)],
+            // Once a quotation is chosen or a contract signed, that is the value; the estimate stays beside it.
+            orderUsd(p) !== value ? ["Order value", `${money(orderUsd(p))} (estimate ${money(value)})`] : ["Value", money(value)],
             ["Budget line", line ? `${line.code} ${line.name}` : p.budgetLine],
             ["Needed by", p.neededBy],
           ].map(([k, v]) => (
@@ -685,7 +685,7 @@ function Detail({
           {p.step === "paid" && <PaidPanel p={p} editable={mine} update={update} />}
           {user && (receivedQty(p) > 0 || p.distribution) && <DistributionPanel p={p} viaField={viaField} resultLink={links ? (people) => resultHref(links.project, { from: p.id, ...people, note: `${p.id}: ${p.title} handed to ${people.value} people (${people.female} women)${people.place ? ` at ${people.place}` : ""}, from signed distribution lists.` }) : undefined} canEdit={user.procurementAccess === "edit"} update={update} me={{ id: user.id, name: user.name }} />}
           {(p.step === "voucher" || p.step === "voucherReview") && (
-            <VoucherPanel p={p} editable={mine} update={update} previous={previousVoucher} preparedByMe={!!user && (p.signatures["Expense voucher"] ?? []).some((x) => x.as === "Prepared and entered by (finance)" && x.name === user.name)} />
+            <VoucherPanel p={p} editable={mine} update={update} coding={coding} preparedByMe={!!user && (p.signatures["Expense voucher"] ?? []).some((x) => x.as === "Prepared and entered by (finance)" && x.name === user.name)} />
           )}
           {step.checks.some((c) => c.ai) && <AiCheck p={p} editable={mine} onCheck={onCheck} />}
           <ul className="divide-y divide-line px-5">
@@ -793,7 +793,7 @@ export function ProcurementWorkspace() {
   const { user } = useRequireUser();
   const myRoles = procRolesFor(user);
   const { project } = useCurrentProject();
-  const { items, packageLines, setItems, error, reset, draft: draftDoc, check: runCheck } = useProcurements(project.id);
+  const { items, packageLines, coding, setItems, error, reset, draft: draftDoc, check: runCheck } = useProcurements(project.id);
   const plan = usePlan(project.saved ? project.id : null);
   const donors = useDonors(project.id);
   const [planKey, setPlanKey] = useState<string | null>(null);
@@ -944,7 +944,7 @@ export function ProcurementWorkspace() {
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-mono text-[11px] text-muted">{p.id}</span>
-                      <span className="text-xs tabular-nums text-muted">{money(valueOf(p))}</span>
+                      <span className="text-xs tabular-nums text-muted">{money(orderUsd(p))}</span>
                     </div>
                     <p className="mt-1 font-medium leading-snug">{p.title}</p>
                     <div className="mt-2 flex flex-wrap items-center gap-1.5">
@@ -1045,7 +1045,7 @@ export function ProcurementWorkspace() {
           )
         ) : current ? (
           <div className="mx-auto max-w-3xl">
-            <Detail key={current.id} register={register} p={current} previousVoucher={lastVoucher(items, current)} viaField={packageLines.includes(current.budgetLine)} links={{ project: project.id, activity: activityOf(current) }} role={role} update={update(current.id)} onBack={() => setMobileDetail(false)} onDraft={(kind) => draftDoc(current.id, kind)} onCheck={() => runCheck(current.id, current.step)} />
+            <Detail key={current.id} register={register} p={current} coding={coding} viaField={packageLines.includes(current.budgetLine)} links={{ project: project.id, activity: activityOf(current) }} role={role} update={update(current.id)} onBack={() => setMobileDetail(false)} onDraft={(kind) => draftDoc(current.id, kind)} onCheck={() => runCheck(current.id, current.step)} />
           </div>
         ) : (
           <div className="grid h-full place-items-center py-24 text-center">
