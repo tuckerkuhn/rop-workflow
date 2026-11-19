@@ -51,7 +51,7 @@ export function OrgAudit() {
             </div>
             <div className="mt-3 overflow-x-auto rounded-2xl border border-line bg-surface">
               <table className="w-full text-sm">
-                <thead className="text-left text-xs text-muted">
+                <thead className="text-start text-xs text-muted">
                   <tr>
                     <th className="px-3 py-2 font-medium">When (UTC)</th>
                     <th className="px-3 py-2 font-medium">Area</th>

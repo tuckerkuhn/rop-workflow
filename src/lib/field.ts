@@ -6,15 +6,16 @@
 import type { Issue, TimelineEvent } from "@/components/workspace/ui";
 import { ORG_ID, PROJECT, TODAY, holderOf, projectPath, stepHistory, type AppUser, type FieldRole } from "@/lib/demo";
 import { today } from "@/lib/clock";
+import { msg } from "@/lib/i18n/text";
 import { DEMO_SETUP, itemsFor, packageUsd, qtyUnit, type FieldSetup } from "@/lib/package";
 
 export type { FieldRole };
 
 export const fieldRoles: { id: FieldRole; label: string; short: string }[] = [
-  { id: "extension", label: "Extension agent", short: "Extension" },
-  { id: "mel", label: "MEL officer", short: "MEL" },
-  { id: "store", label: "Distribution staff", short: "Distribution" },
-  { id: "manager", label: "Project manager", short: "Management" },
+  { id: "extension", label: msg("Extension agent"), short: msg("Extension") },
+  { id: "mel", label: msg("MEL officer"), short: msg("MEL") },
+  { id: "store", label: msg("Distribution staff"), short: msg("Distribution") },
+  { id: "manager", label: msg("Project manager"), short: msg("Management") },
 ];
 export const fieldRoleLabel = (r: string) => fieldRoles.find((x) => x.id === r)?.label ?? r;
 /** "Farida Noori (Extension agent)" for a role. */
@@ -210,68 +211,68 @@ const daysBetween = (a: string, b: string) => Math.round((Date.parse(b) - Date.p
 export const addDays = (d: string, n: number) => new Date(Date.parse(d) + n * 86400000).toISOString().slice(0, 10);
 const asFarmer = (i: FieldItem) => i as Farmer;
 
-export const farmerStages = ["Train", "Prepare land", "Readiness", "Inputs", "Plant", "Season record"];
-export const findingStages = ["Validate", "Decide", "Act", "Next season"];
+export const farmerStages = [msg("Train"), msg("Prepare land"), msg("Readiness"), msg("Inputs"), msg("Plant"), msg("Season record")];
+export const findingStages = [msg("Validate"), msg("Decide"), msg("Act"), msg("Next season")];
 
 export const fieldSteps: Record<string, SStep> = {
   train: {
     id: "train",
     stage: 0,
-    title: "Train for land preparation",
+    title: msg("Train for land preparation"),
     owner: "extension",
     checks: [
       {
         id: "enrolled",
-        label: "Enrolled in the program",
-        why: "Farmers must have enrolled officially before program training.",
+        label: msg("Enrolled in the program"),
+        why: msg("Farmers must have enrolled officially before program training."),
         tag: "TS",
         auto: (i) => ({ ok: asFarmer(i).enrolled, detail: asFarmer(i).enrolled ? `Enrollment recorded ${asFarmer(i).enrolledOn}` : "No enrollment record" }),
       },
       {
         id: "contribution",
-        label: "Agreed contribution paid",
-        why: "The farmer contribution is collected after selection and before program entry or training.",
+        label: msg("Agreed contribution paid"),
+        why: msg("The farmer contribution is collected after selection and before program entry or training."),
         tag: "TS",
         auto: (i) => ({ ok: asFarmer(i).contributionPaid, detail: asFarmer(i).contributionPaid ? "Contribution received" : "Not yet received" }),
-        resolve: "Record contribution received",
+        resolve: msg("Record contribution received"),
         resolveDone: "Contribution received",
         resolveEffect: (i) => ({ ...asFarmer(i), contributionPaid: true }),
       },
-      { id: "attended", label: "Attended classroom and field training", why: "Crop-stage training: here, land preparation and planting.", tag: "TS" },
-      { id: "register", label: "Attendance register reference recorded", why: "Paper counts as source evidence. Record who completed it, when, and where the original is kept.", tag: "TS" },
+      { id: "attended", label: msg("Attended classroom and field training"), why: msg("Crop-stage training: here, land preparation and planting."), tag: "TS" },
+      { id: "register", label: msg("Attendance register reference recorded"), why: msg("Paper counts as source evidence. Record who completed it, when, and where the original is kept."), tag: "TS" },
     ],
-    outcomes: [{ label: "Record training", to: "prepare", done: "Training recorded", tone: "primary" }],
+    outcomes: [{ label: msg("Record training"), to: "prepare", done: "Training recorded", tone: "primary" }],
   },
   prepare: {
     id: "prepare",
     stage: 1,
-    title: "Prepare the plot",
+    title: msg("Prepare the plot"),
     owner: "extension",
     checks: [
-      { id: "plot", label: "Plot agreed and located (GPS or sketch)", why: "The plot is linked to farmer, crop, season and project.", tag: "TS" },
-      { id: "spec", label: "Farmer reports land prepared to the technical spec", why: "Clearing, ridges and spacing as trained. The joint visit confirms it.", tag: "TS" },
+      { id: "plot", label: msg("Plot agreed and located (GPS or sketch)"), why: msg("The plot is linked to farmer, crop, season and project."), tag: "TS" },
+      { id: "spec", label: msg("Farmer reports land prepared to the technical spec"), why: msg("Clearing, ridges and spacing as trained. The joint visit confirms it."), tag: "TS" },
     ],
-    outcomes: [{ label: "Request readiness visit", to: "verify", done: "Readiness visit requested", tone: "primary" }],
+    outcomes: [{ label: msg("Request readiness visit"), to: "verify", done: "Readiness visit requested", tone: "primary" }],
   },
   verify: {
     id: "verify",
     stage: 2,
-    title: "Verify readiness",
+    title: msg("Verify readiness"),
     owner: "mel",
-    note: () => "Joint site visit. Inputs move only on Yes.",
+    note: () => msg("Joint site visit. Inputs move only on Yes."),
     checks: [
-      { id: "joint", label: "Extension agent and MEL both at the plot", why: "Readiness is verified jointly so the technical and evidence views agree.", tag: "TS" },
-      { id: "form", label: "Standard field-visit form completed", why: "The same form for every plot keeps findings comparable.", tag: "TS" },
-      { id: "photo", label: "Photo or paper form reference attached", why: "Evidence reference for the yes/no finding.", tag: "TS" },
+      { id: "joint", label: msg("Extension agent and MEL both at the plot"), why: msg("Readiness is verified jointly so the technical and evidence views agree."), tag: "TS" },
+      { id: "form", label: msg("Standard field-visit form completed"), why: msg("The same form for every plot keeps findings comparable."), tag: "TS" },
+      { id: "photo", label: msg("Photo or paper form reference attached"), why: msg("Evidence reference for the yes/no finding."), tag: "TS" },
     ],
     outcomes: [
-      { label: "Ready: Yes", to: "distribute", done: "Readiness: Yes", tone: "primary" },
+      { label: msg("Ready: Yes"), to: "distribute", done: "Readiness: Yes", tone: "primary" },
       {
-        label: "Not ready: No",
+        label: msg("Not ready: No"),
         to: "correct",
         done: "Readiness: No",
         tone: "danger",
-        note: "What needs fixing?",
+        note: msg("What needs fixing?"),
         effect: (i, note, ctx) => ({ item: { ...asFarmer(i), deadline: addDays(ctx.today, 7), correction: note } }),
       },
     ],
@@ -279,15 +280,15 @@ export const fieldSteps: Record<string, SStep> = {
   correct: {
     id: "correct",
     stage: 2,
-    title: "Correct and recheck",
+    title: msg("Correct and recheck"),
     owner: "extension",
     note: (i) => (asFarmer(i).correction ? `To fix: ${asFarmer(i).correction}` : undefined),
     checks: [
-      { id: "explained", label: "Corrective action explained to the farmer", why: "The farmer gets a defined opportunity and deadline to fix the issue.", tag: "TS" },
+      { id: "explained", label: msg("Corrective action explained to the farmer"), why: msg("The farmer gets a defined opportunity and deadline to fix the issue."), tag: "TS" },
       {
         id: "deadline",
-        label: "Recheck is within the deadline",
-        why: "If the issue is unresolved by the deadline, the farmer is removed. Expected to be rare after contribution.",
+        label: msg("Recheck is within the deadline"),
+        why: msg("If the issue is unresolved by the deadline, the farmer is removed. Expected to be rare after contribution."),
         tag: "TS",
         auto: (i, ctx) => {
           const d = asFarmer(i).deadline;
@@ -296,27 +297,27 @@ export const fieldSteps: Record<string, SStep> = {
           return { ok: left >= 0, detail: left >= 0 ? `Deadline ${d} · ${left} days left` : `Deadline ${d} passed ${-left} days ago` };
         },
       },
-      { id: "recheck", label: "Recheck visit done and form completed", why: "Same standard form as the first visit.", tag: "TS" },
+      { id: "recheck", label: msg("Recheck visit done and form completed"), why: msg("Same standard form as the first visit."), tag: "TS" },
     ],
     outcomes: [
-      { label: "Recheck: Yes", to: "distribute", done: "Recheck: Yes", tone: "primary" },
-      { label: "Still not ready", to: "removal", done: "Recheck: No, sent for decision", tone: "danger", note: "What is still wrong?", requiresChecks: false },
+      { label: msg("Recheck: Yes"), to: "distribute", done: "Recheck: Yes", tone: "primary" },
+      { label: msg("Still not ready"), to: "removal", done: "Recheck: No, sent for decision", tone: "danger", note: msg("What is still wrong?"), requiresChecks: false },
     ],
   },
   removal: {
     id: "removal",
     stage: 2,
-    title: "Decide: remove or extend",
+    title: msg("Decide: remove or extend"),
     owner: "manager",
     note: (i) => `Correction: ${asFarmer(i).correction ?? "not recorded"}. Removal follows local rules.`,
     checks: [
-      { id: "history", label: "Correction history reviewed", why: "Issue, deadline, recheck result and decisions are on the record below.", tag: "TS" },
-      { id: "rules", label: "Local rules on removal followed", why: "Project authority confirms removal per local rules.", tag: "TS; OPEN roles" },
+      { id: "history", label: msg("Correction history reviewed"), why: msg("Issue, deadline, recheck result and decisions are on the record below."), tag: "TS" },
+      { id: "rules", label: msg("Local rules on removal followed"), why: msg("Project authority confirms removal per local rules."), tag: "TS; OPEN roles" },
     ],
     outcomes: [
-      { label: "Confirm removal", to: "removed", done: "Removed from the project", tone: "danger", note: "Reason for the record" },
+      { label: msg("Confirm removal"), to: "removed", done: "Removed from the project", tone: "danger", note: msg("Reason for the record") },
       {
-        label: "Extend 7 days",
+        label: msg("Extend 7 days"),
         to: "correct",
         done: "Deadline extended 7 days",
         tone: "quiet",
@@ -328,13 +329,13 @@ export const fieldSteps: Record<string, SStep> = {
   distribute: {
     id: "distribute",
     stage: 3,
-    title: "Distribute the input package",
+    title: msg("Distribute the input package"),
     owner: "store",
     checks: [
       {
         id: "stock",
-        label: "Package in stock at the store",
-        why: "Inputs come from procurement, on the package's budget lines. Stock falls as packages go out.",
+        label: msg("Package in stock at the store"),
+        why: msg("Inputs come from procurement, on the package's budget lines. Stock falls as packages go out."),
         tag: "TS",
         auto: (i, ctx) => {
           const need = itemsFor(ctx.setup, asFarmer(i).hectares);
@@ -345,14 +346,14 @@ export const fieldSteps: Record<string, SStep> = {
             detail: !ok && ctx.stockNote ? ctx.stockNote : need.map((p) => `${p.item}: needs ${qtyUnit(p.qty, p.unit)}, ${qtyUnit(ctx.stock[p.key] ?? 0, p.unit)} in store`).join(" · "),
           };
         },
-        fix: "Store is short for this package: check the procurement status.",
+        fix: msg("Store is short for this package: check the procurement status."),
       },
-      { id: "recipient", label: "Recipient signed the goods received note", why: "By signature or thumbprint the recipient says they received the goods in acceptable condition and are responsible for them from then on.", tag: "TS" },
-      { id: "voucher", label: "Store issue voucher number recorded", why: "Links the distribution to expenditure evidence on the package's budget lines.", tag: "TS" },
+      { id: "recipient", label: msg("Recipient signed the goods received note"), why: msg("By signature or thumbprint the recipient says they received the goods in acceptable condition and are responsible for them from then on."), tag: "TS" },
+      { id: "voucher", label: msg("Store issue voucher number recorded"), why: msg("Links the distribution to expenditure evidence on the package's budget lines."), tag: "TS" },
     ],
     outcomes: [
       {
-        label: "Record distribution",
+        label: msg("Record distribution"),
         to: "plant",
         done: "Inputs distributed",
         tone: "primary",
@@ -366,13 +367,13 @@ export const fieldSteps: Record<string, SStep> = {
   plant: {
     id: "plant",
     stage: 4,
-    title: "Plant and follow up",
+    title: msg("Plant and follow up"),
     owner: "extension",
     checks: [
       {
         id: "recorded",
-        label: "Planting date and area recorded",
-        why: "The day and the area are the evidence that the inputs went into the ground, for MEL and the donor report.",
+        label: msg("Planting date and area recorded"),
+        why: msg("The day and the area are the evidence that the inputs went into the ground, for MEL and the donor report."),
         tag: "TS",
         auto: (i, ctx) => {
           const f = asFarmer(i);
@@ -383,8 +384,8 @@ export const fieldSteps: Record<string, SStep> = {
       },
       {
         id: "window",
-        label: "Planted within the planting window",
-        why: "The targeted crop at the right time.",
+        label: msg("Planted within the planting window"),
+        why: msg("The targeted crop at the right time."),
         tag: "TS",
         auto: (i, ctx) => {
           const end = ctx.setup.windowEnd;
@@ -396,54 +397,54 @@ export const fieldSteps: Record<string, SStep> = {
           return { ok: false, detail: left >= 0 ? `Window closes ${end} · ${left} days left · record the planting date` : `Window closed ${end} · record the planting date` };
         },
       },
-      { id: "manner", label: "Planted at the right spacing and depth", why: "The right manner, as trained.", tag: "TS" },
-      { id: "followup", label: "Follow-up visit form completed with MEL", why: "Technical and MEL teams complete the standard follow-up form.", tag: "TS" },
+      { id: "manner", label: msg("Planted at the right spacing and depth"), why: msg("The right manner, as trained."), tag: "TS" },
+      { id: "followup", label: msg("Follow-up visit form completed with MEL"), why: msg("Technical and MEL teams complete the standard follow-up form."), tag: "TS" },
     ],
-    outcomes: [{ label: "Record planting", to: "complete", done: "Planting recorded", tone: "primary" }],
+    outcomes: [{ label: msg("Record planting"), to: "complete", done: "Planting recorded", tone: "primary" }],
   },
   validate: {
     id: "validate",
     stage: 0,
-    title: "Validate the finding",
+    title: msg("Validate the finding"),
     owner: "mel",
     checks: [
       {
         id: "sources",
-        label: "Linked to source records",
-        why: "Every finding traces back to the field records it came from.",
+        label: msg("Linked to source records"),
+        why: msg("Every finding traces back to the field records it came from."),
         tag: "TS",
         auto: (i) => {
           const s = (i as Finding).sources;
           return { ok: s.length > 0, detail: s.length ? `${s.length} farmer records: ${s.join(", ")}` : "No source records linked" };
         },
       },
-      { id: "aiSummary", label: "AI summary checked against the source forms", why: "AI may organize records and draft analysis. MEL validates evidence and interpretation.", tag: "TS", ai: true },
-      { id: "interpretation", label: "Interpretation agreed within MEL", why: "MEL prepares and validates the analysis before management sees it.", tag: "TS" },
+      { id: "aiSummary", label: msg("AI summary checked against the source forms"), why: msg("AI may organize records and draft analysis. MEL validates evidence and interpretation."), tag: "TS", ai: true },
+      { id: "interpretation", label: msg("Interpretation agreed within MEL"), why: msg("MEL prepares and validates the analysis before management sees it."), tag: "TS" },
     ],
-    outcomes: [{ label: "Send to management", to: "decide", done: "Validated and sent to management", tone: "primary" }],
+    outcomes: [{ label: msg("Send to management"), to: "decide", done: "Validated and sent to management", tone: "primary" }],
   },
   decide: {
     id: "decide",
     stage: 1,
-    title: "Decide what to do",
+    title: msg("Decide what to do"),
     owner: "manager",
-    checks: [{ id: "read", label: "Evidence summary reviewed", why: "Management reviews validated findings, then sets adjustments, owners and deadlines.", tag: "TS" }],
-    outcomes: [{ label: "No action needed", to: "closed", done: "Closed: no action needed", tone: "quiet", note: "Why no action?" }],
+    checks: [{ id: "read", label: msg("Evidence summary reviewed"), why: msg("Management reviews validated findings, then sets adjustments, owners and deadlines."), tag: "TS" }],
+    outcomes: [{ label: msg("No action needed"), to: "closed", done: "Closed: no action needed", tone: "quiet", note: msg("Why no action?") }],
   },
   act: {
     id: "act",
     stage: 2,
-    title: "Carry out the action",
+    title: msg("Carry out the action"),
     owner: "action-owner",
     note: (i) => {
       const a = (i as Finding).action;
       return a ? `${a.text} · due ${a.due}` : undefined;
     },
     checks: [
-      { id: "doneIt", label: "Action carried out", why: "The owner reports back against the due date.", tag: "TS" },
-      { id: "evidence", label: "Evidence recorded", why: "So the learning can carry into the next seasonal plan.", tag: "TS" },
+      { id: "doneIt", label: msg("Action carried out"), why: msg("The owner reports back against the due date."), tag: "TS" },
+      { id: "evidence", label: msg("Evidence recorded"), why: msg("So the learning can carry into the next seasonal plan."), tag: "TS" },
     ],
-    outcomes: [{ label: "Mark done", to: "closed", done: "Action done: feeds the next season plan", tone: "primary" }],
+    outcomes: [{ label: msg("Mark done"), to: "closed", done: "Action done: feeds the next season plan", tone: "primary" }],
   },
 };
 
@@ -532,20 +533,20 @@ export const historyBasis = (step: string) => {
   return h ? `Median ${h.median} days across ${h.n} past cases` : "";
 };
 
-export const issueTypes = ["Field issue", "Evidence gap", "Needs a decision"];
+export const issueTypes = [msg("Field issue"), msg("Evidence gap"), msg("Needs a decision")];
 export const issueHelp: Record<string, string> = {
-  "Field issue": "Something on the plot or with the farmer that is holding this step.",
-  "Evidence gap": "A form, photo or paper record is missing or does not match.",
-  "Needs a decision": "Someone with authority has to decide before this can move.",
+  "Field issue": msg("Something on the plot or with the farmer that is holding this step."),
+  "Evidence gap": msg("A form, photo or paper record is missing or does not match."),
+  "Needs a decision": msg("Someone with authority has to decide before this can move."),
 };
-export const ISSUE_FOOTNOTE = "A farmer complaint or a safeguarding concern? Do not record it here. Use the project's grievance mechanism.";
+export const ISSUE_FOOTNOTE = msg("A farmer complaint or a safeguarding concern? Do not record it here. Use the project's grievance mechanism.");
 
 export const photoLabels: Record<PhotoKind, string> = {
-  training: "Training",
-  landprep: "Land preparation",
-  visit: "Readiness visit",
-  distribution: "Input distribution",
-  planting: "Planting",
+  training: msg("Training"),
+  landprep: msg("Land preparation"),
+  visit: msg("Readiness visit"),
+  distribution: msg("Input distribution"),
+  planting: msg("Planting"),
 };
 
 /* ---------- participant privacy ---------- */
@@ -671,12 +672,12 @@ export function seedField(): FieldItem[] {
           {
             id: "S-1",
             status: "completed",
-            title: "From one field to two",
+            title: msg("From one field to two"),
             text: "After last season's demo plot, farmer F-0001 prepared a second field on his own and trained two neighbors in ridge spacing.",
             date: "2027-02-10",
             by: "mel",
           },
-          { id: "S-2", status: "note", title: "Neighbor training", text: "Ask about the two neighbors at the next visit; possible follow-up story.", date: "2027-03-01", by: "extension" },
+          { id: "S-2", status: "note", title: msg("Neighbor training"), text: "Ask about the two neighbors at the next visit; possible follow-up story.", date: "2027-03-01", by: "extension" },
         ],
       },
       [],
@@ -684,7 +685,7 @@ export function seedField(): FieldItem[] {
     ),
     finding({
       id: "MF-01",
-      title: "Late land preparation on the river plots",
+      title: msg("Late land preparation on the river plots"),
       summary: "Three plots near the river were prepared after the planned date, which risks late planting.",
       sources: ["F-0002", "F-0007", "F-0008"],
       step: "validate",
@@ -697,7 +698,7 @@ export function seedField(): FieldItem[] {
     }),
     finding({
       id: "MF-02",
-      title: "Readiness pass rate 85% on first visit",
+      title: msg("Readiness pass rate 85% on first visit"),
       summary: "17 of 20 plots passed on the first visit. All three failures were ridge spacing.",
       sources: ["F-0012", "F-0014", "F-0009"],
       step: "decide",
@@ -705,7 +706,7 @@ export function seedField(): FieldItem[] {
     }),
     finding({
       id: "MF-03",
-      title: "Ridge spacing errors in east Village B",
+      title: msg("Ridge spacing errors in east Village B"),
       summary: "Repeated spacing errors trace to one training group.",
       sources: ["F-0012", "F-0014"],
       step: "act",

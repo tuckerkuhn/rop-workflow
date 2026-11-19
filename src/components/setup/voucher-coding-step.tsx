@@ -115,20 +115,20 @@ export function VoucherCodingStep({ code, onDone }: { code: string; onDone: () =
       {shown.length > 0 && (
         <div className="mt-2 overflow-x-auto">
           <table className="w-full min-w-[36rem] text-sm">
-            <thead className="text-left text-xs text-muted">
+            <thead className="text-start text-xs text-muted">
               <tr>
-                <th className="py-1 pr-2 font-medium">Budget line</th>
-                <th className="py-1 pr-2 font-medium">Budget code on the voucher</th>
+                <th className="py-1 pe-2 font-medium">Budget line</th>
+                <th className="py-1 pe-2 font-medium">Budget code on the voucher</th>
                 <th className="py-1 font-medium">Location</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
               {shown.map((l) => (
                 <tr key={l.code} className="align-top">
-                  <td className="py-2 pr-2">
+                  <td className="py-2 pe-2">
                     <span className="font-mono text-xs">{l.code}</span> {l.description.slice(0, 60)}
                   </td>
-                  <td className="py-2 pr-2">
+                  <td className="py-2 pe-2">
                     <input value={setup.lines[l.code]?.budgetCode ?? ""} onChange={(e) => setLine(l.code, { budgetCode: e.target.value })} placeholder={l.code} className={input} aria-label={`Budget code for ${l.code}`} />
                   </td>
                   <td className="py-2">

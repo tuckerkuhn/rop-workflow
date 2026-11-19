@@ -8,6 +8,7 @@ import {
   supabaseBrowser,
   useSession,
 } from "@/components/app/session";
+import { useT } from "@/components/app/i18n";
 import { Logo } from "@/components/logo";
 import { users } from "@/lib/demo";
 import { fieldRoleLabel } from "@/lib/field";
@@ -16,6 +17,7 @@ import { roleLabel } from "@/lib/procurement";
 /** Landing page. Live mode: email and password, or an emailed one-time code. Demo mode: pick who you are. */
 export function SignIn() {
   const { user, signIn, mode, configured } = useSession();
+  const { tx } = useT();
   const router = useRouter();
   const [tab, setTab] = useState<"employee" | "donor">("employee");
   const people = users.filter((u) => u.kind === tab);
@@ -36,7 +38,7 @@ export function SignIn() {
         <svg
           aria-hidden
           viewBox="0 0 600 600"
-          className="pointer-events-none absolute -bottom-24 -right-24 h-[120%] w-auto text-warn opacity-15"
+          className="pointer-events-none absolute -bottom-24 -end-24 h-[120%] w-auto text-warn opacity-15"
         >
           {Array.from({ length: 14 }, (_, i) => (
             <path
@@ -49,39 +51,37 @@ export function SignIn() {
         </svg>
         <div className="relative flex items-center gap-3">
           <Logo onDark className="w-[180px]" />
-          <span className="text-sm font-medium opacity-80">Workflow</span>
+          <span className="text-sm font-medium opacity-80">{tx("Workflow")}</span>
         </div>
         <div className="relative my-16 max-w-md">
           <h1 className="font-display text-5xl leading-[1.02] tracking-tight text-balance">
-            One place for the work, from field to file.
+            {tx("One place for the work, from field to file.")}
           </h1>
           <p className="mt-5 leading-relaxed opacity-75">
-            Field activities, procurement, documents and approvals in one
-            record. Sign in to see what is waiting on you and what is coming
-            next.
+            {tx("Field activities, procurement, documents and approvals in one record. Sign in to see what is waiting on you and what is coming next.")}
           </p>
         </div>
         <p className="relative text-xs opacity-60">
           {mode === "demo"
-            ? "Demo mode with fictional people and records."
-            : "Pilot for Roots of Peace staff."}{" "}
+            ? tx("Demo mode with fictional people and records.")
+            : tx("Pilot for Roots of Peace staff.")}{" "}
           <Link href="/about" className="underline underline-offset-2">
-            About this project
+            {tx("About this project")}
           </Link>
         </p>
       </section>
 
       <section className="flex flex-col justify-center px-6 py-10 sm:px-12">
         <div className="mx-auto w-full max-w-lg">
-          <h2 className="font-display text-3xl tracking-tight">Sign in</h2>
+          <h2 className="font-display text-3xl tracking-tight">{tx("Sign in")}</h2>
           {mode === "live" ? (
             <>
               <p className="mt-1 text-sm text-muted">
-                Your email and password, or a one-time code by email.
+                {tx("Your email and password, or a one-time code by email.")}
               </p>
               {!configured ? (
                 <p role="alert" className="mt-6 rounded-2xl border border-line bg-surface p-4 text-sm">
-                  Sign-in is not set up on this server yet: the Supabase keys are missing. An administrator needs to add them, or set DEMO_SIGN_IN=1 to use the demo people.
+                  {tx("Sign-in is not set up on this server yet: the Supabase keys are missing. An administrator needs to add them, or set DEMO_SIGN_IN=1 to use the demo people.")}
                 </p>
               ) : user ? (
                 <ContinueAs />
@@ -90,23 +90,23 @@ export function SignIn() {
               )}
             </>
           ) : mode === "loading" ? (
-            <p className="mt-6 text-sm text-muted">Loading…</p>
+            <p className="mt-6 text-sm text-muted">{tx("Loading…")}</p>
           ) : (
             <>
               <p className="mt-1 text-sm text-muted">
-                Demo mode: choose a person. No password is needed.
+                {tx("Demo mode: choose a person. No password is needed.")}
               </p>
 
               {user && (
                 <button
                   type="button"
                   onClick={() => router.push("/home")}
-                  className="mt-6 flex w-full items-center gap-3 rounded-2xl border-2 border-forest bg-surface px-4 py-3 text-left"
+                  className="mt-6 flex w-full items-center gap-3 rounded-2xl border-2 border-forest bg-surface px-4 py-3 text-start"
                 >
                   <Initials name={user.name} />
                   <span className="min-w-0 flex-1">
                     <span className="block font-medium">
-                      Continue as {user.name}
+                      {tx("Continue as {name}", { name: user.name })}
                     </span>
                     <span className="block text-xs text-muted">
                       {user.title}
@@ -122,8 +122,8 @@ export function SignIn() {
               >
                 {(
                   [
-                    ["employee", "Staff"],
-                    ["donor", "Donor"],
+                    ["employee", tx("Staff")],
+                    ["donor", tx("Donor")],
                   ] as const
                 ).map(([k, label]) => (
                   <button
@@ -150,7 +150,7 @@ export function SignIn() {
                       <button
                         type="button"
                         onClick={() => go(u.id)}
-                        className="flex w-full items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-3 text-left transition hover:-translate-y-0.5 hover:border-forest"
+                        className="flex w-full items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-3 text-start transition hover:-translate-y-0.5 hover:border-forest"
                       >
                         <Initials name={u.name} />
                         <span className="min-w-0 flex-1">
@@ -173,8 +173,7 @@ export function SignIn() {
                 })}
               </ul>
               <p className="mt-6 text-xs leading-relaxed text-muted">
-                Donors see project progress, photos and success stories, not
-                procurement files.
+                {tx("Donors see project progress, photos and success stories, not procurement files.")}
               </p>
             </>
           )}
@@ -186,6 +185,7 @@ export function SignIn() {
 
 function ContinueAs() {
   const { user, signOut } = useSession();
+  const { tx } = useT();
   const router = useRouter();
   if (!user) return null;
   return (
@@ -193,11 +193,11 @@ function ContinueAs() {
       <button
         type="button"
         onClick={() => router.push("/home")}
-        className="flex w-full items-center gap-3 rounded-2xl border-2 border-forest bg-surface px-4 py-3 text-left"
+        className="flex w-full items-center gap-3 rounded-2xl border-2 border-forest bg-surface px-4 py-3 text-start"
       >
         <Initials name={user.name} />
         <span className="min-w-0 flex-1">
-          <span className="block font-medium">Continue as {user.name}</span>
+          <span className="block font-medium">{tx("Continue as {name}", { name: user.name })}</span>
           <span className="block text-xs text-muted">{user.title}</span>
         </span>
         <span className="text-forest">→</span>
@@ -207,7 +207,7 @@ function ContinueAs() {
         onClick={() => void signOut()}
         className="text-sm text-muted underline-offset-2 hover:underline"
       >
-        Not you? Sign out
+        {tx("Not you? Sign out")}
       </button>
     </div>
   );
@@ -219,6 +219,7 @@ function ContinueAs() {
  */
 function EmailCode() {
   const { refresh } = useSession();
+  const { tx } = useT();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -236,7 +237,7 @@ function EmailCode() {
       setBusy(false);
       setError(
         /invalid login credentials/i.test(error.message)
-          ? "That email and password do not match. If you have not set a password yet, email yourself a code and set one in Settings."
+          ? tx("That email and password do not match. If you have not set a password yet, email yourself a code and set one in Settings.")
           : error.message,
       );
       return;
@@ -247,7 +248,7 @@ function EmailCode() {
 
   const send = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!email.includes("@")) return setError("Enter your email first.");
+    if (!email.includes("@")) return setError(tx("Enter your email first."));
     setBusy(true);
     setError("");
     const { error } = await supabaseBrowser().auth.signInWithOtp({
@@ -258,7 +259,7 @@ function EmailCode() {
     if (error)
       setError(
         /signups? not allowed|not found/i.test(error.message)
-          ? "That email is not on the access list. Ask your Roots of Peace contact to add you."
+          ? tx("That email is not on the access list. Ask your Roots of Peace contact to add you.")
           : error.message,
       );
     else setSent(true);
@@ -277,7 +278,7 @@ function EmailCode() {
       setBusy(false);
       setError(
         /expired|invalid/i.test(error.message)
-          ? "That code is wrong or has expired. Check the latest email, or send a new code."
+          ? tx("That code is wrong or has expired. Check the latest email, or send a new code.")
           : error.message,
       );
       return;
@@ -291,14 +292,16 @@ function EmailCode() {
   const button =
     "mt-4 w-full rounded-full bg-forest px-4 py-3 font-semibold text-paper transition disabled:opacity-50";
 
+  // The address stays bold inside the translated sentence: split it at the placeholder.
+  const [sentBefore, sentAfter = ""] = tx("We sent an email to {email}. Click the link in it, or enter the code if it has one. It works for one hour.", { email: "\u0000" }).split("\u0000");
+
   return sent ? (
     <form onSubmit={verify} className="mt-6">
       <p className="text-sm">
-        We sent an email to <strong>{email.trim()}</strong>. Click the link
-        in it, or enter the code if it has one. It works for one hour.
+        {sentBefore}<strong>{email.trim()}</strong>{sentAfter}
       </p>
       <label className="mt-4 block text-sm font-medium" htmlFor="code">
-        Code from the email
+        {tx("Code from the email")}
       </label>
       <input
         id="code"
@@ -321,7 +324,7 @@ function EmailCode() {
         disabled={busy || code.length < 6}
         className={button}
       >
-        {busy ? "Checking…" : "Sign in"}
+        {busy ? tx("Checking…") : tx("Sign in")}
       </button>
       <button
         type="button"
@@ -332,13 +335,13 @@ function EmailCode() {
         }}
         className="mt-3 text-sm text-muted underline-offset-2 hover:underline"
       >
-        Use a different email or send a new code
+        {tx("Use a different email or send a new code")}
       </button>
     </form>
   ) : (
     <form onSubmit={withPassword} className="mt-6">
       <label className="block text-sm font-medium" htmlFor="email">
-        Email
+        {tx("Email")}
       </label>
       <input
         id="email"
@@ -351,7 +354,7 @@ function EmailCode() {
         required
       />
       <label className="mt-4 block text-sm font-medium" htmlFor="password">
-        Password
+        {tx("Password")}
       </label>
       <input
         id="password"
@@ -371,7 +374,7 @@ function EmailCode() {
         disabled={busy || !email.includes("@") || !password}
         className={button}
       >
-        {busy ? "Signing in…" : "Sign in"}
+        {busy ? tx("Signing in…") : tx("Sign in")}
       </button>
       <button
         type="button"
@@ -379,11 +382,10 @@ function EmailCode() {
         disabled={busy}
         className="mt-3 w-full rounded-full border border-line px-4 py-3 text-sm font-medium transition disabled:opacity-50"
       >
-        No password yet? Email me a code
+        {tx("No password yet? Email me a code")}
       </button>
       <p className="mt-4 text-xs leading-relaxed text-muted">
-        Staff and donors use the same sign-in. Any email address works if it is
-        on the access list.
+        {tx("Staff and donors use the same sign-in. Any email address works if it is on the access list.")}
       </p>
     </form>
   );

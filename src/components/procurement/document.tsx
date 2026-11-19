@@ -53,7 +53,7 @@ export function DocumentViewer({
                 <h2 className="font-display text-3xl tracking-tight">{d.title}</h2>
               </div>
             </div>
-            <div className="text-right font-mono text-xs text-muted">
+            <div className="text-end font-mono text-xs text-muted">
               <p>{d.number}</p>
               <p>ROP Procurement Policy, April 2025</p>
             </div>
@@ -63,7 +63,7 @@ export function DocumentViewer({
             <tbody className="divide-y divide-line">
               {d.rows.map(([k, v]) => (
                 <tr key={k} className="align-top">
-                  <th scope="row" className="w-48 py-2 pr-4 text-left text-xs font-semibold uppercase tracking-wide text-muted">
+                  <th scope="row" className="w-48 py-2 pe-4 text-start text-xs font-semibold uppercase tracking-wide text-muted">
                     {k}
                   </th>
                   <td className="whitespace-pre-line py-2 tabular-nums">{v}</td>
@@ -77,31 +77,31 @@ export function DocumentViewer({
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">Accounting section</h3>
               <div className="mt-2 overflow-x-auto">
                 <table className="w-full min-w-[40rem] text-xs">
-                  <thead className="border-b border-ink text-left text-muted">
+                  <thead className="border-b border-ink text-start text-muted">
                     <tr>
-                      <th className="py-1.5 pr-2 font-semibold"></th>
-                      <th className="py-1.5 pr-2 font-semibold">GL code</th>
-                      <th className="py-1.5 pr-2 font-semibold">Dept</th>
-                      <th className="py-1.5 pr-2 font-semibold">Contract</th>
-                      <th className="py-1.5 pr-2 font-semibold">Budget code</th>
-                      <th className="py-1.5 pr-2 font-semibold">Location</th>
-                      <th className="py-1.5 pr-2 font-semibold">Description</th>
-                      <th className="py-1.5 pr-2 text-right font-semibold">AFS</th>
-                      <th className="py-1.5 text-right font-semibold">US$</th>
+                      <th className="py-1.5 pe-2 font-semibold"></th>
+                      <th className="py-1.5 pe-2 font-semibold">GL code</th>
+                      <th className="py-1.5 pe-2 font-semibold">Dept</th>
+                      <th className="py-1.5 pe-2 font-semibold">Contract</th>
+                      <th className="py-1.5 pe-2 font-semibold">Budget code</th>
+                      <th className="py-1.5 pe-2 font-semibold">Location</th>
+                      <th className="py-1.5 pe-2 font-semibold">Description</th>
+                      <th className="py-1.5 pe-2 text-end font-semibold">AFS</th>
+                      <th className="py-1.5 text-end font-semibold">US$</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-line align-top">
                     {d.ledger.lines.map((l, i) => (
                       <tr key={i}>
-                        <td className="py-1.5 pr-2 font-semibold">{l.side}</td>
-                        <td className="py-1.5 pr-2">{l.gl}</td>
-                        <td className="py-1.5 pr-2">{l.dept}</td>
-                        <td className="py-1.5 pr-2">{l.contract}</td>
-                        <td className="py-1.5 pr-2">{l.budgetCode}</td>
-                        <td className="py-1.5 pr-2">{l.location}</td>
-                        <td className="py-1.5 pr-2">{l.description}</td>
-                        <td className="py-1.5 pr-2 text-right tabular-nums">{l.afn}</td>
-                        <td className="py-1.5 text-right tabular-nums">{l.usd}</td>
+                        <td className="py-1.5 pe-2 font-semibold">{l.side}</td>
+                        <td className="py-1.5 pe-2">{l.gl}</td>
+                        <td className="py-1.5 pe-2">{l.dept}</td>
+                        <td className="py-1.5 pe-2">{l.contract}</td>
+                        <td className="py-1.5 pe-2">{l.budgetCode}</td>
+                        <td className="py-1.5 pe-2">{l.location}</td>
+                        <td className="py-1.5 pe-2">{l.description}</td>
+                        <td className="py-1.5 pe-2 text-end tabular-nums">{l.afn}</td>
+                        <td className="py-1.5 text-end tabular-nums">{l.usd}</td>
                       </tr>
                     ))}
                   </tbody>

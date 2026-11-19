@@ -1,15 +1,18 @@
 "use client";
 
+import { Arrow } from "@/components/app/arrow";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useFeature, useRequireUser, useSession } from "@/components/app/session";
+import { useT } from "@/components/app/i18n";
+import { msg, translateText } from "@/lib/i18n/text";
 import { shrinkPhoto } from "@/components/field/profile";
 import { PHOTO_QUALITY } from "@/lib/plans";
 import { useFieldData } from "@/components/app/use-project-data";
 import { useCurrentProject } from "@/components/app/current-project";
 import { FarmerImport, PackageSetup } from "@/components/field/setup";
 import { today } from "@/lib/clock";
-import { canEditProject } from "@/lib/demo";
+import { canEditProject, stepHistory } from "@/lib/demo";
 import { itemsFor, packageUsd, qtyItem, type FieldSetup } from "@/lib/package";
 import { densityOf, hectaresFor, plantedItem } from "@/lib/crops";
 import {
@@ -51,7 +54,6 @@ import {
   handedOutOn,
   plantingProblem,
   findingStages,
-  historyBasis,
   issueHelp,
   issueTypes,
   openBlocking,
@@ -70,7 +72,8 @@ import {
 
 /** Shown when Field activities cannot reach the database. */
 export function DataBanner({ status, error }: { status: string; error: string }) {
-  if (status === "loading") return <p className="mx-3 mt-4 rounded-xl border border-line bg-surface px-3 py-2 text-sm text-muted sm:mx-4">Loading field records…</p>;
+  const { tx } = useT();
+  if (status === "loading") return <p className="mx-3 mt-4 rounded-xl border border-line bg-surface px-3 py-2 text-sm text-muted sm:mx-4">{tx("Loading field records…")}</p>;
   if (!error) return null;
   return (
     <p role="alert" className="mx-3 mt-4 rounded-xl border border-clay/40 bg-clay-soft px-3 py-2 text-sm text-clay sm:mx-4">
@@ -80,16 +83,30 @@ export function DataBanner({ status, error }: { status: string; error: string })
 }
 
 const ENDS: Record<string, { title: string; body: string; tone: "forest" | "clay" }> = {
-  complete: { title: "Season record complete", body: "Trained, verified, supplied and planted. Follow-up visits continue through harvest.", tone: "forest" },
-  removed: { title: "Removed from the project", body: "The decision and its reason are on the record below.", tone: "clay" },
-  closed: { title: "Closed", body: "The decision and any action feed the next seasonal plan.", tone: "forest" },
+  complete: { title: msg("Season record complete"), body: msg("Trained, verified, supplied and planted. Follow-up visits continue through harvest."), tone: "forest" },
+  removed: { title: msg("Removed from the project"), body: msg("The decision and its reason are on the record below."), tone: "clay" },
+  closed: { title: msg("Closed"), body: msg("The decision and any action feed the next seasonal plan."), tone: "forest" },
+};
+
+type Tx = (text: string, vars?: Record<string, string | number>) => string;
+/** English with {name} filled in: what comingTo shows when the caller has no tx (outside a component). */
+const english: Tx = (text, vars) => translateText("en", text, vars);
+
+/** "Farida Noori (Extension agent)" for a role, in the interface language. */
+const personIn = (tx: Tx, r: string) => {
+  const u = holderOf("field", r);
+  return u ? tx("{name} ({role})", { name: u.name, role: tx(fieldRoleLabel(r)) }) : tx(fieldRoleLabel(r));
 };
 
 export const stageOf = (i: FieldItem) =>
   i.step in ENDS ? (i.kind === "farmer" ? (i.step === "removed" ? 2 : farmerStages.length) : findingStages.length) : fieldSteps[i.step].stage;
 
-/** Items that will reach `role` later, with the projected arrival date. */
-export function comingTo(items: FieldItem[], role: string, viewer?: AppUser | null) {
+/** Items that will reach `role` later, with the projected arrival date. Pass `tx` from a component for the interface language. */
+export function comingTo(items: FieldItem[], role: string, viewer?: AppUser | null, tx: Tx = english) {
+  const basisOf = (step: string) => {
+    const h = stepHistory[step];
+    return h ? tx("Median {median} days across {n} past cases", { median: h.median, n: h.n }) : "";
+  };
   return items
     .filter((i) => ownerOfItem(i) && ownerOfItem(i) !== role)
     .flatMap((i) => {
@@ -100,10 +117,10 @@ export function comingTo(items: FieldItem[], role: string, viewer?: AppUser | nu
         {
           id: i.id,
           title: i.kind === "farmer" ? farmerLabel(i, viewer) : i.title,
-          step: fieldSteps[hit.step].title,
+          step: tx(fieldSteps[hit.step].title),
           eta: hit.start,
-          via: `${fieldSteps[path[0].step].title.toLowerCase()} with ${holderOf("field", path[0].owner)?.name ?? fieldRoleLabel(path[0].owner)}`,
-          basis: path.slice(0, path.indexOf(hit)).map((p) => `${fieldSteps[p.step].title}: ${historyBasis(p.step)}`).join(" · "),
+          via: tx("{step} with {person}", { step: tx(fieldSteps[path[0].step].title).toLowerCase(), person: holderOf("field", path[0].owner)?.name ?? tx(fieldRoleLabel(path[0].owner)) }),
+          basis: path.slice(0, path.indexOf(hit)).map((p) => tx("{step}: {basis}", { step: tx(fieldSteps[p.step].title), basis: basisOf(p.step) })).join(" · "),
         },
       ];
     })
@@ -116,6 +133,7 @@ function ActionForm({ onSave }: { onSave: (a: { text: string; owner: FieldRole; 
   const [text, setText] = useState("");
   const [owner, setOwner] = useState<FieldRole>("extension");
   const [due, setDue] = useState(addDays(today(), 7));
+  const { tx } = useT();
   const field = "rounded-lg border border-line bg-surface px-3 py-2 text-sm focus:border-forest focus:outline-none";
   return (
     <form
@@ -125,19 +143,19 @@ function ActionForm({ onSave }: { onSave: (a: { text: string; owner: FieldRole; 
       }}
       className="space-y-3"
     >
-      <p className="text-sm font-medium">Assign an action</p>
-      <input id="action-text" value={text} onChange={(e) => setText(e.target.value)} placeholder="What should change?" className={`w-full ${field}`} />
+      <p className="text-sm font-medium">{tx("Assign an action")}</p>
+      <input id="action-text" value={text} onChange={(e) => setText(e.target.value)} placeholder={tx("What should change?")} className={`w-full ${field}`} />
       <div className="flex flex-wrap gap-2">
-        <select id="action-owner" value={owner} onChange={(e) => setOwner(e.target.value as FieldRole)} className={field} aria-label="Owner">
+        <select id="action-owner" value={owner} onChange={(e) => setOwner(e.target.value as FieldRole)} className={field} aria-label={tx("Owner")}>
           {fieldRoles.map((r) => (
             <option key={r.id} value={r.id}>
-              {fieldPerson(r.id)}
+              {personIn(tx, r.id)}
             </option>
           ))}
         </select>
-        <input id="action-due" type="date" value={due} onChange={(e) => setDue(e.target.value)} className={field} aria-label="Due date" />
+        <input id="action-due" type="date" value={due} onChange={(e) => setDue(e.target.value)} className={field} aria-label={tx("Due date")} />
         <button type="submit" disabled={!text.trim()} className={primaryBtn}>
-          Assign action →
+          {tx("Assign action")} <Arrow />
         </button>
       </div>
     </form>
@@ -146,6 +164,7 @@ function ActionForm({ onSave }: { onSave: (a: { text: string; owner: FieldRole; 
 
 function NewFinding({ farmers, onCancel, onCreate }: { farmers: Farmer[]; onCancel: () => void; onCreate: (f: Finding) => void }) {
   const { user } = useSession();
+  const { tx } = useT();
   const [title, setTitle] = useState("");
   const [summary, setSummary] = useState("");
   const [sources, setSources] = useState<string[]>([]);
@@ -171,19 +190,19 @@ function NewFinding({ farmers, onCancel, onCreate }: { farmers: Farmer[]; onCanc
       className="mx-auto max-w-2xl space-y-6"
     >
       <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-warn">New finding</p>
-        <h2 className="mt-2 font-display text-3xl tracking-tight">What did you see in the field?</h2>
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-warn">{tx("New finding")}</p>
+        <h2 className="mt-2 font-display text-3xl tracking-tight">{tx("What did you see in the field?")}</h2>
       </div>
       <label className="block">
-        <span className="text-sm font-medium">Finding</span>
-        <input id="nf-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Late planting on the hillside plots" className={`mt-1 ${field}`} />
+        <span className="text-sm font-medium">{tx("Finding")}</span>
+        <input id="nf-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={tx("e.g. Late planting on the hillside plots")} className={`mt-1 ${field}`} />
       </label>
       <label className="block">
-        <span className="text-sm font-medium">What the evidence shows</span>
+        <span className="text-sm font-medium">{tx("What the evidence shows")}</span>
         <textarea id="nf-summary" rows={3} value={summary} onChange={(e) => setSummary(e.target.value)} className={`mt-1 ${field}`} />
       </label>
       <fieldset>
-        <legend className="text-sm font-medium">Source records</legend>
+        <legend className="text-sm font-medium">{tx("Source records")}</legend>
         <div className="mt-2 flex flex-wrap gap-1.5">
           {farmers.map((f) => {
             const on = sources.includes(f.id);
@@ -203,10 +222,10 @@ function NewFinding({ farmers, onCancel, onCreate }: { farmers: Farmer[]; onCanc
       </fieldset>
       <div className="flex gap-3">
         <button type="submit" disabled={!valid} className={primaryBtn}>
-          Create finding
+          {tx("Create finding")}
         </button>
         <button type="button" onClick={onCancel} className="rounded-full px-4 py-3 text-sm text-muted hover:text-ink">
-          Cancel
+          {tx("Cancel")}
         </button>
       </div>
     </form>
@@ -231,6 +250,8 @@ function Detail({
   onOpen: (id: string) => void;
 }) {
   const { signIn, money, user, mode } = useSession();
+  const { tx } = useT();
+  const person = (r: string) => personIn(tx, r);
   const projectCode = useCurrentProject().project.id;
   const [raising, setRaising] = useState<string | null>(null);
   const [pending, setPending] = useState<Outcome | null>(null);
@@ -260,25 +281,25 @@ function Detail({
   const noteOnFile = item.kind === "farmer" && hasSignedNotePhoto(item);
   const addNote = (file: File | undefined) => {
     if (!file) return;
-    if (file.size > 25_000_000) return setNoteError("That file is too large to be a photo. Choose a photo from the phone.");
+    if (file.size > 25_000_000) return setNoteError(tx("That file is too large to be a photo. Choose a photo from the phone."));
     void shrinkPhoto(file, fullPhotos ? PHOTO_QUALITY.full : PHOTO_QUALITY.small)
       .then((src) => {
         apply((i) => (i.kind === "farmer" ? { ...i, photos: [...i.photos, { id: `${i.id}-note-${Date.now()}`, activity: "distribution", date: today(), caption: `Signed goods received note · ${i.id}`, src, signedNote: true }] } : i));
         setNoteError("");
       })
-      .catch(() => setNoteError("The app could not read that image. Try a JPEG or PNG photo."));
+      .catch(() => setNoteError(tx("The app could not read that image. Try a JPEG or PNG photo.")));
   };
   // Planting: the record and an optional photo of the planted plot.
   const [plantPhotoError, setPlantPhotoError] = useState("");
   const addPlantPhoto = (file: File | undefined) => {
     if (!file) return;
-    if (file.size > 25_000_000) return setPlantPhotoError("That file is too large to be a photo. Choose a photo from the phone.");
+    if (file.size > 25_000_000) return setPlantPhotoError(tx("That file is too large to be a photo. Choose a photo from the phone."));
     void shrinkPhoto(file, fullPhotos ? PHOTO_QUALITY.full : PHOTO_QUALITY.small)
       .then((src) => {
         apply((i) => (i.kind === "farmer" ? { ...i, photos: [...i.photos, { id: `${i.id}-planting-${Date.now()}`, activity: "planting", date: today(), caption: `Planted plot · ${i.id}`, src }] } : i));
         setPlantPhotoError("");
       })
-      .catch(() => setPlantPhotoError("The app could not read that image. Try a JPEG or PNG photo."));
+      .catch(() => setPlantPhotoError(tx("The app could not read that image. Try a JPEG or PNG photo.")));
   };
   const canRun = (o: Outcome) => blocks.length === 0 && (o.requiresChecks === false || (checksOk && (!needsNote || noteOnFile)));
   const end = ENDS[item.step];
@@ -292,24 +313,24 @@ function Detail({
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-mono text-xs text-muted">{item.id}</span>
             {ctx.setup.season && <Pill tone="muted">{ctx.setup.season}</Pill>}
-            {item.step === "correct" && <StatusPill tone="clay">Correcting</StatusPill>}
+            {item.step === "correct" && <StatusPill tone="clay">{tx("Correcting")}</StatusPill>}
           </div>
           <div className="mt-2 flex flex-wrap items-baseline justify-between gap-3">
             <h2 className="font-display text-3xl leading-tight tracking-tight">{farmerName(item, user)}</h2>
             <Link href={`/field/farmers/${item.id}`} className="btn-link">
-              Open profile →
+              {tx("Open profile")} <Arrow />
             </Link>
           </div>
           <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4">
             {[
-              ["Village", item.community],
-              ["Plot", `${item.hectares} ha${ctx.setup.crop ? ` ${ctx.setup.crop.toLowerCase()}` : ""}`],
-              ["Contribution", item.contributionPaid ? "Paid" : "Not paid"],
-              ["Input package", packageUsd(ctx.setup, item.hectares) ? money(packageUsd(ctx.setup, item.hectares)) : `${ctx.setup.items.length} items`],
-            ].map(([k, v]) => (
+              { k: "village", label: tx("Village"), v: item.community, warn: false },
+              { k: "plot", label: tx("Plot"), v: ctx.setup.crop ? tx("{n} ha {crop}", { n: item.hectares, crop: ctx.setup.crop.toLowerCase() }) : tx("{n} ha", { n: item.hectares }), warn: false },
+              { k: "contribution", label: tx("Contribution"), v: item.contributionPaid ? tx("Paid") : tx("Not paid"), warn: !item.contributionPaid },
+              { k: "package", label: tx("Input package"), v: packageUsd(ctx.setup, item.hectares) ? money(packageUsd(ctx.setup, item.hectares)) : tx("{n} items", { n: ctx.setup.items.length }), warn: false },
+            ].map(({ k, label, v, warn }) => (
               <div key={k}>
-                <dt className="text-xs font-semibold uppercase tracking-wide text-muted">{k}</dt>
-                <dd className={`mt-0.5 tabular-nums ${v === "Not paid" ? "font-medium text-warn" : ""}`}>{v}</dd>
+                <dt className="text-xs font-semibold uppercase tracking-wide text-muted">{label}</dt>
+                <dd className={`mt-0.5 tabular-nums ${warn ? "font-medium text-warn" : ""}`}>{v}</dd>
               </div>
             ))}
           </dl>
@@ -318,13 +339,13 @@ function Detail({
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-mono text-xs text-muted">{item.id}</span>
-            <Pill tone="plum">MEL finding</Pill>
+            <Pill tone="plum">{tx("MEL finding")}</Pill>
           </div>
           <h2 className="mt-2 font-display text-3xl leading-tight tracking-tight">{item.title}</h2>
           <p className="mt-3 max-w-2xl leading-relaxed text-muted">{item.summary}</p>
           {item.sources.length > 0 && (
             <div className="mt-3 flex flex-wrap items-center gap-1.5">
-              <span className="text-xs font-semibold uppercase tracking-wide text-muted">Sources</span>
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted">{tx("Sources")}</span>
               {item.sources.map((s) => (
                 <button
                   key={s}
@@ -332,14 +353,14 @@ function Detail({
                   onClick={() => onOpen(s)}
                   className="rounded-md border border-line bg-paper px-2 py-0.5 font-mono text-xs text-muted transition hover:border-forest hover:text-forest"
                 >
-                  {s} →
+                  {s} <Arrow />
                 </button>
               ))}
             </div>
           )}
           {item.action && (
             <p className="mt-3 text-sm">
-              <span className="font-semibold">Action:</span> {item.action.text} · {fieldPerson(item.action.owner)} · due {item.action.due}
+              <span className="font-semibold">{tx("Action:")}</span> {item.action.text} · {person(item.action.owner)} · {tx("due {date}", { date: item.action.due })}
             </p>
           )}
         </div>
@@ -349,51 +370,51 @@ function Detail({
         <Tracker
           labels={item.kind === "farmer" ? farmerStages : findingStages}
           current={stageOf(item)}
-          marks={item.kind === "farmer" ? { 2: "Yes / No" } : {}}
+          marks={item.kind === "farmer" ? { 2: tx("Yes / No") } : {}}
           warn={["correct", "removal", "removed"].includes(item.step)}
         />
       </div>
 
       {end ? (
         <div className={`rounded-2xl border p-6 ${end.tone === "forest" ? "border-forest/30 bg-mist" : "border-clay/30 bg-clay-soft"}`}>
-          <p className={`font-display text-2xl ${end.tone === "forest" ? "text-forest" : "text-clay"}`}>{end.title}</p>
-          <p className="mt-1 text-sm text-muted">{end.body}</p>
+          <p className={`font-display text-2xl ${end.tone === "forest" ? "text-forest" : "text-clay"}`}>{tx(end.title)}</p>
+          <p className="mt-1 text-sm text-muted">{tx(end.body)}</p>
         </div>
       ) : (
         <StepCard
           mine={mine}
-          ownerLabel={fieldPerson(owner!)}
-          eyebrow={item.step === "verify" ? "Yes or no decision" : undefined}
+          ownerLabel={person(owner!)}
+          eyebrow={item.step === "verify" ? msg("Yes or no decision") : undefined}
           title={step.title}
           note={step.note?.(item)}
           onViewAs={ownerUser && mode === "demo" ? () => signIn(ownerUser.id) : undefined}
-          switchLabel={ownerUser ? `Sign in as ${ownerUser.name.split(" ")[0]} (demo)` : undefined}
+          switchLabel={ownerUser ? tx("Sign in as {name} (demo)", { name: ownerUser.name.split(" ")[0] }) : undefined}
           footer={
             <>
               {awaiting && (
                 <div className={`border-t px-5 py-4 text-sm ${awaiting.status === "pending" ? "border-line bg-mist" : "border-clay/30 bg-clay-soft"}`}>
                   {awaiting.status === "pending" ? (
                     <p>
-                      <span className="font-semibold">Distribution recorded.</span> Waiting for {fieldPerson("manager")} to approve it; the farmer moves on to planting once approved.
+                      <span className="font-semibold">{tx("Distribution recorded.")}</span> {tx("Waiting for {person} to approve it; the farmer moves on to planting once approved.", { person: person("manager") })}
                     </p>
                   ) : (
                     <p>
-                      <span className="font-semibold text-clay">Sent back by the project manager:</span> {awaiting.note}
+                      <span className="font-semibold text-clay">{tx("Sent back by the project manager:")}</span> {awaiting.note}
                     </p>
                   )}
                   {awaiting.id ? (
                     <Link href={`/approve/${encodeURIComponent(projectCode)}/${awaiting.id}`} className="btn-link mt-3">
-                      {awaiting.status === "pending" ? "See the distribution record →" : "Fix it and send it again →"}
+                      {awaiting.status === "pending" ? tx("See the distribution record") : tx("Fix it and send it again")} <Arrow />
                     </Link>
                   ) : (
-                    <p className="mt-2 text-xs text-muted">Saving the record…</p>
+                    <p className="mt-2 text-xs text-muted">{tx("Saving the record…")}</p>
                   )}
                 </div>
               )}
               {mine && !awaiting && (
                 <>
                 <div className="space-y-3 border-t border-line px-5 py-4 empty:hidden">
-                  {blocks.length > 0 && <p className="text-sm font-medium text-clay">An open issue is holding this step.</p>}
+                  {blocks.length > 0 && <p className="text-sm font-medium text-clay">{tx("An open issue is holding this step.")}</p>}
                   {item.step === "decide" && checksOk && blocks.length === 0 && (
                     <div className="rounded-xl border border-line bg-paper p-4">
                       <ActionForm
@@ -405,12 +426,12 @@ function Detail({
                   )}
                   {needsNote && (
                     <div className={`rounded-xl border px-4 py-3 text-sm ${noteOnFile ? "border-line bg-mist" : "border-clay/40 bg-clay-soft"}`}>
-                      <p className="font-semibold">{noteOnFile ? "✓ Photo of the signed goods received note is on the record" : "Photo of the signed goods received note"}</p>
+                      <p className="font-semibold">{noteOnFile ? tx("✓ Photo of the signed goods received note is on the record") : tx("Photo of the signed goods received note")}</p>
                       {!noteOnFile && (
                         <>
-                          <p className="mt-1">The recipient signs or thumbprints a note saying they received the goods in acceptable condition and are responsible for them from then on. Take a photo of it. The distribution cannot be recorded or approved without it.</p>
+                          <p className="mt-1">{tx("The recipient signs or thumbprints a note saying they received the goods in acceptable condition and are responsible for them from then on. Take a photo of it. The distribution cannot be recorded or approved without it.")}</p>
                           <label className={`${primaryBtn} mt-3 inline-flex cursor-pointer`}>
-                            Take or choose photo
+                            {tx("Take or choose photo")}
                             <input
                               type="file"
                               accept="image/*"
@@ -453,14 +474,14 @@ function Detail({
                         autoFocus
                         value={note}
                         onChange={(e) => setNote(e.target.value)}
-                        placeholder={pending.note}
+                        placeholder={pending.note ? tx(pending.note) : undefined}
                         className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm focus:border-forest focus:outline-none"
                       />
                       <button type="submit" disabled={!note.trim()} className={pending.tone === "danger" ? dangerBtn : primaryBtn}>
-                        {pending.label}
+                        {tx(pending.label)}
                       </button>
                       <button type="button" onClick={() => setPending(null)} className="px-2 text-sm text-muted">
-                        Cancel
+                        {tx("Cancel")}
                       </button>
                     </form>
                   ) : (
@@ -473,18 +494,18 @@ function Detail({
                           onClick={() => (o.note ? setPending(o) : run(o, ""))}
                           className={o.tone === "primary" ? primaryBtn : o.tone === "danger" ? dangerBtn : quietBtn}
                         >
-                          {o.label}
-                          {o.tone === "primary" && " →"}
+                          {tx(o.label)}
+                          {o.tone === "primary" && <> <Arrow /></>}
                         </button>
                       ))}
                       {raising === null && (
                         <button type="button" onClick={() => setRaising("")} className="rounded-full px-4 py-3 text-sm font-medium text-muted hover:text-ink">
-                          + Raise issue
+                          {tx("+ Raise issue")}
                         </button>
                       )}
                     </div>
                   )}
-                  {(!checksOk || (needsNote && !noteOnFile)) && blocks.length === 0 && <p className="text-xs text-muted">{checksOk ? "Add the photo of the signed note to continue." : "Complete every item above to continue."}</p>}
+                  {(!checksOk || (needsNote && !noteOnFile)) && blocks.length === 0 && <p className="text-xs text-muted">{checksOk ? tx("Add the photo of the signed note to continue.") : tx("Complete every item above to continue.")}</p>}
                 </div>
                 </>
               )}
@@ -537,14 +558,14 @@ function Detail({
 
       <IssueList
         issues={item.issues}
-        roleLabel={fieldPerson}
+        roleLabel={person}
         canResolve={(i) => mine || i.by === role}
         onResolve={(id, n) =>
           apply((x) => log({ ...x, issues: x.issues.map((y) => (y.id === id ? { ...y, status: "resolved", resolution: n } : y)) }, "Issue resolved"))
         }
       />
 
-      <History events={item.timeline} roleLabel={fieldPerson} />
+      <History events={item.timeline} roleLabel={person} />
     </div>
   );
 }
@@ -557,12 +578,13 @@ function Detail({
  * above read it (lib/field plantingProblem), and the server refuses a record that breaks them.
  */
 function PlantingForm({ farmer, setup, today: now, onSave, onPhoto, photoError }: { farmer: Farmer; setup: FieldSetup; today: string; onSave: (p: Planting) => void; onPhoto: (f: File | undefined) => void; photoError: string }) {
+  const { tx } = useT();
   const saved = farmer.planting;
   // A crop counted one by one (Set up → Crop): Field types how many went in; the hectares follow from the spacing.
   const plan = setup.plan;
   const density = densityOf(plan);
   const counted = !!density;
-  const unit = plan?.unit ?? "plants";
+  const unit = plan?.unit ?? tx("plants");
   // Pre-filled with what the farmer was given, so usually only the date is typed.
   const givenItem = plantedItem(itemsFor(setup, farmer.hectares), plan);
   const [editing, setEditing] = useState(!saved);
@@ -570,7 +592,7 @@ function PlantingForm({ farmer, setup, today: now, onSave, onPhoto, photoError }
   const [ha, setHa] = useState(String(saved?.hectares ?? farmer.hectares));
   const [count, setCount] = useState(String(saved?.count ?? (givenItem ? Math.round(givenItem.qty) : "")));
   const draft: Planting = counted ? { date, count: Number(count), hectares: hectaresFor(Number(count), plan) ?? 0 } : { date, hectares: Number(ha) };
-  const problem = (counted ? count.trim() === "" : ha.trim() === "") ? (counted ? `Enter how many ${unit} were planted.` : "Enter the area planted.") : plantingProblem({ ...farmer, planting: draft }, now);
+  const problem = (counted ? count.trim() === "" : ha.trim() === "") ? (counted ? tx("Enter how many {unit} were planted.", { unit }) : tx("Enter the area planted.")) : plantingProblem({ ...farmer, planting: draft }, now);
   const given = handedOutOn(farmer);
   const photo = farmer.photos.filter((p) => p.activity === "planting" && p.src).at(-1);
   return (
@@ -578,11 +600,12 @@ function PlantingForm({ farmer, setup, today: now, onSave, onPhoto, photoError }
       {saved && !editing ? (
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <p className="font-semibold">
-            ✓ Planted {saved.date} · {saved.count !== undefined ? `${saved.count.toLocaleString("en-US")} ${unit}, ` : ""}
-            {saved.hectares} of {farmer.hectares} ha
+            {saved.count !== undefined
+              ? tx("✓ Planted {date} · {count} {unit}, {ha} of {total} ha", { date: saved.date, count: saved.count.toLocaleString("en-US"), unit, ha: saved.hectares, total: farmer.hectares })
+              : tx("✓ Planted {date} · {ha} of {total} ha", { date: saved.date, ha: saved.hectares, total: farmer.hectares })}
           </p>
           <button type="button" onClick={() => setEditing(true)} className="text-xs font-semibold text-forest underline">
-            Change
+            {tx("Change")}
           </button>
         </div>
       ) : (
@@ -594,49 +617,51 @@ function PlantingForm({ farmer, setup, today: now, onSave, onPhoto, photoError }
             setEditing(false);
           }}
         >
-          <p className="font-semibold">Planting record</p>
+          <p className="font-semibold">{tx("Planting record")}</p>
           <p className="mt-1 text-muted">
-            {counted ? `The day the farmer planted and how many ${unit} went in the ground. The area follows from the spacing (${density!.toLocaleString("en-US")} per ha).` : "The day the farmer planted and how much of the plot."} {given ? `Inputs were handed out ${given}.` : ""}
+            {counted ? tx("The day the farmer planted and how many {unit} went in the ground. The area follows from the spacing ({density} per ha).", { unit, density: density!.toLocaleString("en-US") }) : tx("The day the farmer planted and how much of the plot.")} {given ? tx("Inputs were handed out {date}.", { date: given }) : ""}
           </p>
           <div className="mt-3 flex flex-wrap items-end gap-3">
             <label className="text-xs font-semibold">
-              Planted on
+              {tx("Planted on")}
               <input type="date" value={date} max={now} min={given ?? undefined} onChange={(e) => setDate(e.target.value)} className="mt-1 block rounded-lg border border-line bg-surface px-3 py-2 text-sm font-normal" />
             </label>
             {counted ? (
               <>
                 <label className="text-xs font-semibold">
-                  {unit[0].toUpperCase() + unit.slice(1)} planted{givenItem ? ` (given ${Math.round(givenItem.qty).toLocaleString("en-US")})` : ""}
+                  {givenItem
+                    ? tx("{Unit} planted (given {n})", { Unit: unit[0].toUpperCase() + unit.slice(1), n: Math.round(givenItem.qty).toLocaleString("en-US") })
+                    : tx("{Unit} planted", { Unit: unit[0].toUpperCase() + unit.slice(1) })}
                   <input type="number" min={0} step={1} inputMode="numeric" value={count} onChange={(e) => setCount(e.target.value)} className="mt-1 block w-32 rounded-lg border border-line bg-surface px-3 py-2 text-sm font-normal" />
                 </label>
                 <p className="pb-2 text-xs text-muted">
-                  = {draft.hectares} ha of the {farmer.hectares} ha plot
+                  {tx("= {ha} ha of the {total} ha plot", { ha: draft.hectares, total: farmer.hectares })}
                 </p>
               </>
             ) : (
               <label className="text-xs font-semibold">
-                Area planted (ha, plot is {farmer.hectares})
+                {tx("Area planted (ha, plot is {n})", { n: farmer.hectares })}
                 <input type="number" min={0} max={farmer.hectares} step="any" inputMode="decimal" value={ha} onChange={(e) => setHa(e.target.value)} className="mt-1 block w-32 rounded-lg border border-line bg-surface px-3 py-2 text-sm font-normal" />
               </label>
             )}
             <button type="submit" disabled={!!problem} className={primaryBtn}>
-              Save planting record
+              {tx("Save planting record")}
             </button>
             {saved && (
               <button type="button" onClick={() => setEditing(false)} className="px-2 text-sm text-muted">
-                Cancel
+                {tx("Cancel")}
               </button>
             )}
           </div>
-          {problem && <p className="mt-2 text-clay">{problem}</p>}
+          {problem && <p className="mt-2 text-clay">{tx(problem)}</p>}
         </form>
       )}
       <div className="mt-3 border-t border-line/60 pt-3">
         {photo ? (
-          <p className="text-muted">✓ Photo of the planted plot on the record ({photo.date}).</p>
+          <p className="text-muted">{tx("✓ Photo of the planted plot on the record ({date}).", { date: photo.date })}</p>
         ) : (
           <label className="inline-flex cursor-pointer items-center gap-1 text-sm font-semibold text-forest underline">
-            Add a photo of the planted plot (optional)
+            {tx("Add a photo of the planted plot (optional)")}
             <input
               type="file"
               accept="image/*"
@@ -663,6 +688,7 @@ function PlantingForm({ farmer, setup, today: now, onSave, onPhoto, photoError }
  * step's date, how readiness went and what they received. For analysis outside the app.
  */
 function FarmerTableLink({ code, userId }: { code: string; userId: string }) {
+  const { tx } = useT();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const download = async (table: "farmers" | "records" = "farmers") => {
@@ -670,7 +696,7 @@ function FarmerTableLink({ code, userId }: { code: string; userId: string }) {
     setError("");
     try {
       const res = await fetch(`/api/projects/${encodeURIComponent(code)}/field/export${table === "records" ? "?table=records" : ""}`, { cache: "no-store", headers: { "x-demo-user": userId } });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? `Could not make the file (${res.status}).`);
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? tx("Could not make the file ({status}).", { status: res.status }));
       const url = URL.createObjectURL(await res.blob());
       const a = document.createElement("a");
       a.href = url;
@@ -686,13 +712,13 @@ function FarmerTableLink({ code, userId }: { code: string; userId: string }) {
   return (
     <div className="mt-4 rounded-2xl border border-line bg-surface px-4 py-3 text-sm">
       <button type="button" onClick={() => download("farmers")} disabled={busy} className="font-semibold text-forest hover:underline disabled:opacity-60">
-        {busy ? "Making the file…" : "Download the farmer table (spreadsheet) ↓"}
+        {busy ? tx("Making the file…") : tx("Download the farmer table (spreadsheet) ↓")}
       </button>
-      <p className="mt-1 text-xs text-muted">One row per farmer, by number, never by name: each step&rsquo;s date, how the readiness check went, what they received and the days between steps.</p>
+      <p className="mt-1 text-xs text-muted">{tx("One row per farmer, by number, never by name: each step’s date, how the readiness check went, what they received and the days between steps.")}</p>
       <button type="button" onClick={() => download("records")} disabled={busy} className="mt-3 font-semibold text-forest hover:underline disabled:opacity-60">
-        {busy ? "Making the file…" : "Download the field records table (spreadsheet) ↓"}
+        {busy ? tx("Making the file…") : tx("Download the field records table (spreadsheet) ↓")}
       </button>
-      <p className="mt-1 text-xs text-muted">One row per record: every training attendance, readiness check, farm visit and distribution, with who collected it, the decision and how long it waited. Join it to the farmer table by farmer number.</p>
+      <p className="mt-1 text-xs text-muted">{tx("One row per record: every training attendance, readiness check, farm visit and distribution, with who collected it, the decision and how long it waited. Join it to the farmer table by farmer number.")}</p>
       {error && <p role="alert" className="mt-1 text-xs text-clay">{error}</p>}
     </div>
   );
@@ -700,6 +726,7 @@ function FarmerTableLink({ code, userId }: { code: string; userId: string }) {
 
 export function FieldWorkspace() {
   const { user, mode } = useRequireUser();
+  const { tx } = useT();
   const myRoles = (user?.field ?? []) as FieldRole[];
   const { project } = useCurrentProject();
   const { items, setItems, stock, stockNote, setStock, setup, status, error, reload, reset } = useFieldData(project.id);
@@ -740,7 +767,7 @@ export function FieldWorkspace() {
   const mineList = role ? items.filter((i) => ownerOfItem(i) === role) : items;
   const list = showAll || readOnly ? items : mineList;
   const current = items.find((i) => i.id === selected) ?? list[0] ?? null;
-  const upcoming = role ? comingTo(items, role, user).slice(0, 5) : [];
+  const upcoming = role ? comingTo(items, role, user, tx).slice(0, 5) : [];
 
   const apply = (id: string) => (fn: (i: FieldItem) => FieldItem, next?: Stock) => {
     setSelected(id);
@@ -749,7 +776,7 @@ export function FieldWorkspace() {
   };
 
   if (!user) return null;
-  if (user.fieldAccess === "none") return <NoAccess what="Field activities" />;
+  if (user.fieldAccess === "none") return <NoAccess what={tx("Field activities")} />;
   // A project without an input package has no field workflow yet: its manager sets it up first.
   if (status === "ready" && !setup)
     return <SetupOnly code={project.id} mayManage={mayManage} onSaved={() => void reload()} />;
@@ -757,7 +784,7 @@ export function FieldWorkspace() {
   return (
     <AppShell
       active="field"
-      roles={fieldRoles.filter((r) => myRoles.includes(r.id))}
+      roles={fieldRoles.filter((r) => myRoles.includes(r.id)).map((r) => ({ ...r, label: tx(r.label), short: tx(r.short) }))}
       role={role}
       counts={counts}
       onRole={(r) => {
@@ -769,7 +796,7 @@ export function FieldWorkspace() {
       primary={
         myRoles.includes("mel")
           ? {
-              label: "+ New finding",
+              label: tx("+ New finding"),
               onClick: () => {
                 setPickedRole("mel");
                 setCreating(true);
@@ -784,33 +811,33 @@ export function FieldWorkspace() {
           <DataBanner status={status} error={error} />
           <div className="mx-3 mt-4 rounded-xl border border-line bg-surface px-3 py-3 sm:mx-4">
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
-              {[ctx.setup.season, ctx.setup.village, status === "loading" ? "" : `${farmers.length} ${farmers.length === 1 ? "farmer" : "farmers"}`].filter(Boolean).join(" · ")}
+              {[ctx.setup.season, ctx.setup.village, status === "loading" ? "" : farmers.length === 1 ? tx("1 farmer") : tx("{n} farmers", { n: farmers.length })].filter(Boolean).join(" · ")}
             </p>
             <ol className="mt-2 grid grid-cols-3 gap-x-1 gap-y-3 text-center sm:grid-cols-6">
               {pipeline.map((s) => (
                 <li key={s.label}>
                   <p className="text-xl tabular-nums font-semibold">{status === "loading" ? "–" : s.n}</p>
-                  <p className="text-xs leading-tight text-muted">{s.label}</p>
+                  <p className="text-xs leading-tight text-muted">{tx(s.label)}</p>
                 </li>
               ))}
             </ol>
             <p className="mt-2 border-t border-line pt-2 text-xs text-muted">
-              Store: {status === "loading" ? "…" : ctx.setup.items.map((p) => qtyItem(stock[p.key] ?? 0, p.unit, p.item)).join(" · ")}
+              {tx("Store: {items}", { items: status === "loading" ? "…" : ctx.setup.items.map((p) => qtyItem(stock[p.key] ?? 0, p.unit, p.item)).join(" · ") })}
             </p>
             {mayManage && (
               <div className="mt-2 flex flex-wrap gap-3 border-t border-line pt-2 text-xs font-semibold">
                 <button type="button" className="text-forest hover:underline" onClick={() => { setPanel("farmers"); setCreating(false); setMobileDetail(true); }}>
-                  Load farmer list
+                  {tx("Load farmer list")}
                 </button>
                 <button type="button" className="text-forest hover:underline" onClick={() => { setPanel("package"); setCreating(false); setMobileDetail(true); }}>
-                  Input package
+                  {tx("Input package")}
                 </button>
               </div>
             )}
           </div>
           <QueueHeader
-            title={status === "loading" ? "Loading…" : readOnly ? "Everything this season" : showAll ? "Everything this season" : mineList.length ? `${mineList.length} waiting on you` : "Nothing waiting on you"}
-            toggleLabel={readOnly ? "" : showAll ? "Mine" : "Show all"}
+            title={status === "loading" ? tx("Loading…") : readOnly ? tx("Everything this season") : showAll ? tx("Everything this season") : mineList.length ? tx("{n} waiting on you", { n: mineList.length }) : tx("Nothing waiting on you")}
+            toggleLabel={readOnly ? "" : showAll ? tx("Mine") : tx("Show all")}
             onToggle={() => setShowAll(!showAll)}
           />
           {list.length === 0 ? (
@@ -835,17 +862,17 @@ export function FieldWorkspace() {
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-mono text-xs text-muted">{i.id}</span>
-                      <span className="text-xs text-muted">{i.kind === "farmer" ? `${i.hectares} ha` : "Finding"}</span>
+                      <span className="text-xs text-muted">{i.kind === "farmer" ? tx("{n} ha", { n: i.hectares }) : tx("Finding")}</span>
                     </div>
                     <p className="mt-1 font-medium leading-snug">{i.kind === "farmer" ? farmerName(i, user) : i.title}</p>
                     <div className="mt-2 flex flex-wrap items-center gap-1.5">
                       {end ? (
-                        <Pill tone={end.tone}>{end.title}</Pill>
+                        <Pill tone={end.tone}>{tx(end.title)}</Pill>
                       ) : (
-                        <Pill tone={o === role ? (["correct", "removal"].includes(i.step) ? "clay" : "forest") : "muted"}>{s.title}</Pill>
+                        <Pill tone={o === role ? (["correct", "removal"].includes(i.step) ? "clay" : "forest") : "muted"}>{tx(s.title)}</Pill>
                       )}
-                      {left !== null && <Pill tone={left < 0 ? "clay" : "ochre"}>{left < 0 ? "Deadline passed" : `${left} days to fix`}</Pill>}
-                      {openBlocking(i).length > 0 && <Pill tone="clay">Issue</Pill>}
+                      {left !== null && <Pill tone={left < 0 ? "clay" : "ochre"}>{left < 0 ? tx("Deadline passed") : left === 1 ? tx("1 day to fix") : tx("{n} days to fix", { n: left })}</Pill>}
+                      {openBlocking(i).length > 0 && <Pill tone="clay">{tx("Issue")}</Pill>}
                       {(showAll || readOnly) && o && o !== role && <span className="text-xs text-muted">{holderOf("field", o)?.name}</span>}
                     </div>
                   </QueueItem>
@@ -863,7 +890,7 @@ export function FieldWorkspace() {
           />
           <FarmerTableLink code={project.id} userId={user?.id ?? ""} />
           <QueueFooter
-            note={mode === "demo" && isDemo ? "Fictional records, saved in the project database. Resetting keeps real Kobo submissions." : "Saved in the project database."}
+            note={mode === "demo" && isDemo ? tx("Fictional records, saved in the project database. Resetting keeps real Kobo submissions.") : tx("Saved in the project database.")}
             onReset={
               mode === "demo" && isDemo
                 ? () => {
@@ -911,8 +938,8 @@ export function FieldWorkspace() {
         ) : (
           <div className="grid h-full place-items-center py-24 text-center">
             <div>
-              <p className="font-display text-2xl">{status === "loading" ? "Loading…" : "Nothing selected"}</p>
-              {status !== "loading" && <p className="mt-1 text-sm text-muted">Pick a farmer or finding from the list.</p>}
+              <p className="font-display text-2xl">{status === "loading" ? tx("Loading…") : tx("Nothing selected")}</p>
+              {status !== "loading" && <p className="mt-1 text-sm text-muted">{tx("Pick a farmer or finding from the list.")}</p>}
             </div>
           </div>
         )
@@ -923,6 +950,7 @@ export function FieldWorkspace() {
 
 /** Field activities on a project whose input package is not set up yet. */
 function SetupOnly({ code, mayManage, onSaved }: { code: string; mayManage: boolean; onSaved: (s: FieldSetup) => void }) {
+  const { tx } = useT();
   return (
     <AppShell
       active="field"
@@ -933,15 +961,15 @@ function SetupOnly({ code, mayManage, onSaved }: { code: string; mayManage: bool
       mobileDetail
       queue={
         <div className="mx-3 mt-4 rounded-xl border border-line bg-surface px-4 py-4 text-sm sm:mx-4">
-          <p className="font-medium">Not set up yet</p>
+          <p className="font-medium">{tx("Not set up yet")}</p>
           <p className="mt-1 text-muted">
             {mayManage
-              ? "Say what one farmer receives and the budget line each item is bought on. Then load the farmer list."
-              : "The project manager sets up the input package and loads the farmer list before field work starts here."}
+              ? tx("Say what one farmer receives and the budget line each item is bought on. Then load the farmer list.")
+              : tx("The project manager sets up the input package and loads the farmer list before field work starts here.")}
           </p>
         </div>
       }
-      detail={mayManage ? <PackageSetup code={code} onSaved={onSaved} /> : <div className="grid h-full place-items-center py-24 text-center text-sm text-muted">Nothing to do here yet.</div>}
+      detail={mayManage ? <PackageSetup code={code} onSaved={onSaved} /> : <div className="grid h-full place-items-center py-24 text-center text-sm text-muted">{tx("Nothing to do here yet.")}</div>}
     />
   );
 }

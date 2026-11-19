@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
 import type { Lang } from "@/lib/demo";
 import { LANG_COOKIE, dirOf, formatDate, translate, type MessageKey } from "@/lib/i18n";
+import { translateText } from "@/lib/i18n/text";
 
 /**
  * The interface language. The root layout reads the cookie so the first render already has the
@@ -14,6 +15,8 @@ type I18n = {
   dir: "ltr" | "rtl";
   setLang: (l: Lang) => void;
   t: (key: MessageKey, vars?: Record<string, string | number>) => string;
+  /** A sentence keyed by its own English (lib/i18n/text.ts): tx("Record training"), tx("Planted {date}", { date }). */
+  tx: (text: string, vars?: Record<string, string | number>) => string;
   /** An ISO date in the interface language. */
   date: (iso: string, opts?: Intl.DateTimeFormatOptions) => string;
 };
@@ -30,7 +33,7 @@ export function I18nProvider({ initial, children }: { initial: Lang; children: R
     document.documentElement.dir = dirOf(l);
   }, []);
 
-  const value = useMemo<I18n>(() => ({ lang, dir: dirOf(lang), setLang, t: (key, vars) => translate(lang, key, vars), date: (iso, opts) => formatDate(lang, iso, opts) }), [lang, setLang]);
+  const value = useMemo<I18n>(() => ({ lang, dir: dirOf(lang), setLang, t: (key, vars) => translate(lang, key, vars), tx: (text, vars) => translateText(lang, text, vars), date: (iso, opts) => formatDate(lang, iso, opts) }), [lang, setLang]);
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }
 

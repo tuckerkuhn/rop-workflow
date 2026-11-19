@@ -83,7 +83,7 @@ function Consent({ hash, act, onDone }: { hash: string; act: (a: PhotoAction, ms
       <fieldset className="mt-2">
         <legend>What they agreed to</legend>
         {CONSENT_USES.map((u) => (
-          <label key={u} className="mr-3 inline-flex items-center gap-1">
+          <label key={u} className="me-3 inline-flex items-center gap-1">
             <input type="checkbox" checked={c.uses.includes(u)} onChange={(e) => setC({ ...c, uses: e.target.checked ? [...c.uses, u] : c.uses.filter((x) => x !== u) })} />
             {USE_LABEL[u].split(" (")[0]}
           </label>
@@ -337,7 +337,7 @@ export function PhotosPage() {
             )}
             <details className="mt-3 text-sm">
               <summary className="cursor-pointer font-semibold text-forest">Five things that make a good field photo</summary>
-              <ol className="mt-2 list-decimal space-y-1 pl-5">
+              <ol className="mt-2 list-decimal space-y-1 ps-5">
                 {GUIDE.map((g) => (
                   <li key={g}>{g}</li>
                 ))}

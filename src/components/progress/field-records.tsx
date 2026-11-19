@@ -91,7 +91,7 @@ export function FieldRecords({ code }: { code: string }) {
 
       {clean.length > 1 && (
         <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl bg-mist px-4 py-3 text-sm">
-          <span className="mr-auto">{clean.length} have no problems flagged.</span>
+          <span className="me-auto">{clean.length} have no problems flagged.</span>
           <button type="button" disabled={!!busy} onClick={() => void decide(clean, "accepted")} className={`${primaryBtn} py-1.5`}>
             Accept all {clean.length}
           </button>

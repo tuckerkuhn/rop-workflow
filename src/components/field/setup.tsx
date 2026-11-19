@@ -181,7 +181,7 @@ export function PackageSetup({ code, onSaved, onCancel }: { code: string; onSave
       {copyNotes.length > 0 && (
         <section className="rounded-2xl border border-line bg-surface p-4 text-sm" aria-live="polite">
           <p className="font-medium">Copied. What to do next:</p>
-          <ol className="mt-1 list-decimal space-y-1 pl-5">
+          <ol className="mt-1 list-decimal space-y-1 ps-5">
             {copyNotes.map((n) => (
               <li key={n}>{n}</li>
             ))}
@@ -414,7 +414,7 @@ export function FarmerImport({ code, onDone, onCancel }: { code: string; onDone:
           {parsed.problems.length > 0 && (
             <div>
               <p className="font-medium text-clay">{parsed.problems.length === 1 ? "1 row" : `${parsed.problems.length} rows`} left out:</p>
-              <ul className="mt-1 max-h-48 list-disc overflow-y-auto pl-5 text-muted">
+              <ul className="mt-1 max-h-48 list-disc overflow-y-auto ps-5 text-muted">
                 {parsed.problems.map((p) => (
                   <li key={p}>{p}</li>
                 ))}

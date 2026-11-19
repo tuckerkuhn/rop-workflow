@@ -35,7 +35,7 @@ function Node({
       type="button"
       onClick={onSelect}
       aria-pressed={active}
-      className={`group relative z-10 flex w-full flex-1 flex-col rounded-2xl border p-4 text-left transition-all duration-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest ${
+      className={`group relative z-10 flex w-full flex-1 flex-col rounded-2xl border p-4 text-start transition-all duration-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest ${
         active
           ? "border-forest bg-forest text-forest-ink shadow-[0_18px_40px_-18px_rgb(31_77_54/0.65)]"
           : "border-line bg-surface hover:-translate-y-0.5 hover:border-forest/40 hover:shadow-[0_14px_30px_-20px_rgb(19_32_26/0.45)]"
@@ -66,7 +66,7 @@ function Node({
       {step.kind === "gate" && (
         <span
           aria-hidden
-          className={`absolute -right-[7px] top-1/2 h-3 w-3 -translate-y-1/2 rotate-45 border ${
+          className={`absolute -end-[7px] top-1/2 h-3 w-3 -translate-y-1/2 rotate-45 border ${
             active ? "border-forest bg-forest" : "border-line bg-surface"
           }`}
         />
@@ -137,11 +137,11 @@ export function WorkflowExplorer() {
             ) : (
               <div key={i} className="relative flex h-44 flex-col gap-3">
                 {/* fork in, merge out */}
-                <span aria-hidden className="absolute -left-3 top-[23%] bottom-[23%] w-px bg-line" />
-                <span aria-hidden className="absolute -left-3 top-[23%] h-px w-3 bg-line" />
-                <span aria-hidden className="absolute -left-3 bottom-[23%] h-px w-3 bg-line" />
-                <span aria-hidden className="absolute -right-3 top-[23%] h-px w-3 bg-line" />
-                <span aria-hidden className="absolute -right-3 top-[23%] h-[27%] w-px bg-line" />
+                <span aria-hidden className="absolute -start-3 top-[23%] bottom-[23%] w-px bg-line" />
+                <span aria-hidden className="absolute -start-3 top-[23%] h-px w-3 bg-line" />
+                <span aria-hidden className="absolute -start-3 bottom-[23%] h-px w-3 bg-line" />
+                <span aria-hidden className="absolute -end-3 top-[23%] h-px w-3 bg-line" />
+                <span aria-hidden className="absolute -end-3 top-[23%] h-[27%] w-px bg-line" />
                 <span aria-hidden className="absolute inset-x-0 top-1/2 z-[5] h-4 -translate-y-1/2 bg-paper" />
                 {col.map((s) => (
                   <Node key={s.id} step={s} compact active={activeId === s.id} onSelect={() => setActiveId(s.id)} />
@@ -156,7 +156,7 @@ export function WorkflowExplorer() {
           className="absolute top-44 h-[4.5rem] rounded-b-2xl border-x border-b border-dashed border-forest/40"
           style={{ left: COL_CENTER, right: COL_CENTER }}
         >
-          <span className="absolute -top-1 -left-[4.5px] h-2 w-2 rotate-45 border-l border-t border-forest/60" />
+          <span className="absolute -top-1 -start-[4.5px] h-2 w-2 rotate-45 border-s border-t border-forest/60" />
           <span className="absolute -bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap bg-paper px-3 text-xs text-muted">
             Management actions and MEL learning feed the next seasonal plan
           </span>
@@ -165,24 +165,24 @@ export function WorkflowExplorer() {
 
       {/* Mobile / tablet: vertical rail */}
       <ol className="relative space-y-2 lg:hidden">
-        <span aria-hidden className="absolute bottom-4 left-[19px] top-4 w-px bg-line" />
+        <span aria-hidden className="absolute bottom-4 start-[19px] top-4 w-px bg-line" />
         {workflowSteps.map((s) => {
           const k = kindStyles[s.kind];
           const on = s.id === activeId;
           return (
-            <li key={s.id} className={s.kind === "yes" || s.kind === "no" ? "pl-6" : ""}>
+            <li key={s.id} className={s.kind === "yes" || s.kind === "no" ? "ps-6" : ""}>
               <button
                 type="button"
                 onClick={() => setActiveId(s.id)}
                 aria-pressed={on}
-                className={`relative flex w-full items-center gap-4 rounded-xl border px-3 py-3 text-left transition ${
+                className={`relative flex w-full items-center gap-4 rounded-xl border px-3 py-3 text-start transition ${
                   on ? "border-forest bg-forest text-forest-ink" : "border-line bg-surface"
                 }`}
               >
                 <span className={`relative z-10 h-3 w-3 shrink-0 rounded-full ring-4 ${on ? "bg-ochre ring-forest" : `${k.dot} ring-surface`}`} />
                 <span className="font-mono text-xs opacity-70">{s.label}</span>
                 <span className="font-display">{s.title}</span>
-                {k.tag && <span className="ml-auto text-xs font-semibold uppercase tracking-wider opacity-80">{k.tag}</span>}
+                {k.tag && <span className="ms-auto text-xs font-semibold uppercase tracking-wider opacity-80">{k.tag}</span>}
               </button>
             </li>
           );

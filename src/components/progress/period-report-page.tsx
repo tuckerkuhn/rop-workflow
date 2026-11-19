@@ -137,18 +137,18 @@ export function PeriodReportPage() {
             )}
             <div className="mt-4 overflow-x-auto rounded-2xl border border-line bg-surface print:overflow-visible">
               <table className="w-full min-w-[720px] text-sm">
-                <thead className="bg-sunken text-left text-xs text-muted">
+                <thead className="bg-sunken text-start text-xs text-muted">
                   <tr>
                     <th className="px-3 py-2">Indicator</th>
-                    <th className="px-2 py-2 text-right">Baseline</th>
-                    <th className="px-2 py-2 text-right">Target</th>
+                    <th className="px-2 py-2 text-end">Baseline</th>
+                    <th className="px-2 py-2 text-end">Target</th>
                     {v.rows[0]?.parts.map((x) => (
-                      <th key={x.label} className="px-2 py-2 text-right">
+                      <th key={x.label} className="px-2 py-2 text-end">
                         {x.label}
                       </th>
                     ))}
-                    <th className="px-2 py-2 text-right">Achieved</th>
-                    {annual && <th className="px-2 py-2 text-right">Cumulative / life</th>}
+                    <th className="px-2 py-2 text-end">Achieved</th>
+                    {annual && <th className="px-2 py-2 text-end">Cumulative / life</th>}
                     <th className="px-3 py-2" />
                   </tr>
                 </thead>
@@ -158,21 +158,21 @@ export function PeriodReportPage() {
                       <td className="px-3 py-2">
                         <span className="font-mono text-xs text-muted">{r.donorCode}</span> {r.name} <span className="text-xs text-muted">({r.unit})</span>
                       </td>
-                      <td className="px-2 py-2 text-right tabular-nums">{n(r.baseline)}</td>
-                      <td className="px-2 py-2 text-right tabular-nums">{n(r.target)}</td>
+                      <td className="px-2 py-2 text-end tabular-nums">{n(r.baseline)}</td>
+                      <td className="px-2 py-2 text-end tabular-nums">{n(r.target)}</td>
                       {r.parts.map((x) => (
-                        <td key={x.label} className="px-2 py-2 text-right tabular-nums text-muted">
+                        <td key={x.label} className="px-2 py-2 text-end tabular-nums text-muted">
                           {x.value ? n(x.value) : "—"}
                         </td>
                       ))}
-                      <td className="px-2 py-2 text-right font-semibold tabular-nums">
+                      <td className="px-2 py-2 text-end font-semibold tabular-nums">
                         <ProofNumber project={project.id} user={user.id} indicator={r.code} from={v.range.from} to={v.range.to} value={r.achieved} records={r.records} className="font-semibold tabular-nums">
                           {n(r.achieved)}
                         </ProofNumber>
                         {r.pct !== null && <span className="block text-xs font-normal text-muted">{r.pct}%</span>}
                       </td>
                       {annual && (
-                        <td className="px-2 py-2 text-right tabular-nums text-muted">
+                        <td className="px-2 py-2 text-end tabular-nums text-muted">
                           <ProofNumber project={project.id} user={user.id} indicator={r.code} from={null} to={v.range.to} value={r.cumulative} records={r.cumulative ? 1 : 0} className="tabular-nums">
                             {n(r.cumulative)}
                           </ProofNumber>{" "}

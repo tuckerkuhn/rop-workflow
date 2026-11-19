@@ -8,7 +8,7 @@ import { useRequireUser, useSession } from "@/components/app/session";
 import { openReceipt, shrink } from "@/components/people/expense-page";
 import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import type { Receipt } from "@/lib/expense";
-import { OWNER_LABEL, type ObAction, type StepValue } from "@/lib/onboarding";
+import type { ObAction, StepValue } from "@/lib/onboarding";
 import type { OnboardingView } from "@/app/api/onboarding/route";
 
 /**
@@ -34,7 +34,7 @@ const input = "mt-1 block w-full rounded-xl border border-line bg-paper px-3 py-
 export function OnboardingPage() {
   const { user } = useRequireUser();
   const { ready } = useSession();
-  const { date } = useT();
+  const { date, tx } = useT();
   const [v, setV] = useState<OnboardingView | null>(null);
   const [person, setPerson] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -85,12 +85,12 @@ export function OnboardingPage() {
       <TopBar />
       <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <h1 className="font-display text-3xl tracking-tight">{own ? `Welcome to Roots of Peace, ${o!.name.split(" ")[0]}` : "Onboarding"}</h1>
+          <h1 className="font-display text-3xl tracking-tight">{own ? tx("Welcome to Roots of Peace, {name}", { name: o!.name.split(" ")[0] }) : tx("Onboarding")}</h1>
           <Link href="/people" className="text-sm font-semibold text-forest hover:underline">
-            People
+            {tx("People")}
           </Link>
         </div>
-        {own && <p className="mt-1 text-sm text-muted">Your first steps, all here. Each one is kept in your HR record.</p>}
+        {own && <p className="mt-1 text-sm text-muted">{tx("Your first steps, all here. Each one is kept in your HR record.")}</p>}
         {error && (
           <p role="alert" className="mt-4 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">
             {error}
@@ -102,12 +102,12 @@ export function OnboardingPage() {
           </p>
         )}
         {!v ? (
-          !error && <p className="mt-10 text-sm text-muted">Loading…</p>
+          !error && <p className="mt-10 text-sm text-muted">{tx("Loading…")}</p>
         ) : (
           <>
             {v.list.filter((l) => l.person !== v.me).length > 0 && (
               <section className="mt-6">
-                <SectionLabel>People starting</SectionLabel>
+                <SectionLabel>{tx("People starting")}</SectionLabel>
                 <ul className="mt-2 divide-y divide-line rounded-2xl border border-line bg-surface">
                   {v.list
                     .filter((l) => l.person !== v.me)
@@ -115,9 +115,9 @@ export function OnboardingPage() {
                       <li key={l.person}>
                         <button type="button" onClick={() => choose(l.person)} className={`flex w-full items-center gap-3 px-4 py-3 text-start text-sm hover:bg-sunken ${o?.person === l.person ? "bg-sunken" : ""}`}>
                           <span className="min-w-0 flex-1 font-medium">{l.name}</span>
-                          {l.mine > 0 && <Pill tone="ochre">{l.mine} for you</Pill>}
+                          {l.mine > 0 && <Pill tone="ochre">{tx("{n} for you", { n: l.mine })}</Pill>}
                           <span className="text-muted tabular-nums">
-                            {l.progress.done} of {l.progress.total}
+                            {tx("{done} of {total}", { done: l.progress.done, total: l.progress.total })}
                           </span>
                         </button>
                       </li>
@@ -129,7 +129,7 @@ export function OnboardingPage() {
             {o ? (
               <Checklist key={o.person} o={o} v={v} own={!!own} fmt={fmt} act={act} />
             ) : (
-              !v.list.length && <p className="mt-8 rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">No onboarding in progress.</p>
+              !v.list.length && <p className="mt-8 rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">{tx("No onboarding in progress.")}</p>
             )}
             {v.isHr && <Policies v={v} act={act} fmt={fmt} />}
           </>
@@ -142,6 +142,7 @@ export function OnboardingPage() {
 /* ---------------- A checklist ---------------- */
 
 function Checklist({ o, v, own, fmt, act }: { o: NonNullable<OnboardingView["open"]>; v: OnboardingView; own: boolean; fmt: (iso: string) => string; act: (a: ObAction, msg: string) => Promise<void> }) {
+  const { tx } = useT();
   const pct = Math.round((o.progress.done / o.progress.total) * 100);
   return (
     <section className="mt-6">
@@ -151,11 +152,11 @@ function Checklist({ o, v, own, fmt, act }: { o: NonNullable<OnboardingView["ope
         </h2>
       )}
       <div className="mt-2 flex items-center gap-3">
-        <div className="h-2 flex-1 overflow-hidden rounded-full bg-sunken" role="progressbar" aria-valuenow={o.progress.done} aria-valuemin={0} aria-valuemax={o.progress.total} aria-label="Onboarding progress">
+        <div className="h-2 flex-1 overflow-hidden rounded-full bg-sunken" role="progressbar" aria-valuenow={o.progress.done} aria-valuemin={0} aria-valuemax={o.progress.total} aria-label={tx("Onboarding progress")}>
           <div className="h-full rounded-full bg-forest" style={{ width: `${pct}%` }} />
         </div>
         <span className="text-sm tabular-nums text-muted">
-          {o.progress.done} of {o.progress.total} done · by {fmt(o.due)}
+          {tx("{done} of {total} done · by {date}", { done: o.progress.done, total: o.progress.total, date: fmt(o.due) })}
         </span>
       </div>
       <ol className="mt-4 space-y-3">
@@ -169,6 +170,7 @@ function Checklist({ o, v, own, fmt, act }: { o: NonNullable<OnboardingView["ope
 
 function StepCard({ i, s, o, v, own, fmt, act }: { i: number; s: Step; o: NonNullable<OnboardingView["open"]>; v: OnboardingView; own: boolean; fmt: (iso: string) => string; act: (a: ObAction, msg: string) => Promise<void> }) {
   const { user } = useSession();
+  const { tx } = useT();
   const [busy, setBusy] = useState(false);
   const [opened, setOpened] = useState(false);
   const [agree, setAgree] = useState(false);
@@ -190,7 +192,7 @@ function StepCard({ i, s, o, v, own, fmt, act }: { i: number; s: Step; o: NonNul
       setBusy(false);
     }
   };
-  const owner = own ? OWNER_LABEL[s.owner] : s.owner === "self" ? o.name.split(" ")[0] : s.owner === "hr" ? "HR" : `Supervisor (${name(o.supervisor)})`;
+  const owner = own ? { self: tx("You"), hr: tx("HR"), supervisor: tx("Your supervisor") }[s.owner] : s.owner === "self" ? o.name.split(" ")[0] : s.owner === "hr" ? tx("HR") : tx("Supervisor ({name})", { name: name(o.supervisor) });
   const doc = s.kind === "sign" ? o.contract : policy?.file;
   return (
     <li className={`rounded-2xl border p-4 ${s.done ? "border-line bg-surface" : s.canDo ? "border-forest/50 bg-paper" : "border-dashed border-line bg-paper"}`}>
@@ -205,11 +207,11 @@ function StepCard({ i, s, o, v, own, fmt, act }: { i: number; s: Step; o: NonNul
           </p>
           {s.done && (
             <p className="mt-1 text-sm text-leaf">
-              Done by {name(s.done.by)}, {fmt(s.done.at)}
-              {s.done.value?.kind === "sign" && ` · signed as “${s.done.value.typedName}”`}
+              {tx("Done by {name}, {date}", { name: name(s.done.by), date: fmt(s.done.at) })}
+              {s.done.value?.kind === "sign" && ` · ${tx("signed as “{name}”", { name: s.done.value.typedName })}`}
               {s.done.value?.kind === "confirm" && s.done.value.note ? ` · ${s.done.value.note}` : ""}
-              {s.done.value?.kind === "record" && ` · proposals #${s.done.value.proposals.join(", #")} sent for approval`}
-              {s.done.value?.kind === "details" && ` · phone ${s.done.value.details.phone}`}
+              {s.done.value?.kind === "record" && ` · ${tx("proposals {list} sent for approval", { list: `#${s.done.value.proposals.join(", #")}` })}`}
+              {s.done.value?.kind === "details" && ` · ${tx("phone {phone}", { phone: s.done.value.details.phone })}`}
             </p>
           )}
           {doc && (
@@ -221,7 +223,7 @@ function StepCard({ i, s, o, v, own, fmt, act }: { i: number; s: Step; o: NonNul
               }}
               className="mt-2 text-sm font-semibold text-forest hover:underline"
             >
-              Open {s.kind === "sign" ? "the contract" : policy?.title} ({doc.name})
+              {s.kind === "sign" ? tx("Open the contract ({file})", { file: doc.name }) : tx("Open {title} ({file})", { title: policy?.title ?? "", file: doc.name })}
             </button>
           )}
           {s.canDo && (
@@ -229,20 +231,20 @@ function StepCard({ i, s, o, v, own, fmt, act }: { i: number; s: Step; o: NonNul
               {s.kind === "details" && (
                 <>
                   <label className="block text-sm">
-                    <span className="font-medium">Your phone</span>
+                    <span className="font-medium">{tx("Your phone")}</span>
                     <input type="tel" value={details.phone} onChange={(e) => setDetails({ ...details, phone: e.target.value })} placeholder="+93 70 000 0000" className={input} />
                   </label>
                   <label className="block text-sm">
-                    <span className="font-medium">Emergency contact: name, relation and phone</span>
+                    <span className="font-medium">{tx("Emergency contact: name, relation and phone")}</span>
                     <input value={details.emergencyContact} onChange={(e) => setDetails({ ...details, emergencyContact: e.target.value })} className={input} />
                   </label>
                   <label className="block text-sm">
-                    <span className="font-medium">Bank and account number for your salary</span>
-                    <input value={details.bankAccount} onChange={(e) => setDetails({ ...details, bankAccount: e.target.value })} placeholder="Bank name, account number" className={input} />
-                    <span className="mt-1 block text-xs text-muted">Seen only by you and HR. Changing it later needs the CFO and the CEO, so nobody can redirect your salary.</span>
+                    <span className="font-medium">{tx("Bank and account number for your salary")}</span>
+                    <input value={details.bankAccount} onChange={(e) => setDetails({ ...details, bankAccount: e.target.value })} placeholder={tx("Bank name, account number")} className={input} />
+                    <span className="mt-1 block text-xs text-muted">{tx("Seen only by you and HR. Changing it later needs the CFO and the CEO, so nobody can redirect your salary.")}</span>
                   </label>
-                  <button type="button" disabled={busy || details.phone.trim().length < 6 || details.emergencyContact.trim().length < 6 || details.bankAccount.trim().length < 6} className={primaryBtn} onClick={() => void send({ kind: "details", details }, "Saved. HR adds them to your record.")}>
-                    Save my details
+                  <button type="button" disabled={busy || details.phone.trim().length < 6 || details.emergencyContact.trim().length < 6 || details.bankAccount.trim().length < 6} className={primaryBtn} onClick={() => void send({ kind: "details", details }, tx("Saved. HR adds them to your record."))}>
+                    {tx("Save my details")}
                   </button>
                 </>
               )}
@@ -251,31 +253,31 @@ function StepCard({ i, s, o, v, own, fmt, act }: { i: number; s: Step; o: NonNul
                   <label className="flex items-start gap-3 text-sm">
                     <input type="checkbox" checked={agree} disabled={!opened} onChange={(e) => setAgree(e.target.checked)} className="mt-0.5 h-5 w-5" />
                     <span>
-                      I have read {policy.title} (version {policy.version}) and will follow it.{!opened && <span className="block text-xs text-muted">Open it first.</span>}
+                      {tx("I have read {title} (version {version}) and will follow it.", { title: policy.title, version: policy.version })}{!opened && <span className="block text-xs text-muted">{tx("Open it first.")}</span>}
                     </span>
                   </label>
-                  <button type="button" disabled={busy || !agree} className={primaryBtn} onClick={() => void send({ kind: "acknowledge", file: policy.file.hash }, `Recorded: you have read ${policy.title}.`)}>
-                    Confirm
+                  <button type="button" disabled={busy || !agree} className={primaryBtn} onClick={() => void send({ kind: "acknowledge", file: policy.file.hash }, tx("Recorded: you have read {title}.", { title: policy.title }))}>
+                    {tx("Confirm")}
                   </button>
                 </>
               )}
               {s.kind === "sign" && (
                 <>
                   <label className="block text-sm">
-                    <span className="font-medium">Type your full name to sign</span>
+                    <span className="font-medium">{tx("Type your full name to sign")}</span>
                     <input value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={o.name} disabled={!opened} className={input} autoComplete="name" />
-                    <span className="mt-1 block text-xs text-muted">{opened ? `Exactly as in your record: ${o.name}.` : "Open the contract first."} Your signature names this exact file.</span>
-                    {opened && typed.trim() && typed.trim().toLowerCase() !== o.name.toLowerCase() && <span className="mt-1 block text-xs text-clay">The name does not match your record yet: {o.name}.</span>}
+                    <span className="mt-1 block text-xs text-muted">{opened ? tx("Exactly as in your record: {name}.", { name: o.name }) : tx("Open the contract first.")} {tx("Your signature names this exact file.")}</span>
+                    {opened && typed.trim() && typed.trim().toLowerCase() !== o.name.toLowerCase() && <span className="mt-1 block text-xs text-clay">{tx("The name does not match your record yet: {name}.", { name: o.name })}</span>}
                   </label>
-                  <button type="button" disabled={busy || typed.trim().toLowerCase() !== o.name.toLowerCase()} className={primaryBtn} onClick={() => void send({ kind: "sign", file: o.contract.hash, typedName: typed }, "Signed. Welcome aboard.")}>
-                    Sign the contract
+                  <button type="button" disabled={busy || typed.trim().toLowerCase() !== o.name.toLowerCase()} className={primaryBtn} onClick={() => void send({ kind: "sign", file: o.contract.hash, typedName: typed }, tx("Signed. Welcome aboard."))}>
+                    {tx("Sign the contract")}
                   </button>
                 </>
               )}
               {s.kind === "upload" && (
                 <>
                   <label className={`${quietBtn} inline-block cursor-pointer`}>
-                    {file ? `📎 ${file.name}` : busy ? "Uploading…" : "Take a photo or choose a file"}
+                    {file ? `📎 ${file.name}` : busy ? tx("Uploading…") : tx("Take a photo or choose a file")}
                     <input
                       type="file"
                       accept="image/*,application/pdf"
@@ -297,8 +299,8 @@ function StepCard({ i, s, o, v, own, fmt, act }: { i: number; s: Step; o: NonNul
                     />
                   </label>
                   <div>
-                    <button type="button" disabled={busy || !file} className={primaryBtn} onClick={() => file && void send({ kind: "upload", file }, "Uploaded. Only HR can see it.")}>
-                      Add to my record
+                    <button type="button" disabled={busy || !file} className={primaryBtn} onClick={() => file && void send({ kind: "upload", file }, tx("Uploaded. Only HR can see it."))}>
+                      {tx("Add to my record")}
                     </button>
                   </div>
                 </>
@@ -306,17 +308,17 @@ function StepCard({ i, s, o, v, own, fmt, act }: { i: number; s: Step; o: NonNul
               {s.kind === "confirm" && (
                 <>
                   <label className="block text-sm">
-                    <span className="text-muted">Note (optional)</span>
+                    <span className="text-muted">{tx("Note (optional)")}</span>
                     <input value={note} onChange={(e) => setNote(e.target.value)} className={input} />
                   </label>
-                  <button type="button" disabled={busy} className={primaryBtn} onClick={() => void send({ kind: "confirm", ...(note.trim() ? { note } : {}) }, "Done.")}>
-                    Mark done
+                  <button type="button" disabled={busy} className={primaryBtn} onClick={() => void send({ kind: "confirm", ...(note.trim() ? { note } : {}) }, tx("Done."))}>
+                    {tx("Mark done")}
                   </button>
                 </>
               )}
               {s.kind === "record" && (
-                <button type="button" disabled={busy} className={primaryBtn} onClick={() => void send({ kind: "record", proposals: [] }, "Proposed: contact details for HR approval, the bank account for the CFO and the CEO.")}>
-                  Propose the details for the record
+                <button type="button" disabled={busy} className={primaryBtn} onClick={() => void send({ kind: "record", proposals: [] }, tx("Proposed: contact details for HR approval, the bank account for the CFO and the CEO."))}>
+                  {tx("Propose the details for the record")}
                 </button>
               )}
               {error && (
@@ -326,7 +328,7 @@ function StepCard({ i, s, o, v, own, fmt, act }: { i: number; s: Step; o: NonNul
               )}
             </div>
           )}
-          {!s.done && !s.canDo && s.kind === "record" && s.owner === "hr" && v.isHr && <p className="mt-2 text-sm text-muted">Waiting for the new hire&apos;s details.</p>}
+          {!s.done && !s.canDo && s.kind === "record" && s.owner === "hr" && v.isHr && <p className="mt-2 text-sm text-muted">{tx("Waiting for the new hire’s details.")}</p>}
         </div>
       </div>
     </li>
@@ -337,6 +339,7 @@ function StepCard({ i, s, o, v, own, fmt, act }: { i: number; s: Step; o: NonNul
 
 function StartForm({ v, act }: { v: OnboardingView; act: (a: ObAction, msg: string) => Promise<void> }) {
   const { user } = useSession();
+  const { tx } = useT();
   const [person, setPerson] = useState("");
   const [due, setDue] = useState(() => new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10));
   const [contract, setContract] = useState<Receipt | null>(null);
@@ -345,27 +348,27 @@ function StartForm({ v, act }: { v: OnboardingView; act: (a: ObAction, msg: stri
   if (!v.startable.length) return null;
   return (
     <section className="mt-6 rounded-2xl border border-line bg-surface p-4">
-      <SectionLabel>Start onboarding</SectionLabel>
+      <SectionLabel>{tx("Start onboarding")}</SectionLabel>
       <div className="mt-2 grid gap-3 sm:grid-cols-3">
         <label className="text-sm">
-          <span className="font-medium">New hire</span>
+          <span className="font-medium">{tx("New hire")}</span>
           <select value={person} onChange={(e) => setPerson(e.target.value)} className={input}>
-            <option value="">Choose…</option>
+            <option value="">{tx("Choose…")}</option>
             {v.startable.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.name} (from {p.startDate})
+                {tx("{name} (from {date})", { name: p.name, date: p.startDate })}
               </option>
             ))}
           </select>
         </label>
         <label className="text-sm">
-          <span className="font-medium">Done by</span>
+          <span className="font-medium">{tx("Done by")}</span>
           <input type="date" value={due} onChange={(e) => setDue(e.target.value)} className={input} />
         </label>
         <label className="text-sm">
-          <span className="font-medium">Contract (PDF)</span>
+          <span className="font-medium">{tx("Contract (PDF)")}</span>
           <span className={`${quietBtn} mt-1 block cursor-pointer text-center`}>
-            {contract ? `📎 ${contract.name}` : "Choose the contract"}
+            {contract ? `📎 ${contract.name}` : tx("Choose the contract")}
             <input
               type="file"
               accept="application/pdf"
@@ -396,7 +399,7 @@ function StartForm({ v, act }: { v: OnboardingView; act: (a: ObAction, msg: stri
         onClick={async () => {
           setBusy(true);
           try {
-            await act({ action: "start", person, due, contract: contract! }, "Started. The new hire sees their checklist when they sign in.");
+            await act({ action: "start", person, due, contract: contract! }, tx("Started. The new hire sees their checklist when they sign in."));
             setPerson("");
             setContract(null);
           } catch {
@@ -406,7 +409,7 @@ function StartForm({ v, act }: { v: OnboardingView; act: (a: ObAction, msg: stri
           }
         }}
       >
-        Start
+        {tx("Start")}
       </button>
     </section>
   );
@@ -414,6 +417,7 @@ function StartForm({ v, act }: { v: OnboardingView; act: (a: ObAction, msg: stri
 
 function Policies({ v, act, fmt }: { v: OnboardingView; act: (a: ObAction, msg: string) => Promise<void>; fmt: (iso: string) => string }) {
   const { user } = useSession();
+  const { tx } = useT();
   const [title, setTitle] = useState("");
   const [version, setVersion] = useState("");
   const [file, setFile] = useState<Receipt | null>(null);
@@ -423,7 +427,7 @@ function Policies({ v, act, fmt }: { v: OnboardingView; act: (a: ObAction, msg: 
   const slug = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
   return (
     <section className="mt-10">
-      <SectionLabel>Policies new hires read</SectionLabel>
+      <SectionLabel>{tx("Policies new hires read")}</SectionLabel>
       <ul className="mt-2 divide-y divide-line rounded-2xl border border-line bg-surface">
         {v.policies.map((p) => (
           <li key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 text-sm">
@@ -431,15 +435,15 @@ function Policies({ v, act, fmt }: { v: OnboardingView; act: (a: ObAction, msg: 
               {p.title}
             </button>
             <span className="text-muted">
-              version {p.version} · {fmt(p.at)}
+              {tx("version {version} · {date}", { version: p.version, date: fmt(p.at) })}
             </span>
           </li>
         ))}
       </ul>
-      <p className="mt-2 text-xs text-muted">A new version applies to onboarding started after it is published; acknowledgements already given name the version that was read.</p>
+      <p className="mt-2 text-xs text-muted">{tx("A new version applies to onboarding started after it is published; acknowledgements already given name the version that was read.")}</p>
       <div className="mt-3 grid gap-3 rounded-2xl border border-line bg-surface p-4 sm:grid-cols-2">
         <label className="text-sm">
-          <span className="font-medium">Policy</span>
+          <span className="font-medium">{tx("Policy")}</span>
           <select
             value={replace}
             onChange={(e) => {
@@ -448,26 +452,26 @@ function Policies({ v, act, fmt }: { v: OnboardingView; act: (a: ObAction, msg: 
             }}
             className={input}
           >
-            <option value="">A new policy</option>
+            <option value="">{tx("A new policy")}</option>
             {v.policies.map((p) => (
               <option key={p.id} value={p.id}>
-                New version of {p.title}
+                {tx("New version of {title}", { title: p.title })}
               </option>
             ))}
           </select>
         </label>
         <label className="text-sm">
-          <span className="font-medium">Title</span>
+          <span className="font-medium">{tx("Title")}</span>
           <input value={title} onChange={(e) => setTitle(e.target.value)} disabled={!!replace} className={input} />
         </label>
         <label className="text-sm">
-          <span className="font-medium">Version</span>
+          <span className="font-medium">{tx("Version")}</span>
           <input value={version} onChange={(e) => setVersion(e.target.value)} placeholder="2026-11" className={input} />
         </label>
         <label className="text-sm">
-          <span className="font-medium">The document (PDF)</span>
+          <span className="font-medium">{tx("The document (PDF)")}</span>
           <span className={`${quietBtn} mt-1 block cursor-pointer text-center`}>
-            {file ? `📎 ${file.name}` : "Choose the PDF"}
+            {file ? `📎 ${file.name}` : tx("Choose the PDF")}
             <input
               type="file"
               accept="application/pdf"
@@ -498,7 +502,7 @@ function Policies({ v, act, fmt }: { v: OnboardingView; act: (a: ObAction, msg: 
             onClick={async () => {
               setBusy(true);
               try {
-                await act({ action: "policy", id: replace || slug(title), title, version, file: file! }, "Published.");
+                await act({ action: "policy", id: replace || slug(title), title, version, file: file! }, tx("Published."));
                 setTitle("");
                 setVersion("");
                 setFile(null);
@@ -510,7 +514,7 @@ function Policies({ v, act, fmt }: { v: OnboardingView; act: (a: ObAction, msg: 
               }
             }}
           >
-            Publish
+            {tx("Publish")}
           </button>
         </div>
       </div>

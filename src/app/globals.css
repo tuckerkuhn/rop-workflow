@@ -215,3 +215,12 @@ table {
     background: var(--mist);
   }
 }
+
+/*
+ * Dari and Pashto: each block of text takes its direction from its own first letters, so a line
+ * still in English (not translated yet), a number with its unit or a farmer number reads the right
+ * way round instead of "...Loading" or "ha 0.6". The layout still mirrors (dir="rtl" on <html>).
+ */
+:root[dir="rtl"] :where(p, h1, h2, h3, h4, li, label, dt, dd, td, th, legend, summary, button, option, span, a) {
+  unicode-bidi: plaintext;
+}

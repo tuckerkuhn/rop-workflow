@@ -20,7 +20,8 @@
     "sample": "tsx --env-file=.env.local src/db/sample-cli.ts",
     "park": "tsx --env-file=.env.local src/db/park-cli.ts",
     "farmers:sync": "tsx --env-file=.env.local src/db/farmers-sync-cli.ts",
-    "kobo:reconcile": "tsx --env-file=.env.local src/db/kobo-reconcile-cli.ts"
+    "kobo:reconcile": "tsx --env-file=.env.local src/db/kobo-reconcile-cli.ts",
+    "i18n:catalog": "tsx scripts/i18n-catalog.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.4.0",

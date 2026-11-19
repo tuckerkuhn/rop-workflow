@@ -57,7 +57,7 @@ export function MoveToExecute({ u, state, setState }: Pick<Props, "u" | "state" 
       {missing.length > 0 && (
         <div role="alert" className="rounded-xl border border-clay/40 bg-clay-soft px-4 py-3 text-sm text-clay">
           <p className="font-semibold">Design can&rsquo;t be signed off yet. Missing:</p>
-          <ul className="mt-1 list-disc pl-5">
+          <ul className="mt-1 list-disc ps-5">
             {missing.map((m) => (
               <li key={m}>{m}</li>
             ))}
@@ -89,7 +89,7 @@ export function GatedSections({ tab, state, stage, openTarget }: { tab: string; 
           {missing.length ? (
             <>
               <p className="mt-1 font-semibold text-clay">Blocking: this project cannot move to Execute yet.</p>
-              <ul className="mt-1 list-disc pl-5 text-sm text-clay">
+              <ul className="mt-1 list-disc ps-5 text-sm text-clay">
                 {missing.map((m) => (
                   <li key={m}>{m}</li>
                 ))}

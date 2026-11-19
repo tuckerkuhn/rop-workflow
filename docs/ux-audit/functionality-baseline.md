@@ -47,6 +47,14 @@ walk-through of the screens; roles in brackets.
   sign" amber; a result MEL queried reads "Sent back with a question"; a step check not done yet is
   amber, not red; buttons that record the right thing ("Record contribution received") are green.
   No function or status removed; only words and colours of labels.
+- Batch F (translation readiness): sentences keyed by their English (tx/msg, lib/i18n/text.ts),
+  with a translators' list (npm run i18n:catalog → docs/translation/screen-text.csv, 512 sentences);
+  the field worker's screens on it (step screens and shared step parts, farmer profile, distribution
+  approval, sign-in, two-step, onboarding, field step definitions, in-page questions); layout
+  classes left/right changed to start/end across the app so it mirrors; text arrows turn round in
+  Dari and Pashto; English text inside a Dari/Pashto page reads the right way round. Nothing
+  translated yet; untranslated text shows in English as before. No function removed. One fix on
+  the way: "1 days to fix" now reads "1 day to fix".
 
 ## Home `/home`
 Role dashboard: next step, Waiting on you (Approve / Fix / Due), Getting started checklist, quarter

@@ -1,5 +1,6 @@
 "use client";
 
+import { Arrow } from "@/components/app/arrow";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useCurrentProject } from "@/components/app/current-project";
@@ -587,7 +588,7 @@ function Detail({
                       <p className="text-sm text-warn">The person who requested a purchase cannot approve it, so someone else signs here.{ownBarred && solo ? ` ${ownBarred}` : ""}</p>
                     ) : (
                       <button type="button" disabled={!isReady} onClick={() => (mayOwn ? setSelfing(true) : complete())} className={primaryBtn}>
-                        {step.signs && !/^sign\b/i.test(actionFor(p, step)) ? `Sign and ${lowerFirst(actionFor(p, step))}` : actionFor(p, step)} →
+                        {step.signs && !/^sign\b/i.test(actionFor(p, step)) ? `Sign and ${lowerFirst(actionFor(p, step))}` : actionFor(p, step)} <Arrow />
                       </button>
                     )}
                     {selfing && (
@@ -756,7 +757,7 @@ function Detail({
                 const signed = p.signatures[d]?.length ?? 0;
                 return (
                   <li key={d}>
-                    <button type="button" onClick={() => setViewing({ doc: d, confirm: false })} className="flex w-full items-center gap-2 rounded-lg px-1 py-1 text-left text-sm hover:bg-surface">
+                    <button type="button" onClick={() => setViewing({ doc: d, confirm: false })} className="flex w-full items-center gap-2 rounded-lg px-1 py-1 text-start text-sm hover:bg-surface">
                       <span aria-hidden className="grid h-6 w-5 shrink-0 place-items-center rounded-sm border border-line bg-paper text-[8px] text-muted">
                         ▤
                       </span>
@@ -901,20 +902,20 @@ export function ProcurementWorkspace() {
             <div className="mx-4 mt-3 grid gap-2 sm:mx-6">
               <Link href="/work/plan" className="flex items-center justify-between rounded-xl bg-mist px-3 py-2 text-sm font-semibold text-forest hover:bg-sunken">
                 Procurement calendar
-                <span aria-hidden>→</span>
+                <Arrow />
               </Link>
               <Link href="/work/suppliers" className="flex items-center justify-between rounded-xl bg-mist px-3 py-2 text-sm font-semibold text-forest hover:bg-sunken">
                 Suppliers
-                <span aria-hidden>→</span>
+                <Arrow />
               </Link>
               <Link href="/work/bills" className="flex items-center justify-between rounded-xl bg-mist px-3 py-2 text-sm font-semibold text-forest hover:bg-sunken">
                 Bills paid directly (rent, utilities, insurance)
-                <span aria-hidden>→</span>
+                <Arrow />
               </Link>
               {(myRoles.includes("finance") || user.admin) && (
                 <Link href="/work/closeout" className="flex items-center justify-between rounded-xl bg-mist px-3 py-2 text-sm font-semibold text-forest hover:bg-sunken">
                   Monthly closeout
-                  <span aria-hidden>→</span>
+                  <Arrow />
                 </Link>
               )}
             </div>

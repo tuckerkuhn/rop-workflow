@@ -117,7 +117,7 @@ export default function About() {
                 ))}
               </dl>
             </div>
-            <div className="rise lg:pl-6" style={{ animationDelay: "300ms" }}>
+            <div className="rise lg:ps-6" style={{ animationDelay: "300ms" }}>
               <FarmerCard />
             </div>
           </div>
@@ -133,7 +133,7 @@ export default function About() {
             </Reveal>
             <div className="mt-8 grid gap-10 sm:grid-cols-2 lg:grid-cols-4 lg:gap-0 lg:divide-x lg:divide-line">
               {metrics.map((m, i) => (
-                <Reveal key={m.label} delay={i * 90} className="lg:px-8 lg:first:pl-0">
+                <Reveal key={m.label} delay={i * 90} className="lg:px-8 lg:first:ps-0">
                   <p className="font-display text-5xl tracking-tight text-forest">{m.value}</p>
                   <p className="mt-3 text-sm leading-relaxed">{m.label}</p>
                   <p className="mt-1 font-mono text-xs text-muted">{m.note}</p>
@@ -289,7 +289,7 @@ export default function About() {
                     ))}
                   </div>
                   {i < 2 && (
-                    <span aria-hidden className="absolute -right-[11px] top-1/2 z-10 hidden h-5 w-5 -translate-y-1/2 place-items-center rounded-full border border-line bg-surface text-xs text-muted lg:grid">
+                    <span aria-hidden className="absolute -end-[11px] top-1/2 z-10 hidden h-5 w-5 -translate-y-1/2 place-items-center rounded-full border border-line bg-surface text-xs text-muted lg:grid">
                       →
                     </span>
                   )}
@@ -302,7 +302,7 @@ export default function About() {
         {/* CTA */}
         <section className="mx-auto max-w-7xl px-5 py-28 sm:px-8 lg:py-36">
           <Reveal className="relative overflow-hidden rounded-[2rem] bg-ink px-8 py-16 text-paper sm:px-16 sm:py-20">
-            <svg aria-hidden viewBox="0 0 600 300" className="absolute -right-20 -top-10 h-[130%] w-auto text-warn opacity-20">
+            <svg aria-hidden viewBox="0 0 600 300" className="absolute -end-20 -top-10 h-[130%] w-auto text-warn opacity-20">
               {Array.from({ length: 10 }, (_, i) => (
                 <path key={i} d={`M 0 ${40 + i * 26} C 160 ${10 + i * 26}, 380 ${80 + i * 26}, 600 ${30 + i * 26}`} fill="none" stroke="currentColor" />
               ))}

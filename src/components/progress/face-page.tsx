@@ -18,7 +18,7 @@ import type { FaceView } from "@/server/face-store";
  * request, then downloads the form in UNDP's layout to sign and send.
  */
 
-const input = "w-full rounded-lg border border-line bg-paper px-2 py-1.5 text-right text-sm tabular-nums";
+const input = "w-full rounded-lg border border-line bg-paper px-2 py-1.5 text-end text-sm tabular-nums";
 const n = (v: number) => (v < 0 ? `(${Math.abs(v).toLocaleString("en-US")})` : v.toLocaleString("en-US"));
 const num = (s: string) => {
   const v = Number(s.replace(/[,\s]/g, ""));
@@ -124,8 +124,8 @@ export function FacePage() {
               </p>
               <table className="mt-3 w-full min-w-[64rem] border-separate border-spacing-x-3 text-sm">
                 <thead className="text-xs text-muted">
-                  <tr className="text-right">
-                    <th className="text-left font-medium">Activity</th>
+                  <tr className="text-end">
+                    <th className="text-start font-medium">Activity</th>
                     <th className="font-medium">A: Authorised ({periods.authorised})</th>
                     <th className="font-medium">B: Actual</th>
                     <th className="font-medium">C: Accepted</th>
@@ -136,8 +136,8 @@ export function FacePage() {
                 </thead>
                 <tbody>
                   {rows.map((r) => (
-                    <tr key={r.activity} className="border-t border-line text-right tabular-nums">
-                      <td className="py-2 pe-3 text-left">
+                    <tr key={r.activity} className="border-t border-line text-end tabular-nums">
+                      <td className="py-2 pe-3 text-start">
                         <span className="font-mono text-xs text-muted">{r.activity}</span> {r.name}
                       </td>
                       <td className="w-36 py-1">
@@ -164,8 +164,8 @@ export function FacePage() {
                       <td>{n(r.g)}</td>
                     </tr>
                   ))}
-                  <tr className="border-t-2 border-ink text-right font-semibold tabular-nums">
-                    <td className="py-2 text-left">Total {v.currency}</td>
+                  <tr className="border-t-2 border-ink text-end font-semibold tabular-nums">
+                    <td className="py-2 text-start">Total {v.currency}</td>
                     <td>{n(sum("a"))}</td>
                     <td>{n(sum("b"))}</td>
                     <td>{n(sum("c"))}</td>
@@ -173,8 +173,8 @@ export function FacePage() {
                     <td>{n(sum("f"))}</td>
                     <td>{n(sum("g"))}</td>
                   </tr>
-                  <tr className="border-t border-line text-right tabular-nums text-muted">
-                    <td className="py-2 text-left">Overhead/GMS 8% (USD)</td>
+                  <tr className="border-t border-line text-end tabular-nums text-muted">
+                    <td className="py-2 text-start">Overhead/GMS 8% (USD)</td>
                     <td>0</td>
                     <td>${n(v.overheadUsd)}</td>
                     <td>${n(v.overheadUsd)}</td>

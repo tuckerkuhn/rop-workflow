@@ -76,7 +76,7 @@ export function TargetLine({ state, onOpen }: { state: ProjectState; onOpen: () 
       <button type="button" onClick={onOpen} className="font-semibold text-forest underline decoration-dotted underline-offset-4" title="Show the market window, its validation and sources">
         {targetText(t)}
       </button>
-      {!isValidated(state, win.id) && <span className="ml-2 text-xs text-clay">not yet validated</span>}
+      {!isValidated(state, win.id) && <span className="ms-2 text-xs text-clay">not yet validated</span>}
     </p>
   );
 }
@@ -208,7 +208,7 @@ export function MarketTargetCard({ state, onOpen }: { state: ProjectState; onOpe
 const HATCH_COMP = "bg-[repeating-linear-gradient(135deg,var(--clay-soft)_0_4px,transparent_4px_8px)]";
 const HATCH_POLICY = "bg-[repeating-linear-gradient(135deg,var(--plum-soft)_0_4px,transparent_4px_8px)]";
 const cols = "grid grid-cols-[11rem_repeat(12,minmax(0,1fr))]";
-const cell = (i: number) => `${i === 0 ? "rounded-l" : ""} ${i === 11 ? "rounded-r" : ""}`;
+const cell = (i: number) => `${i === 0 ? "rounded-s" : ""} ${i === 11 ? "rounded-e" : ""}`;
 
 export type CalendarEditInput = { rowId: string; months: number[]; source: string; note?: string };
 
@@ -281,7 +281,7 @@ function RowEditor({
 
 function RowLabel({ title, sub, edit, onEdit, indent = false }: { title: string; sub?: React.ReactNode; edit?: CalendarEdit; onEdit?: () => void; indent?: boolean }) {
   return (
-    <span className={`flex flex-col pr-2 ${indent ? "ml-2 border-l-2 border-clay/30 pl-2" : ""}`}>
+    <span className={`flex flex-col pe-2 ${indent ? "ms-2 border-s-2 border-clay/30 ps-2" : ""}`}>
       <span className={`leading-tight ${indent ? "text-xs" : "text-sm font-medium"}`}>{title}</span>
       {sub}
       {edit && <span className="text-xs leading-tight text-muted">edited by {personName(edit.by).split(" ")[0]} {edit.date}</span>}
@@ -362,7 +362,7 @@ export function Calendar({
             );
           })}
         </div>
-        <p className="mt-1 pl-[11rem] text-xs text-muted">{area.note}</p>
+        <p className="mt-1 ps-[11rem] text-xs text-muted">{area.note}</p>
 
         {/* Markets, each with the origins competing there */}
         <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-muted">{showCompetition ? "Import markets and competing supply" : "Import markets"}</p>
@@ -380,7 +380,7 @@ export function Calendar({
                   type="button"
                   disabled={!onPick || win.status !== "open"}
                   onClick={() => onPick?.(win.id)}
-                  className={`${cols} w-full items-center gap-px rounded-lg py-1 text-left transition enabled:hover:bg-paper`}
+                  className={`${cols} w-full items-center gap-px rounded-lg py-1 text-start transition enabled:hover:bg-paper`}
                   aria-pressed={on}
                   title={win.status === "open" ? "Short-list this window" : pill.label}
                 >
@@ -439,10 +439,10 @@ export function Calendar({
                           {MONTHS.map((m, i) => (
                             <span key={m} className={`mt-0.5 h-4 ${c.months.includes(i + 1) ? `${HATCH_COMP} border border-clay/40` : "bg-sunken/40"} ${cell(i)}`} />
                           ))}
-                          <span className="col-span-12 col-start-2 pl-2 text-xs leading-snug text-muted">
+                          <span className="col-span-12 col-start-2 ps-2 text-xs leading-snug text-muted">
                             {c.note}
                             {c.sources.map((s) => (
-                              <a key={s.url} href={s.url} target="_blank" rel="noreferrer" className="ml-1 underline decoration-dotted underline-offset-2 hover:text-forest">
+                              <a key={s.url} href={s.url} target="_blank" rel="noreferrer" className="ms-1 underline decoration-dotted underline-offset-2 hover:text-forest">
                                 {s.label}
                               </a>
                             ))}

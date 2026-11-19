@@ -154,11 +154,11 @@ function Overview({ u, state, setState, field, procs, roster, go }: SectionProps
           );
           // The review queue lives on Check > Results and proof, with the results MEL checks.
           return c.href ? (
-            <Link key={c.k} href={c.href} className="bg-surface px-5 py-4 text-left transition hover:bg-paper">
+            <Link key={c.k} href={c.href} className="bg-surface px-5 py-4 text-start transition hover:bg-paper">
               {body}
             </Link>
           ) : (
-            <button key={c.k} type="button" onClick={() => go(c.t!)} className="bg-surface px-5 py-4 text-left transition hover:bg-paper">
+            <button key={c.k} type="button" onClick={() => go(c.t!)} className="bg-surface px-5 py-4 text-start transition hover:bg-paper">
               {body}
             </button>
           );
@@ -206,7 +206,7 @@ function Overview({ u, state, setState, field, procs, roster, go }: SectionProps
               <p className="mt-2 text-sm text-muted">No NetSuite export this month yet, so the budget part is empty.</p>
             )}
             <p className="mt-4 text-sm font-semibold">Risks</p>
-            <ul className="mt-2 list-disc space-y-1 pl-4 text-sm text-muted">
+            <ul className="mt-2 list-disc space-y-1 ps-4 text-sm text-muted">
               {late.map((a) => (
                 <li key={a.n}>Activity {a.n} ({a.name.toLowerCase()}) is late.</li>
               ))}
@@ -307,7 +307,7 @@ function Plan({ state, field, procs, openEvidence }: SectionProps & { openEviden
             const inds = indicators.filter((i) => i.result === r.id);
             const acts = activities.filter((a) => a.output === r.id);
             return (
-              <div key={r.id} className={`rounded-2xl border border-line bg-surface p-5 ${r.level === "Output" ? "ml-6 sm:ml-12" : r.level === "Outcome" ? "ml-3 sm:ml-6" : ""}`}>
+              <div key={r.id} className={`rounded-2xl border border-line bg-surface p-5 ${r.level === "Output" ? "ms-6 sm:ms-12" : r.level === "Outcome" ? "ms-3 sm:ms-6" : ""}`}>
                 <div className="flex flex-wrap items-center gap-2">
                   <Pill tone={r.level === "Goal" ? "forest" : r.level === "Outcome" ? "sky" : "muted"}>{r.level}</Pill>
                   <span className="font-mono text-xs text-muted">{r.id}</span>
@@ -322,9 +322,9 @@ function Plan({ state, field, procs, openEvidence }: SectionProps & { openEviden
                         <li key={i.id} className="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1 text-sm">
                           <span>
                             <span className="font-mono text-xs text-muted">{i.id}</span> {i.name}
-                            {i.library && <span className="ml-2 rounded bg-plum-soft px-1.5 py-0.5 text-xs font-semibold text-plum">Library: {i.library}</span>}
+                            {i.library && <span className="ms-2 rounded bg-plum-soft px-1.5 py-0.5 text-xs font-semibold text-plum">Library: {i.library}</span>}
                           </span>
-                          <button type="button" onClick={() => openEvidence(i)} className="text-right tabular-nums hover:text-forest hover:underline" disabled={i.source === "survey"}>
+                          <button type="button" onClick={() => openEvidence(i)} className="text-end tabular-nums hover:text-forest hover:underline" disabled={i.source === "survey"}>
                             {a.value ?? "—"} / {i.target}
                             {i.unit.startsWith("%") ? "%" : ""}
                           </button>
@@ -365,8 +365,8 @@ function Plan({ state, field, procs, openEvidence }: SectionProps & { openEviden
             <tbody className="divide-y divide-line">
               {indicators.map((i) => (
                 <tr key={i.id}>
-                  <td className="py-2 pr-3 font-mono text-xs">{i.id}</td>
-                  <td className="py-2 pr-3">{i.name}</td>
+                  <td className="py-2 pe-3 font-mono text-xs">{i.id}</td>
+                  <td className="py-2 pe-3">{i.name}</td>
                   <td className="py-2 text-muted">↔ {i.donorRef}</td>
                 </tr>
               ))}
@@ -496,7 +496,7 @@ function Budget({ u, state, setState }: SectionProps) {
                     <li key={r.ref} className="flex flex-wrap items-center gap-3 py-2 text-sm">
                       <span className="w-28 shrink-0 font-mono text-xs text-muted">{r.ref}</span>
                       <span className="min-w-0 flex-1 truncate">{r.memo}</span>
-                      <span className="w-28 shrink-0 text-right tabular-nums">{money(r.amount)}</span>
+                      <span className="w-28 shrink-0 text-end tabular-nums">{money(r.amount)}</span>
                       <select
                         id={`map-${r.ref}`}
                         value={r.line}
@@ -567,20 +567,20 @@ function Budget({ u, state, setState }: SectionProps) {
               max={100}
               value={state.varianceThreshold}
               onChange={(e) => setState((s) => ({ ...s, varianceThreshold: Number(e.target.value) || 10 }))}
-              className="w-16 rounded-lg border border-line bg-surface px-2 py-1 text-right"
+              className="w-16 rounded-lg border border-line bg-surface px-2 py-1 text-end"
             />
             %
           </label>
         </div>
         <div className="mt-3 overflow-x-auto rounded-2xl border border-line bg-surface">
           <table className="w-full min-w-[640px] text-sm">
-            <thead className="border-b border-line text-left text-xs uppercase tracking-wide text-muted">
+            <thead className="border-b border-line text-start text-xs uppercase tracking-wide text-muted">
               <tr>
                 <th className="px-4 py-2 font-semibold">Budget line</th>
-                <th className="px-4 py-2 text-right font-semibold">Planned</th>
-                <th className="px-4 py-2 text-right font-semibold">Planned to date</th>
-                <th className="px-4 py-2 text-right font-semibold">Spent</th>
-                <th className="px-4 py-2 text-right font-semibold">Variance</th>
+                <th className="px-4 py-2 text-end font-semibold">Planned</th>
+                <th className="px-4 py-2 text-end font-semibold">Planned to date</th>
+                <th className="px-4 py-2 text-end font-semibold">Spent</th>
+                <th className="px-4 py-2 text-end font-semibold">Variance</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
@@ -591,10 +591,10 @@ function Budget({ u, state, setState }: SectionProps) {
                     <td className="px-4 py-2.5">
                       <span className="font-mono text-xs text-muted">{l.code}</span> {l.name}
                     </td>
-                    <td className="px-4 py-2.5 text-right tabular-nums">{money(l.planned)}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums">{money(l.plannedToDate)}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums">{state.spend.length ? money(l.spent) : "—"}</td>
-                    <td className={`px-4 py-2.5 text-right tabular-nums ${flag ? "font-semibold text-clay" : "text-muted"}`}>{state.spend.length ? `${l.v > 0 ? "+" : ""}${Math.round(l.v)}%` : "—"}</td>
+                    <td className="px-4 py-2.5 text-end tabular-nums">{money(l.planned)}</td>
+                    <td className="px-4 py-2.5 text-end tabular-nums">{money(l.plannedToDate)}</td>
+                    <td className="px-4 py-2.5 text-end tabular-nums">{state.spend.length ? money(l.spent) : "—"}</td>
+                    <td className={`px-4 py-2.5 text-end tabular-nums ${flag ? "font-semibold text-clay" : "text-muted"}`}>{state.spend.length ? `${l.v > 0 ? "+" : ""}${Math.round(l.v)}%` : "—"}</td>
                   </tr>
                 );
               })}
@@ -683,20 +683,20 @@ function Report({ u, state, setState, field, openEvidence }: SectionProps & { op
         <section className="mt-6">
           <h3 className="text-xl font-semibold">Results</h3>
           <table className="mt-2 w-full text-sm">
-            <thead className="text-left text-xs uppercase tracking-wide text-muted">
+            <thead className="text-start text-xs uppercase tracking-wide text-muted">
               <tr>
-                <th className="py-2 pr-3 font-semibold">{view === "donor" ? "Target, as the donor names it" : "Target"}</th>
-                <th className="py-2 pr-3 text-right font-semibold">How many</th>
-                <th className="py-2 pr-3 text-right font-semibold">Result</th>
-                <th className="py-2 text-right font-semibold">%</th>
+                <th className="py-2 pe-3 font-semibold">{view === "donor" ? "Target, as the donor names it" : "Target"}</th>
+                <th className="py-2 pe-3 text-end font-semibold">How many</th>
+                <th className="py-2 pe-3 text-end font-semibold">Result</th>
+                <th className="py-2 text-end font-semibold">%</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
               {nums.map(({ i, a, appr }) => (
                 <tr key={i.id}>
-                  <td className="py-2 pr-3">{label(i)}</td>
-                  <td className="py-2 pr-3 text-right tabular-nums">{i.target}</td>
-                  <td className="py-2 pr-3 text-right">
+                  <td className="py-2 pe-3">{label(i)}</td>
+                  <td className="py-2 pe-3 text-end tabular-nums">{i.target}</td>
+                  <td className="py-2 pe-3 text-end">
                     {a.value === null ? (
                       <span className="text-muted">Not due</span>
                     ) : (
@@ -704,9 +704,9 @@ function Report({ u, state, setState, field, openEvidence }: SectionProps & { op
                         {a.value}
                       </button>
                     )}
-                    {a.value !== null && (!appr || appr.note !== String(a.value)) && <span className="ml-1 text-xs text-clay">draft</span>}
+                    {a.value !== null && (!appr || appr.note !== String(a.value)) && <span className="ms-1 text-xs text-clay">draft</span>}
                   </td>
-                  <td className="py-2 text-right tabular-nums text-muted">{a.value === null ? "—" : `${pct(a.value, i.target)}%`}</td>
+                  <td className="py-2 text-end tabular-nums text-muted">{a.value === null ? "—" : `${pct(a.value, i.target)}%`}</td>
                 </tr>
               ))}
             </tbody>
@@ -737,7 +737,7 @@ function Report({ u, state, setState, field, openEvidence }: SectionProps & { op
 
         <section className="mt-6">
           <h3 className="text-xl font-semibold">Challenges and changes</h3>
-          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
+          <ul className="mt-2 list-disc space-y-1 ps-5 text-sm">
             {approvedChanges.map((c) => (
               <li key={c.id}>{c.text}</li>
             ))}

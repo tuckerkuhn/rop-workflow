@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useT } from "@/components/app/i18n";
 
 /**
  * In-page questions in place of the browser's own confirm and prompt boxes, which freeze the page,
@@ -39,6 +40,7 @@ export function DialogHost() {
   const [req, setReq] = useState<Req | null>(null);
   const [text, setText] = useState("");
   const ref = useRef<HTMLDialogElement>(null);
+  const { tx } = useT();
 
   useEffect(() => {
     show = (r) => {
@@ -104,12 +106,12 @@ export function DialogHost() {
                 placeholder={req.placeholder}
                 className="mt-1 w-full rounded-xl border border-line bg-surface px-3 py-2 text-base font-normal focus:border-forest focus:outline-none"
               />
-              {short && <span className="mt-1 block text-xs font-normal text-muted">Write a few words to continue.</span>}
+              {short && <span className="mt-1 block text-xs font-normal text-muted">{tx("Write a few words to continue.")}</span>}
             </label>
           )}
           <div className="flex flex-wrap justify-end gap-2">
             <button type="button" onClick={() => finish(false)} className="min-h-11 rounded-full border border-line px-5 text-sm font-semibold text-ink hover:bg-sunken">
-              {req.cancel ?? "Cancel"}
+              {req.cancel ?? tx("Cancel")}
             </button>
             <button
               type="submit"

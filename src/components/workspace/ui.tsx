@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useT } from "@/components/app/i18n";
+import { Arrow } from "@/components/app/arrow";
+import { msg } from "@/lib/i18n/text";
 import type { MessageKey } from "@/lib/i18n";
 import { CurrencyToggle, Initials, useSession } from "@/components/app/session";
 import { TaskSourceSwitch } from "@/components/tasks/sources";
@@ -79,18 +81,19 @@ export function SectionLabel({ children }: { children: React.ReactNode }) {
 export function Tracker({ labels, current, marks = {}, warn = false, skipped = [] }: { labels: string[]; current: number; marks?: Record<number, string>; warn?: boolean; skipped?: number[] }) {
   // On a phone the step names do not fit under the circles: the current one is written out below.
   const at = Math.min(Math.max(current, 0), labels.length - 1);
+  const { tx } = useT();
   return (
     <div>
-    <ol className="flex items-start" aria-label="Progress">
+    <ol className="flex items-start" aria-label={tx("Progress")}>
       {labels.map((label, i) => {
         // A stage this record does not go through (a micro purchase has no award or contract): shown as not needed, never as done.
         if (skipped.includes(i))
           return (
-            <li key={label} className="relative flex flex-1 flex-col items-center text-center" title={`${label}: not needed for this one`}>
-              {i > 0 && <span aria-hidden className={`absolute right-1/2 top-[13px] h-0.5 w-full ${i <= current ? "bg-forest" : "bg-line"}`} />}
+            <li key={label} className="relative flex flex-1 flex-col items-center text-center" title={tx("{step}: not needed for this one", { step: tx(label) })}>
+              {i > 0 && <span aria-hidden className={`absolute end-1/2 top-[13px] h-0.5 w-full ${i <= current ? "bg-forest" : "bg-line"}`} />}
               <span className="relative z-10 grid h-7 w-7 place-items-center rounded-full border-2 border-dashed border-line bg-surface text-xs text-muted">–</span>
-              <span className="mt-1.5 hidden text-xs leading-tight text-muted line-through sm:block">{label}</span>
-              <span className="mt-0.5 hidden text-xs text-muted sm:block">not needed</span>
+              <span className="mt-1.5 hidden text-xs leading-tight text-muted line-through sm:block">{tx(label)}</span>
+              <span className="mt-0.5 hidden text-xs text-muted sm:block">{tx("not needed")}</span>
             </li>
           );
         const done = i < current;
@@ -98,7 +101,7 @@ export function Tracker({ labels, current, marks = {}, warn = false, skipped = [
         const nowTone = warn ? "border-clay text-clay ring-clay/15" : "border-forest text-forest ring-forest/15";
         return (
           <li key={label} className="relative flex flex-1 flex-col items-center text-center">
-            {i > 0 && <span aria-hidden className={`absolute right-1/2 top-[13px] h-0.5 w-full ${i <= current ? "bg-forest" : "bg-line"}`} />}
+            {i > 0 && <span aria-hidden className={`absolute end-1/2 top-[13px] h-0.5 w-full ${i <= current ? "bg-forest" : "bg-line"}`} />}
             <span
               className={`relative z-10 grid h-7 w-7 place-items-center rounded-full border-2 text-xs font-bold ${
                 done ? "border-forest bg-forest text-forest-ink" : now ? `bg-surface ring-4 ${nowTone}` : "border-line bg-surface text-muted"
@@ -106,7 +109,7 @@ export function Tracker({ labels, current, marks = {}, warn = false, skipped = [
             >
               {done ? "✓" : now && warn ? "!" : i + 1}
             </span>
-            <span className={`mt-1.5 hidden text-xs leading-tight sm:block ${now ? "font-semibold text-ink" : "text-muted"}`}>{label}</span>
+            <span className={`mt-1.5 hidden text-xs leading-tight sm:block ${now ? "font-semibold text-ink" : "text-muted"}`}>{tx(label)}</span>
             {marks[i] && <span className={`mt-0.5 hidden font-mono text-xs sm:block ${done ? "text-forest" : "text-warn"}`}>{marks[i]}</span>}
           </li>
         );
@@ -114,13 +117,11 @@ export function Tracker({ labels, current, marks = {}, warn = false, skipped = [
     </ol>
     {labels.length > 0 && current >= 0 && current < labels.length && (
       <p className={`mt-3 text-center text-sm sm:hidden ${warn ? "text-clay" : "text-ink"}`}>
-        <span className="text-muted">
-          Step {at + 1} of {labels.length}:
-        </span>{" "}
-        <span className="font-semibold">{labels[at]}</span>
+        <span className="text-muted">{tx("Step {n} of {total}:", { n: at + 1, total: labels.length })}</span>{" "}
+        <span className="font-semibold">{tx(labels[at])}</span>
       </p>
     )}
-    {current >= labels.length && <p className="mt-3 text-center text-sm font-semibold text-forest sm:hidden">All steps done</p>}
+    {current >= labels.length && <p className="mt-3 text-center text-sm font-semibold text-forest sm:hidden">{tx("All steps done")}</p>}
     </div>
   );
 }
@@ -154,12 +155,13 @@ export function CheckRow({
   onResolve: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const { tx } = useT();
   return (
     <li className="py-3">
       <div className="flex items-start gap-3">
         {c.auto ? (
           <span
-            title="Checked by the app"
+            title={tx("Checked by the app")}
             // Not done yet is amber (something to do), not the red used for errors and things sent back.
             className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full text-xs font-bold ${c.ok ? "bg-leaf text-white" : "bg-ochre text-ink"}`}
           >
@@ -177,11 +179,11 @@ export function CheckRow({
         )}
         <div className="min-w-0 flex-1">
           <label htmlFor={c.key} className={`block leading-snug ${!c.auto && canEdit ? "cursor-pointer" : ""}`}>
-            {c.label}
-            {c.auto && <span className="ms-2 text-xs text-muted">· checked by the app</span>}
-            {c.findings && <span className="ms-2 rounded bg-plum-soft px-1.5 py-0.5 text-xs font-semibold text-plum">AI suggestions</span>}
+            {tx(c.label)}
+            {c.auto && <span className="ms-2 text-xs text-muted">· {tx("checked by the app")}</span>}
+            {c.findings && <span className="ms-2 rounded bg-plum-soft px-1.5 py-0.5 text-xs font-semibold text-plum">{tx("AI suggestions")}</span>}
           </label>
-          {c.detail && <p className={`mt-0.5 text-sm ${c.ok ? "text-muted" : "font-medium text-warn"}`}>{c.detail}</p>}
+          {c.detail && <p className={`mt-0.5 text-sm ${c.ok ? "text-muted" : "font-medium text-warn"}`}>{tx(c.detail)}</p>}
           {c.findings && (
             <ul className="mt-2 space-y-1.5 rounded-lg border border-plum/25 bg-plum-soft/50 p-3 text-sm">
               {c.findings.map((f) => (
@@ -190,32 +192,32 @@ export function CheckRow({
                   <span className="min-w-0 flex-1">{f}</span>
                   {canEdit && (
                     <button type="button" onClick={() => onRaise(f)} className="shrink-0 text-xs font-semibold text-plum underline-offset-2 hover:underline">
-                      Raise issue
+                      {tx("Raise issue")}
                     </button>
                   )}
                 </li>
               ))}
-              <li className="pt-1 text-xs text-muted">Suggested by AI. Check each against the source, raise what needs fixing, then tick the box.</li>
+              <li className="pt-1 text-xs text-muted">{tx("Suggested by AI. Check each against the source, raise what needs fixing, then tick the box.")}</li>
             </ul>
           )}
           {!c.ok && c.auto && canEdit && (c.resolve || c.fix) && (
             <div className="mt-2 flex flex-wrap gap-2">
               {c.resolve && (
                 <button type="button" onClick={onResolve} className="rounded-full bg-forest px-3 py-1.5 text-xs font-semibold text-forest-ink transition hover:bg-forest-hover">
-                  {c.resolve}
+                  {tx(c.resolve)}
                 </button>
               )}
               {c.fix && (
                 <button type="button" onClick={() => onRaise(c.fix!)} className="rounded-full border border-line px-3 py-1.5 text-xs font-semibold text-ink hover:border-forest hover:text-forest">
-                  Raise as an issue
+                  {tx("Raise as an issue")}
                 </button>
               )}
             </div>
           )}
           {open && (
             <p className="mt-1.5 text-sm leading-relaxed text-muted">
-              {c.why}
-              {c.tag && <span className="mt-1 block text-xs">Where this comes from: {plainSources(c.tag)}</span>}
+              {tx(c.why)}
+              {c.tag && <span className="mt-1 block text-xs">{tx("Where this comes from: {source}", { source: plainSources(c.tag) })}</span>}
             </p>
           )}
         </div>
@@ -223,7 +225,7 @@ export function CheckRow({
           type="button"
           onClick={() => setOpen(!open)}
           aria-expanded={open}
-          aria-label="Why is this required?"
+          aria-label={tx("Why is this required?")}
           className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border text-xs font-semibold transition ${
             open ? "border-forest bg-forest text-forest-ink" : "border-line text-muted hover:border-forest/50 hover:text-forest"
           }`}
@@ -265,6 +267,7 @@ export function IssueForm({
   const [type, setType] = useState(types[0]);
   const [note, setNote] = useState(initial);
   const [blocking, setBlocking] = useState(true);
+  const { tx } = useT();
   return (
     <form
       onSubmit={(e) => {
@@ -282,35 +285,35 @@ export function IssueForm({
             aria-pressed={type === t}
             className={`rounded-full border px-3 py-1 text-xs font-medium transition ${type === t ? "border-forest bg-forest text-forest-ink" : "border-line bg-surface hover:border-forest/40"}`}
           >
-            {t}
+            {tx(t)}
           </button>
         ))}
       </div>
-      <p className="text-xs text-muted">{help[type]}</p>
+      <p className="text-xs text-muted">{help[type] ? tx(help[type]) : ""}</p>
       <textarea
         id="issue-note"
         autoFocus
         value={note}
         onChange={(e) => setNote(e.target.value)}
         rows={2}
-        placeholder="What happened, and what is needed?"
+        placeholder={tx("What happened, and what is needed?")}
         className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm focus:border-forest focus:outline-none"
       />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <label className="flex items-center gap-2 text-sm">
           <input id="issue-blocking" type="checkbox" checked={blocking} onChange={(e) => setBlocking(e.target.checked)} className="h-4 w-4 accent-[var(--forest)]" />
-          Hold this step until resolved
+          {tx("Hold this step until resolved")}
         </label>
         <div className="flex gap-2">
           <button type="button" onClick={onCancel} className="rounded-full px-3 py-1.5 text-sm text-muted hover:text-ink">
-            Cancel
+            {tx("Cancel")}
           </button>
           <button type="submit" className="rounded-full bg-ink px-4 py-1.5 text-sm font-medium text-paper">
-            Add issue
+            {tx("Add issue")}
           </button>
         </div>
       </div>
-      <p className="border-t border-line pt-3 text-xs leading-relaxed text-muted">{footnote}</p>
+      <p className="border-t border-line pt-3 text-xs leading-relaxed text-muted">{tx(footnote)}</p>
     </form>
   );
 }
@@ -326,10 +329,11 @@ export function IssueList({
   canResolve: (i: Issue) => boolean;
   onResolve: (id: string, note: string) => void;
 }) {
+  const { tx } = useT();
   if (issues.length === 0) return null;
   return (
     <section>
-      <SectionLabel>Issues</SectionLabel>
+      <SectionLabel>{tx("Issues")}</SectionLabel>
       <ul className="mt-1 divide-y divide-line">
         {issues.map((i) => (
           <IssueRow key={i.id} issue={i} roleLabel={roleLabel} canResolve={canResolve(i)} onResolve={(n) => onResolve(i.id, n)} />
@@ -343,18 +347,19 @@ function IssueRow({ issue, roleLabel, canResolve, onResolve }: { issue: Issue; r
   const [resolving, setResolving] = useState(false);
   const [note, setNote] = useState("");
   const open = issue.status === "open";
+  const { tx } = useT();
   return (
     <li className="py-3">
       <div className="flex flex-wrap items-center gap-2">
-        <Pill tone={open ? (issue.blocking ? "clay" : "ochre") : "forest"}>{open ? (issue.blocking ? "Holding step" : "Open") : "Resolved"}</Pill>
-        <span className="text-xs font-semibold text-muted">{issue.type}</span>
-        <span className="text-xs text-muted">· raised by {roleLabel(issue.by)}</span>
+        <Pill tone={open ? (issue.blocking ? "clay" : "ochre") : "forest"}>{open ? (issue.blocking ? tx("Holding step") : tx("Open")) : tx("Resolved")}</Pill>
+        <span className="text-xs font-semibold text-muted">{tx(issue.type)}</span>
+        <span className="text-xs text-muted">· {tx("raised by {who}", { who: roleLabel(issue.by) })}</span>
       </div>
       <p className="mt-1.5 text-sm leading-relaxed">{issue.note}</p>
-      {issue.resolution && <p className="mt-1 text-sm text-muted">Resolution: {issue.resolution}</p>}
+      {issue.resolution && <p className="mt-1 text-sm text-muted">{tx("Resolution: {text}", { text: issue.resolution })}</p>}
       {open && canResolve && !resolving && (
         <button type="button" onClick={() => setResolving(true)} className="mt-2 text-sm font-semibold text-forest hover:underline">
-          Resolve
+          {tx("Resolve")}
         </button>
       )}
       {resolving && open && (
@@ -370,11 +375,11 @@ function IssueRow({ issue, roleLabel, canResolve, onResolve }: { issue: Issue; r
             autoFocus
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder="How was it resolved?"
+            placeholder={tx("How was it resolved?")}
             className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm focus:border-forest focus:outline-none"
           />
           <button type="submit" className="rounded-full bg-forest px-4 py-1.5 text-sm font-medium text-forest-ink">
-            Save
+            {tx("Save")}
           </button>
         </form>
       )}
@@ -387,14 +392,15 @@ function IssueRow({ issue, roleLabel, canResolve, onResolve }: { issue: Issue; r
 export type TimelineEvent = { date: string; who: string; what: string; by?: string };
 
 export function History({ events, roleLabel }: { events: TimelineEvent[]; roleLabel: (r: string) => string }) {
+  const { tx } = useT();
   return (
     <section>
-      <SectionLabel>History</SectionLabel>
-      {events.length === 0 && <p className="mt-2 text-sm text-muted">Nothing recorded yet.</p>}
-      <ol className="mt-2 space-y-2 border-l border-line pl-4">
+      <SectionLabel>{tx("History")}</SectionLabel>
+      {events.length === 0 && <p className="mt-2 text-sm text-muted">{tx("Nothing recorded yet.")}</p>}
+      <ol className="mt-2 space-y-2 border-s border-line ps-4">
         {[...events].reverse().map((e, k) => (
           <li key={k} className="relative text-sm">
-            <span aria-hidden className="absolute -left-[21px] top-1.5 h-2 w-2 rounded-full bg-forest" />
+            <span aria-hidden className="absolute -start-[21px] top-1.5 h-2 w-2 rounded-full bg-forest" />
             <p className="leading-snug">{e.what}</p>
             <p className="text-xs text-muted">
               {/* The person who did it, with their role; older entries name the role's holder. */}
@@ -436,33 +442,34 @@ export function StepCard({
   footer?: React.ReactNode;
 }) {
   const [showInfo, setShowInfo] = useState(false);
+  const { tx } = useT();
   return (
     <section className={`rounded-2xl border-2 bg-surface ${mine ? "border-forest" : "border-line"}`}>
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-line px-5 py-4">
         <div>
           <p className={`text-xs font-semibold uppercase tracking-[0.14em] ${mine ? "text-forest" : "text-muted"}`}>
-            {mine ? "Your turn" : `Waiting on ${ownerLabel}`}
-            {eyebrow && <span className="ml-2 text-warn">· {eyebrow}</span>}
+            {mine ? tx("Your turn") : tx("Waiting on {who}", { who: ownerLabel })}
+            {eyebrow && <span className="ms-2 text-warn">· {tx(eyebrow)}</span>}
           </p>
           <h3 className="mt-1 font-display text-2xl tracking-tight">
-            {title}
+            {tx(title)}
             {info && (
-              <button type="button" onClick={() => setShowInfo(!showInfo)} aria-expanded={showInfo} aria-label="About this step" className="ms-2 inline-grid h-6 w-6 place-items-center rounded-full border border-line align-middle font-sans text-xs font-semibold text-muted hover:border-forest hover:text-forest">
+              <button type="button" onClick={() => setShowInfo(!showInfo)} aria-expanded={showInfo} aria-label={tx("About this step")} className="ms-2 inline-grid h-6 w-6 place-items-center rounded-full border border-line align-middle font-sans text-xs font-semibold text-muted hover:border-forest hover:text-forest">
                 ?
               </button>
             )}
           </h3>
-          {info && showInfo && <p className="mt-1 text-sm text-muted">{info}</p>}
-          {note && <p className="mt-1 text-sm text-muted">{note}</p>}
+          {info && showInfo && <p className="mt-1 text-sm text-muted">{tx(info)}</p>}
+          {note && <p className="mt-1 text-sm text-muted">{tx(note)}</p>}
         </div>
         {!mine && onViewAs && (
           <button
             type="button"
             onClick={onViewAs}
-            title="Demo only: sign in as this person to try their step"
+            title={tx("Demo only: sign in as this person to try their step")}
             className="rounded-full border border-dashed border-line px-3 py-1.5 text-sm text-muted transition hover:border-forest hover:text-forest"
           >
-            {switchLabel ?? "Switch person"}
+            {switchLabel ?? tx("Switch person")}
           </button>
         )}
       </div>
@@ -689,14 +696,15 @@ export function AppShell({
   detail: React.ReactNode;
   mobileDetail: boolean;
 }) {
+  const { tx } = useT();
   return (
     <div className="flex min-h-screen flex-col">
       <TopBar active={active}>
         <div className="order-last -mx-4 flex w-[calc(100%+2rem)] items-center gap-3 overflow-x-auto px-4 sm:mx-0 sm:w-auto sm:px-0 lg:order-none">
           {roles.length === 0 ? (
-            <span className="whitespace-nowrap rounded-full border border-line px-3 py-1.5 text-sm text-muted">View only</span>
+            <span className="whitespace-nowrap rounded-full border border-line px-3 py-1.5 text-sm text-muted">{tx("View only")}</span>
           ) : (
-            <div role="tablist" aria-label="Your role" className="flex w-max gap-1 rounded-full border border-line bg-surface p-1">
+            <div role="tablist" aria-label={tx("Your role")} className="flex w-max gap-1 rounded-full border border-line bg-surface p-1">
               {roles.map((r) => (
                 <button
                   key={r.id}
@@ -706,7 +714,7 @@ export function AppShell({
                   onClick={() => onRole(r.id)}
                   className={`flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-sm transition ${role === r.id ? "bg-forest text-forest-ink" : "text-muted hover:text-ink"}`}
                 >
-                  {r.short}
+                  {tx(r.short)}
                   {counts[r.id] > 0 && (
                     <span className={`grid h-5 min-w-5 place-items-center rounded-full px-1 text-xs font-bold tabular-nums ${role === r.id ? "bg-forest-ink/20" : "bg-ochre-soft text-warn"}`}>
                       {counts[r.id]}
@@ -724,7 +732,7 @@ export function AppShell({
         </div>
       </TopBar>
       <div className="mx-auto grid w-full max-w-[1400px] flex-1 grid-cols-1 lg:grid-cols-[360px_minmax(0,1fr)]">
-        <aside className={`border-line lg:border-r ${mobileDetail ? "hidden lg:block" : ""}`}>{queue}</aside>
+        <aside className={`border-line lg:border-e ${mobileDetail ? "hidden lg:block" : ""}`}>{queue}</aside>
         <main className={`min-w-0 px-4 py-6 sm:px-8 lg:py-8 ${mobileDetail ? "" : "hidden lg:block"}`}>{detail}</main>
       </div>
     </div>
@@ -739,14 +747,15 @@ export function ComingUp({
   items: { id: string; title: string; step: string; eta: string; via: string; basis: string }[];
   onOpen?: (id: string) => void;
 }) {
+  const { tx } = useT();
   if (items.length === 0) return null;
   return (
     <div className="border-t border-line px-4 py-4 sm:px-6">
-      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Coming to you · projected</p>
+      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">{tx("Coming to you · projected")}</p>
       <ul className="mt-2 space-y-2">
         {items.map((c) => (
           <li key={c.id + c.step}>
-            <button type="button" onClick={() => onOpen?.(c.id)} className="w-full text-left text-sm hover:text-forest" title={c.basis}>
+            <button type="button" onClick={() => onOpen?.(c.id)} className="w-full text-start text-sm hover:text-forest" title={c.basis}>
               <span className="flex items-baseline justify-between gap-2">
                 <span className="min-w-0 truncate font-medium">{c.title}</span>
                 <span className="shrink-0 font-mono text-xs text-warn">~{c.eta.slice(5)}</span>
@@ -758,18 +767,19 @@ export function ComingUp({
           </li>
         ))}
       </ul>
-      <p className="mt-2 text-xs text-muted">Estimated from how long each step took in past cases.</p>
+      <p className="mt-2 text-xs text-muted">{tx("Estimated from how long each step took in past cases.")}</p>
     </div>
   );
 }
 
 export function NoAccess({ what }: { what: string }) {
+  const { tx } = useT();
   return (
     <div className="min-h-screen">
       <TopBar />
       <div className="mx-auto max-w-md px-6 py-24 text-center">
         <p className="font-display text-3xl">{what} is not available to you</p>
-        <p className="mt-2 text-sm text-muted">Your role does not include this workflow. Ask your manager if you need access.</p>
+        <p className="mt-2 text-sm text-muted">{tx("Your role does not include this workflow. Ask your manager if you need access.")}</p>
         <Link href="/home" className="mt-6 inline-block rounded-full bg-forest px-5 py-2.5 text-sm font-medium text-forest-ink">
           Back to your dashboard
         </Link>
@@ -797,7 +807,7 @@ export function QueueItem({ active, onClick, children }: { active: boolean; onCl
       <button
         type="button"
         onClick={onClick}
-        className={`w-full rounded-xl border px-3 py-3 text-left transition ${
+        className={`w-full rounded-xl border px-3 py-3 text-start transition ${
           active ? "border-forest bg-surface shadow-[0_10px_24px_-18px_rgb(19_32_26/0.6)]" : "border-transparent hover:border-line hover:bg-surface"
         }`}
       >
@@ -807,13 +817,14 @@ export function QueueItem({ active, onClick, children }: { active: boolean; onCl
   );
 }
 
-export function QueueFooter({ onReset, note = "Fictional records, saved in this browser only." }: { onReset?: () => void; note?: string }) {
+export function QueueFooter({ onReset, note = msg("Fictional records, saved in this browser only.") }: { onReset?: () => void; note?: string }) {
+  const { tx } = useT();
   return (
     <div className="border-t border-line px-4 py-4 text-xs text-muted sm:px-6">
-      {note}{" "}
+      {tx(note)}{" "}
       {onReset && (
         <button type="button" onClick={onReset} className="font-semibold underline-offset-2 hover:underline">
-          Reset sample data
+          {tx("Reset sample data")}
         </button>
       )}
     </div>
@@ -836,6 +847,7 @@ export function Loading({ what, className = "" }: { what?: string; className?: s
 
 /** An empty list: "all caught up" only once the list has loaded, never while it is still on its way. */
 export function EmptyQueue({ onShowAll, loading = false }: { onShowAll: () => void; loading?: boolean }) {
+  const { tx } = useT();
   if (loading)
     return (
       <div className="px-3 py-6 sm:px-4">
@@ -844,18 +856,19 @@ export function EmptyQueue({ onShowAll, loading = false }: { onShowAll: () => vo
     );
   return (
     <div className="px-4 py-10 text-center sm:px-6">
-      <p className="text-sm text-muted">You are all caught up.</p>
+      <p className="text-sm text-muted">{tx("You are all caught up.")}</p>
       <button type="button" onClick={onShowAll} className="mt-2 text-sm font-semibold text-forest hover:underline">
-        See everything in progress
+        {tx("See everything in progress")}
       </button>
     </div>
   );
 }
 
 export function BackLink({ onClick }: { onClick: () => void }) {
+  const { tx } = useT();
   return (
     <button type="button" onClick={onClick} className="text-sm text-muted hover:text-ink lg:hidden">
-      ← Back to queue
+      <Arrow back /> {tx("Back to queue")}
     </button>
   );
 }

@@ -38,7 +38,7 @@ export function FarmerCard() {
           <section>
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">What happened?</p>
             <ol className="relative mt-3 space-y-3">
-              <span aria-hidden className="absolute bottom-1.5 left-[5px] top-1.5 w-px bg-line" />
+              <span aria-hidden className="absolute bottom-1.5 start-[5px] top-1.5 w-px bg-line" />
               {timeline.map((t) => (
                 <li key={t.date} className="relative flex items-baseline gap-3 text-sm">
                   <span
@@ -72,7 +72,7 @@ export function FarmerCard() {
       </div>
 
       <div
-        className="rise absolute -bottom-12 -left-5 hidden items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-3 shadow-[0_20px_40px_-24px_rgb(19_32_26/0.5)] sm:flex"
+        className="rise absolute -bottom-12 -start-5 hidden items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-3 shadow-[0_20px_40px_-24px_rgb(19_32_26/0.5)] sm:flex"
         style={{ animationDelay: "900ms" }}
       >
         <span className="relative flex h-2.5 w-2.5">

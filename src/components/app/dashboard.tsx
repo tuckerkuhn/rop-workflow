@@ -104,7 +104,7 @@ function Team({ u, data, viewer, onView }: { u: AppUser; data: Data; viewer: App
           const sub = directReports(m.id).length;
           return (
             <li key={m.id}>
-              <button type="button" onClick={() => onView(m.id)} className="w-full rounded-2xl border border-line bg-surface p-4 text-left transition hover:-translate-y-0.5 hover:border-forest">
+              <button type="button" onClick={() => onView(m.id)} className="w-full rounded-2xl border border-line bg-surface p-4 text-start transition hover:-translate-y-0.5 hover:border-forest">
                 <div className="flex items-center gap-3">
                   <Initials name={m.name} />
                   <div className="min-w-0 flex-1">
