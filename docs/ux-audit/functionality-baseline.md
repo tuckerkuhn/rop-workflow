@@ -65,6 +65,14 @@ walk-through of the screens; roles in brackets.
   edited; the package AI check no longer flags invoice and tax before those steps; on phones the
   calendar's details scroll into view; a "Saving… / Saved" sign shows while field and procurement
   changes are on their way. No function removed.
+- After checking those on the test bench (2026-11-20): a new check "Each quotation recorded with
+  when it arrived"; the RFQ and sole-source "Draft read and corrected" ticks follow the draft
+  (corrected, or confirmed as it stands) instead of trust; the request form shows the buying method
+  for the request's own value; the selection memo's method says how many quotations there were when
+  fewer than three; AI checks are given the supplier's register entry and the signed documents;
+  AI findings are kept when a change is saved while a check is running; a slow, older load no
+  longer replaces a newer screen; buttons no longer read "Sign and approve and sign". No function
+  removed.
 
 ## Home `/home`
 Role dashboard: next step, Waiting on you (Approve / Fix / Due), Getting started checklist, quarter

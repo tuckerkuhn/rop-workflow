@@ -32,4 +32,18 @@ describe("procurement checks that cannot be ticked on trust", () => {
     const doc = documentFor(p, "Source selection memo", usd, usd);
     expect(doc.rows.find(([k]) => k === "Why fewer than three quotations")?.[1]).toContain("Only two halls in the district");
   });
+
+  it("a drafted document counts as read only once a person corrected or confirmed it", () => {
+    const c = check("rfq", "read");
+    const draft = { sections: [], questions: [], model: "m", at: "2026-11-19", by: "Hamid", edited: false };
+    expect(checkState(at("rfq"), c, usd)).toMatchObject({ ok: false });
+    expect(checkState(at("rfq", { drafts: { "Request for quotation": draft } }), c, usd)).toMatchObject({ ok: false });
+    expect(checkState(at("rfq", { drafts: { "Request for quotation": { ...draft, edited: true, asIs: true } } }), c, usd)).toMatchObject({ ok: true, detail: "Read: no changes needed" });
+  });
+
+  it("the memo's method says how many quotations there were when fewer than three", () => {
+    const p = at("quotes", { overrides: { "fix.quotes.three": { why: "Only two", by: "Hamid", date: "2026-11-19" } } });
+    const method = documentFor(p, "Source selection memo", usd, usd).rows.find(([k]) => k === "Method")?.[1] ?? "";
+    if (method.startsWith("Written") || method.startsWith("Three")) expect(method).not.toBe("Three written quotations");
+  });
 });

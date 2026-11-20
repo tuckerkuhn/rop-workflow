@@ -47,9 +47,13 @@ export function useFieldData(code = "A-2027") {
   const revs = useRef<Map<string, string>>(new Map());
   const currentStock = useRef<Stock>({});
 
+  // A load that comes back after a later load or save started is older than the screen: dropped.
+  const seq = useRef(0);
   const reload = useCallback(async () => {
+    const mine = ++seq.current;
     try {
       const r = await call<{ items: FieldItem[]; stock: Stock | null; stockNote?: string | null; setup?: FieldSetup | null }>(`/api/projects/${code}/field`, user?.id);
+      if (mine !== seq.current) return;
       setStockNote(r.stockNote ?? null);
       setSetup(r.setup ?? null);
       current.current = r.items;
@@ -77,6 +81,7 @@ export function useFieldData(code = "A-2027") {
       queue.current = trackSave(queue.current.then(async () => {
         const items = body.ids ? current.current.filter((i) => body.ids!.includes(i.id)).map((i) => ({ ...i, rev: revs.current.get(i.id) || undefined })) : undefined;
         if (body.ids && !items?.length) return;
+        seq.current++;
         try {
           const r = await call<{ revs?: Record<string, string>; distributions?: string[]; planted?: number; stock?: Stock; stockNote?: string | null }>(`/api/projects/${code}/field`, user?.id, { method: "PUT", body: JSON.stringify({ items, stock: body.stock }) });
           for (const [id, rev] of Object.entries(r.revs ?? {})) revs.current.set(id, rev);
@@ -155,10 +160,15 @@ export function useProcurements(code = "A-2027") {
   const current = useRef<Procurement[]>([]);
   const queue = useRef<Promise<void>>(Promise.resolve());
   const pendingSaves = useRef<{ snap: Procurement[] }[]>([]);
+  // Each load and save gets a number; a load that comes back after a later load or save started is
+  // older than what is on screen and is dropped (on a slow connection they can finish out of order).
+  const seq = useRef(0);
 
   const reload = useCallback(async () => {
+    const mine = ++seq.current;
     try {
       const r = await call<{ items: Procurement[]; packageLines?: string[]; coding?: VoucherSetup }>(`/api/projects/${code}/procurements`, user?.id);
+      if (mine !== seq.current) return;
       current.current = r.items;
       setItemsState(r.items);
       setPackageLines(r.packageLines ?? []);
@@ -200,8 +210,15 @@ export function useProcurements(code = "A-2027") {
         const sameRecords = (later: Procurement[]) => later.length === snap.length && later.every((x) => snap.some((y) => y.id === x.id && y.step === x.step));
         if (!moves && pendingSaves.current.some((e) => sameRecords(e.snap))) return;
         const revs = new Map(current.current.map((p) => [p.id, p.rev]));
-        const send = snap.map((p) => ({ ...p, rev: revs.get(p.id) ?? p.rev }));
+        // An AI check or draft may have come back since this change was made: keep what it wrote
+        // (findings, and any draft this copy does not have yet) rather than sending the older copy.
+        const latest = new Map(current.current.map((p) => [p.id, p]));
+        const send = snap.map((p) => {
+          const now = latest.get(p.id);
+          return { ...p, rev: revs.get(p.id) ?? p.rev, ...(now ? { ai: now.ai, drafts: now.drafts || p.drafts ? { ...now.drafts, ...p.drafts } : undefined } : {}) };
+        });
         if (!send.length) return;
+        seq.current++;
         try {
           const r = await call<{ revs: Record<string, number> }>(`/api/projects/${code}/procurements`, user?.id, { method: "PUT", body: JSON.stringify({ items: send }) });
           current.current = current.current.map((p) => (r.revs[p.id] !== undefined ? { ...p, rev: r.revs[p.id] } : p));

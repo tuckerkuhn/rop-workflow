@@ -363,7 +363,15 @@ function NewRequest({ onCancel, onCreate, from, grant }: { onCancel: () => void;
             )}
             <dt className="text-muted">How it is bought</dt>
             <dd>
-              {METHOD[item.level].title} <span className="text-xs text-muted">({item.level})</span>
+              {/* The method follows this request's value; the calendar's estimate may have been for more. */}
+              {(() => {
+                const lvl = value > 0 ? levelFor(value) : item.level;
+                return (
+                  <>
+                    {METHOD[lvl].title} <span className="text-xs text-muted">({lvl}{lvl !== item.level ? `; the calendar estimated ${item.level}` : ""})</span>
+                  </>
+                );
+              })()}
             </dd>
             <dt className="text-muted">Needed by</dt>
             <dd>
@@ -596,7 +604,7 @@ function Detail({
                       <p className="text-sm text-warn">The person who requested a purchase cannot approve it, so someone else signs here.{ownBarred && solo ? ` ${ownBarred}` : ""}</p>
                     ) : (
                       <button type="button" disabled={!isReady} onClick={() => (mayOwn ? setSelfing(true) : complete())} className={primaryBtn}>
-                        {step.signs && !/^sign\b/i.test(actionFor(p, step)) ? `Sign and ${lowerFirst(actionFor(p, step))}` : actionFor(p, step)} <Arrow />
+                        {step.signs && !/\bsign\b/i.test(actionFor(p, step)) ? `Sign and ${lowerFirst(actionFor(p, step))}` : actionFor(p, step)} <Arrow />
                       </button>
                     )}
                     {selfing && (

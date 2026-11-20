@@ -59,6 +59,13 @@ export async function PUT(req: Request, { params }: { params: Promise<{ code: st
     // Someone else saved since this copy was loaded: refuse, and the screen reloads the latest.
     const stale = items.find((x) => stored.has(x.id) && (stored.get(x.id)!.rev ?? 0) !== (x.rev ?? 0));
     if (stale) return NextResponse.json({ error: `${stale.id} was changed by someone else just now. The latest copy is loaded; make your change again.`, stale: true }, { status: 409 });
+    // AI check findings are written only by the AI check (procurements/[id]/check): a screen's save
+    // never removes or changes them, even when its copy was taken before the check came back.
+    for (const x of items) {
+      const prev = stored.get(x.id);
+      if (prev) x.ai = prev.ai;
+      else delete x.ai;
+    }
     applyProcurementContext(ctx);
     for (const next of items) {
       const why = validateProcurementSave(stored.get(next.id), next, v.user, calendar, ctx.register, merged);

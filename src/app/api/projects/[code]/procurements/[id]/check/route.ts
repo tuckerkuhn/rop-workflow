@@ -10,6 +10,7 @@ import { projectByCode } from "@/server/field-store";
 import { handle } from "@/server/guard";
 import { aiAllowed } from "@/server/limits";
 import { loadProcurements, saveProcurements } from "@/server/procurement-store";
+import { loadSuppliers } from "@/server/suppliers-store";
 
 const bodySchema = z.object({ step: z.string() });
 
@@ -33,7 +34,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
       // The project's rules in force decide the level and the thresholds the prompt states: set just before the call reads them.
       const inForce = (await projectRules(code)).values;
       setProcurementRules(inForce);
-      const findings = await checkProcurement(p, p.step, v.user.id);
+      // The supplier's register entry, so the check sees the screening and licence instead of reporting them missing.
+      const orgId = (await projectByCode(code)).organizationId;
+      const reg = p.supplier?.id && orgId ? ((await loadSuppliers(orgId).catch(() => null))?.suppliers.find((x) => x.id === p.supplier!.id) ?? null) : null;
+      setProcurementRules(inForce);
+      const findings = await checkProcurement(p, p.step, v.user.id, reg);
       // Applied to the latest copy (the check took a while), and the version raised.
       const latest = (await loadProcurements(code)).find((x) => x.id === id) ?? p;
       const item = { ...latest, ai: { ...latest.ai, [p.step]: findings }, rev: (latest.rev ?? 0) + 1 };

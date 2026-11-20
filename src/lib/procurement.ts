@@ -573,6 +573,13 @@ function quotesCheck(p: Procurement) {
   if (!(p.bids ?? []).length) return none("Record each quotation with its file below");
   return { ok: n >= need, detail: `${n} of ${need} ${micro ? "prices" : "written quotations"} recorded with the file${n < need && !micro ? ": file a memo explaining why fewer" : ""}` };
 }
+/** Every quotation recorded with when it arrived, so the file shows each came in on time. */
+function datedCheck(p: Procurement) {
+  const bids = (p.bids ?? []).filter((b) => b.supplier.trim());
+  if (!bids.length) return none("Record each quotation with its file below");
+  const undated = bids.filter((b) => !b.receivedAt);
+  return undated.length ? { ok: false, detail: `Enter when ${undated.length === 1 ? `the quotation from ${undated[0].supplier}` : `${undated.length} quotations`} arrived (Received)` } : { ok: true, detail: `${bids.length === 1 ? "The quotation is" : `All ${bids.length} quotations are`} dated` };
+}
 function lowestCheck(p: Procurement, money: Money) {
   if (!(p.bids ?? []).length) return none("Record the bids below, then mark the one chosen");
   const low = lowestPassing(p);
@@ -692,6 +699,13 @@ const fmt = (n: number) => n.toLocaleString("en-US");
  * An "AI check reviewed" tick: only once the step's AI check has run and its findings are there to
  * read. Where AI is not available, the person overrides it with the reason (checked by hand).
  */
+/** A drafted document read by a person: corrected, or confirmed as it stands. Ticking it on trust is not enough. */
+function draftRead(p: Procurement, doc: string) {
+  const d = p.drafts?.[doc];
+  if (!d) return { ok: false, detail: "Draft it above first" };
+  return d.edited ? { ok: true, detail: d.asIs ? "Read: no changes needed" : "Corrected" } : { ok: false, detail: "Read it above: correct it, or confirm no changes are needed" };
+}
+
 const AI_GATE = {
   auto: (p: Procurement) => (p.ai?.[p.step] ? null : { ok: false, detail: "Run the AI check above first, then read its findings" }),
   resolve: "AI check not available: checked by hand",
@@ -857,7 +871,7 @@ export const steps: Step[] = [
     signs: { doc: "Request for quotation", as: "Prepared by (procurement)" },
     checks: [
       { id: "draft", label: "Request for quotation drafted", why: "Drafted from the approved request so nothing is typed twice.", tag: "TS", auto: (p) => ({ ok: !!p.drafts?.["Request for quotation"], detail: p.drafts?.["Request for quotation"] ? `Drafted ${p.drafts["Request for quotation"].at}` : "Draft it above" }) },
-      { id: "read", label: "Draft read and corrected by a person", why: "AI drafts; procurement decides what goes to suppliers.", tag: "TS" },
+      { id: "read", label: "Draft read and corrected by a person", why: "AI drafts; procurement decides what goes to suppliers.", tag: "TS", auto: (p) => draftRead(p, "Request for quotation") },
       { id: "terms", label: "Deadline, validity and lowest-compliant-price basis stated once", why: "A quotation is only rejected on grounds the request stated.", tag: "D1 §4.4, §5.2" },
     ],
   },
@@ -875,7 +889,7 @@ export const steps: Step[] = [
     checks: [
       { id: "facts", label: "Supplier named and the reason only they can supply it recorded", why: "The justification rests on facts procurement can show.", tag: "D1 §5.5", auto: (p) => ({ ok: !!p.sole?.supplier.trim() && (p.sole?.reason.trim().length ?? 0) > 20, detail: p.sole?.supplier ? `${p.sole.supplier}` : "Add them above" }) },
       { id: "draft", label: "Justification drafted", why: "Drafted from the request and the facts above.", tag: "TS", auto: (p) => ({ ok: !!p.drafts?.["Sole source justification"], detail: p.drafts?.["Sole source justification"] ? `Drafted ${p.drafts["Sole source justification"].at}` : "Draft it above" }) },
-      { id: "read", label: "Draft read and corrected by a person", why: "AI drafts; procurement stands behind every statement in it.", tag: "TS" },
+      { id: "read", label: "Draft read and corrected by a person", why: "AI drafts; procurement stands behind every statement in it.", tag: "TS", auto: (p) => draftRead(p, "Sole source justification") },
       { id: "price", label: "Price shown to be reasonable without competition", why: "Past prices, market data or a cost breakdown. Without competition, this is the only price check.", tag: "D1 §4.2, §5.5" },
     ],
   },
@@ -917,6 +931,7 @@ export const steps: Step[] = [
     signs: { doc: "Source selection memo", as: "Prepared by (procurement)" },
     checks: [
       { id: "three", label: "Three suppliers priced (written quotes above $500)", why: "Micro: market pricing from three suppliers. Small: three written quotations, or a memo explaining why fewer.", tag: "D1 §5.1, §5.2", resolve: "Memo explaining fewer quotations filed", auto: (p) => quotesCheck(p) },
+      { id: "dated", label: "Each quotation recorded with when it arrived", why: "The file shows every quotation came in before the deadline, and none was taken after the others were known.", tag: "D1 §5.2", auto: (p) => datedCheck(p) },
       { id: "lowest", label: "Lowest price that meets the specification chosen", why: "Small purchases are awarded to the lowest compliant quotation.", tag: "D1 §5.2", auto: (p, money) => lowestCheck(p, money) },
       {
         id: "screened",

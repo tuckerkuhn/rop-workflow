@@ -36,7 +36,8 @@ export function documentFor(p: Procurement, doc: string, money: Money, other: Mo
   const level = levelFor(value);
   const bids = p.bids ?? [];
   const chosen = bids.find((b) => b.id === p.selectedBid);
-  const method = level === "Micro" ? "Market pricing" : level === "Small" ? "Three written quotations" : "Request for quotation · lowest priced technically acceptable";
+  const fewer = level === "Small" && !!p.overrides?.["fix.quotes.three"];
+  const method = level === "Micro" ? "Market pricing" : level === "Small" ? (fewer ? `Written quotations (${(p.bids ?? []).length}; why fewer than three is below)` : "Three written quotations") : "Request for quotation · lowest priced technically acceptable";
   const base: [string, string][] = [
     ["Procurement ID", p.id],
     ["Project", p.plan ? p.plan.project : `${PROJECT.name} · ${PROJECT.award}`],
