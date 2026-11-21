@@ -22,6 +22,7 @@ export const lvEn = {
   "lv.whoIsAway": "Who is away",
   "lv.notYetApproved": "Not yet approved",
   "lv.rulesFor": "The rules for {group}",
+  "lv.noRecord": "You have no HR record yet, so there is no leave to ask for. HR adds your record when your contract starts.",
 
   "lv.status.pending": "Waiting",
   "lv.status.approved": "Approved",

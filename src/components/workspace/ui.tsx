@@ -1,6 +1,7 @@
 "use client";
 
 import { NewMenu } from "@/components/app/new-menu";
+import { OPEN_ASSISTANT, Sparkle } from "@/components/app/assistant-button";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -546,7 +547,7 @@ function LanguagePicker() {
 }
 
 /** Top bar used on every signed-in page: current project, the page's own controls, currency, and who you are. */
-/** A person's own pages, from the person menu and the phone's More tab: not hidden behind Home cards. */
+/** A person's own pages, from the person menu: not hidden behind Home cards. */
 export const MY_WORK: { href: string; label: MessageKey }[] = [
   { href: "/people/me", label: "home.myDetails" },
   { href: "/timesheets", label: "ts.title" },
@@ -605,7 +606,17 @@ export function TopBar({ active, children }: { active?: "design" | "project" | "
         </div>
         {children}
         <div className="ms-auto flex items-center gap-3">
-          {user?.kind === "employee" && <NewMenu />}
+          {/* On a phone "+" is in the tab bar, under the thumb, and the assistant takes its place here. */}
+          {user?.kind === "employee" && (
+            <div className="hidden lg:block">
+              <NewMenu />
+            </div>
+          )}
+          {user?.kind === "employee" && (
+            <button type="button" onClick={() => window.dispatchEvent(new Event(OPEN_ASSISTANT))} aria-label={t("assistant.open")} title={t("assistant.name")} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-forest text-forest-ink lg:hidden">
+              <Sparkle className="h-5 w-5" />
+            </button>
+          )}
           <CurrencyToggle />
           {user && (
             <div className="relative">
@@ -627,6 +638,14 @@ export function TopBar({ active, children }: { active?: "design" | "project" | "
                           {t(l.label)}
                         </Link>
                       ))}
+                    </nav>
+                  )}
+                  {/* On a phone Resources is here: the tab bar has Home, +, Projects and (for the roles that have it) Organization. */}
+                  {user.kind === "employee" && (
+                    <nav aria-label={t("nav.resources")} className="mt-2 border-t border-line pt-2 lg:hidden">
+                      <Link href="/resources" onClick={() => setMenu(false)} className="block rounded-lg px-2 py-1.5 text-sm hover:bg-sunken">
+                        {t("nav.resources")}
+                      </Link>
                     </nav>
                   )}
                   <div className="mt-2 border-t border-line pt-2">

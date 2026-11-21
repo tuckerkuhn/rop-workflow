@@ -8,6 +8,7 @@ import { logAudit } from "@/server/audit";
 type CorrectionInput = z.infer<typeof correctionSchema>;
 import { projectByCode } from "@/server/field-store";
 import { people } from "@/server/auth";
+import { oncePerRequest } from "@/server/request-memo";
 
 /** Recorded results, kept as evidence records (source "manual", form "result"). */
 
@@ -27,6 +28,12 @@ const toRecord = (r: typeof s.evidence.$inferSelect): ResultRecord => {
 };
 
 export async function loadResults(code: string): Promise<ResultRecord[]> {
+  // Read once per read-only request (server/request-memo): the report, the budget view and Home each ask.
+  // Every caller gets its own list, so one sorting or filtering it in place cannot change another's.
+  return [...(await oncePerRequest(`results:${code}`, () => readResults(code)))];
+}
+
+async function readResults(code: string): Promise<ResultRecord[]> {
   const project = await projectByCode(code);
   const rows = await db
     .select()

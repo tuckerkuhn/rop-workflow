@@ -6,6 +6,7 @@ import { STATUS_LABEL, SECTIONS } from "@/lib/qpr";
 import { quarterRange } from "@/lib/results";
 import { projectByCode } from "@/server/field-store";
 import { loadProjectState, saveProjectState } from "@/server/project-state";
+import type { ReportCopy } from "@/lib/report-copy";
 import { loadCopies } from "@/server/qpr-store";
 import { loadResults } from "@/server/results-store";
 
@@ -66,23 +67,32 @@ export async function sharedReport(code: string, token: string, opts: { log: boo
   const copies = await loadCopies(code, sh.quarter);
   const copy = copies.find((c) => c.kind === "release") ?? copies.filter((c) => c.kind === "practice").at(-1);
   if (!copy) return { error: "This report is not ready to share yet." } as const;
+  if (opts.log) await db.insert(s.auditLog).values({ projectId: project.id, entity: "share", entityId: project.id, action: "share_viewed", detail: { by: null, quarter: sh.quarter, token: token.slice(0, 6) } });
+  return { ...(await donorSafeReport(code, project.id, sh.quarter, copy)), expires: sh.expires };
+}
+
+/**
+ * A frozen copy of a quarter's report as a donor may see it: the figures, the records behind
+ * each (date, district and province, captioned photos the consent rule allows), the written
+ * sections and the photos. People appear by role, never by name. One builder for the emailed link
+ * and for a donor's own account (server/donor-view-store), so the two can never differ.
+ */
+export async function donorSafeReport(code: string, projectId: string, quarter: string, copy: ReportCopy) {
   const d = copy.data;
   // Photos follow the consent rule as it stands now (server/photo-consent), also in copies made before it existed.
-  const photoOk = await donorPhotoRule(project.id);
+  const photoOk = await donorPhotoRule(projectId);
   const counted = new Set(d.counted.map((c) => c.id));
-  const { from, to } = quarterRange(sh.quarter);
+  const { from, to } = quarterRange(quarter);
   const results = (await loadResults(code)).filter((r) => counted.has(r.id) && r.date >= from && r.date <= to);
-  if (opts.log) await db.insert(s.auditLog).values({ projectId: project.id, entity: "share", entityId: project.id, action: "share_viewed", detail: { by: null, quarter: sh.quarter, token: token.slice(0, 6) } });
   const sections = [
     ...SECTIONS.map((x) => ({ heading: x.heading as string, text: d.saved.sections[x.key]?.text ?? "" })),
     ...d.activities.map((a) => ({ heading: `Activity ${a.code}: ${a.name}`, text: d.saved.sections[`act.${a.code}`]?.text ?? "" })),
   ].filter((x) => x.text.trim());
   return {
     project: { name: d.project.name, donor: d.project.donor },
-    quarter: sh.quarter,
+    quarter,
     status: copy.kind === "release" ? ("released" as const) : ("draft" as const),
     asOf: copy.at,
-    expires: sh.expires,
     rows: d.rows.map((r) => ({
       code: r.code,
       donorCode: r.donorCode,
@@ -109,6 +119,7 @@ export async function sharedReport(code: string, token: string, opts: { log: boo
     photos: d.photos.filter((p) => photoOk(p.hash).ok).map((p) => ({ hash: p.hash, caption: p.caption, activity: p.activity })),
   };
 }
+export type DonorSafeReport = Awaited<ReturnType<typeof donorSafeReport>>;
 export type SharedReport = Exclude<Awaited<ReturnType<typeof sharedReport>>, { error: string }>;
 
 /** Whether a link may show this file: only captioned photos in its report or behind its figures. */

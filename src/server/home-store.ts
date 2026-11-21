@@ -3,12 +3,13 @@ import { proposalWork } from "@/server/funding-proposals-store";
 import { quarterRange } from "@/lib/results";
 import { reportDeadline } from "@/server/preflight";
 import { ourWork } from "@/lib/budget";
-import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import { fieldRows, purchaseRows, taskRow } from "@/lib/home-buckets";
 import { loadLineReasons } from "@/server/overspend-store";
 import { onProject, people } from "@/server/auth";
 import { collectorOf, mayApproveKobo, mayDecideRecord } from "@/lib/kobo-approval";
 import { koboApprovalFor } from "@/server/kobo-approval";
+import { koboState } from "@/server/kobo-link";
 import { loadProcurements } from "@/server/procurement-store";
 import type { FieldItem } from "@/lib/field";
 import { koboMismatches } from "@/server/results-store";
@@ -31,6 +32,7 @@ import { grantRules, loadGrantBook, mayApprove } from "@/server/grants-store";
 import { loadQpr } from "@/server/qpr-store";
 import { loadActivities } from "@/server/activities-store";
 import { reportQuarter } from "@/server/next-report";
+import { early } from "@/server/early";
 
 /**
  * Everything Home needs for a database project, computed once: where results stand against the
@@ -46,7 +48,10 @@ import { reportQuarter } from "@/server/next-report";
  */
 export type Bucket = "approve" | "fix" | "due";
 /** `msg` puts the row in the reader's language; vars named "month" hold "YYYY-MM" and are written out on screen. */
-export type HomeAction = { key: string; for: Lens; bucket: Bucket; urgent: boolean; text: string; msg?: { key: string; vars?: Record<string, string | number> }; href: string };
+export type HomeAction = { key: string; for: Lens; bucket: Bucket; urgent: boolean; text: string; msg?: { key: string; vars?: Record<string, string | number> }; href: string; /** The day (YYYY-MM-DD) the oldest thing in this row began to wait, where the app knows it: Home says how long. */ since?: string };
+
+/** The earliest of some days, or undefined when there are none. */
+const oldest = (days: (string | null | undefined)[]) => days.filter((d): d is string => !!d).map((d) => d.slice(0, 10)).sort()[0];
 export type Lens = "lead" | "hr" | "mel" | "field" | "finance" | "procurement";
 
 const monthOf = (d: Date) => d.toISOString().slice(0, 7);
@@ -111,6 +116,31 @@ export async function loadHome(code: string, u: AppUser) {
   const month = monthOf(new Date());
   const thisQ = quarterStart(today);
   const lastQ = quarterStart(`${prevMonth(thisQ.slice(0, 7))}-01`);
+  // Started with the full load below and awaited further down where each is used: none depends
+  // on another, and one after another each costs a round trip to the database.
+  const rqLater = early(reportQuarter(code, today));
+  const setLater = early(rqLater.then((q) => reportDeadline(code, quarterRange(q).to, 60, "quarterlyReportDays")));
+  const hrRoleLater = early(holdsHrRole(u.id));
+  const koboRuleLater = early(koboApprovalFor(code));
+  const peopleLater = early(people());
+  const formsLater = early(
+    db
+      .select({ source: s.evidence.source, by: s.evidence.completedBy, at: s.evidence.completedAt, made: s.evidence.createdAt })
+      .from(s.evidence)
+      .where(and(eq(s.evidence.projectId, project.id), inArray(s.evidence.form, ["readiness", "training", "visit"]), eq(s.evidence.reviewStatus, "pending"), isNull(s.evidence.koboRemovedAt))),
+  );
+  // Not started early: listing distributions first deals with records that have just arrived
+  // (server/distribution processPending), which writes. It runs below, where it always did, and so
+  // does the read of open tasks that follows it.
+  // For the people who can match a KoboCollect account to a person (the project manager, plan approvers, administrators).
+  const matchesAccounts = u.kind === "employee" && (canEditProject(u) || !!u.admin);
+  // For the people who can link a form to a target: the same, and the MEL owner.
+  const formsStateLater = matchesAccounts || u.project.includes("mel-owner") ? early(koboState(code).catch(() => null)) : null;
+  const accountsLater = matchesAccounts ? early(db.selectDistinct({ account: s.evidence.completedBy }).from(s.evidence).where(and(eq(s.evidence.projectId, project.id), eq(s.evidence.source, "kobo"), isNotNull(s.evidence.completedBy)))) : null;
+  const proposalsLater = project.organizationId ? early(proposalWork(project.organizationId, u).catch(() => [])) : null;
+  const procurementsLater = u.procurementAccess === "none" ? null : early(loadProcurements(code).catch(() => []));
+  const connLater = early(db.select({ at: s.koboConnections.lastSyncedAt }).from(s.koboConnections).where(eq(s.koboConnections.projectId, project.id)).limit(1));
+  const byHandLater = early(handRecordedCounts());
   // One full load (results, statuses, budget, this quarter's report checks); the rest only what they decide.
   const [review, last, lastReport, plan, allPlan, acts] = await Promise.all([
     loadReview(code, month, u),
@@ -165,10 +195,10 @@ export async function loadHome(code: string, u: AppUser) {
   // else the donor's rule), so Home never shows a different date. Only when neither sets one does
   // Home fall back to the 10th of the month after the quarter, and says that it is not a set date.
   // The report in question is the one pre-flight and Home's panel are about (server/next-report).
-  const rq = await reportQuarter(code, today);
-  const set = await reportDeadline(code, quarterRange(rq).to, 60, "quarterlyReportDays");
+  const rq = await rqLater;
+  const set = await setLater;
   const reportDue = set.due ?? `${addQuarter(quarterRange(rq).from).slice(0, 7)}-10`;
-  const dueNote = set.source?.kind === "milestone" ? `From Tasks: ${set.source.title}` : set.source?.kind === "policy" ? `${set.source.days} days after the quarter, from the project's reporting rules` : "No deadline is set in Tasks or in the donor's rules; ROP usually sends it about the 10th after each quarter";
+  const dueNote = set.source?.kind === "milestone" ? `From Work: ${set.source.title}` : set.source?.kind === "policy" ? `${set.source.days} days after the quarter, from the project's reporting rules` : "No deadline is set in Work or in the donor's rules; ROP usually sends it about the 10th after each quarter";
   const deadlines = [
     { key: "qpr", what: `${rq.replace("-", " ")} report to the donor`, date: reportDue, days: days(today, reportDue), note: dueNote, href: `/progress/report?q=${rq}` },
     { key: "review", what: `${new Date(`${month}-15T00:00:00Z`).toLocaleDateString("en-GB", { month: "long", timeZone: "UTC" })} monthly review`, date: new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5)), 0)).toISOString().slice(0, 10), days: 0, note: "Signed off at the month's end", href: "/progress/review" },
@@ -209,7 +239,7 @@ export async function loadHome(code: string, u: AppUser) {
   // Waiting for this person.
   const allResults = report.results;
   const actions: HomeAction[] = [];
-  const lenses = lensesFor(u, await holdsHrRole(u.id));
+  const lenses = lensesFor(u, await hrRoleLater);
   if (lenses.includes("lead")) {
     if (project.stage === "Design") actions.push({ key: "signoff", for: "lead", bucket: "approve", urgent: true, // The sign-off control for a saved project is on Progress, not on Home.
       text: "Sign off the plan and budget to start Execute", msg: { key: "ha.signoff" }, href: "/progress" });
@@ -235,30 +265,54 @@ export async function loadHome(code: string, u: AppUser) {
 
   // Who approves KoboCollect data on this project (lib/kobo-approval): results made from a form
   // and distributions from a phone wait for that person, not for anyone with the MEL role.
-  const koboRule = await koboApprovalFor(code);
-  const team = (await people()).filter((p) => onProject(p, code));
+  const koboRule = await koboRuleLater;
+  const team = (await peopleLater).filter((p) => onProject(p, code));
   const koboMine = mayApproveKobo(u, koboRule);
   const isMel = lenses.includes("mel");
   // Also for someone a record has fallen to because its collector is the only usual approver.
   const fallsToMe = !isMel && !koboMine && allResults.some((r) => r.status === "pending" && r.by !== u.id && mayDecideRecord(u, team, { fromKobo: !!r.kobo, collector: r.kobo ? collectorOf(r.kobo.by, koboRule, team) : r.by }, koboRule));
   if (isMel || koboMine || fallsToMe) {
-    const toCheck = allResults.filter((r) => r.status === "pending" && r.by !== u.id && mayDecideRecord(u, team, { fromKobo: !!r.kobo, collector: r.kobo ? collectorOf(r.kobo.by, koboRule, team) : r.by }, koboRule)).length;
-    if (toCheck) actions.push({ key: "accept", for: isMel ? "mel" : lenses[0], bucket: "approve", urgent: true, text: `Accept or query ${toCheck} ${toCheck === 1 ? "result" : "results"} waiting for you`, msg: { key: toCheck === 1 ? "ha.accept1" : "ha.accept", vars: { n: toCheck } }, href: "/progress/results" });
+    const mineToCheck = allResults.filter((r) => r.status === "pending" && r.by !== u.id && mayDecideRecord(u, team, { fromKobo: !!r.kobo, collector: r.kobo ? collectorOf(r.kobo.by, koboRule, team) : r.by }, koboRule));
+    const toCheck = mineToCheck.length;
+    if (toCheck) actions.push({ key: "accept", for: isMel ? "mel" : lenses[0], bucket: "approve", urgent: true, text: `Accept or query ${toCheck} ${toCheck === 1 ? "result" : "results"} waiting for you`, msg: { key: toCheck === 1 ? "ha.accept1" : "ha.accept", vars: { n: toCheck } }, href: "/progress/results", since: oldest(mineToCheck.map((r) => r.at)) });
     // What blocks the report is listed from pre-flight itself (Home reads /next-report), so the
     // count here can never differ from the pre-flight screen's.
   }
   // Field forms (readiness, training, farm visit) waiting in the review queue on Results and proof,
   // for whoever may decide each one; accepting them is what moves farmers in Field activities.
   {
-    const forms = await db
-      .select({ source: s.evidence.source, by: s.evidence.completedBy })
-      .from(s.evidence)
-      .where(and(eq(s.evidence.projectId, project.id), inArray(s.evidence.form, ["readiness", "training", "visit"]), eq(s.evidence.reviewStatus, "pending"), isNull(s.evidence.koboRemovedAt)));
-    const n = forms.filter((f) => {
+    const forms = await formsLater;
+    const mine = forms.filter((f) => {
       const fromKobo = f.source === "kobo";
       return mayDecideRecord(u, team, { fromKobo, collector: fromKobo ? collectorOf(f.by, koboRule, team) : f.by }, koboRule);
-    }).length;
-    if (n) actions.push({ key: "field-forms", for: isMel ? "mel" : lenses[0], bucket: "approve", urgent: false, text: `Check ${n} field ${n === 1 ? "form" : "forms"} from KoboCollect (readiness, training, farm visits)`, msg: { key: n === 1 ? "ha.fieldForms1" : "ha.fieldForms", vars: { n } }, href: "/progress/results#field-records" });
+    });
+    const n = mine.length;
+    if (n) actions.push({ key: "field-forms", for: isMel ? "mel" : lenses[0], bucket: "approve", urgent: false, text: `Check ${n} field ${n === 1 ? "form" : "forms"} from KoboCollect (readiness, training, farm visits)`, msg: { key: n === 1 ? "ha.fieldForms1" : "ha.fieldForms", vars: { n } }, href: "/progress/results#field-records", since: oldest(mine.map((f) => f.made?.toISOString())) });
+  }
+  // KoboCollect accounts that have sent records and are not matched to a person. Until they are,
+  // the app cannot tell who collected those records, so the rule that nobody approves what they
+  // collected cannot hold for them (lib/kobo-approval collectorOf).
+  if (accountsLater) {
+    const sent = [...new Set((await accountsLater).map((x) => (x.account ?? "").trim()).filter(Boolean))];
+    const n = sent.filter((account) => !collectorOf(account, koboRule, team)).length;
+    if (n) actions.push({ key: "kobo-accounts", for: lenses[0] ?? "lead", bucket: "fix", urgent: false, text: `Match ${n} KoboCollect ${n === 1 ? "account" : "accounts"} to the ${n === 1 ? "person who uses it" : "people who use them"}: until then the app cannot tell who collected ${n === 1 ? "its" : "their"} records`, href: "/setup?step=kobo-connect" });
+  }
+  // Linked KoboCollect forms that count toward no target: their records arrive, move farmers and
+  // are kept, but add to no result, so the work never shows on Progress or in a report. A form
+  // counts through a question linked to a target in setup, through a target counted straight from
+  // that kind of form, or (a distribution form) through the input package's target.
+  if (formsStateLater) {
+    const state = await formsStateLater;
+    const linked = new Set((state?.mappings ?? []).map((m) => m.assetUid));
+    let loose = (state?.forms ?? []).filter((f) => !linked.has(f.uid));
+    if (loose.length) {
+      // A target can also be counted straight from one kind of form (its source is "training", "readiness", "visit" or "distribution").
+      const direct = new Set((await db.selectDistinct({ source: s.indicators.source }).from(s.indicators).where(eq(s.indicators.projectId, project.id))).map((r) => r.source));
+      loose = loose.filter((f) => !f.purpose || !direct.has(f.purpose));
+    }
+    if (loose.some((f) => f.purpose === "distribution") && (await setupFor(code).catch(() => null))?.target) loose = loose.filter((f) => f.purpose !== "distribution");
+    const n = loose.length;
+    if (n) actions.push({ key: "kobo-forms-loose", for: lenses[0] ?? "lead", bucket: "fix", urgent: false, text: `${n} linked KoboCollect ${n === 1 ? "form counts" : "forms count"} toward no target (${loose.map((f) => f.name).slice(0, 3).join(", ")}${n > 3 ? "…" : ""}): link ${n === 1 ? "it" : "each"} to a target, or ${n === 1 ? "its" : "their"} records add to no result`, href: "/setup?step=kobo-map" });
   }
   // Read once for both rows below.
   const dists = await listDistributions(code).catch(() => []);
@@ -268,7 +322,7 @@ export async function loadHome(code: string, u: AppUser) {
   if (koboRule.who !== "manager") {
     const unchecked = dists.filter((d) => d.koboCheck.needed && d.koboCheck.who.includes(u.id)).reverse();
     const n = unchecked.length;
-    if (n) actions.push({ key: "kobo-check", for: lenses[0], bucket: "approve", urgent: true, text: n === 1 ? `Check the KoboCollect distribution to ${farmerOf(unchecked[0].farmerId)} before it goes to the project manager` : `Check ${n} KoboCollect distributions before they go to the project manager`, href: `/approve/${encodeURIComponent(code)}/${unchecked[0].id}` });
+    if (n) actions.push({ key: "kobo-check", for: lenses[0], bucket: "approve", urgent: true, text: n === 1 ? `Check the KoboCollect distribution to ${farmerOf(unchecked[0].farmerId)} before it goes to the project manager` : `Check ${n} KoboCollect distributions before they go to the project manager`, href: `/approve/${encodeURIComponent(code)}/${unchecked[0].id}`, since: oldest(unchecked.map((d) => d.waitingSince)) });
   }
   // Input distributions waiting for the project manager (server/distribution), oldest first.
   // One from KoboCollect is hers once it has been checked.
@@ -276,12 +330,12 @@ export async function loadHome(code: string, u: AppUser) {
   {
     const waiting = dists.filter((d) => d.status === "pending" && !d.koboCheck.needed && d.approvers.includes(u.id)).reverse();
     const n = waiting.length;
-    if (n) actions.push({ key: "distributions", for: lenses.includes("field") ? "field" : (lenses[0] ?? "lead"), bucket: "approve", urgent: true, text: n === 1 ? `Approve the input distribution to ${farmerOf(waiting[0].farmerId)}` : `Approve ${n} input distributions`, href: `/approve/${encodeURIComponent(code)}/${waiting[0].id}` });
+    if (n) actions.push({ key: "distributions", for: lenses.includes("field") ? "field" : (lenses[0] ?? "lead"), bucket: "approve", urgent: true, text: n === 1 ? `Approve the input distribution to ${farmerOf(waiting[0].farmerId)}` : `Approve ${n} input distributions`, href: `/approve/${encodeURIComponent(code)}/${waiting[0].id}`, since: oldest(waiting.map((d) => d.waitingSince)) });
   }
   // Proposals belong to the organization, so their rows show on Home whichever project is open:
   // what this person must sign first, then what they own (lib/funding-proposals mine).
   if (project.organizationId) {
-    for (const w of await proposalWork(project.organizationId, u).catch(() => [])) {
+    for (const w of (await proposalsLater) ?? []) {
       const href = `/work/proposals?open=${w.proposal.id}`;
       const lens = lenses[0] ?? "lead";
       const left = w.proposal.deadline ? hoursLeft(w.proposal.deadline, new Date()) : null;
@@ -328,7 +382,7 @@ export async function loadHome(code: string, u: AppUser) {
     if (manages && short) {
       // A purchase already under way on the package's budget lines: say where it is, and open it.
       const lines = new Set(((await setupFor(code).catch(() => null))?.items ?? []).map((i) => i.budgetLine));
-      const coming = (await loadProcurements(code).catch(() => [])).filter((p) => p.step !== DONE && lines.has(p.budgetLine) && !p.grn);
+      const coming = (await (procurementsLater ?? loadProcurements(code).catch(() => []))).filter((p) => p.step !== DONE && lines.has(p.budgetLine) && !p.grn);
       const who = waiting.length === 1 ? "1 farmer is" : `${waiting.length} farmers are`;
       actions.push({
         key: "restock",
@@ -351,7 +405,7 @@ export async function loadHome(code: string, u: AppUser) {
     .where(and(eq(s.workItems.projectId, project.id), eq(s.workItems.type, "task"), isNull(s.workItems.doneAt)))
     .orderBy(asc(s.workItems.date));
   // Purchases whose current step waits on this person: each one named, one tap from its step.
-  const waitingPurchases = u.procurementAccess === "none" ? [] : purchaseRows(await loadProcurements(code).catch(() => []), u, code, lenses.includes("procurement") ? "procurement" : lenses[0]);
+  const waitingPurchases = u.procurementAccess === "none" ? [] : purchaseRows((await procurementsLater) ?? [], u, code, lenses.includes("procurement") ? "procurement" : lenses[0]);
   actions.push(...waitingPurchases);
   for (const t of open) {
     // A payment to release is already listed as the purchase itself when its step is this person's.
@@ -364,8 +418,8 @@ export async function loadHome(code: string, u: AppUser) {
   await grantAndProcurementRows(code, project.name, u, lenses, actions);
 
   // Field staff who only use KoboCollect: is this project's data all collected there, and what has arrived lately.
-  const [conn] = await db.select({ at: s.koboConnections.lastSyncedAt }).from(s.koboConnections).where(eq(s.koboConnections.projectId, project.id)).limit(1);
-  const byHand = (await handRecordedCounts()).get(code) ?? 0;
+  const [conn] = await connLater;
+  const byHand = (await byHandLater).get(code) ?? 0;
   const kobo = {
     connected: !!conn,
     // Every target is counted from a form: nobody on this project records results by hand.

@@ -23,6 +23,10 @@ export const realToday = () => {
 /** Today for the open project: the real date, or the demo date on a demo project. */
 export const today = () => (demo ? DEMO_DATE : realToday());
 
+/** A real calendar day written YYYY-MM-DD: "2026-02-31" and "2026-13-01" are not. */
+export const isDay = (v: string | null | undefined): v is string =>
+  !!v && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(`${v}T00:00:00Z`)) && new Date(`${v}T00:00:00Z`).toISOString().slice(0, 10) === v;
+
 /* ---------- the demo project's dates, brought to today ---------- */
 
 const DAY = 86400000;

@@ -35,6 +35,8 @@ export type WaitingRow = {
   /** The same words as a message key, put in the reader's language on screen. */
   msg?: HomeAction["msg"];
   item?: LoopItem;
+  /** The day the oldest thing in the row began to wait (Home's action `since`). */
+  since?: string;
   /** A dated row: what is due and when. */
   due?: { what: "report" | "review"; label: string; date: string; days: number };
 };
@@ -43,7 +45,7 @@ export type Deadline = { key: string; what: string; date: string; days: number; 
 
 export function waitingRows(a: { actions: HomeAction[]; lenses: Lens[]; report: NextReport | null; deadlines: Deadline[] }): Record<Bucket, WaitingRow[]> {
   const out: Record<Bucket, WaitingRow[]> = { approve: [], fix: [], due: [] };
-  for (const x of a.actions) out[x.bucket].push({ key: x.key, bucket: x.bucket, href: x.href, urgent: x.urgent, text: x.text, msg: x.msg });
+  for (const x of a.actions) out[x.bucket].push({ key: x.key, bucket: x.bucket, href: x.href, urgent: x.urgent, text: x.text, msg: x.msg, ...(x.since ? { since: x.since } : {}) });
 
   // What stands between this person and the next report, from pre-flight: theirs only, blockers first.
   const mine = new Set(a.lenses.flatMap((l) => OWNERS_FOR[l]));
@@ -69,6 +71,13 @@ export function waitingRows(a: { actions: HomeAction[]; lenses: Lens[]; report: 
 
   for (const b of BUCKETS) out[b].sort((x, y) => Number(y.urgent) - Number(x.urgent) || (x.due?.days ?? 0) - (y.due?.days ?? 0));
   return out;
+}
+
+/** Whole days a row has waited as of `today`; null when unknown or under two days (not worth saying). */
+export function daysWaited(since: string | undefined, today: string): number | null {
+  if (!since) return null;
+  const n = Math.floor((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${since.slice(0, 10)}T00:00:00Z`)) / 864e5);
+  return n >= 2 ? n : null;
 }
 
 export const waitingCount = (rows: Record<Bucket, WaitingRow[]>) => BUCKETS.reduce((n, b) => n + rows[b].length, 0);

@@ -1,6 +1,5 @@
 import { and, asc, eq, gte, lte } from "drizzle-orm";
 import { db, schema as s } from "@/db";
-import type { AppUser } from "@/lib/demo";
 import { projectByCode } from "@/server/field-store";
 
 /**
@@ -12,8 +11,7 @@ import { projectByCode } from "@/server/field-store";
 
 type Exec = Pick<typeof db, "insert">;
 
-/** Who may read the trail: the people who sign things off or review them. */
-export const mayViewAudit = (u: AppUser) => u.kind === "employee" && (u.admin || u.project.some((r) => ["plan-approver", "report-release", "monthly-review", "mel-owner"].includes(r)));
+export { mayViewAudit } from "@/lib/audit";
 
 export type AuditEvent = { entity: string; entityId: string; action: string; by: string; detail?: Record<string, unknown> };
 

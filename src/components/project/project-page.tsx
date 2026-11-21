@@ -152,7 +152,7 @@ function Overview({ u, state, setState, field, procs, roster, go }: SectionProps
               <p className="mt-1 truncate text-xs text-muted">{c.s}</p>
             </>
           );
-          // The review queue lives on Check > Results and proof, with the results MEL checks.
+          // The review queue lives on Projects > Results and proof, with the results MEL checks.
           return c.href ? (
             <Link key={c.k} href={c.href} className="bg-surface px-5 py-4 text-start transition hover:bg-paper">
               {body}

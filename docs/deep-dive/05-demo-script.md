@@ -26,7 +26,7 @@ Ten minutes, click by click. Two projects: **A-2027** (running) and **GT-2027** 
 | 5 | **Nadia**, on the phone | Show the email (subject "Approval needed: input distribution in Village B") if email is on. Tap the link, or Home, "Approve 2 input distributions". | One screen: what was handed out, the goods received checks in green, anything to look at, Approve and Send back. | "One screen, one decision. If she had recorded this herself the app would send it to the person she reports to. Nobody approves their own work." |
 | 6 | Nadia | Tap Approve. | "Approved. Results: one farmer added to the target... Procurement: added to the distribution list... Finance: told when the purchase has a payment to release. Audit log: your decision is recorded." | "One tap, four teams updated. Nothing re-typed." |
 | 7 | **Rahima**, Director of MEL (only with KoboCollect connected, see below) | Home, "Check the KoboCollect distribution..." | "Step 1 of 2: check the KoboCollect record". | "Data from a phone reaches nothing until the Director of MEL has looked. She never approves what she collected." |
-| 8 | **Omar**, MEL officer | Home: "Accept or query 11 results waiting for you" (10 before any approval, one more for each distribution Nadia approves). Open Results, accept the new one. Then Check, Progress. | "Farmers receiving the input package" goes up by one. | "And that is the number in the donor report, with the distribution record behind it." |
+| 8 | **Omar**, MEL officer | Home: "Accept or query 11 results waiting for you" (10 before any approval, one more for each distribution Nadia approves). Open Results, accept the new one. Then Projects, Overview (under Progress). | "Farmers receiving the input package" goes up by one. | "And that is the number in the donor report, with the distribution record behind it." |
 
 **If asked "what if the note is not signed?"** Open any distribution from KoboCollect answered "not signed": the page says "This cannot be approved yet" and Approve is greyed out. Send back, the storekeeper confirms the thumbprint, it returns with its history.
 
@@ -40,7 +40,7 @@ Skip step 7 as a click. Instead, as Marcus Bell: Setup, KoboToolbox link, "Who a
 
 | # | Who | Click | What the room sees | Say |
 |---|---|---|---|---|
-| 9 | **Nadia** | Project picker, "Highland Coffee Renewal (fictional, just won)". Record, Field activities. | "What does one farmer receive?" and a card: "Start from a project that is already running". | "A new project used to start from blank screens." |
+| 9 | **Nadia** | Project picker, "Highland Coffee Renewal (fictional, just won)". Projects, Field activities. | "What does one farmer receive?" and a card: "Start from a project that is already running". | "A new project used to start from blank screens." |
 | 10 | Nadia | Leave A-2027 selected. Tap "Copy its setup". | "Copied. What to do next:" with three numbered steps. The package is filled in below as a draft. | "The package, who approves field data and the targets come across. Farmers, records and money never do." |
 | 11 | Nadia | Point at the note: "This project has no budget yet". Tap "Add the budget in Setup". | Setup for the project. | "Next she uploads the agreement, the logframe and the budget. The app proposes deadlines and budget lines and a person confirms each one. Then she picks the budget line for each input and saves." |
 
@@ -49,6 +49,19 @@ Stop there unless there is time. Uploading `docs/samples/sample-budget.xlsx` tak
 ## Close (30 seconds)
 
 "Entered once, checked by the right person, traceable to proof. Finance stays in NetSuite, HR in BambooHR, documents in SharePoint. This sits across them."
+
+## Changed on 20 Nov: read before rehearsing
+
+The navigation changed after this script was written (`07-five-lens-review.md`). The steps above use the new names.
+
+- **Three places on a phone:** Home, + New, Projects. Record, Check and Report are one section, Projects. Its page lists every project page in groups.
+- **The assistant** is the round button in the top bar on a phone, not a tab.
+- **Home says how long an approval has waited** ("waiting 12 days", red from a week). The sample story is dated from the day it is loaded, so reset the demo that morning or the ages look neglected.
+- **Two new Fix rows may show on Home** for Nadia, Omar and administrators: "Match N KoboCollect accounts to the people who use them" and "N linked KoboCollect forms count toward no target". They show when a project has linked forms, or accounts that have sent records. On the laptop used for this review the demo project already shows the forms row (3 forms). Either fix them before the demo (Project design, KoboToolbox link) or use them: they are the app telling a manager what would otherwise go unnoticed.
+- **The project picker** lists database projects only. "Afghan Table Grapes" and "Western Highlands", which lived in the browser alone, are gone from it.
+- **All projects** (Projects, Across projects) now lists the demo project in demo mode. It was empty.
+- **A donor's Progress** now says what staff see ("On track"), not "Behind".
+- **A donor now has Reports.** Signed in as Elena: Home shows the latest released report, the grant's spending in one sentence and the next report date. Reports lists every released report. A report ends with every budget line the grant pays for. **None of this shows until a report is released** and the sample data has none: see `07-five-lens-review.md`, "The donor's view". Before the demo, set what each donor funds (Settings, "What each donor funds") and have one released report in the data.
 
 ## If something goes wrong
 

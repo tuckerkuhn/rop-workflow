@@ -650,7 +650,7 @@ export function GrantsPage() {
       <TopBar active="tasks" />
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
         <Link href="/work" className="text-sm text-muted hover:text-ink">
-          ← {t("nav.record")}
+          ← {t("nav.work")}
         </Link>
         <div className="mt-2 flex flex-wrap items-end gap-3">
           <h1 className="min-w-0 flex-1 font-display text-4xl tracking-tight">{t("gr.title")}</h1>

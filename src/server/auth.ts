@@ -8,6 +8,7 @@ import { NextResponse } from "next/server";
 import { db, schema as s } from "@/db";
 import { userById, users, type AppUser } from "@/lib/demo";
 import { withReportingLine } from "@/server/reporting-line";
+import { requestOnlyReads } from "@/server/request-memo";
 
 /**
  * Who is making a request.
@@ -147,6 +148,8 @@ const deny = (status: 401 | 403 | 404, error: string) => NextResponse.json({ err
  * sessions, which are read-only. Returns the viewer, or the response to send instead.
  */
 export async function requireViewer(req: Request, opts: { write?: boolean; allow?: (u: AppUser) => boolean; why?: string } = {}): Promise<Viewer | NextResponse> {
+  // A read may reuse what it has already read in this request (server/request-memo); a change never does.
+  if (req.method === "GET") requestOnlyReads();
   const v = await getViewer(req);
   if (!v) return deny(401, "Sign in to continue.");
   if (v.twoStep) return deny(401, v.twoStep === "verify" ? "Enter the code from your authenticator app to continue." : "Your organization requires two-step sign-in: set it up to continue.");

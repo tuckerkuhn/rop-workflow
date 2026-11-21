@@ -33,7 +33,8 @@ async function call<T>(url: string, user: string | undefined, init?: RequestInit
   return body as T;
 }
 
-export function useFieldData(code = "A-2027") {
+/** `wanted`: false on a screen that turns out not to use it (Home for staff on a database project), so nothing is requested. */
+export function useFieldData(code = "A-2027", wanted = true) {
   const { user, ready } = useSession();
   const [items, setItemsState] = useState<FieldItem[]>([]);
   const [stock, setStockState] = useState<Stock>({});
@@ -70,8 +71,8 @@ export function useFieldData(code = "A-2027") {
   }, [code, user?.id]);
 
   useEffect(() => {
-    if (ready && user) void reload();
-  }, [ready, user, reload]);
+    if (wanted && ready && user) void reload();
+  }, [wanted, ready, user, reload]);
 
   // Saves go one after another, each sending the latest copy with the version it is based on, so
   // two quick changes to one farmer never trip over each other.
@@ -149,7 +150,7 @@ export function useFieldData(code = "A-2027") {
 
 
 /** The project's procurements, shared through the database. Same shape as a state setter; only changed records are sent. */
-export function useProcurements(code = "A-2027") {
+export function useProcurements(code = "A-2027", wanted = true) {
   const { user, ready } = useSession();
   const [items, setItemsState] = useState<Procurement[]>([]);
   /** Budget lines of the Field input package: their goods go out through Field activities. */
@@ -183,8 +184,8 @@ export function useProcurements(code = "A-2027") {
 
   // People without Procurement access (donors) never load it.
   useEffect(() => {
-    if (ready && user && user.procurementAccess !== "none") void reload();
-  }, [ready, user, reload]);
+    if (wanted && ready && user && user.procurementAccess !== "none") void reload();
+  }, [wanted, ready, user, reload]);
 
   const setItems = useCallback(
     (next: Procurement[] | ((all: Procurement[]) => Procurement[])) => {
@@ -342,7 +343,7 @@ export function useCloseouts(code: string | null) {
   return { months, error, close, reload };
 }
 
-export function useSubmissions(code = "A-2027") {
+export function useSubmissions(code = "A-2027", wanted = true) {
   const { user, ready } = useSession();
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [roster, setRoster] = useState<Roster>({});
@@ -363,8 +364,8 @@ export function useSubmissions(code = "A-2027") {
   }, [code, user?.id]);
 
   useEffect(() => {
-    if (ready && user) void reload();
-  }, [ready, user, reload]);
+    if (wanted && ready && user) void reload();
+  }, [wanted, ready, user, reload]);
 
   /** MEL accept or query. Returns the server's summary of what changed in Field activities. */
   const decide = useCallback(
@@ -537,14 +538,27 @@ export function useDonors(code: string) {
  * The KoboToolbox server this project collects on, for a plain link to it. Null code skips the request
  * (no field access, or a project kept in the browser only); without a connection it is the main server.
  */
+const koboServers = new Map<string, { at: number; server: Promise<string | null> }>();
+
 export function useKoboServer(code: string | null) {
   const { user, ready } = useSession();
   const [server, setServer] = useState("https://kf.kobotoolbox.org");
   useEffect(() => {
     if (!code || !ready || !user) return;
-    call<KoboState>(`/api/projects/${code}/kobo`, user.id)
-      .then((s) => s.connection?.serverUrl && setServer(s.connection.serverUrl))
-      .catch(() => {});
+    // The address is asked for by "+ New" in the top bar and in the tab bar on every screen: one
+    // request serves both, and is kept for a minute (the address changes only when someone reconnects).
+    const key = `${code}:${user.id}`;
+    let kept = koboServers.get(key);
+    if (!kept || Date.now() - kept.at > 60_000) {
+      kept = { at: Date.now(), server: call<KoboState>(`/api/projects/${code}/kobo`, user.id).then((s) => s.connection?.serverUrl ?? null) };
+      koboServers.set(key, kept);
+      kept.server.catch(() => koboServers.delete(key));
+    }
+    let live = true;
+    kept.server.then((url) => live && url && setServer(url)).catch(() => {});
+    return () => {
+      live = false;
+    };
   }, [code, ready, user]);
   return server;
 }

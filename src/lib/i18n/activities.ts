@@ -5,7 +5,7 @@
 
 export const actEn = {
   "act.back": "← Work",
-  "act.title": "Activities",
+  "act.title": "Workplan",
   "act.intro": "ROP's workplan for {project}, as it is carried out: who owns each activity, where it stands, and the tasks for it.",
   "act.noPlan": "This project has no saved workplan.",
   "act.summary": "{done} of {total} done · {late} late · {due} due this quarter",

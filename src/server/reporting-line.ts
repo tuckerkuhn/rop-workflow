@@ -3,6 +3,7 @@ import { db, schema as s } from "@/db";
 import type { AppUser } from "@/lib/demo";
 import { fold } from "@/lib/hr";
 import { hrBook, todayIso } from "@/server/hr-store";
+import { oncePerRequest } from "@/server/request-memo";
 
 /**
  * One source for who reports to whom.
@@ -19,7 +20,11 @@ import { hrBook, todayIso } from "@/server/hr-store";
 let memo: { book: string; n: number; line: Record<string, string> } | null = null;
 
 /** Person id to supervisor id, from the HR record as it stands today. Empty when there is no HR record yet. */
-export async function supervisorsNow(): Promise<Record<string, string>> {
+export function supervisorsNow(): Promise<Record<string, string>> {
+  return oncePerRequest(`reporting-line:${hrBook()}`, readSupervisors);
+}
+
+async function readSupervisors(): Promise<Record<string, string>> {
   const book = hrBook();
   try {
     const [last] = await db.select({ n: s.hrLedger.n }).from(s.hrLedger).where(eq(s.hrLedger.book, book)).orderBy(desc(s.hrLedger.n)).limit(1);

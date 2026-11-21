@@ -108,18 +108,17 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
   useEffect(() => {
     let live = true;
     setV(null);
-    fetch(`/api/projects/${project.id}/home`, { cache: "no-store", headers: { "x-demo-user": user.id } })
+    setNr(null);
+    // One request for both: Home's data and the next report from pre-flight read the same review and figures.
+    fetch(`/api/projects/${project.id}/home?with=next-report`, { cache: "no-store", headers: { "x-demo-user": user.id } })
       .then(async (r) => {
         const d = await r.json();
         if (!r.ok) throw new Error(d.error ?? "Could not load Home.");
-        if (live) setV(d);
+        if (!live) return;
+        setV(d);
+        if (d.nextReport) setNr(d.nextReport);
       })
       .catch((e) => live && setError(e instanceof Error ? e.message : String(e)));
-    setNr(null);
-    fetch(`/api/projects/${project.id}/next-report`, { cache: "no-store", headers: { "x-demo-user": user.id } })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => live && d && setNr(d))
-      .catch(() => undefined);
     return () => {
       live = false;
     };

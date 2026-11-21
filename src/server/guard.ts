@@ -4,6 +4,7 @@ import type { z } from "zod";
 import type { AppUser } from "@/lib/demo";
 import type { AuditEvent } from "@/server/audit";
 import type { Viewer } from "@/server/auth";
+import { withRequestMemo } from "@/server/request-memo";
 
 /**
  * The one guard for API routes. A route does four things, in this order, and each has one helper
@@ -42,7 +43,8 @@ function written(e: unknown): e is Error {
 /** Turns failures into a readable JSON error. Refusals keep their status; anything unexpected is recorded for Settings → Health. */
 export async function handle(fn: () => Promise<Response>, where = "api"): Promise<Response> {
   try {
-    return await fn();
+    // The route runs with its own short memory for repeated reads (server/request-memo).
+    return await withRequestMemo(fn);
   } catch (e) {
     if (e instanceof HttpError) return NextResponse.json({ error: e.message }, { status: e.status });
     const msg = e instanceof Error ? e.message : String(e);

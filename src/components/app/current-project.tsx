@@ -54,8 +54,13 @@ export function CurrentProjectProvider({ children }: { children: React.ReactNode
   const projects = useMemo(() => {
     const names = new Intl.DisplayNames([localeOf(lang)], { type: "region" });
     const fromDb = (stored ?? []).filter((p) => !demoProjects.some((d) => d.id === p.code));
+    // With a database connected, only its projects are listed: the demo projects kept in this
+    // browser alone (no records behind them) would sit in the picker beside real ones. With no
+    // database they are all there is, and are listed as before.
+    const inDb = (id: string) => (stored ?? []).some((p) => p.code === id);
+    const shownDemo = stored?.length ? demoProjects.filter((d) => inDb(d.id)) : demoProjects;
     return [
-      ...demoProjects.map((d) => ({ ...d, saved: (stored ?? []).some((p) => p.code === d.id), handRecorded: (stored ?? []).find((p) => p.code === d.id)?.handRecorded ?? 0 })),
+      ...shownDemo.map((d) => ({ ...d, saved: inDb(d.id), handRecorded: (stored ?? []).find((p) => p.code === d.id)?.handRecorded ?? 0 })),
       ...fromDb.map(
         (p): ProjectInfo => ({
           id: p.code,

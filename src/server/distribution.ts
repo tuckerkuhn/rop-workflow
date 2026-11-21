@@ -17,6 +17,7 @@ import { demoMode, onProject, people, toAppUser } from "@/server/auth";
 import { projectByCode, setupOf } from "@/server/field-store";
 import { HttpError } from "@/server/guard";
 import { loadProjectState, type Reader } from "@/server/project-state";
+import { requestWrote } from "@/server/request-memo";
 
 /**
  * One input distribution, field to finance (strategy brief, example 3):
@@ -279,6 +280,8 @@ export async function processPending(code: string, origin = appOrigin()) {
     await prepare(code, project, r.id, { farmerId: code_, items, gender, village: farmer?.community ?? (typeof p.village === "string" ? p.village : ""), recordedBy: await recorderName(r.completedBy), recorderId: r.source === "kobo" ? null : r.completedBy, photo, signed, gate: g, flags }, origin, undefined, r.source === "kobo");
     done++;
   }
+  // Reads kept for this request (server/request-memo) may be from before these writes.
+  if (done) requestWrote();
   return done;
 }
 
@@ -325,7 +328,7 @@ async function prepare(code: string, project: Project, id: string, m: Omit<DistM
     await putMeta(tx, project.id, id, meta);
     // The farmer waits at "distribute" for the decision (Field activities shows it, Home skips it).
     await changeFarmer(tx, project.id, m.farmerId, (f) => (f.step === "distribute" ? { ...f, awaiting: { id, status: "pending" } } : null));
-    await tx.insert(s.auditLog).values({ projectId: project.id, entity: "distribution", entityId: id, action: again ? "distribution_resubmitted" : fromKobo && m.koboChecked ? "distribution_sent_to_manager" : "distribution_recorded", detail: { flags: meta.flags.map((f) => f.id), blocked: !meta.gate.ok, emailed, why: why ?? null, to: meta.notified!.to, ...(again ? { by: again.by, fixed: again.note, items: meta.items } : {}) } });
+    await tx.insert(s.auditLog).values({ projectId: project.id, entity: "distribution", entityId: id, action: again ? "distribution_resubmitted" : fromKobo && m.koboChecked ? "distribution_sent_to_manager" : "distribution_recorded", detail: { farmer: m.farmerId, recordedBy: m.recordedBy, flags: meta.flags.map((f) => f.id), blocked: !meta.gate.ok, emailed, why: why ?? null, to: meta.notified!.to, ...(again ? { by: again.by, fixed: again.note, items: meta.items } : recorder ? { by: recorder } : {}) } });
   });
 }
 
@@ -365,6 +368,8 @@ export type DistView = {
   gate: Gate;
   flags: Flag[];
   status: "pending" | "accepted" | "queried";
+  /** The day it began waiting for its present decision: when it reached the app, or when its last fix was sent back in. */
+  waitingSince: string;
   notified: DistMeta["notified"] | null;
   /** From KoboCollect: whether it still waits for its check, who gives it, and who gave it. */
   koboCheck: { needed: boolean; by: string; /** Person ids who may make the check. */ who: string[]; done: DistMeta["koboChecked"] | null };
@@ -434,6 +439,7 @@ export async function listDistributions(code: string): Promise<DistView[]> {
         gate: r.reviewStatus === "pending" ? gate(m.items, procs, approved, setup) : m.gate,
         flags: m.flags,
         status: r.reviewStatus,
+        waitingSince: [r.createdAt.toISOString(), ...(m.history ?? []).map((h) => h.fixed.at)].sort().at(-1)!.slice(0, 10),
         notified: m.notified ?? null,
         koboCheck: (() => {
           const rec = { fromKobo: true, collector: r.source === "kobo" ? collectorOf(r.completedBy, rule, team) : null };

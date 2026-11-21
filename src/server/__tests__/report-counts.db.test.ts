@@ -7,7 +7,7 @@ import { seedDatabase } from "@/server/demo-seed";
 import { loadHome } from "@/server/home-store";
 import { nextReport, reportQuarter } from "@/server/next-report";
 import { preflight, reportDeadline } from "@/server/preflight";
-import { eq } from "drizzle-orm";
+import { and, eq, like } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { periodReport } from "@/server/period-report-store";
 import { addCopy, copyOf, qprData, rawQpr, saveQpr } from "@/server/qpr-store";
@@ -28,6 +28,9 @@ beforeAll(async () => {
   process.env.DEMO_SIGN_IN = "1";
   await ready;
   await seedDatabase();
+  // The demo releases its last ended quarter when loaded (server/demo-report); these tests release their own.
+  const { id } = await projectByCode("A-2027");
+  await db.delete(s.projectState).where(and(eq(s.projectState.projectId, id), like(s.projectState.key, "qpr%")));
 }, 120_000);
 
 describe("counts of what blocks the next report", { timeout: 60_000 }, () => {

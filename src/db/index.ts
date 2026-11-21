@@ -20,8 +20,9 @@ function connect(): DB {
   //
   // The database allows 200 connections across everything that uses it (the live site, previews,
   // laptops, scripts). Each server instance keeps a small pool and lets idle connections go, so
-  // many instances at once cannot use them all up.
-  instance = drizzle(postgres(url, { prepare: false, max: process.env.VERCEL ? 3 : 5, idle_timeout: 20, connect_timeout: 15 }), { schema });
+  // many instances at once cannot use them all up. A laptop or a script gets 10: a screen makes a
+  // dozen requests at once, and far from the database each query is a slow round trip.
+  instance = drizzle(postgres(url, { prepare: false, max: process.env.VERCEL ? 3 : 10, idle_timeout: 20, connect_timeout: 15 }), { schema });
   g.__ropDb = instance;
   return instance;
 }

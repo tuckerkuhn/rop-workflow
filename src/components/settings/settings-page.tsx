@@ -7,6 +7,7 @@ import { useCurrentProject } from "@/components/app/current-project";
 import { useT } from "@/components/app/i18n";
 import { useRequireUser } from "@/components/app/session";
 import { useProgress } from "@/components/app/use-project-data";
+import { DonorFundingSection } from "@/components/settings/donor-funding";
 import { PasswordSection } from "@/components/settings/password-section";
 import { NotifySection } from "@/components/settings/notify-section";
 import { TwoStepSettings } from "@/components/app/two-step";
@@ -98,6 +99,7 @@ export function SettingsPage() {
             })}
           </ul>
         </section>
+        {data?.saved && user.kind === "employee" && <DonorFundingSection code={project.id} canEdit={canEdit} donorsKey={data.donors.map((d) => d.id).join(",")} />}
 
         {/* The organization: administrators' tools. */}
         <h2 className="mt-10 font-display text-2xl">Roots of Peace</h2>

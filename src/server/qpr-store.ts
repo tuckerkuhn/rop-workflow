@@ -12,6 +12,8 @@ import { MAX_PRACTICE, workTime, type CopyData, type ReportCopy, type WorkTime }
 import { auditTrail } from "@/server/audit";
 import { loadProjectState, saveProjectState } from "@/server/project-state";
 import { loadLineReasons } from "@/server/overspend-store";
+import { early } from "@/server/early";
+import { oncePerRequest } from "@/server/request-memo";
 
 /** One saved quarterly report per project and quarter, as project_state "qpr:2026-Q3". */
 
@@ -98,8 +100,26 @@ export async function spendFor(code: string, quarter: string, lines: LineRow[]):
 }
 
 /** Everything the report shows for a quarter: figures from accepted results, saved text, and the checks. */
-export async function qprData(code: string, quarter: string) {
+export function qprData(code: string, quarter: string) {
+  // Built once per read-only request (server/request-memo): the monthly review, the report check and the summary each ask for the same quarter.
+  return oncePerRequest(`qpr-data:${code}:${quarter}`, () => readQprData(code, quarter));
+}
+
+async function readQprData(code: string, quarter: string) {
   const project = await projectByCode(code);
+  // Started together and awaited below where each is used: none depends on another.
+  const resultsLater = early(loadResults(code));
+  const updatesLater = early(loadUpdates(code));
+  const savedLater = early(loadQpr(code, quarter));
+  const photoRuleLater = early(donorPhotoRule(project.id));
+  const planLater = early(db.select({ code: s.workplanItems.code, org: s.workplanItems.org, active: s.workplanItems.active }).from(s.workplanItems).where(eq(s.workplanItems.projectId, project.id)));
+  const linesLater = early(
+    db
+      .select({ code: s.budgetLines.code, amount: s.budgetLines.amount, spent: s.budgetLines.spent, currency: s.budgetLines.currency, activityCode: s.budgetLines.activityCode, activity: s.budgetLines.activity, updatedAt: s.budgetLines.updatedAt })
+      .from(s.budgetLines)
+      .where(eq(s.budgetLines.projectId, project.id)),
+  );
+  const wpLater = early(db.selectDistinct({ code: s.workplanItems.activityCode, name: s.workplanItems.activity }).from(s.workplanItems).where(and(eq(s.workplanItems.projectId, project.id), isNotNull(s.workplanItems.activityCode))));
   const rows = await db
     .select()
     .from(s.indicators)
@@ -117,35 +137,26 @@ export async function qprData(code: string, quarter: string) {
     budgetRef: r.budgetRef,
     workplanCode: r.workplanCode,
   }));
-  const results = await loadResults(code);
-  const updates = await loadUpdates(code);
-  const saved = await loadQpr(code, quarter);
+  const results = await resultsLater;
+  const updates = await updatesLater;
+  const saved = await savedLater;
   saved.acronyms ??= DEFAULT_ACRONYMS;
   // When each activity is planned. A consortium workplan lists every partner; this report is ROP's.
-  const plan = await db
-    .select({ code: s.workplanItems.code, org: s.workplanItems.org, active: s.workplanItems.active })
-    .from(s.workplanItems)
-    .where(eq(s.workplanItems.projectId, project.id));
+  const plan = await planLater;
   const ours = ourWork(plan);
   const plans: Record<string, string[]> = {};
   for (const w of ours) plans[w.code] = [...new Set([...(plans[w.code] ?? []), ...((w.active as string[]) ?? [])])];
   const table = buildRows(indicators, results, quarter, saved, plans);
-  const lines = await db
-    .select({ code: s.budgetLines.code, amount: s.budgetLines.amount, spent: s.budgetLines.spent, currency: s.budgetLines.currency, activityCode: s.budgetLines.activityCode, activity: s.budgetLines.activity, updatedAt: s.budgetLines.updatedAt })
-    .from(s.budgetLines)
-    .where(eq(s.budgetLines.projectId, project.id));
+  const lines = await linesLater;
   const spend = await spendFor(code, quarter, lines);
   const names = new Map<string, string>();
   for (const l of lines) if (l.activityCode && l.activity && !names.has(l.activityCode)) names.set(l.activityCode, l.activity);
-  const wp = await db
-    .selectDistinct({ code: s.workplanItems.activityCode, name: s.workplanItems.activity })
-    .from(s.workplanItems)
-    .where(and(eq(s.workplanItems.projectId, project.id), isNotNull(s.workplanItems.activityCode)));
+  const wp = await wpLater;
   for (const w of wp) if (w.code && w.name && !names.has(w.code)) names.set(w.code, w.name);
   const activityCodes = [...new Set(indicators.map((i) => activityOf(i.donorCode, i.code)))];
   const activities = activityCodes.map((a) => ({ code: a, name: names.get(a) ?? `Activity ${a}` }));
   // Photos go to the donor only as far as the photo library's consent rule allows (server/photo-consent).
-  const photoOk = await donorPhotoRule(project.id);
+  const photoOk = await photoRuleLater;
   const captioned = photosFor(table, results, updates, quarter);
   const photos = captioned.filter((ph) => photoOk(ph.hash).ok);
   return {

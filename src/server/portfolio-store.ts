@@ -1,5 +1,5 @@
 import type { AppUser } from "@/lib/demo";
-import { onProject } from "@/server/auth";
+import { demoMode, onProject } from "@/server/auth";
 import { loadHome } from "@/server/home-store";
 import { listProjects } from "@/server/project-store";
 import { loadProgressSummary } from "@/server/progress-summary-store";
@@ -8,10 +8,11 @@ import { DEMO_PROJECT } from "@/server/procurement-guard";
 /**
  * Every project the person works on, side by side: where results stand against this year's
  * targets, what is late, and money against time. Projects still in Develop have no plan yet and
- * are listed by stage only. The demo project is left out.
+ * are listed by stage only. The demo project is left out of a live organization's portfolio; in
+ * demo mode it is the portfolio, so the page is never empty in front of an audience.
  */
 export async function loadPortfolio(u: AppUser) {
-  const projects = (await listProjects()).filter((p) => p.code !== DEMO_PROJECT && onProject(u, p.code));
+  const projects = (await listProjects()).filter((p) => (demoMode() || p.code !== DEMO_PROJECT) && onProject(u, p.code));
   const rows = await Promise.all(
     projects.map(async (p) => {
       const short = p.name.match(/\(([^)]+)\)\s*$/)?.[1] ?? p.code;

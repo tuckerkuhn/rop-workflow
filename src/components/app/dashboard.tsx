@@ -5,10 +5,11 @@ import { useCloseouts, usePlan, useProcurements } from "@/components/app/use-pro
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { stageOf } from "@/components/field/workspace";
-import { useFieldData, useSubmissions } from "@/components/app/use-project-data";
+import { useFieldData, useProgress, useSubmissions } from "@/components/app/use-project-data";
 import { useProjectStage } from "@/components/app/project-stage";
 import { PROJECT_KEY } from "@/components/project/project-page";
 import { useCurrentProject } from "@/components/app/current-project";
+import { DonorReportsCard } from "@/components/donor/home-card";
 import { useT } from "@/components/app/i18n";
 import { Initials, useRequireUser, useSession } from "@/components/app/session";
 import { HomePanels } from "@/components/home/panels";
@@ -182,8 +183,50 @@ function EmployeeHome({ u, data, viewer, readOnly, onView }: { u: AppUser; data:
   );
 }
 
+/**
+ * For a donor on a database project: the project's own targets, counted the way every other
+ * screen counts them (accepted results only), before anything about the season. The first four,
+ * impact first; the rest are a tap away on Progress. Figures only: whether a target is on track is
+ * judged from the workplan on staff screens, and a second judgment here could contradict it.
+ */
+function DonorTargets({ code }: { code: string }) {
+  const { t } = useT();
+  const { data } = useProgress(code);
+  const list = [...(data?.indicators ?? [])].sort((a, b) => Number(a.level === "output") - Number(b.level === "output")).slice(0, 4);
+  if (!data?.saved || !list.length) return null;
+  return (
+    <section className="rounded-2xl border border-line bg-surface p-5">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <SectionLabel>Results against targets</SectionLabel>
+        <Link href="/progress" className="btn-link">
+          Every target and its proof →
+        </Link>
+      </div>
+      <ul className="mt-3 grid gap-x-6 gap-y-4 sm:grid-cols-2">
+        {list.map((i) => {
+          const pct = i.total === null || !i.target ? 0 : Math.min(100, Math.round((i.total / i.target) * 100));
+          return (
+            <li key={i.code}>
+              <p className="text-sm font-medium leading-snug">{i.name}</p>
+              <p className="mt-1 flex items-baseline gap-2">
+                <span className="font-display text-3xl tabular-nums">{i.total ?? "—"}</span>
+                <span className="text-sm text-muted">{t("progress.ofTarget", { target: i.target, unit: i.unit })}</span>
+              </p>
+              <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-sunken" role="img" aria-label={`${pct}% of the target`}>
+                <div className={`h-full rounded-full ${pct >= 100 ? "bg-leaf" : "bg-forest"}`} style={{ width: `${pct}%` }} />
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
 function DonorHome({ field, project }: { field: FieldItem[]; project: ProjectState }) {
   const { money, user } = useSession();
+  // A database project speaks for itself; the demo projects kept in the browser use the sample package and season.
+  const { project: current } = useCurrentProject();
   const farmers = field.filter((i): i is Farmer => i.kind === "farmer");
   const active = farmers.filter((f) => f.step !== "removed");
   const supplied = farmers.filter((f) => ["plant", "complete"].includes(f.step));
@@ -200,7 +243,7 @@ function DonorHome({ field, project }: { field: FieldItem[]; project: ProjectSta
       <section className="grid gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-4">
         {[
           ["Farmers enrolled", String(active.length)],
-          ["Received inputs", `${supplied.length} · ${money(supplied.length * PACKAGE_USD)}`],
+          ["Received inputs", current.saved ? String(supplied.length) : `${supplied.length} · ${money(supplied.length * PACKAGE_USD)}`],
           ["Average satisfaction", `${avg.toFixed(1)} / 5`],
           ["Success stories", String(stories.length)],
         ].map(([k, v]) => (
@@ -211,25 +254,33 @@ function DonorHome({ field, project }: { field: FieldItem[]; project: ProjectSta
         ))}
       </section>
 
-      <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-surface p-5">
-        <div>
-          <p className="font-semibold">March progress report</p>
-          <p className="text-sm text-muted">
-            {project.reportRelease ? `Released by ${userById(project.reportRelease.by)?.name} on ${project.reportRelease.date}. Click any number to see its evidence.` : "Not released yet. You will see it here once Roots of Peace signs it off."}
-          </p>
-        </div>
-        {project.reportRelease && (
-          <Link href="/progress" className="rounded-full bg-forest px-5 py-2.5 text-sm font-medium text-forest-ink">
-            Read the report
-          </Link>
-        )}
-      </section>
+      {current.saved && <DonorTargets code={current.id} />}
 
+      {current.saved ? (
+        <DonorReportsCard code={current.id} />
+      ) : (
+        <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-surface p-5">
+          <div>
+            <p className="font-semibold">March progress report</p>
+            <p className="text-sm text-muted">
+              {project.reportRelease
+                ? `Released by ${userById(project.reportRelease.by)?.name} on ${project.reportRelease.date}. Click any number to see its evidence.`
+                : "Not released yet. You will see it here once Roots of Peace signs it off."}
+            </p>
+          </div>
+          {project.reportRelease && (
+            <Link href="/progress" className="rounded-full bg-forest px-5 py-2.5 text-sm font-medium text-forest-ink">
+              Read the report
+            </Link>
+          )}
+        </section>
+      )}
+
+      {/* The season's steps, where the project runs the farmer workflow. */}
+      {(!current.saved || farmers.length > 0) && (
       <section className="rounded-2xl border border-line bg-surface p-5">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <SectionLabel>
-            {PROJECT.name} · {PROJECT.season}
-          </SectionLabel>
+          <SectionLabel>{current.saved ? current.name : `${PROJECT.name} · ${PROJECT.season}`}</SectionLabel>
           <Link href="/work?source=field" className="btn-link">
             View field activities →
           </Link>
@@ -245,10 +296,9 @@ function DonorHome({ field, project }: { field: FieldItem[]; project: ProjectSta
             );
           })}
         </ol>
-        <p className="mt-3 text-xs text-muted">
-          Inputs per farmer: {describePackage(DEMO_SETUP)} ({money(PACKAGE_USD)}). Participants are shown by farmer ID.
-        </p>
+        <p className="mt-3 text-xs text-muted">{current.saved ? "Participants are shown by farmer ID." : `Inputs per farmer: ${describePackage(DEMO_SETUP)} (${money(PACKAGE_USD)}). Participants are shown by farmer ID.`}</p>
       </section>
+      )}
 
       <section>
         <SectionLabel>Success stories</SectionLabel>
@@ -376,9 +426,15 @@ export function Dashboard() {
   const { user, money } = useRequireUser();
   const { project: current } = useCurrentProject();
   const { t, date } = useT();
-  const { items: field } = useFieldData(current.id);
-  const { submissions } = useSubmissions(current.id);
-  const { items: procs } = useProcurements(current.id);
+  const [viewing, setViewing] = useState<string | null>(null);
+  // Staff on a database project get the role view (RoleHome), which reads its own data in one
+  // request. The field records, review queue and purchases below feed the older panels: a donor's
+  // Home, a demo project kept in the browser, and a manager looking at a direct report's work.
+  // Nobody else needs them, so nobody else waits for them.
+  const olderPanels = !!user && (user.kind !== "employee" || !current.saved || !!viewing);
+  const { items: field } = useFieldData(current.id, olderPanels);
+  const { submissions } = useSubmissions(current.id, olderPanels);
+  const { items: procs } = useProcurements(current.id, olderPanels);
   const plan = usePlan(current.saved ? current.id : null);
   const closeouts = useCloseouts(current.saved && procRolesFor(user).includes("finance") ? current.id : null);
   const [local] = usePersistentState<ProjectState>(PROJECT_KEY, seedProject);
@@ -386,7 +442,6 @@ export function Dashboard() {
   const project: ProjectState = { ...local, submissions };
   const [grapes] = usePersistentState<ProjectState>(GATED_KEYS["AG-2027"].key, GATED_KEYS["AG-2027"].seed);
   const stage = useProjectStage(current);
-  const [viewing, setViewing] = useState<string | null>(null);
 
   // /home?view=farida shows a direct report's work, read-only.
   useEffect(() => {

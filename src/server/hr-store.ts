@@ -3,6 +3,7 @@ import { eq, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { prefill, type Sheet } from "@/lib/timesheet";
 import { DEFAULT_STEPS, DEFAULT_PAYOUT, fold, type Entry, type Fields, type Integrity, type ProposalInput, type Rules } from "@/lib/hr";
+import { oncePerRequest, requestWrote } from "@/server/request-memo";
 
 /**
  * Reads and writes the HR ledger. The database numbers, timestamps and hashes every entry
@@ -48,12 +49,18 @@ function verify(list: Row[]): Omit<Integrity, "lastSeal" | "unsealed"> {
 const toEntry = (r: Row): Entry => ({ n: r.n, at: r.at_text, actor: r.actor, kind: r.kind, subject: r.subject, data: JSON.parse(r.data_text), hash: r.hash, prevHash: r.prev_hash });
 
 /** The whole book, folded for today, with the chain check. Sample books are filled on first use. */
-export async function loadHr() {
+export function loadHr() {
+  // Read, folded and checked once per read-only request (server/request-memo), however many parts of the answer ask.
+  return oncePerRequest(`hr:${hrBook()}`, readHr);
+}
+
+async function readHr() {
   const book = hrBook();
   let list = await rows(book);
   // Only the sample book fills itself; other "demo-…" books start empty, like a real one.
   if (!list.length && book === "demo") {
     await seedSample();
+    requestWrote();
     list = await rows(book);
   }
   const entries = list.map(toEntry);

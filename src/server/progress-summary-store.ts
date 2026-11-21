@@ -5,6 +5,7 @@ import { loadReview } from "@/server/monthly-review-store";
 import { loadActivities } from "@/server/activities-store";
 import { nextReport } from "@/server/next-report";
 import { preflightHref } from "@/lib/preflight";
+import { early } from "@/server/early";
 
 /**
  * The top of Progress: what deserves celebrating and what needs attention, each item specific and
@@ -23,6 +24,10 @@ const prevQuarter = (q: string) => (q.endsWith("Q1") ? `${Number(q.slice(0, 4)) 
 export async function loadProgressSummary(code: string, u: AppUser) {
   const today = new Date().toISOString().slice(0, 10);
   const month = today.slice(0, 7);
+  // Started with the review and awaited below where each is used: none depends on another.
+  const bvLater = early(loadBudgetView(code));
+  const actsLater = early(loadActivities(code, u).catch(() => null));
+  const nrLater = early(nextReport(code).catch(() => null));
   const v = await loadReview(code, month, u);
   const thisQ = quarterOf(today);
   const qNo = Number(thisQ.slice(6));
@@ -58,7 +63,7 @@ export async function loadProgressSummary(code: string, u: AppUser) {
     break;
   }
   // Work finished within its budget line: said on the target win it belongs to, not as a second win.
-  const bv = await loadBudgetView(code);
+  const bv = await bvLater;
   for (const l of bv.activities.flatMap((a) => a.lines)) {
     if (!l.results.length || !l.approved || l.spentPct === null || l.spentPct > 100) continue;
     if (!l.results.every((r) => r.target > 0 && r.achieved >= r.target)) continue;
@@ -89,7 +94,7 @@ export async function loadProgressSummary(code: string, u: AppUser) {
   for (const l of overspent) concerns.push({ key: `over-${l.code}`, level: "critical", text: `${l.code} is ${Math.round(l.spentPct ?? 0)}% spent: ${l.description}`, why: "Spending above the approved line needs an explanation or an approved realignment before the donor sees it.", href: "/progress/budget" });
   const above = v.budget.flagged.filter((l) => l.flags.some((f) => f.level === "check" && /forecast/i.test(f.text)));
   if (above.length) concerns.push({ key: "forecast", level: "warning", text: `${above.length} budget ${above.length === 1 ? "line is" : "lines are"} forecast more than 10% above approved`, why: "Check the donor has agreed the revision for each.", href: "/progress/budget" });
-  const acts = await loadActivities(code, u).catch(() => null);
+  const acts = await actsLater;
   if (acts) {
     const late = acts.rows.filter((r) => r.timing === "late");
     if (late.length) concerns.push({ key: "acts-late", level: "warning", text: `${late.length} workplan ${late.length === 1 ? "activity is" : "activities are"} past ${late.length === 1 ? "its" : "their"} planned quarter and not done: ${late.slice(0, 4).map((r) => r.code).join(", ")}${late.length > 4 ? "…" : ""}`, why: "Mark them done, or say what is in the way and re-plan them in the monthly review.", href: "/work/activities" });
@@ -103,7 +108,7 @@ export async function loadProgressSummary(code: string, u: AppUser) {
   const noProof = accepted.filter((r) => r.date >= `${today.slice(0, 4)}-01-01` && !proofCount(r)).length;
   if (noProof) concerns.push({ key: "proof", level: "warning", text: `${noProof} accepted ${noProof === 1 ? "result has" : "results have"} no proof attached this year`, why: "Every figure in a donor report should click through to its evidence.", href: "/progress/results" });
   // What blocks the report, counted by pre-flight as Home counts it (server/next-report).
-  const nr = await nextReport(code).catch(() => null);
+  const nr = await nrLater;
   if (nr && !nr.released && nr.blocking) concerns.push({ key: "stops", level: "warning", text: `${nr.blocking} ${nr.blocking === 1 ? "thing blocks" : "things block"} the ${nr.quarter.replace("-", " ")} report`, why: "It cannot be released until they are fixed. The report check lists each one and where to fix it.", href: preflightHref({ kind: "qpr", quarter: nr.quarter }) });
   // Impact first: results and the activities that deliver them, then money, then evidence and
   // workflow. Within each, what needs action now before what needs it soon.

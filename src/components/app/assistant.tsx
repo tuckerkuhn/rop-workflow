@@ -7,25 +7,18 @@ import { LockIcon, LockedFeature } from "@/components/app/locked-feature";
 import Link from "next/link";
 import { useFeature, useSession } from "@/components/app/session";
 import type { MessageKey } from "@/lib/i18n";
+import { OPEN_ASSISTANT, Sparkle } from "@/components/app/assistant-button";
 
 /**
- * The AI assistant (paid plan): a button on every screen that opens a panel where staff ask
+ * The AI assistant (paid plan): a button on every screen (floating on a wide screen, in the top
+ * bar on a phone, where a floating button would cover the step's actions) that opens a panel where staff ask
  * about the current project. Answers come from the project's own records (server/assistant.ts),
  * with links to where to act. Voice and WhatsApp input come later.
  */
 
 const EXAMPLES: MessageKey[] = ["assistant.ex.late", "assistant.ex.noData", "assistant.ex.report"];
 
-/** The phone tab bar opens the assistant with this event (on phones it has no floating button). */
-export const OPEN_ASSISTANT = "rop:open-assistant";
-
-export function Sparkle({ className }: { className: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden className={className}>
-      <path d="M12 3v3M12 18v3M3 12h3M18 12h3M12 8l1.5 2.5L16 12l-2.5 1.5L12 16l-1.5-2.5L8 12l2.5-1.5Z" />
-    </svg>
-  );
-}
+export { OPEN_ASSISTANT, Sparkle };
 
 export function Assistant() {
   const { t } = useT();
@@ -64,7 +57,7 @@ export function Assistant() {
     }
   };
 
-  // On phones the tab bar's Assistant tab opens it.
+  // On phones the top bar's assistant button opens it.
   useEffect(() => {
     const toggle = () => setOpen((o) => !o);
     window.addEventListener(OPEN_ASSISTANT, toggle);

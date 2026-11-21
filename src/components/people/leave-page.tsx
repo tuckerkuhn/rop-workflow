@@ -167,7 +167,10 @@ export function LeavePage() {
 
             {v.seesAll && <Everyone v={v} act={setNotice} onError={setError} />}
 
-            {v.notes.length > 0 && (
+            {/* No HR record yet: say so, as Timesheets and Expenses do, instead of another group's leave rules. */}
+            {!v.hasRecord && v.mine.length === 0 && <p className="mt-8 rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">{t("lv.noRecord")}</p>}
+
+            {v.hasRecord && v.notes.length > 0 && (
               <details className="mt-8 rounded-2xl border border-line bg-surface p-4 text-sm">
                 <summary className="cursor-pointer font-semibold">{t("lv.rulesFor", { group: groupName(t, v.groupLabel) })}</summary>
                 <ul className="mt-2 list-disc space-y-1 ps-5 text-muted">

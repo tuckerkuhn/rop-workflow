@@ -73,6 +73,9 @@ walk-through of the screens; roles in brackets.
   AI findings are kept when a change is saved while a check is running; a slow, older load no
   longer replaces a newer screen; buttons no longer read "Sign and approve and sign". No function
   removed.
+- Demo donor's view (2026-11-20): loading or resetting the demo project sets what each donor
+  funds and releases the last ended quarter's report (none before 1 January 2027). No function
+  removed.
 
 ## Home `/home`
 Role dashboard: next step, Waiting on you (Approve / Fix / Due), Getting started checklist, quarter
@@ -124,3 +127,32 @@ People `/people` (HR ledger, proposals, approvals, import, seal), My details, Le
 Expenses, Payroll (ADP RUN and bank files), Onboarding (policies, contract signing), Offboarding,
 Organization hub and audit, Settings (you, project, organization, people and roles, rules this
 project follows, notifications, password, health). Resources library.
+- Batch G (navigation again, 2026-11-20): three places on a phone (Home, + New, Projects) and four
+  in the sidebar (Home, Projects, Organization, Resources). Record, Check and Report are one
+  section, Projects, whose page (/project) lists every project page in groups: Work, Progress,
+  Reports, Set up (for the people who may change the project) and Across projects (All projects,
+  Opportunities, Proposals, for the roles that open them; moved from Organization). The sidebar
+  shows Projects' groups and opens one at a time. Batch D's More tab is gone: its pages are on the
+  Projects page, and Organization and Resources are in the person menu on phones. Batch C's
+  Assistant tab is gone: on phones the assistant is a button in the top bar, still not floating
+  over the step's actions. "+ New" on phones is the centre of the tab bar, same list. "Activities"
+  reads "Workplan". A donor's second tab reads "Progress". The project audit trail has a menu
+  entry for the people who may read it. No function removed; every address is unchanged. Full
+  write-up: docs/deep-dive/07-five-lens-review.md.
+- After the five-lens review (2026-11-20, second pass): Home's data and the next report arrive in
+  one request and staff on a database project no longer load the older panels' data on Home;
+  Home's Approve rows say how long they have waited; two new Fix rows on Home (KoboCollect
+  accounts not matched to a person; linked forms that count toward no target); a donor's
+  Progress cards carry the status staff see; the project picker lists database projects only
+  when a database is connected (the two browser-only demo projects are no longer listed);
+  Proposals is in the menu for someone on a proposal's team; the Organization audit log takes a
+  period and downloads. No function removed.
+- 2026-11-20, later: on phones Organization is a fourth tab for the people whose role opens part
+  of it (Home, + New, Projects, Organization). It is no longer in the person menu. No function
+  removed.
+- 2026-11-20, evening: the donor's view. A donor account has a third tab, Reports: every
+  released quarterly report (the same report as the emailed link), with how the grant is being
+  spent as that report gave it, line by line. Home for a donor shows the latest report, the
+  grant's spending in one sentence and the next report date. Project settings has "What each
+  donor funds" (the whole budget or chosen lines, with cost share) and "See what they see". The
+  emailed link's page is unchanged in what it shows. No function removed.

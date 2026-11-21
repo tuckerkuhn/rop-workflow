@@ -45,7 +45,7 @@ export async function loadFramework(code: string, u: AppUser) {
     const a = w.activityCode ?? ancestors(w.code).at(-1);
     if (!a) continue;
     const rec = acts?.rows.find((r) => r.code === w.code);
-    node(a).activities.push({ code: w.code, title: w.title, status: rec?.status ?? "not_started", timing: rec?.timing ?? "", owner: rec?.ownerName ?? null });
+    node(a).activities.push({ code: w.code, title: w.title, status: rec?.status ?? "not_started", timing: rec?.timing ?? "", owner: u.kind === "employee" ? (rec?.ownerName ?? null) : null });
   }
   // An activity's wording defaults to the workplan's name for it.
   for (const n of nodes.values()) if (n.level === "Activity" && !n.text) n.text = (activityNames.get(n.key) ?? "").replace(/\s*\([^)]*\)\s*$/, "") || null;

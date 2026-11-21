@@ -88,6 +88,21 @@ export async function proposalAccessMap(orgId: string | null): Promise<Record<st
   return r ? Object.fromEntries(r.staff.filter((u) => r.is(u.id)).map((u) => [u.id, "core" as const])) : {};
 }
 
+/**
+ * The menu's answer for one browser: the core, plus who is on a proposal's team without being in
+ * the core. `only`: in live mode the one signed-in person, so nobody is told who else is on a
+ * proposal; the demo's sign-in page lists everyone and gets the whole (fictional) team.
+ */
+export async function proposalMenuMap(orgId: string | null, only?: string): Promise<Record<string, "core" | "team">> {
+  const core = await proposalAccessMap(orgId);
+  if (!orgId) return core;
+  const b = await load(orgId).catch(() => null);
+  const team = new Set((b?.items ?? []).flatMap((p) => p.team));
+  const out: Record<string, "core" | "team"> = { ...core };
+  for (const id of team) if (!out[id] && (!only || id === only)) out[id] = "team";
+  return out;
+}
+
 /** Who sets the core: the executive head, or an administrator. */
 const setsCore = (u: AppUser, holders: Holders) => !!u.admin || !!holders.ceo?.includes(u.id);
 

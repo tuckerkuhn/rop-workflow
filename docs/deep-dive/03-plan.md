@@ -1,5 +1,7 @@
 # 03. Plan: ranked backlog
 
+> **20 Nov 2026:** the ranked order is now in `07-five-lens-review.md`, which merges what is still open here with the five-lens review. Batches 13 and 14 were built on 17 Nov (`04-log.md`). This page is kept for the batch numbers and their detail.
+
 Order: what blocks the farm input distribution demo, then what hurts it, then connections across workflows, then polish. Each batch is one commit and can be reviewed and reverted alone. Issue numbers are from `02-audit.md`.
 
 **Rule for this branch:** no schema migration. Everything below fits in tables that exist. Where a fix truly needs a new column it is marked and left for a decision.

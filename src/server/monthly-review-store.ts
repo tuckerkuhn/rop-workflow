@@ -14,6 +14,8 @@ import { selfApproval, soloFor } from "@/server/solo";
 import { projectByCode } from "@/server/field-store";
 import { qprData } from "@/server/qpr-store";
 import { ROP_VOICE } from "@/lib/voice";
+import { early } from "@/server/early";
+import { oncePerRequest } from "@/server/request-memo";
 
 /** Whether a quarter ("2026-Q4") has ended as of today. */
 const quarterEnded = (q: string) => {
@@ -56,12 +58,21 @@ async function ourWorkplan(projectId: string) {
 }
 
 /** Everything the review screen needs: the saved review plus where results and money stand. */
-export async function loadReview(code: string, month: string, u: AppUser) {
+export function loadReview(code: string, month: string, u: AppUser) {
+  // Built once per read-only request (server/request-memo): Home, the summary and the framework each ask for the same month.
+  return oncePerRequest(`review:${code}:${month}:${u.id}`, () => readReview(code, month, u));
+}
+
+async function readReview(code: string, month: string, u: AppUser) {
   const project = await projectByCode(code);
-  const review = await rawReview(project.id, month);
   const quarter = quarterOfMonth(month);
-  const report = await qprData(code, quarter);
-  const budget = await loadBudgetView(code);
+  // Started together and awaited below where each is used: none depends on another.
+  const reportLater = early(qprData(code, quarter));
+  const budgetLater = early(loadBudgetView(code));
+  const workplanLater = early(ourWorkplan(project.id));
+  const review = await rawReview(project.id, month);
+  const report = await reportLater;
+  const budget = await budgetLater;
   const pending = report.results.filter((r) => r.status === "pending").length;
   const queried = report.results.filter((r) => r.status === "queried").length;
   const lines = await db
@@ -74,7 +85,7 @@ export async function loadReview(code: string, month: string, u: AppUser) {
     })
     .from(s.budgetLines)
     .where(eq(s.budgetLines.projectId, project.id));
-  const workplan = await ourWorkplan(project.id);
+  const workplan = await workplanLater;
   const activities = [
     ...new Map(
       workplan.map((w) => [

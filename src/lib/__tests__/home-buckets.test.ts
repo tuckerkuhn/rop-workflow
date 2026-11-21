@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fieldRows, PURCHASE_ROWS, purchaseRows, taskRow, waitingCount, waitingRows } from "@/lib/home-buckets";
+import { daysWaited, fieldRows, PURCHASE_ROWS, purchaseRows, taskRow, waitingCount, waitingRows } from "@/lib/home-buckets";
 import { users } from "@/lib/demo";
 import { DONE, maySign, seedProcurements as procurements, stepById } from "@/lib/procurement";
 import type { HomeAction } from "@/server/home-store";
@@ -174,5 +174,19 @@ describe("Home says a thing once", () => {
   it("keeps the blocker when no action covers it", () => {
     const rows = waitingRows({ actions: [], lenses: ["mel"], report: report({ items: [item("pf.c.pending", "mel", true)] }), deadlines: [] });
     expect(rows.fix.map((r) => r.item?.key)).toEqual(["pf.c.pending"]);
+  });
+});
+
+describe("how long an approval has waited", () => {
+  it("is carried from the action to its row", () => {
+    const rows = waitingRows({ actions: [{ key: "distributions", for: "field", bucket: "approve", urgent: true, text: "Approve 2 input distributions", href: "/approve/A/1", since: "2026-11-08" }], lenses: ["field"], report: null, deadlines: [] });
+    expect(rows.approve[0].since).toBe("2026-11-08");
+  });
+  it("is said in whole days from two days on, and not at all when unknown", () => {
+    expect(daysWaited("2026-11-08", "2026-11-20")).toBe(12);
+    expect(daysWaited("2026-11-18T09:30:00.000Z", "2026-11-20")).toBe(2);
+    expect(daysWaited("2026-11-19", "2026-11-20")).toBeNull();
+    expect(daysWaited("2026-11-20", "2026-11-20")).toBeNull();
+    expect(daysWaited(undefined, "2026-11-20")).toBeNull();
   });
 });

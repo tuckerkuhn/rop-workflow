@@ -5,6 +5,10 @@ import Link from "next/link";
 import { THEMES, THEME_LABEL, type ImpactTheme } from "@/lib/indicator-library";
 import { ProgressSummaryPanel } from "@/components/progress/progress-summary";
 import { IndicatorTable } from "@/components/progress/indicator-table";
+import { today as todayIso } from "@/lib/clock";
+import { targetGroups } from "@/lib/framework";
+import { quarterOfToday, targetStatus, type TargetStatus } from "@/lib/target-status";
+import type { FrameworkView, TreeNode } from "@/server/framework-store";
 import { StageControl } from "@/components/home/stage-control";
 import { useProjectStage } from "@/components/app/project-stage";
 import { useCallback, useEffect, useState } from "react";
@@ -39,6 +43,26 @@ export function ProgressPage() {
   const [syncFailed, setSyncFailed] = useState(false);
   const [exporting, setExporting] = useState(false);
   const closeExport = useCallback(() => setExporting(false), []);
+  // A donor is shown the judgment staff see (the workplan status behind the monthly review and the
+  // reports, lib/target-status), not a second one worked out from the forecast line. null: still loading.
+  const donorView = !!user && user.kind !== "employee" && project.saved;
+  const [judged, setJudged] = useState<Record<string, TargetStatus> | null>(null);
+  useEffect(() => {
+    if (!donorView || !user) return;
+    let live = true;
+    setJudged(null);
+    fetch(`/api/projects/${project.id}/framework`, { cache: "no-store", headers: { "x-demo-user": user.id } })
+      .then((r) => (r.ok ? (r.json() as Promise<FrameworkView>) : null))
+      .then((v) => {
+        if (!live) return;
+        const q = quarterOfToday(todayIso());
+        setJudged(v ? Object.fromEntries(targetGroups<TreeNode["indicators"][number]>(v).flatMap((g) => g.rows.map((leaf) => [leaf.code, targetStatus(leaf, q)]))) : {});
+      })
+      .catch(() => live && setJudged({}));
+    return () => {
+      live = false;
+    };
+  }, [donorView, project.id, user]);
 
   if (!user) return null;
   const data = progress.data;
@@ -126,7 +150,7 @@ export function ProgressPage() {
                   </span>
                   <ul className="mt-3 grid gap-3 sm:grid-cols-2">
                     {g.list.map((i) => (
-                      <IndicatorCard key={i.code} i={i} donorCode={donor?.indicatorRefs[i.code] || i.donorCode || undefined} canMap={editor} />
+                      <IndicatorCard key={i.code} i={i} donorCode={donor?.indicatorRefs[i.code] || i.donorCode || undefined} canMap={editor} judged={donorView ? (judged?.[i.code] ?? null) : undefined} />
                     ))}
                   </ul>
                 </section>
@@ -176,11 +200,14 @@ export function ProgressPage() {
 
 const TRACK_TONE: Record<TrackStatus, string> = { on_track: "text-leaf", slightly_behind: "text-warn", behind: "text-clay", not_measured: "text-muted" };
 
-function IndicatorCard({ i, donorCode, canMap }: { i: IndicatorProgress; donorCode?: string; canMap: boolean }) {
+const JUDGED_TONE = { forest: "text-leaf", clay: "text-clay", muted: "text-muted" } as const;
+
+/** `judged`: the status staff see for this target, for a donor's card. undefined: not a donor's card (the forecast line judges); null: not loaded yet, or a target the workplan does not judge. */
+function IndicatorCard({ i, donorCode, canMap, judged }: { i: IndicatorProgress; donorCode?: string; canMap: boolean; judged?: TargetStatus | null }) {
   const { t, date } = useT();
   const pct = i.total === null || !i.target ? 0 : Math.min(100, Math.round((i.total / i.target) * 100));
   const missing = missingData(i);
-  const expectedPct = i.track && i.track.status !== "not_measured" && i.frequency !== "end_of_season" && i.target ? Math.min(100, (i.track.expected / i.target) * 100) : null;
+  const expectedPct = judged === undefined && i.track && i.track.status !== "not_measured" && i.frequency !== "end_of_season" && i.target ? Math.min(100, (i.track.expected / i.target) * 100) : null;
   return (
     <li className="rounded-2xl border border-line bg-surface p-5">
       <div className="flex items-start justify-between gap-3">
@@ -197,7 +224,19 @@ function IndicatorCard({ i, donorCode, canMap }: { i: IndicatorProgress; donorCo
         {/* Where the forecast says it should be by now. */}
         {expectedPct !== null && <div className="absolute inset-y-0 w-0.5 bg-ink" style={{ insetInlineStart: `${expectedPct}%` }} />}
       </div>
-      {i.track && (
+      {judged !== undefined ? (
+        (judged || i.track) && (
+          <p className="mt-2 flex flex-wrap items-baseline gap-x-2 text-xs">
+            {judged && (
+              <span className={`font-semibold ${JUDGED_TONE[judged.tone]}`}>
+                {t(`prog.w.${judged.word}`)}
+                {judged.detail ? `: ${t(`prog.d.${judged.detail}`)}` : ""}
+              </span>
+            )}
+            {i.track && <span className="text-muted">{t("progress.forecastOnce", { year: i.track.year, forecast: i.track.forecast })}</span>}
+          </p>
+        )
+      ) : i.track && (
         <p className="mt-2 flex flex-wrap items-baseline gap-x-2 text-xs">
           <span className={`font-semibold ${TRACK_TONE[i.track.status]}`}>{t(`track.${i.track.status}`)}</span>
           <span className="text-muted">

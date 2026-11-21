@@ -20,8 +20,9 @@ async function load(orgId: string): Promise<Book> {
     .limit(1);
   return { items: [], ...((row?.data as Partial<Book>) ?? {}) };
 }
-async function save(orgId: string, data: Book) {
-  await db
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+async function save(orgId: string, data: Book, q: Tx | typeof db = db) {
+  await q
     .insert(s.organizationState)
     .values({ organizationId: orgId, key: KEY, data })
     .onConflictDoUpdate({ target: [s.organizationState.organizationId, s.organizationState.key], set: { data, updatedAt: new Date() } });
@@ -55,13 +56,24 @@ async function briefFacts(o: Opportunity, all: Opportunity[]) {
   };
 }
 
+/**
+ * Each change to an opportunity, the match call above all, is in the organization's audit log as
+ * well as in the opportunity's own history: the history is saved with the list and could be
+ * rewritten with it; the log is only ever added to.
+ */
+const logOpp = (q: Tx, orgId: string, action: string, by: string, detail: Record<string, unknown>) => q.insert(s.auditLog).values({ projectId: null, entity: "opportunity", entityId: orgId, action, detail: { by, ...detail } });
+
 export async function actOnOpportunity(orgId: string, a: OppAction, u: AppUser): Promise<string | null> {
   const b = await load(orgId);
   const ev = (what: string) => ({ at: today(), by: u.id, byName: u.name, what });
   if (a.action === "add") {
     if (u.kind !== "employee") return "Opportunities are recorded by staff.";
     const o: Opportunity = { id: `OPP-${randomUUID().slice(0, 6).toUpperCase()}`, ...a.fields, brief: null, status: "tracking", decision: null, projectCode: null, history: [ev("Recorded")] };
-    await save(orgId, { items: [...b.items, o] });
+    // Saved and logged together: one is never there without the other.
+    await db.transaction(async (tx) => {
+      await save(orgId, { items: [...b.items, o] }, tx);
+      await logOpp(tx, orgId, "opportunity_recorded", u.id, { opportunity: o.id, name: o.title, donor: o.donor });
+    });
     return null;
   }
   const o = b.items.find((x) => x.id === a.id);
@@ -98,6 +110,12 @@ export async function actOnOpportunity(orgId: string, a: OppAction, u: AppUser):
   }
   // Read again before saving: the AI brief takes a while, and others may have changed the list since.
   const latest = await load(orgId);
-  await save(orgId, { items: latest.items.map((x) => (x.id === o.id ? next : x)) });
+  await db.transaction(async (tx) => {
+    await save(orgId, { items: latest.items.map((x) => (x.id === o.id ? next : x)) }, tx);
+    if (a.action === "edit") await logOpp(tx, orgId, "opportunity_edited", u.id, { opportunity: o.id, name: o.title });
+    else if (a.action === "decide") await logOpp(tx, orgId, a.match ? "opportunity_matched" : "opportunity_not_matched", u.id, { opportunity: o.id, name: o.title, reason: a.reason });
+    else if (a.action === "reopen") await logOpp(tx, orgId, "opportunity_reopened", u.id, { opportunity: o.id, name: o.title, reason: a.reason });
+    else if (a.action !== "brief") await logOpp(tx, orgId, "opportunity_design_started", u.id, { opportunity: o.id, name: o.title, project: a.projectCode });
+  });
   return null;
 }

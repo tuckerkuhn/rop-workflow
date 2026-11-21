@@ -108,6 +108,8 @@ describe("input distribution, field to finance (demo project)", { timeout: 60_00
     expect(await farmer("F-0007")).toMatchObject({ step: "distribute", awaiting: { id: first, status: "pending" } });
     expect(await evidence()).toHaveLength(3);
     expect((await audits("distribution_recorded")).filter((a) => a.entityId === first)).toHaveLength(1);
+    // The entry names who recorded it and for which farmer: the audit trail no longer says "System".
+    expect((await audits("distribution_recorded")).find((a) => a.entityId === first)?.detail).toMatchObject({ by: farida.id, farmer: "F-0007", recordedBy: farida.name });
     expect(await stock()).toEqual({ seed: 370, npk: 550 });
   });
 

@@ -20,6 +20,7 @@ import { rebuildPlan } from "@/server/procurement-plan-store";
 import { saveProjectState } from "@/server/project-state";
 import { seedDonors, seedIndicators } from "@/server/progress-store";
 import { seedWorkItems } from "@/server/work-store";
+import { seedDemoReport } from "@/server/demo-report";
 
 /**
  * Demo project A-2027 in the database: the same fictional farmers, findings, stock and sample
@@ -202,6 +203,8 @@ async function loadDemoState(projectId: string, organizationId: string) {
     const [item] = await db.select().from(s.fieldItems).where(and(eq(s.fieldItems.projectId, projectId), eq(s.fieldItems.itemKey, r.farmerCode!))).limit(1);
     if (item && (item.data as Farmer).step === "distribute") await db.update(s.fieldItems).set({ data: { ...(item.data as Farmer), awaiting: { id: r.id, status: "pending" } } }).where(eq(s.fieldItems.id, item.id));
   }
+  // What each donor funds, and the last ended quarter's report released, so a donor's account opens on something real.
+  await seedDemoReport(projectId);
 }
 
 /**

@@ -10,24 +10,36 @@ import { loadActuals } from "@/server/actuals-store";
 import { projectByCode } from "@/server/field-store";
 import { loadQpr, spendFor } from "@/server/qpr-store";
 import { loadResults } from "@/server/results-store";
+import { early } from "@/server/early";
+import { oncePerRequest } from "@/server/request-memo";
 
 /** Budget against actual for the project's current phase, from its budget lines and Finance's latest import. */
 export type Explain = { quarter: string; /** Whether this person may give the reason (they write the report's text). */ mayWrite: boolean; lines: Record<string, { reason: OverspendReason | null; note: string; text: string }> };
 
-export async function loadBudgetView(code: string, mayWrite = false): Promise<BudgetView & { imported: { file: string; by: string; at: string } | null; beforeOverhead: boolean; explain: Explain | null }> {
+export function loadBudgetView(code: string, mayWrite = false): Promise<BudgetView & { imported: { file: string; by: string; at: string } | null; beforeOverhead: boolean; explain: Explain | null }> {
+  // Built once per read-only request (server/request-memo): the monthly review and the summary both ask.
+  return oncePerRequest(`budget-view:${code}:${mayWrite}`, () => readBudgetView(code, mayWrite));
+}
+
+async function readBudgetView(code: string, mayWrite: boolean): Promise<BudgetView & { imported: { file: string; by: string; at: string } | null; beforeOverhead: boolean; explain: Explain | null }> {
   const project = await projectByCode(code);
+  // Started together and awaited below where each is used: none depends on another.
+  const actualsLater = early(loadActuals(code));
+  const indicatorsLater = early(db.select().from(s.indicators).where(eq(s.indicators.projectId, project.id)).orderBy(asc(s.indicators.position)));
+  const resultsLater = early(loadResults(code));
+  const rulesLater = early(projectRules(code));
   const lines = await db.select().from(s.budgetLines).where(eq(s.budgetLines.projectId, project.id)).orderBy(asc(s.budgetLines.sort));
-  const actuals = await loadActuals(code);
+  const actuals = await actualsLater;
   const startMonth = (project.startDate ?? "0000-00").slice(0, 7);
   // This phase's import: the latest one whose months reach the project's start (earlier phases share codes with other meanings).
   const current = [...actuals.imports].reverse().find((i) => (i.months.at(-1) ?? "") >= startMonth) ?? null;
-  const indicators = await db.select().from(s.indicators).where(eq(s.indicators.projectId, project.id)).orderBy(asc(s.indicators.position));
-  const results = await loadResults(code);
+  const indicators = await indicatorsLater;
+  const results = await resultsLater;
   const to = current?.months.at(-1) ? `${current.months.at(-1)}-31` : new Date().toISOString().slice(0, 10);
   const from = project.startDate ?? "0000-01-01";
   const priorYear = String(Number(from.slice(0, 4)) - 1);
   // The donor's budget flexibility, from the agreement in policy; ROP's starting value when it sets none.
-  const revisionPct = Number((await projectRules(code)).values.budgetRevisionPct) || LIMITS.revisionPct;
+  const revisionPct = Number((await rulesLater).values.budgetRevisionPct) || LIMITS.revisionPct;
   const view = budgetView({
     revisionPct,
     lines: lines.map((l) => ({ code: l.code, description: l.description, activityCode: l.activityCode, activity: l.activity, kind: l.kind, currency: l.currency, amount: l.amount === null ? null : Number(l.amount), schedule: (l.schedule as Record<string, number>) ?? {} })),

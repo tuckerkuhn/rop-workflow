@@ -130,7 +130,8 @@ export function PeoplePage() {
       <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <h1 className="font-display text-3xl tracking-tight">People</h1>
-          <span className="flex gap-4 text-sm">
+          {/* Six links: on a phone they wrap onto a second line instead of squeezing the last ones off the edge. */}
+          <span className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
             <a href="/timesheets" className="font-semibold text-forest hover:underline">
               Timesheets
             </a>
