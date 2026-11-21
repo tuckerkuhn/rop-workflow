@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { shrink } from "@/components/people/expense-page";
+import { DocLinks } from "@/components/app/doc-links";
 import { FieldHelp } from "@/components/app/field-help";
 import { Pill, TopBar, primaryBtn, quietBtn, Loading, StatusPill } from "@/components/workspace/ui";
 import type { Receipt } from "@/lib/expense";
@@ -164,6 +165,10 @@ function Editor({ v, start, user, act, onClose }: { v: View; start: StoryRow | n
               </li>
             ))}
           </ul>
+        </div>
+        <div className="text-sm sm:col-span-2">
+          Documents: the interview write-up, recording or drafts, wherever they are kept (SharePoint, Google Drive…)
+          <DocLinks className="mt-1" docs={s.docs} onChange={(docs) => set("docs", docs)} />
         </div>
         <div className="text-sm sm:col-span-2">
           Photos
@@ -325,6 +330,7 @@ export function StoriesPage() {
                   {s.consent ? ` · consent: ${s.consent.uses.map((u) => USE_LABEL[u].split(" (")[0]).join(", ")}` : ""}
                 </p>
                 {s.text && <p className="mt-2 line-clamp-3 text-sm">{s.text}</p>}
+                <DocLinks className="mt-2" docs={s.docs} />
                 <div className="mt-3 flex flex-wrap gap-2 text-sm">
                   <button type="button" className={quietBtn} onClick={() => setOpen(s.id)}>
                     {s.status === "approved" ? "Open" : "Edit"}

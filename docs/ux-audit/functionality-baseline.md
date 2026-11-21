@@ -156,3 +156,7 @@ project follows, notifications, password, health). Resources library.
   grant's spending in one sentence and the next report date. Project settings has "What each
   donor funds" (the whole budget or chosen lines, with cost share) and "See what they see". The
   emailed link's page is unchanged in what it shows. No function removed.
+- 2026-11-21: stories link to their documents. On a farmer's profile, each note in progress and
+  completed story has "+ Link a document" (SharePoint, Google Drive, OneDrive or any https
+  link), and so does each story on the Success stories page. Links open where the file lives,
+  named with the service; the file keeps that service's own access. No function removed.

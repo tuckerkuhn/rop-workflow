@@ -12,6 +12,7 @@ import { usePersistentState } from "@/components/workspace/ui";
 import type { AppUser, ProjectInfo } from "@/lib/demo";
 import type { HomeView, Lens } from "@/server/home-store";
 import type { NextReport } from "@/server/next-report";
+import { HomeLead, type HomeViewKind } from "@/components/home/home-views";
 import { WaitingOnYou } from "@/components/home/waiting";
 import { waitingCount, waitingRows } from "@/lib/home-buckets";
 import { useT } from "@/components/app/i18n";
@@ -104,6 +105,7 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
   // The next report from pre-flight, loaded once for the panel and for the Fix and Due groups.
   const [nr, setNr] = useState<NextReport | null>(null);
   const [chosen, setChosen] = usePersistentState<Lens | "">("rop-home-lens", () => "");
+  const [view, setView] = usePersistentState<HomeViewKind | "">("rop-home-view", () => "");
 
   useEffect(() => {
     let live = true;
@@ -323,19 +325,8 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
     <section aria-label="Where things stand" className="space-y-5">
       {/* First on the page: the one thing to do next, then everything waiting on this person. Where the
           project stands, first steps and stories follow, for when the day's work is clear. */}
-      {/* The one thing to do next; the rest of the list is under More. */}
-      {next && (
-        <Link href={next.href} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl border border-forest/40 bg-mist px-4 py-3 hover:border-forest">
-          <span className="w-full text-xs font-semibold uppercase tracking-wide text-forest sm:w-auto">Your next step</span>
-          <span className="min-w-0 flex-1 font-semibold">{next.text}</span>
-                    <span aria-hidden className="text-forest rtl:rotate-180">
-            →
-          </span>
-        </Link>
-      )}
-
-      {/* Everything waiting on this person, across their roles: Approve, Fix, Due. */}
-      <WaitingOnYou rows={waiting} />
+      {/* Field roles open in Bands, everyone else in Ledger; the person's own choice wins and is remembered. */}
+      <HomeLead rows={waiting} next={next} view={view || (lens === "field" ? "bands" : "ledger")} onView={setView} />
 
       <div className="flex flex-wrap items-start gap-3">
         <p className="min-w-0 flex-1 text-lg leading-snug">
@@ -349,23 +340,23 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
         {switcher}
       </div>
 
-      <GettingStarted project={project.id} user={user.id} />
-      <Families
-        project={project.id}
-        user={user.id}
-        mayWriteStory={user.fieldAccess === "edit" || !!user.admin || user.project.some((r) => ["mel-owner", "plan-approver", "monthly-review", "report-release"].includes(r))}
-      />
-
-      <NextReportPanel project={project.id} user={user.id} data={nr} owners={lens === "lead" ? undefined : lens === "mel" ? ["mel", "writers"] : lens === "field" ? ["field"] : lens === "finance" ? ["finance"] : []} />
-
-      <div className="grid gap-3 sm:grid-cols-2">{tiles[lens].slice(0, 2)}</div>
-
-      <details className="group rounded-2xl border border-line bg-surface">
-        <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-forest">
-          <span className="group-open:hidden">More: the numbers, and this quarter&rsquo;s work ▾</span>
+      {/* Everything that is not "what do I do now": first steps, stories, the next report and the numbers, one tap away. */}
+      <details className="group border-t-2 border-ink bg-surface">
+        <summary className="flex min-h-12 cursor-pointer list-none items-center px-4 font-ledger text-lg font-semibold text-forest hover:bg-ochre-soft">
+          <span className="group-open:hidden">More: first steps, stories, the next report and the numbers ▾</span>
           <span className="hidden group-open:inline">Less ▴</span>
         </summary>
         <div className="space-y-4 px-4 pb-4">
+      <GettingStarted project={project.id} user={user.id} />
+          <Families
+            project={project.id}
+            user={user.id}
+            mayWriteStory={user.fieldAccess === "edit" || !!user.admin || user.project.some((r) => ["mel-owner", "plan-approver", "monthly-review", "report-release"].includes(r))}
+          />
+
+          <NextReportPanel project={project.id} user={user.id} data={nr} owners={lens === "lead" ? undefined : lens === "mel" ? ["mel", "writers"] : lens === "field" ? ["field"] : lens === "finance" ? ["finance"] : []} />
+
+          <div className="grid gap-3 sm:grid-cols-2">{tiles[lens].slice(0, 2)}</div>
           {tiles[lens].length > 2 && <div className="grid gap-3 sm:grid-cols-2">{tiles[lens].slice(2)}</div>}
           <div className="grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
             <section

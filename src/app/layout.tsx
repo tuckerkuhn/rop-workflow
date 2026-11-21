@@ -1,7 +1,7 @@
 import { DialogHost } from "@/components/app/dialogs";
 import { SavingSign } from "@/components/app/saving-sign";
 import type { Metadata } from "next";
-import { Fraunces, Inter, JetBrains_Mono, Vazirmatn } from "next/font/google";
+import { Archivo_Narrow, Fraunces, Inter, JetBrains_Mono, Plus_Jakarta_Sans, Vazirmatn } from "next/font/google";
 import { cookies } from "next/headers";
 import "./globals.css";
 import { I18nProvider } from "@/components/app/i18n";
@@ -24,6 +24,10 @@ const jetbrains = JetBrains_Mono({
   variable: "--font-jetbrains",
   subsets: ["latin"],
 });
+
+/** Home's two views (components/home/home-views): heavy numerals for the bands, a narrow face for the ledger. */
+const jakarta = Plus_Jakarta_Sans({ variable: "--font-jakarta", subsets: ["latin"], weight: ["500", "700", "800"] });
+const archivo = Archivo_Narrow({ variable: "--font-archivo", subsets: ["latin"], weight: ["400", "600", "700"] });
 
 /** Dari and Pashto: Inter and Fraunces have no Arabic-script letters. */
 const vazirmatn = Vazirmatn({
@@ -48,7 +52,7 @@ export default async function RootLayout({
   const lang = isLang(saved) ? saved : "en";
   return (
     <html lang={lang} dir={dirOf(lang)}>
-      <body className={`${fraunces.variable} ${inter.variable} ${jetbrains.variable} ${vazirmatn.variable} font-sans antialiased`}>
+      <body className={`${fraunces.variable} ${inter.variable} ${jetbrains.variable} ${vazirmatn.variable} ${jakarta.variable} ${archivo.variable} font-sans antialiased`}>
         <I18nProvider initial={lang}>
           <SessionProvider>
             {children}

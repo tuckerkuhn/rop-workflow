@@ -3,6 +3,7 @@
  * Steps follow docs/ROP-END-TO-END-WORKFLOW-DRAFT.md §2 (farm preparation to MEL follow-up).
  */
 
+import type { DocLink } from "@/lib/doc-links";
 import type { Issue, TimelineEvent } from "@/components/workspace/ui";
 import { ORG_ID, PROJECT, TODAY, holderOf, projectPath, stepHistory, type AppUser, type FieldRole } from "@/lib/demo";
 import { today } from "@/lib/clock";
@@ -105,7 +106,8 @@ export function plantingProblem(f: Pick<Farmer, "planting" | "hectares" | "photo
   if (p.hectares > f.hectares + 1e-9) return p.count !== undefined ? `${p.count.toLocaleString("en-US")} planted at this spacing takes ${p.hectares} ha, more than the farmer's plot (${f.hectares} ha). Check the number, or correct the plot size on the farmer's profile.` : `${p.hectares} ha planted is more than the farmer's plot (${f.hectares} ha). Check the area, or correct the plot size on the farmer's profile.`;
   return null;
 }
-export type Story = { id: string; status: "note" | "completed"; title: string; text: string; date: string; by: string };
+/** A story note or completed story; `docs` are links to where its write-up, interview or consent scan lives. */
+export type Story = { id: string; status: "note" | "completed"; title: string; text: string; date: string; by: string; docs?: DocLink[] };
 
 export type Gender = "Female" | "Male";
 export type AgeBand = "18–29 (youth)" | "30–49" | "50+";

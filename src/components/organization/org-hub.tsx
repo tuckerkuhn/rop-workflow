@@ -16,7 +16,12 @@ export function OrgHub() {
       <TopBar />
       <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
         <h1 className="font-display text-4xl tracking-tight">Organization</h1>
-        <p className="mt-1 max-w-2xl text-sm text-muted">Running Roots of Peace: people, pay, purchasing and the organization&rsquo;s rules. Each part opens only for the roles that need it, and every change is recorded in the audit log.</p>
+        {/* The line says only what this person can open: someone with Resources alone is not promised pay and purchasing. */}
+        <p className="mt-1 max-w-2xl text-sm text-muted">
+          {areas.some((x) => x.id !== "resources")
+            ? "The parts of Roots of Peace your role opens. Every change is recorded in the audit log."
+            : "What Roots of Peace keeps for all staff."}
+        </p>
         {areas.length === 0 ? (
           <p className="mt-6 rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">Your role does not open any part of the Organization area.</p>
         ) : (

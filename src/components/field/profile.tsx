@@ -1,5 +1,6 @@
 "use client";
 
+import { DocLinks } from "@/components/app/doc-links";
 import { FieldHelp } from "@/components/app/field-help";
 import { useT } from "@/components/app/i18n";
 import Link from "next/link";
@@ -140,6 +141,7 @@ export function FarmerProfile({ id }: { id: string }) {
   const gotInputs = ["plant", "complete"].includes(farmer.step);
   const notes = farmer.stories.filter((s) => s.status === "note");
   const done = farmer.stories.filter((s) => s.status === "completed");
+  const setDocs = (storyId: string, docs: Farmer["stories"][number]["docs"]) => update((f) => ({ ...f, stories: f.stories.map((x) => (x.id === storyId ? { ...x, docs } : x)) }));
   const step = fieldSteps[farmer.step];
 
   const engagements = [
@@ -367,6 +369,7 @@ export function FarmerProfile({ id }: { id: string }) {
                       <p className="mt-2 text-xs text-muted">
                         {s.date} · {fieldPerson(s.by)}
                       </p>
+                      <DocLinks className="mt-2" docs={s.docs} mask={(t) => maskName(t, farmer, user)} onChange={canEdit ? (docs) => setDocs(s.id, docs) : undefined} />
                       {canEdit && (
                         <button
                           type="button"
@@ -402,7 +405,7 @@ export function FarmerProfile({ id }: { id: string }) {
                 </div>
                 <div className="space-y-3">
                   <p className="text-sm font-medium">{tx("Completed stories · {n}", { n: done.length })}</p>
-                  {done.length === 0 && <p className="text-sm text-muted">{tx("None yet. Notes become stories once they are written up.")}</p>}
+                  {done.length === 0 && <p className="text-sm text-muted">{tx("None yet. Notes become stories once they are written up; link the write-up wherever it lives.")}</p>}
                   {done.map((s) => (
                     <article key={s.id} className="rounded-xl border border-forest/30 bg-mist p-4">
                       <p className="text-lg leading-snug text-forest font-semibold">{maskName(s.title, farmer, user)}</p>
@@ -410,6 +413,7 @@ export function FarmerProfile({ id }: { id: string }) {
                       <p className="mt-2 text-xs text-muted">
                         {tx("Completed {date}", { date: s.date })} · {fieldPerson(s.by)}
                       </p>
+                      <DocLinks className="mt-2" docs={s.docs} mask={(t) => maskName(t, farmer, user)} onChange={canEdit ? (docs) => setDocs(s.id, docs) : undefined} />
                     </article>
                   ))}
                 </div>

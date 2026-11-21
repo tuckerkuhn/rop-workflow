@@ -640,14 +640,6 @@ export function TopBar({ active, children }: { active?: "design" | "project" | "
                       ))}
                     </nav>
                   )}
-                  {/* On a phone Resources is here: the tab bar has Home, +, Projects and (for the roles that have it) Organization. */}
-                  {user.kind === "employee" && (
-                    <nav aria-label={t("nav.resources")} className="mt-2 border-t border-line pt-2 lg:hidden">
-                      <Link href="/resources" onClick={() => setMenu(false)} className="block rounded-lg px-2 py-1.5 text-sm hover:bg-sunken">
-                        {t("nav.resources")}
-                      </Link>
-                    </nav>
-                  )}
                   <div className="mt-2 border-t border-line pt-2">
                     <LanguagePicker />
                     <Link href="/about" className="block rounded-lg px-2 py-1.5 text-sm hover:bg-sunken">

@@ -31,6 +31,8 @@ const hr = (holds: Holds) => HR_ACCESS_ROLES.some(holds);
 const lead = (u: AppUser, holds: Holds) => !!u.admin || (["ceo", "management", "cfo"] as HrRole[]).some(holds);
 
 export const ORG_AREAS: (OrgArea & { allow: (u: AppUser, holds: Holds) => boolean })[] = [
+  // The organization's reference shelf, for all staff: it is what opens Organization to everyone.
+  { id: "resources", href: "/resources", title: "Resources", help: "Guides, policies and forms to read.", allow: (u) => u.kind === "employee" },
   { id: "people", href: "/people", title: "People and HR record", help: "Staff records, contracts, approvals and the HR ledger.", allow: (_u, h) => hr(h) },
   { id: "payroll", href: "/payroll", title: "Payroll", help: "Monthly payroll, the ADP RUN file and the bank file.", allow: (_u, h) => (["payroll", "cfo", "ceo", "finance"] as HrRole[]).some(h) },
   { id: "onboarding", href: "/onboarding", title: "Starting and leaving", help: "Onboarding and offboarding steps.", allow: (_u, h) => hr(h) },

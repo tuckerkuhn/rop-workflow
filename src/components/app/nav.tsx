@@ -48,12 +48,11 @@ const SECTIONS: Section[] = [
     id: "organization",
     href: "/organization",
     label: "nav.organization",
-    also: ["/people", "/payroll", "/onboarding", "/offboarding", "/work/plan", "/work/procurements", "/work/suppliers", "/work/bills", "/work/closeout", "/settings/organization", "/settings/people", "/settings/health"],
+    also: ["/people", "/payroll", "/onboarding", "/offboarding", "/work/plan", "/work/procurements", "/work/suppliers", "/work/bills", "/work/closeout", "/settings/organization", "/settings/people", "/settings/health", "/resources"],
     icon: icon("M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6M9 10h.01M15 10h.01"),
     staffOnly: true,
     orgOnly: true,
   },
-  { id: "resources", href: "/resources", label: "nav.resources", also: [], icon: icon("M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2V5Zm0 16a2 2 0 0 1 2-2h13v2"), staffOnly: true, wideOnly: true },
 ];
 
 function useSections() {
@@ -174,27 +173,29 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Room at the bottom for the tab bar and, on a wide screen for staff, the assistant button, so they never cover the last row. */}
-      <div className={staff ? "pb-[calc(5rem+env(safe-area-inset-bottom))] lg:ps-56 lg:pb-24" : "pb-[calc(4rem+env(safe-area-inset-bottom))] lg:ps-56 lg:pb-0"}>{children}</div>
+      <div className={staff ? "pb-[calc(9rem+env(safe-area-inset-bottom))] lg:ps-56 lg:pb-24" : "pb-[calc(4rem+env(safe-area-inset-bottom))] lg:ps-56 lg:pb-0"}>{children}</div>
 
       <nav aria-label={t("nav.label")} className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-paper/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden">
-        <ul className="grid" style={{ gridTemplateColumns: `repeat(${tabs.length + (canAdd ? 1 : 0)}, minmax(0, 1fr))` }}>
-          {tabs.slice(0, 1).map(tab)}
-          {/* Starting something new is one tap from every screen, under the thumb. */}
-          {canAdd && (
-            <li>
-              <button type="button" onClick={() => setAdding(!adding)} aria-expanded={adding} aria-controls="new-sheet" aria-label={t("nav.newTitle")} className="flex h-16 w-full flex-col items-center justify-center gap-0.5 text-xs font-semibold text-forest">
-                <span className={`grid h-9 w-9 place-items-center rounded-full bg-forest text-forest-ink transition-transform ${adding ? "rotate-45" : ""}`}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" aria-hidden className="h-5 w-5">
-                    <path d="M12 5v14M5 12h14" />
-                  </svg>
-                </span>
-                {t("nav.new")}
-              </button>
-            </li>
-          )}
-          {tabs.slice(1).map(tab)}
+        <ul className="grid" style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}>
+          {tabs.map(tab)}
         </ul>
       </nav>
+
+      {/* Starting something new is one tap from every screen: a round button just above the tab bar, under the thumb. */}
+      {canAdd && (
+        <button
+          type="button"
+          onClick={() => setAdding(!adding)}
+          aria-expanded={adding}
+          aria-controls="new-sheet"
+          aria-label={t("nav.newTitle")}
+          className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom))] end-4 z-[46] grid h-14 w-14 place-items-center rounded-full bg-forest text-forest-ink shadow-lg shadow-black/30 active:scale-95 lg:hidden"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" aria-hidden className={`h-7 w-7 transition-transform ${adding ? "rotate-45" : ""}`}>
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+        </button>
+      )}
 
       {adding && (
         // Above the header, and ending at the tab bar so the tabs stay visible and usable.
@@ -205,7 +206,7 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
             role="dialog"
             aria-label={t("nav.newTitle")}
             onClick={(e) => e.stopPropagation()}
-            className="absolute inset-x-0 bottom-0 max-h-[85%] overflow-y-auto rounded-t-2xl border border-line bg-paper px-4 pb-4 pt-3 shadow-[0_-20px_40px_-20px_rgb(19_32_26/0.5)]"
+            className="absolute inset-x-0 bottom-0 max-h-[85%] overflow-y-auto rounded-t-2xl border border-line bg-paper px-4 pb-24 pt-3 shadow-[0_-20px_40px_-20px_rgb(19_32_26/0.5)]"
           >
             <p className="px-2 pb-1 text-sm font-semibold">{t("nav.newTitle")}</p>
             <ul className="divide-y divide-line">

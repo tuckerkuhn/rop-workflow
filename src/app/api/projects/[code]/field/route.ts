@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { stampHistory } from "@/lib/history";
 import { PHOTO_MAX_CHARS } from "@/lib/plans";
 import { z } from "zod";
+import { docLinksSchema } from "@/lib/doc-links";
 import type { FieldItem } from "@/lib/field";
 import { requireViewer } from "@/server/auth";
 import { loadField, saveEdited, saveStock } from "@/server/field-store";
@@ -47,7 +48,7 @@ const farmer = z.looseObject({
   correction: z.string().max(4000).optional(),
   surveys: z.array(z.looseObject({ date: short, score: z.number(), comment: z.string().max(4000), by: short })).max(200),
   photos: z.array(z.looseObject({ id: short, activity: z.enum(["training", "landprep", "visit", "distribution", "planting"]), date: short, caption: z.string().max(1000), src: z.string().max(PHOTO_MAX_CHARS).optional() })).max(200),
-  stories: z.array(z.looseObject({ id: short, status: z.enum(["note", "completed"]), title: short, text: z.string().max(20000), date: short, by: short })).max(100),
+  stories: z.array(z.looseObject({ id: short, status: z.enum(["note", "completed"]), title: short, text: z.string().max(20000), date: short, by: short, docs: docLinksSchema.optional() })).max(100),
   planting: z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), hectares: z.number().min(0).max(100000), count: z.number().int().min(0).max(1e7).optional() }).optional(),
 });
 const finding = z.looseObject({

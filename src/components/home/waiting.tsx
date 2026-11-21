@@ -15,17 +15,9 @@ import type { Bucket } from "@/server/home-store";
 
 const TONE: Record<Bucket, string> = { approve: "text-forest", fix: "text-clay", due: "text-warn" };
 
-export function WaitingOnYou({ rows }: { rows: Record<Bucket, WaitingRow[]> }) {
+/** A waiting row's words in the reader's language, how long it has waited and how a due date reads. One wording for every view of Home. */
+export function useRowWords() {
   const { t, date } = useT();
-  if (!waitingCount(rows))
-    return (
-      <section aria-labelledby="waiting" className="rounded-2xl border border-line bg-surface p-4">
-        <h2 id="waiting" className="text-xl font-semibold">
-          {t("home.b.title")}
-        </h2>
-        <p className="mt-1 text-sm text-muted">{t("home.b.none")}</p>
-      </section>
-    );
   const words = (r: WaitingRow) => {
     if (r.item) return itemText(t, r.item);
     if (r.due) return r.due.what === "report" ? t("home.b.reportDue", { report: r.due.label, date: date(r.due.date, { day: "numeric", month: "long" }) }) : t("home.b.reviewDue", { review: r.due.label, date: date(r.due.date, { day: "numeric", month: "long" }) });
@@ -39,6 +31,21 @@ export function WaitingOnYou({ rows }: { rows: Record<Bucket, WaitingRow[]> }) {
   const today = realToday();
   const waited = (r: WaitingRow) => daysWaited(r.since, today);
   const when = (days: number) => (days < 0 ? t("home.b.late", { n: -days }) : days === 0 ? t("home.b.today") : t("home.b.days", { n: days }));
+  return { words, waited, when };
+}
+
+export function WaitingOnYou({ rows }: { rows: Record<Bucket, WaitingRow[]> }) {
+  const { t } = useT();
+  const { words, waited, when } = useRowWords();
+  if (!waitingCount(rows))
+    return (
+      <section aria-labelledby="waiting" className="rounded-2xl border border-line bg-surface p-4">
+        <h2 id="waiting" className="text-xl font-semibold">
+          {t("home.b.title")}
+        </h2>
+        <p className="mt-1 text-sm text-muted">{t("home.b.none")}</p>
+      </section>
+    );
   return (
     <section aria-labelledby="waiting" className="rounded-2xl border border-line bg-surface p-4">
       <h2 id="waiting" className="text-xl font-semibold">

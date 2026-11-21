@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { docLinksSchema } from "@/lib/doc-links";
 
 /**
  * Success stories: the people behind the figures, for the report's Human Interest Story, the
@@ -25,6 +26,8 @@ export const storyInputSchema = z.object({
   consent: z.object({ how: z.enum(CONSENT_HOW), uses: z.array(z.enum(CONSENT_USES)).min(1), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), takenBy: z.string().trim().min(2).max(80), form: hash.optional() }).nullable(),
   /** Results and weekly items the story is about. */
   links: z.array(z.string().uuid()).max(20),
+  /** Where the write-up, interview recording or consent scan lives (SharePoint, Google Drive...). */
+  docs: docLinksSchema.optional(),
 });
 export type StoryInput = z.infer<typeof storyInputSchema>;
 export type Story = StoryInput & { id: string; status: "draft" | "approved"; by: string; at: string; approved?: { by: string; at: string }; drafted?: { model: string; at: string }; questions?: string[] };
