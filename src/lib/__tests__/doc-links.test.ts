@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { docLinksSchema, docSource, docTitle, isDocUrl } from "@/lib/doc-links";
+import { docLinksSchema, docNamesPerson, docSource, docTitle, isDocUrl } from "@/lib/doc-links";
 import { storyInputSchema } from "@/lib/stories";
 
 describe("document links on stories", () => {
@@ -26,5 +26,14 @@ describe("document links on stories", () => {
     expect(storyInputSchema.parse({ ...base, docs: [{ url: "https://drive.google.com/x", title: "Interview" }] }).docs).toHaveLength(1);
     expect(storyInputSchema.safeParse({ ...base, docs: [{ url: "ftp://x.org/a", title: "" }] }).success).toBe(false);
     expect(docLinksSchema.safeParse(Array.from({ length: 11 }, (_, k) => ({ url: `https://x.org/${k}`, title: "" }))).success).toBe(false);
+  });
+});
+
+describe("a link that names the farmer", () => {
+  it("is recognised in the address as written or encoded", () => {
+    expect(docNamesPerson("https://x.sharepoint.com/sites/P/Shared%20Documents/Abdul%20Rahim%20interview.docx", "Abdul Rahim")).toBe(true);
+    expect(docNamesPerson("https://drive.google.com/file/d/abc/view?name=rahim_story", "Abdul Rahim")).toBe(true);
+    expect(docNamesPerson("https://drive.google.com/file/d/1AbC/view", "Abdul Rahim")).toBe(false);
+    expect(docNamesPerson("https://x.org/%E0%A4%A", "Abdul Rahim")).toBe(false);
   });
 });

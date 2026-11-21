@@ -40,6 +40,24 @@ export function docSource(url: string): string {
 /** The name shown when none was typed: the service, so the list never shows a bare address. */
 export const docTitle = (d: DocLink) => d.title.trim() || `Document in ${docSource(d.url)}`;
 
+/**
+ * Whether a document link's address names the person: any word of their name (three letters or
+ * more) in the address as written or decoded. SharePoint and Drive addresses carry the file name.
+ */
+export function docNamesPerson(url: string, name: string): boolean {
+  let plain = url;
+  try {
+    plain = decodeURIComponent(url);
+  } catch {
+    /* kept as written */
+  }
+  const hay = `${url} ${plain}`.toLowerCase().replace(/[+_.-]/g, " ");
+  return name
+    .toLowerCase()
+    .split(/\s+/)
+    .some((w) => w.length >= 3 && hay.includes(w));
+}
+
 export const docLinkSchema = z.object({
   url: z.string().trim().max(1000).refine(isDocUrl, "A document link must be a full web address starting with https://."),
   title: z.string().trim().max(200),

@@ -104,6 +104,8 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
   const [error, setError] = useState("");
   // The next report from pre-flight, loaded once for the panel and for the Fix and Due groups.
   const [nr, setNr] = useState<NextReport | null>(null);
+  // "More" is drawn (and its panels load their data) only once it is opened.
+  const [more, setMore] = useState(false);
   const [chosen, setChosen] = usePersistentState<Lens | "">("rop-home-lens", () => "");
   const [view, setView] = usePersistentState<HomeViewKind | "">("rop-home-view", () => "");
 
@@ -341,13 +343,14 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
       </div>
 
       {/* Everything that is not "what do I do now": first steps, stories, the next report and the numbers, one tap away. */}
-      <details className="group border-t-2 border-ink bg-surface">
+      <details className="group border-t-2 border-ink bg-surface" onToggle={(e) => setMore(e.currentTarget.open)}>
         <summary className="flex min-h-12 cursor-pointer list-none items-center px-4 font-ledger text-lg font-semibold text-forest hover:bg-ochre-soft">
           <span className="group-open:hidden">More: first steps, stories, the next report and the numbers ▾</span>
           <span className="hidden group-open:inline">Less ▴</span>
         </summary>
+        {more && (
         <div className="space-y-4 px-4 pb-4">
-      <GettingStarted project={project.id} user={user.id} />
+          <GettingStarted project={project.id} user={user.id} />
           <Families
             project={project.id}
             user={user.id}
@@ -466,6 +469,7 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
             </section>
           </div>
         </div>
+        )}
       </details>
     </section>
   );

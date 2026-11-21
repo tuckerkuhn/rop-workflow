@@ -25,7 +25,7 @@ import { holdsType } from "@/lib/authority";
  * top bar, on every screen.
  */
 
-type Section = { id: string; href: string; label: MessageKey; also: string[]; icon: React.ReactNode; staffOnly?: boolean; donorOnly?: boolean; orgOnly?: boolean; wideOnly?: boolean };
+type Section = { id: string; href: string; label: MessageKey; also: string[]; icon: React.ReactNode; staffOnly?: boolean; donorOnly?: boolean; orgOnly?: boolean };
 
 const icon = (d: string) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden className="h-6 w-6 shrink-0">
@@ -99,9 +99,9 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
   // For a donor the project is two places, Progress and Reports, so Projects opens Progress directly.
   const hrefOf = (s: Section) => (s.id === "project" && !staff ? "/progress" : s.href);
   const labelOf = (s: Section): MessageKey => (s.id === "project" && !staff ? "nav.progress" : s.label);
-  // The phone tab bar: Home and Projects, with "+" between them for staff, then Organization for
-  // the people whose role opens part of it. "+" keeps its place whoever is signed in. A donor has
-  // three tabs: Home, Progress and Reports.
+  // The phone tab bar: Home, Projects, then Organization for the people whose role opens part of
+  // it. A donor has three tabs: Home, Progress and Reports. Staff with something to start get a
+  // round "+" just above the bar, at the end, under the thumb.
   const tabs = shown.filter((x) => x.id === "home" || x.id === "project" || x.id === "released" || x.id === "organization");
   const canAdd = staff && actions.length > 0;
   const tab = (s: Section) => {
@@ -173,7 +173,7 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Room at the bottom for the tab bar and, on a wide screen for staff, the assistant button, so they never cover the last row. */}
-      <div className={staff ? "pb-[calc(9rem+env(safe-area-inset-bottom))] lg:ps-56 lg:pb-24" : "pb-[calc(4rem+env(safe-area-inset-bottom))] lg:ps-56 lg:pb-0"}>{children}</div>
+      <div className={canAdd ? "pb-[calc(9rem+env(safe-area-inset-bottom))] lg:ps-56 lg:pb-24" : staff ? "pb-[calc(5rem+env(safe-area-inset-bottom))] lg:ps-56 lg:pb-24" : "pb-[calc(4rem+env(safe-area-inset-bottom))] lg:ps-56 lg:pb-0"}>{children}</div>
 
       <nav aria-label={t("nav.label")} className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-paper/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden">
         <ul className="grid" style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}>

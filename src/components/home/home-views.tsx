@@ -22,7 +22,15 @@ import type { Bucket } from "@/server/home-store";
 
 export type HomeViewKind = "bands" | "ledger";
 type Rows = Record<Bucket, WaitingRow[]>;
-type Next = { href: string; text: string } | null;
+/** The one thing to do next: one of the rows (by its key), or a step that is not on the list (a field officer's weekly update). */
+type Next = { key?: string; href: string; text: string } | null;
+
+/** The rows in one list, the next step's row first; `extra` when the next step is not one of the rows. */
+function ordered(rows: Rows, next: Next) {
+  const all = BUCKETS.flatMap((b) => rows[b]);
+  const row = next?.key ? all.find((r) => r.key === next.key) : next ? undefined : all[0];
+  return { all: row ? [row, ...all.filter((r) => r !== row)] : all, row, extra: next && !row ? next : null };
+}
 
 const INK = "text-[#1c211b]";
 const BAND: Record<Bucket, string> = { approve: "bg-deep text-deep-ink", fix: `bg-ochre ${INK}`, due: "bg-[#7a5230] text-white" };
@@ -71,10 +79,10 @@ export function short(text: string): [string, string] {
   return [text.slice(0, at), text.slice(at).replace(/^: /, "").trim()];
 }
 
-function Ledger({ rows, heading }: { rows: Rows; heading: boolean }) {
+function Ledger({ rows, next, heading }: { rows: Rows; next: Next; heading: boolean }) {
   const { t, tx } = useT();
   const { words, waited, when } = useRowWords();
-  const all = BUCKETS.flatMap((b) => rows[b]);
+  const { all, extra } = ordered(rows, next);
   const total = all.length;
   return (
     <section id="waiting-list" aria-labelledby="waiting" className="scroll-mt-24 bg-surface font-ledger text-ink">
@@ -86,10 +94,15 @@ function Ledger({ rows, heading }: { rows: Rows; heading: boolean }) {
           <p className="font-mono text-xs">{total ? BUCKETS.filter((b) => rows[b].length).map((b) => `${rows[b].length} ${t(`home.b.${b}`).toLowerCase()}`).join(" / ") : ""}</p>
         </div>
       )}
-      {!heading && (
-        <h2 id="waiting" className="sr-only">
-          {t("home.b.title")}
-        </h2>
+      {/* Under Bands the top block already says it. */}
+      {extra && heading && (
+        <Link href={extra.href} className={`group mt-4 flex min-h-16 items-center justify-between gap-3 border-y border-ink bg-ochre-soft px-4 py-3 text-xl font-bold hover:bg-ochre/30 ${focus}`}>
+          <span>
+            <span className="text-forest">{tx("Next")}: </span>
+            {extra.text}
+          </span>
+          <Arrow className="h-4 w-4 text-muted group-hover:text-forest" />
+        </Link>
       )}
       {total === 0 ? (
         <p className="flex items-center gap-3 px-4 py-4 text-lg">
@@ -108,20 +121,23 @@ function Ledger({ rows, heading }: { rows: Rows; heading: boolean }) {
           <ol>
             {all.map((r, k) => {
               const w = r.due ? null : waited(r);
+              const [head, tail] = short(words(r));
+              // The first row is the one to do now, unless the next step is not on the list (shown above it).
+              const first = k === 0 && !extra;
               return (
                 <li key={r.key}>
                   <Link
                     href={r.href}
-                    className={`group grid min-h-16 grid-cols-[2.75rem_1fr_5.5rem] items-start border-b px-4 py-3 hover:bg-ochre-soft active:bg-ochre/30 ${k === 0 ? "border-ink bg-ochre-soft" : "border-line"} ${focus}`}
+                    className={`group grid min-h-16 grid-cols-[2.75rem_1fr_5.5rem] items-start border-b px-4 py-3 hover:bg-ochre-soft active:bg-ochre/30 ${first ? "border-ink bg-ochre-soft" : "border-line"} ${focus}`}
                   >
                     <span className="font-mono text-sm leading-7">{String(k + 1).padStart(2, "0")}</span>
-                    <span className={`min-w-0 leading-snug ${k === 0 ? "text-xl font-bold" : "text-lg font-semibold"}`}>
+                    <span className={`min-w-0 leading-snug ${first ? "text-xl font-bold" : "text-lg font-semibold"}`}>
                       <span className={r.bucket === "approve" ? "text-forest" : r.bucket === "fix" ? "text-warn" : "text-ink"}>{t(`home.b.${r.bucket}`)}: </span>
                       {r.item?.blocks && <span className="text-clay">{t("home.b.blocks")} </span>}
-                      {short(words(r))[0]}
-                      {short(words(r))[1] && (
-                        <span className="mt-0.5 block truncate text-sm font-normal text-muted" title={short(words(r))[1]}>
-                          {short(words(r))[1]}
+                      {head}
+                      {tail && (
+                        <span className="mt-0.5 block truncate text-sm font-normal text-muted" title={tail}>
+                          {tail}
                         </span>
                       )}
                     </span>
@@ -146,9 +162,10 @@ function Bands({ rows, next }: { rows: Rows; next: Next }) {
   const { t, tx } = useT();
   const { words, when } = useRowWords();
   const total = waitingCount(rows);
-  const first = BUCKETS.flatMap((b) => rows[b])[0];
-  const todo = next ?? (first ? { href: first.href, text: words(first) } : null);
-  const n = Math.max(total, todo ? 1 : 0);
+  // The thing to do now in the reader's language when it is one of the rows; the count includes it once.
+  const { row, extra } = ordered(rows, next);
+  const todo = row ? { href: row.href, text: words(row) } : extra;
+  const n = total + (extra ? 1 : 0);
   return (
     <section aria-labelledby="waiting" className="overflow-hidden font-bands">
       <h2 id="waiting" className="sr-only">
@@ -177,7 +194,7 @@ function Bands({ rows, next }: { rows: Rows; next: Next }) {
       )}
       {BUCKETS.filter((b) => rows[b].length).map((b) => {
         // The top band already says the first thing to do: its group shows what comes after it, or is left out.
-        const rest = rows[b].filter((r) => !(todo && r.href === todo.href && words(r) === todo.text));
+        const rest = rows[b].filter((r) => r !== row);
         const top = rest[0];
         if (!top) return null;
         const many = rest.length > 1;
@@ -196,7 +213,7 @@ function Bands({ rows, next }: { rows: Rows; next: Next }) {
         );
       })}
       <AskAssistant />
-      {total > 1 && <Ledger rows={rows} heading={false} />}
+      {total > 1 && <Ledger rows={rows} next={next} heading={false} />}
     </section>
   );
 }
@@ -206,7 +223,7 @@ export function HomeLead({ rows, next, view, onView }: { rows: Rows; next: Next;
   return (
     <div className="space-y-2">
       <ViewSwitch view={view} onView={onView} />
-      {view === "bands" ? <Bands rows={rows} next={next} /> : <Ledger rows={rows} heading />}
+      {view === "bands" ? <Bands rows={rows} next={next} /> : <Ledger rows={rows} next={next} heading />}
     </div>
   );
 }

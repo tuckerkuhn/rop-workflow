@@ -6,7 +6,8 @@ import { DEMO_SETUP, FIELD_SETUP_KEY, type FieldSetup } from "@/lib/package";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { canSeePII, type AppUser } from "@/lib/demo";
-import { type FieldItem, type Stock } from "@/lib/field";
+import { type Farmer, type FieldItem, type Stock } from "@/lib/field";
+import { docNamesPerson } from "@/lib/doc-links";
 import { HttpError } from "@/server/guard";
 import { oncePerRequest } from "@/server/request-memo";
 
@@ -94,8 +95,13 @@ function stripPII(item: FieldItem): FieldItem {
 
 /** Farmers' names by farmer number, only for people allowed to see participants' names; empty for anyone else. */
 export async function farmerNames(projectId: string, user?: AppUser | null): Promise<Map<string, string>> {
+  if (!canSeePII(user)) return new Map<string, string>();
+  return namesOf(projectId);
+}
+
+/** Every farmer's name: only for checks on the server, never sent to someone who may not see names. */
+async function namesOf(projectId: string): Promise<Map<string, string>> {
   const names = new Map<string, string>();
-  if (!canSeePII(user)) return names;
   const pii = await db
     .select({ code: s.farmers.code, name: s.farmerPii.fullName })
     .from(s.farmerPii)
@@ -105,6 +111,38 @@ export async function farmerNames(projectId: string, user?: AppUser | null): Pro
   return names;
 }
 
+/** A farmer's story links with those whose address names them left out (for people who may not see names). */
+function withoutNamedDocs(f: Farmer, name: string): Farmer {
+  if (!name || !f.stories?.some((s) => s.docs?.length)) return f;
+  return { ...f, stories: f.stories.map((s) => (s.docs?.length ? { ...s, docs: s.docs.filter((d) => !docNamesPerson(d.url, name)) } : s)) };
+}
+
+/**
+ * What a save by someone who may not see names must keep: the story links left out of their page
+ * because the address names the farmer (they could not have removed what they never saw).
+ */
+export async function keepNamedDocs(code: string, user: AppUser, items: FieldItem[], stored: Map<string, FieldItem>): Promise<FieldItem[]> {
+  if (canSeePII(user)) return items;
+  const names = await namesOf((await projectByCode(code)).id);
+  return items.map((i) => {
+    const was = stored.get(i.id);
+    const name = names.get(i.id);
+    if (i.kind !== "farmer" || was?.kind !== "farmer" || !name) return i;
+    return {
+      ...i,
+      stories: i.stories.map((s) => {
+        const hidden = (was.stories.find((x) => x.id === s.id)?.docs ?? []).filter((d) => docNamesPerson(d.url, name) && !s.docs?.some((x) => x.url === d.url));
+        return hidden.length ? { ...s, docs: [...(s.docs ?? []), ...hidden] } : s;
+      }),
+    };
+  });
+}
+
+/**
+ * The project's field records. With `user`, names are added only for people allowed to see them,
+ * and for anyone else story links whose address names the farmer are left out. Without `user`,
+ * the records as stored (no names), for the server's own use.
+ */
 export async function loadField(code: string, user?: AppUser) {
   const project = await projectByCode(code);
   const rows = await db.select().from(s.fieldItems).where(eq(s.fieldItems.projectId, project.id));
@@ -115,10 +153,11 @@ export async function loadField(code: string, user?: AppUser) {
     .limit(1);
 
   const names = await farmerNames(project.id, user);
+  const hiddenFrom = user && !canSeePII(user) ? await namesOf(project.id) : null;
 
   const items = rows
     .map((r) => ({ ...(r.data as FieldItem), rev: r.updatedAt.toISOString() }) as FieldItem)
-    .map((i): FieldItem => (i.kind === "farmer" ? { ...i, name: names.get(i.id) ?? "" } : i))
+    .map((i): FieldItem => (i.kind === "farmer" ? (hiddenFrom ? withoutNamedDocs({ ...i, name: "" }, hiddenFrom.get(i.id) ?? "") : { ...i, name: names.get(i.id) ?? "" }) : i))
     .sort((a, b) => a.id.localeCompare(b.id));
   return { items, stock: (stockRow?.data as Stock | undefined) ?? null, setup: await setupOf(project) };
 }
