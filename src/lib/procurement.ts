@@ -6,6 +6,7 @@
 
 export type StatusKind = "CUR" | "D1" | "D1*" | "TS" | "OPEN" | "PA";
 
+import { isFileLink, isRecordedFileLink, storeNames } from "@/lib/file-store";
 import { formatMoney, holderOf, users, type ProcRole } from "@/lib/demo";
 import { holdersOfType, holdsType } from "@/lib/authority";
 import type { HrRole } from "@/lib/hr";
@@ -380,7 +381,10 @@ export type Voucher = {
 /** The NetSuite VENDBILL number of a voucher, from either field. */
 export const vendbillOf = (v: Voucher | undefined) => (v?.number.trim() && !/^EV-/.test(v.number) ? v.number.trim() : v?.netsuiteRef.trim() || "");
 
-export const isSharePointUrl = (u: string) => /^https:\/\/[a-z0-9-]+\.sharepoint\.com\/\S+$/i.test(u.trim());
+/** A new link into the organization's file store (lib/file-store). The name is from when that was always SharePoint. */
+export const isSharePointUrl = (u: string) => isFileLink(u);
+/** Recorded proof: a link into any store the organization has used, so changing stores never undoes finished work. */
+export const isEvidenceLink = (u: string) => isRecordedFileLink(u);
 
 export type Route = "direct" | "rfq" | "sole";
 export const ROUTES: { id: Route; title: string; detail: string }[] = [
@@ -555,7 +559,7 @@ const none = (what: string) => (recordsRequired() ? { ok: false, detail: what } 
 /** A bid's amount in dollars, or null when an afghani bid has no rate. */
 export const bidUsd = (b: Bid) => (b.currency === "AFN" ? (b.rate && b.rate > 0 ? b.amount / b.rate : null) : b.amount);
 // An afghani bid needs its exchange rate, or it cannot be compared with the others.
-const recordedBids = (p: Procurement) => (p.bids ?? []).filter((b) => b.supplier.trim() && b.amount > 0 && isSharePointUrl(b.evidence) && (b.currency !== "AFN" || (b.rate ?? 0) > 0));
+const recordedBids = (p: Procurement) => (p.bids ?? []).filter((b) => b.supplier.trim() && b.amount > 0 && isEvidenceLink(b.evidence) && (b.currency !== "AFN" || (b.rate ?? 0) > 0));
 /** The lowest-priced bid that passed the minimum requirements. */
 export function lowestPassing(p: Procurement): Bid | null {
   const ok = (p.bids ?? []).filter((b) => b.passes === true && bidUsd(b) !== null);
@@ -608,7 +612,7 @@ function lowBidCheck(p: Procurement) {
 function openingCheck(p: Procurement) {
   const o = p.opening;
   if (!o) return (p.bids ?? []).length ? { ok: false, detail: "Record the opening: when, who was present, and the signed record" } : none("Record the bids and the opening below");
-  if (!isSharePointUrl(o.evidence)) return { ok: false, detail: "Link the signed opening record in SharePoint" };
+  if (!isEvidenceLink(o.evidence)) return { ok: false, detail: `Link the signed opening record in ${storeNames()}` };
   if (p.closingDate && o.at.slice(0, 10) < p.closingDate) return { ok: false, detail: `Opened ${o.at.slice(0, 10)}, before closing on ${p.closingDate}` };
   const missing = (p.bids ?? []).filter((b) => !b.receivedAt);
   return { ok: !missing.length && recordedBids(p).length === (p.bids ?? []).length, detail: missing.length ? "Every bid needs its receipt time" : `Opened ${o.at.replace("T", " ")} with ${o.present}; ${(p.bids ?? []).length} bids` };
@@ -617,7 +621,7 @@ function declareCheck(p: Procurement) {
   const c = p.committee ?? [];
   if (!c.length) return none("Name the committee members and link each declaration below");
   const sitting = c.filter((m) => !m.conflict);
-  const undeclared = c.filter((m) => !m.declaredOn || !isSharePointUrl(m.declaration));
+  const undeclared = c.filter((m) => !m.declaredOn || !isEvidenceLink(m.declaration));
   const late = p.opening ? c.filter((m) => m.declaredOn && m.declaredOn > p.opening!.at.slice(0, 10)) : [];
   const chair = sitting.some((m) => m.role === "chair");
   if (undeclared.length) return { ok: false, detail: `Declaration missing: ${undeclared.map((m) => m.name || "unnamed").join(", ")}` };
@@ -1492,7 +1496,7 @@ export const steps: Step[] = [
         label: "Filed in SharePoint",
         why: "The voucher and the package are kept together where auditors look.",
         tag: "CUR",
-        auto: (p) => ({ ok: !!p.voucher && isSharePointUrl(p.voucher.sharepointUrl), detail: p.voucher?.sharepointUrl ? (isSharePointUrl(p.voucher.sharepointUrl) ? "Link recorded" : "That is not a SharePoint link") : "Paste the SharePoint link above" }),
+        auto: (p) => ({ ok: !!p.voucher && isEvidenceLink(p.voucher.sharepointUrl), detail: p.voucher?.sharepointUrl ? (isEvidenceLink(p.voucher.sharepointUrl) ? "Link recorded" : `That is not a link to ${storeNames()}`) : `Paste the link to the signed voucher in ${storeNames()} above` }),
       },
     ],
   },

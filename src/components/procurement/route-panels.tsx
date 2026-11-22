@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { useSession } from "@/components/app/session";
+import { isRecordedFileLink, storeNames } from "@/lib/file-store";
 import { LookedAt } from "@/components/app/ai-why";
 import { primaryBtn } from "@/components/workspace/ui";
 import { voucherGaps, withholding } from "@/lib/payments";
-import { ROUTES, committeeNeeded, isSharePointUrl, levelFor, reviewKey, routesFor, rulesInForce, valueOf, vendbillOf, type Draft, type Procurement, type Voucher } from "@/lib/procurement";
+import { ROUTES, committeeNeeded, levelFor, reviewKey, routesFor, rulesInForce, valueOf, vendbillOf, type Draft, type Procurement, type Voucher } from "@/lib/procurement";
 import { DEPARTMENTS, GL_EXPENSE, LOCATIONS, type Code } from "@/lib/voucher-codes";
 import { codingFor, type VoucherSetup } from "@/lib/voucher-setup";
 import { today } from "@/lib/clock";
@@ -367,6 +369,9 @@ function CodeSelect({ codes, value, onChange, disabled, label }: { codes: Code[]
  */
 export function VoucherPanel({ p, editable, update, coding, preparedByMe }: { p: Procurement; editable: boolean; update: Update; coding?: VoucherSetup | null; preparedByMe: boolean }) {
   const set0 = codingFor(coding, p.budgetLine);
+  // The organization's file stores, from the session; a voucher filed under an earlier setting stays filed.
+  const { fileStores } = useSession();
+  const names = storeNames(fileStores.now);
   // Review and approval read the voucher; only the approver adds the SharePoint link when filing it.
   const reviewing = p.step === "voucherReview" || p.step === "voucherApprove";
   const approving = p.step === "voucherApprove";
@@ -383,7 +388,7 @@ export function VoucherPanel({ p, editable, update, coding, preparedByMe }: { p:
   // Older records carried a made-up "EV-" number; the voucher's number is now NetSuite's VENDBILL number.
   const v: Voucher = p.voucher ? { ...fresh, ...p.voucher, number: vendbillOf(p.voucher) } : fresh;
   const set = (patch: Partial<Voucher>) => update((q) => ({ ...q, voucher: { ...v, ...patch } }));
-  const badLink = !!v.sharepointUrl && !isSharePointUrl(v.sharepointUrl);
+  const badLink = !!v.sharepointUrl && !isRecordedFileLink(v.sharepointUrl, fileStores.ever);
   const taxed = (withholding(p, v.date ?? today())?.amount ?? 0) > 0;
   const gaps = voucherGaps({ ...p, voucher: v });
   const codingOn = editable && !reviewing;
@@ -439,15 +444,15 @@ export function VoucherPanel({ p, editable, update, coding, preparedByMe }: { p:
 
       {approving && (
         <label className="mt-4 block">
-          <span className="text-xs font-medium text-muted">SharePoint link to the signed voucher</span>
+          <span className="text-xs font-medium text-muted">Link to the signed voucher in {names}</span>
           <input
             disabled={!editable || preparedByMe}
             value={v.sharepointUrl}
             onChange={(e) => set({ sharepointUrl: e.target.value.trim() })}
-            placeholder="https://rootsofpeace.sharepoint.com/…"
+            placeholder="https://…"
             className={`mt-1 ${field} ${badLink ? "border-clay" : ""}`}
           />
-          {badLink && <span className="mt-1 block text-xs text-clay">Paste the link from SharePoint (…sharepoint.com/…).</span>}
+          {badLink && <span className="mt-1 block text-xs text-clay">Paste the link to the file in {names}.</span>}
         </label>
       )}
     </div>

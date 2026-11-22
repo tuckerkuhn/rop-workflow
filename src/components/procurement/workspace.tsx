@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser, useSession } from "@/components/app/session";
+import { isFileLink, storeNames } from "@/lib/file-store";
 import { useT } from "@/components/app/i18n";
 import { SelfConfirmSheet, useSolo } from "@/components/app/self-confirm";
 import { useDonors, usePlan, useProcurements } from "@/components/app/use-project-data";
@@ -76,7 +77,6 @@ import {
   setProcurementSet,
   setSupplierRegister,
   receivedQty,
-  isSharePointUrl,
   type DocLink,
   requesterOf,
   soloBarred,
@@ -1091,16 +1091,20 @@ export function ProcurementWorkspace() {
   );
 }
 
-/** Documents filed in SharePoint and linked to the record (signed bids, contract, photos). */
+/** Documents filed in the organization's file store and linked to the record (signed bids, contract, photos). */
 function LinkedDocs({ p, canEdit, add, by }: { p: Procurement; canEdit: boolean; add: (l: DocLink) => void; by: string }) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [url, setUrl] = useState("");
   const links = p.links ?? [];
-  const ok = title.trim().length >= 2 && isSharePointUrl(url);
+  // The organization's file stores, from the session, so this renders again when they arrive or change.
+  const { fileStores } = useSession();
+  const names = storeNames(fileStores.now);
+  const isLink = (u: string) => isFileLink(u, fileStores.now);
+  const ok = title.trim().length >= 2 && isLink(url);
   return (
     <div className="mt-4">
-      <SectionLabel>Linked from SharePoint · {links.length}</SectionLabel>
+      <SectionLabel>Linked from {names} · {links.length}</SectionLabel>
       {links.length > 0 && (
         <ul className="mt-2 space-y-1">
           {links.map((l) => (
@@ -1119,8 +1123,8 @@ function LinkedDocs({ p, canEdit, add, by }: { p: Procurement; canEdit: boolean;
         (open ? (
           <div className="mt-2 space-y-2 rounded-xl border border-line bg-surface p-3 text-sm">
             <input className="w-full rounded-lg border border-line bg-paper px-3 py-2" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What it is: signed bid from Vision Supply" aria-label="Document title" />
-            <input className="w-full rounded-lg border border-line bg-paper px-3 py-2" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://rootsofpeace.sharepoint.com/…" aria-label="SharePoint link" inputMode="url" />
-            {url && !isSharePointUrl(url) && <p className="text-xs text-clay">That is not a SharePoint link: open the file in SharePoint and use Copy link.</p>}
+            <input className="w-full rounded-lg border border-line bg-paper px-3 py-2" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" aria-label={`Link to the file in ${names}`} inputMode="url" />
+            {url && !isLink(url) && <p className="text-xs text-clay">That is not a link to {names}: open the file there and copy its link.</p>}
             <div className="flex gap-2">
               <button
                 type="button"
@@ -1142,7 +1146,7 @@ function LinkedDocs({ p, canEdit, add, by }: { p: Procurement; canEdit: boolean;
           </div>
         ) : (
           <button type="button" className="mt-2 text-sm font-semibold text-forest hover:underline" onClick={() => setOpen(true)}>
-            + Link a document in SharePoint
+            + Link a document in {names}
           </button>
         ))}
     </div>

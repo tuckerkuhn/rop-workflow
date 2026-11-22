@@ -1,3 +1,4 @@
+import { storeSet, type StoreId, type StoreSet } from "@/lib/file-store";
 import { and, eq } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { ROP, type Profile, type Value } from "@/lib/policy";
@@ -13,7 +14,9 @@ export type OrgChange = { key: string; value: Value; by: string; name: string; a
 export type SoloChange = { on: boolean; by: string; name: string; at: string; reason: string };
 /** The sample project (C5): shown to everyone unless an administrator hides it. */
 export type SampleChange = { hidden: boolean; by: string; name: string; at: string; reason: string };
-export type OrgSettings = { values: Record<string, OrgChange>; history: OrgChange[]; solo?: SoloChange; soloHistory?: SoloChange[]; sample?: SampleChange; sampleHistory?: SampleChange[] };
+/** Where the organization keeps its files, and the names of its other tools (lib/file-store): who set them, when and why. */
+export type FilesChange = { stores: StoreId[]; accounting: string; payroll: string; by: string; name: string; at: string; reason: string };
+export type OrgSettings = { values: Record<string, OrgChange>; history: OrgChange[]; solo?: SoloChange; soloHistory?: SoloChange[]; sample?: SampleChange; sampleHistory?: SampleChange[]; files?: FilesChange; filesHistory?: FilesChange[] };
 
 const EMPTY: OrgSettings = { values: {}, history: [] };
 
@@ -71,4 +74,27 @@ export async function sampleOf(orgId: string): Promise<{ code: string; name: str
     .limit(1);
   if (!p?.code) return null;
   return { code: p.code, name: p.name, hidden: !!(await loadOrgSettings(orgId)).sample?.hidden };
+}
+
+/**
+ * The organization's file stores: where new links may point, and every store it has used. Read on
+ * each request, not kept between requests: a change must hold at once on every server, not only on
+ * the one that saved it.
+ */
+export async function fileStoresOf(orgId: string | null): Promise<StoreSet> {
+  if (!orgId) return storeSet(null);
+  const settings = await loadOrgSettings(orgId);
+  return storeSet(settings.files?.stores, (settings.filesHistory ?? []).map((c) => c.stores));
+}
+
+/** For a signed-in person: their organization's stores. The sample team has no staff row and sees the only organization there is. */
+const orgKept = new Map<string, { at: number; org: string | null }>();
+export async function fileStoresFor(personId: string, orgId: string | null): Promise<StoreSet> {
+  if (orgId) return fileStoresOf(orgId);
+  let kept = orgKept.get(personId);
+  if (!kept || Date.now() - kept.at >= 60_000) {
+    kept = { at: Date.now(), org: await orgIdForPerson(personId).catch(() => null) };
+    orgKept.set(personId, kept);
+  }
+  return fileStoresOf(kept.org);
 }

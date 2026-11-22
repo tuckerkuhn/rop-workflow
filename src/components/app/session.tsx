@@ -1,5 +1,6 @@
 "use client";
 
+import { setClientStores, storeSet, type StoreSet } from "@/lib/file-store";
 import { createBrowserClient } from "@supabase/ssr";
 import { TwoStepGate } from "@/components/app/two-step";
 import { useRouter } from "next/navigation";
@@ -41,6 +42,8 @@ type Session = {
   plan: Plan;
   /** When a free trial of the paid plan ends, while one runs; null otherwise. */
   trialEndsAt: string | null;
+  /** Where the organization keeps its files: which links count as evidence (lib/file-store). */
+  fileStores: StoreSet;
 };
 
 const SessionContext = createContext<Session | null>(null);
@@ -51,7 +54,7 @@ export function supabaseBrowser() {
   return createBrowserClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 }
 
-type ServerSession = { mode: "demo" | "live"; configured: boolean; user: AppUser | null; actor: AppUser | null; viewingAs: boolean; people: AppUser[]; plan: Plan; trialEndsAt?: string | null; authority?: Authority; proposalAccess?: Record<string, "core" | "team">; twoStep?: "verify" | "enroll" };
+type ServerSession = { mode: "demo" | "live"; configured: boolean; user: AppUser | null; actor: AppUser | null; viewingAs: boolean; people: AppUser[]; plan: Plan; fileStores?: StoreSet; trialEndsAt?: string | null; authority?: Authority; proposalAccess?: Record<string, "core" | "team">; twoStep?: "verify" | "enroll" };
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [mode, setMode] = useState<Mode>("loading");
@@ -61,6 +64,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [currency, setCurrencyState] = useState<Currency>("USD");
   const [stored, setStored] = useState(false);
   const [plan, setPlan] = useState<Plan>("free");
+  // Kept in state so screens that check a link render again once the organization's stores are known.
+  const [fileStores, setFileStores] = useState<StoreSet>(() => storeSet(null));
   const [trialEndsAt, setTrialEndsAt] = useState<string | null>(null);
   // Live sign-in: the second step still owed this session, if any (see TwoStepGate).
   const [twoStep, setTwoStep] = useState<"verify" | "enroll" | null>(null);
@@ -77,6 +82,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         setLive({ user: s.user, actor: s.actor, viewingAs: s.viewingAs });
       }
       setConfigured(s.configured);
+      const stores = s.fileStores ?? storeSet(null);
+      setClientStores(stores);
+      setFileStores(stores);
       setPlan(s.plan ?? "free");
       setTrialEndsAt(s.trialEndsAt ?? null);
       setMode(s.mode);
@@ -140,8 +148,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       money,
       plan,
       trialEndsAt,
+      fileStores,
     }),
-    [mode, configured, live, demoUser, stored, signOut, refresh, viewAs, currency, money, plan, trialEndsAt],
+    [mode, configured, live, demoUser, stored, signOut, refresh, viewAs, currency, money, plan, trialEndsAt, fileStores],
   );
 
   return <SessionContext.Provider value={value}>{twoStep ? <TwoStepGate kind={twoStep} onDone={() => void refresh()} /> : children}</SessionContext.Provider>;

@@ -1,5 +1,7 @@
 "use client";
 
+import { useProjectModules } from "@/components/app/project-modules";
+import { placeAllowed } from "@/lib/project-modules";
 import { PlaceTabs, WORK_TABS } from "@/components/progress/report-checks";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -90,6 +92,7 @@ const VIEWS: { id: View; label: MessageKey }[] = [
  */
 function AllTasks({ user }: { user: AppUser }) {
   const { t } = useT();
+  const modules = useProjectModules();
   const { project } = useCurrentProject();
   const { rows, work, projectWorkFailed } = useTaskRows(user, project);
   const timeline = useFeature("timeline");
@@ -135,7 +138,7 @@ function AllTasks({ user }: { user: AppUser }) {
         </div>
         {/* The other places in Work; on large screens they are in the sidebar. */}
         <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm lg:hidden">
-          {PLACES.map((p) => (
+          {PLACES.filter((p) => placeAllowed(p.href, modules)).map((p) => (
             <Link key={p.href} href={p.href} className="font-semibold text-forest hover:underline">
               {t(p.label)}
             </Link>

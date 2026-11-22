@@ -1,3 +1,4 @@
+import { storeNames } from "@/lib/file-store";
 import { loadBudget } from "@/server/plan-store";
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -145,7 +146,7 @@ export async function POST(req: Request, { params }: Ctx) {
     } else {
       if (!roles.voucher) return fail("Finance prepares the voucher.");
       if (b.status !== "approved") return fail("The bill must be approved before the voucher.", 409);
-      if (a.sharepointUrl && !isSharePointUrl(a.sharepointUrl)) return fail("That is not a SharePoint link.", 400);
+      if (a.sharepointUrl && !isSharePointUrl(a.sharepointUrl)) return fail(`That is not a link to ${storeNames()}.`, 400);
       const complete = !!a.number && !!a.month && isSharePointUrl(a.sharepointUrl) && !!a.netsuiteRef.trim();
       voucherFiled = complete;
       Object.assign(b, {

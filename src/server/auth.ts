@@ -1,9 +1,10 @@
+import { setRequestFileStores } from "@/server/request-memo";
 import { createServerClient } from "@supabase/ssr";
 import { eq, sql } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { projectRolesFromTypes, type Authority } from "@/lib/authority";
 import { HR_ACCESS_ROLES } from "@/lib/hr";
-import { loadOrgSettings, withSettings } from "@/server/org-settings-store";
+import { fileStoresFor, loadOrgSettings, withSettings } from "@/server/org-settings-store";
 import { NextResponse } from "next/server";
 import { db, schema as s } from "@/db";
 import { userById, users, type AppUser } from "@/lib/demo";
@@ -159,6 +160,8 @@ export async function requireViewer(req: Request, opts: { write?: boolean; allow
   const v = await getViewer(req);
   if (!v) return deny(401, "Sign in to continue.");
   if (v.twoStep) return deny(401, v.twoStep === "verify" ? "Enter the code from your authenticator app to continue." : "Your organization requires two-step sign-in: set it up to continue.");
+  // Evidence links in this request are checked against this person's organization's file stores.
+  setRequestFileStores(await fileStoresFor(v.user.id, v.organizationId));
   if (opts.write && v.viewingAs) return deny(403, `You are viewing as ${v.user.name}. View as is read-only.`);
   // View as never opens HR, pay or personal files beyond what the administrator may see themselves.
   if (v.viewingAs && /^\/api\/(hr|payroll|files|timesheets|leave|expenses|onboarding|offboarding)(\/|$)/.test(new URL(req.url).pathname)) {

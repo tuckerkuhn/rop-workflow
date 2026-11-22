@@ -1,3 +1,4 @@
+import { fileStoresFor } from "@/server/org-settings-store";
 import { NextResponse } from "next/server";
 import { authConfigured, demoMode, getViewer, people } from "@/server/auth";
 import { handle } from "@/server/guard";
@@ -15,7 +16,7 @@ const authority = async () => (await loadHr().catch(() => null))?.state.rules?.h
  */
 export async function GET(req: Request) {
   return handle(async () => {
-    if (demoMode()) return NextResponse.json({ mode: "demo", configured: true, user: null, actor: null, viewingAs: false, people: await people(), ...(await planDetails(null)), authority: await authority(), proposalAccess: await proposalMenuMap(await orgIdForPerson("").catch(() => null)) });
+    if (demoMode()) return NextResponse.json({ mode: "demo", configured: true, user: null, actor: null, viewingAs: false, people: await people(), ...(await planDetails(null)), fileStores: await fileStoresFor("", null), authority: await authority(), proposalAccess: await proposalMenuMap(await orgIdForPerson("").catch(() => null)) });
     if (!authConfigured()) return NextResponse.json({ mode: "live", configured: false, user: null, actor: null, viewingAs: false, people: [], plan: "free" });
     const v = await getViewer(req);
     if (!v) return NextResponse.json({ mode: "live", configured: true, user: null, actor: null, viewingAs: false, people: [], plan: "free" });
@@ -24,6 +25,6 @@ export async function GET(req: Request) {
     // The signed-in person carries the same reporting line as the directory (server/reporting-line).
     const list = await people();
     const lined = <U extends { id: string; reportsTo?: string }>(u: U): U => ({ ...u, reportsTo: list.find((p) => p.id === u.id)?.reportsTo ?? u.reportsTo });
-    return NextResponse.json({ mode: "live", configured: true, user: lined(v.user), actor: lined(v.actor), viewingAs: v.viewingAs, people: list, ...(await planDetails(v)), authority: await authority(), proposalAccess: await proposalMenuMap(await orgIdForPerson(v.user.id).catch(() => null), v.user.id) });
+    return NextResponse.json({ mode: "live", configured: true, user: lined(v.user), actor: lined(v.actor), viewingAs: v.viewingAs, people: list, ...(await planDetails(v)), fileStores: await fileStoresFor(v.user.id, v.organizationId), authority: await authority(), proposalAccess: await proposalMenuMap(await orgIdForPerson(v.user.id).catch(() => null), v.user.id) });
   });
 }

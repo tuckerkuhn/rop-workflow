@@ -1,5 +1,6 @@
 "use client";
 
+import { ProjectModulesSection } from "@/components/settings/project-modules";
 import Link from "next/link";
 
 import { useCallback, useEffect, useState } from "react";
@@ -99,6 +100,7 @@ export function SettingsPage() {
             })}
           </ul>
         </section>
+        {data?.saved && user.kind === "employee" && <ProjectModulesSection code={project.id} canEdit={canEdit} />}
         {data?.saved && user.kind === "employee" && <DonorFundingSection code={project.id} canEdit={canEdit} donorsKey={data.donors.map((d) => d.id).join(",")} />}
 
         {/* The organization: administrators' tools. */}

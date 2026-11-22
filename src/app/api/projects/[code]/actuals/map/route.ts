@@ -1,3 +1,4 @@
+import { storeNames } from "@/lib/file-store";
 import { NextResponse } from "next/server";
 import { isSharePointUrl } from "@/lib/procurement";
 import { counts, decisionsSchema, guessMapping, mappingSchema, matchGroups, readRows, signatureOf, toBva, type Decisions, type SavedMapping } from "@/lib/spend-map";
@@ -79,7 +80,7 @@ export async function POST(req: Request, { params }: Ctx) {
     if (read.problems.length) return NextResponse.json({ preview, error: "The file has problems: see below." }, { status: 400 });
 
     const sharepointUrl = String(form?.get("sharepointUrl") ?? "").trim() || null;
-    if (sharepointUrl && !isSharePointUrl(sharepointUrl)) return NextResponse.json({ error: "That is not a link to ROP's SharePoint." }, { status: 400 });
+    if (sharepointUrl && !isSharePointUrl(sharepointUrl)) return NextResponse.json({ error: `That is not a link to ${storeNames()}.` }, { status: 400 });
     // Remembered for next month: every account a person placed (assigned, left out, or a ticked description match).
     const assign = { ...(saved?.assign ?? {}) };
     for (const g of groups) {

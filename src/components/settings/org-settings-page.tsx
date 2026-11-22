@@ -1,5 +1,6 @@
 "use client";
 
+import { FilesPanel } from "@/components/settings/files-panel";
 import { plainError } from "@/lib/plain-error";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
@@ -129,6 +130,7 @@ export function OrgSettingsPage() {
 
         {v && (
           <>
+            <FilesPanel v={v} post={post} />
             <SoloPanel v={v} post={post} />
             {v.sampleProject && <SamplePanel v={v} post={post} />}
             <section className="mt-6">

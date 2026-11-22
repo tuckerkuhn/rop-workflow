@@ -5,7 +5,8 @@ import { DEPARTMENTS, PARAMS, ROP, paramByKey, show, type Value } from "@/lib/po
 import { PROFILES, compareProfile, fits, keepsToPolicy, profileById } from "@/lib/presets";
 import { requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
-import { loadOrgSettings, orgIdForPerson, sampleOf, saveOrgSettings, withSettings, type OrgChange, type OrgSettings } from "@/server/org-settings-store";
+import { ANY_LINK_RISK, STORE_IDS, cleanStores } from "@/lib/file-store";
+import { loadOrgSettings, orgIdForPerson, sampleOf, saveOrgSettings, withSettings, type FilesChange, type OrgChange, type OrgSettings } from "@/server/org-settings-store";
 
 /**
  * The organization's own rules, by department. The written policy is the floor: everyone signed
@@ -27,6 +28,10 @@ function view(settings: OrgSettings, admin: boolean, sample: { code: string; nam
     changed: settings.values,
     history: [...settings.history].reverse(),
     /** Solo mode (server/solo.ts): who turned it on or off, when and why. */
+    /** Where files are kept and what the other tools are called (lib/file-store): in force, and who set them. */
+    files: { stores: cleanStores(settings.files?.stores), accounting: settings.files?.accounting ?? "", payroll: settings.files?.payroll ?? "" },
+    filesChange: settings.files ?? null,
+    filesHistory: [...(settings.filesHistory ?? [])].reverse(),
     solo: settings.solo ?? null,
     soloHistory: [...(settings.soloHistory ?? [])].reverse(),
     /** The sample project (C5), if the organization has one: who hid or showed it, when and why. */
@@ -65,6 +70,8 @@ const bodySchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("reset"), keys: z.array(z.string()).min(1).max(PARAMS.length), reason }),
   /** Solo mode for a small team: one person may prepare and approve, confirming it each time. */
   z.object({ action: z.literal("solo"), on: z.boolean(), reason }),
+  /** Where the organization keeps its files and what it calls its accounting and payroll systems. "Any secure link" needs the risk accepted. */
+  z.object({ action: z.literal("files"), stores: z.array(z.enum(STORE_IDS)).min(1, "Choose at least one place files are kept."), accounting: z.string().trim().max(40).default(""), payroll: z.string().trim().max(40).default(""), acceptRisk: z.boolean().default(false), reason }),
   /** Hide the sample project from everyone's project picker and Getting started, or show it again. */
   z.object({ action: z.literal("sample"), hidden: z.boolean(), reason }),
 ]);
@@ -85,6 +92,18 @@ export async function POST(req: Request) {
     const at = new Date().toISOString().slice(0, 10);
     const who = { by: v.user.id, name: v.user.name, at, reason: a.reason };
     const fail = (error: string) => NextResponse.json({ error }, { status: 400 });
+
+    if (a.action === "files") {
+      const stores = cleanStores(a.stores);
+      // The risk is accepted when "any secure link" is turned on; later changes to other settings keep it on without asking again.
+      const anyWasOn = cleanStores(settings.files?.stores).includes("any");
+      if (stores.includes("any") && !anyWasOn && !a.acceptRisk) return fail(`Any secure link: ${ANY_LINK_RISK} Tick the box to accept this, or choose your file store by name.`);
+      const change: FilesChange = { stores, accounting: a.accounting, payroll: a.payroll, ...who };
+      const next: OrgSettings = { ...settings, files: change, filesHistory: [...(settings.filesHistory ?? []), change] };
+      await saveOrgSettings(orgId, next);
+      await db.insert(schema.auditLog).values({ projectId: null, entity: "org_settings", entityId: orgId, action: "file_stores_set", detail: { by: v.user.id, stores, anyLink: stores.includes("any"), accounting: a.accounting, payroll: a.payroll, reason: a.reason } });
+      return NextResponse.json(view(next, true, sample));
+    }
 
     if (a.action === "solo") {
       if (!!settings.solo?.on === a.on) return fail(a.on ? "Solo mode is already on." : "Solo mode is already off.");

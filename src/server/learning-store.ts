@@ -1,3 +1,4 @@
+import { storeNames } from "@/lib/file-store";
 import { randomUUID } from "node:crypto";
 import { registerAuthority } from "@/lib/authority";
 import type { AppUser } from "@/lib/demo";
@@ -65,8 +66,8 @@ export async function actOnLearning(code: string, a: LearningAction, u: AppUser)
     const item = CLOSEOUT_ITEMS.find((i) => i.id === a.item)!;
     if (!(await mayTick(u, item.who))) return `Only the ${item.who.replace("-", " ")} confirms this item.`;
     if (a.action === "tick") {
-      if (a.evidence && !isSharePointUrl(a.evidence)) return "Evidence must be a link to the file in ROP's SharePoint.";
-      if (!a.evidence && !["procurementsClosed", "results"].includes(a.item)) return "Link the evidence in SharePoint.";
+      if (a.evidence && !isSharePointUrl(a.evidence)) return `Evidence must be a link to the file in ${storeNames()}.`;
+      if (!a.evidence && !["procurementsClosed", "results"].includes(a.item)) return `Link the evidence in ${storeNames()}.`;
     }
   } else if (a.action !== "applied") {
     const v = await loadLearning(code, u);

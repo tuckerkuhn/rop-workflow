@@ -1,3 +1,4 @@
+import { NO_ORG, setStoreResolver, type StoreSet } from "@/lib/file-store";
 import { AsyncLocalStorage } from "node:async_hooks";
 
 /**
@@ -10,7 +11,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
  * that changes something reads the database every time, as before. Outside a route (scripts,
  * nightly jobs, tests) there is no memory at all.
  */
-type Store = { reads: boolean; kept: Map<string, Promise<unknown>> };
+type Store = { reads: boolean; kept: Map<string, Promise<unknown>>; fileStores?: StoreSet };
 const als = new AsyncLocalStorage<Store>();
 
 /** Wraps a route (server/guard `handle`). The memory starts switched off. */
@@ -51,3 +52,13 @@ export function oncePerRequest<T>(key: string, read: () => Promise<T>): Promise<
   }
   return kept.then((v) => structuredClone(v));
 }
+
+/** The file stores of the organization this request is for (server/auth sets them once the person is known). */
+export function setRequestFileStores(stores: StoreSet) {
+  const store = als.getStore();
+  if (store) store.fileStores = stores;
+}
+// Evidence links are checked against the request's own organization. Outside a request, or before
+// the person is known (scripts, nightly jobs, tests), lib/file-store NO_ORG applies: new links take
+// the default and recorded proof in any named store counts, so no organization's proof is undone.
+setStoreResolver(() => als.getStore()?.fileStores ?? NO_ORG);

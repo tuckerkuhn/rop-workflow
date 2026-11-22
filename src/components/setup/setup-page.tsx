@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
+import { useProjectModules } from "@/components/app/project-modules";
 import { useT } from "@/components/app/i18n";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { KoboConnect, KoboDone, KoboForms, KoboMap } from "@/components/setup/kobo-steps";
@@ -531,6 +532,8 @@ function DonorsQuestion({ list, onChange }: { list: string[]; onChange: (l: stri
 
 function Review({ draft, editing, onEdit }: { draft: ProjectDesign; editing: boolean; onEdit: (s: Step) => void }) {
   const { t, lang, date } = useT();
+  // Market windows are offered only to a project that uses them (Settings, "What this project uses").
+  const modules = useProjectModules();
   const country = new Intl.DisplayNames([localeOf(lang)], { type: "region" }).of(draft.country) ?? draft.country;
   const rows: { step: Step; label: string; value: string }[] = [
     { step: "name", label: t("setup.r.name"), value: draft.name },
@@ -561,9 +564,11 @@ function Review({ draft, editing, onEdit }: { draft: ProjectDesign; editing: boo
           <button type="button" onClick={() => onEdit("kobo-connect")} className="btn-link">
             {t("setup.koboLink")} <Arrow />
           </button>
-          <Link href="/design" className="btn-link">
-            {t("setup.marketLink")} <Arrow />
-          </Link>
+          {modules.market && (
+            <Link href="/design" className="btn-link">
+              {t("setup.marketLink")} <Arrow />
+            </Link>
+          )}
           <Link href="/settings" className="btn-link">
             {t("home.settings")} <Arrow />
           </Link>

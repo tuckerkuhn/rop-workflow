@@ -1,3 +1,4 @@
+import { storeNames } from "@/lib/file-store";
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { db, schema as s } from "@/db";
@@ -59,9 +60,9 @@ export async function POST(req: Request) {
     const parsed = supplierAction.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "That is not complete." }, { status: 400 });
     const a = parsed.data;
-    // Evidence lives in ROP's SharePoint, so a link is checkable by anyone with access.
+    // Evidence lives in the organization's file store (lib/file-store), so a link is checkable by anyone with access.
     const links = [a.action === "add" || a.action === "edit" ? a.fields.licenceEvidence : "", "evidence" in a ? a.evidence : ""].filter(Boolean);
-    if (links.some((l) => !isSharePointUrl(l))) return NextResponse.json({ error: "Evidence must be a link to the file in ROP's SharePoint." }, { status: 400 });
+    if (links.some((l) => !isSharePointUrl(l))) return NextResponse.json({ error: `Evidence must be a link to the file in ${storeNames()}.` }, { status: 400 });
     const orgId = await orgOf(v.user);
     const w = await who(v.user);
     const out = await updateSuppliers(

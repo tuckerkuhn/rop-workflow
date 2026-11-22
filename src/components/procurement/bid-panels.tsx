@@ -3,8 +3,10 @@
 import { lastScreening } from "@/lib/suppliers";
 import Link from "next/link";
 import { useState } from "react";
+import { useSession } from "@/components/app/session";
+import { isFileLink, storeNames } from "@/lib/file-store";
 import type { SupplierRow } from "@/components/procurement/suppliers-page";
-import { bidUsd, distributionState, fromField, isSharePointUrl, lateBids, lowBids, lowestPassing, reviewKey, sampleNeeded, type Bid, type CommitteeMember, type Procurement } from "@/lib/procurement";
+import { bidUsd, distributionState, fromField, lateBids, lowBids, lowestPassing, reviewKey, sampleNeeded, type Bid, type CommitteeMember, type Procurement } from "@/lib/procurement";
 
 /**
  * Bids as records: each quotation or bid with its receipt time, amount and file; the opening; the
@@ -27,6 +29,9 @@ const unreview = (q: Procurement) => {
 const RECEIVING = ["quotes", "bids"];
 
 export function BidsPanel({ p, editable, update, register, money }: { p: Procurement; editable: boolean; update: Update; register?: SupplierRow[] | null; money: (usd: number) => string }) {
+  // The organization's file stores, from the session, so this renders again when they arrive or change.
+  const { fileStores } = useSession();
+  const names = storeNames(fileStores.now);
   const bids = p.bids ?? [];
   const receiving = RECEIVING.includes(p.step);
   const committee = p.step === "evaluate";
@@ -43,7 +48,7 @@ export function BidsPanel({ p, editable, update, register, money }: { p: Procure
       <legend className="sr-only">Bids</legend>
       <p className="text-sm font-semibold">{p.step === "quotes" ? "Quotations received" : "Bids received"}</p>
       <p className="mt-1 text-xs text-muted">
-        {receiving ? "One line per quotation or bid, as received, with the signed copy in SharePoint. Amounts cannot change once this step is done." : "As received. Judge each against the minimum requirements, then mark the one chosen."}
+        {receiving ? `One line per quotation or bid, as received, with the signed copy in ${names}. Amounts cannot change once this step is done.` : "As received. Judge each against the minimum requirements, then mark the one chosen."}
         {p.closingDate ? ` Closing date ${p.closingDate}: anything later is rejected.` : ""}
       </p>
 
@@ -109,7 +114,7 @@ export function BidsPanel({ p, editable, update, register, money }: { p: Procure
                   <span />
                 )}
                 <label>
-                  <span className={lbl}>Signed copy (SharePoint link)</span>
+                  <span className={lbl}>Signed copy (link to {names})</span>
                   <input disabled={!receiving} value={b.evidence} onChange={(e) => setBid(b.id, { evidence: e.target.value })} className={`mt-1 ${field}`} />
                 </label>
               </div>
@@ -195,7 +200,7 @@ export function BidsPanel({ p, editable, update, register, money }: { p: Procure
             <input value={p.opening?.present ?? ""} onChange={(e) => set((q) => ({ opening: { at: "", evidence: "", ...q.opening, present: e.target.value } }))} className={`mt-1 ${field}`} />
           </label>
           <label className="sm:col-span-2">
-            <span className={lbl}>Signed opening record (SharePoint link)</span>
+            <span className={lbl}>Signed opening record (link to {names})</span>
             <input value={p.opening?.evidence ?? ""} onChange={(e) => set((q) => ({ opening: { at: "", present: "", ...q.opening, evidence: e.target.value } }))} className={`mt-1 ${field}`} />
           </label>
         </div>
@@ -207,6 +212,9 @@ export function BidsPanel({ p, editable, update, register, money }: { p: Procure
 }
 
 function CommitteeEditor({ p, set }: { p: Procurement; set: (fn: (q: Procurement) => Partial<Procurement>) => void }) {
+  // The organization's file stores, from the session, so this renders again when they arrive or change.
+  const { fileStores } = useSession();
+  const names = storeNames(fileStores.now);
   const c = p.committee ?? [];
   const put = (i: number, patch: Partial<CommitteeMember>) => set((q) => ({ committee: (q.committee ?? []).map((m, j) => (j === i ? { ...m, ...patch } : m)) }));
   return (
@@ -232,7 +240,7 @@ function CommitteeEditor({ p, set }: { p: Procurement; set: (fn: (q: Procurement
               <input type="date" value={m.declaredOn} onChange={(e) => put(i, { declaredOn: e.target.value })} className={`mt-1 ${field}`} />
             </label>
             <label className="sm:col-span-2">
-              <span className={lbl}>Signed declaration (SharePoint link)</span>
+              <span className={lbl}>Signed declaration (link to {names})</span>
               <input value={m.declaration} onChange={(e) => put(i, { declaration: e.target.value })} className={`mt-1 ${field}`} />
             </label>
             <label className="flex items-end gap-2 pb-2 text-sm">
@@ -272,14 +280,18 @@ export function DistributionPanel({
   resultLink?: (people: { value: number; female: number; male: number; date?: string; place?: string }) => string;
 }) {
   const d = p.distribution ?? { forParticipants: false, lists: [], inStock: 0, checks: [] };
+  // The organization's file stores, from the session, so this renders again when they arrive or change.
+  const { fileStores } = useSession();
+  const names = storeNames(fileStores.now);
+  const isLink = (u: string) => isFileLink(u, fileStores.now);
   const [list, setList] = useState({ date: "", place: "", recipients: "", women: "", qty: "", evidence: "" });
   const [chk, setChk] = useState({ on: "", sampled: "", confirmed: "", issues: "", evidence: "" });
   const put = (patch: Partial<typeof d>) => update((q) => ({ ...q, distribution: { ...d, ...patch } }));
   const state = distributionState(p);
   const distributor = d.lists.some((l) => l.by === me.id);
   const people = d.lists.reduce((s, l) => s + l.recipients, 0);
-  const listOk = list.date && list.place.trim() && Number(list.recipients) > 0 && Number(list.qty) > 0 && isSharePointUrl(list.evidence) && Number(list.women || 0) <= Number(list.recipients);
-  const chkOk = chk.on && Number(chk.sampled) > 0 && Number(chk.confirmed) >= 0 && Number(chk.confirmed) <= Number(chk.sampled) && isSharePointUrl(chk.evidence);
+  const listOk = list.date && list.place.trim() && Number(list.recipients) > 0 && Number(list.qty) > 0 && isLink(list.evidence) && Number(list.women || 0) <= Number(list.recipients);
+  const chkOk = chk.on && Number(chk.sampled) > 0 && Number(chk.confirmed) >= 0 && Number(chk.confirmed) <= Number(chk.sampled) && isLink(chk.evidence);
   // What is still missing, said beside the button rather than leaving it greyed out without a reason.
   const listMissing = [
     !list.date && "the date",
@@ -287,14 +299,14 @@ export function DistributionPanel({
     !(Number(list.qty) > 0) && "the quantity",
     !(Number(list.recipients) > 0) && "how many people are on the list",
     Number(list.women || 0) > Number(list.recipients) && "women cannot be more than the people on the list",
-    !isSharePointUrl(list.evidence) && "a SharePoint link to the signed list",
+    !isLink(list.evidence) && `a link to the signed list in ${names}`,
   ].filter(Boolean) as string[];
   const chkMissing = [
     !chk.on && "the date",
     !(Number(chk.sampled) > 0) && "how many were contacted",
     chk.confirmed === "" && "how many confirmed",
     Number(chk.confirmed) > Number(chk.sampled) && "confirmed cannot be more than contacted",
-    !isSharePointUrl(chk.evidence) && "a SharePoint link to the verification record (call notes or visit form)",
+    !isLink(chk.evidence) && `a link to the verification record in ${names} (call notes or visit form)`,
   ].filter(Boolean) as string[];
   const started = (o: Record<string, string>) => Object.values(o).some((v) => v.trim());
   return (
@@ -379,7 +391,7 @@ export function DistributionPanel({
                 <input inputMode="decimal" placeholder={`Quantity (${p.unit})`} value={list.qty} onChange={(e) => setList({ ...list, qty: e.target.value })} className={field} />
                 <input inputMode="numeric" placeholder="People on the list" value={list.recipients} onChange={(e) => setList({ ...list, recipients: e.target.value })} className={field} />
                 <input inputMode="numeric" placeholder="Of them, women" value={list.women} onChange={(e) => setList({ ...list, women: e.target.value })} className={field} />
-                <input placeholder="Signed list (SharePoint link)" value={list.evidence} onChange={(e) => setList({ ...list, evidence: e.target.value })} className={field} />
+                <input placeholder={`Signed list (link to ${names})`} value={list.evidence} onChange={(e) => setList({ ...list, evidence: e.target.value })} className={field} />
                 <button type="submit" disabled={!listOk} className="justify-self-start text-sm font-semibold text-forest hover:underline disabled:opacity-40 sm:col-span-3">
                   Add list
                 </button>
@@ -404,7 +416,7 @@ export function DistributionPanel({
                     <input inputMode="numeric" placeholder="Contacted" value={chk.sampled} onChange={(e) => setChk({ ...chk, sampled: e.target.value })} className={field} />
                     <input inputMode="numeric" placeholder="Confirmed receipt" value={chk.confirmed} onChange={(e) => setChk({ ...chk, confirmed: e.target.value })} className={field} />
                     <input placeholder="What was found, if anything" value={chk.issues} onChange={(e) => setChk({ ...chk, issues: e.target.value })} className={`${field} sm:col-span-2`} />
-                    <input placeholder="Verification record (SharePoint link)" value={chk.evidence} onChange={(e) => setChk({ ...chk, evidence: e.target.value })} className={field} />
+                    <input placeholder={`Verification record (link to ${names})`} value={chk.evidence} onChange={(e) => setChk({ ...chk, evidence: e.target.value })} className={field} />
                     <button type="submit" disabled={!chkOk} className="justify-self-start text-sm font-semibold text-forest hover:underline disabled:opacity-40 sm:col-span-3">
                       Record verification
                     </button>

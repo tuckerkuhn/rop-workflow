@@ -1,5 +1,7 @@
 "use client";
 
+import { useProjectModules } from "@/components/app/project-modules";
+import { placeAllowed } from "@/lib/project-modules";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useSession } from "@/components/app/session";
 import { taskHref, taskSources } from "@/components/tasks/sources";
@@ -25,6 +27,8 @@ const ACROSS_LABEL: Record<string, MessageKey> = { portfolio: "nav.allProjects",
 export function useProjectPlaces(): PlaceGroup[] {
   const { user } = useSession();
   const { project, projects } = useCurrentProject();
+  // Parts this project does not use leave the menus (Settings, "What this project uses").
+  const modules = useProjectModules();
   if (!user || user.kind !== "employee") return [];
   // The portfolio compares projects: with one project there is nothing to compare, so it is not listed.
   const several = projects.filter((p) => p.saved).length > 1;
@@ -78,7 +82,7 @@ export function useProjectPlaces(): PlaceGroup[] {
       ],
     });
   if (across.length) groups.push({ id: "across", label: "hub.across", places: across });
-  return groups;
+  return groups.map((g) => ({ ...g, places: g.places.filter((pl) => placeAllowed(pl.href, modules)) }));
 }
 
 /** Whether this place is the page on screen. `source` is the ?source= of /work. */

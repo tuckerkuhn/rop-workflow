@@ -1,3 +1,4 @@
+import { storeNames } from "@/lib/file-store";
 import { NextResponse } from "next/server";
 import { isSharePointUrl } from "@/lib/procurement";
 import { requireViewer } from "@/server/auth";
@@ -35,7 +36,7 @@ export async function POST(req: Request, { params }: Ctx) {
     if (!(file instanceof File)) return NextResponse.json({ error: "Choose the workbook." }, { status: 400 });
     if (file.size > MAX) return NextResponse.json({ error: "That file is over 15 MB." }, { status: 400 });
     const sharepointUrl = String(form?.get("sharepointUrl") ?? "").trim() || null;
-    if (sharepointUrl && !isSharePointUrl(sharepointUrl)) return NextResponse.json({ error: "That is not a link to ROP's SharePoint." }, { status: 400 });
+    if (sharepointUrl && !isSharePointUrl(sharepointUrl)) return NextResponse.json({ error: `That is not a link to ${storeNames()}.` }, { status: 400 });
     const buf = Buffer.from(await file.arrayBuffer());
     const bva = await readWorkbook(buf);
     const check = new URL(req.url).searchParams.get("check") === "1";
