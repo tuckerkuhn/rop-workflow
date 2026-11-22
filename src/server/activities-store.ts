@@ -1,12 +1,11 @@
 import { EMPTY_RECORD, STATUS_LABEL, timingOf, type ActivityAction, type ActivityBook, type ActivityRecord } from "@/lib/activities";
 import { ourWork } from "@/lib/budget";
 import type { AppUser } from "@/lib/demo";
-import { db } from "@/db";
 import { logAudit } from "@/server/audit";
 import { people } from "@/server/auth";
 import { projectByCode } from "@/server/field-store";
 import { loadWorkplan } from "@/server/plan-store";
-import { loadProjectState, saveProjectState } from "@/server/project-state";
+import { loadProjectState, updateProjectState } from "@/server/project-state";
 import { createWorkItem, listWorkItems } from "@/server/work-store";
 
 const KEY = "activities";
@@ -61,29 +60,32 @@ export async function actOnActivity(code: string, a: ActivityAction, u: AppUser)
   const rec: ActivityRecord = { ...EMPTY_RECORD, ...book.items[a.code] };
   const manage = managesActivities(u);
   const ev = (what: string) => ({ at: today(), by: u.id, byName: u.name, what });
-  let next: ActivityRecord;
+  // The change, applied to the record as stored when it is saved (locked), so two changes at once both stay.
+  let apply: (r: ActivityRecord) => ActivityRecord;
   if (a.action === "assign") {
     if (!manage) return "Only a plan approver or monthly reviewer assigns owners.";
     const staff = await people();
     if (a.owner && !staff.some((p) => p.id === a.owner)) return "No such person.";
-    next = { ...rec, owner: a.owner, history: [...rec.history, ev(a.owner ? `Owner: ${staff.find((p) => p.id === a.owner)!.name}` : "Owner removed")] };
+    apply = (r) => ({ ...r, owner: a.owner, history: [...r.history, ev(a.owner ? `Owner: ${staff.find((p) => p.id === a.owner)!.name}` : "Owner removed")] });
   } else if (a.action === "status") {
     if (!manage && rec.owner !== u.id) return "Only the activity's owner or a manager updates its status.";
     if (a.on > today()) return "The date cannot be in the future.";
-    next = {
-      ...rec,
+    apply = (r) => ({
+      ...r,
       status: a.status,
-      startedOn: a.status === "not_started" ? null : (rec.startedOn ?? a.on),
+      startedOn: a.status === "not_started" ? null : (r.startedOn ?? a.on),
       doneOn: a.status === "done" ? a.on : null,
       blocker: a.status === "on_hold" || a.status === "cancelled" || a.blocker ? a.blocker : "",
-      history: [...rec.history, ev(`${STATUS_LABEL[a.status]} from ${a.on}${a.blocker ? `: ${a.blocker}` : ""}`)],
-    };
+      history: [...r.history, ev(`${STATUS_LABEL[a.status]} from ${a.on}${a.blocker ? `: ${a.blocker}` : ""}`)],
+    });
   } else {
     if (!manage && rec.owner !== u.id) return "Only the activity's owner or a manager adds tasks to it.";
     const item = await createWorkItem(code, { type: "task", title: `${a.code} · ${a.title}`, date: a.date, assignee: a.assignee ?? rec.owner }, u.id);
-    next = { ...rec, tasks: [...rec.tasks, item.id], history: [...rec.history, ev(`Task added: ${a.title}`)] };
+    apply = (r) => ({ ...r, tasks: [...r.tasks, item.id], history: [...r.history, ev(`Task added: ${a.title}`)] });
   }
-  await saveProjectState(project.id, KEY, { items: { ...book.items, [a.code]: next } });
-  await logAudit(db, project.id, { entity: "activity", entityId: project.id, action: `activity_${a.action}`, by: u.id, detail: { code: a.code, ...("status" in a ? { status: a.status } : {}), ...("owner" in a ? { owner: a.owner } : {}) } });
+  await updateProjectState<ActivityBook, null>(project.id, KEY, { items: {} }, async (cur, tx) => {
+    await logAudit(tx, project.id, { entity: "activity", entityId: project.id, action: `activity_${a.action}`, by: u.id, detail: { code: a.code, ...("status" in a ? { status: a.status } : {}), ...("owner" in a ? { owner: a.owner } : {}) } });
+    return { data: { items: { ...cur.items, [a.code]: apply({ ...EMPTY_RECORD, ...cur.items[a.code] }) } }, result: null };
+  });
   return null;
 }

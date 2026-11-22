@@ -244,12 +244,12 @@ function DonorHome({ field, project }: { field: FieldItem[]; project: ProjectSta
         {[
           ["Farmers enrolled", String(active.length)],
           ["Received inputs", current.saved ? String(supplied.length) : `${supplied.length} · ${money(supplied.length * PACKAGE_USD)}`],
-          ["Average satisfaction", `${avg.toFixed(1)} / 5`],
+          ["Average satisfaction", latestScores.length ? `${avg.toFixed(1)} / 5` : "No ratings yet"],
           ["Success stories", String(stories.length)],
         ].map(([k, v]) => (
           <div key={k} className="bg-surface px-5 py-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted">{k}</p>
-            <p className="mt-1 font-display text-3xl tabular-nums">{v}</p>
+            <p className={`mt-1 font-display tabular-nums ${/^\d/.test(v) ? "text-3xl" : "pt-2 text-lg text-muted"}`}>{v}</p>
           </div>
         ))}
       </section>
@@ -493,7 +493,7 @@ export function Dashboard() {
             <p className="text-sm text-muted">{date(today(), { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
               {onDemoClock() && " · demo date"}
             </p>
-            <h1 className="font-display text-4xl tracking-tight">{readOnly ? subject.name : t("home.greeting", { name: user.name.split(" ")[0] })}</h1>
+            <h1 className="font-display text-4xl tracking-tight">{readOnly ? subject.name : t(user.kind === "donor" ? "home.greetingDonor" : "home.greeting", { name: user.name.split(" ")[0] })}</h1>
             <p className="text-sm text-muted">
               {subject.title} · {subject.org}
               {subject.reportsTo && !readOnly ? ` · reports to ${userById(subject.reportsTo)?.name}` : ""}

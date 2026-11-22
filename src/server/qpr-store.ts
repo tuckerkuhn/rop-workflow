@@ -10,7 +10,7 @@ import { projectByCode, donorNameOf, goalOf } from "@/server/field-store";
 import { loadResults, loadUpdates } from "@/server/results-store";
 import { MAX_PRACTICE, workTime, type CopyData, type ReportCopy, type WorkTime } from "@/lib/report-copy";
 import { auditTrail } from "@/server/audit";
-import { loadProjectState, saveProjectState } from "@/server/project-state";
+import { loadProjectState, updateProjectState } from "@/server/project-state";
 import { loadLineReasons } from "@/server/overspend-store";
 import { early } from "@/server/early";
 import { oncePerRequest } from "@/server/request-memo";
@@ -207,11 +207,13 @@ export async function loadCopies(code: string, quarter: string): Promise<ReportC
 /** Keeps the release copy and the latest practice copies. */
 export async function addCopy(code: string, quarter: string, copy: ReportCopy) {
   const project = await projectByCode(code);
-  const list = [...(await loadCopies(code, quarter)), copy];
-  const practice = list.filter((c) => c.kind === "practice").slice(-MAX_PRACTICE);
-  // One release copy: a release that did not complete is replaced by the next.
-  const release = list.filter((c) => c.kind === "release").slice(-1);
-  await saveProjectState(project.id, copiesKey(quarter), { copies: [...release, ...practice] });
+  await updateProjectState<{ copies: ReportCopy[] }, null>(project.id, copiesKey(quarter), { copies: [] }, async (cur) => {
+    const list = [...cur.copies, copy];
+    const practice = list.filter((c) => c.kind === "practice").slice(-MAX_PRACTICE);
+    // One release copy: a release that did not complete is replaced by the next.
+    const release = list.filter((c) => c.kind === "release").slice(-1);
+    return { data: { copies: [...release, ...practice] }, result: null };
+  });
 }
 
 /** Time spent writing the report, from the times of its edits in the audit trail. */

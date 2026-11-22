@@ -46,7 +46,8 @@ export function DialogHost() {
     show = (r) => {
       // A second question while one is open: the first counts as cancelled.
       setReq((prev) => {
-        if (prev) prev.kind === "confirm" ? prev.resolve(false) : prev.resolve(null);
+        if (prev?.kind === "confirm") prev.resolve(false);
+        else if (prev) prev.resolve(null);
         return r;
       });
       setText("");

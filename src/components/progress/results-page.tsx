@@ -13,7 +13,7 @@ import { useRequireUser, useSession } from "@/components/app/session";
 import { useT } from "@/components/app/i18n";
 import { openReceipt, shrink } from "@/components/people/expense-page";
 import { OriginalText } from "@/components/progress/original-text";
-import { Pill, SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn, StatusPill } from "@/components/workspace/ui";
+import { SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn, StatusPill } from "@/components/workspace/ui";
 import type { Receipt } from "@/lib/expense";
 import { readWorkbook } from "@/lib/read-sheet";
 import { TEMPLATE_CSV, parseCsv, readResults, type ImportRow } from "@/lib/results-import";

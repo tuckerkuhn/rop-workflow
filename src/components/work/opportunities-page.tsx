@@ -5,7 +5,7 @@ import { askReason } from "@/components/app/dialogs";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useRequireUser, useSession } from "@/components/app/session";
-import { Pill, TopBar, primaryBtn, quietBtn, StatusPill } from "@/components/workspace/ui";
+import { TopBar, primaryBtn, quietBtn, StatusPill } from "@/components/workspace/ui";
 import { SOURCES, type OppAction, type Opportunity } from "@/lib/opportunities";
 import type { OpportunitiesView } from "@/server/opportunities-store";
 import { TrackRecordButton } from "@/components/work/track-record-button";

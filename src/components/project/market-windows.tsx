@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Pill, StatusPill } from "@/components/workspace/ui";
+import { StatusPill } from "@/components/workspace/ui";
 import {
   HARVEST,
   MONTHS,

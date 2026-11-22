@@ -2,6 +2,7 @@
 
 import { EVIDENCE_TABS, PlaceTabs } from "@/components/progress/report-checks";
 import { askConfirm, askReason } from "@/components/app/dialogs";
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser, useSession } from "@/components/app/session";
@@ -278,6 +279,12 @@ export function StoriesPage() {
   useEffect(() => {
     if (ready && user && project.saved) void load();
   }, [ready, user, project.saved, load]);
+  // Opened from a farmer's profile (?story=): that story's editor, once the list has loaded.
+  const loaded = !!v;
+  useEffect(() => {
+    const asked = new URLSearchParams(window.location.search).get("story");
+    if (loaded && asked) setOpen(asked);
+  }, [loaded]);
   if (!user) return null;
   const act = async (a: StoryAction, msg: string): Promise<string | undefined> => {
     setError("");
@@ -327,6 +334,13 @@ export function StoriesPage() {
                   {[s.firstName, s.district, s.province].filter(Boolean).join(" · ")} · by {s.by} {s.at.slice(0, 10)}
                   {s.consent ? ` · consent: ${s.consent.uses.map((u) => USE_LABEL[u].split(" (")[0]).join(", ")}` : ""}
                 </p>
+                {s.farmer && (
+                  <p className="mt-1 text-xs">
+                    <Link href={`/field/farmers/${s.farmer.id}`} className="font-semibold text-forest hover:underline">
+                      From the profile of Farmer {s.farmer.id} →
+                    </Link>
+                  </p>
+                )}
                 {s.text && <p className="mt-2 line-clamp-3 text-sm">{s.text}</p>}
                 <DocLinks className="mt-2" docs={s.docs} />
                 <div className="mt-3 flex flex-wrap gap-2 text-sm">

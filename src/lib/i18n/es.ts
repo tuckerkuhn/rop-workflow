@@ -221,6 +221,7 @@ export const es: Messages = {
   "stage.signedOff": "Plan y presupuesto aprobados por {name} el {date}",
   "stage.moved": "Pasó a {stage} por {name} el {date}",
   "home.greeting": "Hola, {name}",
+  "home.greetingDonor": "Hola, {name}",
   "home.thisWeek": "Esta semana",
   "home.overdue": "Atrasadas",
   "home.dueSoon": "Vencen en los próximos 7 días",

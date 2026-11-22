@@ -8,7 +8,7 @@ import { ProofNumber } from "@/components/progress/proof-panel";
 import { useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser, useSession } from "@/components/app/session";
-import { Pill, TopBar, primaryBtn, quietBtn, StatusPill } from "@/components/workspace/ui";
+import { TopBar, primaryBtn, quietBtn, StatusPill } from "@/components/workspace/ui";
 import { periodLabel, type Period } from "@/lib/period-report";
 import { YOUTH } from "@/lib/results";
 import type { PeriodReportView } from "@/server/period-report-store";

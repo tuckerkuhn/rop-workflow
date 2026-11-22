@@ -1,7 +1,7 @@
 import { DialogHost } from "@/components/app/dialogs";
 import { SavingSign } from "@/components/app/saving-sign";
 import type { Metadata } from "next";
-import { Archivo_Narrow, Fraunces, Inter, JetBrains_Mono, Plus_Jakarta_Sans, Vazirmatn } from "next/font/google";
+import localFont from "next/font/local";
 import { cookies } from "next/headers";
 import "./globals.css";
 import { I18nProvider } from "@/components/app/i18n";
@@ -9,30 +9,27 @@ import { SessionProvider } from "@/components/app/session";
 import { OfflineSupport } from "@/components/app/offline-support";
 import { LANG_COOKIE, dirOf, isLang } from "@/lib/i18n";
 
-const fraunces = Fraunces({
-  variable: "--font-fraunces",
-  subsets: ["latin"],
-  axes: ["opsz", "SOFT"],
-});
-
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
-});
-
-const jetbrains = JetBrains_Mono({
-  variable: "--font-jetbrains",
-  subsets: ["latin"],
-});
+/**
+ * The fonts ship with the app (the @fontsource-variable packages), so a build never waits on
+ * Google Fonts: a fetch that failed once stopped a deploy.
+ */
+/** Headings: Fraunces with its optical size and softness axes. */
+const fraunces = localFont({ variable: "--font-fraunces", src: "../../node_modules/@fontsource-variable/fraunces/files/fraunces-latin-full-normal.woff2", weight: "100 900", display: "swap" });
+const inter = localFont({ variable: "--font-inter", src: "../../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2", weight: "100 900", display: "swap" });
+const jetbrains = localFont({ variable: "--font-jetbrains", src: "../../node_modules/@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2", weight: "100 800", display: "swap" });
 
 /** Home's two views (components/home/home-views): heavy numerals for the bands, a narrow face for the ledger. */
-const jakarta = Plus_Jakarta_Sans({ variable: "--font-jakarta", subsets: ["latin"], weight: ["500", "700", "800"] });
-const archivo = Archivo_Narrow({ variable: "--font-archivo", subsets: ["latin"], weight: ["400", "600", "700"] });
+const jakarta = localFont({ variable: "--font-jakarta", src: "../../node_modules/@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-latin-wght-normal.woff2", weight: "200 800", display: "swap" });
+const archivo = localFont({ variable: "--font-archivo", src: "../../node_modules/@fontsource-variable/archivo-narrow/files/archivo-narrow-latin-wght-normal.woff2", weight: "400 700", display: "swap" });
 
 /** Dari and Pashto: Inter and Fraunces have no Arabic-script letters. */
-const vazirmatn = Vazirmatn({
+const vazirmatn = localFont({
   variable: "--font-vazirmatn",
-  subsets: ["arabic", "latin"],
+  src: [
+    { path: "../../node_modules/@fontsource-variable/vazirmatn/files/vazirmatn-arabic-wght-normal.woff2", weight: "100 900" },
+    { path: "../../node_modules/@fontsource-variable/vazirmatn/files/vazirmatn-latin-wght-normal.woff2", weight: "100 900" },
+  ],
+  display: "swap",
 });
 
 export const metadata: Metadata = {

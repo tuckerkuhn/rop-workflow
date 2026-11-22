@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { db } from "@/db";
 import { registerAuthority } from "@/lib/authority";
 import type { AppUser } from "@/lib/demo";
 import { CLOSEOUT_ITEMS, EMPTY_LEARNING, type CloseoutId, type Learning, type LearningAction } from "@/lib/learning";
@@ -9,7 +8,7 @@ import { isMelOwner } from "@/server/auth";
 import { projectByCode } from "@/server/field-store";
 import { loadHr } from "@/server/hr-store";
 import { loadProcurements } from "@/server/procurement-store";
-import { loadProjectState, saveProjectState } from "@/server/project-state";
+import { loadProjectState, updateProjectState } from "@/server/project-state";
 import { loadResults } from "@/server/results-store";
 
 const KEY = "learning";
@@ -57,37 +56,45 @@ export type LearningView = Awaited<ReturnType<typeof loadLearning>>;
 
 export async function actOnLearning(code: string, a: LearningAction, u: AppUser): Promise<string | null> {
   const project = await projectByCode(code);
-  const l = await loadProjectState<Learning>(project.id, KEY, EMPTY_LEARNING);
   const me = { by: u.id, byName: u.name };
-  let next: Learning;
+  // Who may do it, read before the lock (these read other records).
   if (a.action === "lesson") {
     if (u.kind !== "employee") return "Lessons are recorded by project staff.";
     if (a.date > today()) return "The date cannot be in the future.";
-    next = { ...l, lessons: [...l.lessons, { id: randomUUID().slice(0, 8), date: a.date, area: a.area, happened: a.happened, lesson: a.lesson, action: a.action_, ...me, applied: null }] };
-  } else if (a.action === "applied") {
-    const x = l.lessons.find((y) => y.id === a.id);
-    if (!x) return "No such lesson.";
-    if (x.applied) return "Already marked applied.";
-    next = { ...l, lessons: l.lessons.map((y) => (y.id === a.id ? { ...y, applied: { on: today(), how: a.how, ...me } } : y)) };
   } else if (a.action === "tick" || a.action === "untick") {
-    if (l.closed) return "The project is closed.";
     const item = CLOSEOUT_ITEMS.find((i) => i.id === a.item)!;
     if (!(await mayTick(u, item.who))) return `Only the ${item.who.replace("-", " ")} confirms this item.`;
     if (a.action === "tick") {
       if (a.evidence && !isSharePointUrl(a.evidence)) return "Evidence must be a link to the file in ROP's SharePoint.";
       if (!a.evidence && !["procurementsClosed", "results"].includes(a.item)) return "Link the evidence in SharePoint.";
-      next = { ...l, closeout: { ...l.closeout, [a.item]: { on: today(), evidence: a.evidence, note: a.note, ...me } } };
-    } else {
-      const rest = { ...l.closeout };
-      delete rest[a.item];
-      next = { ...l, closeout: rest };
     }
-  } else {
+  } else if (a.action !== "applied") {
     const v = await loadLearning(code, u);
     if (!v.can.close) return "Every close-out item must be done, and only a plan approver closes the project.";
-    next = { ...l, closed: { on: today(), ...me } };
   }
-  await saveProjectState(project.id, KEY, next);
-  await logAudit(db, project.id, { entity: "learning", entityId: project.id, action: `learning_${a.action}`, by: u.id, detail: { ...("item" in a ? { item: a.item } : {}), ...("area" in a ? { area: a.area } : {}), ...("note" in a && a.note ? { note: a.note } : {}) } });
-  return null;
+  // The change itself, on the record as stored now (locked): two changes at the same moment both stay.
+  return updateProjectState<Learning, string | null>(project.id, KEY, EMPTY_LEARNING, async (l, tx) => {
+    let next: Learning;
+    if (a.action === "lesson") {
+      next = { ...l, lessons: [...l.lessons, { id: randomUUID().slice(0, 8), date: a.date, area: a.area, happened: a.happened, lesson: a.lesson, action: a.action_, ...me, applied: null }] };
+    } else if (a.action === "applied") {
+      const x = l.lessons.find((y) => y.id === a.id);
+      if (!x) return { data: null, result: "No such lesson." };
+      if (x.applied) return { data: null, result: "Already marked applied." };
+      next = { ...l, lessons: l.lessons.map((y) => (y.id === a.id ? { ...y, applied: { on: today(), how: a.how, ...me } } : y)) };
+    } else if (a.action === "tick" || a.action === "untick") {
+      if (l.closed) return { data: null, result: "The project is closed." };
+      if (a.action === "tick") {
+        next = { ...l, closeout: { ...l.closeout, [a.item]: { on: today(), evidence: a.evidence, note: a.note, ...me } } };
+      } else {
+        const rest = { ...l.closeout };
+        delete rest[a.item];
+        next = { ...l, closeout: rest };
+      }
+    } else {
+      next = { ...l, closed: { on: today(), ...me } };
+    }
+    await logAudit(tx, project.id, { entity: "learning", entityId: project.id, action: `learning_${a.action}`, by: u.id, detail: { ...("item" in a ? { item: a.item } : {}), ...("area" in a ? { area: a.area } : {}), ...("note" in a && a.note ? { note: a.note } : {}) } });
+    return { data: next, result: null };
+  });
 }

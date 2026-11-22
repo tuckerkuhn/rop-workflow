@@ -9,7 +9,7 @@ import { useRequireUser, useSession } from "@/components/app/session";
 import { useT } from "@/components/app/i18n";
 import { SelfConfirmSheet } from "@/components/app/self-confirm";
 import { openReceipt, shrink } from "@/components/people/expense-page";
-import { Pill, SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn, Loading, StatusPill } from "@/components/workspace/ui";
+import { SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn, Loading, StatusPill } from "@/components/workspace/ui";
 import { BILL_CATEGORIES, BILL_CATEGORY_KEYS, type BillAction, type BillCategory } from "@/lib/bills";
 import type { Receipt } from "@/lib/expense";
 import type { BillsView } from "@/app/api/projects/[code]/bills/route";

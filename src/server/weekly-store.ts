@@ -5,7 +5,7 @@ import { activityOf } from "@/lib/qpr";
 import { emptyWeekly, weekOf, type Week, type WeeklyState } from "@/lib/weekly";
 import { isMelOwner } from "@/server/auth";
 import { projectByCode, donorNameOf } from "@/server/field-store";
-import { loadProjectState, saveProjectState } from "@/server/project-state";
+import { loadProjectState, updateProjectState } from "@/server/project-state";
 import { loadUpdates } from "@/server/results-store";
 
 /** The weekly update: its weeks in project_state ("weekly"), its items as activity updates. */
@@ -17,9 +17,18 @@ export async function loadWeekly(code: string): Promise<WeeklyState> {
   return loadProjectState<WeeklyState>(project.id, "weekly", emptyWeekly);
 }
 
-export async function saveWeekly(code: string, state: WeeklyState) {
+/**
+ * Changes the weekly update with it locked, so two changes at the same moment both stay. `change`
+ * edits the state in place, or returns why it was refused (and nothing is saved).
+ */
+export async function changeWeekly<R>(code: string, change: (state: WeeklyState) => R | null): Promise<R | null> {
   const project = await projectByCode(code);
-  await saveProjectState(project.id, "weekly", { ...state, weeks: [...state.weeks].sort((a, b) => b.from.localeCompare(a.from)) });
+  return updateProjectState<WeeklyState, R | null>(project.id, "weekly", emptyWeekly, async (cur) => {
+    const state: WeeklyState = { ...cur, weeks: [...cur.weeks] };
+    const refused = change(state);
+    if (refused) return { data: null, result: refused };
+    return { data: { ...state, weeks: [...state.weeks].sort((a, b) => b.from.localeCompare(a.from)) }, result: null };
+  });
 }
 
 /** A week's view: the week (saved, or proposed when none is saved yet), its items, and the activities to file them under. */

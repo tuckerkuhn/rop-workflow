@@ -9,7 +9,7 @@ import { handle } from "@/server/guard";
 import { blockers } from "@/lib/preflight";
 import { preflight } from "@/server/preflight";
 import { holdsRole } from "@/server/hr-store";
-import { faceView, faceWorkbook, loadFace, saveFace } from "@/server/face-store";
+import { changeFace, faceView, faceWorkbook } from "@/server/face-store";
 
 /** UNDP's FACE form for a month (?month=2026-08; &download=1 for Excel). Finance, the CFO, programme leads and administrators. */
 
@@ -52,10 +52,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
     const parsed = facePatchSchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Check the form." }, { status: 400 });
     const a = parsed.data;
-    const st = await loadFace(code);
-    if (a.action === "header") st.header = a.header;
-    else st.months[a.month] = { authorised: a.authorised, request: a.request, requestPeriod: a.requestPeriod, authorisedPeriod: a.authorisedPeriod, savedBy: v.user.id, savedAt: new Date().toISOString() };
-    await saveFace(code, st);
+    await changeFace(code, (st) => {
+      if (a.action === "header") st.header = a.header;
+      else st.months[a.month] = { authorised: a.authorised, request: a.request, requestPeriod: a.requestPeriod, authorisedPeriod: a.authorisedPeriod, savedBy: v.user.id, savedAt: new Date().toISOString() };
+    });
     const project = await projectByCode(code);
     await logAudit(db, project.id, { entity: "face", entityId: project.id, action: a.action === "header" ? "face_header_saved" : "face_month_saved", by: v.user.id, detail: a.action === "month" ? { month: a.month } : {} });
     return NextResponse.json(await faceView(code, a.action === "month" ? a.month : (await faceView(code, new Date().toISOString().slice(0, 7))).months[0] ?? new Date().toISOString().slice(0, 7)));

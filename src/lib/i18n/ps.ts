@@ -216,6 +216,7 @@ export const ps: Messages = {
   "stage.signedOff": "پلان او بودیجه د {name} لخوا په {date} تایید شوه",
   "stage.moved": "د {name} لخوا په {date} {stage} ته ولاړه",
   "home.greeting": "سلام، {name}",
+  "home.greetingDonor": "ښه راغلاست، {name}",
   "home.thisWeek": "دا اونۍ",
   "home.overdue": "ځنډېدلې",
   "home.dueSoon": "په راتلونکو ۷ ورځو کې",

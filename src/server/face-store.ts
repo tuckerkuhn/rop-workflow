@@ -6,7 +6,7 @@ import { spentIn } from "@/lib/bva";
 import { activityOfLine, emptyFace, faceRows, monthShort, nextMonth, periodText, type FaceMonth, type FaceRow, type FaceState } from "@/lib/face";
 import { loadActuals } from "@/server/actuals-store";
 import { projectByCode, donorNameOf } from "@/server/field-store";
-import { loadProjectState, saveProjectState } from "@/server/project-state";
+import { loadProjectState, updateProjectState } from "@/server/project-state";
 
 /** The FACE form: header and each month's entries in project_state ("face"); figures from the spending import. */
 
@@ -15,9 +15,14 @@ export async function loadFace(code: string): Promise<FaceState> {
   const st = await loadProjectState<FaceState>(project.id, "face", emptyFace);
   return { header: { ...emptyFace.header, ...st.header }, months: st.months ?? {} };
 }
-export async function saveFace(code: string, st: FaceState) {
+/** Changes the FACE form with it locked: a header and a month saved at the same moment both stay. */
+export async function changeFace(code: string, change: (st: FaceState) => void) {
   const project = await projectByCode(code);
-  await saveProjectState(project.id, "face", st);
+  await updateProjectState<FaceState, null>(project.id, "face", emptyFace, async (cur) => {
+    const st: FaceState = { header: { ...emptyFace.header, ...cur.header }, months: { ...(cur.months ?? {}) } };
+    change(st);
+    return { data: st, result: null };
+  });
 }
 
 export type FaceViewData = {

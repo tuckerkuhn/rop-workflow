@@ -36,8 +36,9 @@ beforeAll(async () => {
 describe("counts of what blocks the next report", { timeout: 60_000 }, () => {
   it("are the same on the Progress summary as in pre-flight", async () => {
     const nr = await nextReport(code);
-    expect(nr.blocking).toBeGreaterThan(0);
     const concern = (await loadProgressSummary(code, nadia)).concerns.find((c) => c.key === "stops");
+    // Whether anything blocks depends on the day the tests run (which quarter is next); the two always agree.
+    if (!nr.blocking) return expect(concern).toBeUndefined();
     expect(concern?.text).toBe(`${nr.blocking} ${nr.blocking === 1 ? "thing blocks" : "things block"} the ${nr.quarter.replace("-", " ")} report`);
     expect(concern?.href).toMatch(/\/progress\/report\?q=.*#checks$/);
   });

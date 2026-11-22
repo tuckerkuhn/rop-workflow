@@ -4,6 +4,7 @@ import { DocLinks } from "@/components/app/doc-links";
 import { FieldHelp } from "@/components/app/field-help";
 import { useT } from "@/components/app/i18n";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { stageOf } from "@/components/field/workspace";
 import { useFieldData } from "@/components/app/use-project-data";
@@ -101,6 +102,38 @@ function SatisfactionChart({ surveys }: { surveys: Farmer["surveys"] }) {
         </g>
       ))}
     </svg>
+  );
+}
+
+/**
+ * A story on the profile, written up on the Success stories page: the first click makes a draft
+ * there from it (the name hidden, as on any story), later clicks open the same draft.
+ */
+function ToSuccessStory({ project, user, farmer, story }: { project: string; user: string; farmer: string; story: string }) {
+  const { tx } = useT();
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  return (
+    <span className="mt-2 block">
+      <button
+        type="button"
+        disabled={busy}
+        className="text-sm font-semibold text-forest hover:underline disabled:opacity-50"
+        onClick={async () => {
+          setBusy(true);
+          setErr("");
+          const r = await fetch(`/api/projects/${project}/stories`, { method: "POST", headers: { "Content-Type": "application/json", "x-demo-user": user }, body: JSON.stringify({ action: "from-farmer", farmer, story }) }).catch(() => null);
+          const d = r ? await r.json().catch(() => null) : null;
+          setBusy(false);
+          if (!r?.ok || !d?.id) return setErr(d?.error ?? tx("That did not work. Try again."));
+          router.push(`/progress/stories?story=${d.id}`);
+        }}
+      >
+        {tx("Success story")} →
+      </button>
+      {err && <span className="mt-1 block text-xs text-clay">{err}</span>}
+    </span>
   );
 }
 
@@ -370,6 +403,7 @@ export function FarmerProfile({ id }: { id: string }) {
                         {s.date} · {fieldPerson(s.by)}
                       </p>
                       <DocLinks className="mt-2" docs={s.docs} mask={(t) => maskName(t, farmer, user)} onChange={canEdit ? (docs) => setDocs(s.id, docs) : undefined} />
+                      {user.kind === "employee" && <ToSuccessStory project={project.id} user={user.id} farmer={farmer.id} story={s.id} />}
                       {canEdit && (
                         <button
                           type="button"
@@ -414,6 +448,7 @@ export function FarmerProfile({ id }: { id: string }) {
                         {tx("Completed {date}", { date: s.date })} · {fieldPerson(s.by)}
                       </p>
                       <DocLinks className="mt-2" docs={s.docs} mask={(t) => maskName(t, farmer, user)} onChange={canEdit ? (docs) => setDocs(s.id, docs) : undefined} />
+                      {user.kind === "employee" && <ToSuccessStory project={project.id} user={user.id} farmer={farmer.id} story={s.id} />}
                     </article>
                   ))}
                 </div>

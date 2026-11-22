@@ -13,7 +13,7 @@ import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { openReceipt, shrink } from "@/components/people/expense-page";
 import { OriginalText } from "@/components/progress/original-text";
-import { Pill, SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn } from "@/components/workspace/ui";
+import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import type { Receipt } from "@/lib/expense";
 import type { ResultAction, UpdateInput } from "@/lib/results";
 import { exifDate, longDate, periodLabel, weekOf, type WeeklyPatch } from "@/lib/weekly";

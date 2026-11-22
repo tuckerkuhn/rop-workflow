@@ -2,12 +2,12 @@
 
 import { Why } from "@/components/app/why";
 import Link from "next/link";
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { useT } from "@/components/app/i18n";
 import { MoneySourceLink } from "@/components/progress/proof-panel";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser } from "@/components/app/session";
-import { Pill, TopBar, primaryBtn } from "@/components/workspace/ui";
+import { Pill, TopBar } from "@/components/workspace/ui";
 import { LIMITS, type ActivityView, type LineView } from "@/lib/budget-view";
 import type { Explain, loadBudgetView } from "@/server/budget-view-store";
 import { OverspendReasonPicker } from "@/components/progress/overspend-reason";

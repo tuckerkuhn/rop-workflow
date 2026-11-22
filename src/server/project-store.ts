@@ -29,6 +29,12 @@ const summary = (p: typeof s.projects.$inferSelect): ProjectSummary => ({
  * project picker asks for all. A parked project (kind "parked") is never listed: it is set aside
  * with its data kept until it is brought back (npm run park).
  */
+/** The projects an organization funds, by its name as a donor on them (codes). */
+export async function projectsFundedBy(org: string): Promise<Set<string>> {
+  const rows = await db.select({ code: s.projects.code }).from(s.donors).innerJoin(s.projects, eq(s.projects.id, s.donors.projectId)).where(eq(s.donors.name, org));
+  return new Set(rows.map((r) => r.code).filter((c): c is string => !!c));
+}
+
 export async function listProjects(opts: { all?: boolean } = {}) {
   const all = (await db.select().from(s.projects).orderBy(asc(s.projects.createdAt))).filter((p) => p.kind !== PARKED).map(summary);
   return opts.all ? all : all.filter((p) => p.kind === "real");

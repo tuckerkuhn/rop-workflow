@@ -216,6 +216,7 @@ export const fa: Messages = {
   "stage.signedOff": "پلان و بودجه توسط {name} در {date} تأیید شد",
   "stage.moved": "توسط {name} در {date} به {stage} رفت",
   "home.greeting": "سلام، {name}",
+  "home.greetingDonor": "خوش آمدید، {name}",
   "home.thisWeek": "این هفته",
   "home.overdue": "عقب‌افتاده",
   "home.dueSoon": "موعد در ۷ روز آینده",

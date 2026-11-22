@@ -13,7 +13,7 @@ import { logAudit } from "@/server/audit";
 import { projectByCode } from "@/server/field-store";
 import { aiAllowed } from "@/server/limits";
 import { coachPhoto, isDocumentName } from "@/server/photo-coach";
-import { loadProjectState, saveProjectState } from "@/server/project-state";
+import { loadProjectState, updateProjectState } from "@/server/project-state";
 import { loadResults, loadUpdates } from "@/server/results-store";
 
 /** Photos and posts, in project_state ("photos"); see lib/photos. Every sharing decision is in the audit trail. */
@@ -25,9 +25,19 @@ const IMAGE = /^image\/(jpeg|png|webp)$/;
 export const mayComms = (u: AppUser) => u.kind === "employee" && (!!u.admin || u.project.some((r) => ["comms", "mel-owner", "plan-approver", "report-release"].includes(r)));
 const mayDecidePublic = (u: AppUser) => u.kind === "employee" && (!!u.admin || u.project.includes("plan-approver"));
 
+const filled = (st: PhotosState) => ({ photos: st.photos ?? {}, posts: st.posts ?? [], ...(st.publicPosts ? { publicPosts: st.publicPosts } : {}) }) as PhotosState;
+
 async function loadState(projectId: string) {
-  const st = await loadProjectState<PhotosState>(projectId, KEY, emptyPhotos);
-  return { photos: st.photos ?? {}, posts: st.posts ?? [], ...(st.publicPosts ? { publicPosts: st.publicPosts } : {}) } as PhotosState;
+  return filled(await loadProjectState<PhotosState>(projectId, KEY, emptyPhotos));
+}
+
+/** Changes the photo record as stored now, with it locked: changes made at the same moment all stay. */
+async function changeState(projectId: string, change: (st: PhotosState) => void) {
+  await updateProjectState<PhotosState, null>(projectId, KEY, emptyPhotos, async (cur) => {
+    const st = filled(cur);
+    change(st);
+    return { data: st, result: null };
+  });
 }
 
 export type PhotoItem = {
@@ -99,10 +109,10 @@ export async function coachNew(code: string, limit = 3, only?: string[]) {
       // Left for next time: a failed call is not a decision about the photo.
     }
   }
-  // Read again before writing: someone may have cleared a photo or saved a post meanwhile.
-  const fresh = await loadState(p.id);
-  for (const [h, m] of Object.entries(done)) fresh.photos[h] = { ...fresh.photos[h], ...m };
-  await saveProjectState(p.id, KEY, fresh);
+  // Written into the record as it is now: someone may have cleared a photo or saved a post meanwhile.
+  await changeState(p.id, (fresh) => {
+    for (const [h, m] of Object.entries(done)) fresh.photos[h] = { ...fresh.photos[h], ...m };
+  });
   return Object.keys(done).length;
 }
 
@@ -215,22 +225,25 @@ export async function photoAction(code: string, u: AppUser, a: PhotoAction): Pro
     if (!i || !inLibrary(i, st.photos[a.hash])) return { error: "Only coached photos of the work, from accepted results, weekly updates or stories, can be shared." };
     const lim = shareLimit(st.photos[a.hash], i.storyUses);
     if (rank(a.level) > rank(lim.max)) return { error: `This photo can go no further than "${SHARE_TEXT[lim.max]}": ${lim.why}` };
-    st.photos[a.hash] = { ...st.photos[a.hash], share: { level: a.level, by: u.id, at: now } };
-    await saveProjectState(p.id, KEY, st);
+    await changeState(p.id, (cur) => {
+      cur.photos[a.hash] = { ...cur.photos[a.hash], share: { level: a.level, by: u.id, at: now } };
+    });
     await log("photo_shared", { hash: a.hash, level: a.level });
     return {};
   }
   if (a.action === "consent") {
     if (!item(a.hash)) return { error: "No such photo on this project." };
-    st.photos[a.hash] = { ...st.photos[a.hash], consent: { ...a.consent, by: u.id, at: now } };
-    await saveProjectState(p.id, KEY, st);
+    await changeState(p.id, (cur) => {
+      cur.photos[a.hash] = { ...cur.photos[a.hash], consent: { ...a.consent, by: u.id, at: now } };
+    });
     await log("photo_consent_recorded", { hash: a.hash, uses: a.consent.uses, how: a.consent.how, date: a.consent.date });
     return {};
   }
   if (a.action === "public-posts") {
     if (!mayDecidePublic(u)) return { error: "Only a programme lead or an administrator decides whether this project posts publicly." };
-    st.publicPosts = { on: a.on, by: u.id, at: now, note: a.note };
-    await saveProjectState(p.id, KEY, st);
+    await changeState(p.id, (cur) => {
+      cur.publicPosts = { on: a.on, by: u.id, at: now, note: a.note };
+    });
     await log("public_posts_set", { on: a.on, note: a.note });
     return {};
   }
@@ -245,35 +258,50 @@ export async function photoAction(code: string, u: AppUser, a: PhotoAction): Pro
     const d = await draftPost(code, st, a.audience, a.photos, a.ask, u.id);
     const sources = [...new Set(a.photos.map((h) => item(h)?.source.id).filter((x): x is string => !!x))];
     const post: Post = { id: randomUUID(), audience: a.audience, photos: a.photos, text: d.text, sources, status: "draft", by: u.id, at: now, model: d.model, checks: d.checks };
-    const fresh = await loadState(p.id);
-    fresh.posts.push(post);
-    await saveProjectState(p.id, KEY, fresh);
+    await changeState(p.id, (cur) => {
+      cur.posts.push(post);
+    });
     await log("post_drafted", { id: post.id, audience: a.audience });
     return {};
   }
   const post = st.posts.find((x) => x.id === a.id);
   if (!post) return { error: "No such post." };
+  // The change to this one post, made on the record as stored now (locked).
+  let edit: (x: Post) => void = () => undefined;
+  let remove = false;
   if (a.action === "edit-post") {
     if (post.status === "sent") return { error: "This post has been sent." };
-    post.text = a.text;
-    post.status = "draft";
-    delete post.approved;
+    edit = (x) => {
+      x.text = a.text;
+      x.status = "draft";
+      delete x.approved;
+    };
   } else if (a.action === "approve-post") {
     if (post.status !== "draft") return { error: "Only a draft can be approved." };
     if (PUBLIC_AUDIENCES.includes(post.audience) && !st.publicPosts?.on) return { error: "Public posts are off for this project." };
     const need = needs(post.audience);
     for (const h of post.photos) if (rank(cleared(st.photos[h], item(h)?.storyUses ?? [])) < rank(need)) return { error: `A photo in this post is no longer cleared for "${SHARE_TEXT[need]}".` };
-    post.status = "approved";
-    post.approved = { by: u.id, at: now };
+    edit = (x) => {
+      x.status = "approved";
+      x.approved = { by: u.id, at: now };
+    };
   } else if (a.action === "sent-post") {
     if (post.status !== "approved") return { error: "Approve it before marking it sent." };
-    post.status = "sent";
-    post.sent = { by: u.id, at: now, where: a.where };
+    edit = (x) => {
+      x.status = "sent";
+      x.sent = { by: u.id, at: now, where: a.where };
+    };
   } else {
     if (post.status === "sent") return { error: "A sent post stays on the record." };
-    st.posts = st.posts.filter((x) => x.id !== a.id);
+    remove = true;
   }
-  await saveProjectState(p.id, KEY, st);
+  await changeState(p.id, (cur) => {
+    if (remove) cur.posts = cur.posts.filter((x) => x.id !== a.id);
+    else {
+      const x = cur.posts.find((y) => y.id === a.id);
+      if (x) edit(x);
+    }
+  });
   await log(`post_${a.action.replace("-post", "")}`, { id: a.id, audience: post.audience });
   return {};
 }

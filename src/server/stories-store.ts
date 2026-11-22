@@ -6,7 +6,9 @@ import { reportBlock, type Story, type StoryAction } from "@/lib/stories";
 import { draftStructured } from "@/server/ai-structured";
 import { scrubbed } from "@/server/ai";
 import { logAudit } from "@/server/audit";
-import { projectByCode } from "@/server/field-store";
+import { loadField, projectByCode } from "@/server/field-store";
+import { hideName, type Farmer } from "@/lib/field";
+import { docNamesPerson } from "@/lib/doc-links";
 import { aiAllowed } from "@/server/limits";
 import { loadProjectState, updateProjectState } from "@/server/project-state";
 import { loadQpr, saveQpr } from "@/server/qpr-store";
@@ -71,6 +73,34 @@ export async function storyAction(code: string, u: AppUser, a: StoryAction): Pro
     const s: Story = { ...a.story, id: randomUUID(), status: "draft", by: u.id, at: now };
     list.push(s);
     await save({ story: s.id, title: s.title }, "story_added");
+    return { id: s.id };
+  }
+  if (a.action === "from-farmer") {
+    const have = list.find((x) => x.farmer?.id === a.farmer && x.farmer.story === a.story);
+    if (have) return { id: have.id };
+    // Read as this person may see it; the name is then hidden for everyone, as the privacy rules ask:
+    // a first name goes in only with the person's consent, typed by whoever records it.
+    const f = (await loadField(code, u)).items.find((i): i is Farmer => i.kind === "farmer" && i.id === a.farmer);
+    const from = f?.stories.find((x) => x.id === a.story);
+    if (!f || !from) return { error: "That story is not on the farmer's profile yet. Wait for it to save, then try again." };
+    const hide = (t: string) => (f.name ? hideName(t, f.name, f.id) : t);
+    const s: Story = {
+      title: hide(from.title).slice(0, 140),
+      notes: hide(from.text).slice(0, 6000),
+      text: "",
+      woman: f.gender === "Female",
+      photos: [],
+      consent: null,
+      links: [],
+      docs: (from.docs ?? []).filter((d) => !f.name || !docNamesPerson(d.url, f.name)).map((d) => ({ ...d, title: hide(d.title) })),
+      farmer: { id: f.id, story: from.id },
+      id: randomUUID(),
+      status: "draft",
+      by: u.id,
+      at: now,
+    };
+    list.push(s);
+    await save({ story: s.id, title: s.title, farmer: f.id }, "story_added");
     return { id: s.id };
   }
   const s = find(a.id);

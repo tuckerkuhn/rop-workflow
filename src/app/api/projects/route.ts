@@ -5,7 +5,7 @@ import { onProject, requireViewer } from "@/server/auth";
 import { audit, handle } from "@/server/guard";
 import { handRecordedCounts } from "@/server/kobo-fed";
 import { orgIdForPerson, sampleOf } from "@/server/org-settings-store";
-import { createProject, listProjects } from "@/server/project-store";
+import { createProject, listProjects, projectsFundedBy } from "@/server/project-store";
 import { projectsWithField } from "@/server/field-store";
 
 /** Projects in the database, for the project picker. */
@@ -18,7 +18,9 @@ export async function GET(req: Request) {
     // The sample (C5): this organization's own, unless an administrator has hid it.
     const orgId = await orgIdForPerson(v.user.id);
     const sample = orgId ? await sampleOf(orgId) : null;
-    const shown = (p: { code: string; kind: string }) => p.kind !== "sample" || (!!sample && !sample.hidden && sample.code === p.code);
+    // A donor sees only the projects their organization funds: never the training sample or anyone else's grant.
+    const funded = v.user.kind === "donor" ? await projectsFundedBy(v.user.org) : null;
+    const shown = (p: { code: string; kind: string }) => (funded ? funded.has(p.code) : p.kind !== "sample" || (!!sample && !sample.hidden && sample.code === p.code));
     return NextResponse.json({ projects: (await listProjects({ all: true })).filter((p) => shown(p) && onProject(v.user, p.code)).map((p) => ({ ...p, handRecorded: hand.get(p.code) ?? 0, field: withField.has(p.code) })) });
   });
 }

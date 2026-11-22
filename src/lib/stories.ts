@@ -28,6 +28,8 @@ export const storyInputSchema = z.object({
   links: z.array(z.string().uuid()).max(20),
   /** Where the write-up, interview recording or consent scan lives (SharePoint, Google Drive...). */
   docs: docLinksSchema.optional(),
+  /** The farmer and the story on their profile this one was written up from (Field activities). */
+  farmer: z.object({ id: z.string().max(20), story: z.string().max(60) }).optional(),
 });
 export type StoryInput = z.infer<typeof storyInputSchema>;
 export type Story = StoryInput & { id: string; status: "draft" | "approved"; by: string; at: string; approved?: { by: string; at: string }; drafted?: { model: string; at: string }; questions?: string[] };
@@ -39,6 +41,8 @@ export const storyActionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("unapprove"), id: z.string().uuid(), reason: z.string().trim().min(5).max(300) }),
   z.object({ action: z.literal("remove"), id: z.string().uuid() }),
   z.object({ action: z.literal("to-report"), id: z.string().uuid(), quarter: z.string().regex(/^\d{4}-Q[1-4]$/) }),
+  /** A story on a farmer's profile, as a draft here: the same draft every time it is asked for. */
+  z.object({ action: z.literal("from-farmer"), farmer: z.string().max(20), story: z.string().max(60) }),
 ]);
 export type StoryAction = z.infer<typeof storyActionSchema>;
 

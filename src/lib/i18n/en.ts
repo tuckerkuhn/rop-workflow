@@ -241,6 +241,8 @@ export const en = {
   "stage.moved": "Moved to {stage} by {name} on {date}",
 
   "home.greeting": "Salaam, {name}",
+  /** A donor is greeted in plain English: "Salaam" is the team's own greeting. */
+  "home.greetingDonor": "Welcome, {name}",
   "home.thisWeek": "This week",
   "home.overdue": "Overdue",
   "home.dueSoon": "Due in the next 7 days",
