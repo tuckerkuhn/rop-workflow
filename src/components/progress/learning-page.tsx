@@ -1,7 +1,7 @@
 "use client";
 
+import { PlaceTabs, REVIEW_TABS } from "@/components/progress/report-checks";
 import { plainError } from "@/lib/plain-error";
-import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser, useSession } from "@/components/app/session";
@@ -181,10 +181,8 @@ export function LearningPage() {
     <div className="min-h-screen">
       <TopBar />
       <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-        <Link href="/progress" className="text-sm text-muted hover:text-ink">
-          ← Progress
-        </Link>
-        <h1 className="mt-2 font-display text-4xl tracking-tight">Lessons and close-out</h1>
+        <PlaceTabs label="Monthly review" here="/progress/learning" tabs={REVIEW_TABS} />
+        <h1 className="mt-4 font-display text-4xl tracking-tight">Lessons and close-out</h1>
         {error && (
           <p role="alert" className="mt-3 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">
             {error}

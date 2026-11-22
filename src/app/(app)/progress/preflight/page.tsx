@@ -1,16 +1,10 @@
-import type { Metadata } from "next";
-import { Suspense } from "react";
-import { PreflightPage } from "@/components/progress/preflight-page";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = {
-  title: "Pre-flight · ROP Workflow",
-  description: "Everything that stands between a report and the donor, before it is downloaded or released.",
-};
-
-export default function Page() {
-  return (
-    <Suspense>
-      <PreflightPage />
-    </Suspense>
-  );
+/** The report check now sits on each report. Old links land on the right report, at its check. */
+export default async function Page({ searchParams }: { searchParams: Promise<{ report?: string; period?: string }> }) {
+  const { report, period } = await searchParams;
+  const p = period ?? "";
+  if (report === "annual") redirect(`/progress/annual${/^\d{4}$/.test(p) ? `?year=${p}` : ""}#checks`);
+  if (report === "face") redirect(`/progress/face${/^\d{4}-\d{2}$/.test(p) ? `?month=${p}` : ""}#checks`);
+  redirect(`/progress/report${/^\d{4}-Q[1-4]$/.test(p) ? `?q=${p}` : ""}#checks`);
 }

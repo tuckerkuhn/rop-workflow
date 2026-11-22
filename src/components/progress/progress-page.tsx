@@ -4,6 +4,7 @@ import { Arrow } from "@/components/app/arrow";
 import Link from "next/link";
 import { THEMES, THEME_LABEL, type ImpactTheme } from "@/lib/indicator-library";
 import { ProgressSummaryPanel } from "@/components/progress/progress-summary";
+import { ReportCalendar } from "@/components/progress/report-calendar";
 import { IndicatorTable } from "@/components/progress/indicator-table";
 import { today as todayIso } from "@/lib/clock";
 import { targetGroups } from "@/lib/framework";
@@ -170,14 +171,16 @@ export function ProgressPage() {
           </>
         )}
 
+        {staff && <ReportCalendar />}
+
         {staff && (
           <p className="mt-10 flex flex-wrap gap-x-6 gap-y-2 border-t border-line pt-4 text-sm">
             <span className="grid w-full gap-4 sm:grid-cols-3">
               {(
                 [
-                  ["Steer the work", [["/progress/review", "Monthly review"], ["/progress/budget", t("nav.budget")], ["/progress/framework", "Results framework"], ["/progress/targets", t("td.title")], ["/setup/lens", "AI review of the plan"]]],
-                  ["Prove it", [["/progress/results", "Results and proof"], ["/progress/records", t("progress.records")], ["/progress/audit", "Audit trail"]]],
-                  ["Report and learn", [["/progress/weekly", "Weekly update"], ["/progress/report", "Quarterly report"], ["/progress/annual", "Annual and final reports"], ["/progress/learning", "Lessons and close-out"]]],
+                  ["Gather and prove", [["/progress/weekly", "Weekly update"], ["/progress/results", "Results and proof"], ["/progress/stories", t("nav.storiesPhotos")], ["/progress/feedback", t("nav.feedback")], ["/progress/budget", t("nav.budget")]]],
+                  ["Review and report", [["/progress/review", "Monthly review and lessons"], ["/progress/report", "Reports to the donor"], ["/progress/audit", "Audit trail"]]],
+                  ["Set up", [["/progress/framework", "Results framework and targets"], ["/setup/lens", "AI review of the plan"], ["/progress/records", t("progress.records")]]],
                 ] as [string, [string, string][]][]
               ).map(([head, links]) => (
                 <span key={head} className="flex flex-col items-start gap-1.5">

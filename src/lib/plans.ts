@@ -12,8 +12,10 @@ export const isPlan = (v: unknown): v is Plan => typeof v === "string" && (PLANS
  * Project design. The basic market-window calendar, validation and target choice stay free.
  * full_photos: farmer photos at normal phone quality. The free plan keeps a small copy, enough to
  * verify the work, so storage stays low.
+ * social_posts: drafting posts for donors and social media from the photo library. The library,
+ * photo tips and consent stay free: photos are proof for results and reports.
  */
-export const PAID_FEATURES = ["timeline", "ai_assistant", "market_intelligence", "custom_agents", "full_photos"] as const;
+export const PAID_FEATURES = ["timeline", "ai_assistant", "market_intelligence", "custom_agents", "full_photos", "social_posts"] as const;
 export type Feature = (typeof PAID_FEATURES)[number];
 
 export const hasFeature = (plan: Plan, feature: Feature) => plan === "paid" || !(PAID_FEATURES as readonly string[]).includes(feature);

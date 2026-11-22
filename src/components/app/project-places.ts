@@ -16,7 +16,8 @@ import { acrossProjectsFor } from "@/lib/org-areas";
  * so the two never disagree. Staff only: a donor's Projects tab opens Progress directly.
  */
 
-export type Place = { href: string; label: MessageKey; source?: string; exact?: boolean };
+/** `also`: other addresses that are the same place (the three donor reports are one place, Reports). */
+export type Place = { href: string; label: MessageKey; source?: string; exact?: boolean; also?: string[] };
 export type PlaceGroup = { id: "work" | "progress" | "reports" | "setup" | "across"; label: MessageKey; places: Place[] };
 
 const ACROSS_LABEL: Record<string, MessageKey> = { portfolio: "nav.allProjects", opportunities: "nav.opportunities", proposals: "nav.proposals" };
@@ -38,24 +39,25 @@ export function useProjectPlaces(): PlaceGroup[] {
       id: "progress",
       label: "hub.progress",
       places: [
+        // What happened and the proof of it, in the order it is gathered.
         { href: "/progress", label: "nav.overview", exact: true },
+        { href: "/progress/weekly", label: "nav.weekly" },
         { href: "/progress/results", label: "nav.results" },
-        { href: "/progress/review", label: "nav.review" },
+        { href: "/progress/stories", label: "nav.storiesPhotos", also: ["/progress/photos"] },
+        { href: "/progress/feedback", label: "nav.feedback" },
         { href: "/progress/budget", label: "nav.budget" },
-        // Shown to the people the server lets read it: plan approvers, report release, monthly review, MEL and administrators.
-        ...(mayViewAudit(user) ? [{ href: "/progress/audit", label: "nav.audit" } as Place] : []),
       ],
     },
     {
+      // What management decides from it and what goes to the donor.
       id: "reports",
-      label: "hub.reports",
+      label: "hub.reviewReport",
       places: [
-        { href: "/progress/weekly", label: "nav.weekly" },
-        { href: "/progress/report", label: "nav.quarterly" },
-        { href: "/progress/annual", label: "nav.annual" },
-        { href: "/progress/stories", label: "nav.stories" },
-        { href: "/progress/photos", label: "nav.photos" },
-        { href: "/progress/face", label: "nav.face" },
+        { href: "/progress/review", label: "nav.review", also: ["/progress/learning"] },
+        // Quarterly, annual and final, and the funding request: one place, with its check on the page.
+        { href: "/progress/report", label: "hub.reports", also: ["/progress/annual", "/progress/face", "/progress/preflight"] },
+        // Shown to the people the server lets read it: plan approvers, report release, monthly review, MEL and administrators.
+        ...(mayViewAudit(user) ? [{ href: "/progress/audit", label: "nav.audit" } as Place] : []),
       ],
     },
   ];
@@ -66,8 +68,7 @@ export function useProjectPlaces(): PlaceGroup[] {
       label: "hub.setup",
       places: [
         { href: "/setup", label: "setup.editTitle" },
-        { href: "/progress/framework", label: "nav.framework" },
-        { href: "/progress/targets", label: "td.title" },
+        { href: "/progress/framework", label: "nav.framework", also: ["/progress/targets"] },
         { href: "/settings", label: "home.settings", exact: true },
         { href: "/settings/policy", label: "nav.rules" },
         { href: "/design", label: "setup.marketLink" },
@@ -81,5 +82,5 @@ export function useProjectPlaces(): PlaceGroup[] {
 export function placeIsOpen(pl: Place, path: string, source: string | null) {
   if (pl.source) return path === "/work" && source === pl.source;
   if (pl.exact) return path === pl.href && !(pl.href === "/work" && source);
-  return path === pl.href || path.startsWith(`${pl.href}/`);
+  return [pl.href, ...(pl.also ?? [])].some((h) => path === h || path.startsWith(`${h}/`));
 }

@@ -1,3 +1,5 @@
+import { hasFeature } from "@/lib/plans";
+import { planFor } from "@/server/plans";
 import { after, NextResponse } from "next/server";
 import { photoActionSchema } from "@/lib/photos";
 import { requireViewer } from "@/server/auth";
@@ -26,6 +28,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
     if (v instanceof NextResponse) return v;
     const parsed = photoActionSchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Check the form." }, { status: 400 });
+    if (parsed.data.action === "draft-post" && !hasFeature(await planFor(v), "social_posts")) return NextResponse.json({ error: "Drafting posts is part of the paid plan." }, { status: 402 });
     try {
       const out = await photoAction(code, v.user, parsed.data);
       if (out.error) return NextResponse.json({ error: out.error }, { status: 400 });

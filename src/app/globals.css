@@ -87,10 +87,21 @@
   --color-deep: var(--deep);
   --color-deep-ink: var(--deep-ink);
   --font-sans: var(--font-inter);
-  --font-display: var(--font-fraunces);
+  /* Headings in the ledger's narrow face, bold (see .font-display below); Fraunces is no longer used for them. */
+  --font-display: var(--font-archivo), var(--font-inter), sans-serif;
   --font-mono: var(--font-jetbrains);
   --font-bands: var(--font-jakarta), var(--font-inter), sans-serif;
   --font-ledger: var(--font-archivo), var(--font-inter), sans-serif;
+  /* Square by design: every card, field and panel has a ruled edge, not a soft one. Round stays for
+     people's initials, status dots and the phone's + button (rounded-full). */
+  --radius-xs: 0.125rem;
+  --radius-sm: 0.125rem;
+  --radius-md: 0.125rem;
+  --radius-lg: 0.125rem;
+  --radius-xl: 0.125rem;
+  --radius-2xl: 0.125rem;
+  --radius-3xl: 0.125rem;
+  --radius-4xl: 0.125rem;
 }
 
 html {
@@ -225,4 +236,13 @@ table {
  */
 :root[dir="rtl"] :where(p, h1, h2, h3, h4, li, label, dt, dd, td, th, legend, summary, button, option, span, a) {
   unicode-bidi: plaintext;
+}
+
+/* Page and section headings: the ledger's narrow face reads thin at normal weight, so it is bold
+   unless a screen asks for another weight. */
+@layer base {
+  .font-display {
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
 }

@@ -23,6 +23,10 @@ export function describeAudit(entity: string, action: string, d: D): string {
       return `Added proof to the ${str(d.indicator)} result of ${str(d.date)}: ${[...((d.files as string[]) ?? []), ...((d.links as { title: string }[]) ?? []).map((l) => l.title)].join("; ")}`;
     case "update_added":
       return `Activity update for ${str(d.activity)} on ${str(d.date)}`;
+    case "feedback_recorded":
+      return `Recorded a ${str(d.kind)} from a ${str(d.from)} in the feedback log${d.serious ? " (a serious matter)" : ""}`;
+    case "feedback_answered":
+      return "Recorded the answer to an entry in the feedback log";
     case "qpr_released":
       return `Released the ${str(d.quarter)} quarterly report`;
     case "qpr_ai_drafted":

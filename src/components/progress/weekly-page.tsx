@@ -1,5 +1,6 @@
 "use client";
 
+import { Why } from "@/components/app/why";
 import { userById } from "@/lib/demo";
 import { plainError } from "@/lib/plain-error";
 import { askConfirm } from "@/components/app/dialogs";
@@ -455,6 +456,7 @@ export function WeeklyPage() {
           {w && <Pill tone={w.sent ? "forest" : w.saved ? "ochre" : "muted"}>{w.sent ? "Sent" : w.saved ? "Open" : "Not started"}</Pill>}
         </div>
         <p className="mt-1 text-sm text-muted">What happened this week, activity by activity, with dated photos. Download it for Word and send it as now; the quarterly report uses the same items and photos.</p>
+        <Why>A week written down the week it happened is evidence. The same week remembered three months later, when the report is due, is a guess.</Why>
         {!project.saved && <p className="mt-6 text-sm text-muted">Choose a project first.</p>}
         {offline && <p className="mt-4 rounded-xl bg-ochre-soft px-4 py-3 text-sm">No connection. You can add items to this week; they wait on this phone and are sent when the connection is back. The week&rsquo;s other items show once you are online.</p>}
         {error && <p className="mt-4 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">{error}</p>}

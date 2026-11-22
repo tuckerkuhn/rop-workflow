@@ -1,3 +1,5 @@
+import { loadProjectState } from "@/server/project-state";
+import { ANSWER_DAYS, EMPTY_FEEDBACK, overdue, type FeedbackLog } from "@/lib/feedback";
 import { openClaims, overspentLines, SECTIONS } from "@/lib/qpr";
 import { addDays, deadlineFor, type Deadline, type Preflight, type PreflightItem, type ReadyItem, type ReportRef } from "@/lib/preflight";
 import { proofCount, quarterOf, quarterRange, type ResultRecord } from "@/lib/results";
@@ -136,6 +138,11 @@ async function qpr(c: Ctx, quarter: string): Promise<Omit<Preflight, "items" | "
     if (weekly.weeks.length && (!last || !last.sent)) add(c, { group: "fix", owner: "field", text: `Last week's weekly update (${lastWeek.from} to ${lastWeek.to}) ${last ? "is not marked sent" : "was not written"}`, key: last ? "pf.c.lastWeekUnsent" : "pf.c.lastWeekMissing", vars: { from: lastWeek.from, to: lastWeek.to }, href: `/progress/weekly?from=${last?.from ?? lastWeek.from}` });
     if (!find(thisWeek) && today <= thisWeek.to) add(c, { group: "fix", owner: "field", text: "This week's weekly update is not started", key: "pf.c.thisWeek", href: "/progress/weekly" });
   }
+
+  // Complaints and questions left without an answer: a donor asks how they were handled.
+  const log = await loadProjectState<FeedbackLog>((await projectByCode(c.code)).id, "feedback", EMPTY_FEEDBACK);
+  const late = log.entries.filter((e) => e.date <= to && overdue(e, today)).length;
+  if (late) add(c, { group: "fix", owner: "lead", text: `${n(late, "complaint or question has", "complaints or questions have")} waited more than ${ANSWER_DAYS} days for an answer`, key: "pf.c.feedbackLate", vars: { n: late, days: ANSWER_DAYS }, href: "/progress/feedback" });
 
   return {
     report: { kind: "qpr", quarter },

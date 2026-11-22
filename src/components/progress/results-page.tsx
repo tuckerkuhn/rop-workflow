@@ -1,5 +1,6 @@
 "use client";
 
+import { Why } from "@/components/app/why";
 import { unitOf } from "@/lib/package";
 import { plainError } from "@/lib/plain-error";
 import { askConfirm } from "@/components/app/dialogs";
@@ -142,6 +143,7 @@ export function ResultsPage() {
           Record each result with the attendance sheet, photos or verification report that proves it. MEL (the monitoring, evaluation and learning team) checks it; once accepted it counts in Progress and in the donor report, and every figure there
           opens these records.
         </p>
+        <Why>A donor pays for results it can check. A figure with no attendance sheet, photo or report behind it is the first thing an auditor questions, and a questioned figure can mean money paid back.</Why>
         <p className="mt-2 flex gap-4 text-sm">
           <Link href="/progress" className="font-semibold text-forest hover:underline">
             Progress and report

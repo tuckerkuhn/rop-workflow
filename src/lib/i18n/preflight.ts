@@ -51,6 +51,7 @@ export const pfEn = {
   "pf.c.lastWeekUnsent": "Last week's weekly update ({from} to {to}) is not marked sent",
   "pf.c.lastWeekMissing": "Last week's weekly update ({from} to {to}) was not written",
   "pf.c.thisWeek": "This week's weekly update is not started",
+  "pf.c.feedbackLate": "{n} complaints or questions have waited more than {days} days for an answer",
   "pf.c.claims": "Sentences the claim check questioned against the evidence: {n}",
   "pf.c.claimsNotRun": "The text has not been checked against the evidence yet (claim check)",
   "pf.c.quarterOpen": "The {q} quarterly report is not released, so its text and figures are not final",

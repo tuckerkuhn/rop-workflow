@@ -1,5 +1,6 @@
 "use client";
 
+import { Why } from "@/components/app/why";
 import Link from "next/link";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useT } from "@/components/app/i18n";
@@ -60,6 +61,7 @@ export function BudgetPage() {
       <TopBar />
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
         <h1 className="font-display text-4xl tracking-tight">{t("nav.budget")}</h1>
+        <Why>The budget in the agreement is a promise, line by line. Spending well over a line without the donor&rsquo;s written agreement can be refused at audit, even when the project as a whole is under budget.</Why>
         {!project.saved ? (
           <p className="mt-6 rounded-xl bg-sunken px-4 py-3 text-sm text-muted">This demo project is kept in this browser only; its budget is on the project page.</p>
         ) : error ? (

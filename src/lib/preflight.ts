@@ -85,7 +85,8 @@ export function parseReport(kind: string | null, period: string | null): ReportR
   return null;
 }
 export const periodOf = (r: ReportRef) => (r.kind === "qpr" ? r.quarter : r.kind === "annual" ? String(r.year) : r.month);
-export const preflightHref = (r: ReportRef) => `/progress/preflight?report=${r.kind}&period=${periodOf(r)}`;
+/** Where a report's check is: on the report itself, at #checks. */
+export const preflightHref = (r: ReportRef) => (r.kind === "qpr" ? `/progress/report?q=${r.quarter}#checks` : r.kind === "annual" ? `/progress/annual?year=${periodOf(r)}#checks` : `/progress/face?month=${periodOf(r)}#checks`);
 
 /** The mark on a file downloaded before pre-flight is clear. */
 /** What `beforeDownload` returns when pre-flight could not be read at all: the file is still marked a draft. */

@@ -1,10 +1,10 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element -- photos come from the app's own store as blob URLs */
-import Link from "next/link";
+import { EVIDENCE_TABS, PlaceTabs } from "@/components/progress/report-checks";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
-import { useRequireUser, useSession } from "@/components/app/session";
+import { useFeature, useRequireUser, useSession } from "@/components/app/session";
 import { Pill, TopBar, primaryBtn, quietBtn, Loading, StatusPill } from "@/components/workspace/ui";
 import { AUDIENCES, AUDIENCE_TEXT, LABEL_TEXT, PUBLIC_AUDIENCES, SHARE, SHARE_TEXT, needs, rank, type Audience, type PhotoAction, type PhotoLabel, type Share } from "@/lib/photos";
 import { CONSENT_HOW, CONSENT_USES, HOW_LABEL, USE_LABEL } from "@/lib/stories";
@@ -233,6 +233,7 @@ function PostCard({ p, v, user, act }: { p: View["posts"][number]; v: View; user
 export function PhotosPage() {
   const { user } = useRequireUser();
   const { ready } = useSession();
+  const posts = useFeature("social_posts");
   const { project } = useCurrentProject();
   const [v, setV] = useState<View | null>(null);
   const [error, setError] = useState("");
@@ -294,10 +295,8 @@ export function PhotosPage() {
     <div className="min-h-screen">
       <TopBar />
       <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
-        <Link href="/progress/report" className="text-sm text-muted hover:text-ink">
-          ← Report
-        </Link>
-        <h1 className="mt-2 font-display text-4xl tracking-tight">Photos and posts</h1>
+        <PlaceTabs label="Stories and photos" here="/progress/photos" tabs={EVIDENCE_TABS} />
+        <h1 className="mt-4 font-display text-4xl tracking-tight">Photos and posts</h1>
         <p className="mt-1 max-w-2xl text-sm text-muted">Tips on every photo you take for the project, and for communications: the best photos, what each may be used for, and posts for donors, traders, social media, the newsletter and the website. Nothing is posted by the app; a person approves and sends each one.</p>
         {error && <p className="mt-4 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">{error}</p>}
         {notice && <p className="mt-4 rounded-xl bg-mist px-4 py-3 text-sm text-leaf">{notice}</p>}
@@ -362,66 +361,74 @@ export function PhotosPage() {
 
         {v?.may.comms && (
           <>
-            <section className="mt-4 rounded-2xl border border-line bg-surface p-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="min-w-0 flex-1 text-xl font-semibold">Public social media for this project</h2>
-                <Pill tone={v.publicPosts?.on ? "forest" : "ochre"}>{v.publicPosts?.on ? "On" : "Off"}</Pill>
-              </div>
-              <p className="mt-1 text-sm text-muted">
-                {v.publicPosts ? `${v.publicPosts.on ? "Turned on" : "Turned off"} by ${v.publicPosts.by} on ${v.publicPosts.at.slice(0, 10)}: ${v.publicPosts.note}` : "Off until a programme lead checks the donor's visibility agreement. Donor, trader, newsletter and website drafts work either way."}
-              </p>
-              {v.may.decidePublic && (
-                <div className="mt-2 flex flex-wrap gap-2">
-                  <input className="min-w-0 flex-1 rounded-xl border border-line bg-paper px-3 py-2 text-sm" placeholder="Why (e.g. UNDP visibility guidance allows ROP posts)" value={publicNote} onChange={(e) => setPublicNote(e.target.value)} />
-                  <button type="button" className={quietBtn} disabled={busy || publicNote.trim().length < 5} onClick={() => void act({ action: "public-posts", on: !v.publicPosts?.on, note: publicNote }, "Saved.")}>
-                    {v.publicPosts?.on ? "Turn off" : "Turn on"}
-                  </button>
+            {posts ? (
+              <>
+              <section className="mt-4 rounded-2xl border border-line bg-surface p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="min-w-0 flex-1 text-xl font-semibold">Public social media for this project</h2>
+                  <Pill tone={v.publicPosts?.on ? "forest" : "ochre"}>{v.publicPosts?.on ? "On" : "Off"}</Pill>
                 </div>
-              )}
-            </section>
-
-            <section className="mt-4 rounded-2xl border border-forest/40 bg-mist p-4">
-              <h2 className="text-xl font-semibold">Draft a post</h2>
-              <div className="mt-2 grid gap-3 sm:grid-cols-[14rem_1fr]">
-                <label className="text-sm">
-                  For
-                  <select className={input} value={audience} onChange={(e) => setAudience(e.target.value as Audience)}>
-                    {AUDIENCES.map((a) => (
-                      <option key={a} value={a}>
-                        {AUDIENCE_TEXT[a]}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="text-sm">
-                  Anything to stress (optional)
-                  <input className={input} value={ask} onChange={(e) => setAsk(e.target.value)} placeholder="e.g. the women-led greenhouses; the harvest is ready in December" />
-                </label>
-              </div>
-              <p className="mt-2 text-sm">
-                {picked.length} photo{picked.length === 1 ? "" : "s"} picked. {blocked}
-              </p>
-              <button
-                type="button"
-                className={`${primaryBtn} mt-2`}
-                disabled={busy || !!blocked || !v.may.ai}
-                onClick={async () => {
-                  if (await act({ action: "draft-post", audience, photos: picked, ...(ask.trim() ? { ask: ask.trim() } : {}) }, "Drafted. Check it against the records, then approve.")) setPicked([]);
-                }}
-              >
-                {busy ? "Drafting…" : "Draft with Claude"}
-              </button>
-            </section>
-
-            {v.posts.length > 0 && (
-              <section className="mt-4">
-                <h2 className="text-xl font-semibold">Posts</h2>
-                <ul className="mt-2 space-y-3">
-                  {v.posts.map((p) => (
-                    <PostCard key={p.id} p={p} v={v} user={user.id} act={act} />
-                  ))}
-                </ul>
+                <p className="mt-1 text-sm text-muted">
+                  {v.publicPosts ? `${v.publicPosts.on ? "Turned on" : "Turned off"} by ${v.publicPosts.by} on ${v.publicPosts.at.slice(0, 10)}: ${v.publicPosts.note}` : "Off until a programme lead checks the donor's visibility agreement. Donor, trader, newsletter and website drafts work either way."}
+                </p>
+                {v.may.decidePublic && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <input className="min-w-0 flex-1 rounded-xl border border-line bg-paper px-3 py-2 text-sm" placeholder="Why (e.g. UNDP visibility guidance allows ROP posts)" value={publicNote} onChange={(e) => setPublicNote(e.target.value)} />
+                    <button type="button" className={quietBtn} disabled={busy || publicNote.trim().length < 5} onClick={() => void act({ action: "public-posts", on: !v.publicPosts?.on, note: publicNote }, "Saved.")}>
+                      {v.publicPosts?.on ? "Turn off" : "Turn on"}
+                    </button>
+                  </div>
+                )}
               </section>
+
+              <section className="mt-4 rounded-2xl border border-forest/40 bg-mist p-4">
+                <h2 className="text-xl font-semibold">Draft a post</h2>
+                <div className="mt-2 grid gap-3 sm:grid-cols-[14rem_1fr]">
+                  <label className="text-sm">
+                    For
+                    <select className={input} value={audience} onChange={(e) => setAudience(e.target.value as Audience)}>
+                      {AUDIENCES.map((a) => (
+                        <option key={a} value={a}>
+                          {AUDIENCE_TEXT[a]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="text-sm">
+                    Anything to stress (optional)
+                    <input className={input} value={ask} onChange={(e) => setAsk(e.target.value)} placeholder="e.g. the women-led greenhouses; the harvest is ready in December" />
+                  </label>
+                </div>
+                <p className="mt-2 text-sm">
+                  {picked.length} photo{picked.length === 1 ? "" : "s"} picked. {blocked}
+                </p>
+                <button
+                  type="button"
+                  className={`${primaryBtn} mt-2`}
+                  disabled={busy || !!blocked || !v.may.ai}
+                  onClick={async () => {
+                    if (await act({ action: "draft-post", audience, photos: picked, ...(ask.trim() ? { ask: ask.trim() } : {}) }, "Drafted. Check it against the records, then approve.")) setPicked([]);
+                  }}
+                >
+                  {busy ? "Drafting…" : "Draft with Claude"}
+                </button>
+              </section>
+
+              {v.posts.length > 0 && (
+                <section className="mt-4">
+                  <h2 className="text-xl font-semibold">Posts</h2>
+                  <ul className="mt-2 space-y-3">
+                    {v.posts.map((p) => (
+                      <PostCard key={p.id} p={p} v={v} user={user.id} act={act} />
+                    ))}
+                  </ul>
+                </section>
+              )}
+              </>
+            ) : (
+              <p className="mt-4 border-s-[6px] border-ochre bg-ochre-soft px-3 py-2 text-sm">
+                Drafting posts for donors and social media from these photos is part of the paid plan. Every photo below still counts as proof and can go into a report.
+              </p>
             )}
 
             <section className="mt-6">

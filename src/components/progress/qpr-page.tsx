@@ -18,6 +18,7 @@ import { ClaimCheckPanel } from "@/components/progress/claim-check";
 import { ReportDownloads } from "@/components/progress/downloads";
 import { SpreadsheetImport } from "@/components/progress/spend-map";
 import { beforeDownload, PreflightButton, usePreflight } from "@/components/progress/preflight-page";
+import { ReportChecks, ReportKinds } from "@/components/progress/report-checks";
 import { MoneySourceLink, ProofNumber } from "@/components/progress/proof-panel";
 import { useT } from "@/components/app/i18n";
 import { personName } from "@/lib/project";
@@ -207,7 +208,8 @@ export function QprPage() {
     <div className="min-h-screen">
       <TopBar />
       <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-warn">{project.name}</p>
+        <ReportKinds kind="qpr" />
+        <p className="mt-4 text-xs font-semibold uppercase tracking-[0.16em] text-warn">{project.name}</p>
         <div className="mt-1 flex flex-wrap items-end justify-between gap-3">
           <h1 className="font-display text-3xl tracking-tight">Quarterly progress report</h1>
           <label className="text-sm">
@@ -222,6 +224,7 @@ export function QprPage() {
         <p className="mt-1 max-w-2xl text-sm text-muted">
           {from} to {to}. Figures come from results MEL has accepted, and each one opens the records and proof behind it. Write or draft the text, fix what the checks list, then download it for Word.
         </p>
+        <ReportChecks p={pf} />
         <p className="mt-3 rounded-xl bg-sunken px-4 py-3 text-sm font-semibold">
           {quarter === nowQ ? (
             underWay ? t("rp.quarterNow", { q: qLabel(quarter), to }) : t("rp.quarterDue", { q: qLabel(quarter), from, to })
@@ -313,7 +316,7 @@ export function QprPage() {
             {v.mayRelease && !v.frozen && !v.saved.released && Math.max(blocking, stops.length) > 0 && (
               <p className="mt-3 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">
                 {Math.max(blocking, stops.length) === 1 ? t("report.blockedOne") : t("report.blocked", { n: Math.max(blocking, stops.length) })}{" "}
-                <Link href={`/progress/preflight?report=qpr&period=${quarter}`} className="font-semibold underline">
+                <Link href="#checks" className="font-semibold underline">
                   {t("pf.button")}
                 </Link>
               </p>

@@ -1,10 +1,10 @@
 "use client";
 
 import { plainError } from "@/lib/plain-error";
-import Link from "next/link";
 import { MoneySourceLink } from "@/components/progress/proof-panel";
 import { useT } from "@/components/app/i18n";
 import { beforeDownload, PreflightButton, usePreflight } from "@/components/progress/preflight-page";
+import { ReportChecks, ReportKinds } from "@/components/progress/report-checks";
 import { useCallback, useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser, useSession } from "@/components/app/session";
@@ -66,7 +66,9 @@ export function FacePage() {
     [user, url],
   );
   useEffect(() => {
-    if (ready && user && project.saved) void load("");
+    if (!ready || !user || !project.saved) return;
+    const m = new URLSearchParams(window.location.search).get("month") ?? "";
+    void load(/^\d{4}-\d{2}$/.test(m) ? m : "");
   }, [ready, user, project.saved, load]);
   const { t } = useT();
   const pf = usePreflight(project.id, user?.id, /^\d{4}-\d{2}$/.test(month) ? { kind: "face", month } : null, v);
@@ -92,10 +94,8 @@ export function FacePage() {
     <div className="min-h-screen">
       <TopBar />
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
-        <Link href="/progress/report" className="text-sm text-muted hover:text-ink">
-          ← Report
-        </Link>
-        <div className="mt-2 flex flex-wrap items-end gap-3">
+        <ReportKinds kind="face" />
+        <div className="mt-4 flex flex-wrap items-end gap-3">
           <h1 className="min-w-0 flex-1 font-display text-4xl tracking-tight">Funding request (FACE form)</h1>
           {!v && !error && <Loading className="mt-6" />}
           {v && (
@@ -113,6 +113,7 @@ export function FacePage() {
           UNDP&rsquo;s Funding Authorization and Certificate of Expenditures. Actual expenditure (B) comes from Finance&rsquo;s budget against actual workbook; enter the authorised amount (A) and the
           new request (F), then download it to sign and send.
         </p>
+        <ReportChecks p={pf} />
         {error && <p className="mt-4 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">{error}</p>}
         {notice && <p className="mt-4 rounded-xl bg-mist px-4 py-3 text-sm text-leaf">{notice}</p>}
         {v && (

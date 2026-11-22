@@ -58,7 +58,7 @@ describe("report references", () => {
   it("links to pre-flight for the same report", () => {
     const r = parseReport("qpr", "2026-Q3")!;
     expect(periodOf(r)).toBe("2026-Q3");
-    expect(preflightHref(r)).toBe("/progress/preflight?report=qpr&period=2026-Q3");
+    expect(preflightHref(r)).toBe("/progress/report?q=2026-Q3#checks");
   });
   it("marks a file downloaded with blockers as a draft", () => {
     expect(draftMark(1)).toContain("1 item blocks");

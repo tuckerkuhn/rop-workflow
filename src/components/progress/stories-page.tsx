@@ -1,7 +1,7 @@
 "use client";
 
+import { EVIDENCE_TABS, PlaceTabs } from "@/components/progress/report-checks";
 import { askConfirm, askReason } from "@/components/app/dialogs";
-import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser, useSession } from "@/components/app/session";
@@ -297,10 +297,8 @@ export function StoriesPage() {
     <div className="min-h-screen">
       <TopBar />
       <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
-        <Link href="/progress/report" className="text-sm text-muted hover:text-ink">
-          ← Report
-        </Link>
-        <div className="mt-2 flex flex-wrap items-end gap-3">
+        <PlaceTabs label="Stories and photos" here="/progress/stories" tabs={EVIDENCE_TABS} />
+        <div className="mt-4 flex flex-wrap items-end gap-3">
           <h1 className="min-w-0 flex-1 font-display text-4xl tracking-tight">Success stories</h1>
           {v?.may.write && open === null && (
             <button type="button" className={primaryBtn} onClick={() => setOpen("new")}>

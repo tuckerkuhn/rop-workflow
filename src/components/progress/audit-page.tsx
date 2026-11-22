@@ -1,5 +1,6 @@
 "use client";
 
+import { Why } from "@/components/app/why";
 import { useCallback, useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser } from "@/components/app/session";
@@ -65,6 +66,7 @@ export function AuditPage() {
         <p className="mt-1 max-w-2xl text-sm text-muted">
           Every result recorded, accepted or queried, proof added, report edit, AI draft and release, spending import and stage sign-off for {project.name}, with who and when. Entries cannot be edited.
         </p>
+        <Why>An auditor asks who approved what, and when. This record answers without anyone searching email, and it lets them see that recording and approving were done by different people.</Why>
         {!project.saved ? (
           <p className="mt-6 rounded-xl bg-sunken px-4 py-3 text-sm text-muted">This demo project is kept in this browser only; its audit trail is on the project page.</p>
         ) : (

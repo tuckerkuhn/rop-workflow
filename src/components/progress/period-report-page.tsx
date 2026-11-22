@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useT } from "@/components/app/i18n";
 import { beforeDownload, PreflightButton, usePreflight } from "@/components/progress/preflight-page";
+import { ReportChecks, ReportKinds } from "@/components/progress/report-checks";
 import { ProofNumber } from "@/components/progress/proof-panel";
 import { useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
@@ -28,6 +29,11 @@ export function PeriodReportPage() {
   const thisYear = new Date().getFullYear();
   const { t } = useT();
   const [period, setPeriod] = useState<Period>({ kind: "annual", year: thisYear });
+  // A link may ask for a year (?year=2026), as the report check's old address did.
+  useEffect(() => {
+    const y = Number(new URLSearchParams(window.location.search).get("year"));
+    if (y > 2000 && y <= thisYear) setPeriod({ kind: "annual", year: y });
+  }, [thisYear]);
   const [v, setV] = useState<PeriodReportView | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -77,10 +83,8 @@ export function PeriodReportPage() {
         <TopBar />
       </div>
       <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 print:max-w-none print:p-0">
-        <Link href="/progress" className="text-sm text-muted hover:text-ink print:hidden">
-          ← Progress
-        </Link>
-        <div className="mt-2 flex flex-wrap items-end gap-3">
+        <ReportKinds kind="annual" />
+        <div className="mt-4 flex flex-wrap items-end gap-3">
           <h1 className="flex-1 font-display text-4xl tracking-tight">{periodLabel(period)}</h1>
           <div className="flex flex-wrap gap-2 print:hidden">
             <select
@@ -109,6 +113,7 @@ export function PeriodReportPage() {
           {project.name}
           {v ? ` · ${v.range.from} to ${v.range.to}` : ""}. Figures are from results MEL accepted; each achieved figure opens the records behind it.
         </p>
+        {annual && <ReportChecks p={pf} />}
         {error && <p className="mt-4 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">{error}</p>}
         {!v && !error && <p className="mt-6 text-sm text-muted">Loading…</p>}
         {v && (

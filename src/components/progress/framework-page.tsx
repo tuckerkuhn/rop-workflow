@@ -1,5 +1,6 @@
 "use client";
 
+import { FRAMEWORK_TABS, PlaceTabs } from "@/components/progress/report-checks";
 import { plainError } from "@/lib/plain-error";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
@@ -162,10 +163,8 @@ export function FrameworkPage() {
     <div className="min-h-screen">
       <TopBar />
       <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
-        <Link href="/progress" className="text-sm text-muted hover:text-ink">
-          ← Progress
-        </Link>
-        <h1 className="mt-2 font-display text-4xl tracking-tight">Results framework</h1>
+        <PlaceTabs label="Results framework" here="/progress/framework" tabs={FRAMEWORK_TABS} />
+        <h1 className="mt-4 font-display text-4xl tracking-tight">Results framework</h1>
         <p className="mt-1 text-sm text-muted">{t("pw.frameworkIntro")}</p>
         <p className="mt-2 text-sm">
           <Link href="/progress/targets" className="btn-link">

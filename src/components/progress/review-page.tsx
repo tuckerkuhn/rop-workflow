@@ -1,5 +1,7 @@
 "use client";
 
+import { Why } from "@/components/app/why";
+import { PlaceTabs, REVIEW_TABS } from "@/components/progress/report-checks";
 import { askConfirm } from "@/components/app/dialogs";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
@@ -84,13 +86,15 @@ export function ReviewPage() {
     <div className="min-h-screen">
       <TopBar />
       <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
-        <div className="flex flex-wrap items-end gap-4">
+        <PlaceTabs label="Monthly review" here="/progress/review" tabs={REVIEW_TABS} />
+        <div className="mt-4 flex flex-wrap items-end gap-4">
           <h1 className="flex-1 font-display text-4xl tracking-tight">Monthly review</h1>
           <label className="text-sm">
             Month
             <input type="month" className={field} value={month} onChange={(e) => e.target.value && setMonth(e.target.value)} />
           </label>
         </div>
+        <Why>A monthly look at results and money, with decisions written down, shows a donor the project is managed and not only reported. It is also where a problem is still cheap to fix.</Why>
         {!project.saved ? (
           <p className="mt-6 rounded-xl bg-sunken px-4 py-3 text-sm text-muted">This demo project is kept in this browser only; its monthly review is on the project page.</p>
         ) : (

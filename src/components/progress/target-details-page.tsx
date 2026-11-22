@@ -1,7 +1,7 @@
 "use client";
 
+import { FRAMEWORK_TABS, PlaceTabs } from "@/components/progress/report-checks";
 import { plainError } from "@/lib/plain-error";
-import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { ErrorNote } from "@/components/app/error-note";
@@ -63,10 +63,8 @@ export function TargetDetailsPage() {
     <div className="min-h-screen">
       <TopBar />
       <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-        <Link href="/progress" className="text-sm text-muted hover:text-ink">
-          <span aria-hidden className="inline-block rtl:rotate-180">←</span> {t("ha.backProgress")}
-        </Link>
-        <h1 className="mt-2 font-display text-3xl tracking-tight">{t("td.title")}</h1>
+        <PlaceTabs label="Results framework" here="/progress/targets" tabs={FRAMEWORK_TABS} />
+        <h1 className="mt-4 font-display text-3xl tracking-tight">{t("td.title")}</h1>
         <p className="mt-1 text-sm text-muted">{t("td.intro")}</p>
         {!project.saved && <p className="mt-6 rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">{t("td.demo")}</p>}
         {error && <ErrorNote>{error}</ErrorNote>}

@@ -39,6 +39,9 @@ export const es: Messages = {
   "nav.annual": "Anual y final",
   "nav.face": "Solicitud de fondos (FACE)",
   "nav.stories": "Historias de éxito",
+  "hub.reviewReport": "Revisión e informes",
+  "nav.storiesPhotos": "Historias y fotos",
+  "nav.feedback": "Comentarios y quejas",
   "nav.photos": "Fotos y publicaciones",
 
   "project.label": "Proyecto",

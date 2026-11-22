@@ -39,7 +39,7 @@ describe("counts of what blocks the next report", { timeout: 60_000 }, () => {
     expect(nr.blocking).toBeGreaterThan(0);
     const concern = (await loadProgressSummary(code, nadia)).concerns.find((c) => c.key === "stops");
     expect(concern?.text).toBe(`${nr.blocking} ${nr.blocking === 1 ? "thing blocks" : "things block"} the ${nr.quarter.replace("-", " ")} report`);
-    expect(concern?.href).toMatch(/preflight/);
+    expect(concern?.href).toMatch(/\/progress\/report\?q=.*#checks$/);
   });
 
   it("are not counted separately by Home's data", async () => {

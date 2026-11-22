@@ -169,3 +169,19 @@ project follows, notifications, password, health). Resources library.
   [--org "Name" | --all]` starts one (2 months by default), `end-trial` ends it, `npm run plan`
   lists them. The person menu says "Premium free trial until …" while one runs. Every current
   organization was given a 2-month trial (until 21 January 2027). No function removed.
+
+## Stage 7 places, 21 Nov 2026 (night)
+
+Progress and reports are grouped as places, not pages (detail in `docs/deep-dive/08-page-review.md`):
+
+- **Reports** is one place: Quarterly `/progress/report`, Annual and final `/progress/annual`, Funding
+  request `/progress/face` (tab shown only for a UN donor). Each carries its report check at `#checks`;
+  `/progress/preflight` redirects to the right report.
+- **Stories and photos** is one place (`/progress/stories`, `/progress/photos`). Drafting posts needs
+  the paid feature `social_posts`; the route refuses `draft-post` without it (402).
+- **Results framework** and **Target details** are one place in Set up.
+- **Report calendar** on `/progress` (`/api/projects/[code]/report-calendar`).
+- **Feedback and complaints** `/progress/feedback` (project state key `feedback`; audit actions
+  `feedback_recorded`, `feedback_answered`; a serious entry's words are withheld from everyone but its
+  recorder, plan approvers and administrators). Entries waiting more than 14 days show in the
+  quarterly report check as worth fixing.

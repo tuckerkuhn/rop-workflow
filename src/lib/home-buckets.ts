@@ -65,7 +65,7 @@ export function waitingRows(a: { actions: HomeAction[]; lenses: Lens[]; report: 
   // Dated things: the report (the date the team aims for, which keeps time for review) and the month's review.
   const writes = a.lenses.some((l) => l === "lead" || l === "mel");
   if (writes && a.report && !a.report.released && a.report.deadline.aim && a.report.daysLeft !== null)
-    out.due.push({ key: "report-due", bucket: "due", href: `/progress/preflight?report=qpr&period=${a.report.quarter}`, urgent: a.report.daysLeft <= 7, due: { what: "report", label: a.report.quarter.replace("-", " "), date: a.report.deadline.aim, days: a.report.daysLeft } });
+    out.due.push({ key: "report-due", bucket: "due", href: `/progress/report?q=${a.report.quarter}#checks`, urgent: a.report.daysLeft <= 7, due: { what: "report", label: a.report.quarter.replace("-", " "), date: a.report.deadline.aim, days: a.report.daysLeft } });
   const review = a.deadlines.find((d) => d.key === "review");
   if (review && a.lenses.includes("lead")) out.due.push({ key: "review-due", bucket: "due", href: review.href, urgent: review.days <= 3, due: { what: "review", label: review.what, date: review.date, days: review.days } });
 
