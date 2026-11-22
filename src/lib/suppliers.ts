@@ -52,16 +52,16 @@ export const supplierFields = z.object({
 export const supplierAction = z.discriminatedUnion("action", [
   z.object({ action: z.literal("add"), fields: supplierFields }),
   z.object({ action: z.literal("edit"), id: z.string(), fields: supplierFields }),
-  z.object({ action: z.literal("screen"), id: z.string(), date: day, lists: z.string().trim().min(3, "Say which lists were checked.").max(400), result: z.enum(["clear", "match"]), note: z.string().trim().max(1000).default(""), evidence: link.min(5, "Link the screening record in SharePoint.") }),
+  z.object({ action: z.literal("screen"), id: z.string(), date: day, lists: z.string().trim().min(3, "Say which lists were checked.").max(400), result: z.enum(["clear", "match"]), note: z.string().trim().max(1000).default(""), evidence: link.min(5, "Link the screening record in your file store.") }),
   z.object({
     action: z.literal("bank"),
     id: z.string(),
     bank: z.string().trim().min(2).max(120),
     accountEnd: z.string().trim().regex(/^\d{3,6}$/, "The last 3 to 6 digits of the account only."),
-    evidence: link.min(5, "Link the bank letter in SharePoint."),
+    evidence: link.min(5, "Link the bank letter in your file store."),
     how: z.string().trim().min(5, "Say how the details were confirmed (for example, a call to the number on the licence).").max(300),
   }),
-  z.object({ action: z.literal("noStaffLink"), id: z.string(), evidence: link.min(5, "Link the signed declaration in SharePoint.") }),
+  z.object({ action: z.literal("noStaffLink"), id: z.string(), evidence: link.min(5, "Link the signed declaration in your file store.") }),
   z.object({ action: z.literal("suspend"), id: z.string(), reason: z.string().trim().min(10, "Say why, in a sentence.").max(600) }),
   z.object({ action: z.literal("reinstate"), id: z.string(), reason: z.string().trim().min(10, "Say why, in a sentence.").max(600) }),
 ]);

@@ -1,5 +1,6 @@
 "use client";
 
+import { storeNames } from "@/lib/file-store";
 import { plainError } from "@/lib/plain-error";
 import { askConfirm } from "@/components/app/dialogs";
 import Link from "next/link";
@@ -946,7 +947,7 @@ function SpendImport({ v, onDone }: { v: QprView; onDone: () => void }) {
       <span className="block text-xs text-muted">The FACE workbook sent to UNDP (.xlsx). Only its ICE Report sheet is read; the ledger sheets, which name staff, are not kept.</span>
       <span className="block text-xs text-muted">{t("sm.otherHelp")}</span>
       <input type="file" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="mt-2 block text-sm" onChange={(e) => { setFile(e.target.files?.[0] ?? null); setPreview(null); setGeneric(false); setDone(false); }} />
-      <input className={input} placeholder="Link to the workbook in SharePoint (optional)" value={link} onChange={(e) => setLink(e.target.value)} />
+      <input className={input} placeholder={`Link to the workbook in ${storeNames()} (optional)`} value={link} onChange={(e) => setLink(e.target.value)} />
       {preview && (
         <span className="mt-2 block text-xs">
           Sheet &ldquo;{preview.sheet}&rdquo;: {preview.lines.length} budget lines, {preview.months.map((m) => preview.monthLabels[m] ?? m).join(", ")}

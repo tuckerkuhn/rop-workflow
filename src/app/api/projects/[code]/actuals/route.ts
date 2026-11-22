@@ -1,4 +1,4 @@
-import { storeNames } from "@/lib/file-store";
+import { acct, storeNames } from "@/lib/file-store";
 import { NextResponse } from "next/server";
 import { isSharePointUrl } from "@/lib/procurement";
 import { requireViewer } from "@/server/auth";
@@ -30,7 +30,7 @@ export async function POST(req: Request, { params }: Ctx) {
   return handle(async () => {
     const v = await requireViewer(req, { write: true, allow: (u) => u.kind === "employee" });
     if (v instanceof NextResponse) return v;
-    if (!(await mayImport(v.user))) return NextResponse.json({ error: "Only Finance and the people named for the NetSuite import can import spending." }, { status: 403 });
+    if (!(await mayImport(v.user))) return NextResponse.json({ error: `Only Finance and the people named for the ${acct()} import can import spending.` }, { status: 403 });
     const form = await req.formData().catch(() => null);
     const file = form?.get("file");
     if (!(file instanceof File)) return NextResponse.json({ error: "Choose the workbook." }, { status: 400 });

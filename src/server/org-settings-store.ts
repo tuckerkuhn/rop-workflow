@@ -84,7 +84,7 @@ export async function sampleOf(orgId: string): Promise<{ code: string; name: str
 export async function fileStoresOf(orgId: string | null): Promise<StoreSet> {
   if (!orgId) return storeSet(null);
   const settings = await loadOrgSettings(orgId);
-  return storeSet(settings.files?.stores, (settings.filesHistory ?? []).map((c) => c.stores));
+  return { ...storeSet(settings.files?.stores, (settings.filesHistory ?? []).map((c) => c.stores)), accounting: settings.files?.accounting ?? "", payroll: settings.files?.payroll ?? "" };
 }
 
 /** For a signed-in person: their organization's stores. The sample team has no staff row and sees the only organization there is. */

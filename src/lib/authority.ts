@@ -53,7 +53,7 @@ export const SIGNATURES: Signature[] = [
   { area: "Procurement", what: "Approve the procurement calendar", by: ["procurement", "technical"] },
   { area: "Bills", what: "Record a bill paid directly, with its document", by: ["finance", "bills"], note: "Only Finance, and the people named for bill entry." },
   { area: "Bills", what: "Approve a bill paid directly (rent, utilities, insurance)", by: ["management"], note: "Not the person who recorded it, unless the organization allows solo sign-off (up to the large threshold, confirmed each time)." },
-  { area: "Bills", what: "Prepare the voucher for a bill, file it in SharePoint, post it in NetSuite", by: ["finance"] },
+  { area: "Bills", what: "Prepare the voucher for a bill, file it in the file store, post it in the accounting system", by: ["finance"] },
   { area: "Payroll", what: "Prepare the monthly payroll", by: ["payroll"] },
   { area: "Payroll", what: "Check and approve the payroll", by: ["cfo", "ceo"], note: "Anyone with a bonus or adjustment in the run, or related to someone who has one, cannot sign; the Board signs instead." },
   { area: "HR record", what: "Propose a change to someone's record", by: ["hr"] },

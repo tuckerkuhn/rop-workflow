@@ -1,5 +1,6 @@
 "use client";
 
+import { AnyLinkCaution } from "@/components/app/any-link-caution";
 import { useState } from "react";
 import { useT } from "@/components/app/i18n";
 import { MAX_DOC_LINKS, docSource, docTitle, isDocUrl, type DocLink } from "@/lib/doc-links";
@@ -53,6 +54,7 @@ export function DocLinks({ docs, onChange, mask = (t) => t, className = "" }: { 
           <div className="mt-2 space-y-2">
             <input className={input} type="url" inputMode="url" autoFocus placeholder={tx("Link to the document (SharePoint, Google Drive…)")} value={url} onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), add())} />
             <input className={input} placeholder={tx("Name (optional), e.g. Interview notes")} value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), add())} />
+            <AnyLinkCaution />
             {err && <p className="text-xs text-clay">{err}</p>}
             <div className="flex gap-3 text-sm">
               <button type="button" className="font-semibold text-forest hover:underline" onClick={add}>

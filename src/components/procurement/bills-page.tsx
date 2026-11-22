@@ -1,5 +1,7 @@
 "use client";
 
+import { AnyLinkCaution } from "@/components/app/any-link-caution";
+import { acct, storeNames } from "@/lib/file-store";
 import { plainError } from "@/lib/plain-error";
 import { NON_CONTRACT } from "@/lib/timesheet";
 import Link from "next/link";
@@ -215,11 +217,12 @@ function BillCard({ b, v, act }: { b: Item; v: BillsView; act: (a: BillAction, m
             <input type="month" value={voucher.month} onChange={(e) => setVoucher({ ...voucher, month: e.target.value })} className={input} />
           </label>
           <label className="text-sm">
-            <span className="text-muted">SharePoint link to the filed voucher</span>
-            <input value={voucher.sharepointUrl} onChange={(e) => setVoucher({ ...voucher, sharepointUrl: e.target.value })} placeholder="https://….sharepoint.com/…" className={input} />
+            <span className="text-muted">{storeNames()} link to the filed voucher</span>
+            <input value={voucher.sharepointUrl} onChange={(e) => setVoucher({ ...voucher, sharepointUrl: e.target.value })} placeholder="https://…" className={input} />
+            <AnyLinkCaution />
           </label>
           <label className="text-sm">
-            <span className="text-muted">NetSuite reference</span>
+            <span className="text-muted">{acct()} reference</span>
             <input value={voucher.netsuiteRef} onChange={(e) => setVoucher({ ...voucher, netsuiteRef: e.target.value })} className={input} />
           </label>
           <div className="sm:col-span-2">

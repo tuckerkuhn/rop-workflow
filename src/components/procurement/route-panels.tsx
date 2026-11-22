@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useSession } from "@/components/app/session";
-import { isRecordedFileLink, storeNames } from "@/lib/file-store";
+import { acct, isRecordedFileLink, storeNames } from "@/lib/file-store";
 import { LookedAt } from "@/components/app/ai-why";
 import { primaryBtn } from "@/components/workspace/ui";
 import { voucherGaps, withholding } from "@/lib/payments";
@@ -400,13 +400,13 @@ export function VoucherPanel({ p, editable, update, coding, preparedByMe }: { p:
   );
   return (
     <div className={box}>
-      <p className="text-sm font-semibold">Expense voucher{v.number ? ` · NetSuite bill number (VENDBILL #) ${v.number}` : ""}</p>
+      <p className="text-sm font-semibold">Expense voucher{v.number ? ` · ${acct()} bill number (VENDBILL #) ${v.number}` : ""}</p>
       <p className="mt-1 text-xs text-muted">
         {approving
-          ? "Open the voucher below. If it is in order, approve it and file the signed voucher in SharePoint. If not, send it back."
+          ? `Open the voucher below. If it is in order, approve it and file the signed voucher in ${storeNames()}. If not, send it back.`
           : reviewing
           ? "Open the voucher below and check the coding and the balance. If something is wrong, send it back to the person who prepared it."
-          : "Choose the expense account and department. The contract, budget code, location and accounts come from project setup. Then enter the bill in NetSuite and type the VENDBILL number it gives."}
+          : `Choose the expense account and department. The contract, budget code, location and accounts come from project setup. Then enter the bill in ${acct()} and type the VENDBILL number it gives.`}
       </p>
       {reviewing && preparedByMe && <p className="mt-2 text-sm text-clay">You prepared this voucher, so someone else in Finance {approving ? "approves" : "reviews"} it.</p>}
 
@@ -421,7 +421,7 @@ export function VoucherPanel({ p, editable, update, coding, preparedByMe }: { p:
         </label>
         <label>
           <span className="text-xs font-medium text-muted">Monthly average rate (AFS to USD 1)</span>
-          <input disabled={!codingOn} type="number" min={1} step="0.001" value={v.rate ?? ""} onChange={(e) => set({ rate: e.target.value ? Number(e.target.value) : undefined })} placeholder="from NetSuite" className={`mt-1 ${field}`} />
+          <input disabled={!codingOn} type="number" min={1} step="0.001" value={v.rate ?? ""} onChange={(e) => set({ rate: e.target.value ? Number(e.target.value) : undefined })} placeholder={`from ${acct()}`} className={`mt-1 ${field}`} />
         </label>
         <CodeSelect label="Expense account (debit)" codes={GL_EXPENSE} value={v.gl ?? ""} onChange={(gl) => set({ gl })} disabled={!codingOn} />
         <CodeSelect label="Department" codes={DEPARTMENTS} value={v.dept ?? ""} onChange={(dept) => set({ dept })} disabled={!codingOn} />
@@ -435,10 +435,10 @@ export function VoucherPanel({ p, editable, update, coding, preparedByMe }: { p:
       {!reviewing && (
         <div className="mt-4 grid gap-3 sm:grid-cols-[16rem_1fr] sm:items-end">
           <label>
-            <span className="text-xs font-medium text-muted">NetSuite bill number (VENDBILL #)</span>
+            <span className="text-xs font-medium text-muted">{acct()} bill number (VENDBILL #)</span>
             <input disabled={!codingOn || gaps.length > 0} value={v.number} onChange={(e) => set({ number: e.target.value.trim() })} className={`mt-1 ${field}`} />
           </label>
-          <p className="text-xs text-muted">{gaps.length ? `Before entering it in NetSuite, add ${gaps.join(", ")}.` : "Coded. Enter it in NetSuite and type the number it gets."}</p>
+          <p className="text-xs text-muted">{gaps.length ? `Before entering it in ${acct()}, add ${gaps.join(", ")}.` : `Coded. Enter it in ${acct()} and type the number it gets.`}</p>
         </div>
       )}
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { storeNames } from "@/lib/file-store";
 import { formatMoney } from "@/lib/demo";
 import { reviewKey, type Procurement } from "@/lib/procurement";
 import {
@@ -280,7 +281,7 @@ export function PaidPanel({ p, editable, update }: { p: Procurement; editable: b
       </div>
       {v.ref.trim() && (
         <div className="mt-3 rounded-xl border border-line bg-surface px-4 py-3 text-sm">
-          <p className={label}>Mark on the invoice file in SharePoint</p>
+          <p className={label}>Mark on the invoice file in {storeNames()}</p>
           <p className="mt-1 font-mono text-xs">{paidMark(p, v)}</p>
         </div>
       )}

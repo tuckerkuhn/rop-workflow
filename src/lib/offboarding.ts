@@ -16,10 +16,10 @@ export type OffOwner = "supervisor" | "hr" | "payroll";
 export type OffStep = { id: string; title: string; help: string; owner: OffOwner; needsNote: boolean };
 
 export const OFF_STEPS: OffStep[] = [
-  { id: "handover", title: "Handover", help: "Work, files and contacts handed over; where they are now (SharePoint folder, who took over each activity).", owner: "supervisor", needsNote: true },
+  { id: "handover", title: "Handover", help: "Work, files and contacts handed over; where they are now (the folder in your file store, who took over each activity).", owner: "supervisor", needsNote: true },
   { id: "timesheet", title: "Last timesheet approved", help: "The final month's timesheet, up to the last day, approved so the last pay and charges are right.", owner: "supervisor", needsNote: false },
   { id: "equipment", title: "Equipment and ID card returned", help: "Laptop, phone, vehicle, keys and the ROP ID card; note anything not returned and what was agreed.", owner: "hr", needsNote: true },
-  { id: "access", title: "Email, SharePoint and app access closed", help: "IT closes the email account and SharePoint; an administrator deactivates the person in Settings → People on the last day.", owner: "hr", needsNote: true },
+  { id: "access", title: "Email, file store and app access closed", help: "The email account and file store access are closed; an administrator deactivates the person in Settings → People on the last day.", owner: "hr", needsNote: true },
   { id: "finalPay", title: "Final pay worked out", help: "Pay to the last day, unused annual leave as the HR setting says, less advances. Goes into the leaver's last payroll.", owner: "payroll", needsNote: true },
   { id: "exit", title: "Exit interview", help: "Why they are leaving and what could be better. Write \"declined\" if they did not want one.", owner: "hr", needsNote: true },
 ];

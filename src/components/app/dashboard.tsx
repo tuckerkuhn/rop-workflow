@@ -1,5 +1,6 @@
 "use client";
 
+import { acct } from "@/lib/file-store";
 import { useCloseouts, usePlan, useProcurements } from "@/components/app/use-project-data";
 
 import Link from "next/link";
@@ -82,7 +83,7 @@ function rolesOf(u: AppUser) {
   return [
     ...u.field.map(fieldRoleLabel),
     ...u.procurement.map(roleLabel),
-    ...u.project.map((r) => ({ "plan-approver": "Plan approver", "monthly-review": "Monthly review", "report-release": "Report release", "mel-owner": "MEL owner", "finance-import": "NetSuite import", comms: "Communications" })[r]),
+    ...u.project.map((r) => ({ "plan-approver": "Plan approver", "monthly-review": "Monthly review", "report-release": "Report release", "mel-owner": "MEL owner", "finance-import": `${acct()} import`, comms: "Communications" })[r]),
   ].filter((r) => r.toLowerCase() !== u.title.toLowerCase());
 }
 

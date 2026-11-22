@@ -1,3 +1,4 @@
+import { acct, storeNames } from "@/lib/file-store";
 import { DONE, valueOf, type Procurement, type Voucher } from "@/lib/procurement";
 import type { Bill } from "@/lib/bills";
 import { invoiceUsd } from "@/lib/payments";
@@ -65,8 +66,8 @@ export function blockers(list: VoucherItem[]) {
   const out: string[] = [];
   for (const v of list) {
     if (!v.filed) out.push(`${v.id}: voucher not finished`);
-    else if (!v.voucher!.sharepointUrl) out.push(`${v.id}: not filed in SharePoint`);
-    else if (!v.voucher!.netsuiteRef.trim()) out.push(`${v.id}: not posted in NetSuite`);
+    else if (!v.voucher!.sharepointUrl) out.push(`${v.id}: not filed in ${storeNames()}`);
+    else if (!v.voucher!.netsuiteRef.trim()) out.push(`${v.id}: not posted in ${acct()}`);
   }
   return out;
 }

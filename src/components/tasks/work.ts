@@ -1,5 +1,6 @@
 "use client";
 
+import { acct } from "@/lib/file-store";
 import { comingTo } from "@/components/field/workspace";
 import { procurementComingTo } from "@/components/procurement/workspace";
 import { daysFrom, projectPath, stepHistory, type AppUser, type Stage } from "@/lib/demo";
@@ -136,7 +137,7 @@ export function workFor(u: AppUser, data: Data, viewer: AppUser, opts: { project
   if (u.project.includes("mel-owner")) {
     if (pending) cards.push({ key: "pj-queue", title: `${pending} field forms to check`, step: "Accept or query on Results and proof", date: new Date(Date.parse(today()) + 86400000).toISOString().slice(0, 10), href: "/progress/results#field-records", space: "Project", now: true, late: false, note: "" });
   }
-  if (u.project.includes("finance-import") && !project.importedOn) proj("pj-import", "March NetSuite export", "Import and map spend to budget lines", "/progress/budget", 2);
+  if (u.project.includes("finance-import") && !project.importedOn) proj("pj-import", `March ${acct()} export`, "Import and map spend to budget lines", "/progress/budget", 2);
   if (u.project.includes("monthly-review")) {
     const open = project.changes.filter((c) => c.status === "proposed").length;
     if (open) proj("pj-review", `${open} proposed changes`, "Decide in the monthly review", "/progress/review", 4);

@@ -1,5 +1,6 @@
 "use client";
 
+import { acct, storeNames } from "@/lib/file-store";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
@@ -52,7 +53,7 @@ export function CloseoutPage() {
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-warn">{project.name}</p>
         <h1 className="mt-1 font-display text-3xl tracking-tight">Monthly closeout</h1>
         <p className="mt-1 max-w-2xl text-sm text-muted">
-          Expense vouchers by month, from procurements and from bills paid directly, with where each is filed in SharePoint and posted in NetSuite. Finance closes a month once every voucher in it is filed and posted.
+          Expense vouchers by month, from procurements and from bills paid directly, with where each is filed in {storeNames()} and posted in {acct()}. Finance closes a month once every voucher in it is filed and posted.
         </p>
         <p className="mt-2 text-sm">
           <Link href="/work?source=procurement" className="font-semibold text-forest hover:underline">
@@ -122,7 +123,7 @@ export function CloseoutPage() {
                 <table className="w-full min-w-[48rem] text-sm">
                   <thead className="bg-sunken text-xs text-muted">
                     <tr>
-                      {["Voucher", "Item", "Payee", "Amount", "SharePoint", "NetSuite", "Status"].map((h) => (
+                      {["Voucher", "Item", "Payee", "Amount", `${storeNames()}`, `${acct()}`, "Status"].map((h) => (
                         <th key={h} className="px-3 py-2 text-start font-medium">
                           {h}
                         </th>

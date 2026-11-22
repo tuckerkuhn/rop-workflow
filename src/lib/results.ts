@@ -42,7 +42,7 @@ export const proofLinkSchema = z.object({
     .trim()
     .url("That is not a web address.")
     .max(2000)
-    .refine((u) => u.startsWith("https://"), "Use the document's https:// link (for SharePoint: Copy link)."),
+    .refine((u) => u.startsWith("https://"), "Use the document's https:// link (open the file, then Copy link)."),
   title: z.string().trim().min(2, "Say what the document is.").max(200),
 });
 export type ProofLink = z.infer<typeof proofLinkSchema>;

@@ -1,5 +1,6 @@
 "use client";
 
+import { storeNames } from "@/lib/file-store";
 import { plainError } from "@/lib/plain-error";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
@@ -71,7 +72,7 @@ function DetailsForm({ start, onSave, onCancel }: { start: typeof empty; onSave:
         <input type="date" className={input} value={f.licenceExpiry} onChange={set("licenceExpiry")} />
       </label>
       <label className="sm:col-span-2">
-        <span className={lbl}>Licence copy (SharePoint link)</span>
+        <span className={lbl}>Licence copy ({storeNames()} link)</span>
         <input className={input} value={f.licenceEvidence} onChange={set("licenceEvidence")} placeholder="https://…sharepoint.com/…" />
       </label>
       <label>
@@ -231,7 +232,7 @@ function SupplierCard({ s, can, act }: { s: SupplierRow; can: SuppliersView["can
             <input className={input} value={v("lists")} onChange={set("lists")} placeholder="UN Security Council, OFAC SDN, EU, World Bank debarment, UNGM" required />
           </label>
           <label className="sm:col-span-2">
-            <span className={lbl}>Screening record (SharePoint link)</span>
+            <span className={lbl}>Screening record ({storeNames()} link)</span>
             <input className={input} value={v("evidence")} onChange={set("evidence")} required />
           </label>
           <label className="sm:col-span-2">
@@ -261,7 +262,7 @@ function SupplierCard({ s, can, act }: { s: SupplierRow; can: SuppliersView["can
             <input className={input} inputMode="numeric" value={v("accountEnd")} onChange={set("accountEnd")} required />
           </label>
           <label className="sm:col-span-2">
-            <span className={lbl}>Bank letter (SharePoint link)</span>
+            <span className={lbl}>Bank letter ({storeNames()} link)</span>
             <input className={input} value={v("evidence")} onChange={set("evidence")} required />
           </label>
           <label className="sm:col-span-2">
@@ -283,7 +284,7 @@ function SupplierCard({ s, can, act }: { s: SupplierRow; can: SuppliersView["can
           }}
         >
           <label className="min-w-0 flex-1">
-            <span className={lbl}>Signed declaration of no family or business link to ROP staff (SharePoint link)</span>
+            <span className={lbl}>Signed declaration of no family or business link to ROP staff ({storeNames()} link)</span>
             <input className={input} value={v("evidence")} onChange={set("evidence")} required />
           </label>
           <button type="submit" className={primaryBtn}>

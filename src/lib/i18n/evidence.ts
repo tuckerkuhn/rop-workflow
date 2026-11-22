@@ -25,7 +25,7 @@ export const evEn = {
   "ev.money.file": "{file}, imported by {who} on {date}",
   "ev.money.months": "Months {from} to {to} · {lines} lines · {currency}",
   "ev.money.none": "No spending imported from Finance yet.",
-  "ev.money.sharepoint": "Open in SharePoint",
+  "ev.money.sharepoint": "Open the filed document",
   "ev.money.show": "Where this comes from",
 };
 

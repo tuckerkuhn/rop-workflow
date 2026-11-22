@@ -1,5 +1,6 @@
 "use client";
 
+import { storeNames } from "@/lib/file-store";
 import { PlaceTabs, REVIEW_TABS } from "@/components/progress/report-checks";
 import { plainError } from "@/lib/plain-error";
 import { useCallback, useEffect, useState } from "react";
@@ -136,7 +137,7 @@ function Item({ it, act }: { it: LearningView["items"][number]; act: (a: Learnin
             void act(it.tick ? { action: "untick", item: it.id, note } : { action: "tick", item: it.id, evidence, note }).then(() => setOpen(false));
           }}
         >
-          {!it.tick && <input className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm" placeholder={it.auto ? "Evidence link (optional)" : "Evidence (SharePoint link)"} value={evidence} onChange={(e) => setEvidence(e.target.value)} />}
+          {!it.tick && <input className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm" placeholder={it.auto ? "Evidence link (optional)" : `Evidence (${storeNames()} link)`} value={evidence} onChange={(e) => setEvidence(e.target.value)} />}
           <input className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm" placeholder={it.tick ? "Why it is reopened" : "Note (optional)"} value={note} onChange={(e) => setNote(e.target.value)} />
           <button type="submit" className={primaryBtn}>
             {it.tick ? "Reopen" : "Confirm"}

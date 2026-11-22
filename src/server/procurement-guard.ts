@@ -1,3 +1,4 @@
+import { storeNames } from "@/lib/file-store";
 import { registerAuthority } from "@/lib/authority";
 import { sameHistory } from "@/lib/history";
 import type { AppUser } from "@/lib/demo";
@@ -277,7 +278,7 @@ export function validateProcurementSave(prev: Procurement | undefined, next: Pro
   if (outOfStep) return `${outOfStep} cannot change at “${stepById[prev.step]?.title ?? prev.step}”.`;
   // Review and approval do not recode the voucher: its coding and number stay as the preparer entered them in NetSuite. The approver files it.
   if ((prev.step === "voucherReview" || prev.step === "voucherApprove") && fieldsChanged.includes("voucher") && !same({ ...prev.voucher, sharepointUrl: "" }, { ...next.voucher, sharepointUrl: "" }))
-    return "At review and approval only the SharePoint link is added. To change the coding, send the voucher back to the person who prepared it.";
+    return `At review and approval only the ${storeNames()} link is added. To change the coding, send the voucher back to the person who prepared it.`;
   if (fieldsChanged.length && !ownsStep) return `Only the ${owner ? roleLabel(owner) : "step's owner"} can change this procurement's details at “${stepById[prev.step]?.title ?? prev.step}” (${fieldsChanged.slice(0, 3).join(", ")}).`;
   return null;
 }

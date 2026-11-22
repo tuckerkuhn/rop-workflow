@@ -28,7 +28,7 @@ export const CLOSEOUT_ITEMS = [
   { id: "results", label: "Every result accepted or withdrawn, none waiting for MEL", who: "mel", hint: "Checked automatically from Results." },
   { id: "lessons", label: "Lessons reviewed with the team and shared", who: "plan-approver", hint: "The lessons record, reviewed at a closing meeting." },
   { id: "staff", label: "Project staff contracts ended or moved, final pay and leave settled", who: "hr", hint: "From the HR record." },
-  { id: "records", label: "Records archived for the retention period", who: "plan-approver", hint: "SharePoint folder locked; the organization's retention rule applies." },
+  { id: "records", label: "Records archived for the retention period", who: "plan-approver", hint: "Project folder locked in your file store; the organization's retention rule applies." },
   { id: "donorClosure", label: "Donor confirmed the agreement is closed", who: "plan-approver", hint: "The donor's closure letter or email." },
 ] as const;
 export type CloseoutId = (typeof CLOSEOUT_ITEMS)[number]["id"];

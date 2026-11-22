@@ -1,4 +1,4 @@
-import { storeNames } from "@/lib/file-store";
+import { acct, storeNames } from "@/lib/file-store";
 import { loadBudget } from "@/server/plan-store";
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -152,7 +152,7 @@ export async function POST(req: Request, { params }: Ctx) {
       Object.assign(b, {
         voucher: { number: a.number, month: a.month, sharepointUrl: a.sharepointUrl, netsuiteRef: a.netsuiteRef, ...sign },
         status: complete ? "filed" : "approved",
-        timeline: [...b.timeline, { date: sign.at, who: u.name, what: complete ? `Voucher ${a.number} filed in SharePoint and posted in NetSuite (${a.netsuiteRef})` : `Voucher ${a.number} started` }],
+        timeline: [...b.timeline, { date: sign.at, who: u.name, what: complete ? `Voucher ${a.number} filed in ${storeNames()} and posted in ${acct()} (${a.netsuiteRef})` : `Voucher ${a.number} started` }],
       });
     }
     await saveBills(code, book);

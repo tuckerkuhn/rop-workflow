@@ -3,6 +3,7 @@
  * these documents are built from it, reviewed, and signed. Nobody types them separately.
  */
 
+import { acct, storeNames } from "@/lib/file-store";
 import { PROJECT, holderOf } from "@/lib/demo";
 import { bidUsd, distributionState, documentsOf, levelFor, lineOf, receivedQty, registered, roleLabel, stepsFor, valueOf, vendbillOf, type Money, type Procurement } from "@/lib/procurement";
 import { lastScreening } from "@/lib/suppliers";
@@ -73,7 +74,7 @@ export function documentFor(p: Procurement, doc: string, money: Money, other: Mo
       const fill = (x: string) => x || "[to code]";
       return {
         title: "Expense voucher",
-        number: vendbillOf(v) ? `VENDBILL # ${vendbillOf(v)}` : "VENDBILL # [entered in NetSuite]",
+        number: vendbillOf(v) ? `VENDBILL # ${vendbillOf(v)}` : `VENDBILL # [entered in ${acct()}]`,
         rows: [
           ["Expense voucher date", v?.date || "[date]"],
           ["Accrued month", v?.month || "[month]"],
@@ -89,7 +90,7 @@ export function documentFor(p: Procurement, doc: string, money: Money, other: Mo
           ["Procurement", `${p.id} · ${p.qty} ${p.unit}`],
           ["Goods received", p.grn ? `${p.grn.qty} ${p.unit} at ${p.grn.place}` : "[goods received note]"],
           ["Invoice", p.invoice ? `${p.invoice.number ?? ""} ${p.invoice.date ?? ""} · ${inCur(p.invoice.amount)} for ${p.invoice.qty} ${p.unit}`.trim() : "[invoice]"],
-          ["Filed in SharePoint", v?.sharepointUrl || "—"],
+          [`Filed in ${storeNames()}`, v?.sharepointUrl || "—"],
         ],
         ledger: {
           lines: book.lines.map((l) => ({
@@ -107,7 +108,7 @@ export function documentFor(p: Procurement, doc: string, money: Money, other: Mo
           balanced: book.balanced,
           rate: book.rate ? `Monthly average exchange rate: AFS ${book.rate} to USD 1` : "Monthly average exchange rate: [to add]",
         },
-        notes: ["Generated from the procurement record. Enter it in NetSuite, type the VENDBILL number on the record, then file the signed voucher in SharePoint."],
+        notes: [`Generated from the procurement record. Enter it in ${acct()}, type the VENDBILL number on the record, then file the signed voucher in ${storeNames()}.`],
       };
     }
     case "Purchase requisition":
@@ -170,7 +171,7 @@ export function documentFor(p: Procurement, doc: string, money: Money, other: Mo
           // Fewer than three quotations: the reason given when it was recorded, and where its memo is.
           ...(p.overrides?.["fix.quotes.three"] ? ([["Why fewer than three quotations", `${p.overrides["fix.quotes.three"].why} (${p.overrides["fix.quotes.three"].by}, ${p.overrides["fix.quotes.three"].date})`]] as [string, string][]) : []),
         ],
-        notes: [level === "Large" || level === "Medium" ? "The comparative bid matrix and the committee's reasoning are attached." : "Each quotation's signed copy is filed in SharePoint with this record."],
+        notes: [level === "Large" || level === "Medium" ? "The comparative bid matrix and the committee's reasoning are attached." : `Each quotation's signed copy is filed in ${storeNames()} with this record.`],
       };
     case "Screening record": {
       // What was screened, against which lists, with what result: from the supplier register.
@@ -210,7 +211,7 @@ export function documentFor(p: Procurement, doc: string, money: Money, other: Mo
           ["Bank details", r?.bank ? `${r.bank.bank}, account ending ${r.bank.accountEnd}; confirmed by ${r.bank.confirmedByName} on ${r.bank.on} (${r.bank.how})` : "Not confirmed"],
           ["No staff connection", r?.noStaffLink ? `Declaration filed ${r.noStaffLink.on}` : "No declaration on file"],
         ],
-        notes: ["Evidence (licence, bank letter, declaration) stays in SharePoint; the supplier register keeps the links and who checked each one."],
+        notes: [`Evidence (licence, bank letter, declaration) stays in ${storeNames()}; the supplier register keeps the links and who checked each one.`],
       };
     }
     case "Contract / PO":

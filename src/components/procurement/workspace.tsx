@@ -1,5 +1,6 @@
 "use client";
 
+import { AnyLinkCaution } from "@/components/app/any-link-caution";
 import { askReason } from "@/components/app/dialogs";
 import { Arrow } from "@/components/app/arrow";
 import { useEffect, useMemo, useState } from "react";
@@ -727,7 +728,7 @@ function Detail({
                   onResolve={async () => {
                     // Overriding an automatic check always says why, and where any memo is filed.
                     const why = await askReason({
-                      message: `${c.resolve}. Say why, and paste the SharePoint link to the memo if there is one.`,
+                      message: `${c.resolve}. Say why, and paste the ${storeNames()} link to the memo if there is one.`,
                       placeholder: "e.g. Only two suppliers sell this in the district. Memo: https://rootsofpeace.sharepoint.com/...",
                       confirm: c.resolve!,
                       min: 10,
@@ -801,7 +802,7 @@ function Detail({
             </ul>
           )}
           <p className="mt-3 text-xs text-muted">Every document is generated from this record and filed under {p.id}.</p>
-          <LinkedDocs p={p} canEdit={!!user && (user.procurementAccess === "edit" || !!user.admin)} add={(l) => update((q) => log({ ...q, links: [...(q.links ?? []), l] }, `Linked ${l.title} from SharePoint`))} by={user?.name ?? ""} />
+          <LinkedDocs p={p} canEdit={!!user && (user.procurementAccess === "edit" || !!user.admin)} add={(l) => update((q) => log({ ...q, links: [...(q.links ?? []), l] }, `Linked ${l.title} from ${storeNames()}`))} by={user?.name ?? ""} />
         </section>
         <History events={p.timeline} roleLabel={(r) => rolePersonFor(p, r as Role)} />
       </div>
@@ -1125,6 +1126,7 @@ function LinkedDocs({ p, canEdit, add, by }: { p: Procurement; canEdit: boolean;
             <input className="w-full rounded-lg border border-line bg-paper px-3 py-2" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What it is: signed bid from Vision Supply" aria-label="Document title" />
             <input className="w-full rounded-lg border border-line bg-paper px-3 py-2" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" aria-label={`Link to the file in ${names}`} inputMode="url" />
             {url && !isLink(url) && <p className="text-xs text-clay">That is not a link to {names}: open the file there and copy its link.</p>}
+            <AnyLinkCaution />
             <div className="flex gap-2">
               <button
                 type="button"

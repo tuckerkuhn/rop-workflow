@@ -1,5 +1,7 @@
 "use client";
 
+import { AnyLinkCaution } from "@/components/app/any-link-caution";
+import { storeNames } from "@/lib/file-store";
 import { Why } from "@/components/app/why";
 import { unitOf } from "@/lib/package";
 import { plainError } from "@/lib/plain-error";
@@ -475,10 +477,11 @@ function LinkPicker({ links, setLinks }: { links: ProofLink[]; setLinks: (l: Pro
   };
   return (
     <div className="mt-2">
-      <span className="block text-xs text-muted">Or link a document in SharePoint (open it, then Copy link)</span>
+      <span className="block text-xs text-muted">Or link a document in {storeNames()} (open it, then Copy link)</span>
+      <AnyLinkCaution />
       <div className="mt-1 grid gap-2 sm:grid-cols-[1fr_2fr_auto]">
         <input className={input} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What it is: attendance sheet, 27–30 Jul" aria-label="Document title" />
-        <input className={input} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://rootsofpeace.sharepoint.com/…" aria-label="Document link" inputMode="url" />
+        <input className={input} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" aria-label="Document link" inputMode="url" />
         <button type="button" className={`${quietBtn} mt-1`} onClick={add}>
           Add link
         </button>

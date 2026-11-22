@@ -6,7 +6,7 @@
 
 export type StatusKind = "CUR" | "D1" | "D1*" | "TS" | "OPEN" | "PA";
 
-import { isFileLink, isRecordedFileLink, storeNames } from "@/lib/file-store";
+import { acct, isFileLink, isRecordedFileLink, storeNames } from "@/lib/file-store";
 import { formatMoney, holderOf, users, type ProcRole } from "@/lib/demo";
 import { holdersOfType, holdsType } from "@/lib/authority";
 import type { HrRole } from "@/lib/hr";
@@ -1417,14 +1417,20 @@ export const steps: Step[] = [
   {
     id: "voucher",
     stage: 6,
-    title: "Prepare the expense voucher and enter it in NetSuite",
+    get title() {
+      return `Prepare the expense voucher and enter it in ${acct()}`;
+    },
     owner: "finance",
     levels: ALL,
     action: "Send for review",
-    done: "Expense voucher prepared and entered in NetSuite",
+    get done() {
+      return `Expense voucher prepared and entered in ${acct()}`;
+    },
     produces: [],
     signs: { doc: "Expense voucher", as: "Prepared and entered by (finance)" },
-    note: "The voucher is generated from the record. Code it, enter the bill in NetSuite, and type the VENDBILL number NetSuite gives it.",
+    get note() {
+      return `The voucher is generated from the record. Code it, enter the bill in ${acct()}, and type the bill number it gives (in NetSuite, the VENDBILL number).`;
+    },
     checks: [
       {
         id: "coded",
@@ -1439,8 +1445,12 @@ export const steps: Step[] = [
       { id: "matches", label: "Payee, amount and budget line match the package", why: "The voucher is the accounting record of this purchase.", tag: "Finance Manual" },
       {
         id: "netsuite",
-        label: "Entered in NetSuite",
-        why: "NetSuite is the ledger; the VENDBILL number ties this record to it.",
+        get label() {
+      return `Entered in ${acct()}`;
+    },
+        get why() {
+      return `${acct()} is the ledger; the bill number ties this record to it.`;
+    },
         tag: "CUR",
         auto: (p) => {
           const n = vendbillOf(p.voucher);
@@ -1484,16 +1494,22 @@ export const steps: Step[] = [
     owner: "finance",
     levels: ALL,
     action: "Sign, approve and record as filed",
-    done: "Expense voucher approved and filed in SharePoint",
+    get done() {
+      return `Expense voucher approved and filed in ${storeNames()}`;
+    },
     canReturn: true,
     produces: ["Expense voucher"],
     signs: { doc: "Expense voucher", as: "Approved by (finance)" },
-    note: "Not the person who prepared it. Where Finance has a third person, not the reviewer either. File the signed voucher in SharePoint.",
+    get note() {
+      return `Not the person who prepared it. Where Finance has a third person, not the reviewer either. File the signed voucher in ${storeNames()}.`;
+    },
     checks: [
       { id: "approve", label: "Reviewed, and right to approve", why: "The approver signs that the cost, its coding and its support are in order.", tag: "Finance Manual" },
       {
         id: "sharepoint",
-        label: "Filed in SharePoint",
+        get label() {
+      return `Filed in ${storeNames()}`;
+    },
         why: "The voucher and the package are kept together where auditors look.",
         tag: "CUR",
         auto: (p) => ({ ok: !!p.voucher && isEvidenceLink(p.voucher.sharepointUrl), detail: p.voucher?.sharepointUrl ? (isEvidenceLink(p.voucher.sharepointUrl) ? "Link recorded" : `That is not a link to ${storeNames()}`) : `Paste the link to the signed voucher in ${storeNames()} above` }),

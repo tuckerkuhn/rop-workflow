@@ -33,7 +33,8 @@ export function cleanStores(input: unknown): StoreId[] {
  * taken links from (the default before anything was set, and each later choice). Proof recorded
  * under an earlier setting stays proof, so changing the setting never undoes finished work.
  */
-export type StoreSet = { now: StoreId[]; ever: StoreId[] };
+/** `accounting` and `payroll`: what the organization calls those systems, when it has said (Organization settings). */
+export type StoreSet = { now: StoreId[]; ever: StoreId[]; accounting?: string; payroll?: string };
 const NAMED: StoreId[] = STORE_IDS.filter((id) => id !== "any");
 export function storeSet(now: unknown, earlier: unknown[] = []): StoreSet {
   const n = cleanStores(now);
@@ -71,3 +72,11 @@ export function storeNames(stores: StoreId[] = currentStores()): string {
   const names = STORES.filter((s) => stores.includes(s.id)).map((s) => s.name);
   return names.length <= 1 ? (names[0] ?? "SharePoint") : `${names.slice(0, -1).join(", ")} or ${names[names.length - 1]}`;
 }
+
+/** The organization's accounting system by name, for a sentence: "NetSuite", or "your accounting system" until it is named. */
+export const acct = (): string => resolver().accounting?.trim() || "your accounting system";
+/** The organization's payroll system by name, or "your payroll system". */
+export const payrollName = (): string => resolver().payroll?.trim() || "your payroll system";
+/** Shown under a link box while "any secure link" is in force: the person pasting the link is the one who decides where proof sits. */
+export const ANY_LINK_CAUTION = "Use a link to a folder the organization owns, not your own account. A file in a personal account can be lost when someone leaves, and proof that cannot be opened at audit counts as no proof.";
+export const anyLinkOn = (): boolean => resolver().now.includes("any");
