@@ -4,7 +4,7 @@ import { useProcurements } from "@/components/app/use-project-data";
 
 import { useEffect, useMemo, useState } from "react";
 import { useCloseouts, useFieldData, usePlan, useSubmissions, useWorkItems } from "@/components/app/use-project-data";
-import { PROJECT_KEY } from "@/components/project/project-page";
+import { PROJECT_KEY } from "@/lib/project";
 import { workFor } from "@/components/tasks/work";
 import { usePersistentState } from "@/components/workspace/ui";
 import type { AppUser, ProjectInfo } from "@/lib/demo";

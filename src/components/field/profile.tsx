@@ -5,6 +5,7 @@ import { FieldHelp } from "@/components/app/field-help";
 import { useT } from "@/components/app/i18n";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { mayWriteStory } from "@/lib/stories";
 import { useState } from "react";
 import { stageOf } from "@/components/field/workspace";
 import { useFieldData } from "@/components/app/use-project-data";
@@ -403,7 +404,7 @@ export function FarmerProfile({ id }: { id: string }) {
                         {s.date} · {fieldPerson(s.by)}
                       </p>
                       <DocLinks className="mt-2" docs={s.docs} mask={(t) => maskName(t, farmer, user)} onChange={canEdit ? (docs) => setDocs(s.id, docs) : undefined} />
-                      {user.kind === "employee" && <ToSuccessStory project={project.id} user={user.id} farmer={farmer.id} story={s.id} />}
+                      {mayWriteStory(user) && <ToSuccessStory project={project.id} user={user.id} farmer={farmer.id} story={s.id} />}
                       {canEdit && (
                         <button
                           type="button"
@@ -448,7 +449,7 @@ export function FarmerProfile({ id }: { id: string }) {
                         {tx("Completed {date}", { date: s.date })} · {fieldPerson(s.by)}
                       </p>
                       <DocLinks className="mt-2" docs={s.docs} mask={(t) => maskName(t, farmer, user)} onChange={canEdit ? (docs) => setDocs(s.id, docs) : undefined} />
-                      {user.kind === "employee" && <ToSuccessStory project={project.id} user={user.id} farmer={farmer.id} story={s.id} />}
+                      {mayWriteStory(user) && <ToSuccessStory project={project.id} user={user.id} farmer={farmer.id} story={s.id} />}
                     </article>
                   ))}
                 </div>

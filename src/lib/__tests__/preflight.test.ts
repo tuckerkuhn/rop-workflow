@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addDays, blockers, daysBetween, deadlineFor, draftMark, parseReport, periodOf, preflightHref, urgency, type PreflightItem } from "@/lib/preflight";
+import { addDays, blockers, daysBetween, deadlineFor, draftMark, parseReport, periodOf, milestoneFits, preflightHref, urgency, type PreflightItem } from "@/lib/preflight";
 
 describe("deadlines", () => {
   it("adds and counts days across months and years", () => {
@@ -74,5 +74,22 @@ describe("a file made when pre-flight could not be read", () => {
     expect(draftMark(UNCHECKED)).toContain("could not be run");
     // Callers test the number for truth to decide whether to mark the file: it must not be zero.
     expect(Boolean(UNCHECKED)).toBe(true);
+  });
+});
+
+describe("which report a deadline milestone belongs to", () => {
+  it("keeps a quarterly milestone off the annual report and the reverse", () => {
+    expect(milestoneFits("Quarterly progress report", "annualReportDays")).toBe(false);
+    expect(milestoneFits("Quarterly progress report", "quarterlyReportDays")).toBe(true);
+    expect(milestoneFits("Annual report 2026", "quarterlyReportDays")).toBe(false);
+    expect(milestoneFits("Annual report 2026", "annualReportDays")).toBe(true);
+    expect(milestoneFits("Q4 report and annual review", "annualReportDays")).toBe(true);
+  });
+  it("keeps a monthly milestone off both, and lets an unnamed one fit either", () => {
+    expect(milestoneFits("Monthly report: January", "quarterlyReportDays")).toBe(false);
+    expect(milestoneFits("Monthly report: January", "annualReportDays")).toBe(false);
+    expect(milestoneFits("Report to the donor", "quarterlyReportDays")).toBe(true);
+    expect(milestoneFits("Report to the donor", "annualReportDays")).toBe(true);
+    expect(milestoneFits("Monthly report: January", null)).toBe(true);
   });
 });

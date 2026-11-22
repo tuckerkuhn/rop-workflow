@@ -76,6 +76,10 @@ export const FRAMEWORK_TABS: { href: string; label: MessageKey }[] = [
   { href: "/progress/framework", label: "nav.framework" },
   { href: "/progress/targets", label: "td.title" },
 ];
+export const WORK_TABS: { href: string; label: MessageKey }[] = [
+  { href: "/work", label: "tasks.all" },
+  { href: "/work/activities", label: "nav.activities" },
+];
 export const REVIEW_TABS: { href: string; label: MessageKey }[] = [
   { href: "/progress/review", label: "nav.review" },
   { href: "/progress/learning", label: "nav.lessons" },

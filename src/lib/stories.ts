@@ -1,3 +1,4 @@
+import type { AppUser } from "@/lib/demo";
 import { z } from "zod";
 import { docLinksSchema } from "@/lib/doc-links";
 
@@ -45,6 +46,9 @@ export const storyActionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("from-farmer"), farmer: z.string().max(20), story: z.string().max(60) }),
 ]);
 export type StoryAction = z.infer<typeof storyActionSchema>;
+
+/** Who writes success stories: field staff, MEL and programme leads (the stories API and the farmer profile's button). */
+export const mayWriteStory = (u: AppUser) => u.kind === "employee" && (u.fieldAccess === "edit" || !!u.admin || u.project.some((r) => ["mel-owner", "plan-approver", "monthly-review", "report-release"].includes(r)));
 
 /** Why a story cannot be used in a donor report, or null. */
 export function reportBlock(s: Pick<Story, "status" | "consent">): string | null {

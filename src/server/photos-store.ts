@@ -31,12 +31,15 @@ async function loadState(projectId: string) {
   return filled(await loadProjectState<PhotosState>(projectId, KEY, emptyPhotos));
 }
 
-/** Changes the photo record as stored now, with it locked: changes made at the same moment all stay. */
-async function changeState(projectId: string, change: (st: PhotosState) => void) {
-  await updateProjectState<PhotosState, null>(projectId, KEY, emptyPhotos, async (cur) => {
+/**
+ * Changes the photo record as stored now, with it locked: changes made at the same moment all stay.
+ * `change` may refuse (returns why), judged on the record as it is now; nothing is then saved.
+ */
+async function changeState(projectId: string, change: (st: PhotosState) => string | void): Promise<string | null> {
+  return updateProjectState<PhotosState, string | null>(projectId, KEY, emptyPhotos, async (cur) => {
     const st = filled(cur);
-    change(st);
-    return { data: st, result: null };
+    const refused = change(st);
+    return refused ? { data: null, result: refused } : { data: st, result: null };
   });
 }
 
@@ -264,45 +267,35 @@ export async function photoAction(code: string, u: AppUser, a: PhotoAction): Pro
     await log("post_drafted", { id: post.id, audience: a.audience });
     return {};
   }
-  const post = st.posts.find((x) => x.id === a.id);
-  if (!post) return { error: "No such post." };
-  // The change to this one post, made on the record as stored now (locked).
-  let edit: (x: Post) => void = () => undefined;
-  let remove = false;
-  if (a.action === "edit-post") {
-    if (post.status === "sent") return { error: "This post has been sent." };
-    edit = (x) => {
-      x.text = a.text;
-      x.status = "draft";
-      delete x.approved;
-    };
-  } else if (a.action === "approve-post") {
-    if (post.status !== "draft") return { error: "Only a draft can be approved." };
-    if (PUBLIC_AUDIENCES.includes(post.audience) && !st.publicPosts?.on) return { error: "Public posts are off for this project." };
-    const need = needs(post.audience);
-    for (const h of post.photos) if (rank(cleared(st.photos[h], item(h)?.storyUses ?? [])) < rank(need)) return { error: `A photo in this post is no longer cleared for "${SHARE_TEXT[need]}".` };
-    edit = (x) => {
-      x.status = "approved";
-      x.approved = { by: u.id, at: now };
-    };
-  } else if (a.action === "sent-post") {
-    if (post.status !== "approved") return { error: "Approve it before marking it sent." };
-    edit = (x) => {
-      x.status = "sent";
-      x.sent = { by: u.id, at: now, where: a.where };
-    };
-  } else {
-    if (post.status === "sent") return { error: "A sent post stays on the record." };
-    remove = true;
-  }
-  await changeState(p.id, (cur) => {
-    if (remove) cur.posts = cur.posts.filter((x) => x.id !== a.id);
-    else {
-      const x = cur.posts.find((y) => y.id === a.id);
-      if (x) edit(x);
+  // Judged and changed on the record as it is now (locked): a post sent or approved a moment ago is never undone.
+  let audience: Audience | undefined;
+  const refused = await changeState(p.id, (cur) => {
+    const post = cur.posts.find((x) => x.id === a.id);
+    if (!post) return "No such post.";
+    audience = post.audience;
+    if (a.action === "edit-post") {
+      if (post.status === "sent") return "This post has been sent.";
+      post.text = a.text;
+      post.status = "draft";
+      delete post.approved;
+    } else if (a.action === "approve-post") {
+      if (post.status !== "draft") return "Only a draft can be approved.";
+      if (PUBLIC_AUDIENCES.includes(post.audience) && !cur.publicPosts?.on) return "Public posts are off for this project.";
+      const need = needs(post.audience);
+      for (const h of post.photos) if (rank(cleared(cur.photos[h], item(h)?.storyUses ?? [])) < rank(need)) return `A photo in this post is no longer cleared for "${SHARE_TEXT[need]}".`;
+      post.status = "approved";
+      post.approved = { by: u.id, at: now };
+    } else if (a.action === "sent-post") {
+      if (post.status !== "approved") return "Approve it before marking it sent.";
+      post.status = "sent";
+      post.sent = { by: u.id, at: now, where: a.where };
+    } else {
+      if (post.status === "sent") return "A sent post stays on the record.";
+      cur.posts = cur.posts.filter((x) => x.id !== a.id);
     }
   });
-  await log(`post_${a.action.replace("-post", "")}`, { id: a.id, audience: post.audience });
+  if (refused) return { error: refused };
+  await log(`post_${a.action.replace("-post", "")}`, { id: a.id, audience });
   return {};
 }
 

@@ -93,3 +93,18 @@ export const preflightHref = (r: ReportRef) => (r.kind === "qpr" ? `/progress/re
 export const UNCHECKED = -1;
 export const draftMark = (n: number) =>
   n === UNCHECKED ? "DRAFT, NOT CHECKED: the report check could not be run when this file was made. Not for the donor." : `DRAFT, NOT CHECKED: ${n} ${n === 1 ? "item blocks" : "items block"} this report in the report check. Not for the donor.`;
+
+const MONTHLY = /\bmonth(ly)?\b|\b(january|february|march|april|may|june|july|august|september|october|november|december)\b/i;
+/**
+ * Whether a "Report deadline" milestone is the deadline of this kind of report, by its title. A
+ * milestone named for another report is not ("Quarterly progress report" was taken as the annual
+ * report's date; "Monthly report: January" as the fourth quarter's). A title that names no kind
+ * ("Report to the donor") fits either.
+ */
+export function milestoneFits(title: string, rule: "quarterlyReportDays" | "annualReportDays" | null): boolean {
+  if (!rule) return true;
+  const quarterly = /quarter|\bq[1-4]\b/i.test(title);
+  const annual = /annual|year|final/i.test(title);
+  const monthly = MONTHLY.test(title);
+  return rule === "annualReportDays" ? annual || (!quarterly && !monthly) : quarterly || (!annual && !monthly);
+}

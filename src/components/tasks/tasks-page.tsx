@@ -1,5 +1,6 @@
 "use client";
 
+import { PlaceTabs, WORK_TABS } from "@/components/progress/report-checks";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -73,7 +74,6 @@ const CHIPS: { id: Chip; label: MessageKey }[] = [
   { id: "hr", label: "work.chip.hr" },
 ];
 const PLACES: { href: string; label: MessageKey }[] = [
-  { href: "/work/activities", label: "nav.activities" },
   { href: "/work/grants", label: "nav.grants" },
   { href: "/progress/weekly", label: "nav.weekly" },
 ];
@@ -130,7 +130,10 @@ function AllTasks({ user }: { user: AppUser }) {
       <TopBar active="tasks" />
       <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6 lg:max-w-5xl">
         <h1 className="font-display text-4xl tracking-tight">{t("tasks.title")}</h1>
-        {/* The places in Work; on large screens they are in the sidebar. */}
+        <div className="mt-3">
+          <PlaceTabs label={t("nav.work")} here="/work" tabs={WORK_TABS} />
+        </div>
+        {/* The other places in Work; on large screens they are in the sidebar. */}
         <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm lg:hidden">
           {PLACES.map((p) => (
             <Link key={p.href} href={p.href} className="font-semibold text-forest hover:underline">

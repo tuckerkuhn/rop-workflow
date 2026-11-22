@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/db", () => import("@/server/__tests__/test-db"));
 
@@ -16,11 +16,17 @@ const elena = userById("elena")!;
 let projectId = "";
 
 beforeAll(async () => {
+  // Loaded on a fixed day before any quarter has ended, so the demo releases nothing of its own.
+  vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-11-20T12:00:00Z"), shouldAdvanceTime: true });
   process.env.DEMO_SIGN_IN = "1";
   await ready;
   await seedDatabase();
   projectId = (await projectByCode(code)).id;
 }, 120_000);
+
+afterAll(() => {
+  vi.useRealTimers();
+});
 
 describe("which quarter the demo releases", () => {
   it("is the last quarter that has ended, once the project has run through one", () => {
@@ -41,8 +47,7 @@ describe("the demo donor's account", { timeout: 60_000 }, () => {
   it("on the morning of the demo: the 2026-Q4 report is released, with the grant's lines and its cost share", async () => {
     expect(await seedDemoReport(projectId, "2027-01-10")).toBe("2026-Q4");
     const v = await donorView(code, elena);
-    // Loading the demo on a later day also releases that day's last ended quarter.
-    expect(v.reports.map((r) => r.quarter)).toContain("2026-Q4");
+    expect(v.reports.map((r) => r.quarter)).toEqual(["2026-Q4"]);
     expect(v.money).not.toBeNull();
     const funded = v.money!.funded.lines.map((l) => l.code);
     expect(funded).toContain("2.1");

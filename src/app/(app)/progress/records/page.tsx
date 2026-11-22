@@ -1,10 +1,6 @@
-import type { Metadata } from "next";
-import { RecordsPage } from "@/components/project/records-page";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = {
-  title: "Project records · ROP Workflow",
-};
-
+/** The old all-in-one project record is gone: every part of it has its own page, listed on Projects. */
 export default function Page() {
-  return <RecordsPage />;
+  redirect("/project");
 }

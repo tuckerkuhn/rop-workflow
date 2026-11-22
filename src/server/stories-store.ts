@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { db } from "@/db";
 import type { AppUser } from "@/lib/demo";
-import { reportBlock, type Story, type StoryAction } from "@/lib/stories";
+import { mayWriteStory, reportBlock, type Story, type StoryAction } from "@/lib/stories";
 import { draftStructured } from "@/server/ai-structured";
 import { scrubbed } from "@/server/ai";
 import { logAudit } from "@/server/audit";
@@ -17,7 +17,7 @@ import { ROP_VOICE } from "@/lib/voice";
 
 /** Success stories, in project_state ("stories"). Every change is in the audit trail. */
 
-export const mayWriteStory = (u: AppUser) => u.kind === "employee" && (u.fieldAccess === "edit" || u.admin || u.project.some((r) => ["mel-owner", "plan-approver", "monthly-review", "report-release"].includes(r)));
+export { mayWriteStory };
 export const mayApproveStory = (u: AppUser) => u.kind === "employee" && (u.admin || u.project.some((r) => ["mel-owner", "plan-approver", "report-release"].includes(r)));
 
 async function load(code: string) {
@@ -99,9 +99,13 @@ export async function storyAction(code: string, u: AppUser, a: StoryAction): Pro
       by: u.id,
       at: now,
     };
-    list.push(s);
-    await save({ story: s.id, title: s.title, farmer: f.id }, "story_added");
-    return { id: s.id };
+    // Added only if no draft for this farmer's story was made a moment ago (checked with the list locked).
+    return updateProjectState<{ stories: Story[] }, { id: string }>(p.id, "stories", { stories: [] }, async (cur, tx) => {
+      const made = cur.stories.find((x) => x.farmer?.id === f.id && x.farmer.story === from.id);
+      if (made) return { data: null, result: { id: made.id } };
+      await logAudit(tx, p.id, { entity: "story", entityId: p.id, action: "story_added", by: u.id, detail: { story: s.id, title: s.title, farmer: f.id } });
+      return { data: { stories: [...cur.stories, s] }, result: { id: s.id } };
+    });
   }
   const s = find(a.id);
   if (!s) return { error: "No such story." };

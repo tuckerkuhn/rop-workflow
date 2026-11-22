@@ -147,6 +147,12 @@ const deny = (status: 401 | 403 | 404, error: string) => NextResponse.json({ err
  * Signed-in check for a route. Pass `allow` to require a role; `write` refuses "View as"
  * sessions, which are read-only. Returns the viewer, or the response to send instead.
  */
+/** The projects an organization funds, by its name as a donor on them (codes). */
+export async function fundedBy(org: string): Promise<Set<string>> {
+  const rows = await db.select({ code: s.projects.code }).from(s.donors).innerJoin(s.projects, eq(s.projects.id, s.donors.projectId)).where(eq(s.donors.name, org));
+  return new Set(rows.map((r) => r.code).filter((c): c is string => !!c));
+}
+
 export async function requireViewer(req: Request, opts: { write?: boolean; allow?: (u: AppUser) => boolean; why?: string } = {}): Promise<Viewer | NextResponse> {
   // A read may reuse what it has already read in this request (server/request-memo); a change never does.
   if (req.method === "GET") requestOnlyReads();
@@ -163,6 +169,8 @@ export async function requireViewer(req: Request, opts: { write?: boolean; allow
   // Per-project access: a person listed on projects has their roles only there.
   const code = new URL(req.url).pathname.match(/^\/api\/projects\/([^/]+)/)?.[1];
   if (code && !onProject(v.user, decodeURIComponent(code))) return deny(403, "You do not work on this project. An administrator can add it to your projects in Settings, People.");
+  // A donor opens only the projects their organization funds; any other answers as if it were not there.
+  if (code && v.user.kind === "donor" && !(await fundedBy(v.user.org)).has(decodeURIComponent(code))) return deny(404, NO_PROJECT(decodeURIComponent(code)));
   // The project must belong to the person's own organization. Another organization's project
   // answers exactly as a project that does not exist, so its code cannot be confirmed by guessing.
   if (code && v.organizationId) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { PROJECT_KEY } from "@/components/project/project-page";
+import { PROJECT_KEY } from "@/lib/project";
 import { usePersistentState } from "@/components/workspace/ui";
 import { STAGES, type ProjectInfo, type Stage } from "@/lib/demo";
 import { GATED_KEYS, seedProject, type ProjectState } from "@/lib/project";

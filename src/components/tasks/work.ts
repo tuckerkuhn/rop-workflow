@@ -2,7 +2,7 @@
 
 import { comingTo } from "@/components/field/workspace";
 import { procurementComingTo } from "@/components/procurement/workspace";
-import { PROJECT, daysFrom, projectPath, stepHistory, type AppUser, type Stage } from "@/lib/demo";
+import { daysFrom, projectPath, stepHistory, type AppUser, type Stage } from "@/lib/demo";
 import { farmerLabel, fieldSteps, ownerOfItem, projectItem, type FieldItem } from "@/lib/field";
 import { ownerOf, procRolesFor, stepById, stepsFor, type Procurement } from "@/lib/procurement";
 import { type ProjectState } from "@/lib/project";
@@ -132,15 +132,15 @@ export function workFor(u: AppUser, data: Data, viewer: AppUser, opts: { project
   // Project sign-offs from the build spec.
   const pending = project.submissions.filter((s) => s.status === "pending").length;
   const proj = (key: string, title: string, step: string, tab: string, days: number) =>
-    cards.push({ key, title, step, date: new Date(Date.parse(today()) + days * 86400000).toISOString().slice(0, 10), href: `/progress/records?project=${PROJECT.id}#${tab}`, space: "Project", now: true, late: false, note: "" });
+    cards.push({ key, title, step, date: new Date(Date.parse(today()) + days * 86400000).toISOString().slice(0, 10), href: tab, space: "Project", now: true, late: false, note: "" });
   if (u.project.includes("mel-owner")) {
     if (pending) cards.push({ key: "pj-queue", title: `${pending} field forms to check`, step: "Accept or query on Results and proof", date: new Date(Date.parse(today()) + 86400000).toISOString().slice(0, 10), href: "/progress/results#field-records", space: "Project", now: true, late: false, note: "" });
   }
-  if (u.project.includes("finance-import") && !project.importedOn) proj("pj-import", "March NetSuite export", "Import and map spend to budget lines", "budget", 2);
+  if (u.project.includes("finance-import") && !project.importedOn) proj("pj-import", "March NetSuite export", "Import and map spend to budget lines", "/progress/budget", 2);
   if (u.project.includes("monthly-review")) {
     const open = project.changes.filter((c) => c.status === "proposed").length;
-    if (open) proj("pj-review", `${open} proposed changes`, "Decide in the monthly review", "overview", 4);
+    if (open) proj("pj-review", `${open} proposed changes`, "Decide in the monthly review", "/progress/review", 4);
   }
-  if (u.project.includes("report-release") && !project.reportRelease) proj("pj-report", "March progress report", "Review and release", "report", 7);
+  if (u.project.includes("report-release") && !project.reportRelease) proj("pj-report", "March progress report", "Review and release", "/progress/report", 7);
   return cards.sort((a, b) => a.date.localeCompare(b.date));
 }

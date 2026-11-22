@@ -22,14 +22,16 @@ const jetbrains = localFont({ variable: "--font-jetbrains", src: "../../node_mod
 const jakarta = localFont({ variable: "--font-jakarta", src: "../../node_modules/@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-latin-wght-normal.woff2", weight: "200 800", display: "swap" });
 const archivo = localFont({ variable: "--font-archivo", src: "../../node_modules/@fontsource-variable/archivo-narrow/files/archivo-narrow-latin-wght-normal.woff2", weight: "400 700", display: "swap" });
 
-/** Dari and Pashto: Inter and Fraunces have no Arabic-script letters. */
+/**
+ * Dari and Pashto: Inter and Fraunces have no Arabic-script letters. Only the Arabic-script file,
+ * for those letters only; Latin text on those pages falls through to Inter (globals.css).
+ */
 const vazirmatn = localFont({
   variable: "--font-vazirmatn",
-  src: [
-    { path: "../../node_modules/@fontsource-variable/vazirmatn/files/vazirmatn-arabic-wght-normal.woff2", weight: "100 900" },
-    { path: "../../node_modules/@fontsource-variable/vazirmatn/files/vazirmatn-latin-wght-normal.woff2", weight: "100 900" },
-  ],
+  src: "../../node_modules/@fontsource-variable/vazirmatn/files/vazirmatn-arabic-wght-normal.woff2",
+  weight: "100 900",
   display: "swap",
+  declarations: [{ prop: "unicode-range", value: "U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC" }],
 });
 
 export const metadata: Metadata = {

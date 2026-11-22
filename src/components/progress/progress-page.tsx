@@ -180,7 +180,7 @@ export function ProgressPage() {
                 [
                   ["Gather and prove", [["/progress/weekly", "Weekly update"], ["/progress/results", "Results and proof"], ["/progress/stories", t("nav.storiesPhotos")], ["/progress/feedback", t("nav.feedback")], ["/progress/budget", t("nav.budget")]]],
                   ["Review and report", [["/progress/review", "Monthly review and lessons"], ["/progress/report", "Reports to the donor"], ["/progress/audit", "Audit trail"]]],
-                  ["Set up", [["/progress/framework", "Results framework and targets"], ["/setup/lens", "AI review of the plan"], ["/progress/records", t("progress.records")]]],
+                  ["Set up", [["/progress/framework", "Results framework and targets"], ["/setup/lens", "AI review of the plan"]]],
                 ] as [string, [string, string][]][]
               ).map(([head, links]) => (
                 <span key={head} className="flex flex-col items-start gap-1.5">

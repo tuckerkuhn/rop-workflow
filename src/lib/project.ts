@@ -442,3 +442,6 @@ export function designGateMissing(state: ProjectState) {
 }
 
 export const personName = (id: string) => (id.startsWith("agent:") ? `${id.slice(6)} (AI)` : id === "sample" ? "the sample team (fictional)" : (userById(id)?.name ?? id));
+
+/** Where the demo project's sample state is kept in this browser. */
+export const PROJECT_KEY = "rop-project-v3";

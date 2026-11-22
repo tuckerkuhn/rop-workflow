@@ -24,16 +24,19 @@ const ACROSS_LABEL: Record<string, MessageKey> = { portfolio: "nav.allProjects",
 
 export function useProjectPlaces(): PlaceGroup[] {
   const { user } = useSession();
-  const { project } = useCurrentProject();
+  const { project, projects } = useCurrentProject();
   if (!user || user.kind !== "employee") return [];
+  // The portfolio compares projects: with one project there is nothing to compare, so it is not listed.
+  const several = projects.filter((p) => p.saved).length > 1;
   // All work first, then the workflows this person can open on this project: the order of the tabs on Work.
   const workflows: Place[] = taskSources(user, project).map((w) => ({ href: taskHref(w), label: w === "field" ? "tasks.field" : "tasks.procurement", source: w }));
-  const across: Place[] = acrossProjectsFor(user, (r) => holdsType(user.id, r)).map((a) => ({ href: a.href, label: ACROSS_LABEL[a.id] }));
+  const across: Place[] = acrossProjectsFor(user, (r) => holdsType(user.id, r)).filter((a) => a.id !== "portfolio" || several).map((a) => ({ href: a.href, label: ACROSS_LABEL[a.id] }));
   const groups: PlaceGroup[] = [
     {
       id: "work",
       label: "hub.work",
-      places: [{ href: "/work", label: "tasks.all", exact: true }, ...workflows, { href: "/work/activities", label: "nav.activities" }, { href: "/work/grants", label: "nav.grants" }],
+      // Tasks and the workplan's activities are one place, Work, with a tab for each.
+      places: [{ href: "/work", label: "tasks.all", exact: true, also: ["/work/activities"] }, ...workflows, { href: "/work/grants", label: "nav.grants" }],
     },
     {
       id: "progress",
@@ -81,6 +84,6 @@ export function useProjectPlaces(): PlaceGroup[] {
 /** Whether this place is the page on screen. `source` is the ?source= of /work. */
 export function placeIsOpen(pl: Place, path: string, source: string | null) {
   if (pl.source) return path === "/work" && source === pl.source;
-  if (pl.exact) return path === pl.href && !(pl.href === "/work" && source);
+  if (pl.exact) return (path === pl.href && !(pl.href === "/work" && source)) || (pl.also ?? []).some((h) => path === h || path.startsWith(`${h}/`));
   return [pl.href, ...(pl.also ?? [])].some((h) => path === h || path.startsWith(`${h}/`));
 }

@@ -70,3 +70,15 @@ Not done: `/progress/records` is not a small duplicate. It is the older all-in-o
 The app names ROP's own tools in page text: NetSuite, ADP, SharePoint, BambooHR. A local
 organization has none of them. Each mention should become the generic thing ("your accounting
 system", "your payroll", "your shared folder") with the name coming from Organization settings.
+
+## 22 Nov 2026: first merges and cuts
+
+- **Records page cut.** It was the original six-tab prototype (sample text only) for the demo project
+  and eight link tiles for every other project. `/progress/records` redirects to Projects; the
+  component is deleted; the sample sign-off cards on Work open the real pages.
+- **Work and Workplan are one place** with a tab strip; the sidebar lists it once.
+- **Portfolio is listed only with more than one project.**
+- **A deadline milestone belongs to the report its title names** (`milestoneFits`): "Quarterly
+  progress report" no longer sets the annual report's date.
+- Still to do from the same batch: tool names (NetSuite, ADP, SharePoint) as Organization settings;
+  per-project switches to hide Grants and the market window design when a project does not use them.

@@ -83,9 +83,11 @@ export async function actOnActivity(code: string, a: ActivityAction, u: AppUser)
     const item = await createWorkItem(code, { type: "task", title: `${a.code} · ${a.title}`, date: a.date, assignee: a.assignee ?? rec.owner }, u.id);
     apply = (r) => ({ ...r, tasks: [...r.tasks, item.id], history: [...r.history, ev(`Task added: ${a.title}`)] });
   }
-  await updateProjectState<ActivityBook, null>(project.id, KEY, { items: {} }, async (cur, tx) => {
+  return updateProjectState<ActivityBook, string | null>(project.id, KEY, { items: {} }, async (cur, tx) => {
+    const now = { ...EMPTY_RECORD, ...cur.items[a.code] };
+    // A status change is judged again on the record as it is now: an owner changed a moment ago decides.
+    if (a.action === "status" && !manage && now.owner !== u.id) return { data: null, result: "Only the activity's owner or a manager updates its status." };
     await logAudit(tx, project.id, { entity: "activity", entityId: project.id, action: `activity_${a.action}`, by: u.id, detail: { code: a.code, ...("status" in a ? { status: a.status } : {}), ...("owner" in a ? { owner: a.owner } : {}) } });
-    return { data: { items: { ...cur.items, [a.code]: apply({ ...EMPTY_RECORD, ...cur.items[a.code] }) } }, result: null };
+    return { data: { items: { ...cur.items, [a.code]: apply(now) } }, result: null };
   });
-  return null;
 }

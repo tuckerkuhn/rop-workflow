@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { stageOf } from "@/components/field/workspace";
 import { useFieldData, useProgress, useSubmissions } from "@/components/app/use-project-data";
 import { useProjectStage } from "@/components/app/project-stage";
-import { PROJECT_KEY } from "@/components/project/project-page";
+import { PROJECT_KEY } from "@/lib/project";
 import { useCurrentProject } from "@/components/app/current-project";
 import { DonorReportsCard } from "@/components/donor/home-card";
 import { useT } from "@/components/app/i18n";

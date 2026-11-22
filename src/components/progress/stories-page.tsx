@@ -279,12 +279,16 @@ export function StoriesPage() {
   useEffect(() => {
     if (ready && user && project.saved) void load();
   }, [ready, user, project.saved, load]);
-  // Opened from a farmer's profile (?story=): that story's editor, once the list has loaded.
-  const loaded = !!v;
+  // Opened from a farmer's profile (?story=): that story's editor, once the list has loaded, and
+  // only a story that is there. The address loses the ?story= so a reload shows the list.
   useEffect(() => {
+    if (!v) return;
     const asked = new URLSearchParams(window.location.search).get("story");
-    if (loaded && asked) setOpen(asked);
-  }, [loaded]);
+    if (!asked) return;
+    if (v.stories.some((s) => s.id === asked)) setOpen(asked);
+    else setError("That story is no longer here. It may have been removed.");
+    history.replaceState(history.state, "", window.location.pathname);
+  }, [v]);
   if (!user) return null;
   const act = async (a: StoryAction, msg: string): Promise<string | undefined> => {
     setError("");

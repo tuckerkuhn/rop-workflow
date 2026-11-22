@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/db", () => import("@/server/__tests__/test-db"));
 
@@ -25,6 +25,8 @@ const nadia = userById("nadia")!;
 const omar = userById("omar")!;
 
 beforeAll(async () => {
+  // A fixed day in the demo's first quarter, so what blocks the next report never depends on when the tests run.
+  vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-11-20T12:00:00Z"), shouldAdvanceTime: true });
   process.env.DEMO_SIGN_IN = "1";
   await ready;
   await seedDatabase();
@@ -33,12 +35,15 @@ beforeAll(async () => {
   await db.delete(s.projectState).where(and(eq(s.projectState.projectId, id), like(s.projectState.key, "qpr%")));
 }, 120_000);
 
+afterAll(() => {
+  vi.useRealTimers();
+});
+
 describe("counts of what blocks the next report", { timeout: 60_000 }, () => {
   it("are the same on the Progress summary as in pre-flight", async () => {
     const nr = await nextReport(code);
+    expect(nr.blocking).toBeGreaterThan(0);
     const concern = (await loadProgressSummary(code, nadia)).concerns.find((c) => c.key === "stops");
-    // Whether anything blocks depends on the day the tests run (which quarter is next); the two always agree.
-    if (!nr.blocking) return expect(concern).toBeUndefined();
     expect(concern?.text).toBe(`${nr.blocking} ${nr.blocking === 1 ? "thing blocks" : "things block"} the ${nr.quarter.replace("-", " ")} report`);
     expect(concern?.href).toMatch(/\/progress\/report\?q=.*#checks$/);
   });

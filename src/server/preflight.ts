@@ -1,7 +1,7 @@
 import { loadProjectState } from "@/server/project-state";
 import { ANSWER_DAYS, EMPTY_FEEDBACK, overdue, type FeedbackLog } from "@/lib/feedback";
 import { openClaims, overspentLines, SECTIONS } from "@/lib/qpr";
-import { addDays, deadlineFor, type Deadline, type Preflight, type PreflightItem, type ReadyItem, type ReportRef } from "@/lib/preflight";
+import { addDays, deadlineFor, type Deadline, type Preflight, type PreflightItem, type ReadyItem, type ReportRef, milestoneFits } from "@/lib/preflight";
 import { proofCount, quarterOf, quarterRange, type ResultRecord } from "@/lib/results";
 import { weekOf } from "@/lib/weekly";
 import { loadBudgetView } from "@/server/budget-view-store";
@@ -63,11 +63,8 @@ export async function reportDeadline(code: string, end: string, window: number, 
   const reviewDays = Number(rules.values.reviewDays ?? 0) || 0;
   const days = rule && rules.values[rule] != null ? Number(rules.values[rule]) : null;
   const src = rule ? (line(rule)?.donor?.source ?? line(rule)?.org?.source ?? "") : "";
-  // A monthly report's deadline is not the quarterly or annual one ("Monthly report: January" fell
-  // inside the Q4 window and became its due date).
-  const monthly = /\bmonth(ly)?\b|\b(january|february|march|april|may|june|july|august|september|october|november|december)\b/i;
   const ms = items
-    .filter((i) => i.type === "milestone" && i.milestoneKind === "report_deadline" && !(rule && monthly.test(i.title) && !/quarter|annual|year|q[1-4]/i.test(i.title)))
+    .filter((i) => i.type === "milestone" && i.milestoneKind === "report_deadline" && milestoneFits(i.title, rule))
     .map((i) => ({ title: i.title, date: i.date ?? "", done: !!i.doneAt }));
   return deadlineFor(end, window, ms, days, src, reviewDays);
 }

@@ -92,6 +92,9 @@ export async function actOnLearning(code: string, a: LearningAction, u: AppUser)
         next = { ...l, closeout: rest };
       }
     } else {
+      // Checked again on the record as it is now: an item unticked a moment ago keeps the project open.
+      if (l.closed) return { data: null, result: "The project is already closed." };
+      if (CLOSEOUT_ITEMS.some((i) => !l.closeout[i.id])) return { data: null, result: "Every close-out item must be done, and only a plan approver closes the project." };
       next = { ...l, closed: { on: today(), ...me } };
     }
     await logAudit(tx, project.id, { entity: "learning", entityId: project.id, action: `learning_${a.action}`, by: u.id, detail: { ...("item" in a ? { item: a.item } : {}), ...("area" in a ? { area: a.area } : {}), ...("note" in a && a.note ? { note: a.note } : {}) } });

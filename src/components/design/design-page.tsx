@@ -361,7 +361,7 @@ function Validate({ u, state, setState, locked, cal }: Props) {
 
 /* ---------- 3. Choose ---------- */
 
-function Choose({ u, state, setState, locked, cal, projectId, openTarget, intel }: Props & { projectId: string; openTarget: () => void; intel: boolean }) {
+function Choose({ u, state, setState, locked, cal, openTarget, intel }: Props & { openTarget: () => void; intel: boolean }) {
   const design = state.design ?? emptyDesign;
   const editable = canValidate(u) && !locked;
   const saved = state.marketTarget;
@@ -474,8 +474,8 @@ function Choose({ u, state, setState, locked, cal, projectId, openTarget, intel 
       </div>
       <p className="text-sm text-muted">
         Next: the CEO, Director of Programs or Country Director signs off Design on the{" "}
-        <Link href={`/progress/records?project=${projectId}`} className="font-semibold text-forest hover:underline">
-          project page
+        <Link href="/progress" className="font-semibold text-forest hover:underline">
+          Progress page
         </Link>
         , which moves the project to Execute.
       </p>
@@ -534,7 +534,7 @@ export function DesignPage() {
           <p className="mt-1 max-w-2xl text-sm text-muted">Start from demand: explore where buyers have unmet demand and when, validate the strongest windows with evidence, then commit the project to one.</p>
           <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
             <span className="text-muted">Designing</span>
-            <Link href={`/progress/records?project=${project.id}`} className="rounded-full border border-line bg-surface px-3 py-1 font-medium hover:border-forest">
+            <Link href="/project" className="rounded-full border border-line bg-surface px-3 py-1 font-medium hover:border-forest">
               {project.id} · {project.name}
             </Link>
             <Pill tone={locked ? "forest" : "ochre"}>{locked ? `${stage}: design locked` : "In Design"}</Pill>
@@ -558,7 +558,7 @@ export function DesignPage() {
         <div className="mt-6 space-y-12">
           <Explore {...props} crop={crop} setCrop={setCrop} intel={intel} />
           <Validate {...props} />
-          <Choose {...props} projectId={project.id} openTarget={() => setTargetOpen(true)} intel={intel} />
+          <Choose {...props} openTarget={() => setTargetOpen(true)} intel={intel} />
         </div>
         {/* Resetting would move a started project back to Design, so a view-only design has no reset. */}
         {!locked && (

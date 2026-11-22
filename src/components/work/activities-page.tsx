@@ -1,5 +1,6 @@
 "use client";
 
+import { PlaceTabs, WORK_TABS } from "@/components/progress/report-checks";
 import { plainError } from "@/lib/plain-error";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -311,10 +312,8 @@ export function ActivitiesPage() {
     <div className="min-h-screen">
       <TopBar />
       <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
-        <Link href="/work" className="text-sm text-muted hover:text-ink">
-          {t("act.back")}
-        </Link>
-        <h1 className="mt-2 font-display text-4xl tracking-tight">{t("act.title")}</h1>
+        <PlaceTabs label={t("nav.work")} here="/work/activities" tabs={WORK_TABS} />
+        <h1 className="mt-4 font-display text-4xl tracking-tight">{t("act.title")}</h1>
         <p className="mt-1 text-sm text-muted">{t("act.intro", { project: project.name })}</p>
         {!project.saved && <p className="mt-6 text-sm text-muted">{t("act.noPlan")}</p>}
         {v && (
