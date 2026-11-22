@@ -556,9 +556,23 @@ export const photoLabels: Record<PhotoKind, string> = {
 /** Farmer IDs everywhere; the name only for people with participant-data access. */
 export const farmerLabel = (f: { id: string; name: string }, u: AppUser | null | undefined) => (u?.pii && f.name ? `${f.name} · ${f.id}` : `Farmer ${f.id}`);
 export const farmerName = (f: { id: string; name: string }, u: AppUser | null | undefined) => (u?.pii && f.name ? f.name : `Farmer ${f.id}`);
+const escaped = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * Replaces a farmer's name in free text with their number: the full name and each part of it
+ * (three letters or more, as in lib/doc-links docNamesPerson), in any capitals, as whole words
+ * only, so "Ali" is hidden but "Alison" is left alone. The same rule on the screen and the server.
+ */
+export function hideName(text: string, name: string, id: string): string {
+  const full = name.trim();
+  if (!full) return text;
+  const parts = [full, ...full.split(/\s+/).filter((w) => w.length >= 3)].sort((a, b) => b.length - a.length);
+  const re = new RegExp(`(?<![\\p{L}\\p{N}])(?:${parts.map((p) => escaped(p).replace(/\s+/g, "\\s+")).join("|")})(?![\\p{L}\\p{N}])`, "giu");
+  return text.replace(re, `Farmer ${id}`);
+}
+
 /** Replaces a farmer's name in free text (e.g. a story) for people without access. */
-export const maskName = (text: string, f: { id: string; name: string }, u: AppUser | null | undefined) =>
-  u?.pii || !f.name ? text : text.split(f.name).join(`Farmer ${f.id}`);
+export const maskName = (text: string, f: { id: string; name: string }, u: AppUser | null | undefined) => (u?.pii || !f.name ? text : hideName(text, f.name, f.id));
 
 /* ---------- synthetic records ---------- */
 

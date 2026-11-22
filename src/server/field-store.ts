@@ -6,7 +6,7 @@ import { DEMO_SETUP, FIELD_SETUP_KEY, type FieldSetup } from "@/lib/package";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { canSeePII, type AppUser } from "@/lib/demo";
-import { type Farmer, type FieldItem, type Stock } from "@/lib/field";
+import { hideName, type Farmer, type FieldItem, type Stock } from "@/lib/field";
 import { docNamesPerson } from "@/lib/doc-links";
 import { HttpError } from "@/server/guard";
 import { oncePerRequest } from "@/server/request-memo";
@@ -112,11 +112,11 @@ async function namesOf(projectId: string): Promise<Map<string, string>> {
 }
 
 /** Fields that are never free text: left as they are when names are hidden. */
-const NOT_TEXT = new Set(["id", "rev", "src", "url", "kind", "orgId", "step", "status", "date", "by", "who", "activity"]);
+const NOT_TEXT = new Set(["id", "rev", "src", "url", "kind", "orgId", "step", "status", "date", "by", "who", "activity", "at"]);
 
 /** Every piece of free text in a record with the farmer's name replaced by their number, as on screen (lib/field maskName). */
 function masked(v: unknown, name: string, id: string): unknown {
-  if (typeof v === "string") return v.split(name).join(`Farmer ${id}`);
+  if (typeof v === "string") return hideName(v, name, id);
   if (Array.isArray(v)) return v.map((x) => masked(x, name, id));
   if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, NOT_TEXT.has(k) ? x : masked(x, name, id)]));
   return v;
@@ -133,10 +133,26 @@ function withoutName(f: Farmer, name: string): Farmer {
   return { ...out, stories: out.stories.map((s) => (s.docs?.length ? { ...s, docs: s.docs.filter((d) => !docNamesPerson(d.url, name)) } : s)) };
 }
 
-/** Text sent back exactly as it was shown (masked) is kept as stored, with the name; anything changed is taken as sent. */
+/** What a list entry is known by (a story's id, a link's address), so entries pair up even when some were hidden or reordered. */
+const keyOf = (x: unknown) => (x && typeof x === "object" ? ((x as { id?: unknown; url?: unknown }).id ?? (x as { url?: unknown }).url) : undefined);
+
+/**
+ * Text sent back exactly as it was shown (masked) is kept as stored, with the name. Text they
+ * changed is taken as sent, with the farmer's number put back as the name, so their edit never
+ * replaces the name for the people who may see it.
+ */
 function unmasked(sent: unknown, was: unknown, name: string, id: string): unknown {
-  if (typeof sent === "string") return typeof was === "string" && sent !== was && sent === masked(was, name, id) ? was : sent;
-  if (Array.isArray(sent)) return sent.map((x, k) => unmasked(x, Array.isArray(was) ? was[k] : undefined, name, id));
+  if (typeof sent === "string") {
+    if (typeof was === "string" && sent === masked(was, name, id)) return was;
+    return sent.split(`Farmer ${id}`).join(name);
+  }
+  if (Array.isArray(sent)) {
+    const old = Array.isArray(was) ? was : [];
+    return sent.map((x, k) => {
+      const key = keyOf(x);
+      return unmasked(x, key !== undefined ? old.find((o) => keyOf(o) === key) : old[k], name, id);
+    });
+  }
   if (sent && typeof sent === "object") {
     const w = was && typeof was === "object" ? (was as Record<string, unknown>) : {};
     return Object.fromEntries(Object.entries(sent).map(([k, x]) => [k, NOT_TEXT.has(k) ? x : unmasked(x, w[k], name, id)]));

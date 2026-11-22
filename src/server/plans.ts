@@ -77,5 +77,5 @@ export async function endTrial(target: { name?: string; all?: boolean } = {}) {
 
 export const listPlans = async () =>
   (await db.select({ name: s.organizations.name, plan: s.organizations.plan, trialEndsAt: s.organizations.trialEndsAt }).from(s.organizations)).map(
-    (o) => `${o.name}: ${o.plan}${o.trialEndsAt ? (trialActive(o.trialEndsAt) ? `, paid-plan trial until ${o.trialEndsAt.toISOString().slice(0, 10)}` : `, trial ended ${o.trialEndsAt.toISOString().slice(0, 10)}`) : ""}`,
+    (o) => `${o.name}: ${o.plan}${o.trialEndsAt && o.plan !== "paid" ? (trialActive(o.trialEndsAt) ? `, paid-plan trial until ${o.trialEndsAt.toISOString().slice(0, 10)}` : `, trial ended ${o.trialEndsAt.toISOString().slice(0, 10)}`) : ""}`,
   );

@@ -76,7 +76,8 @@ export function StatusPill({ tone, children }: { tone: Tone; children: React.Rea
 }
 
 export function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <h4 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">{children}</h4>;
+  // A section's name with a gold tick: "look here", the same mark as on Home.
+  return <h4 className="border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight text-ink">{children}</h4>;
 }
 
 /** Horizontal progress: done, current, upcoming. `marks` labels a stage (e.g. a gate). */
@@ -491,12 +492,13 @@ export function StepCard({
 export const stickyActions =
   "sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-20 space-y-1.5 rounded-b-2xl border-t border-line bg-surface/95 px-4 py-2.5 backdrop-blur sm:px-5 lg:static lg:space-y-2 lg:bg-surface lg:py-4 lg:backdrop-blur-none";
 
+// Square, flat buttons: green does the work, a gold wash answers the pointer, red is for removing.
 export const primaryBtn =
-  "rounded-full bg-forest px-6 py-3 text-sm font-semibold text-forest-ink shadow-[0_12px_24px_-14px_rgb(49_77_47/0.8)] transition enabled:hover:-translate-y-0.5 enabled:hover:bg-forest-hover disabled:cursor-not-allowed disabled:opacity-35 disabled:shadow-none";
+  "rounded-sm bg-forest px-6 py-3 text-sm font-semibold text-forest-ink transition enabled:hover:bg-forest-hover enabled:active:translate-y-px disabled:cursor-not-allowed disabled:opacity-35";
 export const dangerBtn =
-  "rounded-full bg-clay px-6 py-3 text-sm font-semibold text-white transition enabled:hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-35";
+  "rounded-sm bg-clay px-6 py-3 text-sm font-semibold text-white transition enabled:active:translate-y-px disabled:cursor-not-allowed disabled:opacity-35";
 export const quietBtn =
-  "rounded-full border border-line px-4 py-3 text-sm font-medium transition enabled:hover:border-forest enabled:hover:text-forest disabled:cursor-not-allowed disabled:opacity-35";
+  "rounded-sm border border-line-strong px-4 py-3 text-sm font-medium transition enabled:hover:border-forest enabled:hover:bg-ochre-soft disabled:cursor-not-allowed disabled:opacity-35";
 
 /* ---------- shell ---------- */
 
@@ -631,7 +633,7 @@ export function TopBar({ active, children }: { active?: "design" | "project" | "
                     {user.title} · {user.org}
                   </p>
                   {trialEndsAt && user.kind === "employee" && (
-                    <p className="mx-2 mt-2 rounded-lg bg-mist px-2 py-1.5 text-xs text-forest">{tx("Premium free trial until {date}", { date: date(trialEndsAt, { day: "numeric", month: "long", year: "numeric" }) })}</p>
+                    <p className="mx-2 mt-2 rounded-lg bg-mist px-2 py-1.5 text-xs text-forest">{tx("Premium free trial until {date}", { date: date(new Date(trialEndsAt).toLocaleDateString("en-CA"), { day: "numeric", month: "long", year: "numeric" }) })}</p>
                   )}
                   {user.kind === "employee" && (
                     <nav aria-label={t("menu.myWork")} className="mt-2 border-t border-line pt-2">
