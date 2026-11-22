@@ -18,6 +18,26 @@ export type Feature = (typeof PAID_FEATURES)[number];
 
 export const hasFeature = (plan: Plan, feature: Feature) => plan === "paid" || !(PAID_FEATURES as readonly string[]).includes(feature);
 
+/** How long a free trial of the paid plan lasts unless a longer one is given. */
+export const TRIAL_MONTHS = 2;
+
+/** Whether a trial is running at `now`. */
+export const trialActive = (trialEndsAt: Date | string | null | undefined, now = new Date()) => !!trialEndsAt && new Date(trialEndsAt).getTime() > now.getTime();
+
+/** The plan whose features are on: the paid plan while a trial runs, else the plan the organization is on. */
+export const effectivePlan = (plan: Plan, trialEndsAt: Date | string | null | undefined, now = new Date()): Plan => (plan === "paid" || trialActive(trialEndsAt, now) ? "paid" : plan);
+
+/** When a trial started at `from` for `months` ends: the same day and time `months` calendar months later (the month's last day when shorter). */
+export function trialEnd(from: Date, months = TRIAL_MONTHS): Date {
+  const d = new Date(from);
+  const day = d.getUTCDate();
+  d.setUTCDate(1);
+  d.setUTCMonth(d.getUTCMonth() + months);
+  const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+  d.setUTCDate(Math.min(day, last));
+  return d;
+}
+
 /**
  * How a farmer photo is kept: resized on the phone before it is saved. Free: 800 pixels on the long
  * side, enough to verify the work (about 50 to 120 KB). Paid (full_photos): 2,000 pixels, normal

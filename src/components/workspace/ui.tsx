@@ -557,8 +557,8 @@ export const MY_WORK: { href: string; label: MessageKey }[] = [
 ];
 
 export function TopBar({ active, children }: { active?: "design" | "project" | "tasks" | "field" | "procurement"; children?: React.ReactNode }) {
-  const { user, actor, viewingAs, viewAs, mode, signOut } = useSession();
-  const { t } = useT();
+  const { user, actor, viewingAs, viewAs, mode, signOut, trialEndsAt } = useSession();
+  const { t, tx, date } = useT();
   const router = useRouter();
   const [menu, setMenu] = useState(false);
   const [switchError, setSwitchError] = useState("");
@@ -630,6 +630,9 @@ export function TopBar({ active, children }: { active?: "design" | "project" | "
                   <p className="px-2 text-xs text-muted">
                     {user.title} · {user.org}
                   </p>
+                  {trialEndsAt && user.kind === "employee" && (
+                    <p className="mx-2 mt-2 rounded-lg bg-mist px-2 py-1.5 text-xs text-forest">{tx("Premium free trial until {date}", { date: date(trialEndsAt, { day: "numeric", month: "long", year: "numeric" }) })}</p>
+                  )}
                   {user.kind === "employee" && (
                     <nav aria-label={t("menu.myWork")} className="mt-2 border-t border-line pt-2">
                       <p className="px-2 pb-1 text-xs font-semibold uppercase tracking-wide text-muted">{t("menu.myWork")}</p>

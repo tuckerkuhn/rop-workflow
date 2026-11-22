@@ -5,7 +5,7 @@ import { z } from "zod";
 import { docLinksSchema } from "@/lib/doc-links";
 import type { FieldItem } from "@/lib/field";
 import { requireViewer } from "@/server/auth";
-import { keepNamedDocs, loadField, saveEdited, saveStock } from "@/server/field-store";
+import { keepHidden, loadField, saveEdited, saveStock } from "@/server/field-store";
 import { countPlanting, recordFromApp, stockFor } from "@/server/distribution";
 import { moveProblem, stepRefusal, type Farmer } from "@/lib/field";
 import { today } from "@/lib/clock";
@@ -78,8 +78,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ code: st
     // received note and quantities first (refused if not), then it goes to the manager to approve.
     const field = await loadField(code, v.user);
     const stored = new Map(field.items.map((i) => [i.id, i]));
-    // Story links hidden from this person (the address names the farmer) are kept, from the records as stored.
-    const items = await keepNamedDocs(code, v.user, sent, new Map((await loadField(code)).items.map((i) => [i.id, i])));
+    // What was hidden from this person (the farmer's name in text and links) is kept, from the records as stored.
+    const raw = new Map((await loadField(code)).items.map((i) => [i.id, i]));
+    const items = await keepHidden(code, v.user, sent, raw);
     const before = new Map(field.items.map((i) => [i.id, i.step]));
     // A stale page never writes over newer work: each record must be the version the page read.
     const stale = items.find((i) => stored.has(i.id) && stored.get(i.id)!.rev !== i.rev);
@@ -115,7 +116,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ code: st
     const now = new Date();
     const toSave = items
       .map((i) => (handedOut.includes(i as Farmer) ? { ...i, step: "distribute" } : i))
-      .map((i) => ({ ...i, timeline: stampHistory(stored.get(i.id)?.timeline, i.timeline ?? [], now) }) as FieldItem);
+      .map((i) => ({ ...i, timeline: stampHistory(raw.get(i.id)?.timeline, i.timeline ?? [], now) }) as FieldItem);
     const revs = toSave.length ? await saveEdited(code, toSave) : {};
     const recorded: string[] = [];
     for (const f of handedOut) recorded.push(await recordFromApp(code, f, v.user, new URL(req.url).origin));

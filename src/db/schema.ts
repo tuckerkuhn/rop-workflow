@@ -99,6 +99,8 @@ export const organizations = pgTable(
     name: text("name").notNull(),
     /** "free" or "paid". Paid unlocks the features in src/lib/plans.ts. Set with npm run plan until billing exists. */
     plan: text("plan").notNull().default("free"),
+    /** A free trial of the paid plan: its features are on until this moment (lib/plans effectivePlan). Null: no trial. */
+    trialEndsAt: timestamp("trial_ends_at", { withTimezone: true }),
     ...timestamps,
   },
   (t) => [check("organizations_plan", sql`${t.plan} IN ('free', 'paid')`)],

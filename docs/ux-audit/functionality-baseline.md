@@ -160,3 +160,12 @@ project follows, notifications, password, health). Resources library.
   completed story has "+ Link a document" (SharePoint, Google Drive, OneDrive or any https
   link), and so does each story on the Success stories page. Links open where the file lives,
   named with the service; the file keeps that service's own access. No function removed.
+- 2026-11-21, later: names follow the sector's data-protection guidelines (need to know). For
+  people who may not see farmers' names, a name typed into a story, note, survey comment or
+  history line shows as the farmer's number, and their saves keep the name where they left the
+  text unchanged. No function removed.
+- 2026-11-21, evening: free trial of the paid plan. An organization can have a trial end date
+  (migration 0026); until then it has every paid feature. `npm run plan -- trial [months]
+  [--org "Name" | --all]` starts one (2 months by default), `end-trial` ends it, `npm run plan`
+  lists them. The person menu says "Premium free trial until …" while one runs. Every current
+  organization was given a 2-month trial (until 21 January 2027). No function removed.

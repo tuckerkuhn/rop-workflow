@@ -111,26 +111,56 @@ async function namesOf(projectId: string): Promise<Map<string, string>> {
   return names;
 }
 
-/** A farmer's story links with those whose address names them left out (for people who may not see names). */
-function withoutNamedDocs(f: Farmer, name: string): Farmer {
-  if (!name || !f.stories?.some((s) => s.docs?.length)) return f;
-  return { ...f, stories: f.stories.map((s) => (s.docs?.length ? { ...s, docs: s.docs.filter((d) => !docNamesPerson(d.url, name)) } : s)) };
+/** Fields that are never free text: left as they are when names are hidden. */
+const NOT_TEXT = new Set(["id", "rev", "src", "url", "kind", "orgId", "step", "status", "date", "by", "who", "activity"]);
+
+/** Every piece of free text in a record with the farmer's name replaced by their number, as on screen (lib/field maskName). */
+function masked(v: unknown, name: string, id: string): unknown {
+  if (typeof v === "string") return v.split(name).join(`Farmer ${id}`);
+  if (Array.isArray(v)) return v.map((x) => masked(x, name, id));
+  if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, NOT_TEXT.has(k) ? x : masked(x, name, id)]));
+  return v;
 }
 
 /**
- * What a save by someone who may not see names must keep: the story links left out of their page
- * because the address names the farmer (they could not have removed what they never saw).
+ * A farmer's record for someone who may not see names: the name typed into any note, story,
+ * survey comment or history line shows as the farmer's number, and story links whose address
+ * names them are left out.
  */
-export async function keepNamedDocs(code: string, user: AppUser, items: FieldItem[], stored: Map<string, FieldItem>): Promise<FieldItem[]> {
+function withoutName(f: Farmer, name: string): Farmer {
+  if (!name) return f;
+  const out = masked(f, name, f.id) as Farmer;
+  return { ...out, stories: out.stories.map((s) => (s.docs?.length ? { ...s, docs: s.docs.filter((d) => !docNamesPerson(d.url, name)) } : s)) };
+}
+
+/** Text sent back exactly as it was shown (masked) is kept as stored, with the name; anything changed is taken as sent. */
+function unmasked(sent: unknown, was: unknown, name: string, id: string): unknown {
+  if (typeof sent === "string") return typeof was === "string" && sent !== was && sent === masked(was, name, id) ? was : sent;
+  if (Array.isArray(sent)) return sent.map((x, k) => unmasked(x, Array.isArray(was) ? was[k] : undefined, name, id));
+  if (sent && typeof sent === "object") {
+    const w = was && typeof was === "object" ? (was as Record<string, unknown>) : {};
+    return Object.fromEntries(Object.entries(sent).map(([k, x]) => [k, NOT_TEXT.has(k) ? x : unmasked(x, w[k], name, id)]));
+  }
+  return sent;
+}
+
+/**
+ * What a save by someone who may not see names must keep: the name in text they saw masked and
+ * did not change, and the story links left out of their page (they could not remove what they
+ * never saw).
+ */
+export async function keepHidden(code: string, user: AppUser, items: FieldItem[], stored: Map<string, FieldItem>): Promise<FieldItem[]> {
   if (canSeePII(user)) return items;
   const names = await namesOf((await projectByCode(code)).id);
   return items.map((i) => {
     const was = stored.get(i.id);
     const name = names.get(i.id);
     if (i.kind !== "farmer" || was?.kind !== "farmer" || !name) return i;
+    const back = unmasked(i, was, name, i.id) as Farmer;
     return {
-      ...i,
-      stories: i.stories.map((s) => {
+      ...back,
+      name: "",
+      stories: back.stories.map((s) => {
         const hidden = (was.stories.find((x) => x.id === s.id)?.docs ?? []).filter((d) => docNamesPerson(d.url, name) && !s.docs?.some((x) => x.url === d.url));
         return hidden.length ? { ...s, docs: [...(s.docs ?? []), ...hidden] } : s;
       }),
@@ -140,7 +170,7 @@ export async function keepNamedDocs(code: string, user: AppUser, items: FieldIte
 
 /**
  * The project's field records. With `user`, names are added only for people allowed to see them,
- * and for anyone else story links whose address names the farmer are left out. Without `user`,
+ * and for anyone else the name is hidden in free text and in story links (withoutName). Without `user`,
  * the records as stored (no names), for the server's own use.
  */
 export async function loadField(code: string, user?: AppUser) {
@@ -157,7 +187,7 @@ export async function loadField(code: string, user?: AppUser) {
 
   const items = rows
     .map((r) => ({ ...(r.data as FieldItem), rev: r.updatedAt.toISOString() }) as FieldItem)
-    .map((i): FieldItem => (i.kind === "farmer" ? (hiddenFrom ? withoutNamedDocs({ ...i, name: "" }, hiddenFrom.get(i.id) ?? "") : { ...i, name: names.get(i.id) ?? "" }) : i))
+    .map((i): FieldItem => (i.kind === "farmer" ? (hiddenFrom ? withoutName({ ...i, name: "" }, hiddenFrom.get(i.id) ?? "") : { ...i, name: names.get(i.id) ?? "" }) : i))
     .sort((a, b) => a.id.localeCompare(b.id));
   return { items, stock: (stockRow?.data as Stock | undefined) ?? null, setup: await setupOf(project) };
 }

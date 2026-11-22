@@ -37,8 +37,10 @@ type Session = {
   currency: Currency;
   setCurrency: (c: Currency) => void;
   money: (usd: number) => string;
-  /** The organization's plan; check features with `useFeature`. */
+  /** The organization's plan; check features with `useFeature`. The paid plan while a trial runs. */
   plan: Plan;
+  /** When a free trial of the paid plan ends, while one runs; null otherwise. */
+  trialEndsAt: string | null;
 };
 
 const SessionContext = createContext<Session | null>(null);
@@ -49,7 +51,7 @@ export function supabaseBrowser() {
   return createBrowserClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 }
 
-type ServerSession = { mode: "demo" | "live"; configured: boolean; user: AppUser | null; actor: AppUser | null; viewingAs: boolean; people: AppUser[]; plan: Plan; authority?: Authority; proposalAccess?: Record<string, "core" | "team">; twoStep?: "verify" | "enroll" };
+type ServerSession = { mode: "demo" | "live"; configured: boolean; user: AppUser | null; actor: AppUser | null; viewingAs: boolean; people: AppUser[]; plan: Plan; trialEndsAt?: string | null; authority?: Authority; proposalAccess?: Record<string, "core" | "team">; twoStep?: "verify" | "enroll" };
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [mode, setMode] = useState<Mode>("loading");
@@ -59,6 +61,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [currency, setCurrencyState] = useState<Currency>("USD");
   const [stored, setStored] = useState(false);
   const [plan, setPlan] = useState<Plan>("free");
+  const [trialEndsAt, setTrialEndsAt] = useState<string | null>(null);
   // Live sign-in: the second step still owed this session, if any (see TwoStepGate).
   const [twoStep, setTwoStep] = useState<"verify" | "enroll" | null>(null);
 
@@ -75,6 +78,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       }
       setConfigured(s.configured);
       setPlan(s.plan ?? "free");
+      setTrialEndsAt(s.trialEndsAt ?? null);
       setMode(s.mode);
     } catch {
       // Without the server we cannot tell who is signed in; fall back to the demo picker.
@@ -135,8 +139,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       setCurrency: setCurrencyState,
       money,
       plan,
+      trialEndsAt,
     }),
-    [mode, configured, live, demoUser, stored, signOut, refresh, viewAs, currency, money, plan],
+    [mode, configured, live, demoUser, stored, signOut, refresh, viewAs, currency, money, plan, trialEndsAt],
   );
 
   return <SessionContext.Provider value={value}>{twoStep ? <TwoStepGate kind={twoStep} onDone={() => void refresh()} /> : children}</SessionContext.Provider>;
