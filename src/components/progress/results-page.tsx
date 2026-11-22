@@ -266,7 +266,7 @@ export function ResultsPage() {
         {v?.mayRecord && v.indicators.some((i) => !i.fromKobo) && <ImportResults indicators={v.indicators.filter((i) => !i.fromKobo)} act={act} />}
         {v && v.activities.length > 0 && (
           <section id="activity-updates" className="mt-10 scroll-mt-24 border-t border-line pt-6">
-            <h2 className="font-display text-2xl">Activity updates</h2>
+            <h2 className="border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">Activity updates</h2>
             <p className="mt-1 max-w-2xl text-sm text-muted">
               Progress that is not a count on an indicator: reservoirs built, grant agreements signed, sales at an exhibition, an analysis finished. Add photos with a caption to put them in the donor
               report. Updates go into the report&rsquo;s narrative; they never change a figure.
@@ -1073,7 +1073,7 @@ function ImportResults({ indicators, act }: { indicators: { code: string; donorC
     );
   return (
     <section className="mt-6 rounded-2xl border border-line bg-surface p-4">
-      <h2 className="text-xl font-semibold">Import results</h2>
+      <h2 className="border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">Import results</h2>
       <p className="mt-1 text-sm text-muted">
         One row per result. The target may be the app&rsquo;s code (IND-7) or the donor&rsquo;s (1.2.1.4). Each row is checked as if typed in, and nothing is saved until every row passes. Imported
         results wait for MEL like any other.{" "}

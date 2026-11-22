@@ -160,7 +160,7 @@ export function ProgressPage() {
             {doc && (
               <section className="mt-10">
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <h2 className="font-display text-2xl">{t("progress.report")}</h2>
+                  <h2 className="border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">{t("progress.report")}</h2>
                   <span className="text-sm text-muted">{t(formatById(donor?.reportFormat).label)}</span>
                 </div>
                 <div className="mt-3">
@@ -351,7 +351,7 @@ function ExportSheet({ doc, name, donor, onClose }: { doc: ReportDoc; name: stri
         onClick={(e) => e.stopPropagation()}
         className="w-full bg-paper p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:max-w-sm sm:rounded-2xl sm:border sm:border-line"
       >
-        <h2 id="export-title" className="font-display text-2xl">
+        <h2 id="export-title" className="border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">
           {t("progress.export")}
         </h2>
         <p className="mt-1 text-sm text-muted">

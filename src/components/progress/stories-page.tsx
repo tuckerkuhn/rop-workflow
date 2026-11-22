@@ -71,7 +71,7 @@ function Editor({ v, start, user, act, onClose }: { v: View; start: StoryRow | n
   const approved = start?.status === "approved";
   return (
     <section className="mt-4 rounded-2xl border border-line bg-surface p-4">
-      <h2 className="text-xl font-semibold">{start ? "Story" : "New story"}</h2>
+      <h2 className="border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">{start ? "Story" : "New story"}</h2>
       <fieldset className="mt-3 rounded-xl bg-paper p-3" disabled={approved}>
         <legend className="px-1 text-sm font-semibold">
           1. Consent: before anything else

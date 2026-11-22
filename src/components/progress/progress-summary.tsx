@@ -52,7 +52,7 @@ export function ProgressSummaryPanel({ projectId, userId }: { projectId: string;
       <p className="text-lg leading-snug">{headline}</p>
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <section className="min-w-0 rounded-2xl border border-line bg-surface p-4" aria-labelledby="celebrate">
-          <h2 id="celebrate" className="flex items-center gap-2 text-xl font-semibold">
+          <h2 id="celebrate" className="flex items-center gap-2 border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">
             <span aria-hidden className="grid h-6 w-6 place-items-center rounded-full bg-mist text-sm text-forest">
               ✓
             </span>
@@ -80,7 +80,7 @@ export function ProgressSummaryPanel({ projectId, userId }: { projectId: string;
         </section>
 
         <section className="min-w-0 rounded-2xl border border-line bg-surface p-4" aria-labelledby="attention">
-          <h2 id="attention" className="flex items-center gap-2 text-xl font-semibold">
+          <h2 id="attention" className="flex items-center gap-2 border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">
             <span aria-hidden className="grid h-6 w-6 place-items-center rounded-full bg-clay-soft text-sm font-semibold text-clay">
               !
             </span>

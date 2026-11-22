@@ -38,7 +38,7 @@ export function SettingsPage() {
         <h1 className="font-display text-4xl tracking-tight">Settings</h1>
 
         {/* You: how you sign in and what reaches you. */}
-        <h2 className="mt-8 font-display text-2xl">You</h2>
+        <h2 className="mt-8 border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">You</h2>
         <PasswordSection />
         <NotifySection />
         {mode === "live" && (
@@ -48,7 +48,7 @@ export function SettingsPage() {
         )}
 
         {/* This project: its donors and the rules it follows. */}
-        <h2 className="mt-10 font-display text-2xl">{project.name}</h2>
+        <h2 className="mt-10 border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">{project.name}</h2>
         <p className="mt-2 text-sm">
           <Link href="/settings/policy" className="font-semibold text-forest hover:underline">
             Rules this project follows: organization and donor policy
@@ -104,7 +104,7 @@ export function SettingsPage() {
         {data?.saved && user.kind === "employee" && <DonorFundingSection code={project.id} canEdit={canEdit} donorsKey={data.donors.map((d) => d.id).join(",")} />}
 
         {/* The organization: administrators' tools. */}
-        <h2 className="mt-10 font-display text-2xl">Roots of Peace</h2>
+        <h2 className="mt-10 border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">Roots of Peace</h2>
         <p className="mt-2 text-sm">
           <Link href="/settings/organization" className="font-semibold text-forest hover:underline">
             Organization settings: the rules by department, and presets
@@ -206,7 +206,7 @@ function DonorSheet({
         onClick={(e) => e.stopPropagation()}
         className="flex max-h-full w-full flex-col overflow-y-auto bg-paper p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:max-w-lg sm:rounded-2xl sm:border sm:border-line"
       >
-        <h2 id="donor-title" className="font-display text-2xl">
+        <h2 id="donor-title" className="border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">
           {t(donor ? "settings.editDonor" : "settings.addDonor")}
         </h2>
 

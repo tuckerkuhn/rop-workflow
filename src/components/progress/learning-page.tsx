@@ -194,7 +194,7 @@ export function LearningPage() {
           <>
             <section className="mt-6">
               <div className="flex flex-wrap items-center gap-3">
-                <h2 className="flex-1 font-display text-2xl">Lessons learned</h2>
+                <h2 className="flex-1 border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">Lessons learned</h2>
                 {v.can.record && !adding && (
                   <button type="button" className={primaryBtn} onClick={() => setAdding(true)}>
                     + Record a lesson
@@ -240,7 +240,7 @@ export function LearningPage() {
             </section>
 
             <section className="mt-10 border-t border-line pt-6">
-              <h2 className="font-display text-2xl">Project close-out</h2>
+              <h2 className="border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">Project close-out</h2>
               <p className="mt-1 text-sm text-muted">
                 {v.closed ? `Closed on ${v.closed.on} by ${v.closed.byName}.` : `${done} of ${v.items.length} done. Each item is confirmed by the role that owns it, with the evidence; a plan approver closes the project when all are done.`}
                 {v.project.end ? ` The agreement ends ${v.project.end}.` : ""}

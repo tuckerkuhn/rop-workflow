@@ -46,7 +46,7 @@ function Sheet({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3">
-          <h2 className="text-xl font-semibold">{title}</h2>
+          <h2 className="border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">{title}</h2>
           <button
             type="button"
             onClick={onClose}

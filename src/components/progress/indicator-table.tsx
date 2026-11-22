@@ -53,7 +53,7 @@ export function IndicatorTable({ projectId, userId }: { projectId: string; userI
   return (
     <section className="mt-8" aria-labelledby="ind-year">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="ind-year" className="font-display text-2xl">
+        <h2 id="ind-year" className="border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">
           {t("prog.title", { year: v.year })}
         </h2>
         <Link href="/progress/framework" className="btn-link">

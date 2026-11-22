@@ -304,7 +304,7 @@ export function PhotosPage() {
         {!v && !error && <Loading className="mt-6" />}
         {v && mine && (
           <section className="mt-5 rounded-2xl border border-line bg-surface p-4">
-            <h2 className="text-xl font-semibold">Your photos, the last two weeks</h2>
+            <h2 className="border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">Your photos, the last two weeks</h2>
             {mine.count === 0 ? (
               <p className="mt-2 text-sm text-muted">No photos from you in the last two weeks. Add them to a result or the weekly update and the tips appear here.</p>
             ) : (
@@ -347,7 +347,7 @@ export function PhotosPage() {
 
         {v && (
           <section className="mt-4 rounded-2xl border border-line bg-surface p-4">
-            <h2 className="text-xl font-semibold">The team&rsquo;s photos, the last four weeks</h2>
+            <h2 className="border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">The team&rsquo;s photos, the last four weeks</h2>
             <p className="mt-1 text-xs text-muted">All photos together, never by person: this is for coaching, not grading.</p>
             <div className="mt-2 flex flex-wrap gap-4 text-sm">
               {(["report", "records", "retake"] as const).map((l) => (
@@ -365,7 +365,7 @@ export function PhotosPage() {
               <>
               <section className="mt-4 rounded-2xl border border-line bg-surface p-4">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="min-w-0 flex-1 text-xl font-semibold">Public social media for this project</h2>
+                  <h2 className="min-w-0 flex-1 border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">Public social media for this project</h2>
                   <Pill tone={v.publicPosts?.on ? "forest" : "ochre"}>{v.publicPosts?.on ? "On" : "Off"}</Pill>
                 </div>
                 <p className="mt-1 text-sm text-muted">
@@ -382,7 +382,7 @@ export function PhotosPage() {
               </section>
 
               <section className="mt-4 rounded-2xl border border-forest/40 bg-mist p-4">
-                <h2 className="text-xl font-semibold">Draft a post</h2>
+                <h2 className="border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">Draft a post</h2>
                 <div className="mt-2 grid gap-3 sm:grid-cols-[14rem_1fr]">
                   <label className="text-sm">
                     For
@@ -416,7 +416,7 @@ export function PhotosPage() {
 
               {v.posts.length > 0 && (
                 <section className="mt-4">
-                  <h2 className="text-xl font-semibold">Posts</h2>
+                  <h2 className="border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">Posts</h2>
                   <ul className="mt-2 space-y-3">
                     {v.posts.map((p) => (
                       <PostCard key={p.id} p={p} v={v} user={user.id} act={act} />
@@ -433,7 +433,7 @@ export function PhotosPage() {
 
             <section className="mt-6">
               <div className="flex flex-wrap items-end gap-3">
-                <h2 className="min-w-0 flex-1 text-xl font-semibold">Photo library</h2>
+                <h2 className="min-w-0 flex-1 border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">Photo library</h2>
                 <select className="rounded-xl border border-line bg-paper px-3 py-2 text-sm" value={filter.label} onChange={(e) => setFilter({ ...filter, label: e.target.value as PhotoLabel | "all" })}>
                   <option value="report">Ready for a report</option>
                   <option value="records">Good for the records</option>

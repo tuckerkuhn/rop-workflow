@@ -203,7 +203,7 @@ export function PeriodReportPage() {
 
             {v.rows.some((r) => r.women + r.men > 0) && (
               <section className="mt-8">
-                <h2 className="font-display text-2xl">Women, men and young people</h2>
+                <h2 className="border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">Women, men and young people</h2>
                 <p className="text-xs text-muted">
                   {YOUTH.label}: {YOUTH.source}.
                 </p>
@@ -220,7 +220,7 @@ export function PeriodReportPage() {
             )}
 
             <section className="mt-8">
-              <h2 className="font-display text-2xl">Narrative from the quarters</h2>
+              <h2 className="border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">Narrative from the quarters</h2>
               <p className="text-sm text-muted">
                 What each quarterly report said, by section, to condense into the {annual ? "annual" : "final"} story. Quarters without a saved report: {v.quarters.length ? "none missing" : "all"}.
               </p>
@@ -244,7 +244,7 @@ export function PeriodReportPage() {
             </section>
 
             <section className="mt-8">
-              <h2 className="font-display text-2xl">Lessons learned</h2>
+              <h2 className="border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">Lessons learned</h2>
               {v.lessons.length === 0 ? (
                 <p className="text-sm text-muted">
                   None recorded for the period.{" "}
@@ -268,7 +268,7 @@ export function PeriodReportPage() {
 
             {v.spend && (
               <section className="mt-8">
-                <h2 className="font-display text-2xl">Spending</h2>
+                <h2 className="border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">Spending</h2>
                 <p className="text-sm">
                   Budget {v.spend.currency} {n(v.spend.budget)}; spent {v.spend.currency} {n(v.spend.cumulative)} ({v.spend.budget ? Math.round((v.spend.cumulative / v.spend.budget) * 100) : 0}%){v.spend.withOverhead ? ", overhead included" : ""}.
                 </p>

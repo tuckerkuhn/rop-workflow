@@ -438,12 +438,12 @@ export function QprPage() {
             <Section v={v} k="background" act={act} busy={busy} />
 
             <section className="mt-8">
-              <h2 className="font-display text-2xl">II. Progress Towards Results</h2>
+              <h2 className="border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">II. Progress Towards Results</h2>
               <IndicatorTable v={v} act={act} />
             </section>
 
             <section className="mt-8">
-              <h2 className="font-display text-2xl">Narrative Description</h2>
+              <h2 className="border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">Narrative Description</h2>
               {v.activities.map((a) => (
                 <div key={a.code}>
                   <Section v={v} k={`act.${a.code}`} heading={`Activity ${a.code}: ${a.name}`} act={act} busy={busy} draftable />
@@ -453,7 +453,7 @@ export function QprPage() {
             </section>
 
             <section className="mt-8">
-              <h2 className="font-display text-2xl">III. Cross-cutting Issues</h2>
+              <h2 className="border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">III. Cross-cutting Issues</h2>
               <GenderStrip rows={v.rows} />
               <Section v={v} k="gender" act={act} busy={busy} />
               <Section v={v} k="principled" act={act} busy={busy} />
