@@ -48,4 +48,20 @@ describe("a farmer's name, for someone who may not see names", { timeout: 60_000
     // The link they saw is paired with its own stored link, not with the one hidden from them.
     expect(s.docs?.map((d) => d.title).sort()).toEqual(["Interview", `Photos of ${name}`]);
   });
+
+  it("keeps the name as stored around an edit, and never turns a number typed in the edit into a name", async () => {
+    const first = name.split(" ")[0];
+    const text = `${first} trained two; ${name.toUpperCase()} visited Farmer ${id}1.`;
+    const shown = (await loadField(code, marcus)).items.find((i): i is Farmer => i.kind === "farmer" && i.id === id)!;
+    const raw = new Map((await loadField(code)).items.map((i) => [i.id, i]));
+    const rawF = raw.get(id) as Farmer;
+    raw.set(id, { ...rawF, stories: rawF.stories.map((x) => (x.id === "S-T" ? { ...x, text } : x)) });
+    const seen = `Farmer ${id} trained two; Farmer ${id} visited Farmer ${id}1.`;
+    const edit = (to: string) => ({ ...shown, stories: shown.stories.map((x) => (x.id === "S-T" ? { ...x, text: to } : x)) });
+    const textOf = async (to: string) => ((await keepHidden(code, marcus, [edit(to)], raw)) as Farmer[])[0].stories.find((x) => x.id === "S-T")!.text;
+    expect(await textOf(seen)).toBe(text);
+    expect(await textOf(`${seen} Follow up.`)).toBe(`${text} Follow up.`);
+    expect(await textOf(`Farmer ${id} trained three; Farmer ${id} visited Farmer ${id}1.`)).toBe(`${first} trained three; ${name.toUpperCase()} visited Farmer ${id}1.`);
+    expect(await textOf(`New note about Farmer ${id}.`)).toBe(`New note about Farmer ${id}.`);
+  });
 });

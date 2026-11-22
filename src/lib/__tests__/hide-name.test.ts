@@ -13,6 +13,9 @@ describe("hiding a farmer's name in text", () => {
   it("hides names written in other scripts as whole words", () => {
     expect(hideName("گل‌احمد کار کرد", "گل‌احمد", "F-0002")).toBe("Farmer F-0002 کار کرد");
   });
+  it("treats accents and vowel marks as part of the word", () => {
+    expect(hideName("Ali\u0301 came; Ali went.", "Ali Ahmadi", "F-0001")).toBe("Ali\u0301 came; Farmer F-0001 went.");
+  });
   it("leaves the text as it is when there is no name", () => {
     expect(hideName("No name here.", "", "F-0001")).toBe("No name here.");
   });

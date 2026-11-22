@@ -558,17 +558,28 @@ export const farmerLabel = (f: { id: string; name: string }, u: AppUser | null |
 export const farmerName = (f: { id: string; name: string }, u: AppUser | null | undefined) => (u?.pii && f.name ? f.name : `Farmer ${f.id}`);
 const escaped = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+const patterns = new Map<string, RegExp | null>();
+
 /**
- * Replaces a farmer's name in free text with their number: the full name and each part of it
- * (three letters or more, as in lib/doc-links docNamesPerson), in any capitals, as whole words
- * only, so "Ali" is hidden but "Alison" is left alone. The same rule on the screen and the server.
+ * Where a farmer's name appears in text: the full name and each part of it (three letters or more,
+ * as in lib/doc-links docNamesPerson), in any capitals, as whole words only, so "Ali" matches but
+ * "Alison" does not. Group 1 is the character before the name, group 2 the name as written. Built
+ * once per name, and without lookbehind, which older iPads and phones cannot run.
  */
-export function hideName(text: string, name: string, id: string): string {
+export function namePattern(name: string): RegExp | null {
   const full = name.trim();
-  if (!full) return text;
-  const parts = [full, ...full.split(/\s+/).filter((w) => w.length >= 3)].sort((a, b) => b.length - a.length);
-  const re = new RegExp(`(?<![\\p{L}\\p{N}])(?:${parts.map((p) => escaped(p).replace(/\s+/g, "\\s+")).join("|")})(?![\\p{L}\\p{N}])`, "giu");
-  return text.replace(re, `Farmer ${id}`);
+  if (!patterns.has(full)) {
+    const parts = full ? [full, ...full.split(/\s+/).filter((w) => w.length >= 3)].sort((a, b) => b.length - a.length) : [];
+    const word = "\\p{L}\\p{N}\\p{M}";
+    patterns.set(full, parts.length ? new RegExp(`(^|[^${word}])(${parts.map((p) => escaped(p).replace(/\s+/g, "\\s+")).join("|")})(?=[^${word}]|$)`, "giu") : null);
+  }
+  return patterns.get(full)!;
+}
+
+/** Replaces a farmer's name in free text with their number (namePattern). The same rule on the screen and the server. */
+export function hideName(text: string, name: string, id: string): string {
+  const re = namePattern(name);
+  return re ? text.replace(re, (_, before: string) => `${before}Farmer ${id}`) : text;
 }
 
 /** Replaces a farmer's name in free text (e.g. a story) for people without access. */

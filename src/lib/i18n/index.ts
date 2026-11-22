@@ -29,8 +29,12 @@ export const localeOf = (lang: Lang) => LOCALES[lang];
 /** First day of the week: Saturday in Afghanistan, Monday in Spanish-speaking countries, Sunday otherwise. 0 = Sunday. */
 export const weekStartOf = (lang: Lang) => (lang === "fa" || lang === "ps" ? 6 : lang === "es" ? 1 : 0);
 
-/** Formats an ISO date (YYYY-MM-DD) without shifting it across time zones. */
+/**
+ * Formats an ISO date (YYYY-MM-DD) without shifting it across time zones. A full timestamp
+ * (e.g. 2027-01-22T01:58:00Z) shows the day it is where the reader is.
+ */
 export function formatDate(lang: Lang, iso: string, opts: Intl.DateTimeFormatOptions = { day: "numeric", month: "short" }) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return new Date(iso).toLocaleDateString(LOCALES[lang], opts);
   return new Date(`${iso}T12:00:00Z`).toLocaleDateString(LOCALES[lang], { ...opts, timeZone: "UTC" });
 }
 

@@ -17,7 +17,10 @@ const all = rest.includes("--all");
 async function main() {
   if (!cmd) return console.log((await listPlans()).join("\n") || "No organizations. Run npm run db:seed.");
   if (cmd === "trial") {
-    const months = Number(rest[0] !== undefined && /^\d+$/.test(rest[0]) ? rest[0] : TRIAL_MONTHS);
+    // The month count is any number given, except the name after --org.
+    const n = rest.filter((x, k) => /^\d+$/.test(x) && rest[k - 1] !== "--org");
+    if (n.length > 1) throw new Error("Give one number of months.");
+    const months = Number(n[0] ?? TRIAL_MONTHS);
     if (!(months >= 1 && months <= 24)) throw new Error("A trial is 1 to 24 months.");
     for (const o of await startTrial(months, { name: org, all })) console.log(`${o.name}: paid-plan trial until ${o.until.slice(0, 10)}.`);
     return;

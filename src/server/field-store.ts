@@ -6,7 +6,7 @@ import { DEMO_SETUP, FIELD_SETUP_KEY, type FieldSetup } from "@/lib/package";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { canSeePII, type AppUser } from "@/lib/demo";
-import { hideName, type Farmer, type FieldItem, type Stock } from "@/lib/field";
+import { hideName, namePattern, type Farmer, type FieldItem, type Stock } from "@/lib/field";
 import { docNamesPerson } from "@/lib/doc-links";
 import { HttpError } from "@/server/guard";
 import { oncePerRequest } from "@/server/request-memo";
@@ -136,21 +136,79 @@ function withoutName(f: Farmer, name: string): Farmer {
 /** What a list entry is known by (a story's id, a link's address), so entries pair up even when some were hidden or reordered. */
 const keyOf = (x: unknown) => (x && typeof x === "object" ? ((x as { id?: unknown; url?: unknown }).id ?? (x as { url?: unknown }).url) : undefined);
 
+/** A stored text cut into plain stretches and the name's mentions: how each shows (`shown`) and what is stored (`real`). */
+function pieces(text: string, name: string, id: string): { shown: string; real: string }[] {
+  const re = namePattern(name);
+  const out: { shown: string; real: string }[] = [];
+  let last = 0;
+  for (const m of re ? text.matchAll(re) : []) {
+    const start = m.index + m[1].length;
+    if (start > last) out.push({ shown: text.slice(last, start), real: text.slice(last, start) });
+    out.push({ shown: `Farmer ${id}`, real: m[2] });
+    last = start + m[2].length;
+  }
+  if (last < text.length) out.push({ shown: text.slice(last), real: text.slice(last) });
+  return out;
+}
+
 /**
- * Text sent back exactly as it was shown (masked) is kept as stored, with the name. Text they
- * changed is taken as sent, with the farmer's number put back as the name, so their edit never
- * replaces the name for the people who may see it.
+ * A text edited by someone who saw it with the name hidden: what they left as it was (before and
+ * after their edit) keeps the name exactly as stored; what they typed is taken as typed. A mention
+ * inside the part they changed stays as the farmer's number: never guessed back into a name.
+ */
+function restored(sent: string, was: string, name: string, id: string): string {
+  const ps = pieces(was, name, id);
+  const shown = ps.map((x) => x.shown).join("");
+  if (sent === shown) return was;
+  let p = 0;
+  while (p < sent.length && p < shown.length && sent[p] === shown[p]) p++;
+  let q = 0;
+  while (q < sent.length - p && q < shown.length - p && sent[sent.length - 1 - q] === shown[shown.length - 1 - q]) q++;
+  let head = "";
+  let a = 0;
+  for (const x of ps) {
+    if (a + x.shown.length <= p) {
+      head += x.real;
+      a += x.shown.length;
+      continue;
+    }
+    if (x.shown === x.real) {
+      head += x.shown.slice(0, p - a);
+      a = p;
+    }
+    break;
+  }
+  let tail = "";
+  let b = 0;
+  for (const x of [...ps].reverse()) {
+    if (b + x.shown.length <= q) {
+      tail = x.real + tail;
+      b += x.shown.length;
+      continue;
+    }
+    if (x.shown === x.real) {
+      tail = x.shown.slice(x.shown.length - (q - b)) + tail;
+      b = q;
+    }
+    break;
+  }
+  return head + sent.slice(a, sent.length - b) + tail;
+}
+
+/**
+ * Text sent back by someone who may not see names, put back together with the record as stored:
+ * unchanged text keeps the name, edited text keeps it wherever they left the words alone (restored).
  */
 function unmasked(sent: unknown, was: unknown, name: string, id: string): unknown {
-  if (typeof sent === "string") {
-    if (typeof was === "string" && sent === masked(was, name, id)) return was;
-    return sent.split(`Farmer ${id}`).join(name);
-  }
+  if (typeof sent === "string") return typeof was === "string" ? restored(sent, was, name, id) : sent;
   if (Array.isArray(sent)) {
     const old = Array.isArray(was) ? was : [];
     return sent.map((x, k) => {
       const key = keyOf(x);
-      return unmasked(x, key !== undefined ? old.find((o) => keyOf(o) === key) : old[k], name, id);
+      if (key !== undefined) return unmasked(x, old.find((o) => keyOf(o) === key), name, id);
+      // Entries known by nothing: the stored one that shows exactly like it, else the one in its place.
+      const same = old.find((o) => keyOf(o) === undefined && JSON.stringify(masked(o, name, id)) === JSON.stringify(x));
+      return unmasked(x, same ?? old[k], name, id);
     });
   }
   if (sent && typeof sent === "object") {
