@@ -40,7 +40,7 @@ export function useProjectPlaces(): PlaceGroup[] {
       id: "work",
       label: "hub.work",
       // Tasks and the workplan's activities are one place, Work, with a tab for each.
-      places: [{ href: "/work", label: "tasks.all", exact: true, also: ["/work/activities"] }, ...workflows, { href: "/work/grants", label: "nav.grants" }],
+      places: [{ href: "/work", label: "tasks.all", exact: true, also: ["/work/activities"] }, ...workflows, ...(project.workflows.includes("field") ? [{ href: "/work/selection", label: "nav.selection" } as Place] : []), { href: "/work/grants", label: "nav.grants" }],
     },
     {
       id: "progress",

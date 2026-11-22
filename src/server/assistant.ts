@@ -31,6 +31,7 @@ const PAGE_INFO: Record<string, string> = {
   "/progress/framework": "Results framework tree",
   "/progress/learning": "Lessons and close-out",
   "/progress/feedback": "Feedback and complaints log",
+  "/work/selection": "Farmer selection: the rules and each farmer's decision",
   "/work": "Work hub and tasks",
   "/work/activities": "Workplan activities: owners, status, tasks",
   "/work/plan": "Procurement calendar (planned purchases)",

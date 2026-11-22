@@ -49,6 +49,7 @@ export const en = {
   "hub.reviewReport": "Review and report",
   "nav.storiesPhotos": "Stories and photos",
   "nav.feedback": "Feedback and complaints",
+  "nav.selection": "Farmer selection",
   "nav.posts": "Posts",
   "nav.lessons": "Lessons and close-out",
   "hub.setup": "Set up",

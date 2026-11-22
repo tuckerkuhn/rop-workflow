@@ -42,6 +42,7 @@ export const es: Messages = {
   "hub.reviewReport": "Revisión e informes",
   "nav.storiesPhotos": "Historias y fotos",
   "nav.feedback": "Comentarios y quejas",
+  "nav.selection": "Selección de agricultores",
   "nav.photos": "Fotos y publicaciones",
 
   "project.label": "Proyecto",

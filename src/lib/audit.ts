@@ -23,6 +23,14 @@ export function describeAudit(entity: string, action: string, d: D): string {
       return `Added proof to the ${str(d.indicator)} result of ${str(d.date)}: ${[...((d.files as string[]) ?? []), ...((d.links as { title: string }[]) ?? []).map((l) => l.title)].join("; ")}`;
     case "update_added":
       return `Activity update for ${str(d.activity)} on ${str(d.date)}`;
+    case "selection_rules_set":
+      return `Set the farmer selection rules (version ${num(d.version)}, ${((d.rules as string[]) ?? []).length} rules)${d.reason ? `: ${str(d.reason)}` : ""}`;
+    case "selection_selected":
+      return `Selected farmer ${str(d.farmer)} (${num(d.met)} of ${num(d.of)} rules met)${d.reason ? `: ${str(d.reason)}` : ""}`;
+    case "selection_not_selected":
+      return `Did not select farmer ${str(d.farmer)}: ${str(d.reason)}`;
+    case "selection_reopened":
+      return `Reopened the selection decision for farmer ${str(d.farmer)}: ${str(d.reason)}`;
     case "project_modules_set":
       return `Changed what the project uses: ${Object.entries((d.after as D) ?? {}).map(([k, v]) => `${k} ${v ? "on" : "off"}`).join(", ")}`;
     case "feedback_recorded":
