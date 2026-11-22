@@ -14,6 +14,15 @@ import { receiptSchema, type Receipt } from "@/lib/expense";
 
 /** "2026-Q3": the calendar quarter a result belongs to. */
 export const quarterOf = (date: string) => `${date.slice(0, 4)}-Q${Math.floor((Number(date.slice(5, 7)) - 1) / 3) + 1}`;
+/** The quarter before and after ("2026-Q1" to "2025-Q4" and back). */
+export const prevQuarterOf = (q: string) => {
+  const [y, n] = [Number(q.slice(0, 4)), Number(q.slice(6))];
+  return n === 1 ? `${y - 1}-Q4` : `${y}-Q${n - 1}`;
+};
+export const nextQuarterOf = (q: string) => {
+  const [y, n] = [Number(q.slice(0, 4)), Number(q.slice(6))];
+  return n === 4 ? `${y + 1}-Q1` : `${y}-Q${n + 1}`;
+};
 export const quarterRange = (q: string) => {
   const [y, n] = [Number(q.slice(0, 4)), Number(q.slice(6))];
   const from = `${y}-${String((n - 1) * 3 + 1).padStart(2, "0")}-01`;

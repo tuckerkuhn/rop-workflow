@@ -1,4 +1,3 @@
-import { db } from "@/db";
 import { ancestors, EMPTY_FRAMEWORK, FRAMEWORK_KEY, levelOf, SUGGESTED, type Framework, type FrameworkAction } from "@/lib/framework";
 import { ourWork } from "@/lib/budget";
 import type { AppUser } from "@/lib/demo";
@@ -7,7 +6,7 @@ import { loadActivities } from "@/server/activities-store";
 import { projectByCode } from "@/server/field-store";
 import { loadReview } from "@/server/monthly-review-store";
 import { loadWorkplan } from "@/server/plan-store";
-import { loadProjectState, saveProjectState } from "@/server/project-state";
+import { loadProjectState, updateProjectState } from "@/server/project-state";
 
 const KEY = FRAMEWORK_KEY;
 const today = () => new Date().toISOString().slice(0, 10);
@@ -66,11 +65,12 @@ export type FrameworkView = Awaited<ReturnType<typeof loadFramework>>;
 export async function setStatement(code: string, a: FrameworkAction, u: AppUser): Promise<string | null> {
   if (!u.admin && !u.project.includes("plan-approver")) return "Only a plan approver words the results framework.";
   const project = await projectByCode(code);
-  const fw = await loadProjectState<Framework>(project.id, KEY, EMPTY_FRAMEWORK);
   const st = { text: a.text, source: a.source, by: u.id, byName: u.name, at: today() };
-  const prev = a.key === "goal" ? fw.goal : fw.nodes[a.key];
-  const next: Framework = a.key === "goal" ? { ...fw, goal: st } : { ...fw, nodes: { ...fw.nodes, [a.key]: st } };
-  await saveProjectState(project.id, KEY, next);
-  await logAudit(db, project.id, { entity: "framework", entityId: project.id, action: "framework_worded", by: u.id, detail: { key: a.key, level: levelOf(a.key), from: prev?.text ?? null, to: a.text, source: a.source } });
-  return null;
+  // Changed with the framework locked: two statements worded at the same moment both stay.
+  return updateProjectState<Framework, null>(project.id, KEY, EMPTY_FRAMEWORK, async (fw, tx) => {
+    const prev = a.key === "goal" ? fw.goal : fw.nodes[a.key];
+    const next: Framework = a.key === "goal" ? { ...fw, goal: st } : { ...fw, nodes: { ...fw.nodes, [a.key]: st } };
+    await logAudit(tx, project.id, { entity: "framework", entityId: project.id, action: "framework_worded", by: u.id, detail: { key: a.key, level: levelOf(a.key), from: prev?.text ?? null, to: a.text, source: a.source } });
+    return { data: next, result: null };
+  });
 }

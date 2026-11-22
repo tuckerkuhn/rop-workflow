@@ -18,6 +18,14 @@ export function itemText(t: ReturnType<typeof useT>["t"], i: Pick<PreflightItem,
 /** Asks the report check on this page to open and come into view (components/progress/report-checks). */
 export const OPEN_CHECKS = "rop:open-checks";
 
+/** For a link to #checks on the same page: opens the check. A click meant for a new tab or window is left to the browser. */
+export function askForChecks(e: React.MouseEvent<HTMLAnchorElement>) {
+  if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+  e.preventDefault();
+  history.replaceState(history.state, "", "#checks");
+  window.dispatchEvent(new Event(OPEN_CHECKS));
+}
+
 /**
  * A report page's pre-flight: refetched whenever `dep` changes (the report was saved). Only the
  * check for the period on screen is returned: while another period's loads, there is none.
@@ -68,11 +76,7 @@ export function PreflightButton({ p, className }: { p: Preflight | null; report?
     <a
       href="#checks"
       className={`${className} ${n ? "border-clay text-clay" : ""}`}
-      onClick={(e) => {
-        e.preventDefault();
-        history.replaceState(history.state, "", "#checks");
-        window.dispatchEvent(new Event(OPEN_CHECKS));
-      }}
+      onClick={askForChecks}
     >
       {n ? t("pf.buttonBlocks", { n }) : t("pf.button")}
     </a>

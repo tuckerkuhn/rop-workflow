@@ -5,7 +5,7 @@ import { db, schema as s } from "@/db";
 import { STATUS_LABEL, SECTIONS } from "@/lib/qpr";
 import { quarterRange } from "@/lib/results";
 import { projectByCode } from "@/server/field-store";
-import { loadProjectState, saveProjectState } from "@/server/project-state";
+import { loadProjectState, updateProjectState } from "@/server/project-state";
 import type { ReportCopy } from "@/lib/report-copy";
 import { loadCopies } from "@/server/qpr-store";
 import { loadResults } from "@/server/results-store";
@@ -27,26 +27,32 @@ export async function loadShares(code: string): Promise<Share[]> {
   return (await loadProjectState<{ shares: Share[] }>(project.id, KEY, { shares: [] })).shares;
 }
 
-async function saveShares(code: string, shares: Share[]) {
+/** Changes the list of links with it locked, so links made or withdrawn at the same moment all stay. */
+async function changeShares<R>(code: string, change: (shares: Share[]) => { shares: Share[] | null; result: R }): Promise<R> {
   const project = await projectByCode(code);
-  await saveProjectState(project.id, KEY, { shares });
+  return updateProjectState<{ shares: Share[] }, R>(project.id, KEY, { shares: [] }, async (cur) => {
+    const { shares, result } = change(cur.shares);
+    return { data: shares ? { shares } : null, result };
+  });
 }
 
 export async function createShare(code: string, quarter: string, by: string): Promise<Share> {
   const at = new Date();
   const share: Share = { token: randomBytes(24).toString("base64url"), quarter, by, at: at.toISOString(), expires: new Date(at.getTime() + SHARE_DAYS * 864e5).toISOString() };
-  await saveShares(code, [...(await loadShares(code)), share]);
+  await changeShares(code, (list) => ({ shares: [...list, share], result: null }));
   const project = await projectByCode(code);
   await db.insert(s.auditLog).values({ projectId: project.id, entity: "share", entityId: project.id, action: "share_created", detail: { by, quarter, expires: share.expires, token: share.token.slice(0, 6) } });
   return share;
 }
 
 export async function revokeShare(code: string, token: string, by: string) {
-  const list = await loadShares(code);
-  const sh = list.find((x) => x.token === token);
-  if (!sh || sh.revoked) return false;
-  sh.revoked = { by, at: new Date().toISOString() };
-  await saveShares(code, list);
+  const sh = await changeShares(code, (list) => {
+    const found = list.find((x) => x.token === token);
+    if (!found || found.revoked) return { shares: null, result: null };
+    const revoked = { ...found, revoked: { by, at: new Date().toISOString() } };
+    return { shares: list.map((x) => (x.token === token ? revoked : x)), result: revoked };
+  });
+  if (!sh) return false;
   const project = await projectByCode(code);
   await db.insert(s.auditLog).values({ projectId: project.id, entity: "share", entityId: project.id, action: "share_revoked", detail: { by, quarter: sh.quarter, token: token.slice(0, 6) } });
   return true;

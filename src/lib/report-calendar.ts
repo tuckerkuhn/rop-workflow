@@ -1,6 +1,5 @@
 import { daysBetween, preflightHref, type Deadline } from "@/lib/preflight";
-import { prevQuarterOf } from "@/lib/qpr";
-import { quarterOf, quarterRange } from "@/lib/results";
+import { nextQuarterOf, prevQuarterOf, quarterOf, quarterRange } from "@/lib/results";
 
 /**
  * The report calendar: every donor report the project owes around now, with its date, on one list.
@@ -23,10 +22,6 @@ export type CalendarRow = {
   href: string;
 };
 
-const nextQuarter = (q: string) => {
-  const [y, n] = [Number(q.slice(0, 4)), Number(q.slice(6))];
-  return n === 4 ? `${y + 1}-Q1` : `${y}-Q${n + 1}`;
-};
 
 /**
  * The periods to list: the last two quarters (their reports may still be owed), the quarter under
@@ -37,7 +32,7 @@ export function calendarPeriods(start: string | null, end: string | null, today:
   const now = quarterOf(today);
   let q = prevQuarterOf(prevQuarterOf(now));
   const quarters: string[] = [];
-  for (let k = 0; k < 5; k++, q = nextQuarter(q)) {
+  for (let k = 0; k < 5; k++, q = nextQuarterOf(q)) {
     const r = quarterRange(q);
     if (start && r.to < start) continue;
     if (end && r.from > end) continue;
@@ -85,6 +80,9 @@ export function sortCalendar(rows: CalendarRow[]): CalendarRow[] {
  * The FACE form is the UN agencies' funding request (HACT). Other donors do not use it. Agency
  * initials count only in capitals ("WHO", not "who"), in English, Spanish and French.
  */
-const UN_INITIALS = /(^|[^A-Za-z])(UN|U\.N\.|ONU|UNDP|PNUD|UNICEF|UNFPA|UNOPS|UNHCR|ACNUR|WFP|PMA|FAO|IFAD|FIDA|ILO|OIT|IOM|OIM|WHO|OMS|UNESCO|UNIDO|UNEP|OCHA|UN-Habitat|UN Women|ONU Mujeres)(?![A-Za-z])/;
-const UN_WORDS = /united nations|naciones unidas|nations unies/i;
-export const usesFace = (donorNames: string[]) => donorNames.some((n) => UN_INITIALS.test(n) || UN_WORDS.test(n));
+// Initials that are no ordinary word, in any capitals ("Unicef", "UNDP").
+const UN_INITIALS = /(^|[^\p{L}])(UNDP|PNUD|UNICEF|UNFPA|UNOPS|UNHCR|ACNUR|WFP|FAO|IFAD|FIDA|ILO|IOM|OIM|UNESCO|UNIDO|UNEP|OCHA|UN-Habitat|UN Women|ONU|U\.N\.)(?![\p{L}])/iu;
+// Initials that are also words ("un" in Spanish and French, "who"): only when they lead the name, as in "WHO Afghanistan" or "UN Office".
+const UN_LEADING = /^(UN|WHO|OMS|OIT|PMA)(\s|-|$)/;
+const UN_WORDS = /united nations|naciones unidas|nations unies|world health organi[sz]ation|world food programme|food and agriculture organi[sz]ation|international labour organi[sz]ation|international organi[sz]ation for migration/i;
+export const usesFace = (donorNames: string[]) => donorNames.some((n) => UN_INITIALS.test(n) || UN_LEADING.test(n.trim()) || UN_WORDS.test(n));

@@ -164,10 +164,7 @@ export function cannotOnReport(may: { edit: boolean; accept: boolean; import: bo
   return REPORT_STEPS.filter((k) => !may[k]);
 }
 
-export const prevQuarterOf = (q: string) => {
-  const [y, n] = [Number(q.slice(0, 4)), Number(q.slice(6))];
-  return n === 1 ? `${y - 1}-Q4` : `${y}-Q${n - 1}`;
-};
+export { prevQuarterOf } from "@/lib/results";
 
 export const qprPatchSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("section"), key: z.string().regex(/^[a-z0-9.]{1,40}$/), text: z.string().max(20000) }),

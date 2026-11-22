@@ -10,7 +10,7 @@ import { projectByCode } from "@/server/field-store";
 import { reportQuarter } from "@/server/next-report";
 import { reportDeadline } from "@/server/preflight";
 import { listDonors } from "@/server/progress-store";
-import { loadProjectState, saveProjectState } from "@/server/project-state";
+import { loadProjectState, updateProjectState } from "@/server/project-state";
 import { donorSafeReport } from "@/server/share-store";
 
 /**
@@ -55,14 +55,15 @@ export async function fundingSetup(code: string) {
 /** Saves what one donor funds. Returns why it was refused, or null. Codes the budget does not have are dropped; a line cannot be both paid by the grant and cost share. */
 export async function saveDonorFunding(code: string, donorId: string, input: DonorFunding, by: string): Promise<string | null> {
   const project = await projectByCode(code);
-  const [donors, book, lines] = await Promise.all([donorsOf(code), loadDonorFunding(project.id), budgetLines(project.id)]);
+  const [donors, lines] = await Promise.all([donorsOf(code), budgetLines(project.id)]);
   const donor = donors.find((d) => d.id === donorId);
   if (!donor) return "No such donor on this project.";
   const known = new Set(lines.map((l) => l.code));
   const share = [...new Set(input.share)].filter((c) => known.has(c));
   const funding: DonorFunding = { lines: input.lines === "all" ? "all" : [...new Set(input.lines)].filter((c) => known.has(c) && !share.includes(c)), share };
   if (funding.lines !== "all" && !funding.lines.length && !share.length) return "Choose at least one budget line, or the whole budget.";
-  await saveProjectState(project.id, DONOR_FUNDING_KEY, { ...book, [donorId]: funding });
+  // Saved with the book locked: two donors set at the same moment both stay.
+  await updateProjectState<DonorFundingBook, null>(project.id, DONOR_FUNDING_KEY, {}, async (cur) => ({ data: { ...cur, [donorId]: funding }, result: null }));
   await logAudit(db, project.id, { entity: "donor", entityId: donorId, action: "donor_funding_set", by, detail: { name: donor.name, funds: funding.lines === "all" ? "the whole budget" : `${funding.lines.length} budget line(s)`, costShare: share.length } });
   return null;
 }

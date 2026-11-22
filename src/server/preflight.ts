@@ -45,16 +45,17 @@ async function unmatchedSpend(c: Ctx) {
   else ok(c, "pf.ok.unmatched");
 }
 
-/**
- * The deadline for a report on a period ending `end`: a "Report deadline" milestone in Tasks, else
- * the donor's rule in policy. The one function for it: pre-flight, Home's next-report line and
- * Home's deadline tile all call it.
- */
 /** What every report deadline is worked out from: load once when working out several (server/report-calendar). */
 export async function deadlineInputs(code: string) {
   const [rules, { items }] = await Promise.all([projectRules(code), listWorkItems(code)]);
   return { rules, items };
 }
+
+/**
+ * The deadline for a report on a period ending `end`: a "Report deadline" milestone in Tasks, else
+ * the donor's rule in policy. The one function for it: pre-flight, Home's next-report line and
+ * Home's deadline tile all call it.
+ */
 
 export async function reportDeadline(code: string, end: string, window: number, rule: "quarterlyReportDays" | "annualReportDays" | null, inputs?: Awaited<ReturnType<typeof deadlineInputs>>): Promise<Deadline> {
   const { rules, items } = inputs ?? (await deadlineInputs(code));

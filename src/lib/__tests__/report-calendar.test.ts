@@ -47,5 +47,10 @@ describe("funding request (FACE) tab", () => {
     expect(usesFace(["PNUD Afganistán"])).toBe(true);
     expect(usesFace(["U.N. Office for Project Services"])).toBe(true);
     expect(usesFace(["WHO"])).toBe(true);
+    expect(usesFace(["Unicef Afghanistan", "Undp"])).toBe(true);
+    expect(usesFace(["Unesco"])).toBe(true);
+    expect(usesFace(["WHO Afghanistan", "UN Office for Project Services"])).toBe(true);
+    expect(usesFace(["FUNDACIÓN UN MUNDO", "FARMERS WHO GROW"])).toBe(false);
+    expect(usesFace(["World Food Programme"])).toBe(true);
   });
 });

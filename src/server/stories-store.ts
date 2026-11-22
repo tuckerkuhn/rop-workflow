@@ -8,7 +8,7 @@ import { scrubbed } from "@/server/ai";
 import { logAudit } from "@/server/audit";
 import { projectByCode } from "@/server/field-store";
 import { aiAllowed } from "@/server/limits";
-import { loadProjectState, saveProjectState } from "@/server/project-state";
+import { loadProjectState, updateProjectState } from "@/server/project-state";
 import { loadQpr, saveQpr } from "@/server/qpr-store";
 import { loadResults, loadUpdates } from "@/server/results-store";
 import { ROP_VOICE } from "@/lib/voice";
@@ -48,9 +48,16 @@ export async function storyAction(code: string, u: AppUser, a: StoryAction): Pro
   const { p, list } = await load(code);
   const now = new Date().toISOString();
   const find = (id: string) => list.find((s) => s.id === id);
-  const save = async (detail: Record<string, unknown>, action: string) => {
-    await saveProjectState(p.id, "stories", { stories: list });
-    await logAudit(db, p.id, { entity: "story", entityId: p.id, action, by: u.id, detail });
+  // Saves only the story this action changed, into the list as stored now (locked), so stories
+  // added or changed by someone else at the same moment stay. The AI draft is written before, outside the lock.
+  const save = async (detail: { story: string } & Record<string, unknown>, action: string) => {
+    await updateProjectState<{ stories: Story[] }, null>(p.id, "stories", { stories: [] }, async (cur, tx) => {
+      const mine = list.find((x) => x.id === detail.story);
+      const there = cur.stories.some((x) => x.id === detail.story);
+      const stories = !mine ? cur.stories.filter((x) => x.id !== detail.story) : there ? cur.stories.map((x) => (x.id === mine.id ? mine : x)) : [...cur.stories, mine];
+      await logAudit(tx, p.id, { entity: "story", entityId: p.id, action, by: u.id, detail });
+      return { data: { stories }, result: null };
+    });
   };
   if (a.action === "save") {
     if (a.id) {

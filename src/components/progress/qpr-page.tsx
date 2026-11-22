@@ -17,7 +17,7 @@ import { ShareLinks } from "@/components/progress/share-links";
 import { ClaimCheckPanel } from "@/components/progress/claim-check";
 import { ReportDownloads } from "@/components/progress/downloads";
 import { SpreadsheetImport } from "@/components/progress/spend-map";
-import { beforeDownload, PreflightButton, usePreflight } from "@/components/progress/preflight-page";
+import { askForChecks, beforeDownload, PreflightButton, usePreflight } from "@/components/progress/preflight-page";
 import { ReportChecks, ReportKinds } from "@/components/progress/report-checks";
 import { MoneySourceLink, ProofNumber } from "@/components/progress/proof-panel";
 import { useT } from "@/components/app/i18n";
@@ -316,9 +316,9 @@ export function QprPage() {
             {v.mayRelease && !v.frozen && !v.saved.released && Math.max(blocking, stops.length) > 0 && (
               <p className="mt-3 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">
                 {Math.max(blocking, stops.length) === 1 ? t("report.blockedOne") : t("report.blocked", { n: Math.max(blocking, stops.length) })}{" "}
-                <Link href="#checks" className="font-semibold underline">
+                <a href="#checks" onClick={askForChecks} className="font-semibold underline">
                   {t("pf.button")}
-                </Link>
+                </a>
               </p>
             )}
             {/* What this person's roles do not allow on this report, said once, before they start. */}

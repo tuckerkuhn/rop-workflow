@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useT } from "@/components/app/i18n";
 import { useSession } from "@/components/app/session";
 import type { MessageKey } from "@/lib/i18n";
 import { usesFace } from "@/lib/report-calendar";
-import { daysBetween, OWNERS, urgency, type Preflight, type PreflightItem, type ReportKind } from "@/lib/preflight";
+import { daysBetween, OWNERS, periodOf, urgency, type Preflight, type PreflightItem, type ReportKind } from "@/lib/preflight";
 import { itemText, OPEN_CHECKS } from "@/components/progress/preflight-page";
 
 /**
@@ -111,7 +111,10 @@ export function ReportChecks({ p }: { p: Preflight | null }) {
   // Each time someone asks for the check (a #checks link, or the Report check button, again and
   // again), it opens and comes into view; reloading the check after a save never moves the page.
   const [asks, setAsks] = useState(0);
-  const [open, setOpen] = useState<boolean | null>(null);
+  // Opened or closed by hand, for one period: another period starts from its own default.
+  const [chosen, setChosen] = useState<{ key: string; open: boolean } | null>(null);
+  const handled = useRef(0);
+  const key = p ? `${p.report.kind}:${periodOf(p.report)}` : "";
   useEffect(() => {
     const fromLink = () => window.location.hash === "#checks" && setAsks((n) => n + 1);
     const ask = () => setAsks((n) => n + 1);
@@ -125,18 +128,21 @@ export function ReportChecks({ p }: { p: Preflight | null }) {
   }, []);
   const loaded = !!p;
   useEffect(() => {
-    if (!asks || !loaded) return;
-    setOpen(true);
+    // Only a new ask scrolls: a period loading after one already answered does not.
+    if (!loaded || asks <= handled.current) return;
+    handled.current = asks;
+    setChosen({ key, open: true });
     document.getElementById("checks")?.scrollIntoView({ block: "start" });
-  }, [asks, loaded]);
+  }, [asks, loaded, key]);
   if (!p) return null;
   const blocks = p.items.filter((i) => i.group === "blocks");
   const fix = p.items.filter((i) => i.group === "fix");
   const d = p.deadline;
   const u = urgency(d, today());
+  const open = chosen?.key === key ? chosen.open : !p.released && blocks.length > 0;
   const tone = p.released ? "border-leaf" : blocks.length ? "border-clay" : fix.length ? "border-ochre" : "border-leaf";
   return (
-    <details id="checks" open={open ?? (!p.released && blocks.length > 0)} onToggle={(e) => setOpen(e.currentTarget.open)} className={`mt-4 scroll-mt-20 border-s-[6px] ${tone} bg-surface print:hidden`}>
+    <details id="checks" open={open} onToggle={(e) => e.currentTarget.open !== open && setChosen({ key, open: e.currentTarget.open })} className={`mt-4 scroll-mt-20 border-s-[6px] ${tone} bg-surface print:hidden`}>
       <summary className="flex min-h-12 cursor-pointer flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2">
         <span className="font-ledger text-lg font-bold">{t("pf.title")}</span>
         {p.released ? (
