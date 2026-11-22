@@ -1,4 +1,5 @@
-import { preflightHref, type Deadline } from "@/lib/preflight";
+import { daysBetween, preflightHref, type Deadline } from "@/lib/preflight";
+import { prevQuarterOf } from "@/lib/qpr";
 import { quarterOf, quarterRange } from "@/lib/results";
 
 /**
@@ -26,10 +27,6 @@ const nextQuarter = (q: string) => {
   const [y, n] = [Number(q.slice(0, 4)), Number(q.slice(6))];
   return n === 4 ? `${y + 1}-Q1` : `${y}-Q${n + 1}`;
 };
-const prevQuarter = (q: string) => {
-  const [y, n] = [Number(q.slice(0, 4)), Number(q.slice(6))];
-  return n === 1 ? `${y - 1}-Q4` : `${y}-Q${n - 1}`;
-};
 
 /**
  * The periods to list: the last two quarters (their reports may still be owed), the quarter under
@@ -38,7 +35,7 @@ const prevQuarter = (q: string) => {
  */
 export function calendarPeriods(start: string | null, end: string | null, today: string): { quarters: string[]; years: number[] } {
   const now = quarterOf(today);
-  let q = prevQuarter(prevQuarter(now));
+  let q = prevQuarterOf(prevQuarterOf(now));
   const quarters: string[] = [];
   for (let k = 0; k < 5; k++, q = nextQuarter(q)) {
     const r = quarterRange(q);
@@ -60,8 +57,7 @@ export function calendarState(kind: "qpr" | "annual", due: string | null, aim: s
   if (!due) return "later";
   if (today > due) return kind === "qpr" ? "late" : "passed";
   const from = aim ?? due;
-  const days = Math.round((Date.parse(`${from}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 864e5);
-  return days <= 21 ? "soon" : "later";
+  return daysBetween(today, from) <= 21 ? "soon" : "later";
 }
 
 export function calendarRow(kind: "qpr" | "annual", period: string, end: string, d: Deadline, released: boolean, today: string): CalendarRow {
@@ -85,5 +81,10 @@ export function sortCalendar(rows: CalendarRow[]): CalendarRow[] {
   return [...open, ...done];
 }
 
-/** The FACE form is the UN agencies' funding request (HACT). Other donors do not use it. */
-export const usesFace = (donorNames: string[]) => donorNames.some((n) => /\b(UN|UNDP|UNICEF|UNFPA|UNOPS|UNHCR|WFP|FAO|IFAD|ILO|IOM|WHO|UN Women)\b/i.test(n) || /united nations/i.test(n));
+/**
+ * The FACE form is the UN agencies' funding request (HACT). Other donors do not use it. Agency
+ * initials count only in capitals ("WHO", not "who"), in English, Spanish and French.
+ */
+const UN_INITIALS = /(^|[^A-Za-z])(UN|U\.N\.|ONU|UNDP|PNUD|UNICEF|UNFPA|UNOPS|UNHCR|ACNUR|WFP|PMA|FAO|IFAD|FIDA|ILO|OIT|IOM|OIM|WHO|OMS|UNESCO|UNIDO|UNEP|OCHA|UN-Habitat|UN Women|ONU Mujeres)(?![A-Za-z])/;
+const UN_WORDS = /united nations|naciones unidas|nations unies/i;
+export const usesFace = (donorNames: string[]) => donorNames.some((n) => UN_INITIALS.test(n) || UN_WORDS.test(n));

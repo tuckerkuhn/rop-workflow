@@ -50,6 +50,15 @@ describe("feedback and complaints log", { timeout: 60_000 }, () => {
     expect(rows.map((r) => r.action).sort()).toEqual(["feedback_answered", "feedback_recorded", "feedback_recorded"]);
     expect(JSON.stringify(rows)).not.toMatch(/trellis|payment/);
   });
+
+  it("keeps both entries when two people record at the same moment", async () => {
+    const [a, b] = others;
+    const before = (await loadFeedback(code, approver)).entries.length;
+    const entry = (about: string) => ({ action: "record" as const, date: "2026-10-03", kind: "question" as const, from: "farmer" as const, channel: "phone" as const, place: "", about, serious: false });
+    expect(await Promise.all([actOnFeedback(code, entry("When is the next training day?"), a), actOnFeedback(code, entry("Who do I call about the seedlings?"), b)])).toEqual([null, null]);
+    const after = await loadFeedback(code, approver);
+    expect(after.entries.length).toBe(before + 2);
+  });
 });
 
 describe("report calendar", { timeout: 60_000 }, () => {

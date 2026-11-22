@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { daysBetween as days } from "@/lib/preflight";
 
 /**
  * The feedback and complaints log: what farmers, community members, suppliers and staff told the
@@ -50,7 +51,6 @@ export const feedbackAction = z.discriminatedUnion("action", [
 ]);
 export type FeedbackAction = z.infer<typeof feedbackAction>;
 
-const days = (from: string, to: string) => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 864e5);
 
 /** Thanks need no answer; everything else does. */
 export const needsAnswer = (e: Pick<FeedbackEntry, "kind" | "answer">) => e.kind !== "thanks" && !e.answer;

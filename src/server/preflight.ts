@@ -50,13 +50,18 @@ async function unmatchedSpend(c: Ctx) {
  * the donor's rule in policy. The one function for it: pre-flight, Home's next-report line and
  * Home's deadline tile all call it.
  */
-export async function reportDeadline(code: string, end: string, window: number, rule: "quarterlyReportDays" | "annualReportDays" | null): Promise<Deadline> {
-  const rules = await projectRules(code);
+/** What every report deadline is worked out from: load once when working out several (server/report-calendar). */
+export async function deadlineInputs(code: string) {
+  const [rules, { items }] = await Promise.all([projectRules(code), listWorkItems(code)]);
+  return { rules, items };
+}
+
+export async function reportDeadline(code: string, end: string, window: number, rule: "quarterlyReportDays" | "annualReportDays" | null, inputs?: Awaited<ReturnType<typeof deadlineInputs>>): Promise<Deadline> {
+  const { rules, items } = inputs ?? (await deadlineInputs(code));
   const line = (k: string) => rules.lines.find((l) => l.key === k);
   const reviewDays = Number(rules.values.reviewDays ?? 0) || 0;
   const days = rule && rules.values[rule] != null ? Number(rules.values[rule]) : null;
   const src = rule ? (line(rule)?.donor?.source ?? line(rule)?.org?.source ?? "") : "";
-  const { items } = await listWorkItems(code);
   // A monthly report's deadline is not the quarterly or annual one ("Monthly report: January" fell
   // inside the Q4 window and became its due date).
   const monthly = /\bmonth(ly)?\b|\b(january|february|march|april|may|june|july|august|september|october|november|december)\b/i;
@@ -142,7 +147,7 @@ async function qpr(c: Ctx, quarter: string): Promise<Omit<Preflight, "items" | "
   // Complaints and questions left without an answer: a donor asks how they were handled.
   const log = await loadProjectState<FeedbackLog>((await projectByCode(c.code)).id, "feedback", EMPTY_FEEDBACK);
   const late = log.entries.filter((e) => e.date <= to && overdue(e, today)).length;
-  if (late) add(c, { group: "fix", owner: "lead", text: `${n(late, "complaint or question has", "complaints or questions have")} waited more than ${ANSWER_DAYS} days for an answer`, key: "pf.c.feedbackLate", vars: { n: late, days: ANSWER_DAYS }, href: "/progress/feedback" });
+  if (late) add(c, { group: "fix", owner: "lead", text: `${n(late, "complaint or question has", "complaints or questions have")} waited more than ${ANSWER_DAYS} days for an answer`, key: late === 1 ? "pf.c.feedbackLate1" : "pf.c.feedbackLate", vars: { n: late, days: ANSWER_DAYS }, href: "/progress/feedback" });
 
   return {
     report: { kind: "qpr", quarter },

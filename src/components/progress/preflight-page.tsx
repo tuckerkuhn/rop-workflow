@@ -1,7 +1,6 @@
 "use client";
 
 import { askConfirm } from "@/components/app/dialogs";
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useT } from "@/components/app/i18n";
 import type { MessageKey } from "@/lib/i18n";
@@ -16,23 +15,29 @@ export function itemText(t: ReturnType<typeof useT>["t"], i: Pick<PreflightItem,
   return i.key ? t(i.key as MessageKey, i.vars) : i.text;
 }
 
-/** A report page's pre-flight: refetched whenever `dep` changes (the report was saved). */
+/** Asks the report check on this page to open and come into view (components/progress/report-checks). */
+export const OPEN_CHECKS = "rop:open-checks";
+
+/**
+ * A report page's pre-flight: refetched whenever `dep` changes (the report was saved). Only the
+ * check for the period on screen is returned: while another period's loads, there is none.
+ */
 export function usePreflight(project: string, user: string | undefined, report: ReportRef | null, dep: unknown) {
-  const [p, setP] = useState<Preflight | null>(null);
-  const key = report ? `${report.kind}:${periodOf(report)}` : "";
+  const [got, setP] = useState<{ key: string; p: Preflight | null } | null>(null);
+  const key = report ? `${project}:${report.kind}:${periodOf(report)}` : "";
   useEffect(() => {
     if (!user || !report) return;
     let live = true;
     fetch(`/api/projects/${project}/preflight?report=${report.kind}&period=${periodOf(report)}`, { cache: "no-store", headers: { "x-demo-user": user } })
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => live && setP(d))
+      .then((d) => live && setP({ key, p: d }))
       .catch(() => undefined);
     return () => {
       live = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project, user, key, dep]);
-  return p;
+  return got?.key === key ? got.p : null;
 }
 
 /**
@@ -60,8 +65,16 @@ export function PreflightButton({ p, className }: { p: Preflight | null; report?
   const { t } = useT();
   const n = p && !p.released ? p.items.filter((i) => i.group === "blocks").length : 0;
   return (
-    <Link href="#checks" className={`${className} ${n ? "border-clay text-clay" : ""}`}>
+    <a
+      href="#checks"
+      className={`${className} ${n ? "border-clay text-clay" : ""}`}
+      onClick={(e) => {
+        e.preventDefault();
+        history.replaceState(history.state, "", "#checks");
+        window.dispatchEvent(new Event(OPEN_CHECKS));
+      }}
+    >
       {n ? t("pf.buttonBlocks", { n }) : t("pf.button")}
-    </Link>
+    </a>
   );
 }

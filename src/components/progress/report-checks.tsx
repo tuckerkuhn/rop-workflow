@@ -8,6 +8,7 @@ import { useSession } from "@/components/app/session";
 import type { MessageKey } from "@/lib/i18n";
 import { usesFace } from "@/lib/report-calendar";
 import { daysBetween, OWNERS, urgency, type Preflight, type PreflightItem, type ReportKind } from "@/lib/preflight";
+import { itemText, OPEN_CHECKS } from "@/components/progress/preflight-page";
 
 /**
  * The three donor reports are one place: this strip moves between them, and each carries its own
@@ -92,7 +93,7 @@ function Rows({ items, start }: { items: PreflightItem[]; start: number }) {
             <span aria-hidden className="w-6 shrink-0 font-mono text-xs text-muted">
               {String(start + k).padStart(2, "0")}
             </span>
-            <span className="min-w-0 flex-1 text-sm">{i.key ? t(i.key as MessageKey, i.vars) : i.text}</span>
+            <span className="min-w-0 flex-1 text-sm">{itemText(t, i)}</span>
             <span className="shrink-0 font-mono text-xs uppercase text-muted">{t(`pf.owner.${i.owner}` as MessageKey)}</span>
             <span aria-hidden className="inline-block text-forest opacity-40 group-hover:opacity-100 rtl:rotate-180">
               →
@@ -107,16 +108,27 @@ function Rows({ items, start }: { items: PreflightItem[]; start: number }) {
 /** The report's check, on the report itself. Open when something blocks it or when a link asked for #checks. */
 export function ReportChecks({ p }: { p: Preflight | null }) {
   const { t, date } = useT();
-  const [asked, setAsked] = useState(false);
+  // Each time someone asks for the check (a #checks link, or the Report check button, again and
+  // again), it opens and comes into view; reloading the check after a save never moves the page.
+  const [asks, setAsks] = useState(0);
+  const [open, setOpen] = useState<boolean | null>(null);
   useEffect(() => {
-    const read = () => setAsked(window.location.hash === "#checks");
-    read();
-    window.addEventListener("hashchange", read);
-    return () => window.removeEventListener("hashchange", read);
+    const fromLink = () => window.location.hash === "#checks" && setAsks((n) => n + 1);
+    const ask = () => setAsks((n) => n + 1);
+    fromLink();
+    window.addEventListener("hashchange", fromLink);
+    window.addEventListener(OPEN_CHECKS, ask);
+    return () => {
+      window.removeEventListener("hashchange", fromLink);
+      window.removeEventListener(OPEN_CHECKS, ask);
+    };
   }, []);
+  const loaded = !!p;
   useEffect(() => {
-    if (asked && p) document.getElementById("checks")?.scrollIntoView({ block: "start" });
-  }, [asked, p]);
+    if (!asks || !loaded) return;
+    setOpen(true);
+    document.getElementById("checks")?.scrollIntoView({ block: "start" });
+  }, [asks, loaded]);
   if (!p) return null;
   const blocks = p.items.filter((i) => i.group === "blocks");
   const fix = p.items.filter((i) => i.group === "fix");
@@ -124,7 +136,7 @@ export function ReportChecks({ p }: { p: Preflight | null }) {
   const u = urgency(d, today());
   const tone = p.released ? "border-leaf" : blocks.length ? "border-clay" : fix.length ? "border-ochre" : "border-leaf";
   return (
-    <details id="checks" open={asked || (!p.released && blocks.length > 0)} className={`mt-4 scroll-mt-20 border-s-[6px] ${tone} bg-surface print:hidden`}>
+    <details id="checks" open={open ?? (!p.released && blocks.length > 0)} onToggle={(e) => setOpen(e.currentTarget.open)} className={`mt-4 scroll-mt-20 border-s-[6px] ${tone} bg-surface print:hidden`}>
       <summary className="flex min-h-12 cursor-pointer flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2">
         <span className="font-ledger text-lg font-bold">{t("pf.title")}</span>
         {p.released ? (
