@@ -1,5 +1,6 @@
 "use client";
 
+import { Why } from "@/components/app/why";
 import { FRAMEWORK_TABS, PlaceTabs } from "@/components/progress/report-checks";
 import { plainError } from "@/lib/plain-error";
 import { useCallback, useEffect, useState } from "react";
@@ -66,6 +67,17 @@ export function TargetDetailsPage() {
         <PlaceTabs label="Results framework" here="/progress/targets" tabs={FRAMEWORK_TABS} />
         <h1 className="mt-4 font-display text-3xl tracking-tight">{t("td.title")}</h1>
         <p className="mt-1 text-sm text-muted">{t("td.intro")}</p>
+        <Why>A target says where the project is going. A baseline says where it started. Without the starting figure nobody can show the project changed anything, and a final report with no baseline is the weakest kind.</Why>
+        {v && v.targets.length > 0 && (() => {
+          const missing = v.targets.filter((x) => x.baseline === null).length;
+          return missing ? (
+            <p role="status" className="mt-3 border-s-[6px] border-ochre bg-ochre-soft px-3 py-2 text-sm">
+              <span className="font-mono font-bold">{missing}</span> of {v.targets.length} targets have no baseline yet. Record it before the first results come in: a baseline measured after the work starts is no longer a baseline.
+            </p>
+          ) : (
+            <p className="mt-3 font-mono text-xs text-leaf">Every target has a baseline.</p>
+          );
+        })()}
         {!project.saved && <p className="mt-6 rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">{t("td.demo")}</p>}
         {error && <ErrorNote>{error}</ErrorNote>}
         {project.saved && !v && !error && <p className="mt-10 text-center text-sm text-muted">{t("load.wait")}</p>}

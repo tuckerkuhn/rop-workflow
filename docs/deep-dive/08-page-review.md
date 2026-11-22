@@ -82,3 +82,18 @@ system", "your payroll", "your shared folder") with the name coming from Organiz
   progress report" no longer sets the annual report's date.
 - Still to do from the same batch: tool names (NetSuite, ADP, SharePoint) as Organization settings;
   per-project switches to hide Grants and the market window design when a project does not use them.
+
+## 22 Nov 2026 (afternoon): tool names, the look, stage 5
+
+- **Tool names.** Pages and messages name the organization's own file store (`storeNames()`) and
+  accounting system (`acct()`), read from Organization settings; generic words until they are set.
+  Left as they are, on purpose: the ADP RUN file export and the BambooHR import, which are real
+  integrations with those products and not labels.
+- **Any secure link** shows a caution under link boxes to the person pasting the link.
+- **Section headings** on Progress, Reports, Workplan and Project settings take the ledger heading.
+  Boxes inside pages are not yet turned into ruled rows page by page.
+- **Farmer selection** (`/work/selection`, project state key `selection`): versioned rules, a decision
+  per farmer with reason and who, counts for reports, audit actions `selection_*`. It does not yet
+  change a farmer's status in Field activities.
+- **Baseline** already lived on Target details. That page now says why it matters and counts the
+  targets without one.

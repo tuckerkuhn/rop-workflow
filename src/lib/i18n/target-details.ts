@@ -10,7 +10,7 @@ export const tdEn = {
   "td.empty": "This project has no targets yet. Add them in setup.",
   "td.demo": "Choose a project saved in the database.",
   "td.baseline": "Baseline",
-  "td.baseline.help": "The figure before the project began. Leave empty if there is none.",
+  "td.baseline.help": "The figure before the project began. Type 0 if the project starts from nothing; leave it empty only while it is not yet measured.",
   "td.baseline.bad": "Use digits and a point, with at most two decimals, for example 1250.5. No commas.",
   "td.breakdown": "Reported by",
   "td.by.sex": "Women and men",
