@@ -5,7 +5,7 @@ vi.mock("@/db", () => import("@/server/__tests__/test-db"));
 // the authority table is given here: who holds each role type.
 vi.mock("@/server/hr-store", async (original) => {
   const real = await original<typeof import("@/server/hr-store")>();
-  return { ...real, loadHr: async () => ({ state: { people: {}, rules: { holders: { ceo: ["grace"], management: ["karim"] } } } }) };
+  return { ...real, loadHr: async () => ({ state: { people: {}, rules: { holders: { ceo: ["tucker"], management: ["karim"] } } } }) };
 });
 
 import { and, eq, isNull } from "drizzle-orm";
@@ -28,7 +28,7 @@ import { ready } from "@/server/__tests__/test-db";
  * what a manager's portfolio lists in demo mode, and that the match call is in the audit log.
  */
 const code = "A-2027";
-const [grace, nadia, elena, farida, omar] = ["grace", "nadia", "elena", "farida", "omar"].map((id) => userById(id)!);
+const [tucker, nadia, elena, farida, omar] = ["tucker", "nadia", "elena", "farida", "omar"].map((id) => userById(id)!);
 let orgId = "";
 
 beforeAll(async () => {
@@ -60,14 +60,14 @@ describe("what a donor is shown", { timeout: 60_000 }, () => {
 
 describe("All projects", { timeout: 60_000 }, () => {
   it("lists the demo project in demo mode, so the page is never empty in front of an audience", async () => {
-    const rows = (await loadPortfolio(grace)).rows;
+    const rows = (await loadPortfolio(tucker)).rows;
     expect(rows.map((r) => r.code)).toContain(code);
     expect(rows.find((r) => r.code === code)).toMatchObject({ ready: true, stage: "Execute" });
   });
   it("leaves the demo project out of a live organization's portfolio", async () => {
     process.env.DEMO_SIGN_IN = "0";
     try {
-      expect((await loadPortfolio(grace)).rows.map((r) => r.code)).not.toContain(code);
+      expect((await loadPortfolio(tucker)).rows.map((r) => r.code)).not.toContain(code);
     } finally {
       process.env.DEMO_SIGN_IN = "1";
     }
@@ -80,21 +80,21 @@ describe("opportunities in the audit log", { timeout: 60_000 }, () => {
     const before = (await log()).length;
     const fields = { title: "Dried fruit corridor", donor: "Demo Fund (fictional)", source: "Donor call" as const, link: "", country: "AF", deadline: null, value: null, currency: "USD", need: "", donorPriorities: "", capacity: "", risks: "", grossIncome: "" };
     expect(await actOnOpportunity(orgId, { action: "add", fields }, nadia)).toBeNull();
-    const made = (await loadOpportunities(orgId, grace)).items.find((o) => o.title === "Dried fruit corridor")!;
-    expect(await actOnOpportunity(orgId, { action: "decide", id: made.id, match: false, reason: "No field team in that province yet." }, grace)).toBeNull();
-    expect(await actOnOpportunity(orgId, { action: "reopen", id: made.id, reason: "A partner now covers the province." }, grace)).toBeNull();
+    const made = (await loadOpportunities(orgId, tucker)).items.find((o) => o.title === "Dried fruit corridor")!;
+    expect(await actOnOpportunity(orgId, { action: "decide", id: made.id, match: false, reason: "No field team in that province yet." }, tucker)).toBeNull();
+    expect(await actOnOpportunity(orgId, { action: "reopen", id: made.id, reason: "A partner now covers the province." }, tucker)).toBeNull();
     const rows = (await log()).slice(before).map((r) => [r.action, (r.detail as Record<string, unknown>).by, (r.detail as Record<string, unknown>).opportunity]);
     expect(rows).toEqual([
       ["opportunity_recorded", "nadia", made.id],
-      ["opportunity_not_matched", "grace", made.id],
-      ["opportunity_reopened", "grace", made.id],
+      ["opportunity_not_matched", "tucker", made.id],
+      ["opportunity_reopened", "tucker", made.id],
     ]);
     const decided = (await log()).find((r) => r.action === "opportunity_not_matched")!;
     expect((decided.detail as Record<string, unknown>).reason).toBe("No field team in that province yet.");
   });
   it("writes nothing when the change is refused", async () => {
     const before = (await log()).length;
-    const made = (await loadOpportunities(orgId, grace)).items.find((o) => o.title === "Dried fruit corridor")!;
+    const made = (await loadOpportunities(orgId, tucker)).items.find((o) => o.title === "Dried fruit corridor")!;
     // Not programme management or the executive head: the match call is refused.
     expect(await actOnOpportunity(orgId, { action: "decide", id: made.id, match: true, reason: "We should go for this one." }, nadia)).toMatch(/match call/);
     expect((await log()).length).toBe(before);
@@ -157,7 +157,7 @@ describe("a read-only request's short memory", { timeout: 120_000 }, () => {
     await same(() => nextReport(code));
   });
   it("gives All projects the same answer, where Home and the summary share one review", async () => {
-    await same(() => loadPortfolio(grace));
+    await same(() => loadPortfolio(tucker));
   });
   it("gives the same answer when several screens' data is read in one request, in either order", async () => {
     const alone = { home: await loadHome(code, nadia), summary: await loadProgressSummary(code, nadia), framework: await loadFramework(code, nadia) };
@@ -174,7 +174,7 @@ describe("a read-only request's short memory", { timeout: 120_000 }, () => {
 describe("the way in to Proposals for someone added to one", { timeout: 60_000 }, () => {
   it("lists Proposals in the menu for the core and for a proposal's team", async () => {
     const menu = await proposalMenuMap(orgId);
-    expect(menu.grace).toBe("core");
+    expect(menu.tucker).toBe("core");
     // Nadia is on the sample proposal's team and is not in the core.
     expect(menu.nadia).toBe("team");
     expect(menu.bilal).toBeUndefined();
@@ -183,6 +183,6 @@ describe("the way in to Proposals for someone added to one", { timeout: 60_000 }
     expect((await proposalMenuMap(orgId, "nadia")).nadia).toBe("team");
     const forBilal = await proposalMenuMap(orgId, "bilal");
     expect(forBilal.nadia).toBeUndefined();
-    expect(forBilal.grace).toBe("core");
+    expect(forBilal.tucker).toBe("core");
   });
 });

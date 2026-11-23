@@ -158,7 +158,7 @@ async function storeSampleFile(name: string, text: string, by: string) {
 export async function seedSample(write: typeof append = append, file: typeof storeSampleFile = storeSampleFile) {
   const today = todayIso();
   const rules: Rules = { steps: DEFAULT_STEPS, leavePayout: DEFAULT_PAYOUT, holders: {
-      ceo: ["grace"],
+      ceo: ["tucker"],
       management: ["karim"],
       cfo: ["peter"],
       finance: ["yusuf", "omid"],
@@ -177,12 +177,12 @@ export async function seedSample(write: typeof append = append, file: typeof sto
   const usd = (pay: number): Fields => ({ payBasis: "Month", pay, currency: "USD" });
   const afn = (pay: number): Fields => ({ payBasis: "Month", pay, currency: "AFN" });
   const hires: [string, Fields][] = [
-    ["grace", { name: "Grace Moreno", title: "Chief Executive Officer", office: "Home Office", employment: "Employee", startDate: "2019-03-01", ...usd(15000), retirementPct: 5, adpId: "ROP-1001" }],
-    ["peter", { name: "Peter Hale", title: "Chief Financial Officer", office: "Home Office", employment: "Employee", supervisor: "grace", startDate: "2021-06-01", ...usd(11000), retirementPct: 4, adpId: "ROP-1002" }],
+    ["tucker", { name: "Tucker Kuhn", title: "Chief Executive Officer", office: "Home Office", employment: "Employee", startDate: "2019-03-01", ...usd(15000), retirementPct: 5, adpId: "ROP-1001" }],
+    ["peter", { name: "Peter Hale", title: "Chief Financial Officer", office: "Home Office", employment: "Employee", supervisor: "tucker", startDate: "2021-06-01", ...usd(11000), retirementPct: 4, adpId: "ROP-1002" }],
     ["sima", { name: "Sima Rezai", title: "HR Manager", office: "Home Office", employment: "Employee", supervisor: "peter", startDate: "2022-01-10", ...usd(6500), retirementPct: 3, adpId: "ROP-1003" }],
     ["omid", { name: "Omid Rahmani", title: "Accounting Manager", office: "Home Office", employment: "Employee", supervisor: "peter", startDate: "2022-07-05", ...usd(7200), retirementPct: 3, adpId: "ROP-1004" }],
     ["mina", { name: "Mina Sharifi", title: "HR Officer", office: "Afghanistan", employment: "National staff", supervisor: "sima", startDate: "2023-11-01", ...afn(56000), bankAccount: "AIB 0000-4101 (sample)" }],
-    ["karim", { name: "Karim Ahmadi", title: "Country Director", office: "Afghanistan", employment: "National staff", supervisor: "grace", startDate: "2020-04-01", ...afn(245000), dangerPay: 0, commsAllowance: 3500, bankAccount: "AIB 0000-4102 (sample)" }],
+    ["karim", { name: "Karim Ahmadi", title: "Country Director", office: "Afghanistan", employment: "National staff", supervisor: "tucker", startDate: "2020-04-01", ...afn(245000), dangerPay: 0, commsAllowance: 3500, bankAccount: "AIB 0000-4102 (sample)" }],
     ["nadia", { name: "Nadia Rahimi", title: "Project Manager", office: "Afghanistan", employment: "National staff", supervisor: "karim", startDate: "2023-02-15", ...afn(98000), commsAllowance: 2000, phone: "+93 70 000 0101", bankAccount: "AIB 0000-4103 (sample)" }],
     ["yusuf", { name: "Yusuf Mohammadi", title: "Finance Officer", office: "Afghanistan", employment: "National staff", supervisor: "karim", startDate: "2023-05-01", ...afn(70000), bankAccount: "AIB 0000-4104 (sample)" }],
     ["zahra", { name: "Zahra Karimi", title: "Procurement Officer", office: "Afghanistan", employment: "National staff", supervisor: "hamid", startDate: "2024-03-01", ...afn(63000), bankAccount: "AIB 0000-4105 (sample)" }],
@@ -198,13 +198,13 @@ export async function seedSample(write: typeof append = append, file: typeof sto
     // Starting records, as if imported from the old HR system. Nobody proposes their own, so Mina enters Sima's.
     const n = await propose(id === "sima" ? "mina" : "sima", { type: "hire", subject: id, effective: fields.startDate as string, fields, reason: "Starting record, imported from the previous HR system." });
     // The CFO cannot sign the CFO step of their own record, nor the CEO the CEO step: those fall to the Board.
-    const signer = (step: number) => (step === 0 ? (id === "peter" ? "arthur" : "peter") : id === "grace" ? "arthur" : "grace");
+    const signer = (step: number) => (step === 0 ? (id === "peter" ? "arthur" : "peter") : id === "tucker" ? "arthur" : "tucker");
     await approve(signer(0), n, 0, id === "peter" ? "board" : "cfo", id);
-    await approve(signer(1), n, 1, id === "grace" ? "board" : "ceo", id);
+    await approve(signer(1), n, 1, id === "tucker" ? "board" : "ceo", id);
   }
 
-  // Grace declares she is related to Javed, so his pay changes go past her to the Board.
-  await write("grace", "declare", "grace", { a: "grace", b: "javed", relation: "Uncle" });
+  // Tucker declares they are related to Javed, so his pay changes go past them to the Board.
+  await write("tucker", "declare", "tucker", { a: "tucker", b: "javed", relation: "Uncle" });
 
   // Waiting for the CEO: Farid's annual raise, checked by the CFO.
   const raise = await propose("sima", { type: "update", subject: "farid", effective: firstOfNextMonth(today), fields: { pay: 82000 }, reason: "Annual review: rating Exceeds expectations. Within the ACRP budget line for this post." });
@@ -218,7 +218,7 @@ export async function seedSample(write: typeof append = append, file: typeof sto
 
   // Sent back by the CEO.
   const title = await propose("sima", { type: "update", subject: "hamid", effective: today, fields: { title: "Head of Procurement" }, reason: "Recognise wider responsibilities." });
-  await write("grace", "reject", "hamid", { proposal: title, note: "Not in the approved staffing plan. Bring it to the next budget revision." });
+  await write("tucker", "reject", "hamid", { proposal: title, note: "Not in the approved staffing plan. Bring it to the next budget revision." });
 
   // Last month's timesheets.
   const [y, m] = today.split("-").map(Number);
@@ -245,11 +245,11 @@ export async function seedSample(write: typeof append = append, file: typeof sto
   }));
   // Everyone else's October, approved by their supervisor (HR for the CEO, who has none).
   const approvedSheets: [string, string, string, Record<string, number>][] = [
-    ["grace", "sima", "Home Office", { "non-contract": 8, "ACRP-2026": 2 }],
-    ["peter", "grace", "Home Office", { "non-contract": 9, "ACRP-2026": 1 }],
+    ["tucker", "sima", "Home Office", { "non-contract": 8, "ACRP-2026": 2 }],
+    ["peter", "tucker", "Home Office", { "non-contract": 9, "ACRP-2026": 1 }],
     ["omid", "peter", "Home Office", { "non-contract": 1 }],
     ["mina", "sima", "Afghanistan", { "non-contract": 1, "ACRP-2026": 1 }],
-    ["karim", "grace", "Afghanistan", { "ACRP-2026": 3, "A-2027": 1, "non-contract": 1 }],
+    ["karim", "tucker", "Afghanistan", { "ACRP-2026": 3, "A-2027": 1, "non-contract": 1 }],
     ["yusuf", "karim", "Afghanistan", { "ACRP-2026": 1, "non-contract": 1 }],
     ["hamid", "karim", "Afghanistan", { "ACRP-2026": 1 }],
     ["zahra", "hamid", "Afghanistan", { "ACRP-2026": 2, "A-2027": 1 }],
@@ -294,7 +294,7 @@ export async function seedSample(write: typeof append = append, file: typeof sto
     reason: "New post in the ACRP staffing plan, recruited in October.",
   });
   await approve("peter", zHire, 0, "cfo", "zarlasht");
-  await approve("grace", zHire, 1, "ceo", "zarlasht");
+  await approve("tucker", zHire, 1, "ceo", "zarlasht");
   const contract = await file("contract-zarlasht-noori.pdf", "Sample employment contract: Zarlasht Noori, M&E Assistant", "sima");
   await write("sima", "onboard-start", "zarlasht", { due: addDays(today, 11), contract });
   await write("mina", "onboard-step", "zarlasht", { step: "it", value: { kind: "confirm", note: "Email zarlasht.noori@ created; laptop RP-114 issued." } });

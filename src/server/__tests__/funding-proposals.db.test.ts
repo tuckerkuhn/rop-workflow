@@ -5,7 +5,7 @@ vi.mock("@/db", () => import("@/server/__tests__/test-db"));
 // the authority table is given here as the sample book has it: who holds each role type.
 vi.mock("@/server/hr-store", async (original) => {
   const real = await original<typeof import("@/server/hr-store")>();
-  return { ...real, loadHr: async () => ({ state: { people: {}, rules: { holders: { ceo: ["grace"], management: ["karim"], technical: ["farid", "nadia"] } } } }) };
+  return { ...real, loadHr: async () => ({ state: { people: {}, rules: { holders: { ceo: ["tucker"], management: ["karim"], technical: ["farid", "nadia"] } } } }) };
 });
 
 import { eq } from "drizzle-orm";
@@ -22,12 +22,12 @@ import { ready } from "@/server/__tests__/test-db";
  * management by role type, plus three people by name. Everyone else is out unless added to a
  * proposal, and then sees that one only.
  */
-const [grace, peter, karim, nadia, farid, bilal, sima] = ["grace", "peter", "karim", "nadia", "farid", "bilal", "sima"].map((id) => userById(id)!);
+const [tucker, peter, karim, nadia, farid, bilal, sima, marcus] = ["tucker", "peter", "karim", "nadia", "farid", "bilal", "sima", "marcus"].map((id) => userById(id)!);
 let orgId = "";
-const view = async (u: typeof grace) => (await loadProposals(orgId, u))!;
-const sample = async (u = grace) => (await view(u)).items.find((p) => p.id === "PRO-SAMPLE")!;
+const view = async (u: typeof tucker) => (await loadProposals(orgId, u))!;
+const sample = async (u = tucker) => (await view(u)).items.find((p) => p.id === "PRO-SAMPLE")!;
 const itemOf = async (title: string) => (await sample()).items.find((i) => i.title === title)!;
-const act = (a: ProposalAction, u: typeof grace) => actOnProposal(orgId, a, u);
+const act = (a: ProposalAction, u: typeof tucker) => actOnProposal(orgId, a, u);
 const fields = (over: Partial<ItemFields>): ItemFields => ({ ref: "", title: "New item", kind: "checkbox", owner: null, signer: null, due: null, todo: "", working: "", final: "", points: null, criteria: "", guidance: "", upload: null, ...over });
 const head = { title: "Coffee renewal, round 2", donor: "Demo Fund (fictional)", portal: "", folder: "", currency: "USD", deadline: null, targets: [], rules: [], budget: NO_BUDGET };
 
@@ -39,13 +39,13 @@ beforeAll(async () => {
 
 describe("who can open proposals", { timeout: 60_000 }, () => {
   it("lets in the organization's core: role holders and the people it names", async () => {
-    expect(await inProposalCore(orgId, grace)).toBe(true); // executive head, by role type
+    expect(await inProposalCore(orgId, tucker)).toBe(true); // executive head, by role type
     expect(await inProposalCore(orgId, karim)).toBe(true); // programme management, by role type
     expect(await inProposalCore(orgId, peter)).toBe(true); // by name
     expect(await inProposalCore(orgId, sima)).toBe(false);
     expect(await inProposalCore(orgId, nadia)).toBe(false);
-    expect(Object.keys(await proposalAccessMap(orgId)).sort()).toEqual(["diego", "grace", "karim", "marcus", "peter"]);
-    expect((await view(grace)).core!.members.find((m) => m.id === "karim")!.why).toBe("Programme management");
+    expect(Object.keys(await proposalAccessMap(orgId)).sort()).toEqual(["daniel", "karim", "marcus", "peter", "tucker"]);
+    expect((await view(tucker)).core!.members.find((m) => m.id === "karim")!.why).toBe("Programme management");
   });
   it("shows a contributor the proposal they are on, and tells them nothing else", async () => {
     const v = await view(nadia);
@@ -63,12 +63,12 @@ describe("who can open proposals", { timeout: 60_000 }, () => {
   });
   it("lets the executive head change the core, and nobody else", async () => {
     expect(await act({ action: "core", roles: ["ceo"], people: ["nadia"] }, karim)).toMatch(/^The executive head or an administrator/);
-    expect(await act({ action: "core", roles: [], people: [] }, grace)).toMatch(/^Name at least one/);
-    expect(await act({ action: "core", roles: ["ceo", "technical"], people: ["peter"] }, grace)).toBeNull();
+    expect(await act({ action: "core", roles: [], people: [] }, tucker)).toMatch(/^Name at least one/);
+    expect(await act({ action: "core", roles: ["ceo", "technical"], people: ["peter"] }, tucker)).toBeNull();
     // Technical leads are in now, by role type; programme management is out.
     expect(await inProposalCore(orgId, farid)).toBe(true);
     expect(await inProposalCore(orgId, karim)).toBe(false);
-    expect(await act({ action: "core", roles: ["ceo", "management"], people: ["peter", "marcus", "diego"] }, grace)).toBeNull();
+    expect(await act({ action: "core", roles: ["ceo", "management"], people: ["peter", "marcus", "daniel"] }, tucker)).toBeNull();
     expect(await inProposalCore(orgId, karim)).toBe(true);
     expect(await inProposalCore(orgId, farid)).toBe(false);
   });
@@ -88,7 +88,7 @@ describe("running a proposal", { timeout: 60_000 }, () => {
     const risk = await itemOf("Risk analysis");
     expect(await act({ action: "status", id: "PRO-SAMPLE", item: risk.id, status: "final", note: "" }, nadia)).toMatch(/final when its signer has signed/);
     expect(await act({ action: "status", id: "PRO-SAMPLE", item: risk.id, status: "final", note: "" }, karim)).toMatch(/final when its signer has signed/);
-    expect(await act({ action: "status", id: "PRO-SAMPLE", item: risk.id, status: "final", note: "" }, grace)).toBeNull();
+    expect(await act({ action: "status", id: "PRO-SAMPLE", item: risk.id, status: "final", note: "" }, marcus)).toBeNull();
     expect((await itemOf("Risk analysis")).status).toBe("final");
   });
   it("lets nobody rate a section they wrote, and counts a rating only once a reviewer confirms it", async () => {
@@ -98,7 +98,7 @@ describe("running a proposal", { timeout: 60_000 }, () => {
     const rate = { action: "rate" as const, id: "PRO-SAMPLE", item: results.id, band: "competitive" as const, why: "Targets have baselines and the calculation behind each.", next: "" };
     expect(await act(rate, karim)).toBe("You wrote this section, so someone else rates it.");
     expect(await act(rate, nadia)).toMatch(/rated by the people running/);
-    expect(await act(rate, grace)).toBeNull();
+    expect(await act(rate, tucker)).toBeNull();
     // The AI suggestion on the approach section is confirmed by a reviewer who did not write it.
     const approach = await itemOf("Approach and activities");
     expect(approach.rating?.suggested).toBe(true);
@@ -110,7 +110,7 @@ describe("running a proposal", { timeout: 60_000 }, () => {
     expect(context.rating?.band).toBe("competitive");
     const { id: _id, status: _s, rating: _r, unchecked: _u, ...f } = context;
     void [_id, _s, _r, _u];
-    await act({ action: "editItem", id: "PRO-SAMPLE", item: context.id, fields: { ...f, criteria: "Understanding of the context, and of women's part in the value chain." } }, grace);
+    await act({ action: "editItem", id: "PRO-SAMPLE", item: context.id, fields: { ...f, criteria: "Understanding of the context, and of women's part in the value chain." } }, tucker);
     expect((await itemOf("Context and the problem")).rating).toBeNull();
   });
   it("gives an item only to someone on the proposal, and lets anyone running it add any colleague", async () => {
@@ -123,8 +123,8 @@ describe("running a proposal", { timeout: 60_000 }, () => {
     expect(await act({ action: "editItem", id: "PRO-SAMPLE", item: cvs.id, fields: { ...f, owner: "sima" } }, peter)).toBeNull();
     expect((await view(sima)).items.map((p) => p.id)).toEqual(["PRO-SAMPLE"]);
     // She cannot be taken off while she still owns an open item.
-    expect(await act({ action: "team", id: "PRO-SAMPLE", person: "sima", add: false }, grace)).toMatch(/still own or sign an open item/);
-    expect(await act({ action: "team", id: "PRO-SAMPLE", person: "karim", add: true }, grace)).toBe("They can already open every proposal.");
+    expect(await act({ action: "team", id: "PRO-SAMPLE", person: "sima", add: false }, tucker)).toMatch(/still own or sign an open item/);
+    expect(await act({ action: "team", id: "PRO-SAMPLE", person: "karim", add: true }, tucker)).toBe("They can already open every proposal.");
   });
   it("adds someone from outside the organization, who holds items without a sign-in", async () => {
     expect((await sample()).outside.map((o) => o.name)).toEqual(["Lucía Barrios"]);
@@ -132,7 +132,7 @@ describe("running a proposal", { timeout: 60_000 }, () => {
     expect(await act({ action: "outsider", id: "PRO-SAMPLE", name: "tomás rey", org: "Partner cooperative (fictional)", email: "" }, karim)).toBe("They are already on this proposal.");
     const p = await sample();
     const tomas = p.outside.find((o) => o.name === "Tomás Rey")!;
-    expect((await view(grace)).names[tomas.id]).toBe("Tomás Rey (Partner cooperative (fictional))");
+    expect((await view(tucker)).names[tomas.id]).toBe("Tomás Rey (Partner cooperative (fictional))");
     // He is given the sustainability section, and signs the workplan; the core records both for him.
     const sust = p.items.find((i) => i.title === "Sustainability and exit")!;
     const { id: _a, status: _b, rating: _c, unchecked: _d, ...f } = sust;
@@ -146,11 +146,11 @@ describe("running a proposal", { timeout: 60_000 }, () => {
     expect(await act({ action: "status", id: "PRO-SAMPLE", item: plan.id, status: "final", note: "" }, nadia)).toMatch(/final when its signer has signed/);
     expect(await act({ action: "status", id: "PRO-SAMPLE", item: plan.id, status: "final", note: "Signed copy received by email" }, karim)).toBeNull();
     // He cannot be taken off while he holds an open item.
-    expect(await act({ action: "team", id: "PRO-SAMPLE", person: tomas.id, add: false }, grace)).toMatch(/still own or sign an open item/);
+    expect(await act({ action: "team", id: "PRO-SAMPLE", person: tomas.id, add: false }, tucker)).toMatch(/still own or sign an open item/);
     expect((await sample()).history.some((h) => /Tomás Rey .* added from outside the organization/.test(h.what))).toBe(true);
   });
   it("will not be recorded as submitted while anything stops it, and says what", async () => {
-    expect(await act({ action: "outcome", id: "PRO-SAMPLE", outcome: "submitted", confirmation: "13.99", note: "" }, grace)).toMatch(/^Not ready to submit\. 1 decision is still open/);
+    expect(await act({ action: "outcome", id: "PRO-SAMPLE", outcome: "submitted", confirmation: "13.99", note: "" }, tucker)).toMatch(/^Not ready to submit\. 1 decision is still open/);
     expect(await act({ action: "outcome", id: "PRO-SAMPLE", outcome: "withdrawn", confirmation: "", note: "" }, nadia)).toMatch(/record its outcome/);
   });
   it("records what happened, with who and when", async () => {
@@ -176,19 +176,19 @@ describe("starting the next proposal", { timeout: 60_000 }, () => {
     expect((await view(nadia)).items.map((p) => p.id)).toEqual(["PRO-SAMPLE"]);
   });
   it("starts from the standard list or from nothing", async () => {
-    await act({ action: "create", fields: { ...head, title: "From the standard list" }, opportunityId: null, from: "standard" }, grace);
-    await act({ action: "create", fields: { ...head, title: "From nothing" }, opportunityId: null, from: "blank" }, grace);
-    const v = await view(grace);
+    await act({ action: "create", fields: { ...head, title: "From the standard list" }, opportunityId: null, from: "standard" }, tucker);
+    await act({ action: "create", fields: { ...head, title: "From nothing" }, opportunityId: null, from: "blank" }, tucker);
+    const v = await view(tucker);
     expect(v.items.find((p) => p.title === "From the standard list")!.items.length).toBeGreaterThan(15);
     expect(v.items.find((p) => p.title === "From nothing")!.readiness.next).toBe("Build the list from the call.");
-    expect(await act({ action: "create", fields: head, opportunityId: null, from: "PRO-NOPE" }, grace)).toBe("No such proposal to start from.");
+    expect(await act({ action: "create", fields: head, opportunityId: null, from: "PRO-NOPE" }, tucker)).toBe("No such proposal to start from.");
   });
 });
 
 describe("Home", { timeout: 60_000 }, () => {
-  const rows = async (u: typeof grace) => (await loadHome("A-2027", u)).actions.filter((a) => a.key.startsWith("proposal")).map((a) => a.text);
+  const rows = async (u: typeof tucker) => (await loadHome("A-2027", u)).actions.filter((a) => a.key.startsWith("proposal")).map((a) => a.text);
   it("tells the signer what waits for their signature, and each owner what is theirs", async () => {
-    const hers = await rows(grace);
+    const hers = await rows(marcus);
     expect(hers[0]).toMatch(/^Sign Declarations for the proposal Orchard Value Chains Recovery \(fictional call\), \d+ days to the donor's deadline$/);
     expect(hers[1]).toMatch(/^Proposal Orchard Value Chains Recovery \(fictional call\): \d items are yours/);
     expect((await rows(nadia)).length).toBe(0); // her two items are with a reviewer or final

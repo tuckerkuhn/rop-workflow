@@ -23,7 +23,7 @@ describe("feedback and complaints", () => {
     const x = e({ serious: true, answer: ans("2026-10-03") });
     expect(forViewer(x, { id: "farida", project: [] })).toMatchObject({ about: "", place: "", withheld: true, answer: { text: "" } });
     expect(forViewer(x, { id: "bilal", project: [] }).about).toBe("The saplings arrived dry.");
-    expect(forViewer(x, { id: "grace", project: ["plan-approver"] }).withheld).toBe(false);
+    expect(forViewer(x, { id: "tucker", project: ["plan-approver"] }).withheld).toBe(false);
     expect(forViewer(x, { id: "it", admin: true, project: [] }).withheld).toBe(false);
     expect(forViewer(e({}), { id: "farida", project: [] }).withheld).toBe(false);
   });

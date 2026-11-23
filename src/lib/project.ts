@@ -301,11 +301,11 @@ export const agentJobs: AgentJob[] = [
   { name: "Proposal drafter", stage: "Design", does: "Drafts sections from template and past proposals", handsTo: "Proposal lead", inDemo: false },
   { name: "Lens reviewer", stage: "Design", does: "One pass per lens; returns gaps and suggested fixes", handsTo: "Lens owner", inDemo: false },
   { name: "Indicator advisor", stage: "Design", does: "Suggests indicators from library and donor set; drafts targets", handsTo: "MEL owner", inDemo: false },
-  { name: "Procurement precheck", stage: "Execute", does: "Checks the package against ROP policy (shown as AI pre-checks in Procurement)", handsTo: "Diego", inDemo: true },
+  { name: "Procurement precheck", stage: "Execute", does: "Checks the package against ROP policy (shown as AI pre-checks in Procurement)", handsTo: "Daniel", inDemo: true },
   { name: "Task keeper", stage: "Execute", does: "Flags late work and projects who gets what next", handsTo: "Activity owner", inDemo: true },
   { name: "Data checker", stage: "Verify", does: "Rolls up Kobo data; flags duplicates, GPS, missing fields, photos", handsTo: "MEL owner", inDemo: true },
-  { name: "Finance mapper", stage: "Verify", does: "Maps the NetSuite export to budget lines; flags variances", handsTo: "Diego", inDemo: true },
-  { name: "Monthly reviewer", stage: "Report", does: "Drafts the monthly review: targets, budget, risks, proposed changes", handsTo: "Marcus + Diego", inDemo: true },
+  { name: "Finance mapper", stage: "Verify", does: "Maps the NetSuite export to budget lines; flags variances", handsTo: "Daniel", inDemo: true },
+  { name: "Monthly reviewer", stage: "Report", does: "Drafts the monthly review: targets, budget, risks, proposed changes", handsTo: "Marcus + Daniel", inDemo: true },
   { name: "Report writer", stage: "Report", does: "Assembles the ROP standard report and maps it to the donor template", handsTo: "Report approver", inDemo: true },
 ];
 
@@ -372,10 +372,10 @@ export function seedProject(): ProjectState {
       { id: "C-2", text: "Raise the readiness-recheck window from 7 to 10 days for east Village B, where ridge-spacing errors cluster (finding MF-03).", status: "proposed" },
       { id: "C-3", text: "Hold the fertilizer contract (PR-2027-015) until the donor clause and 30% damages rate are corrected; risk to activity 6 timing.", status: "proposed" },
     ],
-    planApproval: { what: "Project plan and budget", by: "diego", date: "2026-12-14", note: "Approved with the 10-step field sequence and five indicators." },
+    planApproval: { what: "Project plan and budget", by: "daniel", date: "2026-12-14", note: "Approved with the 10-step field sequence and five indicators." },
     audit: [
       { date: "2026-12-10", who: "agent:Indicator advisor", what: "Suggested IND-1 to IND-5 from the library and the donor's core set", kind: "agent" },
-      { date: "2026-12-14", who: "diego", what: "Approved project plan and budget", kind: "approval" },
+      { date: "2026-12-14", who: "daniel", what: "Approved project plan and budget", kind: "approval" },
       ...submissions.filter((s) => s.status === "accepted").map((s) => ({ date: s.decidedOn!, who: "omar", what: `Accepted ${s.id} (${formLabel[s.form]}, ${s.farmerId})`, kind: "approval" as const })),
     ],
   };

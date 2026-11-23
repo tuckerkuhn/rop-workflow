@@ -45,12 +45,12 @@ describe("what is listed under Organization and what under Projects", () => {
 
 describe("Proposals in the menu", () => {
   it("is listed for someone on a proposal's team, who still cannot start one", () => {
-    registerProposalAccess({ grace: "core", nadia: "team" });
+    registerProposalAccess({ tucker: "core", nadia: "team" });
     try {
       expect(acrossProjectsFor(person("nadia"), () => false).map((a) => a.id)).toEqual(["proposals"]);
       expect(onProposals(person("nadia"))).toBe(true);
       expect(opensProposals(person("nadia"))).toBe(false);
-      expect(opensProposals(person("grace"))).toBe(true);
+      expect(opensProposals(person("tucker"))).toBe(true);
       expect(acrossProjectsFor(person("farida"), () => false)).toEqual([]);
     } finally {
       registerProposalAccess(null);

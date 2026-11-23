@@ -57,8 +57,8 @@ export async function seedDatabase() {
   // type, and three people by name, so the demo's lead account can open it.
   await db
     .insert(s.organizationState)
-    .values({ organizationId: org.id, key: "proposal-core", data: { roles: ["ceo", "management"], people: ["peter", "marcus", "diego"] } })
-    .onConflictDoUpdate({ target: [s.organizationState.organizationId, s.organizationState.key], set: { data: { roles: ["ceo", "management"], people: ["peter", "marcus", "diego"] }, updatedAt: new Date() } });
+    .values({ organizationId: org.id, key: "proposal-core", data: { roles: ["ceo", "management"], people: ["peter", "marcus", "daniel"] } })
+    .onConflictDoUpdate({ target: [s.organizationState.organizationId, s.organizationState.key], set: { data: { roles: ["ceo", "management"], people: ["peter", "marcus", "daniel"] }, updatedAt: new Date() } });
   // One fictional proposal a week from its deadline (lib/funding-proposals-sample).
   await db
     .insert(s.organizationState)

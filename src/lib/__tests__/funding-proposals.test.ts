@@ -29,9 +29,9 @@ const rated = (band: Band, points: number | null, suggested = false): Partial<It
 const prop = (items: Item[], over: Partial<FundingProposal> = {}): FundingProposal => ({ id: "PRO-1", opportunityId: null, title: "P", donor: "D", portal: "", folder: "", currency: "USD", deadline: null, targets: [], themes: ["One"], rules: [], budget: NO_BUDGET, team: [], outside: [], items, outcome: "drafting", confirmation: "", history: [], ...over });
 
 describe("who can start proposals: each organization's own core", () => {
-  const holders = { ceo: ["grace"], management: ["karim"], technical: ["farid"] };
+  const holders = { ceo: ["tucker"], management: ["karim"], technical: ["farid"] };
   it("is the executive head and programme management until the organization chooses", () => {
-    expect(inCore("grace", DEFAULT_CORE, holders)).toBe(true);
+    expect(inCore("tucker", DEFAULT_CORE, holders)).toBe(true);
     expect(inCore("karim", DEFAULT_CORE, holders)).toBe(true);
     expect(inCore("farid", DEFAULT_CORE, holders)).toBe(false);
     expect(inCore("nadia", DEFAULT_CORE, holders)).toBe(false);
@@ -40,7 +40,7 @@ describe("who can start proposals: each organization's own core", () => {
     const core = { roles: ["technical" as const], people: ["nadia"] };
     expect(inCore("farid", core, holders)).toBe(true);
     expect(inCore("nadia", core, holders)).toBe(true);
-    expect(inCore("grace", core, holders)).toBe(false);
+    expect(inCore("tucker", core, holders)).toBe(false);
   });
   it("follows the authority table: a role given or taken away changes who is in", () => {
     expect(inCore("sami", DEFAULT_CORE, { ...holders, management: ["karim", "sami"] })).toBe(true);

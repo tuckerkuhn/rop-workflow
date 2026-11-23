@@ -11,7 +11,7 @@ import { validateProcurementSave } from "@/server/procurement-guard";
  */
 const yusuf = userById("yusuf")!;
 const omid = userById("omid")!;
-const diego = userById("diego")!;
+const daniel = userById("daniel")!;
 
 const atApprove = (): Procurement => {
   const p = seedProcurements()[0];
@@ -39,10 +39,10 @@ describe("approving the expense voucher", () => {
   });
 
   it("is done by a third Finance person when there is one, not the reviewer", () => {
-    registerAuthority({ finance: ["yusuf", "omid", "diego"] });
+    registerAuthority({ finance: ["yusuf", "omid", "daniel"] });
     const p = atApprove();
-    expect(validateProcurementSave(p, approve(p), omid)).toBe(`The voucher must be approved by a third Finance person: ${diego.name}.`);
-    expect(validateProcurementSave(p, approve(p), diego)).toBeNull();
+    expect(validateProcurementSave(p, approve(p), omid)).toBe(`The voucher must be approved by a third Finance person: ${daniel.name}.`);
+    expect(validateProcurementSave(p, approve(p), daniel)).toBeNull();
   });
 
   it("may be done by the reviewer on a two-person Finance team", () => {
