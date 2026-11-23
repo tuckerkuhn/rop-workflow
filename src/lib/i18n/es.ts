@@ -235,7 +235,6 @@ export const es: Messages = {
   "home.keyIndicators": "Metas principales",
   "home.editDesign": "Editar el diseño del proyecto",
   "home.viewDesign": "Diseño del proyecto (solo lectura)",
-  "home.settings": "Configuración del proyecto",
   "donor.filter": "Donante",
   "donor.all": "Todos los donantes",
   "progress.title": "Avance",

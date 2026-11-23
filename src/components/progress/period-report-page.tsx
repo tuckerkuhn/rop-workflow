@@ -20,6 +20,8 @@ import type { PeriodReportView } from "@/server/period-report-store";
  */
 
 const n = (v: number | null) => (v === null ? "—" : v.toLocaleString("en-US", { maximumFractionDigits: 1 }));
+/** The small label over each figure in the stacked phone layout. */
+const cardHead = "text-xs uppercase tracking-wide text-muted";
 const VERDICT = { met: { tone: "forest", text: "Met" }, partly: { tone: "ochre", text: "Partly" }, not_met: { tone: "clay", text: "Not met" }, no_target: { tone: "muted", text: "No target" } } as const;
 
 export function PeriodReportPage() {
@@ -140,7 +142,56 @@ export function PeriodReportPage() {
                 <p className="mt-1 text-muted">This table uses the records as they are now. Say why each changed in the report, or put the record back if the change was a mistake.</p>
               </div>
             )}
-            <div className="mt-4 overflow-x-auto rounded-2xl border border-line bg-surface print:overflow-visible">
+            {/* Below a medium screen: one block per indicator, stacked, so nothing scrolls sideways on a phone. Print keeps the table. */}
+            <ul aria-label="Indicators" className="mt-4 divide-y divide-line rounded-2xl border border-line bg-surface md:hidden print:hidden">
+              {v.rows.map((r) => (
+                <li key={r.code} className="px-4 py-3">
+                  <div className="flex items-start gap-2">
+                    <h3 className="flex-1 text-sm">
+                      <span className="font-mono text-xs text-muted">{r.donorCode}</span> {r.name} <span className="text-xs text-muted">({r.unit})</span>
+                    </h3>
+                    <StatusPill tone={VERDICT[r.verdict].tone}>{VERDICT[r.verdict].text}</StatusPill>
+                  </div>
+                  <dl className="mt-2 grid grid-cols-3 gap-2 text-sm tabular-nums">
+                    <div>
+                      <dt className={cardHead}>Baseline</dt>
+                      <dd>{n(r.baseline)}</dd>
+                    </div>
+                    <div>
+                      <dt className={cardHead}>Target</dt>
+                      <dd>{n(r.target)}</dd>
+                    </div>
+                    <div>
+                      <dt className={cardHead}>Achieved</dt>
+                      <dd className="font-semibold">
+                        <ProofNumber project={project.id} user={user.id} indicator={r.code} from={v.range.from} to={v.range.to} value={r.achieved} records={r.records} className="font-semibold tabular-nums">
+                          {n(r.achieved)}
+                        </ProofNumber>
+                      </dd>
+                      {r.pct !== null && <dd className="text-xs text-muted">{r.pct}%</dd>}
+                    </div>
+                    {r.parts.map((x) => (
+                      <div key={x.label}>
+                        <dt className={cardHead}>{x.label}</dt>
+                        <dd className="text-muted">{x.value ? n(x.value) : "—"}</dd>
+                      </div>
+                    ))}
+                    {annual && (
+                      <div className="col-span-2">
+                        <dt className={cardHead}>Cumulative / life</dt>
+                        <dd className="text-muted">
+                          <ProofNumber project={project.id} user={user.id} indicator={r.code} from={null} to={v.range.to} value={r.cumulative} records={r.cumulative ? 1 : 0} className="tabular-nums">
+                            {n(r.cumulative)}
+                          </ProofNumber>{" "}
+                          / {n(r.lifeTarget)}
+                        </dd>
+                      </div>
+                    )}
+                  </dl>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-4 hidden overflow-x-auto rounded-2xl border border-line bg-surface md:block print:block print:overflow-visible">
               <table className="w-full min-w-[720px] text-sm">
                 <thead className="bg-sunken text-start text-xs text-muted">
                   <tr>

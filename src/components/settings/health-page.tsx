@@ -33,7 +33,7 @@ export function HealthPage() {
         <Link href="/settings" className="text-sm text-muted hover:text-ink">
           ← Settings
         </Link>
-        <h1 className="mt-2 font-display text-4xl tracking-tight">Health</h1>
+        <h1 className="mt-2 font-display text-4xl tracking-tight">System health and backups</h1>
         {error && <p className="mt-4 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">{error}</p>}
         {!h && !error && <Loading className="mt-6" />}
         {h && (
@@ -53,7 +53,7 @@ export function HealthPage() {
               <li className="rounded-2xl border border-line bg-surface p-4">
                 <p className="text-xs text-muted">Daily email</p>
                 <p className="text-xl font-semibold">{h.email.configured ? "Switched on" : "Not set up"}</p>
-                {!h.email.configured && <p className="text-xs text-muted">Needs RESEND_API_KEY and CRON_SECRET on the server.</p>}
+                {!h.email.configured && <p className="text-xs text-muted">Your technical administrator needs to switch on the email service.</p>}
               </li>
               <li className="rounded-2xl border border-line bg-surface p-4 sm:col-span-3">
                 <p className="text-xs text-muted">Database space</p>
@@ -62,7 +62,7 @@ export function HealthPage() {
                 </p>
                 <p className="text-xs text-muted">
                   Proof files: {h.storage.filesMb} MB in {h.storage.files} files, kept in the database so they can never be altered.
-                  {h.storage.level !== "good" && " Nearing the limit: decide whether to move photos to file storage or raise the plan."}
+                  {h.storage.level !== "good" && " Nearing the limit: decide whether to move photos to separate file storage or buy more space."}
                 </p>
               </li>
             </ul>
@@ -103,7 +103,7 @@ export function HealthPage() {
             <section className="mt-8">
               <h2 className="font-display text-2xl">Copy of the records</h2>
               <p className="mt-1 text-sm text-muted">
-                The database is backed up by Supabase. This downloads the project records as one file to keep in SharePoint as well; participants&rsquo; names, the HR book and KoboToolbox tokens are left out. See docs/BACKUP-AND-RECOVERY.md.
+                The records are backed up daily by the database service. This button also downloads the project records as one file to keep in SharePoint; participants&rsquo; names, the HR book and KoboToolbox access keys are left out.
               </p>
               <button
                 type="button"

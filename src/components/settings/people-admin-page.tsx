@@ -3,6 +3,7 @@
 import { plainError } from "@/lib/plain-error";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { Pill, SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn, Loading } from "@/components/workspace/ui";
 import { ACCESS_LABEL, FIELD_ROLES, LANGS, PROC_ROLES, PROJECT_ROLES, ROLE_PRESETS, presetOf, type PersonInput, type StaffAction } from "@/lib/access";
@@ -110,11 +111,14 @@ export function PeopleAdminPage() {
         </p>
         <h1 className="mt-1 font-display text-3xl tracking-tight">People and roles</h1>
         <p className="mt-1 max-w-2xl text-sm text-muted">
-          Who can sign in, and what each person may do. Nobody can change their own roles, and every change is logged below. Who signs approvals (bills, payroll, purchases) is set in the{" "}
+          Roles here decide what each person can open. Who signs what (bills, payroll, purchases) is set in{" "}
           <Link href="/people" className="font-semibold text-forest hover:underline">
-            authority table
-          </Link>{" "}
-          instead.
+            People › Who approves what
+          </Link>
+          .
+        </p>
+        <p className="mt-1 max-w-2xl text-sm text-muted">
+          Who can sign in, and what each person may do. Nobody can change their own roles, and every change is logged below.
         </p>
         {v?.demoMode && (
           <p className="mt-3 rounded-xl bg-ochre-soft px-4 py-3 text-sm text-warn">
@@ -314,12 +318,19 @@ function PersonForm({
 }) {
   const [p, setP] = useState<PersonInput>(initial);
   const [leads, setLeads] = useState(initial.leads.join(", "));
-  const [projects, setProjects] = useState((initial.projects ?? []).join(", "));
+  const [projects, setProjects] = useState<string[]>(initial.projects ?? []);
   const [busy, setBusy] = useState(false);
+  // The organization's projects to pick from, by name. The person's record keeps the project codes.
+  const { projects: allProjects } = useCurrentProject();
+  const projectOptions = [
+    ...allProjects.map((x) => ({ id: x.id, label: x.name, help: x.id })),
+    // A code saved earlier that is not in the list any more stays on the record, ticked, until unticked.
+    ...projects.filter((c) => !allProjects.some((x) => x.id === c)).map((c) => ({ id: c, label: c, help: "Not in the project list" })),
+  ];
   useEffect(() => {
     setP(initial);
     setLeads(initial.leads.join(", "));
-    setProjects((initial.projects ?? []).join(", "));
+    setProjects(initial.projects ?? []);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(initial)]);
   const set = <K extends keyof PersonInput>(k: K, val: PersonInput[K]) => setP({ ...p, [k]: val });
@@ -334,10 +345,7 @@ function PersonForm({
           .split(",")
           .map((x) => x.trim())
           .filter(Boolean),
-        projects: projects
-          .split(",")
-          .map((x) => x.trim().toUpperCase())
-          .filter(Boolean),
+        projects: projects.map((x) => x.trim().toUpperCase()).filter(Boolean),
       });
     } finally {
       setBusy(false);
@@ -396,15 +404,17 @@ function PersonForm({
           </select>
         </label>
         <label className="text-sm">
-          Leads activities (optional)
-          <input className={input} value={leads} disabled={locked} onChange={(e) => setLeads(e.target.value)} placeholder="1.1, 2.1.2 or operations" />
-          <span className="mt-1 block text-xs text-muted">Their budget lines come to them on the procurement calendar.</span>
+          Activities this person leads (optional)
+          <input className={input} value={leads} disabled={locked} onChange={(e) => setLeads(e.target.value)} placeholder="For example: 1.1, 2.1.2" />
+          <span className="mt-1 block text-xs text-muted">
+            The activity numbers from the project&rsquo;s workplan, separated by commas, for example &ldquo;1.1, 2.1.2&rdquo;. Write &ldquo;operations&rdquo; for running costs. The budget lines for these activities then come to this person on the procurement calendar.
+          </span>
         </label>
-        <label className="text-sm">
-          Projects (optional)
-          <input className={input} value={projects} disabled={locked} onChange={(e) => setProjects(e.target.value)} placeholder="ACRP-2026" />
-          <span className="mt-1 block text-xs text-muted">Their roles apply only on these projects. Leave empty for every project. Donors should always have their projects listed.</span>
-        </label>
+        <div className="text-sm sm:col-span-2">
+          <Checks label="Projects (optional)" options={projectOptions} value={projects} onChange={setProjects} disabled={locked} />
+          <span className="mt-1 block text-xs text-muted">Their roles apply only on the projects ticked. Tick none for every project. Donors should always have their projects ticked.</span>
+          {projectOptions.length === 0 && <span className="mt-1 block text-xs text-muted">No projects yet.</span>}
+        </div>
       </div>
 
       {p.kind === "employee" && (

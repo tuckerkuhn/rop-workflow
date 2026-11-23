@@ -570,7 +570,7 @@ function Review({ draft, editing, onEdit }: { draft: ProjectDesign; editing: boo
             </Link>
           )}
           <Link href="/settings" className="btn-link">
-            {t("home.settings")} <Arrow />
+            {t("nav.donorSettings")} <Arrow />
           </Link>
         </p>
       )}

@@ -19,21 +19,61 @@ export function MoneySentence({ money }: { money: MoneyView }) {
   const { tx } = useT();
   return (
     <>
-      {tx("{currency} {spent} spent of {currency} {approved} approved ({pct}), as the {quarter} report gave it.", {
-        currency: money.currency,
-        spent: amount(money.total.spent),
-        approved: amount(money.total.approved),
-        pct: share(money.total.spent, money.total.approved),
-        quarter: quarterLabel(money.quarter),
-      })}
+        {tx("{currency} {spent} spent of {currency} {approved} approved ({pct}), as the {quarter} report gave it.", {
+          currency: money.currency,
+          spent: amount(money.total.spent),
+          approved: amount(money.total.approved),
+          pct: share(money.total.spent, money.total.approved),
+          quarter: quarterLabel(money.quarter),
+        })}
     </>
+  );
+}
+
+/** One line's four figures, labelled, for the stacked phone layout. */
+function LineFigures({ approved, inQuarter, spent }: { approved: number; inQuarter: number; spent: number }) {
+  const { tx } = useT();
+  const head = "text-xs uppercase tracking-wide text-muted";
+  const figures: [string, string, boolean][] = [
+    [tx("Approved"), amount(approved), false],
+    [tx("Spent this quarter"), amount(inQuarter), false],
+    [tx("Spent to date"), amount(spent), false],
+    [tx("Left"), amount(approved - spent), approved - spent < 0],
+  ];
+  return (
+    <dl className="mt-2 grid grid-cols-2 gap-2 text-sm tabular-nums">
+      {figures.map(([k, v, over]) => (
+        <div key={k}>
+          <dt className={head}>{k}</dt>
+          <dd className={over ? "font-semibold text-clay" : ""}>{v}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }
 
 function Lines({ block, caption }: { block: MoneyBlock; caption: string }) {
   const { tx } = useT();
   return (
-    <div className="mt-3 overflow-x-auto rounded-2xl border border-line bg-surface">
+    <>
+    {/* Below a small screen: one block per budget line, stacked, so nothing scrolls sideways on a phone. */}
+    <section aria-label={caption} className="mt-3 divide-y divide-line rounded-2xl border border-line bg-surface sm:hidden print:hidden">
+      {block.lines.map((l) => (
+        <div key={l.code} className="px-4 py-3">
+          <h4 className="text-sm">
+            <span className="font-mono text-xs text-muted">{l.code} </span>
+            {l.description !== l.code && l.description}
+            {l.activity && <span className="block text-xs text-muted">{l.activity}</span>}
+          </h4>
+          <LineFigures approved={l.approved} inQuarter={l.inQuarter} spent={l.spent} />
+        </div>
+      ))}
+      <div className="bg-paper px-4 py-3">
+        <h4 className="text-sm font-semibold">{tx("Total of these lines")}</h4>
+        <LineFigures approved={block.approved} inQuarter={block.inQuarter} spent={block.spent} />
+      </div>
+    </section>
+    <div className="mt-3 hidden overflow-x-auto rounded-2xl border border-line bg-surface sm:block print:block">
       <table className="w-full min-w-[34rem] text-sm">
         <caption className="sr-only">{caption}</caption>
         <thead>
@@ -71,6 +111,7 @@ function Lines({ block, caption }: { block: MoneyBlock; caption: string }) {
         </tfoot>
       </table>
     </div>
+    </>
   );
 }
 

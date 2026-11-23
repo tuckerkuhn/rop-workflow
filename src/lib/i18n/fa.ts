@@ -229,7 +229,6 @@ export const fa: Messages = {
   "home.keyIndicators": "اهداف اصلی",
   "home.editDesign": "ویرایش طرح پروژه",
   "home.viewDesign": "طرح پروژه (فقط دیدن)",
-  "home.settings": "تنظیمات پروژه",
   "donor.filter": "تمویل‌کننده",
   "donor.all": "همه تمویل‌کنندگان",
   "progress.title": "پیشرفت",

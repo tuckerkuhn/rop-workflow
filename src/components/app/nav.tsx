@@ -10,7 +10,7 @@ import { groupActions, useNewActions } from "@/components/app/new-menu";
 import { placeIsOpen, useProjectPlaces } from "@/components/app/project-places";
 import { Logo } from "@/components/logo";
 import type { MessageKey } from "@/lib/i18n";
-import { orgAreasFor } from "@/lib/org-areas";
+import { onlyResources, orgAreasFor } from "@/lib/org-areas";
 import { holdsType } from "@/lib/authority";
 
 /**
@@ -58,7 +58,10 @@ const SECTIONS: Section[] = [
 function useSections() {
   const { user } = useSession();
   const path = usePathname();
-  const org = orgAreasFor(user ?? null, (r) => !!user && holdsType(user.id, r)).length > 0;
+  const areas = orgAreasFor(user ?? null, (r) => !!user && holdsType(user.id, r));
+  const org = areas.length > 0;
+  // Staff whose role opens Resources alone see a "Resources" tab that goes straight there.
+  const resourcesOnly = onlyResources(areas);
   const shown = SECTIONS.filter((s) => (!s.staffOnly || user?.kind === "employee") && (!s.donorOnly || user?.kind === "donor") && (!s.orgOnly || org));
   // The section with the longest matching path wins, so /people opens People, not Home, for HR.
   const score = (s: Section) => Math.max(-1, ...[s.href, ...s.also].filter((p) => path === p || path.startsWith(`${p}/`)).map((p) => p.length));
@@ -67,13 +70,13 @@ function useSections() {
   const tied = shown.filter((x) => best >= 0 && score(x) === best);
   const activeId = (tied.find((x) => x.id !== "home") ?? tied[0])?.id;
   const isActive = (s: Section) => s.id === activeId;
-  return { shown, isActive };
+  return { shown, isActive, resourcesOnly };
 }
 
 export function AppFrame({ children }: { children: React.ReactNode }) {
   const { user } = useSession();
   const { t, tx } = useT();
-  const { shown, isActive } = useSections();
+  const { shown, isActive, resourcesOnly } = useSections();
   const path = usePathname();
   const source = useSearchParams().get("source");
   const groups = useProjectPlaces();
@@ -97,8 +100,10 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
   if (!user) return <>{children}</>;
   const staff = user.kind === "employee";
   // For a donor the project is two places, Progress and Reports, so Projects opens Progress directly.
-  const hrefOf = (s: Section) => (s.id === "project" && !staff ? "/progress" : s.href);
-  const labelOf = (s: Section): MessageKey => (s.id === "project" && !staff ? "nav.progress" : s.label);
+  // Organization is called Resources, and opens it directly, when that is all the person's role opens.
+  const hrefOf = (s: Section) => (s.id === "project" && !staff ? "/progress" : s.id === "organization" && resourcesOnly ? "/resources" : s.href);
+  const labelOf = (s: Section): MessageKey =>
+    s.id === "project" && !staff ? "nav.progress" : s.id === "organization" && resourcesOnly ? "nav.resources" : s.label;
   // The phone tab bar: Home, Projects, then Organization for the people whose role opens part of
   // it. A donor has three tabs: Home, Progress and Reports. Staff with something to start get a
   // round "+" just above the bar, at the end, under the thumb.

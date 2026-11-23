@@ -229,7 +229,6 @@ export const ps: Messages = {
   "home.keyIndicators": "اصلي موخې",
   "home.editDesign": "د پروژې طرحه سمول",
   "home.viewDesign": "د پروژې طرحه (یوازې کتل)",
-  "home.settings": "د پروژې تنظیمات",
   "donor.filter": "تمویلوونکی",
   "donor.all": "ټول تمویلوونکي",
   "progress.title": "پرمختګ",

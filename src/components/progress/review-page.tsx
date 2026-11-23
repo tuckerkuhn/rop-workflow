@@ -119,46 +119,85 @@ export function ReviewPage() {
 
                 <section className="mt-6">
                   <SectionLabel>Results against targets ({v.year}, to the end of {v.quarter.replace("-", " ")})</SectionLabel>
-                  <div className="mt-2 overflow-x-auto rounded-2xl border border-line bg-surface">
-                    <table className="w-full min-w-[640px] text-sm">
-                      <thead className="text-xs uppercase tracking-[0.12em] text-muted">
-                        <tr>
-                          <th className="px-4 py-2 text-start font-semibold">{t("pw.target")}</th>
-                          <th className="px-3 py-2 text-end font-semibold">This year</th>
-                          <th className="px-3 py-2 text-start font-semibold">Status</th>
-                          <th className="px-4 py-2 text-start font-semibold">Workplan</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-line">
-                        {v.indicators.map((i) => (
-                          <tr key={i.code}>
-                            <td className="px-4 py-2">
-                              <span className="font-mono text-xs text-muted">{i.donorCode}</span> {i.name}
-                            </td>
-                            <td className="whitespace-nowrap px-3 py-2 text-end tabular-nums">
-                              <ProofNumber project={project.id} user={user?.id ?? ""} indicator={i.code} from={`${v.year}-01-01`} to={quarterRange(v.quarter).to} value={i.year} records={i.year ? 1 : 0} className="tabular-nums">
-                                {i.year.toLocaleString("en-US")}
-                              </ProofNumber>{" "}
-                              / {i.yearTarget.toLocaleString("en-US")} {i.unit}
-                            </td>
-                            <td className="px-3 py-2">
-                              {(() => {
-                                // The one wording for a target's status (lib/target-status), as of the review's quarter.
-                                const st = targetStatus(i, Number(v.quarter.slice(-1)));
-                                return (
-                                  <>
-                                    <StatusPill tone={st.tone}>{t(`prog.w.${st.word}`)}</StatusPill>
-                                    {st.detail && <span className="ms-1 text-xs text-muted">{t(`prog.d.${st.detail}`)}</span>}
-                                  </>
-                                );
-                              })()}
-                            </td>
-                            <td className="px-4 py-2 text-xs text-muted">{i.planned === null ? "Not linked" : i.planned.length ? i.planned.map((q) => `Q${q}`).join(", ") : `Not in ${v.year}`}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  {(() => {
+                    // Each target's cells, written once and shown as a table on wide screens and as stacked blocks on a phone.
+                    const rows = v.indicators.map((i) => {
+                      // The one wording for a target's status (lib/target-status), as of the review's quarter.
+                      const st = targetStatus(i, Number(v.quarter.slice(-1)));
+                      return {
+                        i,
+                        name: (
+                          <>
+                            <span className="font-mono text-xs text-muted">{i.donorCode}</span> {i.name}
+                          </>
+                        ),
+                        year: (
+                          <>
+                            <ProofNumber project={project.id} user={user?.id ?? ""} indicator={i.code} from={`${v.year}-01-01`} to={quarterRange(v.quarter).to} value={i.year} records={i.year ? 1 : 0} className="tabular-nums">
+                              {i.year.toLocaleString("en-US")}
+                            </ProofNumber>{" "}
+                            / {i.yearTarget.toLocaleString("en-US")} {i.unit}
+                          </>
+                        ),
+                        status: (
+                          <>
+                            <StatusPill tone={st.tone}>{t(`prog.w.${st.word}`)}</StatusPill>
+                            {st.detail && <span className="ms-1 text-xs text-muted">{t(`prog.d.${st.detail}`)}</span>}
+                          </>
+                        ),
+                        plan: i.planned === null ? "Not linked" : i.planned.length ? i.planned.map((q) => `Q${q}`).join(", ") : `Not in ${v.year}`,
+                      };
+                    });
+                    const head = "text-xs uppercase tracking-wide text-muted";
+                    return (
+                      <>
+                        {/* Below a medium screen: one block per target, stacked, so nothing scrolls sideways on a phone. */}
+                        <ul aria-label={t("pw.target")} className="mt-2 divide-y divide-line rounded-2xl border border-line bg-surface md:hidden">
+                          {rows.map((r) => (
+                            <li key={r.i.code} className="px-4 py-3">
+                              <h3 className="text-sm">{r.name}</h3>
+                              <dl className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                                <div className="col-span-2">
+                                  <dt className={head}>This year</dt>
+                                  <dd className="tabular-nums">{r.year}</dd>
+                                </div>
+                                <div>
+                                  <dt className={head}>Status</dt>
+                                  <dd>{r.status}</dd>
+                                </div>
+                                <div>
+                                  <dt className={head}>Workplan</dt>
+                                  <dd className="text-xs text-muted">{r.plan}</dd>
+                                </div>
+                              </dl>
+                            </li>
+                          ))}
+                        </ul>
+                        <div className="mt-2 hidden overflow-x-auto rounded-2xl border border-line bg-surface md:block">
+                          <table className="w-full min-w-[640px] text-sm">
+                            <thead className="text-xs uppercase tracking-[0.12em] text-muted">
+                              <tr>
+                                <th className="px-4 py-2 text-start font-semibold">{t("pw.target")}</th>
+                                <th className="px-3 py-2 text-end font-semibold">This year</th>
+                                <th className="px-3 py-2 text-start font-semibold">Status</th>
+                                <th className="px-4 py-2 text-start font-semibold">Workplan</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-line">
+                              {rows.map((r) => (
+                                <tr key={r.i.code}>
+                                  <td className="px-4 py-2">{r.name}</td>
+                                  <td className="whitespace-nowrap px-3 py-2 text-end tabular-nums">{r.year}</td>
+                                  <td className="px-3 py-2">{r.status}</td>
+                                  <td className="px-4 py-2 text-xs text-muted">{r.plan}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </>
+                    );
+                  })()}
                 </section>
 
                 <section className="mt-6 grid gap-4 md:grid-cols-2">

@@ -262,7 +262,6 @@ export const en = {
   "home.keyIndicators": "Main targets",
   "home.editDesign": "Edit project design",
   "home.viewDesign": "Project design (view only)",
-  "home.settings": "Project settings",
 
   "donor.filter": "Donor",
   "donor.all": "All donors",
@@ -336,7 +335,7 @@ export const en = {
   "report.narrative.challenges": "Challenges and changes",
   "report.narrative.next": "Next steps",
 
-  "settings.title": "Project settings",
+  "settings.title": "Settings",
   "settings.password.title": "Your password",
   "settings.password.help": "Set a password to sign in without waiting for an emailed code. The code still works if you forget it.",
   "settings.password.new": "New password",

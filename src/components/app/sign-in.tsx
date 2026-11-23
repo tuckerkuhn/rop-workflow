@@ -27,6 +27,15 @@ export function SignIn() {
     if (mode === "live" && user) router.replace("/home");
   }, [mode, user, router]);
 
+  // Developer hint only; the page itself shows plain words.
+  useEffect(() => {
+    if (mode === "live" && !configured) {
+      console.warn(
+        "Sign-in: Supabase keys are missing. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY, or set DEMO_SIGN_IN=1 to use the demo people.",
+      );
+    }
+  }, [mode, configured]);
+
   const go = (id: string) => {
     signIn(id);
     router.push("/home");
@@ -81,7 +90,7 @@ export function SignIn() {
               </p>
               {!configured ? (
                 <p role="alert" className="mt-6 rounded-2xl border border-line bg-surface p-4 text-sm">
-                  {tx("Sign-in is not set up on this server yet: the Supabase keys are missing. An administrator needs to add them, or set DEMO_SIGN_IN=1 to use the demo people.")}
+                  {tx("Sign-in is not set up yet. Contact your administrator.")}
                 </p>
               ) : user ? (
                 <ContinueAs />
@@ -382,7 +391,7 @@ function EmailCode() {
         disabled={busy}
         className="mt-3 w-full rounded-full border border-line px-4 py-3 text-sm font-medium transition disabled:opacity-50"
       >
-        {tx("No password yet? Email me a code")}
+        {tx("Forgot your password, or don't have one? Email me a code")}
       </button>
       <p className="mt-4 text-xs leading-relaxed text-muted">
         {tx("Staff and donors use the same sign-in. Any email address works if it is on the access list.")}

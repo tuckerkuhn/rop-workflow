@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { SettingsPage } from "@/components/settings/settings-page";
 
 export const metadata: Metadata = {
-  title: "Project settings · ROP Workflow",
+  title: "Settings · ROP Workflow",
 };
 
 export default function Page() {

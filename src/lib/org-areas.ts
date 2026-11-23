@@ -60,6 +60,13 @@ const areasFor = (u: AppUser | null, holds: Holds): OrgArea[] =>
 /** The Organization area's parts this person's role opens. */
 export const orgAreasFor = (u: AppUser | null, holds: Holds): OrgArea[] => areasFor(u, holds).filter((a) => !ACROSS_PROJECTS.includes(a.id));
 
+/**
+ * True when Resources is the only part of Organization this person's role opens. The menu then
+ * calls the tab "Resources" and opens /resources directly, rather than a page with one card. The
+ * Organization page itself stays as it is and can still be opened by its address.
+ */
+export const onlyResources = (areas: OrgArea[]) => areas.length === 1 && areas[0].id === "resources";
+
 /** The parts across projects this person's role opens, in the order Projects lists them. */
 export const acrossProjectsFor = (u: AppUser | null, holds: Holds): OrgArea[] => {
   const mine = areasFor(u, holds);

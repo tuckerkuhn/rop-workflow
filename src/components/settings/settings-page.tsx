@@ -121,7 +121,7 @@ export function SettingsPage() {
             </p>
             <p className="mt-2 text-sm">
               <Link href="/settings/health" className="font-semibold text-forest hover:underline">
-                Health: errors, AI use, email and a copy of the records
+                System health and backups: errors, AI use, email and a copy of the records
               </Link>
             </p>
           </>
