@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useSession } from "@/components/app/session";
-import { acct, isRecordedFileLink, storeNames } from "@/lib/file-store";
+import { acct, isRecordedFileLink, storeNames, opening } from "@/lib/file-store";
 import { LookedAt } from "@/components/app/ai-why";
 import { primaryBtn } from "@/components/workspace/ui";
 import { voucherGaps, withholding } from "@/lib/payments";
@@ -435,7 +435,7 @@ export function VoucherPanel({ p, editable, update, coding, preparedByMe }: { p:
       {!reviewing && (
         <div className="mt-4 grid gap-3 sm:grid-cols-[16rem_1fr] sm:items-end">
           <label>
-            <span className="text-xs font-medium text-muted">{acct()} bill number (VENDBILL #)</span>
+            <span className="text-xs font-medium text-muted">{opening(acct())} bill number (VENDBILL #)</span>
             <input disabled={!codingOn || gaps.length > 0} value={v.number} onChange={(e) => set({ number: e.target.value.trim() })} className={`mt-1 ${field}`} />
           </label>
           <p className="text-xs text-muted">{gaps.length ? `Before entering it in ${acct()}, add ${gaps.join(", ")}.` : `Coded. Enter it in ${acct()} and type the number it gets.`}</p>

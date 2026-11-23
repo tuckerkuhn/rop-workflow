@@ -6,7 +6,7 @@
 
 export type StatusKind = "CUR" | "D1" | "D1*" | "TS" | "OPEN" | "PA";
 
-import { acct, isFileLink, isRecordedFileLink, storeNames } from "@/lib/file-store";
+import { acct, isFileLink, isRecordedFileLink, storeNames, opening } from "@/lib/file-store";
 import { formatMoney, holderOf, users, type ProcRole } from "@/lib/demo";
 import { holdersOfType, holdsType } from "@/lib/authority";
 import type { HrRole } from "@/lib/hr";
@@ -1449,7 +1449,7 @@ export const steps: Step[] = [
       return `Entered in ${acct()}`;
     },
         get why() {
-      return `${acct()} is the ledger; the bill number ties this record to it.`;
+      return `${opening(acct())} is the ledger; the bill number ties this record to it.`;
     },
         tag: "CUR",
         auto: (p) => {

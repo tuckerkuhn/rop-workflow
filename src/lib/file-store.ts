@@ -75,8 +75,7 @@ export function storeNames(stores: StoreId[] = currentStores()): string {
 
 /** The organization's accounting system by name, for a sentence: "NetSuite", or "your accounting system" until it is named. */
 export const acct = (): string => resolver().accounting?.trim() || "your accounting system";
-/** The organization's payroll system by name, or "your payroll system". */
-export const payrollName = (): string => resolver().payroll?.trim() || "your payroll system";
+/** A tool's name at the start of a label or sentence: "Your accounting system reference". */
+export const opening = (name: string): string => name.charAt(0).toUpperCase() + name.slice(1);
 /** Shown under a link box while "any secure link" is in force: the person pasting the link is the one who decides where proof sits. */
 export const ANY_LINK_CAUTION = "Use a link to a folder the organization owns, not your own account. A file in a personal account can be lost when someone leaves, and proof that cannot be opened at audit counts as no proof.";
-export const anyLinkOn = (): boolean => resolver().now.includes("any");

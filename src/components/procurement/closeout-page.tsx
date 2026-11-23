@@ -1,6 +1,6 @@
 "use client";
 
-import { acct, storeNames } from "@/lib/file-store";
+import { acct, storeNames, opening } from "@/lib/file-store";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
@@ -123,7 +123,7 @@ export function CloseoutPage() {
                 <table className="w-full min-w-[48rem] text-sm">
                   <thead className="bg-sunken text-xs text-muted">
                     <tr>
-                      {["Voucher", "Item", "Payee", "Amount", `${storeNames()}`, `${acct()}`, "Status"].map((h) => (
+                      {["Voucher", "Item", "Payee", "Amount", opening(storeNames()), opening(acct()), "Status"].map((h) => (
                         <th key={h} className="px-3 py-2 text-start font-medium">
                           {h}
                         </th>

@@ -117,8 +117,10 @@ function Decide({ v, f, act, onClose }: { v: SelectionView; f: Farmer; act: (a: 
   const d = s.decisions[f.id];
   const [met, setMet] = useState<string[]>(d && !isStale(s, d) ? d.met : []);
   const [reason, setReason] = useState("");
+  const [change, setChange] = useState("");
   const all = s.criteria.every((c) => met.includes(c.id));
-  const send = (selected: boolean) => void act({ action: "decide", farmer: f.id, selected, met, reason }).then(onClose, () => undefined);
+  const ask = (selected: boolean) => ({ farmer: f.id, selected, met, reason, change });
+  const send = (selected: boolean) => void act({ action: "decide", ...ask(selected) }).then(onClose, () => undefined);
   return (
     <div className="border-t border-line bg-surface px-2 py-3 ps-11">
       <p className="text-sm font-semibold">Tick each rule this farmer meets</p>
@@ -136,11 +138,17 @@ function Decide({ v, f, act, onClose }: { v: SelectionView; f: Farmer; act: (a: 
         Reason {all ? "(needed only if not selected)" : "(needed: not every rule is met)"}
         <textarea className={input} rows={2} value={reason} maxLength={1000} onChange={(e) => setReason(e.target.value)} />
       </label>
+      {d && (
+        <label className="mt-2 block text-sm">
+          Why the decision is changing (needed; the earlier decision and its reason are kept)
+          <textarea className={input} rows={2} value={change} maxLength={600} onChange={(e) => setChange(e.target.value)} />
+        </label>
+      )}
       <div className="mt-3 flex flex-wrap gap-2">
-        <button type="button" className={primaryBtn} disabled={!!decisionProblem(s, { selected: true, met, reason })} onClick={() => send(true)}>
+        <button type="button" className={primaryBtn} disabled={!!decisionProblem(s, ask(true))} onClick={() => send(true)}>
           {all ? "Select" : "Select as an exception"}
         </button>
-        <button type="button" className={quietBtn} disabled={!!decisionProblem(s, { selected: false, met, reason })} onClick={() => send(false)}>
+        <button type="button" className={quietBtn} disabled={!!decisionProblem(s, ask(false))} onClick={() => send(false)}>
           Not selected
         </button>
         <button type="button" className={quietBtn} onClick={onClose}>
@@ -259,9 +267,10 @@ export function SelectionPage() {
                           </div>
                           {d && (
                             <p className="px-2 pb-3 ps-11 text-xs text-muted">
-                              {d.byName}, {d.on} · {d.met.length} of {s.criteria.length} rules met
+                              {d.byName}, {d.on} · {stale && d.of === undefined ? `${d.met.length} rules met` : `${d.met.length} of ${d.of ?? s.criteria.length} rules met`}
                               {d.reason ? ` · ${d.reason}` : ""}
                               {stale ? " · decided under an earlier version of the rules" : ""}
+                              {d.earlier?.length ? ` · changed ${d.earlier.length === 1 ? "once" : `${d.earlier.length} times`}, last because: ${d.earlier[d.earlier.length - 1].why}` : ""}
                             </p>
                           )}
                           {open === f.id && <Decide v={v} f={f} act={act} onClose={() => setOpen(null)} />}
