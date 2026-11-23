@@ -1,5 +1,6 @@
 "use client";
 
+import { WeekAhead } from "@/components/home/week-ahead";
 import { unitOf } from "@/lib/package";
 import Link from "next/link";
 import { Pill, Loading, StatusPill } from "@/components/workspace/ui";
@@ -328,6 +329,8 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
       {/* First on the page: the one thing to do next, then everything waiting on this person. Where the
           project stands, first steps and stories follow, for when the day's work is clear. */}
       {/* Field roles open in Bands, everyone else in Ledger; the person's own choice wins and is remembered. */}
+      {/* Managers first see their own three priorities for the week, then what the records say (lib/week). */}
+      {lens === "lead" && <WeekAhead />}
       <HomeLead rows={waiting} next={next} view={view || (lens === "field" ? "bands" : "ledger")} onView={setView} />
 
       <div className="flex flex-wrap items-start gap-3">

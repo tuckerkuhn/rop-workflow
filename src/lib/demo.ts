@@ -82,6 +82,9 @@ export const users: AppUser[] = [
   { id: "zarlasht", name: "Zarlasht Noori", title: "M&E Assistant", kind: "employee", org: ROP, reportsTo: "nadia", field: [], procurement: [], project: [], fieldAccess: "none", procurementAccess: "none", pii: false, lang: "fa" },
   // The organization's chief executive, signing in as themselves; the CEO in the HR ledger (server/hr-store).
   { id: "tucker", name: "Tucker Kuhn", title: "Chief Executive Officer", kind: "employee", org: ROP, field: [], procurement: [], project: [], fieldAccess: "view", procurementAccess: "view", pii: false, lang: "en", admin: true },
+  // ROP's senior agronomist, who leads the extension teams of agronomists. He reads the field work; he holds no field
+  // role yet, because the app has one field manager per project (who approves distributions) and no role for a technical lead.
+  { id: "alejandro", name: "Alejandro Cali", title: "Senior Agronomist", kind: "employee", org: ROP, field: [], procurement: [], project: [], fieldAccess: "view", procurementAccess: "none", pii: true, lang: "es" },
   { id: "elena", name: "Elena Marsh", title: "Program officer", kind: "donor", org: "Demo Foundation (fictional)", field: [], procurement: [], project: [], fieldAccess: "view", procurementAccess: "none", pii: false, lang: "en" },
 ];
 
