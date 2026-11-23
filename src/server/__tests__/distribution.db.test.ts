@@ -271,4 +271,20 @@ describe("input distribution, field to finance (demo project)", { timeout: 60_00
     await db.insert(s.koboForms).values({ projectId: project.id, assetUid: "aDistForm", name: "Input distribution", purpose: "distribution" });
     expect(await refusal(() => saveMappings(code, [{ indicatorCode: "IND-2", assetUid: "aDistForm", question: "farmer", method: "count_answered", value: null }], "omar"))).toMatch(/Input package/);
   });
+
+  it("reads nothing more for distributions already checked when they are listed (Home)", async () => {
+    // Everything pending has its checks by now (listed above), so listing again must not work out
+    // the gate's context (package, purchases, every distribution) once per pending record.
+    await listDistributions(code);
+    const client = (db as unknown as { $client: { query: (...a: unknown[]) => unknown } }).$client;
+    const spy = vi.spyOn(client, "query");
+    try {
+      await listDistributions(code);
+      const procurementReads = spy.mock.calls.filter(([q]) => /from "procurements"/.test(String(q))).length;
+      // listDistributions reads the purchases once itself; processPending adds none.
+      expect(procurementReads).toBe(1);
+    } finally {
+      spy.mockRestore();
+    }
+  });
 });

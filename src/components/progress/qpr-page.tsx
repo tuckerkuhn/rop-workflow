@@ -10,7 +10,7 @@ import { openReceipt } from "@/components/people/expense-page";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn, StatusPill } from "@/components/workspace/ui";
 import { OverspendReasonPicker } from "@/components/progress/overspend-reason";
-import { SECTIONS, STATUSES, STATUS_LABEL, cannotOnReport, durationOf, overspentLines, quarterSpendOf, type QprPatch, type Row, type Status } from "@/lib/qpr";
+import { SECTIONS, STATUSES, STATUS_LABEL, cannotOnReport, checkHref, durationOf, overspentLines, quarterSpendOf, type QprPatch, type Row, type Status } from "@/lib/qpr";
 import { qprDocx, type Images } from "@/lib/qpr-docx";
 import { targetStatus, wordOfStatus } from "@/lib/target-status";
 import { formatMinutes } from "@/lib/report-copy";
@@ -18,7 +18,7 @@ import { ShareLinks } from "@/components/progress/share-links";
 import { ClaimCheckPanel } from "@/components/progress/claim-check";
 import { ReportDownloads } from "@/components/progress/downloads";
 import { SpendImport } from "@/components/progress/spend-import";
-import { askForChecks, beforeDownload, PreflightButton, usePreflight } from "@/components/progress/preflight-page";
+import { askForChecks, beforeDownload, itemText, OPEN_CHECKS, PreflightButton, usePreflightState } from "@/components/progress/preflight-page";
 import { ReportChecks, ReportKinds } from "@/components/progress/report-checks";
 import { MoneySourceLink, ProofNumber } from "@/components/progress/proof-panel";
 import { useT } from "@/components/app/i18n";
@@ -81,7 +81,8 @@ export function QprPage() {
   const url = `/api/projects/${project.id}/qpr?q=${quarter}${copyAt ? `&copy=${encodeURIComponent(copyAt)}` : ""}`;
   const { t } = useT();
   // Pre-flight: refreshed every time the report changes, so the count on the buttons is current.
-  const pf = usePreflight(project.id, user?.id, { kind: "qpr", quarter }, v);
+  // `pfFresh` only once it was read after the latest change; `pfFailed` when it could not be read.
+  const { p: pf, fresh: pfFresh, failed: pfFailed } = usePreflightState(project.id, user?.id, { kind: "qpr", quarter }, v);
   const blocking = pf && !pf.released ? pf.items.filter((i) => i.group === "blocks").length : 0;
   const worthFixing = pf && !pf.released ? pf.items.filter((i) => i.group === "fix").length : 0;
 
@@ -184,8 +185,11 @@ export function QprPage() {
   const emptyDraftable = v ? [...SECTIONS.filter((s) => s.draft).map((s) => s.key as string), ...v.activities.map((a) => `act.${a.code}`)].filter((k) => !v.saved.sections[k]?.text.trim()) : [];
   // One list, one count: the Report check holds every one of the report's own checks (server/preflight).
   // Until it has loaded, the report's own checks stand in, so release is never offered too early.
+  // Right after an edit the last check read may not hold a stop the edit added: the report's own count shows until it is re-read.
   const stops = v?.checks.filter((c) => c.level === "stop").length ?? 0;
-  const blockN = pf ? blocking : stops;
+  const blockN = pf ? Math.max(blocking, stops) : stops;
+  // Mark final only when both say nothing blocks, and the check was read after the latest change.
+  const mayMarkFinal = pfFresh && blockN === 0;
   const fixN = pf ? worthFixing : (v?.checks.length ?? 0) - stops;
   const cannot = v ? cannotOnReport({ edit: v.mayEdit, accept: user.project.includes("mel-owner"), import: v.mayImport, release: v.mayRelease }) : [];
   const { from, to } = quarterRange(quarter);
@@ -215,6 +219,7 @@ export function QprPage() {
           {from} to {to}. Figures come from results that monitoring, evaluation and learning (MEL) has accepted, and each one opens the records and proof behind it. Write or draft the text, fix what the checks list, then download it for Word.
         </p>
         <ReportChecks p={pf} />
+        {pfFailed && v && !v.frozen && !v.saved.released && <OwnChecks checks={v.checks} quarter={quarter} />}
         <p className="mt-3 rounded-xl bg-sunken px-4 py-3 text-sm font-semibold">
           {quarter === nowQ ? (
             underWay ? t("rp.quarterNow", { q: qLabel(quarter), to }) : t("rp.quarterDue", { q: qLabel(quarter), from, to })
@@ -293,7 +298,8 @@ export function QprPage() {
                 <button
                   type="button"
                   className={primaryBtn}
-                  disabled={!!busy || blockN > 0}
+                  disabled={!!busy || !mayMarkFinal}
+                  title={!blockN && !pfFresh ? (pfFailed ? t("pf.notLoaded") : t("pf.rechecking")) : undefined}
                   onClick={() =>
                     void askConfirm({
                       message: `Mark the ${qLabel(quarter)} report final and release it to the donor? It is locked for good: this copy is what the donor receives. It appears in the donor's Reports tab, and every share link for this quarter opens it from now on. No email is sent: tell the donor yourself. To see what would go out first, use "Save a preview copy" instead.`,
@@ -1055,5 +1061,47 @@ function Collapsible({ ids, id, className, summary, hint, children }: { ids: str
       </summary>
       {children}
     </details>
+  );
+}
+
+/**
+ * When the Report check could not load: the report's own checks, so the blocking count in the
+ * header is never shown without the list behind it. It takes the check's place at #checks.
+ */
+function OwnChecks({ checks, quarter }: { checks: QprView["checks"]; quarter: string }) {
+  const { t } = useT();
+  useEffect(() => {
+    const go = () => document.getElementById("checks")?.scrollIntoView({ block: "start" });
+    window.addEventListener(OPEN_CHECKS, go);
+    return () => window.removeEventListener(OPEN_CHECKS, go);
+  }, []);
+  const stops = checks.filter((c) => c.level === "stop");
+  const rest = checks.filter((c) => c.level !== "stop");
+  return (
+    <section id="checks" className={`mt-4 scroll-mt-20 border-s-[6px] ${stops.length ? "border-clay" : rest.length ? "border-ochre" : "border-leaf"} bg-surface px-3 py-2 print:hidden`}>
+      <p className="font-ledger text-lg font-bold">{t("pf.title")}</p>
+      <p role="status" className="mt-1 text-sm text-warn">{t("pf.notLoaded")}</p>
+      {[
+        { label: t("pf.blocks"), list: stops, tone: "text-clay" },
+        { label: t("pf.fix"), list: rest, tone: "text-warn" },
+      ].map((g) =>
+        g.list.length ? (
+          <div key={g.label} className="mt-2">
+            <p className={`text-sm font-semibold ${g.tone}`}>
+              {g.label} {g.list.length}
+            </p>
+            <ul className="mt-1 list-disc ps-5 text-sm">
+              {g.list.map((c, i) => (
+                <li key={i}>
+                  <Link href={checkHref(c, quarter)} className="hover:underline">
+                    {itemText(t, c)}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null,
+      )}
+    </section>
   );
 }

@@ -19,7 +19,9 @@ export async function loadPortfolio(u: AppUser) {
       if (p.stage === "Develop") return { code: p.code, name: p.name, short, stage: p.stage, ready: false as const };
       const [home, sum] = await Promise.all([loadHome(p.code, u).catch(() => null), loadProgressSummary(p.code, u).catch(() => null)]);
       if (!home) return { code: p.code, name: p.name, short, stage: p.stage, ready: false as const };
-      const c = home.schedule.counts as Record<string, number>;
+      // The shared words (lib/target-status), as Progress and the report say them: a target
+      // marked under way with no accepted result is "No data", not "On track".
+      const w = home.schedule.words;
       return {
         code: p.code,
         name: p.name,
@@ -27,8 +29,9 @@ export async function loadPortfolio(u: AppUser) {
         stage: p.stage,
         ready: true as const,
         indicators: home.schedule.total,
-        met: c.completed ?? 0,
-        onTrack: c.on_track ?? 0,
+        met: w.done,
+        onTrack: w.on_track,
+        noData: w.no_data,
         late: home.schedule.late.length,
         level: home.schedule.level,
         lateNames: home.schedule.late.slice(0, 3).map((l) => `${l.code} ${l.name}`),

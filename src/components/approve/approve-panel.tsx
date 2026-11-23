@@ -9,7 +9,6 @@ import { useT } from "@/components/app/i18n";
 import { primaryBtn, quietBtn } from "@/components/workspace/ui";
 import type { DistView } from "@/server/distribution";
 import { qtyItem } from "@/lib/package";
-import { useFieldData } from "@/components/app/use-project-data";
 
 /**
  * The project manager's one screen for an input distribution: what went out, the goods received
@@ -44,14 +43,9 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
   const [counted, setCounted] = useState<string | null>(null);
   // Other distributions waiting for this person, oldest first: after a decision, the next one is a click away.
   const [waiting, setWaiting] = useState<{ id: string; farmerId: string }[]>([]);
-  // The farmer's name, first in the title as on Home, only for people allowed to see names
-  // (signed in with the pii flag); everyone else sees the farmer number and village.
-  const { items: fieldItems } = useFieldData(code, !!user?.pii);
-  const farmerName = (() => {
-    if (!user?.pii || !d) return "";
-    const f = fieldItems.find((i) => i.kind === "farmer" && i.id === d.farmerId);
-    return f && f.kind === "farmer" ? f.name : "";
-  })();
+  // The farmer's name, first in the title as on Home. The server sends it only to a signed-in
+  // viewer allowed to see names (pii); everyone else sees the farmer number and village.
+  const [farmerName, setFarmerName] = useState("");
   const url = `/api/projects/${encodeURIComponent(code)}/distributions/${id}`;
   const headers = { "Content-Type": "application/json", "x-demo-user": user?.id ?? "" };
 
@@ -61,6 +55,7 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
     if (!res.ok) return setError(body.error ?? plainError(res.status));
     const dist = body.distribution as DistView;
     setD(dist);
+    setFarmerName(typeof body.farmerName === "string" ? body.farmerName : "");
     setNotePhoto(body.notePhoto ?? null);
     setPhotoNeedsSignIn(!!body.photoNeedsSignIn);
     setCanDecide(body.canDecide);

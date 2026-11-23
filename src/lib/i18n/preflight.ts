@@ -36,6 +36,8 @@ export const pfEn = {
   "pf.warn.past": "The donor's deadline passed on {date}.",
   "pf.button": "Report check",
   "pf.buttonBlocks": "Report check: {n} blocking",
+  "pf.notLoaded": "The full Report check could not load just now, so these are only the report's own checks. Reload the page to try again; the report cannot be marked final until it loads.",
+  "pf.rechecking": "Checking the report again after the last change…",
   "pf.draftConfirm": "{n} items still block this report. The file will be marked \"Draft, not checked\". Download it anyway?",
 
   "pf.c.signOff": "The plan and budget are not signed off yet (the project is still in Design)",

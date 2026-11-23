@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { people, requireViewer } from "@/server/auth";
 import { checkKoboDistribution, decideDistribution, listDistributions, mayApprove, mayFix, resubmitDistribution, signedNotePhoto, tokenOpens } from "@/server/distribution";
+import { farmerNameOf, projectByCode } from "@/server/field-store";
 import { handle, HttpError, readBody } from "@/server/guard";
+import type { AppUser } from "@/lib/demo";
 
 /**
  * One input distribution for the project manager: what was handed out, the goods received and
@@ -18,6 +20,9 @@ async function view(code: string, id: string) {
 
 /** The signed note's photo for the approver to see; app records only (lib/field Photo.signedNote). */
 const noteOf = (code: string, d: { source?: string; farmerId: string }) => (d.source === "kobo" ? Promise.resolve(null) : signedNotePhoto(code, d.farmerId));
+
+/** The farmer's name for the title, only for a signed-in viewer who may see names (pii); null for anyone else. */
+const nameFor = async (code: string, farmerId: string, user: AppUser | null) => (user?.pii ? farmerNameOf((await projectByCode(code)).id, farmerId, user) : null);
 
 export async function GET(req: Request, { params }: { params: Promise<{ code: string; id: string }> }) {
   const { code: raw, id } = await params;
@@ -40,14 +45,15 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
         .filter((x) => x.id !== id && x.status === "pending" && (canDecide ? !x.koboCheck.needed && x.approvers.includes(v.user.id) : x.koboCheck.needed && x.koboCheck.who.includes(v.user.id)))
         .reverse()
         .map((x) => ({ id: x.id, farmerId: x.farmerId }));
-      return NextResponse.json({ distribution: d, notePhoto: await noteOf(code, d), canDecide, canFix: mayFix(v.user, code), canCheckKobo, waiting: canDecide || canCheckKobo ? waiting : [] });
+      return NextResponse.json({ distribution: d, farmerName: await nameFor(code, d.farmerId, v.user), notePhoto: await noteOf(code, d), canDecide, canFix: mayFix(v.user, code), canCheckKobo, waiting: canDecide || canCheckKobo ? waiting : [] });
     }
     const d = await view(code, id);
     // The photo can show farmers' names, so the email link alone does not open it: only a signed-in employee sees it.
     const signedIn = await requireViewer(req, { allow: (u) => u.kind === "employee" });
     const photo = await noteOf(code, d);
     const shown = signedIn instanceof NextResponse ? null : photo;
-    return NextResponse.json({ distribution: d, notePhoto: shown, photoNeedsSignIn: !!photo && !shown, canDecide: true, canFix: false });
+    const farmerName = signedIn instanceof NextResponse ? null : await nameFor(code, d.farmerId, signedIn.user);
+    return NextResponse.json({ distribution: d, farmerName, notePhoto: shown, photoNeedsSignIn: !!photo && !shown, canDecide: true, canFix: false });
   });
 }
 

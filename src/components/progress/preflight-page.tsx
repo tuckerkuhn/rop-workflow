@@ -31,21 +31,36 @@ export function askForChecks(e: React.MouseEvent<HTMLAnchorElement>) {
  * check for the period on screen is returned: while another period's loads, there is none.
  */
 export function usePreflight(project: string, user: string | undefined, report: ReportRef | null, dep: unknown) {
-  const [got, setP] = useState<{ key: string; p: Preflight | null } | null>(null);
+  return usePreflightState(project, user, report, dep).p;
+}
+
+/**
+ * The same, with how far to trust it. `p` is the last check read for this period (kept on screen
+ * while a newer one loads). `fresh` is true only when it was read after the latest change (`dep`):
+ * right after an edit the old check may miss what the edit added, so nothing may treat it as final.
+ * `failed` is true when the latest read could not be made.
+ */
+export function usePreflightState(project: string, user: string | undefined, report: ReportRef | null, dep: unknown): { p: Preflight | null; fresh: boolean; failed: boolean } {
+  const [got, setP] = useState<{ key: string; dep: unknown; p: Preflight | null } | null>(null);
   const key = report ? `${project}:${report.kind}:${periodOf(report)}` : "";
   useEffect(() => {
     if (!user || !report) return;
     let live = true;
     fetch(`/api/projects/${project}/preflight?report=${report.kind}&period=${periodOf(report)}`, { cache: "no-store", headers: { "x-demo-user": user } })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => live && setP({ key, p: d }))
-      .catch(() => undefined);
+      .then((r) => (r.ok ? (r.json() as Promise<Preflight>) : null))
+      .catch(() => null)
+      .then((d) => {
+        if (live) setP({ key, dep, p: d });
+      });
     return () => {
       live = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project, user, key, dep]);
-  return got?.key === key ? got.p : null;
+  // A failed refresh after an earlier read clears it: a check that cannot be re-read is not shown as current.
+  const p = got?.key === key ? got.p : null;
+  const current = got?.key === key && got.dep === dep;
+  return { p, fresh: current && !!p, failed: current && !p };
 }
 
 /**

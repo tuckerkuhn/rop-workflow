@@ -18,6 +18,7 @@ import { listDistributions, stockFor } from "@/server/distribution";
 import { canEditProject, type AppUser } from "@/lib/demo";
 import { quartersLabel } from "@/lib/monthly-review";
 import { STATUS_LABEL, mayWriteReport, type Status } from "@/lib/qpr";
+import { countTargetWords } from "@/lib/target-status";
 import { procRolesFor } from "@/lib/procurement";
 import { farmerNames, projectByCode, setupFor } from "@/server/field-store";
 import { DONE, stepById } from "@/lib/procurement";
@@ -188,6 +189,8 @@ async function readHome(code: string, u: AppUser) {
   const schedule = {
     total: review.indicators.length,
     counts,
+    // In the shared words (lib/target-status): "On track" with no accepted result is "No data".
+    words: countTargetWords(review.indicators, Number(review.quarter.slice(-1))),
     late: late.map((i) => ({ code: i.donorCode, name: i.name, status: STATUS_LABEL[i.status], achieved: i.year, target: i.yearTarget, unit: i.unit })),
     level: (late.length === 0 ? "good" : late.length <= 2 ? "warning" : "critical") as "good" | "warning" | "critical",
   };

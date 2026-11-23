@@ -75,6 +75,13 @@ export function targetStatus(i: { status: string; planned: number[] | null; year
   return base;
 }
 
+/** How many targets stand at each word (All projects and Home count with these, so they match Progress and the report). */
+export function countTargetWords(list: { status: string; planned: number[] | null; year: number; yearTarget: number }[], quarterNow: number): Record<TargetWord, number> {
+  const out = Object.fromEntries(TARGET_WORDS.map((w) => [w, 0])) as Record<TargetWord, number>;
+  for (const i of list) out[targetStatus(i, quarterNow).word] += 1;
+  return out;
+}
+
 /** "Behind · not done", in English (server, Word-free donor views, pages not yet translated). */
 export const targetStatusText = (s: TargetStatus) => `${TARGET_WORD_EN[s.word]}${s.detail ? ` · ${TARGET_DETAIL_EN[s.detail]}` : ""}`;
 

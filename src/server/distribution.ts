@@ -115,21 +115,29 @@ const lockStock = (tx: Tx, projectId: string) => tx.execute(sql`select pg_adviso
  * `q`: read inside an open transaction (under the stock lock) instead of the database.
  */
 async function context(project: Project, opts: { excluding?: string; countPending: boolean }, q: Reader = db) {
-  const setup = await setupOrEmpty(project, q);
-  const procs = (await q.select().from(s.procurements).where(eq(s.procurements.projectId, project.id))).map((r) => r.data as Procurement);
-  const rows = await q.select().from(s.evidence).where(and(eq(s.evidence.projectId, project.id), eq(s.evidence.form, "distribution")));
-  const st = await loadState(project.id, q);
+  const reads = [
+    () => setupOrEmpty(project, q),
+    () => q.select().from(s.procurements).where(eq(s.procurements.projectId, project.id)),
+    () => q.select().from(s.evidence).where(and(eq(s.evidence.projectId, project.id), eq(s.evidence.form, "distribution"))),
+    () => loadState(project.id, q),
+  ] as const;
+  // On the pool the four reads go at once; inside a transaction (one connection) one after another.
+  const [setup, procRows, rows, st] =
+    q === db ? await Promise.all([reads[0](), reads[1](), reads[2](), reads[3]()]) : [await reads[0](), await reads[1](), await reads[2](), await reads[3]()] as const;
+  const procs = procRows.map((r) => r.data as Procurement);
   const given: Given = {};
-  const others: string[] = [];
   for (const r of rows) {
     if (r.id === opts.excluding || r.koboRemovedAt || r.reviewStatus === "queried") continue;
-    if (r.farmerCode) others.push(r.farmerCode);
     if (r.reviewStatus === "pending" && !opts.countPending) continue;
     // A record with no items stored (made before quantities were kept) is one planned package.
     addGiven(given, st.byId[r.id]?.items ?? itemsFor(setup), setup);
   }
-  return { setup, procs, given, others, st, rows };
+  return { setup, procs, given, others: othersThan(rows, opts.excluding), st, rows };
 }
+
+/** The farmers of every other distribution that still stands (not removed, not sent back), for the "same farmer twice" check. */
+const othersThan = (rows: { id: string; farmerCode: string | null; koboRemovedAt: Date | null; reviewStatus: string }[], excluding?: string) =>
+  rows.filter((r) => r.id !== excluding && !r.koboRemovedAt && r.reviewStatus !== "queried" && r.farmerCode).map((r) => r.farmerCode!);
 
 /**
  * What is in the store, for Field activities: received on signed goods received notes, less every
@@ -256,16 +264,26 @@ export const appOrigin = () =>
  */
 export async function processPending(code: string, origin = appOrigin()) {
   const project = await projectByCode(code);
-  const rows = await db.select().from(s.evidence).where(and(eq(s.evidence.projectId, project.id), eq(s.evidence.form, "distribution"), eq(s.evidence.reviewStatus, "pending")));
+  const [rows, st] = await Promise.all([
+    db.select().from(s.evidence).where(and(eq(s.evidence.projectId, project.id), eq(s.evidence.form, "distribution"), eq(s.evidence.reviewStatus, "pending"))),
+    loadState(project.id),
+  ]);
+  // Most of the time every pending record already has its checks (Home lists them on every load):
+  // then nothing more is read.
+  const todo = rows.filter((r) => !st.byId[r.id] && !r.koboRemovedAt);
+  if (!todo.length) return 0;
+  // The gate's context is read once for all of them. It does not change as they are processed: the
+  // purchases and package are untouched, and only approved records count as given (these are
+  // pending, so neither excluding one nor storing another's checks moves it). The "same farmer
+  // twice" list leaves out the record being checked, as before.
+  const ctx = await context(project, { countPending: false });
   let done = 0;
-  for (const r of rows) {
-    const ctx = await context(project, { excluding: r.id, countPending: false });
-    if (ctx.st.byId[r.id] || r.koboRemovedAt) continue;
+  for (const r of todo) {
     const p = (r.payload ?? {}) as Record<string, unknown>;
     // Kobo answers sit at the top of the submission; a record made in the app keeps them in `fields`.
     const f = (typeof p.fields === "object" && p.fields ? p.fields : p) as Record<string, unknown>;
     const code_ = r.farmerCode ?? String(p.farmer ?? p.farmerId ?? "");
-    const farmer = code_ ? await farmerOf(project.id, code_) : null;
+    const [farmer, recordedBy] = await Promise.all([code_ ? farmerOf(project.id, code_) : null, recorderName(r.completedBy)]);
     // The Kobo form answers "<item>_qty" in the package unit ("seed_kg" on the demo form).
     const planned = itemsFor(ctx.setup, farmer?.hectares);
     // A partial package: an item answered "not given" is left out (nothing counted, checked or charged).
@@ -276,10 +294,10 @@ export async function processPending(code: string, origin = appOrigin()) {
     const g = gate(items, ctx.procs, ctx.given, ctx.setup);
     const photo = r.source === "kobo" ? typeof p.list_photo === "string" && !!p.list_photo : !!p.photo;
     const signed = r.source === "kobo" ? p.signed === "yes" : typeof f.signature === "string" && !!f.signature && f.signature !== "Not confirmed";
-    const flags = flagsFor({ farmerId: code_, items, photo, signed, step: r.source === "kobo" ? (farmer?.step ?? "unknown") : null }, ctx.others, planned);
+    const flags = flagsFor({ farmerId: code_, items, photo, signed, step: r.source === "kobo" ? (farmer?.step ?? "unknown") : null }, othersThan(ctx.rows, r.id), planned);
     if (farmer && r.source === "kobo") await db.update(s.evidence).set({ payload: { ...p, _rop_gender: farmer.gender }, updatedAt: new Date() }).where(eq(s.evidence.id, r.id));
     const gender = farmer?.gender ?? (f.gender === "Female" || f.gender === "Male" ? f.gender : null);
-    await prepare(code, project, r.id, { farmerId: code_, items, gender, village: farmer?.community ?? (typeof p.village === "string" ? p.village : ""), recordedBy: await recorderName(r.completedBy), recorderId: r.source === "kobo" ? null : r.completedBy, photo, signed, gate: g, flags }, origin, undefined, r.source === "kobo");
+    await prepare(code, project, r.id, { farmerId: code_, items, gender, village: farmer?.community ?? (typeof p.village === "string" ? p.village : ""), recordedBy, recorderId: r.source === "kobo" ? null : r.completedBy, photo, signed, gate: g, flags }, origin, undefined, r.source === "kobo");
     done++;
   }
   // Reads kept for this request (server/request-memo) may be from before these writes.

@@ -38,7 +38,8 @@ export async function reportQuarter(code: string, today = new Date().toISOString
  * The same read asked for twice at once: Home's page asks for its project's summary and next
  * report, and the week ahead asks for them again for every project, in two requests that start
  * together. `shareRunning` runs a read and lets others join it while it runs; `joinRunning` takes
- * the answer of the same read already under way (a copy of it), or reads for itself when none is.
+ * the answer of the same read already under way (a copy of it), or reads for itself when none is
+ * (or when that answer cannot be copied, or that read failed).
  * Nothing is kept once the read is done, so no answer is older than one that was already running.
  * Only the week ahead joins: a screen read again after a change never takes an answer started before it.
  */
@@ -54,7 +55,19 @@ export function shareRunning<T>(key: string, read: () => Promise<T>): Promise<T>
 }
 export function joinRunning<T>(key: string, read: () => Promise<T>): Promise<T> {
   const p = running.get(key) as Promise<T> | undefined;
-  return p ? p.then((v) => structuredClone(v)) : read();
+  if (!p) return read();
+  // A copy, so neither request can change the other's answer. An answer that cannot be copied, or
+  // a read that failed for the other request, is never passed on as nothing: this one reads for itself.
+  return p.then(
+    (v) => {
+      try {
+        return structuredClone(v);
+      } catch {
+        return read();
+      }
+    },
+    () => read(),
+  );
 }
 
 export function nextReport(code: string) {

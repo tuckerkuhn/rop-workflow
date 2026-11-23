@@ -479,7 +479,6 @@ export const PREFLIGHT_ITEM_FOR: Partial<Record<QprCheckKey, string>> = {
   "qc.activityText": "pf.c.empty",
   "qc.sectionCopied": "pf.c.copied",
 };
-export const CHECKS_PREFLIGHT_COVERS: ReadonlySet<QprCheckKey> = new Set(Object.keys(PREFLIGHT_ITEM_FOR) as QprCheckKey[]);
 
 /** Where one of the report's own checks is fixed: the target's records, the section, the budget or the report part. */
 export function checkHref(c: Pick<QprCheck, "key" | "ref">, quarter: string): string {

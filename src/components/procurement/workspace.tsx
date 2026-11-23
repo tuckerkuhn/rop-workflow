@@ -5,6 +5,7 @@ import { askReason } from "@/components/app/dialogs";
 import { Arrow } from "@/components/app/arrow";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useDefaultRole } from "@/components/app/use-default-role";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { isFileLink, storeNames } from "@/lib/file-store";
@@ -872,8 +873,8 @@ export function ProcurementWorkspace() {
   const register = useSupplierRegister(!!project.saved && project.id !== "A-2027", user?.id);
   setSupplierRegister(register);
   const counts = useMemo(() => Object.fromEntries(roles.map((r) => [r.id, items.filter((p) => ownerOf(p) === r.id).length])), [items]);
-  // Open on the first of the person's roles with something waiting, not always the first role.
-  const role = pickedRole && myRoles.includes(pickedRole) ? pickedRole : (myRoles.find((r) => counts[r] > 0) ?? myRoles[0] ?? null);
+  // Open on the first of the person's roles with something waiting, chosen once when the list loads.
+  const role = useDefaultRole(myRoles, counts, status === "ready", project.id, pickedRole);
   const readOnly = !role;
   const mineList = role ? items.filter((p) => ownerOf(p) === role) : items;
   const list = showAll || readOnly ? items : mineList;

@@ -118,29 +118,37 @@ function AllTasks({ user }: { user: AppUser }) {
   }, []);
 
   // Delete is one tap, so it waits UNDO_MS behind an "Undo" notice before the server deletes it.
-  // Leaving the page, or deleting another item, carries the waiting delete out at once.
+  // Leaving the page, switching project, hiding or closing the tab, or deleting another item
+  // carries the waiting delete out at once. The delete keeps the project it was made on.
   const [pending, setPending] = useState<{ id: string; title: string } | null>(null);
-  const pendingRef = useRef<{ id: string; timer: ReturnType<typeof setTimeout> } | null>(null);
-  const removeRef = useRef(work.remove);
-  const reloadRef = useRef(work.reload);
-  useEffect(() => {
-    removeRef.current = work.remove;
-    reloadRef.current = work.reload;
-  });
-  const commitDelete = useCallback(() => {
+  type Pending = { id: string; remove: typeof work.remove; reload: () => unknown; timer: ReturnType<typeof setTimeout> };
+  const pendingRef = useRef<Pending | null>(null);
+  const commitDelete = useCallback((keepalive = false) => {
     const p = pendingRef.current;
     if (!p) return;
     clearTimeout(p.timer);
     pendingRef.current = null;
     setPending(null);
-    void removeRef.current(p.id).catch(() => reloadRef.current());
+    void p.remove(p.id, { keepalive }).catch(() => p.reload());
   }, []);
   const undoDelete = () => {
     if (pendingRef.current) clearTimeout(pendingRef.current.timer);
     pendingRef.current = null;
     setPending(null);
   };
-  useEffect(() => commitDelete, [commitDelete]);
+  useEffect(() => () => commitDelete(), [commitDelete, project.id]);
+  useEffect(() => {
+    const flush = () => commitDelete(true);
+    const hidden = () => document.visibilityState === "hidden" && flush();
+    window.addEventListener("pagehide", flush);
+    window.addEventListener("beforeunload", flush);
+    document.addEventListener("visibilitychange", hidden);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      window.removeEventListener("beforeunload", flush);
+      document.removeEventListener("visibilitychange", hidden);
+    };
+  }, [commitDelete]);
   const rows = allRows.filter((r) => !pending || r.id !== pending.id);
 
   const actions: RowActions = {
@@ -149,7 +157,7 @@ function AllTasks({ user }: { user: AppUser }) {
     onDelete: (id) => {
       commitDelete();
       const title = rows.find((r) => r.id === id)?.title ?? "";
-      pendingRef.current = { id, timer: setTimeout(commitDelete, UNDO_MS) };
+      pendingRef.current = { id, remove: work.remove, reload: work.reload, timer: setTimeout(() => commitDelete(), UNDO_MS) };
       setPending({ id, title });
       if (openKey && rows.some((r) => r.key === openKey && r.id === id)) setOpenKey(null);
     },

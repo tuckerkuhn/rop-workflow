@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { breakdownsFor, buildRows, cannotOnReport, durationOf, checksFor, checkHref, checkPlace, CHECKS_PREFLIGHT_COVERS, PREFLIGHT_ITEM_FOR, emptyQpr, grmLogFor, grmOf, prevQuarterOf, suggestStatus, yearShare, type IndicatorInfo, type Spend } from "@/lib/qpr";
+import { breakdownsFor, buildRows, cannotOnReport, durationOf, checksFor, checkHref, checkPlace, PREFLIGHT_ITEM_FOR, emptyQpr, grmLogFor, grmOf, prevQuarterOf, suggestStatus, yearShare, type IndicatorInfo, type Spend } from "@/lib/qpr";
 import { result } from "./fixtures";
 import type { FeedbackEntry } from "@/lib/feedback";
 import { translate } from "@/lib/i18n";
@@ -8,6 +8,10 @@ import { es } from "@/lib/i18n/es";
 import { fa } from "@/lib/i18n/fa";
 import { ps } from "@/lib/i18n/ps";
 import { qcEn, qcEs, qcFa, qcPs } from "@/lib/i18n/qpr-checks";
+import type { QprCheckKey } from "@/lib/qpr";
+
+/** The report's own checks the report check (server/preflight) says in its own words. */
+const CHECKS_PREFLIGHT_COVERS: ReadonlySet<QprCheckKey> = new Set(Object.keys(PREFLIGHT_ITEM_FOR) as QprCheckKey[]);
 
 const ind = (over: Partial<IndicatorInfo> = {}): IndicatorInfo => ({ code: "IND-1", donorCode: "1.1.1-A", name: "Farmers trained", unit: "farmers", target: 300, yearTargets: { "2026": 100, "2027": 300 }, result: "Output 1.1", disaggregation: ["sex"], budgetRef: null, ...over });
 const spend = (over: Partial<Spend> = {}): Spend => ({ currency: "USD", budget: 1000, cumulative: 400, quarter: 100, withOverhead: false, source: { kind: "budget", at: null }, phases: [], missingMonths: [], byLine: {}, ...over });

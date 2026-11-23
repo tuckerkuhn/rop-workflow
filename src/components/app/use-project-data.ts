@@ -472,9 +472,10 @@ export function useWorkItems(code: string) {
     [code, user?.id],
   );
 
+  /** `keepalive`: the request outlives the page, for a delete carried out as the tab closes. */
   const remove = useCallback(
-    async (id: string) => {
-      await call(`/api/projects/${code}/work-items/${id}`, user?.id, { method: "DELETE" });
+    async (id: string, opts?: { keepalive?: boolean }) => {
+      await call(`/api/projects/${code}/work-items/${id}`, user?.id, { method: "DELETE", keepalive: opts?.keepalive });
       setItems((all) => all.filter((i) => i.id !== id));
     },
     [code, user?.id],

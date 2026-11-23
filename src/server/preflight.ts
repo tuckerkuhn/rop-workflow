@@ -21,7 +21,7 @@ import { listWorkItems } from "@/server/work-store";
  * Pre-flight for a quarterly report, an annual report or a FACE form (lib/preflight). For the
  * quarterly report it is the one check list: every one of the report's own checks (lib/qpr checksFor)
  * is in it, a "stop" as blocking and the rest as worth fixing, except those it already says in its own
- * words (CHECKS_PREFLIGHT_COVERS). So the report page, pre-flight and Home never disagree. It adds what
+ * words (lib/qpr PREFLIGHT_ITEM_FOR). So the report page, pre-flight and Home never disagree. It adds what
  * the report's checks do not cover: targets with nothing recorded, spending that matches no budget
  * line, the plan and budget sign-off, the claim check's findings, and the deadline.
  */

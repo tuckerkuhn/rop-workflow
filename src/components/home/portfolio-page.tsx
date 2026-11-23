@@ -49,7 +49,8 @@ export function PortfolioPage() {
                     <span className="font-semibold">
                       {p.met} of {p.indicators}
                     </span>{" "}
-                    targets done this year, {p.onTrack} more on track{p.late ? `, ${p.late} behind` : ""}.
+                    targets done this year, {p.onTrack} more on track{p.late ? `, ${p.late} behind` : ""}
+                    {p.noData ? `, ${p.noData} under way with no accepted result yet (no data)` : ""}.
                   </p>
                   {p.lateNames.length > 0 && <p className="text-xs text-muted">Behind: {p.lateNames.join("; ")}</p>}
                   <p className="mt-1 text-sm text-muted">

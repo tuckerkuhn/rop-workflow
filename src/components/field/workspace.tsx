@@ -7,6 +7,7 @@ import { useRequireUser, useSession } from "@/components/app/session";
 import { useT } from "@/components/app/i18n";
 import { msg, translateText } from "@/lib/i18n/text";
 import { useFieldData } from "@/components/app/use-project-data";
+import { useDefaultRole } from "@/components/app/use-default-role";
 import { useCurrentProject } from "@/components/app/current-project";
 import { FarmerImport, PackageSetup } from "@/components/field/setup";
 import { today } from "@/lib/clock";
@@ -632,8 +633,8 @@ export function FieldWorkspace() {
   const [panel, setPanel] = useState<"" | "package" | "farmers">("");
   const [pickedRole, setPickedRole] = useState<FieldRole | null>(null);
   const counts = Object.fromEntries(fieldRoles.map((r) => [r.id, items.filter((i) => ownerOfItem(i) === r.id).length]));
-  // Open on the first of the person's roles with something waiting, not always the first role.
-  const role = pickedRole && myRoles.includes(pickedRole) ? pickedRole : (myRoles.find((r) => counts[r] > 0) ?? myRoles[0] ?? null);
+  // Open on the first of the person's roles with something waiting, chosen once when the list loads.
+  const role = useDefaultRole(myRoles, counts, status === "ready", project.id, pickedRole);
   const [selected, setSelected] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
   // Search (farmer number, village, and the name for people who may see names) and a tapped season count.

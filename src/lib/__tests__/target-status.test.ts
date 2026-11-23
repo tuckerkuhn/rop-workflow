@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { quarterOfToday, TARGET_WORD_EN, targetStatus, targetStatusText, wordOfStatus } from "@/lib/target-status";
+import { countTargetWords, quarterOfToday, TARGET_WORD_EN, targetStatus, targetStatusText, wordOfStatus } from "@/lib/target-status";
 import { STATUSES, STATUS_LABEL } from "@/lib/qpr";
 import { prEn } from "@/lib/i18n/surge";
 
@@ -32,6 +32,10 @@ describe("one status vocabulary for targets", () => {
     for (const w of Object.keys(TARGET_WORD_EN)) expect(prEn[`prog.w.${w}` as keyof typeof prEn]).toBe(TARGET_WORD_EN[w as keyof typeof TARGET_WORD_EN]);
   });
   it("reads as one line in English", () => expect(targetStatusText(targetStatus(row("not_implemented", 0), 4))).toBe("Behind · not done"));
+  it("counts targets by word, with on track and nothing accepted as No data (All projects)", () => {
+    const c = countTargetWords([row("completed", 100), row("on_track", 40), row("on_track", 0), row("delayed", 10), row("not_started", 0, [4])], 3);
+    expect(c).toEqual({ done: 1, on_track: 1, behind: 1, not_started: 1, no_data: 1 });
+  });
   it("reads the quarter from a date", () => {
     expect(quarterOfToday("2026-11-10")).toBe(4);
     expect(quarterOfToday("2026-03-31")).toBe(1);

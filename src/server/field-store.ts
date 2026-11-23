@@ -99,6 +99,18 @@ export async function farmerNames(projectId: string, user?: AppUser | null): Pro
   return namesOf(projectId);
 }
 
+/** One farmer's name by farmer number, only for someone allowed to see participants' names; null for anyone else. */
+export async function farmerNameOf(projectId: string, farmerCode: string, user?: AppUser | null): Promise<string | null> {
+  if (!canSeePII(user)) return null;
+  const [r] = await db
+    .select({ name: s.farmerPii.fullName })
+    .from(s.farmerPii)
+    .innerJoin(s.farmers, eq(s.farmers.id, s.farmerPii.farmerId))
+    .where(and(eq(s.farmers.projectId, projectId), eq(s.farmers.code, farmerCode)))
+    .limit(1);
+  return r?.name || null;
+}
+
 /** Every farmer's name: only for checks on the server, never sent to someone who may not see names. */
 async function namesOf(projectId: string): Promise<Map<string, string>> {
   const names = new Map<string, string>();

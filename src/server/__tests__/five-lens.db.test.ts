@@ -15,6 +15,8 @@ import { seedDatabase } from "@/server/demo-seed";
 import { loadFramework, type TreeNode } from "@/server/framework-store";
 import { proposalMenuMap } from "@/server/funding-proposals-store";
 import { loadHome } from "@/server/home-store";
+import { loadReview } from "@/server/monthly-review-store";
+import { countTargetWords } from "@/lib/target-status";
 import { koboApprovalFor, saveKoboApproval } from "@/server/kobo-approval";
 import { actOnOpportunity, loadOpportunities } from "@/server/opportunities-store";
 import { loadPortfolio } from "@/server/portfolio-store";
@@ -63,6 +65,16 @@ describe("All projects", { timeout: 60_000 }, () => {
     const rows = (await loadPortfolio(tucker)).rows;
     expect(rows.map((r) => r.code)).toContain(code);
     expect(rows.find((r) => r.code === code)).toMatchObject({ ready: true, stage: "Execute" });
+  });
+  it("counts done and on track in the shared words, so a target with no accepted result is No data, not On track", async () => {
+    const row = (await loadPortfolio(tucker)).rows.find((r) => r.code === code)!;
+    if (!row.ready) throw new Error("demo project not ready");
+    const review = await loadReview(code, new Date().toISOString().slice(0, 7), tucker);
+    const words = countTargetWords(review.indicators, Number(review.quarter.slice(-1)));
+    expect({ met: row.met, onTrack: row.onTrack, noData: row.noData }).toEqual({ met: words.done, onTrack: words.on_track, noData: words.no_data });
+    // Never more on track than the raw status says: the shared words only move targets out of it.
+    expect(row.onTrack).toBeLessThanOrEqual(review.indicators.filter((i) => i.status === "on_track").length);
+    expect(row.onTrack + row.noData).toBeGreaterThanOrEqual(review.indicators.filter((i) => i.status === "on_track").length);
   });
   it("leaves the demo project out of a live organization's portfolio", async () => {
     process.env.DEMO_SIGN_IN = "0";
