@@ -45,4 +45,10 @@ describe("the week ahead", { timeout: 90_000 }, () => {
     expect(await actOnWeek(tucker, { action: "confirm", items: [{ id: open.items[1].id, text: open.items[1].text, href: "", own: true }] })).toBeNull();
     expect((await loadWeek(tucker)).plan.items.map((i) => [i.text, i.done])).toEqual([["Call the board chair", true]]);
   });
+
+  it("refuses the same priority twice", async () => {
+    const twice = { id: "approvals", text: "Decide the approvals", href: "/progress/review", own: false };
+    expect(await actOnWeek(daniel, { action: "confirm", items: [twice, twice] })).toMatch(/twice/);
+    expect((await loadWeek(daniel)).plan.items).toEqual([]);
+  });
 });

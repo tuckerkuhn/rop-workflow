@@ -9,7 +9,7 @@ import type { WeekAction } from "@/lib/week";
 import type { WeekView } from "@/server/week-store";
 
 /**
- * The week ahead, on a manager's Home under what waits on them: four sentences built from the
+ * The week ahead, on a manager's Home under the next thing to do and what waits on them: four sentences built from the
  * records, three numbers, and up to three priorities the app proposes and the person makes their
  * own. The priorities come first: they are what the person decided, the rest is what informed it. The sentence that needs attention carries the gold wash; every figure opens its page.
  */
@@ -34,7 +34,8 @@ export function WeekAhead() {
       const res = await fetch(`/api/week?day=${day}`, { cache: "no-store", ...init, headers: { "Content-Type": "application/json", "x-demo-user": userId } });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error((body as { error?: string }).error ?? plainError(res.status));
-      setV(body as WeekView);
+      // A change answers with the plan alone (api/week POST); the rest of the week stays as read.
+      setV((was) => (init?.method === "POST" ? (was ? { ...was, plan: (body as Pick<WeekView, "plan">).plan } : was) : (body as WeekView)));
       setError("");
     },
     [userId],
@@ -73,7 +74,7 @@ export function WeekAhead() {
   const addOwn = () => {
     const text = add.trim();
     if (text.length < 3 || full) return;
-    setDraft([...list, { id: `new:${list.length}:${text}`, text, href: "", own: true }]);
+    setDraft([...list, { id: `new:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`, text, href: "", own: true }]);
     setAdd("");
   };
 

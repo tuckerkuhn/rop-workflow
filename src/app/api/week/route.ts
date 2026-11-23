@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { weekAction } from "@/lib/week";
 import { requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
-import { actOnWeek, loadWeek } from "@/server/week-store";
+import { actOnWeek, loadWeek, planOf } from "@/server/week-store";
+import { orgIdForPerson } from "@/server/org-settings-store";
+import { mondayOf } from "@/lib/week";
 
 const WHY = "The week ahead is for staff.";
 
@@ -25,7 +27,11 @@ export async function GET(req: Request) {
   });
 }
 
-/** Confirms, ticks or reopens the person's own priorities for this week. Nobody changes another person's list. */
+/**
+ * Confirms, ticks or reopens the person's own priorities for this week. Nobody changes another person's list.
+ * Answers with the plan alone: the summary and numbers do not change when a priority is ticked, and
+ * reading every project again on each tap kept the checkbox waiting.
+ */
 export async function POST(req: Request) {
   return handle(async () => {
     const v = await requireViewer(req, { write: true, allow: (u) => u.kind === "employee", why: WHY });
@@ -34,6 +40,7 @@ export async function POST(req: Request) {
     if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "That is not complete." }, { status: 400 });
     const why = await actOnWeek(v.user, parsed.data, dayOf(req));
     if (why) return NextResponse.json({ error: why }, { status: 409 });
-    return NextResponse.json(await loadWeek(v.user, dayOf(req)));
+    const today = dayOf(req) ?? new Date().toISOString().slice(0, 10);
+    return NextResponse.json({ plan: await planOf(await orgIdForPerson(v.user.id).catch(() => null), v.user, mondayOf(today)) });
   });
 }

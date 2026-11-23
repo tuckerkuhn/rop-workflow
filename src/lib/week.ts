@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ANSWER_DAYS } from "@/lib/feedback";
 
 /**
  * The week ahead for a manager: a four-sentence summary built from the records (what is due, what
@@ -21,8 +22,8 @@ export type ProjectWeek = {
   /** What blocks the next report, or 0. */
   blocking: number;
   blockingHref: string;
-  /** Approvals waiting on this person, with the day the oldest has waited since. */
-  approvals: { text: string; href: string; since: string | null }[];
+  /** Approvals waiting on this person, with the day the oldest has waited since. Each link opens its own project. */
+  approvals: { text: string; href: string; since: string | null; short: string }[];
   /** Complaints and questions waiting more than the answer days. */
   complaintsLate: number;
   /** In the last seven days. */
@@ -40,12 +41,22 @@ const days = (from: string, to: string) => Math.round((Date.parse(`${to}T00:00:0
 const n = (k: number, one: string, many: string) => `${k} ${k === 1 ? one : many}`;
 const list = (parts: Part[]): Part[] => parts.flatMap((p, k) => (k === 0 ? [p] : [{ t: k === parts.length - 1 ? " and " : ", " }, p]));
 
+/** The link with its project named (?project=), so it opens that project and not whichever one is selected. */
+export function withProject(href: string, code: string): string {
+  if (!href.startsWith("/") || /[?&]project=/.test(href) || href.startsWith("/approve/")) return href;
+  const [path, hash] = href.split("#", 2);
+  return `${path}${path.includes("?") ? "&" : "?"}project=${encodeURIComponent(code)}${hash !== undefined ? `#${hash}` : ""}`;
+}
+
 /** The Monday (YYYY-MM-DD) of the week `today` falls in. */
 export function mondayOf(today: string): string {
   const d = new Date(`${today}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
   return d.toISOString().slice(0, 10);
 }
+
+/** Oldest first; one with no date goes last. */
+const oldestFirst = <T extends { since: string | null }>(xs: T[]) => [...xs].sort((a, b) => (a.since ?? "9").localeCompare(b.since ?? "9"));
 
 export function weekSummary(projects: ProjectWeek[], today: string): Sentence[] {
   const reports = projects.flatMap((p) => p.reports.map((r) => ({ ...r, short: p.short })));
@@ -77,8 +88,8 @@ export function weekSummary(projects: ProjectWeek[], today: string): Sentence[] 
         : [{ t: "Nothing is blocked and no project is behind its targets." }],
   };
 
-  const approvals = projects.flatMap((p) => p.approvals);
-  const oldest = approvals.map((a) => a.since).filter((x): x is string => !!x).sort()[0];
+  const approvals = oldestFirst(projects.flatMap((p) => p.approvals));
+  const oldest = approvals[0]?.since ?? undefined;
   const waiting: Sentence = {
     kind: "waiting",
     flag: false,
@@ -90,7 +101,7 @@ export function weekSummary(projects: ProjectWeek[], today: string): Sentence[] 
   const answered = projects.reduce((t, p) => t + p.complaintsAnswered, 0);
   const fresh = projects.reduce((t, p) => t + p.complaintsNew, 0);
   const released = projects.flatMap((p) => p.released.map((r) => `${r} for ${p.short}`));
-  const bits = [released.length ? `${released.join(" and ")} ${released.length === 1 ? "was" : "were"} released` : "", answered ? `${n(answered, "complaint or question was", "complaints or questions were")} answered` : "", fresh ? `${n(fresh, "new one", "new ones")} came in` : ""].filter(Boolean);
+  const bits = [released.length ? `${released.join(" and ")} ${released.length === 1 ? "was" : "were"} released` : "", answered ? `${n(answered, "complaint or question was", "complaints or questions were")} answered` : "", fresh ? `${n(fresh, "new complaint or question", "new complaints or questions")} came in` : ""].filter(Boolean);
   const changed: Sentence = { kind: "changed", flag: false, parts: [{ t: bits.length ? `In the last seven days ${bits.length > 1 ? `${bits.slice(0, -1).join(", ")} and ${bits[bits.length - 1]}` : bits[0]}.` : "No report was released and no complaint came in or was answered in the last seven days." }] };
   return [due, risk, waiting, changed];
 }
@@ -104,7 +115,7 @@ export function weekNumbers(projects: ProjectWeek[]): WeekNumber[] {
   return [
     { label: "Projects on track for results", value: `${on} of ${projects.length}`, href: "/portfolio", level: on === projects.length ? "good" : on * 2 >= projects.length ? "warning" : "critical" },
     { label: "Reports late or due in 30 days", value: String(reports), href: projects.find((p) => p.reports.length)?.reports[0].href ?? "/progress", level: lateReports ? "critical" : reports ? "warning" : "good" },
-    { label: "Complaints waiting over 14 days", value: String(complaints), href: worst ? `/progress/feedback?project=${encodeURIComponent(worst.code)}` : "/progress/feedback", level: complaints ? "critical" : "good" },
+    { label: `Complaints waiting over ${ANSWER_DAYS} days`, value: String(complaints), href: worst ? `/progress/feedback?project=${encodeURIComponent(worst.code)}` : "/progress/feedback", level: complaints ? "critical" : "good" },
   ];
 }
 
@@ -113,8 +124,9 @@ export function suggestPriorities(projects: ProjectWeek[]): Suggestion[] {
   const out: Suggestion[] = [];
   for (const p of projects) for (const r of p.reports.filter((x) => x.late)) out.push({ id: `late:${p.code}:${r.label}`, text: `Get the ${r.label} for ${p.short} to the donor: it is late`, href: r.href });
   for (const p of projects) if (p.blocking && p.reports.some((r) => !r.late && r.days <= 14)) out.push({ id: `block:${p.code}`, text: `Clear what blocks the next ${p.short} report (${n(p.blocking, "thing", "things")})`, href: p.blockingHref });
-  const approvals = projects.flatMap((p) => p.approvals).sort((a, b) => (a.since ?? "9").localeCompare(b.since ?? "9"));
-  if (approvals.length) out.push({ id: "approvals", text: approvals.length === 1 ? `Decide: ${approvals[0].text}` : `Decide the ${approvals.length} approvals waiting on you`, href: approvals[0].href });
+  const approvals = oldestFirst(projects.flatMap((p) => p.approvals));
+  // With more than one project, the approval names its own: "Sign off the October review" alone does not say where.
+  if (approvals.length) out.push({ id: "approvals", text: approvals.length === 1 ? `Decide${projects.length > 1 ? ` for ${approvals[0].short}` : ""}: ${approvals[0].text}` : `Decide the ${approvals.length} approvals waiting on you`, href: approvals[0].href });
   for (const p of projects) if (p.complaintsLate) out.push({ id: `complaints:${p.code}`, text: `See that ${n(p.complaintsLate, "complaint", "complaints")} on ${p.short} ${p.complaintsLate === 1 ? "is" : "are"} answered`, href: `/progress/feedback?project=${encodeURIComponent(p.code)}` });
   for (const p of projects) if (p.late) out.push({ id: `behind:${p.code}`, text: `Ask about ${p.short}: ${n(p.late, "result is", "results are")} behind target`, href: `/progress?project=${encodeURIComponent(p.code)}` });
   return out.slice(0, MAX_PRIORITIES);

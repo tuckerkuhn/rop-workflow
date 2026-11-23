@@ -1,8 +1,8 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import type { AppUser } from "@/lib/demo";
 import { EMPTY_FEEDBACK, overdue, type FeedbackLog } from "@/lib/feedback";
-import { MAX_PRIORITIES, mondayOf, safeHref, suggestPriorities, weekNumbers, weekSummary, type Priority, type ProjectWeek, type WeekAction, type WeekPlan } from "@/lib/week";
+import { MAX_PRIORITIES, mondayOf, safeHref, withProject, suggestPriorities, weekNumbers, weekSummary, type Priority, type ProjectWeek, type WeekAction, type WeekPlan } from "@/lib/week";
 import { demoMode, onProject } from "@/server/auth";
 import { loadHome } from "@/server/home-store";
 import { nextReport } from "@/server/next-report";
@@ -31,22 +31,24 @@ async function projectWeek(p: { code: string; name: string; id: string }, u: App
     loadProjectState<FeedbackLog>(p.id, "feedback", EMPTY_FEEDBACK).catch(() => EMPTY_FEEDBACK),
   ]);
   if (!home) return null;
+  // "Afghanistan Community Resilience Programme (ACRP)" reads as "ACRP" in a sentence; a long name with no short form reads as its code.
+  const short = p.name.match(/\(([^)]+)\)\s*$/)?.[1] ?? (p.name.length <= 24 ? p.name : p.code);
   const weekAgo = addDays(today, -7);
-  const label = (r: { kind: "qpr" | "annual"; period: string }) => (r.kind === "qpr" ? `${r.period.slice(5)} quarterly report` : `${r.period} annual report`);
+  const label = (r: { kind: "qpr" | "annual"; period: string }) => (r.kind === "qpr" ? `${r.period.slice(5)} ${r.period.slice(0, 4)} quarterly report` : `${r.period} annual report`);
   const owed = cal.rows.filter((r) => !r.released && r.due && daysBetween(today, r.due) <= 30);
   // Released in the last seven days: the quarterly reports the calendar lists as released, by their release date.
+  // (Annual reports are written outside the app and never marked released, so none is listed.)
   const released = (
     await Promise.all(cal.rows.filter((r) => r.released && r.kind === "qpr").map(async (r) => ((await rawQpr(p.id, r.period).catch(() => null))?.released?.at ?? "").slice(0, 10) >= weekAgo ? label(r) : null))
   ).filter((x): x is string => !!x);
   return {
     code: p.code,
-    // "Afghanistan Community Resilience Programme (ACRP)" reads as "ACRP" in a sentence; a long name with no short form reads as its code.
-    short: p.name.match(/\(([^)]+)\)\s*$/)?.[1] ?? (p.name.length <= 24 ? p.name : p.code),
+    short,
     late: home.schedule.late.length,
-    reports: owed.map((r) => ({ label: label(r), due: r.due!, days: daysBetween(today, r.due!), late: today > r.due!, href: `${r.href.replace("#", `${r.href.includes("?") ? "&" : "?"}project=${encodeURIComponent(p.code)}#`)}` })),
+    reports: owed.map((r) => ({ label: label(r), due: r.due!, days: daysBetween(today, r.due!), late: today > r.due!, href: withProject(r.href, p.code) })),
     blocking: nr && !nr.released ? nr.blocking : 0,
     blockingHref: `/progress/report?q=${nr?.quarter ?? ""}&project=${encodeURIComponent(p.code)}#checks`,
-    approvals: home.actions.filter((a) => a.bucket === "approve").map((a) => ({ text: a.text, href: a.href, since: a.since ?? null })),
+    approvals: home.actions.filter((a) => a.bucket === "approve").map((a) => ({ text: a.text, href: withProject(a.href, p.code), since: a.since ?? null, short })),
     complaintsLate: log.entries.filter((e) => overdue(e, today)).length,
     complaintsNew: log.entries.filter((e) => e.date >= weekAgo && e.kind !== "thanks").length,
     complaintsAnswered: log.entries.filter((e) => e.answer && e.answer.on >= weekAgo).length,
@@ -55,7 +57,7 @@ async function projectWeek(p: { code: string; name: string; id: string }, u: App
 }
 
 const keyOf = (u: AppUser, week: string) => `week:${u.id}:${week}`;
-async function planOf(orgId: string | null, u: AppUser, week: string): Promise<WeekPlan> {
+export async function planOf(orgId: string | null, u: AppUser, week: string): Promise<WeekPlan> {
   const empty: WeekPlan = { week, items: [], confirmedAt: null };
   if (!orgId) return empty;
   const [row] = await db.select().from(s.organizationState).where(and(eq(s.organizationState.organizationId, orgId), eq(s.organizationState.key, keyOf(u, week)))).limit(1);
@@ -65,9 +67,9 @@ async function planOf(orgId: string | null, u: AppUser, week: string): Promise<W
 export async function loadWeek(u: AppUser, today = realToday()) {
   const week = mondayOf(today);
   const orgId = await orgIdForPerson(u.id).catch(() => null);
-  const all = (await db.select({ id: s.projects.id, code: s.projects.code }).from(s.projects)).reduce<Record<string, string>>((m, r) => (r.code ? { ...m, [r.code]: r.id } : m), {});
-  const listed = (await listProjects()).filter((p) => (demoMode() || p.code !== DEMO_PROJECT) && onProject(u, p.code) && p.stage !== "Develop" && all[p.code]);
-  const projects = (await Promise.all(listed.map((p) => projectWeek({ code: p.code, name: p.name, id: all[p.code] }, u, today)))).filter((x): x is ProjectWeek => !!x);
+  const listed = (await listProjects()).filter((p) => (demoMode() || p.code !== DEMO_PROJECT) && onProject(u, p.code) && p.stage !== "Develop");
+  const ids = new Map((await db.select({ id: s.projects.id, code: s.projects.code }).from(s.projects).where(inArray(s.projects.code, listed.map((p) => p.code).concat("")))).map((r) => [r.code, r.id]));
+  const projects = (await Promise.all(listed.filter((p) => ids.has(p.code)).map((p) => projectWeek({ code: p.code, name: p.name, id: ids.get(p.code)! }, u, today)))).filter((x): x is ProjectWeek => !!x);
   const plan = await planOf(orgId, u, week);
   return {
     week,
@@ -98,6 +100,7 @@ export async function actOnWeek(u: AppUser, a: WeekAction, today = realToday()):
     if (a.action === "confirm") {
       const was = new Map(plan.items.map((i) => [i.id, i]));
       const items: Priority[] = a.items.map((i, k) => ({ id: i.own && !was.has(i.id) ? `own:${Date.now()}:${k}` : i.id, text: i.text, href: i.own ? "" : safeHref(i.href), own: i.own, done: was.get(i.id)?.done ?? false }));
+      if (new Set(items.map((i) => i.id)).size !== items.length) return "The same priority is on the list twice.";
       next = { week, items, confirmedAt: new Date().toISOString() };
     } else if (a.action === "done") {
       if (!plan.items.some((i) => i.id === a.id)) return "That priority is no longer on this week's list.";
