@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { OPEN_ASSISTANT, Sparkle } from "@/components/app/assistant-button";
 import { useT } from "@/components/app/i18n";
 import { useRowWords } from "@/components/home/waiting";
@@ -10,10 +11,11 @@ import type { Bucket } from "@/server/home-store";
 /**
  * The top of Home, in one of two views of the same rows (lib/home-buckets):
  *
- * - Bands, for people who open the app outdoors on a phone with one to three things to do: solid
- *   blocks of color, one large number each, and the one thing to do now with a Start button.
- * - Ledger, for people with long lists: numbered ruled rows, figures in a column, a wash on the
- *   row that needs doing first.
+ * - Bands ("Summary" on screen), for people who open the app outdoors on a phone with one to three
+ *   things to do: solid blocks of color, one large number each, and the one thing to do now with a
+ *   Start button. The full list is one tap away ("Show all"), not drawn a second time below.
+ * - Ledger ("List" on screen), for people with long lists: ruled rows, figures in a column, a wash
+ *   on the row that needs doing first.
  *
  * Field roles open in Bands and everyone else in Ledger; anyone can switch, and the choice is
  * remembered. Color means the same in both: green is the work, gold is "look here", brown is time.
@@ -51,8 +53,8 @@ export function ViewSwitch({ view, onView }: { view: HomeViewKind; onView: (v: H
   );
   return (
     <div role="group" aria-label={tx("How Home looks")} className="flex justify-end">
-      {option("bands", tx("Bands"))}
-      {option("ledger", tx("Ledger"))}
+      {option("bands", tx("Summary"))}
+      {option("ledger", tx("List"))}
     </div>
   );
 }
@@ -113,8 +115,7 @@ function Ledger({ rows, next, heading }: { rows: Rows; next: Next; heading: bool
         <>
           <div aria-hidden className="mt-4 h-1 bg-forest" />
           <div aria-hidden className="mt-[3px] h-px bg-forest" />
-          <div aria-hidden className="grid grid-cols-[2.75rem_1fr_5.5rem] border-b border-ink px-4 py-1.5 font-mono text-xs">
-            <span>{tx("No.")}</span>
+          <div aria-hidden className="grid grid-cols-[1fr_5.5rem] border-b border-ink px-4 py-1.5 font-mono text-xs">
             <span>{tx("Item")}</span>
             <span className="text-end">{tx("Days")}</span>
           </div>
@@ -128,9 +129,8 @@ function Ledger({ rows, next, heading }: { rows: Rows; next: Next; heading: bool
                 <li key={r.key}>
                   <Link
                     href={r.href}
-                    className={`group grid min-h-16 grid-cols-[2.75rem_1fr_5.5rem] items-start border-b px-4 py-3 hover:bg-ochre-soft active:bg-ochre/30 ${first ? "border-ink bg-ochre-soft" : "border-line"} ${focus}`}
+                    className={`group grid min-h-16 grid-cols-[1fr_5.5rem] items-start border-b px-4 py-3 hover:bg-ochre-soft active:bg-ochre/30 ${first ? "border-ink bg-ochre-soft" : "border-line"} ${focus}`}
                   >
-                    <span className="font-mono text-sm leading-7">{String(k + 1).padStart(2, "0")}</span>
                     <span className={`min-w-0 leading-snug ${first ? "text-xl font-bold" : "text-lg font-semibold"}`}>
                       <span className={r.bucket === "approve" ? "text-forest" : r.bucket === "fix" ? "text-warn" : "text-ink"}>{t(`home.b.${r.bucket}`)}: </span>
                       {r.item?.blocks && <span className="text-clay">{t("home.b.blocks")} </span>}
@@ -161,6 +161,13 @@ function Ledger({ rows, next, heading }: { rows: Rows; next: Next; heading: bool
 function Bands({ rows, next }: { rows: Rows; next: Next }) {
   const { t, tx } = useT();
   const { words, when } = useRowWords();
+  // The full list is drawn only when asked for: the bands already say what is waiting.
+  const [all, setAll] = useState(false);
+  const showList = (e?: React.MouseEvent) => {
+    e?.preventDefault();
+    setAll(true);
+    setTimeout(() => document.getElementById("waiting-list")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+  };
   const total = waitingCount(rows);
   // The thing to do now in the reader's language when it is one of the rows; the count includes it once.
   const { row, extra } = ordered(rows, next);
@@ -199,7 +206,7 @@ function Bands({ rows, next }: { rows: Rows; next: Next }) {
         if (!top) return null;
         const many = rest.length > 1;
         return (
-          <Link key={b} href={many ? "#waiting-list" : top.href} className={`group flex min-h-24 items-center gap-4 py-3 ps-5 pe-20 lg:pe-5 ${BAND[b]} hover:brightness-110 active:brightness-90 ${focus} focus-visible:outline-white`}>
+          <Link key={b} href={many ? "#waiting-list" : top.href} onClick={many ? showList : undefined} className={`group flex min-h-24 items-center gap-4 py-3 ps-5 pe-20 lg:pe-5 ${BAND[b]} hover:brightness-110 active:brightness-90 ${focus} focus-visible:outline-white`}>
             <span className="w-16 shrink-0 text-6xl font-extrabold leading-none tracking-tighter tabular-nums">{rest.length}</span>
             <span className="min-w-0 flex-1">
               <span className="block text-2xl font-extrabold leading-tight">{rest.length < rows[b].length ? tx("more {what}", { what: t(`home.b.${b}`).toLowerCase() }) : t(`home.b.${b}`)}</span>
@@ -213,7 +220,19 @@ function Bands({ rows, next }: { rows: Rows; next: Next }) {
         );
       })}
       <AskAssistant />
-      {total > 1 && <Ledger rows={rows} next={next} heading={false} />}
+      {total > 1 && (
+        <button
+          type="button"
+          aria-expanded={all}
+          aria-controls="waiting-list"
+          onClick={() => (all ? setAll(false) : showList())}
+          className={`flex min-h-12 w-full items-center justify-between gap-3 border-t border-line bg-surface px-5 text-start font-ledger text-base font-semibold text-forest hover:bg-ochre-soft ${focus}`}
+        >
+          {all ? tx("Hide the list") : tx("Show all {n}", { n: total })}
+          <span aria-hidden>{all ? "▴" : "▾"}</span>
+        </button>
+      )}
+      {total > 1 && all && <Ledger rows={rows} next={next} heading={false} />}
     </section>
   );
 }

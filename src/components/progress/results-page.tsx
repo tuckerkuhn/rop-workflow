@@ -812,7 +812,7 @@ function ResultCard({ r, ind, act, mayAddProof, me }: { r: Res; ind?: Ind; act: 
                 Accept
               </button>
               <button type="button" disabled={busy} className={quietBtn} onClick={() => setQuery("")}>
-                Query
+                Send back with a question
               </button>
             </div>
           ) : (
@@ -826,9 +826,9 @@ function ResultCard({ r, ind, act, mayAddProof, me }: { r: Res; ind?: Ind; act: 
                   type="button"
                   disabled={busy || query.trim().length < 3}
                   className={dangerBtn}
-                  onClick={() => run(() => act({ action: "query", id: r.id, note: query }, "Queried: it goes back to the person who recorded it."))}
+                  onClick={() => run(() => act({ action: "query", id: r.id, note: query }, "Sent back with a question: it goes to the person who recorded it."))}
                 >
-                  Send query
+                  Send back with a question
                 </button>
                 <button type="button" className={quietBtn} onClick={() => setQuery(null)}>
                   Cancel
@@ -1211,7 +1211,7 @@ function WhatNeedsDoing({ v, me, onRecord, act, onReview }: { v: ResultsView; me
   );
 }
 
-/** Flagged results, one at a time: the reason in a line, Accept and Query as large buttons, then the next. */
+/** Flagged results, one at a time: the reason in a line, Accept and Send back as large buttons, then the next. */
 function ReviewQueue({ ids, v, act, onClose }: { ids: string[]; v: ResultsView; act: (a: ResultAction, msg: string) => Promise<void>; onClose: () => void }) {
   const { t } = useT();
   const { user } = useRequireUser();
@@ -1302,7 +1302,7 @@ function ReviewQueue({ ids, v, act, onClose }: { ids: string[]; v: ResultsView; 
                 <textarea className={input} rows={2} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="The attendance sheet shows 38 names, not 45." autoFocus />
               </label>
               <div className="mt-2 grid grid-cols-2 gap-3">
-                <button type="button" disabled={busy || query.trim().length < 3} className={`${dangerBtn} min-h-12`} onClick={() => void decide({ action: "query", id: r.id, note: query }, "Queried: it goes back to the person who recorded it.")}>
+                <button type="button" disabled={busy || query.trim().length < 3} className={`${dangerBtn} min-h-12`} onClick={() => void decide({ action: "query", id: r.id, note: query }, "Sent back with a question: it goes to the person who recorded it.")}>
                   {t("rq.send")}
                 </button>
                 <button type="button" className={`${quietBtn} min-h-12`} onClick={() => setQuery(null)}>

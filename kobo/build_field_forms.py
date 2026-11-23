@@ -12,8 +12,9 @@ Writes:
   "attended: yes" ticks the training checks and moves a farmer at "Train" on to "Prepare the plot"
   (once enrolled and the contribution is paid).
 - field_visit.xlsx: the follow-up visit after planting. In Setup mark it "Farm visit". An accepted
-  visit that finds the package planted at the trained spacing records planting and completes the
-  farmer's season path; otherwise what needs follow-up goes on the farmer's record.
+  visit that finds the package planted at the trained spacing records planting (the date, and the
+  area planted, or the number planted for a crop counted one by one) and completes the farmer's
+  season path; otherwise what needs follow-up goes on the farmer's record.
 
 Both follow the other forms: hidden project_code, farmer picked from farmers.csv (ID, village,
 initials; no names on devices), photo evidence, GPS. Labels in English, Dari and Pashto; the Dari and
@@ -67,6 +68,8 @@ def visit(code):
     survey = [
         ("calculate", "project_code", None, None, "", "", "", f"'{code}'", ""),
         ("select_one_from_file farmers.csv", "farmer", ("Farmer", "دهقان", "بزګر"), FARMER_HINT, "yes", "", "autocomplete", "", ""),
+        # The farmer's plot size from farmers.csv, shown with the area planted.
+        ("calculate", "farmer_ha", None, None, "", "", "", "pulldata('farmers', 'hectares', 'name', ${farmer})", ""),
         ("date", "visit_date", ("Visit date", "تاریخ بازدید", "د لیدنې نېټه"), None, "yes", "", "", "", "today()"),
         ("select_one purpose", "purpose", ("Purpose of the visit", "هدف بازدید", "د لیدنې موخه"), None, "yes", "", "", "", ""),
         (
@@ -77,6 +80,20 @@ def visit(code):
         ),
         ("select_one yes_no", "planted", ("Has the farmer planted the inputs received?", "آیا دهقان مواد دریافت‌شده را کشت کرده است؟", "ایا بزګر ترلاسه شوي توکي کرلي دي؟"), None, "yes", "", "", "", ""),
         ("date", "planting_date", ("Date planted", "تاریخ کشت", "د کرنې نېټه"), ("As the farmer reports it", "مطابق گفته دهقان", "لکه څنګه چې بزګر وايي"), "yes", "${planted} = 'yes'", "", "", ""),
+        (
+            "integer",
+            "number_planted",
+            ("How many trees, vines or seedlings were planted?", "چند نهال، تاک یا نشا کشت شد؟", "څومره نیالګي، تاکونه یا بوټي وکرل شول؟"),
+            ("Only for a crop counted one by one; the app works out the area from the spacing. Leave blank for a crop sown by area.", "فقط برای محصولی که دانه‌دانه شمرده می‌شود؛ برنامه مساحت را از فاصله حساب می‌کند. برای محصولی که بر اساس مساحت کشت می‌شود خالی بگذارید.", "یوازې د هغه فصل لپاره چې یو یو شمېرل کېږي؛ اپ ساحه له واټن څخه محاسبه کوي. د ساحې له مخې کرل شوي فصل لپاره یې خالي پرېږدئ."),
+            "", "${planted} = 'yes'", "", "", "",
+        ),
+        (
+            "decimal",
+            "area_planted",
+            ("Area planted (hectares)", "مساحت کشت‌شده (هکتار)", "کرل شوې ساحه (هکتار)"),
+            ("The farmer's plot is ${farmer_ha} ha.", "زمین دهقان ${farmer_ha} هکتار است.", "د بزګر ځمکه ${farmer_ha} هکتاره ده."),
+            "yes", "${planted} = 'yes' and string-length(${number_planted}) = 0", "", "", "",
+        ),
         (
             "select_one yes_no",
             "spacing_ok",

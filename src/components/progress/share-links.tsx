@@ -6,7 +6,7 @@ import { quietBtn } from "@/components/workspace/ui";
 
 /**
  * Read-only links to this quarter's report for the donor. A link shows the release (or, before
- * it, the latest practice copy); it expires after 60 days and can be withdrawn.
+ * it, the latest preview copy, "practice" in the code); it expires after 60 days and can be withdrawn.
  */
 
 type Share = { token: string; quarter: string; by: string; at: string; expires: string; active: boolean };
@@ -44,7 +44,7 @@ export function ShareLinks({ project, quarter, user, ready }: { project: string;
             Make a link
           </button>
         ) : (
-          <span className="ms-auto text-xs text-muted">Do a practice release or release first: the link shows that copy.</span>
+          <span className="ms-auto text-xs text-muted">Save a preview copy or release the report first: the link shows the released report, or until then the latest preview copy.</span>
         )}
       </div>
       {error && <p className="mt-2 text-clay">{error}</p>}

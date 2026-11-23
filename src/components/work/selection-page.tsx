@@ -1,17 +1,19 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { Why } from "@/components/app/why";
 import { TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { plainError } from "@/lib/plain-error";
-import { decisionProblem, isException, isStale, type SelectionAction } from "@/lib/selection";
+import { decisionProblem, failedRules, isException, isStale, outcomeLabel, outcomeOf, type Outcome, type SelectionAction, type Shown } from "@/lib/selection";
 import type { SelectionView } from "@/server/selection-store";
 
 /**
- * Farmer selection: the rules at the top, then one ruled row per farmer. A row opens to tick the
- * rules the farmer meets and record the decision; the undecided come first.
+ * Farmer selection: the rules at the top, then the farmers in lists: To decide, Selected,
+ * Waitlisted (meet every rule, no place now) and Did not qualify, each with its reason. A row opens
+ * to tick the rules the farmer meets and record the decision.
  */
 
 const input = "mt-1 block w-full rounded-sm border border-line bg-paper px-3 py-2.5 text-base";
@@ -119,8 +121,8 @@ function Decide({ v, f, act, onClose }: { v: SelectionView; f: Farmer; act: (a: 
   const [reason, setReason] = useState("");
   const [change, setChange] = useState("");
   const all = s.criteria.every((c) => met.includes(c.id));
-  const ask = (selected: boolean) => ({ farmer: f.id, selected, met, reason, change });
-  const send = (selected: boolean) => void act({ action: "decide", ...ask(selected) }).then(onClose, () => undefined);
+  const ask = (outcome: Outcome) => ({ farmer: f.id, outcome, met, reason, change });
+  const send = (outcome: Outcome) => void act({ action: "decide", ...ask(outcome) }).then(onClose, () => undefined);
   return (
     <div className="border-t border-line bg-surface px-2 py-3 ps-11">
       <p className="text-sm font-semibold">Tick each rule this farmer meets</p>
@@ -135,7 +137,7 @@ function Decide({ v, f, act, onClose }: { v: SelectionView; f: Farmer; act: (a: 
         ))}
       </ul>
       <label className="mt-2 block text-sm">
-        Reason {all ? "(needed only if not selected)" : "(needed: not every rule is met)"}
+        Reason {all ? "(needed to waitlist: for example, the places are full)" : "(needed: not every rule is met. Say which, and why)"}
         <textarea className={input} rows={2} value={reason} maxLength={1000} onChange={(e) => setReason(e.target.value)} />
       </label>
       {d && (
@@ -145,19 +147,35 @@ function Decide({ v, f, act, onClose }: { v: SelectionView; f: Farmer; act: (a: 
         </label>
       )}
       <div className="mt-3 flex flex-wrap gap-2">
-        <button type="button" className={primaryBtn} disabled={!!decisionProblem(s, ask(true))} onClick={() => send(true)}>
+        <button type="button" className={primaryBtn} disabled={!!decisionProblem(s, ask("selected"))} onClick={() => send("selected")}>
           {all ? "Select" : "Select as an exception"}
         </button>
-        <button type="button" className={quietBtn} disabled={!!decisionProblem(s, ask(false))} onClick={() => send(false)}>
-          Not selected
-        </button>
+        {all ? (
+          <button type="button" className={quietBtn} disabled={!!decisionProblem(s, ask("waitlisted"))} onClick={() => send("waitlisted")}>
+            Waitlist
+          </button>
+        ) : (
+          <button type="button" className={quietBtn} disabled={!!decisionProblem(s, ask("not_qualified"))} onClick={() => send("not_qualified")}>
+            Did not qualify
+          </button>
+        )}
         <button type="button" className={quietBtn} onClick={onClose}>
           Cancel
         </button>
       </div>
+      <p className="mt-2 text-xs text-muted">{all ? "Meets every rule: select them, or waitlist them if there is no place now." : "Not every rule is ticked: they did not qualify, unless you select them as an exception."}</p>
     </div>
   );
 }
+
+/** The lists on the page, in order. "not_selected" holds older decisions that could not be placed (lib/selection outcomeOf). */
+const GROUPS: { key: Shown | "undecided"; title: string; empty: string; tone: string }[] = [
+  { key: "undecided", title: "To decide", empty: "Everyone on the list is decided.", tone: "border-ochre" },
+  { key: "selected", title: "Selected", empty: "No one selected yet.", tone: "border-leaf" },
+  { key: "waitlisted", title: "Waitlisted", empty: "No one waitlisted.", tone: "border-ochre" },
+  { key: "not_qualified", title: "Did not qualify", empty: "No one turned down.", tone: "border-clay" },
+  { key: "not_selected", title: "Not selected (decided before waitlists)", empty: "", tone: "border-line" },
+];
 
 export function SelectionPage() {
   const { user } = useRequireUser();
@@ -191,15 +209,20 @@ export function SelectionPage() {
   };
   const s = v?.selection;
   const c = v?.counts;
-  // The undecided first: that is the work left.
-  const farmers = v && s ? [...v.farmers].sort((a, b) => Number(!!s.decisions[a.id]) - Number(!!s.decisions[b.id]) || a.id.localeCompare(b.id)) : [];
+  const farmers = v ? [...v.farmers].sort((a, b) => a.id.localeCompare(b.id)) : [];
   return (
     <div className="min-h-screen">
       <TopBar />
       <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-warn">{project.name}</p>
         <h1 className="mt-1 font-display text-4xl tracking-tight">Farmer selection</h1>
-        <p className="mt-2 max-w-2xl text-sm text-muted">The written rule for who takes part, then for each farmer the decision, the reason and who made it.</p>
+        <p className="mt-2 max-w-2xl text-sm text-muted">
+          The written rule for who takes part, then for each farmer the decision, the reason and who made it. Selected farmers are trained and served in{" "}
+          <Link href="/field" className="font-semibold text-forest underline">
+            Field activities
+          </Link>
+          ; waitlisted farmers and those who did not qualify are not.
+        </p>
         <Why>
           &ldquo;Who was chosen, and by what rule?&rdquo; is a standard audit question. The first complaint most projects hear comes from someone who was left out. A rule written before anyone is chosen, and a reason
           kept for each person, answers both.
@@ -217,12 +240,13 @@ export function SelectionPage() {
 
             {s.criteria.length > 0 && (
               <>
-                <dl className="mt-8 grid grid-cols-2 border-t-2 border-ink sm:grid-cols-4">
+                <dl className="mt-8 grid grid-cols-2 border-t-2 border-ink sm:grid-cols-5">
                   {(
                     [
                       ["On the list", c.total, ""],
                       ["Selected", c.selected, "text-leaf"],
-                      ["Not selected", c.notSelected, ""],
+                      ["Waitlisted", c.waitlisted, ""],
+                      ["Did not qualify", c.notQualified, ""],
                       ["Still to decide", c.undecided, c.undecided ? "text-warn" : ""],
                     ] as [string, number, string][]
                   ).map(([label, n, tone]) => (
@@ -235,49 +259,75 @@ export function SelectionPage() {
                 <p className="mt-2 font-mono text-xs text-muted">
                   Women: {c.womenSelected} selected of {c.women} on the list
                   {c.exceptions ? ` · ${c.exceptions} selected as ${c.exceptions === 1 ? "an exception" : "exceptions"}` : ""}
+                  {c.notSelected ? ` · ${c.notSelected} not selected before waitlists` : ""}
                 </p>
 
                 {v.farmers.length === 0 ? (
-                  <p className="mt-6 border-s-[6px] border-ochre bg-ochre-soft px-3 py-3 text-sm">No farmers on this project&rsquo;s list yet. Load the applicant list in Field activities, then decide each one here.</p>
+                  <p className="mt-6 border-s-[6px] border-ochre bg-ochre-soft px-3 py-3 text-sm">
+                    No farmers on this project&rsquo;s list yet. Load the farmer list in{" "}
+                    <Link href="/field" className="font-semibold text-forest underline">
+                      Field activities
+                    </Link>
+                    , then decide each one here.
+                  </p>
                 ) : (
-                  <ol className="mt-6 border-t-2 border-ink">
-                    {farmers.map((f, k) => {
-                      const d = s.decisions[f.id];
-                      const stale = d ? isStale(s, d) : false;
-                      const exception = d ? isException(s, d) : false;
-                      return (
-                        <li key={f.id} className={`border-b border-line ${!d ? "border-s-[6px] border-s-ochre" : ""}`}>
-                          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-2 py-3">
-                            <span aria-hidden className="w-6 shrink-0 font-mono text-xs text-muted">
-                              {String(k + 1).padStart(2, "0")}
-                            </span>
-                            <span className="font-mono text-sm font-bold">{f.id}</span>
-                            <span className="min-w-0 flex-1 text-sm">
-                              {f.name ? `${f.name} · ` : ""}
-                              {f.gender}, {f.community}, {f.hectares} ha
-                            </span>
-                            <span className={`shrink-0 px-2 py-0.5 font-mono text-xs uppercase ${!d ? "bg-ochre text-ink" : d.selected ? "text-leaf" : "text-muted"}`}>
-                              {!d ? "To decide" : d.selected ? (exception ? "Selected, exception" : "Selected") : "Not selected"}
-                            </span>
-                            {v.can.decide && open !== f.id && (
-                              <button type="button" className={quietBtn} onClick={() => setOpen(f.id)}>
-                                {d ? "Decide again" : "Decide"}
-                              </button>
-                            )}
-                          </div>
-                          {d && (
-                            <p className="px-2 pb-3 ps-11 text-xs text-muted">
-                              {d.byName}, {d.on} · {stale && d.of === undefined ? `${d.met.length} rules met` : `${d.met.length} of ${d.of ?? s.criteria.length} rules met`}
-                              {d.reason ? ` · ${d.reason}` : ""}
-                              {stale ? " · decided under an earlier version of the rules" : ""}
-                              {d.earlier?.length ? ` · changed ${d.earlier.length === 1 ? "once" : `${d.earlier.length} times`}, last because: ${d.earlier[d.earlier.length - 1].why}` : ""}
-                            </p>
-                          )}
-                          {open === f.id && <Decide v={v} f={f} act={act} onClose={() => setOpen(null)} />}
-                        </li>
-                      );
-                    })}
-                  </ol>
+                  GROUPS.map((g) => {
+                    const rows = farmers.filter((f) => (s.decisions[f.id] ? outcomeOf(s, s.decisions[f.id]) : "undecided") === g.key);
+                    if (!rows.length && g.key === "not_selected") return null;
+                    return (
+                      <section key={g.key} className="mt-8" aria-labelledby={`list-${g.key}`}>
+                        <h2 id={`list-${g.key}`} className={`border-s-[6px] ${g.tone} ps-2 font-ledger text-lg font-bold leading-tight`}>
+                          {g.title} <span className="font-mono text-sm font-normal text-muted">{rows.length}</span>
+                        </h2>
+                        {g.key === "not_selected" && <p className="mt-1 text-xs text-muted">Recorded before the app kept waitlists. Decide again to move each one to Waitlisted or Did not qualify.</p>}
+                        {!rows.length ? (
+                          <p className="mt-2 text-sm text-muted">{g.empty}</p>
+                        ) : (
+                          <ol className="mt-2 border-t-2 border-ink">
+                            {rows.map((f, k) => {
+                              const d = s.decisions[f.id];
+                              const o = d ? outcomeOf(s, d) : null;
+                              const stale = d ? isStale(s, d) : false;
+                              const exception = d ? isException(s, d) : false;
+                              const failed = d && o === "not_qualified" ? failedRules(s, d) : [];
+                              return (
+                                <li key={f.id} className={`border-b border-line ${!d ? "border-s-[6px] border-s-ochre" : ""}`}>
+                                  <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-2 py-3">
+                                    <span aria-hidden className="w-6 shrink-0 font-mono text-xs text-muted">
+                                      {String(k + 1).padStart(2, "0")}
+                                    </span>
+                                    <span className="font-mono text-sm font-bold">{f.id}</span>
+                                    <span className="min-w-0 flex-1 text-sm">
+                                      {f.name ? `${f.name} · ` : ""}
+                                      {f.gender}, {f.community}, {f.hectares} ha
+                                    </span>
+                                    <span className={`shrink-0 px-2 py-0.5 font-mono text-xs uppercase ${!o ? "bg-ochre text-ink" : o === "selected" ? "text-leaf" : o === "waitlisted" ? "text-warn" : "text-muted"}`}>
+                                      {!o ? "To decide" : o === "selected" && exception ? "Selected, exception" : outcomeLabel[o]}
+                                    </span>
+                                    {v.can.decide && open !== f.id && (
+                                      <button type="button" className={quietBtn} onClick={() => setOpen(f.id)}>
+                                        {!d ? "Decide" : o === "waitlisted" ? "Select from waitlist" : "Decide again"}
+                                      </button>
+                                    )}
+                                  </div>
+                                  {d && (
+                                    <p className="px-2 pb-3 ps-11 text-xs text-muted">
+                                      {d.byName}, {d.on} · {stale && d.of === undefined ? `${d.met.length} rules met` : `${d.met.length} of ${d.of ?? s.criteria.length} rules met`}
+                                      {failed.length ? ` · not met: ${failed.map((c) => c.text).join("; ")}` : ""}
+                                      {d.reason ? ` · ${d.reason}` : ""}
+                                      {stale ? " · decided under an earlier version of the rules" : ""}
+                                      {d.earlier?.length ? ` · changed ${d.earlier.length === 1 ? "once" : `${d.earlier.length} times`}, last because: ${d.earlier[d.earlier.length - 1].why}` : ""}
+                                    </p>
+                                  )}
+                                  {open === f.id && <Decide v={v} f={f} act={act} onClose={() => setOpen(null)} />}
+                                </li>
+                              );
+                            })}
+                          </ol>
+                        )}
+                      </section>
+                    );
+                  })
                 )}
               </>
             )}

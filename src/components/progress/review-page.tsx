@@ -160,7 +160,7 @@ export function ReviewPage() {
                       <>
                         <p className="mt-2">
                           Spent {money(v.budget.totals.spent)} of {money(v.budget.totals.approved)} {v.budget.currency} approved ({v.budget.totals.approved ? Math.round((v.budget.totals.spent / v.budget.totals.approved) * 100) : 0}%) with{" "}
-                          {v.budget.timeGone === null ? "—" : `${Math.round(v.budget.timeGone * 100)}%`} of the time gone, to {v.budget.period.to}. Forecast at completion {money(v.budget.totals.forecast)}.
+                          {v.budget.timeGone === null ? "—" : `${Math.round(v.budget.timeGone * 100)}%`} of the time gone, to {v.budget.period.to}. Expected total at the end {money(v.budget.totals.forecast)}.
                         </p>
                         <p className="mt-2">
                           {v.budget.flagged.length} budget {v.budget.flagged.length === 1 ? "line needs" : "lines need"} a look.{" "}
@@ -170,13 +170,19 @@ export function ReviewPage() {
                         </p>
                       </>
                     ) : (
-                      <p className="mt-2 text-muted">No spending imported for this phase yet.</p>
+                      <p className="mt-2 text-muted">
+                        No spending imported for this phase yet. Finance imports it on{" "}
+                        <Link href="/progress/budget" className="font-semibold text-forest hover:underline">
+                          Budget
+                        </Link>
+                        .
+                      </p>
                     )}
                   </div>
                   <div className="rounded-2xl border border-line bg-surface p-4 text-sm">
                     <SectionLabel>Open items</SectionLabel>
                     <p className="mt-2">
-                      {v.open.pending} {v.open.pending === 1 ? "result is" : "results are"} waiting for MEL to accept, and {v.open.queried} {v.open.queried === 1 ? "has" : "have"} been queried.{" "}
+                      {v.open.pending} {v.open.pending === 1 ? "result is" : "results are"} waiting for monitoring, evaluation and learning (MEL) to accept, and {v.open.queried} {v.open.queried === 1 ? "has" : "have"} been sent back with a question.{" "}
                       <Link href="/progress/results" className="font-semibold text-forest hover:underline">
                         Results and proof
                       </Link>

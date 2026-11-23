@@ -147,7 +147,7 @@ export function FieldRecords({ code }: { code: string }) {
                         }}
                         className={`${quietBtn} py-1.5`}
                       >
-                        Query
+                        Send back with a question
                       </button>
                     </div>
                   )
@@ -178,7 +178,7 @@ export function FieldRecords({ code }: { code: string }) {
                     className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm focus:border-forest focus:outline-none"
                   />
                   <button type="submit" className={dangerBtn}>
-                    Send query
+                    Send back with a question
                   </button>
                   <button type="button" onClick={() => setQuerying(null)} className="px-2 text-sm text-muted hover:text-ink">
                     Cancel

@@ -60,6 +60,10 @@ const EMPTY_HEAD: HeadFields = { title: "", donor: "", portal: "", folder: "", c
 const EMPTY_ITEM: ItemFields = { ref: "", title: "", kind: "checkbox", owner: null, signer: null, due: null, todo: "", working: "", final: "", points: null, criteria: "", guidance: "", upload: null };
 const num = (v: string) => (v.trim() === "" || Number.isNaN(Number(v)) ? null : Number(v));
 
+/**
+ * The proposal's head. When creating (`extra` holds the opportunity and the starting list), only what is
+ * needed to start shows; the rest sits under "More details" and stays editable on the proposal page.
+ */
 function HeadForm({ start, onSave, onCancel, extra }: { start: HeadFields; onSave: (f: HeadFields) => Promise<void>; onCancel: () => void; extra?: React.ReactNode }) {
   const [f, setF] = useState(start);
   const [rules, setRules] = useState(start.rules.join("\n"));
@@ -68,40 +72,11 @@ function HeadForm({ start, onSave, onCancel, extra }: { start: HeadFields; onSav
   const money = (k: keyof typeof b) => (
     <input className={input} inputMode="decimal" value={b[k] ?? ""} onChange={(e) => setF({ ...f, budget: { ...b, [k]: num(e.target.value) } })} />
   );
-  return (
-    <form
-      className="grid gap-3 sm:grid-cols-2"
-      onSubmit={(e) => {
-        e.preventDefault();
-        void onSave({ ...f, rules: rules.split("\n").map((x) => x.trim()).filter((x) => x.length > 1), targets: targets.filter((t) => t.label.trim().length > 1 && t.at) });
-      }}
-    >
-      <label className="text-sm sm:col-span-2">
-        Proposal
-        <input className={input} value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} required />
-      </label>
-      <label className="text-sm">
-        Donor
-        <input className={input} value={f.donor} onChange={(e) => setF({ ...f, donor: e.target.value })} required />
-      </label>
+  const more = (
+    <>
       <label className="text-sm">
         Currency
         <input className={input} value={f.currency} onChange={(e) => setF({ ...f, currency: e.target.value.toUpperCase().slice(0, 5) })} />
-      </label>
-      {extra}
-      <label className="text-sm">
-        Donor&rsquo;s deadline (on the donor&rsquo;s clock)
-        <input className={input} type="datetime-local" value={f.deadline?.at ?? ""} onChange={(e) => setF({ ...f, deadline: e.target.value ? { at: e.target.value, zone: f.deadline?.zone ?? ZONES[0] } : null })} />
-      </label>
-      <label className="text-sm">
-        Time zone of the deadline
-        <select className={input} value={f.deadline?.zone ?? ZONES[0]} disabled={!f.deadline} onChange={(e) => f.deadline && setF({ ...f, deadline: { ...f.deadline, zone: e.target.value } })}>
-          {[...new Set([...(f.deadline ? [f.deadline.zone] : []), ...ZONES])].map((z) => (
-            <option key={z} value={z}>
-              {placeOf(z)}
-            </option>
-          ))}
-        </select>
       </label>
       <fieldset className="text-sm sm:col-span-2">
         <legend>Our own targets before the deadline, on the donor&rsquo;s clock</legend>
@@ -139,6 +114,48 @@ function HeadForm({ start, onSave, onCancel, extra }: { start: HeadFields; onSav
         How we work until submission, one rule per line
         <textarea className={input} rows={3} value={rules} onChange={(e) => setRules(e.target.value)} placeholder={"Edit files in the shared folder, not in downloaded copies.\nNever delete: old versions go to the archive folder."} />
       </label>
+    </>
+  );
+  return (
+    <form
+      className="grid gap-3 sm:grid-cols-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void onSave({ ...f, rules: rules.split("\n").map((x) => x.trim()).filter((x) => x.length > 1), targets: targets.filter((t) => t.label.trim().length > 1 && t.at) });
+      }}
+    >
+      <label className="text-sm sm:col-span-2">
+        Proposal
+        <input className={input} value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} required />
+      </label>
+      <label className="text-sm">
+        Donor
+        <input className={input} value={f.donor} onChange={(e) => setF({ ...f, donor: e.target.value })} required />
+      </label>
+      {extra}
+      <label className="text-sm">
+        Donor&rsquo;s deadline (on the donor&rsquo;s clock)
+        <input className={input} type="datetime-local" value={f.deadline?.at ?? ""} onChange={(e) => setF({ ...f, deadline: e.target.value ? { at: e.target.value, zone: f.deadline?.zone ?? ZONES[0] } : null })} />
+      </label>
+      <label className="text-sm">
+        Time zone of the deadline
+        <select className={input} value={f.deadline?.zone ?? ZONES[0]} disabled={!f.deadline} onChange={(e) => f.deadline && setF({ ...f, deadline: { ...f.deadline, zone: e.target.value } })}>
+          {[...new Set([...(f.deadline ? [f.deadline.zone] : []), ...ZONES])].map((z) => (
+            <option key={z} value={z}>
+              {placeOf(z)}
+            </option>
+          ))}
+        </select>
+      </label>
+      {extra ? (
+        <details className="rounded-xl border border-line text-sm sm:col-span-2">
+          <summary className="cursor-pointer px-3 py-2.5 font-medium">More details (add later)</summary>
+          <p className="px-3 text-xs text-muted">Currency, targets, links, budget limits and working rules. All of these can be filled in later on the proposal page.</p>
+          <div className="grid gap-3 p-3 sm:grid-cols-2">{more}</div>
+        </details>
+      ) : (
+        more
+      )}
       <div className="flex gap-2 sm:col-span-2">
         <button className={primaryBtn}>Save</button>
         <button type="button" className={quietBtn} onClick={onCancel}>
@@ -613,7 +630,7 @@ function Detail({ p, v, me, act, busy }: { p: P; v: ProposalsView; me: string; a
                 </div>
               </>
             ) : (
-              <p>AI drafting is not switched on here (it needs ANTHROPIC_API_KEY on the server). Add the items by hand, or start a proposal from the standard list or from an earlier one.</p>
+              <p>AI drafting is off; ask your administrator. Meanwhile, add the items by hand, or start a proposal from the standard list or from an earlier one.</p>
             )}
           </form>
         )}

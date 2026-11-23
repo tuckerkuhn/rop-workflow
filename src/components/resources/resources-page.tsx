@@ -5,10 +5,10 @@ import { useState } from "react";
 import { useT } from "@/components/app/i18n";
 import { useRequireUser } from "@/components/app/session";
 import { TopBar } from "@/components/workspace/ui";
-import { DIRTY_DOZEN, GUIDES, NET_INCOME_FLOOR, VIABILITY_TESTS } from "@/lib/resources";
+import { DIRTY_DOZEN, DIRTY_DOZEN_DOC, GUIDES, NET_INCOME_FLOOR, VIABILITY_TESTS } from "@/lib/resources";
 import { TEMPLATE_CSV } from "@/lib/results-import";
 
-/** The resource library: ROP's guides, templates, the viability check and the Dirty Dozen. */
+/** The resource library: ROP's policies and guides, templates, the viability check and the Dirty Dozen. */
 
 const TABS = ["craft", "viability", "dirty-dozen", "templates"] as const;
 type Tab = (typeof TABS)[number];
@@ -112,7 +112,7 @@ export function ResourcesPage() {
             <div>
               <p className="text-sm text-muted">
                 Twelve patterns that make agricultural development fail, in three groups of four. In brief here;{" "}
-                <a href={GUIDES[1].href} target="_blank" rel="noreferrer" className="font-semibold text-forest hover:underline">
+                <a href={DIRTY_DOZEN_DOC.href} target="_blank" rel="noreferrer" className="font-semibold text-forest hover:underline">
                   read the full document
                 </a>{" "}
                 for the field examples, ROP&rsquo;s own included.

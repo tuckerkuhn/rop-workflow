@@ -6,12 +6,15 @@
 const sp = (path: string) => `https://rootsofpeace.sharepoint.com/${path.split("/").map(encodeURIComponent).join("/")}`;
 
 export const GUIDES = [
+  { title: "Policies and manuals", what: "HR, travel, finance and procurement policies. Also grants, and the other manuals the app's rules come from.", href: sp("corp/proc/ROP_Governance_Corpus_Package") },
   { title: "The Craft: How Roots of Peace Builds Agricultural Trade Systems", what: "The investment logic, methodology and operating disciplines behind three decades of ROP's work.", href: sp("corp/Branding/ROP Proof Points & Core Brand Docs/Library/ROP_The_Craft.pdf") },
   { title: "The Dirty Dozen of Development", what: "Twelve patterns that make agricultural development fail, and what ROP does instead (Gary Kuhn, June 2026).", href: sp("corp/Shared Documents/ARLP - Afghanistan Rural Livelihoods Program/06_ROP Internal/01_Governance and Policies/00_Foundation/The Dirty Dozen of Development_June_16_26.docx") },
   { title: "Brand Foundation, Book 3: Proof", what: "ROP's proof points: what the record shows, for funders and the board.", href: sp("corp/proc/ROP_Governance_Corpus_Package/00_Foundation/Book 3 - Proof.docx") },
   { title: "Brand Guidelines", what: "Logo, colour, type, imagery and voice.", href: sp("corp/Branding/ROP Proof Points & Core Brand Docs/Brand/ROP_Brand_Guidelines_v1.pdf") },
-  { title: "Governance corpus: policies and manuals", what: "Procurement, finance, travel, grants and HR policies that the app's rules come from.", href: sp("corp/proc/ROP_Governance_Corpus_Package") },
 ];
+
+/** The Dirty Dozen document, linked from its tab. */
+export const DIRTY_DOZEN_DOC = GUIDES.find((g) => g.title === "The Dirty Dozen of Development")!;
 
 export type Pattern = { n: number; group: "Wrong thinking" | "Wrong work" | "Wrong accountability"; name: string; looksLike: string; instead: string };
 /** The twelve patterns, in brief. The document has the full text and the field examples. */

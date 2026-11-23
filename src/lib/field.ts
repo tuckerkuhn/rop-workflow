@@ -466,6 +466,42 @@ export function moveProblem(stored: string | undefined, item: Pick<FieldItem, "i
   return `${item.id} is at "${name(stored)}" and cannot be saved as "${name(item.step)}". Someone may have updated this farmer since you opened the page: reload and try again.`;
 }
 
+/** What Field activities says when a field step is entered by hand: KoboCollect is the one source of truth. */
+export const KOBO_ONLY = msg("Field visits are recorded in KoboCollect; this page shows them.");
+
+/**
+ * Why a farmer's record may not be changed from the app, or null. Field steps (training, the
+ * readiness visit, distribution, planting) are recorded in KoboCollect and move the farmer once MEL
+ * accepts the form, or the project manager approves the distribution. The app does not tick a
+ * step's checks, move the step, or enter the planting record by hand. Kept: the project manager's
+ * decision to remove a farmer or extend the deadline (a decision, not a visit), and notes on the
+ * record that are not field steps (issues, surveys, photos, stories, the contribution received).
+ */
+export function handRecordProblem(stored: FieldItem | undefined, sent: FieldItem): string | null {
+  if (sent.kind !== "farmer" || stored?.kind !== "farmer") return null;
+  const decision = stored.step === "removal";
+  const changed = (a: unknown, b: unknown) => JSON.stringify(a ?? null) !== JSON.stringify(b ?? null);
+  if (stored.step !== sent.step && !decision) return KOBO_ONLY;
+  const keys = new Set([...Object.keys(stored.checks), ...Object.keys(sent.checks)]);
+  if ([...keys].some((k) => !!stored.checks[k] !== !!sent.checks[k] && !(decision && k.startsWith("removal.")))) return KOBO_ONLY;
+  if (changed(stored.planting, sent.planting)) return KOBO_ONLY;
+  if (!decision && (changed(stored.deadline, sent.deadline) || changed(stored.correction, sent.correction))) return KOBO_ONLY;
+  return null;
+}
+
+/**
+ * The contribution is recorded in the app ("Record contribution received"): no KoboCollect form
+ * asks it. A farmer whose training attendance KoboCollect already recorded, but who stayed at Train
+ * because the contribution was unpaid (server/review applyTraining), moves on to Prepare the plot
+ * once it is recorded, as an accepted attendance would have moved them. Otherwise `sent` unchanged.
+ */
+export function afterContribution(stored: FieldItem | undefined, sent: FieldItem, date: string): FieldItem {
+  if (sent.kind !== "farmer" || stored?.kind !== "farmer") return sent;
+  if (stored.contributionPaid || !sent.contributionPaid || stored.step !== "train" || sent.step !== "train") return sent;
+  if (!sent.enrolled || !sent.checks["train.attended"] || !sent.checks["train.register"]) return sent;
+  return { ...sent, step: "prepare", timeline: [...sent.timeline, { date, who: "system", what: "Contribution received; training already recorded from KoboCollect: moved to Prepare the plot" }] };
+}
+
 export const ownerOfItem = (i: FieldItem): FieldRole | null => {
   const s = fieldSteps[i.step];
   if (!s) return null;

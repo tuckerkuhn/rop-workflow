@@ -13,6 +13,7 @@ import { Pill, TopBar, primaryBtn, quietBtn, Loading, StatusPill } from "@/compo
 import type { Receipt } from "@/lib/expense";
 import { CONSENT_HOW, CONSENT_USES, HOW_LABEL, USE_LABEL, type StoryAction, type StoryInput } from "@/lib/stories";
 import type { storiesView } from "@/server/stories-store";
+import { lastEndedQuarter, useReportQuarter } from "@/components/progress/use-report-quarter";
 
 /**
  * Success stories: the person's consent first, then interview notes and the records the story is
@@ -24,10 +25,6 @@ type View = Awaited<ReturnType<typeof storiesView>>;
 type StoryRow = View["stories"][number];
 const input = "mt-1 block w-full rounded-xl border border-line bg-paper px-3 py-2 text-base";
 const today = () => new Date().toISOString().slice(0, 10);
-const quarterNow = () => {
-  const d = today();
-  return `${d.slice(0, 4)}-Q${Math.floor((Number(d.slice(5, 7)) - 1) / 3) + 1}`;
-};
 const blank = (): StoryInput => ({ title: "", notes: "", text: "", photos: [], consent: null, links: [] });
 
 function Editor({ v, start, user, act, onClose }: { v: View; start: StoryRow | null; user: string; act: (a: StoryAction, msg: string) => Promise<string | undefined>; onClose: () => void }) {
@@ -268,6 +265,8 @@ export function StoriesPage() {
   const [open, setOpen] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  // The quarter whose report is due: the one the quarterly report opens on (same helper).
+  const reportQ = useReportQuarter(project.id, user?.id, ready && project.saved) ?? lastEndedQuarter();
   const url = `/api/projects/${project.id}/stories`;
   const load = useCallback(async () => {
     if (!user) return;
@@ -326,7 +325,9 @@ export function StoriesPage() {
         {v && open !== null && <Editor v={v} start={editing} user={user.id} act={act} onClose={() => setOpen(null)} />}
         {v && open === null && (
           <ul className="mt-5 space-y-3">
-            {v.stories.length === 0 && <li className="rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">No stories yet.</li>}
+            {v.stories.length === 0 && <li className="rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">
+                No stories yet. {v.may.write ? "Start one with + New story: record the person's consent, add interview notes, and Claude can draft it." : "Staff who write stories start one with + New story."}
+              </li>}
             {v.stories.map((s) => (
               <li key={s.id} className="rounded-2xl border border-line bg-surface p-4">
                 <div className="flex flex-wrap items-start gap-2">
@@ -367,13 +368,19 @@ export function StoriesPage() {
                       type="button"
                       className={quietBtn}
                       onClick={() =>
-                        void askConfirm({ message: `Use this as the ${quarterNow().replace("-", " ")} report's Human Interest Story? It replaces what is there.`, confirm: "Use in the report" }).then(
-                          (ok) => (ok ? act({ action: "to-report", id: s.id, quarter: quarterNow() }, "Placed in the report's Human Interest Story.") : undefined),
+                        void askConfirm({ message: `Use this as the ${reportQ.replace("-", " ")} report's Human Interest Story? It replaces what is there.`, confirm: "Use in the report" }).then(
+                          (ok) => (ok ? act({ action: "to-report", id: s.id, quarter: reportQ }, "Placed in the report's Human Interest Story.") : undefined),
                         )
                       }
                     >
-                      Use in the {quarterNow().replace("-", " ")} report
+                      Use in the {reportQ.replace("-", " ")} report
                     </button>
+                  )}
+                  {/* Why Approve is off, in words: a hover title never shows on a phone. */}
+                  {v.may.approve && s.status === "draft" && (!s.consent || s.text.length < 50) && (
+                    <span className="basis-full text-xs text-muted">
+                      {!s.consent ? "Record the person's consent first, then it can be approved." : `Write at least 50 characters of the story before approving (${s.text.length} so far).`}
+                    </span>
                   )}
                   {s.status === "approved" && s.reportBlock && <span className="self-center text-xs text-muted">Not for donor reports: {s.reportBlock}</span>}
                   {v.may.approve && s.status === "approved" && (

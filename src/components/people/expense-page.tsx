@@ -180,9 +180,16 @@ export function ExpensePage() {
             <h1 className="font-display text-3xl tracking-tight">{t("exp.title")}</h1>
             <p className="mt-1 max-w-2xl text-sm text-muted">{t("exp.intro")}</p>
           </div>
-          <Link href="/people" className="text-sm font-semibold text-forest hover:underline">
-            {t("exp.people")}
-          </Link>
+          {/* HR roles go back to People; everyone else came from Home. */}
+          {v?.seesAll ? (
+            <Link href="/people" className="text-sm font-semibold text-forest hover:underline">
+              {t("exp.people")}
+            </Link>
+          ) : (
+            <Link href="/home" className="text-sm font-semibold text-forest hover:underline">
+              ← {t("nav.home")}
+            </Link>
+          )}
         </div>
         {error && (
           <p role="alert" className="mt-4 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">
@@ -255,6 +262,15 @@ export function ExpensePage() {
                       {t("exp.newReport", { month: monthName(m) })}
                     </button>
                   ))}
+                {/* A month that already has a report gets no "new report" button; say where to add to it instead. */}
+                {[thisMonth, lastMonth]
+                  .filter((m) => v.mine.some((r) => r.month === m && r.status !== "returned" && r.status !== "withdrawn"))
+                  .map((m) => (
+                    <p key={m} className="w-full text-sm text-muted">
+                      {t("exp.addToMonth", { month: monthName(m) })}
+                    </p>
+                  ))}
+                <p className="w-full text-xs text-muted">{t("exp.olderMonths")}</p>
               </section>
             )}
             {v.mine.length > 0 && <List title={t("exp.yours")} items={v.mine} v={v} monthName={monthName} onOpen={show} />}
@@ -356,7 +372,7 @@ function Detail({ v, monthName, back, act, revise }: { v: ExpenseView; monthName
             </div>
             <p className="ms-9 text-xs text-muted">
               {l.date} · {t(CAT_KEY[l.category])}
-              {CATEGORIES[l.category].gl ? ` (GL ${CATEGORIES[l.category].gl})` : ""} · {label(l.source)}
+              {(r.canSign || v.seesAll) && CATEGORIES[l.category].gl ? ` (GL ${CATEGORIES[l.category].gl})` : ""} · {label(l.source)}
               {l.perDiem && ` · ${t("exp.perDiemLine", { place: l.perDiem.place, start: l.perDiem.start, end: l.perDiem.end, rate: l.perDiem.rate })}`}
               {l.category === "mileage" && ` · ${t("exp.mileageLine", { miles: l.miles ?? "", rate: mileageRateOf(l) })}`}
             </p>
@@ -371,7 +387,7 @@ function Detail({ v, monthName, back, act, revise }: { v: ExpenseView; monthName
           </li>
         ))}
       </ul>
-      <Totals report={r.report} v={v} />
+      <Totals report={r.report} v={v} codes={r.canSign || v.seesAll} />
       {r.cannotSign && <p className="text-sm text-muted">{t("exp.cannotSign", { reason: r.cannotSign })}</p>}
       {note === null ? (
         <div className="flex flex-wrap gap-2">
@@ -416,7 +432,8 @@ function Detail({ v, monthName, back, act, revise }: { v: ExpenseView; monthName
   );
 }
 
-function Totals({ report, v }: { report: Report; v: ExpenseView }) {
+/** `codes`: show the accounting (GL) codes, for Finance and approvers only. */
+function Totals({ report, v, codes = v.seesAll }: { report: Report; v: ExpenseView; codes?: boolean }) {
   const { t } = useT();
   const s = useMemo(() => summary(report), [report]);
   const label = useSourceLabel(v);
@@ -428,7 +445,7 @@ function Totals({ report, v }: { report: Report; v: ExpenseView }) {
           {(Object.entries(s.byCategory) as [Category, number][]).map(([c, a]) => (
             <li key={c} className="flex justify-between gap-3">
               <span className="truncate">
-                {CATEGORIES[c].gl ? `${CATEGORIES[c].gl} ` : ""}
+                {codes && CATEGORIES[c].gl ? `${CATEGORIES[c].gl} ` : ""}
                 {t(CAT_KEY[c])}
               </span>
               <span className="tabular-nums">{money(a, report.currency)}</span>
@@ -523,6 +540,11 @@ function Editor({
         </div>
       )}
       <p className="text-sm text-muted">{t("exp.currencyNote", { currency: report.currency })}</p>
+      {report.lines.length > 0 && (
+        <p role="status" className="rounded-xl border border-warn/40 bg-ochre-soft px-4 py-3 text-sm font-semibold text-warn">
+          {t("exp.unsent")}
+        </p>
+      )}
       {report.lines.length > 0 && (
         <ul className="divide-y divide-line rounded-2xl border border-line bg-surface">
           {report.lines.map((l, i) => (
@@ -643,7 +665,7 @@ function LineForm({ v, month, currency, line, onSave, onCancel }: { v: ExpenseVi
             {CATEGORY_KEYS.filter((c) => c !== "mileage" || currency === "USD").map((c) => (
               <option key={c} value={c}>
                 {t(CAT_KEY[c])}
-                {CATEGORIES[c].gl ? ` (${CATEGORIES[c].gl})` : ""}
+                {v.seesAll && CATEGORIES[c].gl ? ` (${CATEGORIES[c].gl})` : ""}
               </option>
             ))}
           </select>

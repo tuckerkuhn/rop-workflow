@@ -125,7 +125,13 @@ export function toSubmission(row: EvidenceRow): Submission {
     // kobo/build_field_forms.py, farm visit after planting.
     for (const k of Object.keys(fields)) delete fields[k];
     Object.assign(fields, { purpose: label(str(p.purpose)), both_present: yn(p.both_present), planted: yn(p.planted) });
-    if (str(p.planted) === "yes") Object.assign(fields, { planting_date: str(p.planting_date), spacing: yn(p.spacing_ok) });
+    if (str(p.planted) === "yes") {
+      Object.assign(fields, { planting_date: str(p.planting_date), spacing: yn(p.spacing_ok) });
+      // The planting record: the number planted for a crop counted one by one, else the area in hectares.
+      const num = (v: unknown) => (typeof v === "number" ? String(v) : str(v).trim());
+      if (num(p.number_planted)) fields.count = num(p.number_planted);
+      if (num(p.area_planted)) fields.area = num(p.area_planted);
+    }
     if (str(p.planted) === "no" || str(p.spacing_ok) === "no") fields.issue = str(p.issue);
   }
   return {

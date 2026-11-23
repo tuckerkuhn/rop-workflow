@@ -4,7 +4,7 @@ import { Arrow } from "@/components/app/arrow";
 import Link from "next/link";
 import { THEMES, THEME_LABEL, type ImpactTheme } from "@/lib/indicator-library";
 import { ProgressSummaryPanel } from "@/components/progress/progress-summary";
-import { ReportCalendar } from "@/components/progress/report-calendar";
+import { NextReportLine, ReportCalendar, useReportCalendar } from "@/components/progress/report-calendar";
 import { IndicatorTable } from "@/components/progress/indicator-table";
 import { today as todayIso } from "@/lib/clock";
 import { targetGroups } from "@/lib/framework";
@@ -43,6 +43,7 @@ export function ProgressPage() {
   const [syncNote, setSyncNote] = useState("");
   const [syncFailed, setSyncFailed] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const calendar = useReportCalendar();
   const closeExport = useCallback(() => setExporting(false), []);
   // A donor is shown the judgment staff see (the workplan status behind the monthly review and the
   // reports, lib/target-status), not a second one worked out from the forecast line. null: still loading.
@@ -102,13 +103,9 @@ export function ProgressPage() {
             </button>
           )}
         </div>
+        {staff && <NextReportLine rows={calendar} />}
         {/* Database projects open on what to celebrate and what needs attention. */}
         {staff && project.saved && <ProgressSummaryPanel projectId={project.id} userId={user.id} />}
-        {staff && project.saved && (
-          <div className="mt-6 max-w-md">
-            <StageControl project={project} stage={stage} />
-          </div>
-        )}
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <DonorFilter donors={donors} donor={donor} onChange={setDonor} />
           {canSync && (
@@ -151,7 +148,7 @@ export function ProgressPage() {
                   </span>
                   <ul className="mt-3 grid gap-3 sm:grid-cols-2">
                     {g.list.map((i) => (
-                      <IndicatorCard key={i.code} i={i} donorCode={donor?.indicatorRefs[i.code] || i.donorCode || undefined} canMap={editor} judged={donorView ? (judged?.[i.code] ?? null) : undefined} />
+                      <IndicatorCard key={i.code} i={i} donorCode={donor?.indicatorRefs[i.code] || i.donorCode || undefined} canMap={editor} staff={staff} judged={donorView ? (judged?.[i.code] ?? null) : undefined} />
                     ))}
                   </ul>
                 </section>
@@ -171,7 +168,7 @@ export function ProgressPage() {
           </>
         )}
 
-        {staff && <ReportCalendar />}
+        {staff && <ReportCalendar rows={calendar} />}
 
         {staff && (
           <p className="mt-10 flex flex-wrap gap-x-6 gap-y-2 border-t border-line pt-4 text-sm">
@@ -195,6 +192,12 @@ export function ProgressPage() {
             </span>
           </p>
         )}
+        {/* Moving the project to its next stage: after the targets and links, not before them. */}
+        {staff && project.saved && (
+          <div className="mt-8 max-w-md">
+            <StageControl project={project} stage={stage} />
+          </div>
+        )}
       </main>
       {exporting && doc && data && <ExportSheet doc={doc} name={fileName(data, donor)} donor={donor} onClose={closeExport} />}
     </div>
@@ -206,7 +209,8 @@ const TRACK_TONE: Record<TrackStatus, string> = { on_track: "text-leaf", slightl
 const JUDGED_TONE = { forest: "text-leaf", clay: "text-clay", muted: "text-muted" } as const;
 
 /** `judged`: the status staff see for this target, for a donor's card. undefined: not a donor's card (the forecast line judges); null: not loaded yet, or a target the workplan does not judge. */
-function IndicatorCard({ i, donorCode, canMap, judged }: { i: IndicatorProgress; donorCode?: string; canMap: boolean; judged?: TargetStatus | null }) {
+/** `staff`: a Roots of Peace employee. A donor sees no internal codes, no review queue and no link to the records (staff-only). */
+function IndicatorCard({ i, donorCode, canMap, staff, judged }: { i: IndicatorProgress; donorCode?: string; canMap: boolean; staff: boolean; judged?: TargetStatus | null }) {
   const { t, date } = useT();
   const pct = i.total === null || !i.target ? 0 : Math.min(100, Math.round((i.total / i.target) * 100));
   const missing = missingData(i);
@@ -215,7 +219,7 @@ function IndicatorCard({ i, donorCode, canMap, judged }: { i: IndicatorProgress;
     <li className="rounded-2xl border border-line bg-surface p-5">
       <div className="flex items-start justify-between gap-3">
         <h3 className="font-medium leading-snug">{i.name}</h3>
-        <span className="shrink-0 font-mono text-xs text-muted">{donorCode || i.code}</span>
+        {(donorCode || staff) && <span className="shrink-0 font-mono text-xs text-muted">{donorCode || i.code}</span>}
       </div>
         {i.theme && (THEMES as readonly string[]).includes(i.theme) && <span className="mt-1 inline-block rounded-full bg-mist px-2 py-0.5 text-xs font-semibold text-forest">{t(THEME_LABEL[i.theme as ImpactTheme])}</span>}
       <p className="mt-3 flex items-baseline gap-2">
@@ -269,9 +273,9 @@ function IndicatorCard({ i, donorCode, canMap, judged }: { i: IndicatorProgress;
         ) : (
           <span className="text-forest">{t(i.frequency === "monthly" ? "progress.thisMonth" : "progress.thisQuarter", { n: i.period ?? 0 })}</span>
         )}
-        {i.pending > 0 && <span className="text-warn">{t("progress.pending", { n: i.pending })}</span>}
+        {staff && i.pending > 0 && <span className="text-warn">{t("progress.pending", { n: i.pending })}</span>}
         {i.lastDate && <span className="text-muted">{t("progress.last", { date: date(i.lastDate) })}</span>}
-        {i.dataSource === "results" && (
+        {staff && i.dataSource === "results" && (
           <Link href={`/progress/results?indicator=${i.code}`} className="btn-link">
             Records and proof <Arrow />
           </Link>
@@ -356,6 +360,12 @@ function ExportSheet({ doc, name, donor, onClose }: { doc: ReportDoc; name: stri
         </h2>
         <p className="mt-1 text-sm text-muted">
           {donor?.name ?? t("donor.all")} · <Pill tone="muted">{t(formatById(donor?.reportFormat).label)}</Pill>
+        </p>
+        <p className="mt-2 text-sm">
+          {t("progress.exportNote")}{" "}
+          <Link href="/progress/report" className="font-semibold text-forest hover:underline">
+            {t("progress.nextReportOpen")}
+          </Link>
         </p>
         <div className="mt-5 grid gap-2">
           <button type="button" onClick={print} className={primaryBtn}>

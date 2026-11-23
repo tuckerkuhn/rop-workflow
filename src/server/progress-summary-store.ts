@@ -104,7 +104,7 @@ export async function loadProgressSummary(code: string, u: AppUser) {
   const pending = v.results.filter((r) => r.status === "pending").length;
   if (pending) concerns.push({ key: "pending", level: "warning", text: `${pending} ${pending === 1 ? "result is" : "results are"} waiting for MEL`, why: "They do not count in reports until accepted.", href: "/progress/results" });
   const queried = v.results.filter((r) => r.status === "queried").length;
-  if (queried) concerns.push({ key: "queried", level: "warning", text: `${queried} ${queried === 1 ? "result was" : "results were"} queried by MEL`, why: "The person who recorded each needs to answer it.", href: "/progress/results" });
+  if (queried) concerns.push({ key: "queried", level: "warning", text: `${queried} ${queried === 1 ? "result was" : "results were"} sent back by MEL with a question`, why: "The person who recorded each needs to answer it.", href: "/progress/results" });
   const noProof = accepted.filter((r) => r.date >= `${today.slice(0, 4)}-01-01` && !proofCount(r)).length;
   if (noProof) concerns.push({ key: "proof", level: "warning", text: `${noProof} accepted ${noProof === 1 ? "result has" : "results have"} no proof attached this year`, why: "Every figure in a donor report should click through to its evidence.", href: "/progress/results" });
   // What blocks the report, counted by pre-flight as Home counts it (server/next-report).

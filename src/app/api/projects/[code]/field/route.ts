@@ -6,13 +6,18 @@ import { docLinksSchema } from "@/lib/doc-links";
 import type { FieldItem } from "@/lib/field";
 import { requireViewer } from "@/server/auth";
 import { keepHidden, loadField, saveEdited, saveStock } from "@/server/field-store";
-import { countPlanting, recordFromApp, stockFor } from "@/server/distribution";
-import { moveProblem, stepRefusal, type Farmer } from "@/lib/field";
+import { stockFor } from "@/server/distribution";
+import { afterContribution, handRecordProblem, moveProblem, stepRefusal, type Farmer } from "@/lib/field";
 import { today } from "@/lib/clock";
-import { hectaresFor } from "@/lib/crops";
+import { projectByCode } from "@/server/field-store";
+import { selectionOutcomes } from "@/server/selection-store";
 import { audit, handle, HttpError, readBody } from "@/server/guard";
 
-/** Field activities state for a project. Names are included only for roles allowed to see them. */
+/**
+ * Field activities state for a project. Names are included only for roles allowed to see them.
+ * `selection`: each decided farmer's selection outcome by number, or null when the project does not
+ * use selection; the page keeps waitlisted farmers and those who did not qualify out of the queue.
+ */
 export async function GET(req: Request, { params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
   return handle(async () => {
@@ -21,8 +26,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
     const field = await loadField(code, v.user);
     // One figure for the store: what purchases have received less what has been handed out.
     // A project with no purchase for the package keeps the stock typed in Field activities.
-    const derived = await stockFor(code);
-    return NextResponse.json({ ...field, stock: derived?.stock ?? field.stock, stockFrom: derived ? "purchases" : "store", stockNote: derived?.block ?? null });
+    const [derived, selection] = await Promise.all([stockFor(code), projectByCode(code).then((p) => selectionOutcomes(p.id))]);
+    return NextResponse.json({ ...field, stock: derived?.stock ?? field.stock, stockFrom: derived ? "purchases" : "store", stockNote: derived?.block ?? null, selection });
   });
 }
 
@@ -66,7 +71,11 @@ const bodySchema = z.object({
   stock: z.record(z.string().regex(/^[a-z][a-z0-9_]{0,29}$/), z.number().min(0).max(1e9)).optional(),
 });
 
-/** Saves changed items and/or the store stock. */
+/**
+ * Saves changed items and/or the store stock. Field steps are not entered here: they come from
+ * KoboCollect (lib/field handRecordProblem). What is saved is the project manager's remove-or-extend
+ * decision, MEL findings, issues, and notes on a farmer's record.
+ */
 export async function PUT(req: Request, { params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
   return handle(async () => {
@@ -74,8 +83,6 @@ export async function PUT(req: Request, { params }: { params: Promise<{ code: st
     if (v instanceof NextResponse) return v;
     const body = await readBody(req, bodySchema, "That record is not complete, so it was not saved. Reload the page and try again.");
     const sent: FieldItem[] = body.items ?? [];
-    // A farmer leaving "distribute" means the input package was handed out: check the goods
-    // received note and quantities first (refused if not), then it goes to the manager to approve.
     const field = await loadField(code, v.user);
     const stored = new Map(field.items.map((i) => [i.id, i]));
     // What was hidden from this person (the farmer's name in text and links) is kept, from the records as stored.
@@ -85,57 +92,32 @@ export async function PUT(req: Request, { params }: { params: Promise<{ code: st
     // A stale page never writes over newer work: each record must be the version the page read.
     const stale = items.find((i) => stored.has(i.id) && stored.get(i.id)!.rev !== i.rev);
     if (stale) throw new HttpError(409, `${stale.kind === "farmer" ? `Farmer ${stale.id}` : `Finding ${stale.id}`} was changed by someone else since you opened this page, so your change was not saved. The page now shows the latest; make your change again.`);
+    // Field steps come from KoboCollect: ticking a check, moving a step or entering planting by hand is refused.
+    const byHand = items.map((i) => handRecordProblem(raw.get(i.id), i)).find(Boolean);
+    if (byHand) return NextResponse.json({ error: byHand }, { status: 409 });
     // A farmer moves only along the workflow, from the step the database holds (lib/field moveProblem),
     // by the step's owner, with its checks done (stepRefusal): the screen's rules, enforced here.
     const derivedBefore = await stockFor(code);
     const ctx = { stock: derivedBefore?.stock ?? field.stock ?? {}, stockNote: derivedBefore?.block ?? null, setup: field.setup ?? { items: [] }, today: today() };
     const wrong = items.map((i) => moveProblem(before.get(i.id), i) ?? (raw.has(i.id) ? stepRefusal(raw.get(i.id)!, i, v.user.field, ctx) : null)).find(Boolean);
     if (wrong) return NextResponse.json({ error: wrong }, { status: 409 });
-    // The planting record is entered at "Plant and follow up", by the extension agent, and is
-    // fixed once planting is recorded: the result counted from it never changes under MEL.
-    for (const i of items) {
-      if (i.kind !== "farmer") continue;
-      const was = raw.get(i.id);
-      const before = was?.kind === "farmer" ? was.planting : undefined;
-      if (JSON.stringify(before ?? null) === JSON.stringify(i.planting ?? null)) continue;
-      if (was?.step !== "plant") return NextResponse.json({ error: `Farmer ${i.id}: the planting record can only be entered at "Plant and follow up"${was?.step === "complete" ? ", and this farmer's planting is already recorded" : ""}.` }, { status: 409 });
-      if (!v.user.field.includes("extension")) return NextResponse.json({ error: `Farmer ${i.id}: the planting record is for the extension agent to enter.` }, { status: 403 });
-      // For a crop counted one by one, the hectares are worked out from the count, never typed (lib/crops).
-      const fromCount = i.planting?.count !== undefined ? hectaresFor(i.planting.count, ctx.setup.plan) : null;
-      if (i.planting && fromCount !== null && Math.abs(fromCount - i.planting.hectares) > 0.005) return NextResponse.json({ error: `Farmer ${i.id}: ${i.planting.count} planted at the project's spacing is ${fromCount} ha, not ${i.planting.hectares}. Reload and save again.` }, { status: 400 });
-    }
     // Server-owned: whether a distribution waits for approval is never taken from the page.
     for (const i of items) {
       const was = raw.get(i.id);
       if (i.kind === "farmer") (i as Farmer).awaiting = was?.kind === "farmer" ? was.awaiting : undefined;
     }
-    // Inputs handed out: the farmer stays at "distribute" until the project manager approves
-    // (server/distribution moves them on), the same as a distribution from KoboCollect.
-    const handedOut = items.filter((i): i is Farmer => i.kind === "farmer" && before.get(i.id) === "distribute" && i.step === "plant");
     // Each new history entry gets the time it was saved; older ones keep theirs (lib/history).
     const now = new Date();
-    const toSave = items
-      .map((i) => (handedOut.includes(i as Farmer) ? { ...i, step: "distribute" } : i))
-      .map((i) => ({ ...i, timeline: stampHistory(raw.get(i.id)?.timeline, i.timeline ?? [], now) }) as FieldItem);
+    // The contribution is recorded here (no KoboCollect form asks it): a farmer whose training KoboCollect
+    // already recorded moves on to Prepare the plot once it is paid (lib/field afterContribution).
+    const toSave = items.map((i) => afterContribution(raw.get(i.id), i, ctx.today)).map((i) => ({ ...i, timeline: stampHistory(raw.get(i.id)?.timeline, i.timeline ?? [], now) }) as FieldItem);
     const revs = toSave.length ? await saveEdited(code, toSave) : {};
-    const recorded: string[] = [];
-    for (const f of handedOut) recorded.push(await recordFromApp(code, f, v.user, new URL(req.url).origin));
-    // Planting recorded: when the project's target counts at planting, the farmer counts toward it now.
-    const results: string[] = [];
-    let planted = 0;
-    for (const i of items)
-      if (i.kind === "farmer" && before.get(i.id) === "plant" && i.step === "complete") {
-        const r = await countPlanting(code, i, v.user);
-        if (r) planted += 1;
-        if (r?.result) results.push(r.result);
-      }
     // The store's stock follows the purchases when they supply the package; a typed figure is kept only when none does.
     const derived = await stockFor(code);
     const typed = body.stock && !derived ? body.stock : undefined;
     if (typed) await saveStock(code, typed);
     if (items.length || typed)
-      await audit(code, { entity: "field", entityId: crypto.randomUUID(), action: "field_saved", by: v.user.id, detail: { items: items.map((i) => ({ id: i.id, kind: i.kind, step: i.step })), ...(typed ? { stock: typed } : {}), ...(recorded.length ? { distributions: recorded } : {}), ...(results.length ? { results } : {}) } });
-    // planted: the farmer's history gained a line saying whether it counted; the page reloads to show it.
-    return NextResponse.json({ ok: true, revs, distributions: recorded, results, planted, ...(derived ? { stock: derived.stock, stockNote: derived.block } : {}) });
+      await audit(code, { entity: "field", entityId: crypto.randomUUID(), action: "field_saved", by: v.user.id, detail: { items: items.map((i) => ({ id: i.id, kind: i.kind, step: i.step })), ...(typed ? { stock: typed } : {}) } });
+    return NextResponse.json({ ok: true, revs, ...(derived ? { stock: derived.stock, stockNote: derived.block } : {}) });
   });
 }

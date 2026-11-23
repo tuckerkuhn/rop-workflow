@@ -218,7 +218,12 @@ function Register({ lines, totals, v, adjust, onAdjust }: { lines: Line[]; total
               <th className="px-3 py-2 text-end font-medium">Allowances</th>
               <th className="px-3 py-2 text-end font-medium">Adjustments</th>
               <th className="px-3 py-2 text-end font-medium">Gross</th>
-              {ho ? <th className="px-3 py-2 text-end font-medium">403(b) EE / ROP</th> : <th className="px-3 py-2 text-end font-medium">Tax</th>}
+              {ho ? <th className="px-3 py-2 text-end font-medium">
+                  403(b) EE / ROP{" "}
+                  <a href="#about-403b" title={ABOUT_403B} aria-label={`What is 403(b)? ${ABOUT_403B}`} className="rounded-full border border-line px-1.5 text-forest hover:border-forest">
+                    ?
+                  </a>
+                </th> : <th className="px-3 py-2 text-end font-medium">Tax</th>}
               <th className="px-3 py-2 text-end font-medium">Net</th>
             </tr>
           </thead>
@@ -289,6 +294,11 @@ function Register({ lines, totals, v, adjust, onAdjust }: { lines: Line[]; total
           </tfoot>
         </table>
       </div>
+      {ho && (
+        <p id="about-403b" className="text-xs text-muted">
+          {ABOUT_403B}
+        </p>
+      )}
       <div className="rounded-2xl border border-line bg-surface p-4">
         <SectionLabel>Cost by funding source ({cur}, gross plus ROP&apos;s 403(b))</SectionLabel>
         <ul className="mt-2 grid gap-1 text-sm sm:grid-cols-2">
@@ -598,6 +608,7 @@ function Prepare({ v, supplemental, onDone }: { v: PayrollView; supplemental: bo
   );
 }
 
+const ABOUT_403B = "403(b) is the US retirement savings plan for non-profit staff. EE is what the employee puts in from their pay; ROP is what ROP adds on top.";
 const totals0: Totals = { gross: 0, net: 0, ee403b: 0, er403b: 0, tax: 0, advance: 0, expenses: 0, cost: {} };
 
 function AdjustForm({ name, value, onSave, onClose }: { name: string; value: Adjustment; onSave: (a: Adjustment) => void; onClose: () => void }) {

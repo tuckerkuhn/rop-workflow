@@ -35,10 +35,12 @@ export function SettingsPage() {
     <div className="min-h-screen">
       <TopBar />
       <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-        <h1 className="font-display text-4xl tracking-tight">Settings</h1>
+        <h1 className="font-display text-4xl tracking-tight">Settings: you and {project.name}</h1>
 
         {/* You: how you sign in and what reaches you. */}
-        <h2 className="mt-8 border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">You</h2>
+        <h2 id="you" className="mt-8 scroll-mt-24 border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">
+          You: your password and notifications
+        </h2>
         <PasswordSection />
         <NotifySection />
         {mode === "live" && (

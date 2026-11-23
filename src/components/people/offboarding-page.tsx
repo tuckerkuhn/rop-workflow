@@ -3,8 +3,9 @@
 import { plainError } from "@/lib/plain-error";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { useT } from "@/components/app/i18n";
 import { useRequireUser, useSession } from "@/components/app/session";
-import { Pill, TopBar, primaryBtn } from "@/components/workspace/ui";
+import { Pill, TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { OFF_OWNER_LABEL, type OffAction } from "@/lib/offboarding";
 import type { OffboardingView } from "@/server/offboarding-view";
 
@@ -17,7 +18,7 @@ async function call(user: string, init?: RequestInit): Promise<OffboardingView> 
   return body as OffboardingView;
 }
 
-function Step({ person, s, act }: { person: string; s: OffboardingView["leavers"][number]["steps"][number]; act: (a: OffAction) => Promise<void> }) {
+function Step({ person, s, act, fmt }: { person: string; s: OffboardingView["leavers"][number]["steps"][number]; act: (a: OffAction) => Promise<void>; fmt: (iso: string) => string }) {
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState("");
   return (
@@ -32,7 +33,7 @@ function Step({ person, s, act }: { person: string; s: OffboardingView["leavers"
           </p>
           {s.done ? (
             <p className="text-xs text-muted">
-              {s.done.byName}, {s.done.at.slice(0, 10)}
+              {s.done.byName}, {fmt(s.done.at)}
               {s.done.note ? `: ${s.done.note}` : ""}
             </p>
           ) : (
@@ -66,6 +67,8 @@ function Step({ person, s, act }: { person: string; s: OffboardingView["leavers"
 export function OffboardingPage() {
   const { user } = useRequireUser();
   const { ready } = useSession();
+  const { date } = useT();
+  const fmt = (iso: string) => date(iso.slice(0, 10), { day: "numeric", month: "short", year: "numeric" });
   const [v, setV] = useState<OffboardingView | null>(null);
   const [error, setError] = useState("");
   const load = useCallback(async () => {
@@ -93,9 +96,14 @@ export function OffboardingPage() {
     <div className="min-h-screen">
       <TopBar />
       <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-        <Link href="/people" className="text-sm text-muted hover:text-ink">
-          ← People
-        </Link>
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <Link href="/people" className="text-sm text-muted hover:text-ink">
+            ← People
+          </Link>
+          <Link href="/onboarding" className="text-sm font-semibold text-forest hover:underline">
+            Starting at ROP →
+          </Link>
+        </div>
         <h1 className="mt-2 font-display text-4xl tracking-tight">Leaving and renewals</h1>
         <p className="mt-1 text-sm text-muted">A checklist starts by itself when someone&rsquo;s leaving is approved in the HR record. Each step is done by the person who owns it and kept in the record.</p>
         {error && <p className="mt-4 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">{error}</p>}
@@ -113,12 +121,26 @@ export function OffboardingPage() {
                       <span className="min-w-0 flex-1">
                         <span className="font-semibold">{r.name}</span> <span className="text-muted">· {r.title}{r.supervisor ? ` · supervisor ${r.supervisor}` : ""}</span>
                       </span>
-                      <Pill tone={r.overdue ? "clay" : "ochre"}>{r.overdue ? `Ended ${r.contractEnd}` : `Ends ${r.contractEnd}`}</Pill>
+                      <Pill tone={r.overdue ? "clay" : "ochre"}>{r.overdue ? `Ended ${fmt(r.contractEnd)}` : `Ends ${fmt(r.contractEnd)}`}</Pill>
+                      {v.isHr && (
+                        <span className="flex w-full gap-2 sm:w-auto">
+                          <Link href={`/people?person=${encodeURIComponent(r.person)}&change=contractEnd`} className={primaryBtn}>
+                            Renew
+                          </Link>
+                          <Link href={`/people?person=${encodeURIComponent(r.person)}&change=leave`} className={quietBtn}>
+                            Record leaving
+                          </Link>
+                        </span>
+                      )}
                     </li>
                   ))}
                 </ul>
               )}
-              {v.renewals.length > 0 && <p className="mt-2 text-xs text-muted">Renew by proposing a new contract end date in the person&rsquo;s record, or propose their leaving.</p>}
+              {v.renewals.length > 0 && (
+                <p className="mt-2 text-xs text-muted">
+                  {v.isHr ? "Renew proposes a new contract end date; Record leaving proposes their departure. Both are signed as usual." : "HR renews a contract or records the person's leaving in the HR record."}
+                </p>
+              )}
             </section>
             <section className="mt-8">
               <h2 className="font-display text-2xl">Leaving</h2>
@@ -134,7 +156,7 @@ export function OffboardingPage() {
                       <Pill tone={done === o.steps.length ? "forest" : "ochre"}>{done === o.steps.length ? "Done" : `${done} of ${o.steps.length}`}</Pill>
                     </div>
                     <p className="text-xs text-muted">
-                      Last day {o.effective}
+                      Last day {fmt(o.effective)}
                       {o.reason ? ` · ${o.reason}` : ""}
                     </p>
                     {o.payout && (
@@ -146,7 +168,7 @@ export function OffboardingPage() {
                     )}
                     <ul className="mt-2 divide-y divide-line">
                       {o.steps.map((s) => (
-                        <Step key={s.id} person={o.person} s={s} act={act} />
+                        <Step key={s.id} person={o.person} s={s} act={act} fmt={fmt} />
                       ))}
                     </ul>
                   </article>

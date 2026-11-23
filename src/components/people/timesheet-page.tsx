@@ -2,7 +2,7 @@
 
 import { plainError } from "@/lib/plain-error";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useT } from "@/components/app/i18n";
 import { localeOf, type MessageKey } from "@/lib/i18n";
 import { useRequireUser, useSession } from "@/components/app/session";
@@ -154,9 +154,16 @@ export function TimesheetPage() {
             <h1 className="font-display text-3xl tracking-tight">{t("ts.title")}</h1>
             <p className="mt-1 max-w-2xl text-sm text-muted">{t("ts.intro")}</p>
           </div>
-          <Link href="/people" className="text-sm font-semibold text-forest hover:underline">
-            {t("ts.people")}
-          </Link>
+          {/* HR roles go back to People; everyone else came from Home. */}
+          {v?.seesAll ? (
+            <Link href="/people" className="text-sm font-semibold text-forest hover:underline">
+              {t("ts.people")}
+            </Link>
+          ) : (
+            <Link href="/home" className="text-sm font-semibold text-forest hover:underline">
+              ← {t("nav.home")}
+            </Link>
+          )}
         </div>
 
         {error && (
@@ -234,6 +241,7 @@ export function TimesheetPage() {
                 setSheet={setEditing}
                 own={own}
                 revising={!!v.current}
+                unsent={JSON.stringify(editing) !== JSON.stringify(v.current?.sheet ?? v.prefill)}
                 onCancel={
                   v.current
                     ? () => {
@@ -413,7 +421,7 @@ function describe(d: Day | undefined, v: TimesheetView, t: T) {
   return parts.join(" · ") || "—";
 }
 
-function DayList({ sheet, v, onEdit, open }: { sheet: Sheet; v: TimesheetView; onEdit?: (d: string) => void; open?: string | null }) {
+function DayList({ sheet, v, onEdit, open, editor }: { sheet: Sheet; v: TimesheetView; onEdit?: (d: string) => void; open?: string | null; editor?: React.ReactNode }) {
   const { t } = useT();
   const work = WORK_WEEK[v.office] ?? WORK_WEEK["Home Office"];
   return (
@@ -440,6 +448,8 @@ function DayList({ sheet, v, onEdit, open }: { sheet: Sheet; v: TimesheetView; o
               </span>
               <span className={`shrink-0 tabular-nums ${total > HOURS_PER_DAY ? "text-clay" : "text-muted"}`}>{total ? t("ts.hoursShort", { hours: fmtH(total) }) : off ? t("ts.off") : t("ts.hoursShort", { hours: 0 })}</span>
             </Tag>
+            {/* The open day's form sits right under its row, so on a phone it appears where the finger tapped. */}
+            {open === d && editor && <div className="px-2 pb-2">{editor}</div>}
           </li>
         );
       })}
@@ -449,7 +459,7 @@ function DayList({ sheet, v, onEdit, open }: { sheet: Sheet; v: TimesheetView; o
 
 /* ---------------- Filling it in ---------------- */
 
-function Editor({ v, sheet, setSheet, own, revising, onCancel, onSubmit }: { v: TimesheetView; sheet: Sheet; setSheet: (s: Sheet) => void; own: boolean; revising: boolean; onCancel: () => void; onSubmit: () => Promise<void> }) {
+function Editor({ v, sheet, setSheet, own, revising, unsent, onCancel, onSubmit }: { v: TimesheetView; sheet: Sheet; setSheet: (s: Sheet) => void; own: boolean; revising: boolean; unsent: boolean; onCancel: () => void; onSubmit: () => Promise<void> }) {
   const { t } = useT();
   const [open, setOpen] = useState<string | null>(null);
   const [certify, setCertify] = useState(false);
@@ -481,6 +491,11 @@ function Editor({ v, sheet, setSheet, own, revising, onCancel, onSubmit }: { v: 
     <section className="mt-6 space-y-4">
       {revising && <p className="rounded-xl bg-ochre-soft px-4 py-3 text-sm text-warn">{t("ts.newVersion")}</p>}
       {!revising && <p className="text-sm text-muted">{t("ts.prefilled")}</p>}
+      {unsent && (
+        <p role="status" className="rounded-xl border border-warn/40 bg-ochre-soft px-4 py-3 text-sm font-semibold text-warn">
+          {t("ts.unsent")}
+        </p>
+      )}
       <Summary sheet={sheet} v={v} />
       <div className="flex flex-wrap items-end gap-2 rounded-2xl border border-line bg-surface p-3">
         <label className="text-sm">
@@ -515,11 +530,22 @@ function Editor({ v, sheet, setSheet, own, revising, onCancel, onSubmit }: { v: 
         <button type="button" className={quietBtn} onClick={addLeave}>
           {t("ts.addLeave")}
         </button>
+        <p className="w-full text-xs text-muted">
+          {t("ts.askLeave")}{" "}
+          <Link href="/leave" className="font-semibold text-forest hover:underline">
+            {t("ts.askLeaveLink")}
+          </Link>
+        </p>
       </div>
 
       <div>
-        <DayList sheet={sheet} v={v} onEdit={(d) => setOpen(open === d ? null : d)} open={open} />
-        {open && <DayEditor key={open} date={open} day={sheet.days[open]} v={v} onChange={(day) => setDay(open, day)} onClose={() => setOpen(null)} />}
+        <DayList
+          sheet={sheet}
+          v={v}
+          onEdit={(d) => setOpen(open === d ? null : d)}
+          open={open}
+          editor={open && <DayEditor key={open} date={open} day={sheet.days[open]} v={v} onChange={(day) => setDay(open, day)} onClose={() => setOpen(null)} />}
+        />
       </div>
 
       <label className="flex items-start gap-3 rounded-2xl border border-line bg-surface p-4 text-sm">
@@ -555,8 +581,14 @@ function DayEditor({ date: d, day, v, onChange, onClose }: { date: string; day: 
   const cur: Day = day ?? { place: USUAL_PLACE[v.office] ?? "in" };
   const set = (patch: Partial<Day>) => onChange({ ...cur, ...patch });
   const input = "w-24 rounded-xl border border-line bg-paper px-3 py-2 text-base tabular-nums";
+  // Bring the form into view when it opens (it can start below the fold on a phone) and put the cursor in it.
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    box.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    box.current?.querySelector<HTMLInputElement>("input")?.focus({ preventScroll: true });
+  }, []);
   return (
-    <div className="mt-2 rounded-2xl border border-forest/40 bg-paper p-4" role="group" aria-label={t("ts.hoursFor", { date: d })}>
+    <div ref={box} className="mt-2 rounded-2xl border border-forest/40 bg-paper p-4" role="group" aria-label={t("ts.hoursFor", { date: d })}>
       <div className="flex items-center justify-between">
         <p className="font-semibold">
           {t(SHORT[weekday(d)])} {d.slice(8)}

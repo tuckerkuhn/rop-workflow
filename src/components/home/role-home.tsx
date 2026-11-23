@@ -31,7 +31,7 @@ const LEVEL: Record<Level, { word: string; icon: string; chip: string }> = {
   critical: { word: "Act now", icon: "!", chip: "bg-clay-soft text-clay" },
   unknown: { word: "No data", icon: "–", chip: "bg-sunken text-muted" },
 };
-const LENS_LABEL: Record<Lens, string> = { lead: "Leadership", hr: "People", mel: "Monitoring (MEL)", finance: "Finance", procurement: "Procurement", field: "Delivery" };
+const LENS_LABEL: Record<Lens, string> = { lead: "Leadership", hr: "People", mel: "Results checking (MEL)", finance: "Finance", procurement: "Procurement", field: "Field work" };
 
 const pct = (n: number | null) => (n === null ? "—" : `${Math.round(n)}%`);
 const compact = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}K` : String(Math.round(n)));
@@ -100,7 +100,7 @@ function StatusBar({ counts, total }: { counts: HomeView["schedule"]["counts"]; 
 }
 
 export function RoleHome({ user, project }: { user: AppUser; project: ProjectInfo }) {
-  const { t, date } = useT();
+  const { t, tx, date } = useT();
   const [v, setV] = useState<HomeView | null>(null);
   const [error, setError] = useState("");
   // The next report from pre-flight, loaded once for the panel and for the Fix and Due groups.
@@ -261,9 +261,14 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
     })(),
   };
 
+  // People with several roles choose whose Home this is: it changes the summary, the to-dos and the numbers below.
   const switcher =
     v.lenses.length > 1 ? (
-      <div role="radiogroup" aria-label="View Home as" className="flex rounded-full bg-sunken p-1 text-sm">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span id="home-lens-label" className="text-sm font-semibold">
+          {tx("Show Home for:")}
+        </span>
+        <div role="radiogroup" aria-labelledby="home-lens-label" aria-describedby="home-lens-help" className="flex flex-wrap rounded-full bg-sunken p-1 text-sm">
         {v.lenses.map((l) => (
           <button
             key={l}
@@ -273,15 +278,19 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
             onClick={() => setChosen(l)}
             className={`rounded-full px-3 py-1 ${l === lens ? "bg-surface font-semibold shadow-sm" : "text-muted hover:text-ink"}`}
           >
-            {LENS_LABEL[l]}
+            {tx(LENS_LABEL[l])}
           </button>
         ))}
+        </div>
+        <p id="home-lens-help" className="w-full text-xs text-muted">
+          {tx("Changes the summary, the to-dos and the numbers on this page to that role's.")}
+        </p>
       </div>
     ) : null;
   if (lens === "hr")
     return (
       <div className="space-y-4">
-        {switcher && <div className="flex justify-end">{switcher}</div>}
+        {switcher}
         <HrHome userId={user.id} />
       </div>
     );
@@ -326,9 +335,13 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
 
   return (
     <section aria-label="Where things stand" className="space-y-5">
+      {/* Which role's Home this is comes first, so the choice visibly changes what follows. */}
+      {switcher}
+      {/* A new person's first steps stay in sight until they are done or hidden (the panel hides itself). */}
+      <GettingStarted project={project.id} user={user.id} />
       {/* First on the page: the one thing to do next, then everything waiting on this person. Where the
           project stands, first steps and stories follow, for when the day's work is clear. */}
-      {/* Field roles open in Bands, everyone else in Ledger; the person's own choice wins and is remembered. */}
+      {/* Field roles open in Summary (bands), everyone else in List (ledger); the person's own choice wins and is remembered. */}
       <HomeLead rows={waiting} next={next} view={view || (lens === "field" ? "bands" : "ledger")} onView={setView} />
       {/* Then, for managers, their own three priorities for the week and what the records say (lib/week). */}
       {lens === "lead" && <WeekAhead />}
@@ -342,18 +355,16 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
             </Link>
           )}
         </p>
-        {switcher}
       </div>
 
-      {/* Everything that is not "what do I do now": first steps, stories, the next report and the numbers, one tap away. */}
+      {/* Everything that is not "what do I do now": stories, the next report and the numbers, one tap away. */}
       <details className="group border-t-2 border-ink bg-surface" onToggle={(e) => setMore(e.currentTarget.open)}>
         <summary className="flex min-h-12 cursor-pointer list-none items-center px-4 font-ledger text-lg font-semibold text-forest hover:bg-ochre-soft">
-          <span className="group-open:hidden">More: first steps, stories, the next report and the numbers ▾</span>
+          <span className="group-open:hidden">More: stories, the next report and the numbers ▾</span>
           <span className="hidden group-open:inline">Less ▴</span>
         </summary>
         {more && (
         <div className="space-y-4 px-4 pb-4">
-          <GettingStarted project={project.id} user={user.id} />
           <Families
             project={project.id}
             user={user.id}
@@ -377,8 +388,7 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
                 <div className="mt-3 space-y-1 border-t border-line pt-3 text-sm">
                                     {s.late.map((i) => (
                     <p key={i.code} className="flex gap-2">
-                      <span className="shrink-0 font-mono text-xs text-muted">{i.code}</span>
-                      <span className="min-w-0 truncate" title={i.name}>
+                      <span className="min-w-0 truncate" title={`${i.code} ${i.name}`}>
                         {i.name}
                       </span>
                       <span className="shrink-0 tabular-nums text-clay">
@@ -388,8 +398,7 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
                   ))}
                   {b.overspent.map((l) => (
                     <Link key={l.code} href="/progress/budget" className="flex gap-2 hover:text-forest">
-                      <span className="shrink-0 font-mono text-xs text-muted">{l.code}</span>
-                      <span className="min-w-0 truncate" title={l.description}>
+                      <span className="min-w-0 truncate" title={`${l.code} ${l.description}`}>
                         {l.description}
                       </span>
                       <span className="shrink-0 tabular-nums text-clay">{pct(l.spentPct)} spent</span>

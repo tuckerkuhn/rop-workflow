@@ -57,7 +57,11 @@ Each submission waits on Check › Results and proof, under Field forms to check
 - Training, attended: the Train checks are ticked and the farmer moves to Prepare the plot, but only
   if already enrolled with the contribution paid; otherwise they stay at Train with the attendance
   recorded. Not attended: noted on the record only.
-- Farm visit at Plant: planted at the trained spacing records planting and completes the season path;
+- Farm visit at Plant: planted at the trained spacing records planting (the date planted, and the area
+  planted, or for a crop counted one by one the number planted, which the app turns into hectares from
+  the spacing) and completes the season path. When the project's target counts at planting, the
+  farmer is counted toward it then, once, waiting for MEL on the Results page. A record the app cannot
+  accept (date after the visit, area above the plot) keeps the farmer at Plant with the reason;
   not planted, or not as trained, keeps the farmer at Plant with what needs follow-up. The planting
   window is not checked here: a planting date after the window shows on the record for MEL to judge.
 - A farmer at another step: the record is kept, the step does not move, and the queue flags it first.

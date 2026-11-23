@@ -3,7 +3,7 @@ import { canEditProject, type AppUser } from "@/lib/demo";
 import type { Farmer } from "@/lib/field";
 import { and, eq } from "drizzle-orm";
 import { db, schema as t } from "@/db";
-import { EMPTY_SELECTION, decisionProblem, sameRules, selectionCounts, type Criterion, type Selection, type SelectionAction } from "@/lib/selection";
+import { EMPTY_SELECTION, decisionProblem, outcomeLabel, outcomeOf, outcomesById, sameRules, selectionCounts, type Criterion, type Selection, type SelectionAction, type Shown } from "@/lib/selection";
 import { logAudit } from "@/server/audit";
 import { loadField, projectByCode } from "@/server/field-store";
 import { loadProjectState, updateProjectState } from "@/server/project-state";
@@ -29,6 +29,15 @@ export async function loadSelection(code: string, u: AppUser) {
   return { project: { code, name: project.name }, selection: s, farmers, counts: selectionCounts(s, farmers), can: { rules: mayDecide(u), decide: mayDecide(u) } };
 }
 export type SelectionView = Awaited<ReturnType<typeof loadSelection>>;
+
+/**
+ * Each decided farmer's outcome, by farmer number only (no names), for Field activities: farmers
+ * waitlisted or who did not qualify are not trained or served. Null when the project does not use
+ * selection (no rules written), so its field queue is unchanged.
+ */
+export async function selectionOutcomes(projectId: string): Promise<Record<string, Shown> | null> {
+  return outcomesById(await loadProjectState<Selection>(projectId, KEY, EMPTY_SELECTION));
+}
 
 export async function actOnSelection(code: string, a: SelectionAction, u: AppUser): Promise<string | null> {
   if (!mayDecide(u)) return a.action === "criteria" ? "Only the project manager and plan approvers write the selection rules." : "Only the project manager and plan approvers record a selection decision.";
@@ -67,12 +76,13 @@ export async function actOnSelection(code: string, a: SelectionAction, u: AppUse
       const problem = decisionProblem(s, a);
       if (problem) return { data: null, result: problem };
       const prior = s.decisions[a.farmer];
-      const exception = a.selected && !s.criteria.every((c) => a.met.includes(c.id));
+      const selected = a.outcome === "selected";
+      const exception = selected && !s.criteria.every((c) => a.met.includes(c.id));
       // A changed decision keeps the one it replaces, with why it changed: the old reason is never lost.
       const earlier = prior ? [...(prior.earlier ?? []), { decision: (({ earlier: _e, ...d }) => (void _e, d))(prior), why: a.change.trim(), ...me }] : undefined;
-      next = { ...s, decisions: { ...s.decisions, [a.farmer]: { selected: a.selected, met: a.met, reason: a.reason.trim(), version: s.version, of: s.criteria.length, exception, ...me, ...(earlier ? { earlier } : {}) } } };
-      action = prior ? "selection_changed" : a.selected ? "selection_selected" : "selection_not_selected";
-      detail = { farmer: a.farmer, selected: a.selected, met: a.met.length, of: s.criteria.length, ...(a.reason.trim() ? { reason: a.reason.trim() } : {}), ...(prior ? { was: prior.selected ? "selected" : "not selected", wasReason: prior.reason, why: a.change.trim() } : {}) };
+      next = { ...s, decisions: { ...s.decisions, [a.farmer]: { selected, outcome: a.outcome, met: a.met, reason: a.reason.trim(), version: s.version, of: s.criteria.length, exception, ...me, ...(earlier ? { earlier } : {}) } } };
+      action = prior ? "selection_changed" : `selection_${a.outcome}`;
+      detail = { farmer: a.farmer, outcome: a.outcome, met: a.met.length, of: s.criteria.length, ...(a.reason.trim() ? { reason: a.reason.trim() } : {}), ...(prior ? { was: outcomeLabel[outcomeOf(s, prior)], wasReason: prior.reason, why: a.change.trim() } : {}) };
     } else {
       if (!s.decisions[a.farmer]) return { data: null, result: "This farmer has no decision to reopen." };
       const rest = { ...s.decisions };
@@ -80,7 +90,7 @@ export async function actOnSelection(code: string, a: SelectionAction, u: AppUse
       next = { ...s, decisions: rest };
       action = "selection_reopened";
       const was = s.decisions[a.farmer];
-      detail = { farmer: a.farmer, reason: a.reason, was: was.selected ? "selected" : "not selected", wasReason: was.reason };
+      detail = { farmer: a.farmer, reason: a.reason, was: outcomeLabel[outcomeOf(s, was)], wasReason: was.reason };
     }
     await logAudit(tx, project.id, { entity: "selection", entityId: a.action === "criteria" ? project.id : a.farmer, action, by: u.id, detail });
     return { data: next, result: null };

@@ -7,19 +7,19 @@ import { userById } from "@/lib/demo";
 import type { Farmer, FieldItem } from "@/lib/field";
 import { seedDatabase } from "@/server/demo-seed";
 import { loadField, saveItems, saveSetup, setupFor } from "@/server/field-store";
-import { handedOutOn } from "@/lib/field";
-import { countApprovedDistributions } from "@/server/distribution";
+import { KOBO_ONLY, handedOutOn } from "@/lib/field";
+import { countApprovedDistributions, countPlanting } from "@/server/distribution";
 import { loadResults } from "@/server/results-store";
-import { loadProcurements, saveProcurements } from "@/server/procurement-store";
 import { ready } from "@/server/__tests__/test-db";
 import { saveProjectState } from "@/server/project-state";
 import { projectByCode } from "@/server/field-store";
 import { CROP_PLAN_KEY } from "@/lib/crops";
 
 /**
- * Saving Field activities from the browser (PUT /api/projects/[code]/field): the server applies the
- * screen's rules itself. A stale copy is refused, a step is moved only by its owner with its checks
- * done, and the version comes back so the next save from the same page goes through.
+ * Saving Field activities from the browser (PUT /api/projects/[code]/field). Field steps are
+ * recorded in KoboCollect, so ticking a step's checks, moving a step or entering planting by hand
+ * is refused. What the page still saves (notes, issues, the project manager's remove-or-extend
+ * decision) refuses a stale copy, and the version comes back so the next save goes through.
  */
 const code = "A-2027";
 const farida = userById("farida")!;
@@ -38,16 +38,17 @@ beforeAll(async () => {
 }, 120_000);
 
 describe("saving Field activities from the browser", { timeout: 60_000 }, () => {
-  it("saves an edit and returns the new version, so a second save from the same page goes through", async () => {
+  it("saves an issue on the record and returns the new version, so a second save from the same page goes through", async () => {
     const f = (await all()).find((i) => i.kind === "farmer" && i.step === "train") as Farmer;
-    const first = await put("farida", [{ ...f, checks: { ...f.checks, "train.attended": true } }]);
+    const issue = { id: "I-1", type: "Field issue", note: "Plot boundary disputed with a neighbour.", by: "extension", blocking: false, status: "open" as const };
+    const first = await put("farida", [{ ...f, issues: [...f.issues, issue] }]);
     expect(first.status).toBe(200);
     const rev = first.body.revs![f.id];
     expect(rev).toBeTruthy();
     expect(rev).not.toBe(f.rev);
-    const second = await put("farida", [{ ...f, rev, checks: { ...f.checks, "train.attended": true, "train.register": true } }]);
+    const second = await put("farida", [{ ...f, rev, issues: [...f.issues, { ...issue, status: "resolved" as const, resolution: "Settled with the village council." }] }]);
     expect(second.status).toBe(200);
-    expect((await farmer(f.id)).checks["train.register"]).toBe(true);
+    expect((await farmer(f.id)).issues.at(-1)?.status).toBe("resolved");
   });
 
   it("refuses a stale copy and keeps the newer work", async () => {
@@ -61,64 +62,68 @@ describe("saving Field activities from the browser", { timeout: 60_000 }, () => 
     expect((await farmer(f.id)).timeline.at(-1)!.what).toBe("Newer note");
   });
 
-  it("refuses a step moved by someone who does not own it", async () => {
-    const f = (await all()).find((i) => i.kind === "farmer" && i.step === "prepare") as Farmer;
-    const ticked = { ...f, checks: { ...f.checks, "prepare.plot": true, "prepare.spec": true } };
-    const byMel = await put("omar", [{ ...ticked, step: "verify" }]);
-    expect(byMel.status).toBe(409);
-    expect(byMel.body.error).toMatch(/is for the Extension agent to record/);
-    expect((await farmer(f.id)).step).toBe("prepare");
+  it("refuses a field step entered by hand: KoboCollect is the one source", async () => {
+    const train = (await all()).find((i) => i.kind === "farmer" && i.step === "train") as Farmer;
+    const tick = await put("farida", [{ ...train, checks: { ...train.checks, "train.attended": true, "train.register": true } }]);
+    expect(tick.status).toBe(409);
+    expect(tick.body.error).toBe(KOBO_ONLY);
+    const prep = (await all()).find((i) => i.kind === "farmer" && i.step === "prepare") as Farmer;
+    const move = await put("farida", [{ ...prep, checks: { ...prep.checks, "prepare.plot": true, "prepare.spec": true }, step: "verify" }]);
+    expect(move.status).toBe(409);
+    expect(move.body.error).toBe(KOBO_ONLY);
+    expect((await farmer(prep.id)).step).toBe("prepare");
+    const verify = (await all()).find((i) => i.kind === "farmer" && i.step === "verify") as Farmer;
+    expect((await put("omar", [{ ...verify, step: "distribute" }])).body.error).toBe(KOBO_ONLY);
   });
 
-  it("refuses a move whose checks are not done, and accepts it once they are", async () => {
-    const f = (await all()).find((i) => i.kind === "farmer" && i.step === "prepare") as Farmer;
-    const early = await put("farida", [{ ...f, checks: { ...f.checks, "prepare.plot": true }, step: "verify" }]);
-    expect(early.status).toBe(409);
-    expect(early.body.error).toMatch(/Not done: Farmer reports land prepared to the technical spec/);
-    const done = await put("farida", [{ ...f, checks: { ...f.checks, "prepare.plot": true, "prepare.spec": true }, step: "verify" }]);
-    expect(done.status).toBe(200);
-    expect((await farmer(f.id)).step).toBe("verify");
-  });
-
-  it("refuses moving past readiness without the joint visit recorded", async () => {
-    const f = (await all()).find((i) => i.kind === "farmer" && i.step === "verify") as Farmer;
-    const skip = await put("omar", [{ ...f, checks: {}, step: "distribute" }]);
-    expect(skip.status).toBe(409);
-    expect(skip.body.error).toMatch(/cannot be recorded as "Readiness: Yes" yet/);
-  });
-
-  it("lets an outcome that goes ahead without its checks through, for the step's owner", async () => {
-    const f = (await all()).find((i) => i.kind === "farmer" && i.step === "correct") as Farmer;
-    const res = await put("farida", [{ ...f, step: "removal" }]);
-    expect(res.status).toBe(200);
-    expect((await farmer(f.id)).step).toBe("removal");
-  });
-
-  it("records a handover but keeps the farmer at Distribute until the project manager approves", async () => {
-    // The fertilizer's goods received note signed, so the package can go out.
-    const p = (await loadProcurements(code)).find((x) => x.id === "PR-2027-011")!;
-    await saveProcurements(code, [{ ...p, step: "package" }]);
+  it("refuses a handover recorded by hand: distributions come from KoboCollect, for the project manager to approve", async () => {
     const f = (await all()).find((i) => i.kind === "farmer" && i.step === "distribute" && !(i as Farmer).awaiting) as Farmer;
-    const done = { ...f, checks: { ...f.checks, "distribute.recipient": true, "distribute.voucher": true }, step: "plant" };
-    const res = await put("bilal", [done]);
-    expect(res.status).toBe(200);
+    const res = await put("bilal", [{ ...f, checks: { ...f.checks, "distribute.recipient": true, "distribute.voucher": true }, step: "plant" }]);
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe(KOBO_ONLY);
     const after = await farmer(f.id);
     expect(after.step).toBe("distribute");
-    expect(after.awaiting?.status).toBe("pending");
-    expect(after.checks["distribute.voucher"]).toBe(true);
-    // Recording it again is refused while it waits, with the reason.
-    const again = await put("bilal", [{ ...after, step: "plant" }]);
-    expect(again.status).toBe(409);
-    expect(again.body.error).toMatch(/already recorded and waiting for the project manager/);
-    // The page cannot clear the marker itself.
-    expect((await put("bilal", [{ ...after, awaiting: undefined, community: after.community }])).status).toBe(200);
-    expect((await farmer(f.id)).awaiting?.status).toBe("pending");
+    expect(after.awaiting).toBeUndefined();
+  });
+
+  it("keeps the project manager's decision to remove a farmer or extend the deadline", async () => {
+    const f = (await all()).find((i) => i.kind === "farmer" && i.step === "removal") as Farmer;
+    // Not the extension agent's to decide.
+    const notHers = await put("farida", [{ ...f, step: "correct" }]);
+    expect(notHers.status).toBe(409);
+    expect(notHers.body.error).toMatch(/is for the Project manager to record/);
+    const res = await put("nadia", [{ ...f, step: "correct", deadline: "2027-03-20", timeline: [...f.timeline, { date: "2026-11-20", who: "manager", what: "Deadline extended 7 days" }] }]);
+    expect(res.status).toBe(200);
+    expect((await farmer(f.id)).step).toBe("correct");
   });
 
   it("keeps the version stamp out of the stored record", async () => {
     const { db, schema: s } = await import("@/db");
     const rows = await db.select().from(s.fieldItems);
     expect(rows.every((r) => !("rev" in (r.data as object)))).toBe(true);
+  });
+});
+
+describe("recording the contribution received", { timeout: 60_000 }, () => {
+  it("records it from the app, and moves on a farmer whose training KoboCollect already recorded", async () => {
+    const f = (await all()).find((i) => i.kind === "farmer" && i.step === "train") as Farmer;
+    await saveItems(code, [{ ...f, enrolled: true, contributionPaid: false, checks: { ...f.checks, "train.attended": true, "train.register": true } }]);
+    const got = await farmer(f.id);
+    const r = await put("farida", [{ ...got, contributionPaid: true, timeline: [...got.timeline, { date: "2026-11-16", who: "extension", what: "Contribution received" }] }]);
+    expect(r.status).toBe(200);
+    const after = await farmer(f.id);
+    expect(after.contributionPaid).toBe(true);
+    expect(after.step).toBe("prepare");
+    expect(after.timeline.at(-1)!.what).toMatch(/^Contribution received; training already recorded from KoboCollect/);
+  });
+
+  it("records it without moving a farmer whose training is not recorded yet", async () => {
+    const f = (await all()).find((i) => i.kind === "farmer" && i.step === "train") as Farmer;
+    await saveItems(code, [{ ...f, enrolled: true, contributionPaid: false, checks: {} }]);
+    const got = await farmer(f.id);
+    expect((await put("farida", [{ ...got, contributionPaid: true }])).status).toBe(200);
+    expect((await farmer(f.id)).contributionPaid).toBe(true);
+    expect((await farmer(f.id)).step).toBe("train");
   });
 });
 
@@ -132,18 +137,12 @@ describe("recording planting", { timeout: 60_000 }, () => {
   const plantFarmer = () => farmer("F-0002");
   const ticked = (f: Farmer) => ({ ...f, checks: { ...f.checks, "plant.manner": true, "plant.followup": true } });
 
-  it("refuses planting recorded without the day and the area", async () => {
+  it("refuses a planting record entered by hand", async () => {
     const f = ticked(await plantFarmer());
-    const r = await put("farida", [{ ...f, step: "complete" }]);
+    const r = await put("farida", [{ ...f, planting: { date: handedOutOn(f)!, hectares: f.hectares }, step: "complete" }]);
     expect(r.status).toBe(409);
-    expect(r.body.error).toMatch(/Not done: Planting date and area recorded/);
-  });
-
-  it("lets only the extension agent enter the planting record", async () => {
-    const f = await plantFarmer();
-    const r = await put("bilal", [{ ...f, planting: { date: handedOutOn(f)!, hectares: f.hectares } }]);
-    expect(r.status).toBe(403);
-    expect(r.body.error).toMatch(/for the extension agent to enter/);
+    expect(r.body.error).toBe(KOBO_ONLY);
+    expect((await farmer(f.id)).planting).toBeUndefined();
   });
 
   it("counts the farmer toward a target that counts at planting, once, and then fixes the record", async () => {
@@ -151,20 +150,17 @@ describe("recording planting", { timeout: 60_000 }, () => {
     await saveSetup(code, { ...setup, target: "IND-2", targetAt: "planting" });
     const f = ticked(await plantFarmer());
     const planting = { date: handedOutOn(f)!, hectares: f.hectares };
-    const r = await put("farida", [{ ...f, planting, step: "complete" }]);
-    expect(r.status).toBe(200);
-    expect(r.body.results).toHaveLength(1);
+    await saveItems(code, [{ ...f, planting, step: "complete" }]);
+    const r = await countPlanting(code, { ...f, planting, step: "complete" }, farida);
+    expect(r?.result).toBeTruthy();
     const made = (await loadResults(code)).filter((x) => x.planting === f.id);
     expect(made).toHaveLength(1);
     expect(made[0]).toMatchObject({ indicator: "IND-2", date: planting.date, value: 1, status: "pending", by: "farida" });
     expect((await farmer(f.id)).planting).toEqual(planting);
     // The extension agent sees at once that it counted.
     expect((await farmer(f.id)).timeline.at(-1)).toMatchObject({ who: "system", by: "ROP Workflow", what: expect.stringMatching(/^Counted toward ".+": waiting for MEL to accept it on the Results page$/) });
-    // Filed: the record that was counted cannot be changed afterwards.
-    const after = await farmer(f.id);
-    const change = await put("farida", [{ ...after, planting: { ...planting, hectares: 0.1 } }]);
-    expect(change.status).toBe(409);
-    expect(change.body.error).toMatch(/already recorded/);
+    // Counted once: counting the same farmer again adds nothing.
+    expect((await countPlanting(code, { ...f, planting, step: "complete" }, farida))?.already).toBe(true);
     // Naming the target again counts farmers planted before, never one already counted.
     const backfill = await countApprovedDistributions(code, "IND-2");
     expect((await loadResults(code)).filter((x) => x.planting === f.id)).toHaveLength(1);
@@ -190,16 +186,6 @@ describe("planting a crop counted one by one", { timeout: 60_000 }, () => {
     expect((await setupFor(code))!.plan).toMatchObject({ unit: "vines" });
   });
 
-  it("refuses hectares that do not follow from the count, and saves those that do", async () => {
-    const f = await farmer("F-0008");
-    const wrong = await put("farida", [{ ...f, planting: { date: "2026-01-02", count: 1000, hectares: 0.6 } }]);
-    expect(wrong.status).toBe(400);
-    expect(wrong.body.error).toMatch(/1000 planted at the project's spacing is 0.45 ha, not 0.6/);
-    const right = await put("farida", [{ ...f, planting: { date: "2026-01-02", count: 1000, hectares: 0.45 } }]);
-    expect(right.status).toBe(200);
-    expect((await farmer("F-0008")).planting).toEqual({ date: "2026-01-02", count: 1000, hectares: 0.45 });
-  });
-
   it("tells the extension agent when a farmer counted at handout is not counted again at planting", async () => {
     const setup = (await setupFor(code))!;
     await saveSetup(code, { ...setup, target: "IND-2", targetAt: "planting" });
@@ -215,8 +201,10 @@ describe("planting a crop counted one by one", { timeout: 60_000 }, () => {
     const at = { ...got, checks: { ...got.checks, "plant.manner": true, "plant.followup": true } };
     const given = handedOutOn(at) ?? "2026-01-01";
     const before = (await loadResults(code)).length;
-    const r = await put("farida", [{ ...at, planting: { date: given, count: 100, hectares: 0.05 }, step: "complete" }]);
-    expect(r.status).toBe(200);
+    const planted = { ...at, planting: { date: given, count: 100, hectares: 0.05 }, step: "complete" };
+    await saveItems(code, [planted]);
+    const r = await countPlanting(code, planted, farida);
+    expect(r?.already).toBe(true);
     expect((await loadResults(code)).length).toBe(before);
     expect((await farmer(farmerId)).timeline.at(-1)!.what).toMatch(/^Already counted toward ".+" when the package was handed out \(\d{4}-\d{2}-\d{2}\): not counted again$/);
     await saveSetup(code, setup);
@@ -234,7 +222,7 @@ describe("history save times", { timeout: 60_000 }, () => {
     // The screen's copy has no times; saving it again keeps the stored one.
     const again = await farmer(f.id);
     const bare = again.timeline.map((t) => ({ date: t.date, who: t.who, what: t.what }));
-    expect((await put("farida", [{ ...again, timeline: bare, checks: { ...again.checks, "train.attended": true } }])).status).toBe(200);
+    expect((await put("farida", [{ ...again, timeline: bare, issues: [...again.issues, { id: "I-9", type: "Evidence gap", note: "Register page missing.", by: "extension", blocking: false, status: "open" }] }])).status).toBe(200);
     expect(((await farmer(f.id)).timeline.at(-1) as { at?: string }).at).toBe(saved.at);
   });
 });

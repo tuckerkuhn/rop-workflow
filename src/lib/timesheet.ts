@@ -30,7 +30,7 @@ export const USUAL_PLACE: Record<string, Place> = { "Home Office": "out", Afghan
 export const LEAVE = {
   holiday: "Fixed holiday",
   floating: "Floating holiday",
-  vacation: "Vacation leave",
+  vacation: "Annual leave",
   travel: "Leave travel day",
   sick: "Sick leave",
   other: "Other leave",

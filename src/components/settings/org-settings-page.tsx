@@ -449,18 +449,18 @@ function SoloPanel({ v, post }: { v: OrgSettingsView; post: (body: object, msg: 
   );
 }
 
-/** The sample project (C5): shown to everyone unless an administrator hides it, with a reason; every change is kept. */
+/** The sample project (C5): shown to everyone unless an administrator hides it. Its data is fictional, so one tap does it; who and when are kept. */
 function SamplePanel({ v, post }: { v: OrgSettingsView; post: (body: object, msg: string) => Promise<void> }) {
   const { t, date } = useT();
-  const [why, setWhy] = useState("");
   const [busy, setBusy] = useState(false);
+  // Changes made before the reason became optional carry one; newer ones read without the trailing colon.
+  const plain = (s: string) => s.trimEnd().replace(/:$/, "");
   const hidden = !!v.sampleProject?.hidden;
   const day = (d: string) => date(d, { day: "numeric", month: "short", year: "numeric" });
   const turn = async () => {
     setBusy(true);
     try {
-      await post({ action: "sample", hidden: !hidden, reason: why }, hidden ? t("sample.doneShown") : t("sample.doneHidden"));
-      setWhy("");
+      await post({ action: "sample", hidden: !hidden }, hidden ? t("sample.doneShown") : t("sample.doneHidden"));
     } catch {
       /* shown above */
     } finally {
@@ -474,11 +474,10 @@ function SamplePanel({ v, post }: { v: OrgSettingsView; post: (body: object, msg
         <Pill tone={hidden ? "muted" : "forest"}>{hidden ? t("sample.hidden") : t("sample.shown")}</Pill>
       </div>
       <p className="mt-1 max-w-3xl text-sm text-muted">{t("sample.help")}</p>
-      {v.sampleChange && <p className="mt-2 text-xs text-muted">{t("sample.since", { date: day(v.sampleChange.at), who: v.sampleChange.name, reason: v.sampleChange.reason })}</p>}
+      {v.sampleChange && <p className="mt-2 text-xs text-muted">{plain(t("sample.since", { date: day(v.sampleChange.at), who: v.sampleChange.name, reason: v.sampleChange.reason }))}</p>}
       {v.admin ? (
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <input value={why} onChange={(e) => setWhy(e.target.value)} placeholder={t("sample.reason")} aria-label={t("sample.reason")} className={`${field} min-w-0 flex-1`} />
-          <button type="button" disabled={busy || why.trim().length < 5} onClick={() => void turn()} className={`${hidden ? primaryBtn : quietBtn} min-h-12`}>
+          <button type="button" disabled={busy} onClick={() => void turn()} className={`${hidden ? primaryBtn : quietBtn} min-h-12`}>
             {hidden ? t("sample.show") : t("sample.hide")}
           </button>
         </div>
@@ -490,7 +489,7 @@ function SamplePanel({ v, post }: { v: OrgSettingsView; post: (body: object, msg
           <summary className="cursor-pointer">{t("sample.history")}</summary>
           <ul className="mt-1 space-y-1">
             {v.sampleHistory.slice(1, 30).map((h, i) => (
-              <li key={i}>{t("sample.changed", { date: day(h.at), state: h.hidden ? t("sample.stateHidden") : t("sample.stateShown"), who: h.name, reason: h.reason })}</li>
+              <li key={i}>{plain(t("sample.changed", { date: day(h.at), state: h.hidden ? t("sample.stateHidden") : t("sample.stateShown"), who: h.name, reason: h.reason }))}</li>
             ))}
           </ul>
         </details>

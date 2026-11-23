@@ -631,7 +631,8 @@ export async function decideDistribution(code: string, id: string, decision: "ap
       if (row.farmerCode)
         await changeFarmer(tx, project.id, row.farmerCode, (f) => {
           if (f.step !== "distribute") return f.awaiting?.id === id ? { ...f, awaiting: undefined } : null;
-          return { ...f, step: "plant", awaiting: undefined, timeline: [...f.timeline, { date: day, who: "manager", what: `Distribution${row.source === "kobo" ? " (KoboCollect)" : ""} approved by ${by.name}: moved to planting` }] };
+          // Approval needs the recipient's signature and the photo of the signed note (closeBlock), so it is ticked here.
+          return { ...f, step: "plant", awaiting: undefined, checks: { ...f.checks, "distribute.recipient": true }, timeline: [...f.timeline, { date: day, who: "manager", what: `Distribution${row.source === "kobo" ? " (KoboCollect)" : ""} approved by ${by.name}: moved to planting` }] };
         });
     } else {
       await tx

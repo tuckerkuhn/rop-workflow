@@ -11,6 +11,7 @@ import { Pill, TopBar } from "@/components/workspace/ui";
 import { LIMITS, type ActivityView, type LineView } from "@/lib/budget-view";
 import type { Explain, loadBudgetView } from "@/server/budget-view-store";
 import { OverspendReasonPicker } from "@/components/progress/overspend-reason";
+import { SpendImport } from "@/components/progress/spend-import";
 import type { OverspendReason } from "@/lib/overspend";
 
 /**
@@ -19,7 +20,7 @@ import type { OverspendReason } from "@/lib/overspend";
  * results beside the lines that pay for them, and the lines to explain.
  */
 
-type View = Awaited<ReturnType<typeof loadBudgetView>>;
+type View = Awaited<ReturnType<typeof loadBudgetView>> & { mayImport?: boolean };
 
 const money = (n: number | null) => (n === null ? "—" : Math.round(n).toLocaleString("en-US"));
 const pctText = (p: number | null) => (p === null ? "—" : `${p}%`);
@@ -62,6 +63,12 @@ export function BudgetPage() {
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
         <h1 className="font-display text-4xl tracking-tight">{t("nav.budget")}</h1>
         <Why>The budget in the agreement is a promise, line by line. Spending well over a line without the donor&rsquo;s written agreement can be refused at audit, even when the project as a whole is under budget.</Why>
+        {/* The same spending import as on the quarterly report, where a newcomer looks for it first. */}
+        {project.saved && v?.mayImport && (
+          <div className="mt-4">
+            <SpendImport code={project.id} currency={v.currency ?? ""} onDone={() => load(true)} />
+          </div>
+        )}
         {!project.saved ? (
           <p className="mt-6 rounded-xl bg-sunken px-4 py-3 text-sm text-muted">This demo project is kept in this browser only; its budget is on the project page.</p>
         ) : error ? (
@@ -72,16 +79,22 @@ export function BudgetPage() {
           <p className="mt-6 text-sm text-muted">Loading…</p>
         ) : !v.period ? (
           <p className="mt-6 rounded-xl bg-sunken px-4 py-3 text-sm text-muted">
-            No spending imported for this phase yet. Import Finance&rsquo;s budget against actual workbook on the{" "}
-            <Link href="/progress/report" className="font-semibold text-forest hover:underline">
-              quarterly report
-            </Link>{" "}
-            page.
+            No spending imported for this phase yet.{" "}
+            {v.mayImport ? (
+              <>Import Finance&rsquo;s budget against actual workbook above.</>
+            ) : (
+              <>Finance imports the budget against actual workbook here (or on the{" "}
+                <Link href="/progress/report" className="font-semibold text-forest hover:underline">
+                  quarterly report
+                </Link>
+                ); ask them to.
+              </>
+            )}
           </p>
         ) : (
           <ExplainCtx.Provider value={v.explain ? { ...v.explain, save: saveReason } : null}>
             <p className="mt-1 max-w-3xl text-sm text-muted">
-              {project.name}, {monthLabel(v.period.from)} to {monthLabel(v.period.to)}, in {v.currency} before overhead, from {v.imported?.file}. Approved is Finance&rsquo;s budget; forecast is spent so far plus the revised plan for the quarters left.
+              {project.name}, {monthLabel(v.period.from)} to {monthLabel(v.period.to)}, in {v.currency} before overhead, from {v.imported?.file}. Approved is Finance&rsquo;s budget; the expected total at the end (&ldquo;forecast&rdquo; in the table) is spent so far plus the revised plan for the quarters left.
             </p>
 
             <p className="mt-1 max-w-3xl text-sm text-muted">{t("rp.totals.onBudget")}</p>
@@ -90,7 +103,7 @@ export function BudgetPage() {
               {[
                 ["Approved", money(v.totals.approved)],
                 ["Spent", `${money(v.totals.spent)} (${pctText(v.totals.approved ? Math.round((v.totals.spent / v.totals.approved) * 1000) / 10 : null)})`],
-                ["Forecast at completion", money(v.totals.forecast)],
+                ["Expected total at the end", money(v.totals.forecast)],
                 ["Time gone", v.timeGone === null ? "—" : `${Math.round(v.timeGone * 100)}%`],
               ].map(([k, val]) => (
                 <div key={k} className="rounded-2xl border border-line bg-surface px-4 py-3">

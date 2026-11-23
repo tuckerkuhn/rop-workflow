@@ -163,7 +163,8 @@ export async function seedSample(write: typeof append = append, file: typeof sto
       cfo: ["peter"],
       finance: ["yusuf", "omid"],
       procurement: ["hamid", "zahra"],
-      hr: ["sima", "mina"],
+      // Daniel Sandoval, Director of Operations, heads HR; the HR Manager and HR Officer work under him.
+      hr: ["daniel", "sima", "mina"],
       payroll: ["omid"],
       technical: ["farid", "laila", "javed", "shabnam", "nadia"],
       compliance: ["sarah"],
@@ -178,8 +179,9 @@ export async function seedSample(write: typeof append = append, file: typeof sto
   const afn = (pay: number): Fields => ({ payBasis: "Month", pay, currency: "AFN" });
   const hires: [string, Fields][] = [
     ["tucker", { name: "Tucker Kuhn", title: "Chief Executive Officer", office: "Home Office", employment: "Employee", startDate: "2019-03-01", ...usd(15000), retirementPct: 5, adpId: "ROP-1001" }],
+    ["daniel", { name: "Daniel Sandoval", title: "Director of Operations; Country Director, Guatemala; Head of HR", office: "Home Office", employment: "Employee", supervisor: "tucker", startDate: "2020-09-01", ...usd(11000), retirementPct: 4, adpId: "ROP-1009" }],
     ["peter", { name: "Peter Hale", title: "Chief Financial Officer", office: "Home Office", employment: "Employee", supervisor: "tucker", startDate: "2021-06-01", ...usd(11000), retirementPct: 4, adpId: "ROP-1002" }],
-    ["sima", { name: "Sima Rezai", title: "HR Manager", office: "Home Office", employment: "Employee", supervisor: "peter", startDate: "2022-01-10", ...usd(6500), retirementPct: 3, adpId: "ROP-1003" }],
+    ["sima", { name: "Sima Rezai", title: "HR Manager", office: "Home Office", employment: "Employee", supervisor: "daniel", startDate: "2022-01-10", ...usd(6500), retirementPct: 3, adpId: "ROP-1003" }],
     ["omid", { name: "Omid Rahmani", title: "Accounting Manager", office: "Home Office", employment: "Employee", supervisor: "peter", startDate: "2022-07-05", ...usd(7200), retirementPct: 3, adpId: "ROP-1004" }],
     ["mina", { name: "Mina Sharifi", title: "HR Officer", office: "Afghanistan", employment: "National staff", supervisor: "sima", startDate: "2023-11-01", ...afn(56000), bankAccount: "AIB 0000-4101 (sample)" }],
     ["karim", { name: "Karim Ahmadi", title: "Country Director", office: "Afghanistan", employment: "National staff", supervisor: "tucker", startDate: "2020-04-01", ...afn(245000), dangerPay: 0, commsAllowance: 3500, bankAccount: "AIB 0000-4102 (sample)" }],

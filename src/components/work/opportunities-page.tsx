@@ -51,43 +51,49 @@ function OppForm({ start, onSave, onCancel }: { start: Fields; onSave: (f: Field
         <input className={input} value={f.donor} onChange={t("donor")} required />
       </label>
       <label className="text-sm">
-        Where it came from
-        <select className={input} value={f.source} onChange={t("source")}>
-          {SOURCES.map((x) => (
-            <option key={x}>{x}</option>
-          ))}
-        </select>
-      </label>
-      <label className="text-sm">
-        Country
-        <input className={input} value={f.country} onChange={t("country")} />
-      </label>
-      <label className="text-sm">
         Deadline
         <input type="date" className={input} value={f.deadline ?? ""} onChange={(e) => setF({ ...f, deadline: e.target.value || null })} />
       </label>
-      <label className="text-sm">
-        Value
-        <input inputMode="decimal" className={input} value={f.value ?? ""} onChange={(e) => setF({ ...f, value: e.target.value ? Number(e.target.value.replace(/,/g, "")) : null })} />
-      </label>
-      <label className="text-sm">
+      <label className="text-sm sm:col-span-2">
         Link to the call or notes
         <input className={input} value={f.link} onChange={t("link")} />
       </label>
-      {(
-        [
-          ["need", "The need or problem (donor-informed and team-confirmed, or team-identified)"],
-          ["donorPriorities", "What the donor wants"],
-          ["capacity", "ROP's capacity: staff, presence, partners"],
-          ["risks", "Risks"],
-          ["grossIncome", "50% gross income analysis"],
-        ] as [keyof Fields, string][]
-      ).map(([k, label]) => (
-        <label key={k} className="text-sm sm:col-span-2">
-          {label}
-          <textarea rows={2} className={input} value={String(f[k] ?? "")} onChange={t(k)} />
-        </label>
-      ))}
+      {/* The rest feeds the match brief; it can be filled in now or later. Open when editing one that has it. */}
+      <details className="rounded-xl border border-line text-sm sm:col-span-2" open={!!(start.country || start.value || start.need || start.donorPriorities || start.capacity || start.risks || start.grossIncome)}>
+        <summary className="cursor-pointer px-3 py-2.5 font-medium">Describe the fit (for the match brief)</summary>
+        <div className="grid gap-3 p-3 sm:grid-cols-2">
+          <label className="text-sm">
+            Where it came from
+            <select className={input} value={f.source} onChange={t("source")}>
+              {SOURCES.map((x) => (
+                <option key={x}>{x}</option>
+              ))}
+            </select>
+          </label>
+          <label className="text-sm">
+            Country
+            <input className={input} value={f.country} onChange={t("country")} />
+          </label>
+          <label className="text-sm">
+            Value
+            <input inputMode="decimal" className={input} value={f.value ?? ""} onChange={(e) => setF({ ...f, value: e.target.value ? Number(e.target.value.replace(/,/g, "")) : null })} />
+          </label>
+          {(
+            [
+              ["need", "The need or problem (donor-informed and team-confirmed, or team-identified)"],
+              ["donorPriorities", "What the donor wants"],
+              ["capacity", "ROP's capacity: staff, presence, partners"],
+              ["risks", "Risks"],
+              ["grossIncome", "50% gross income analysis"],
+            ] as [keyof Fields, string][]
+          ).map(([k, label]) => (
+            <label key={k} className="text-sm sm:col-span-2">
+              {label}
+              <textarea rows={2} className={input} value={String(f[k] ?? "")} onChange={t(k)} />
+            </label>
+          ))}
+        </div>
+      </details>
       <div className="flex gap-2 sm:col-span-2">
         <button type="submit" className={primaryBtn}>
           Save
@@ -237,14 +243,15 @@ function Card({ o, v, act }: { o: Opportunity; v: OpportunitiesView; act: (a: Op
                 )}
               </>
             )}
-            {o.status === "match" && (
-              <Link href={`/setup?new=1&name=${encodeURIComponent(o.title)}`} className={primaryBtn}>
-                Start the design
+            {/* After a match the next step is the proposal; the project is set up once the award comes. */}
+            {o.status === "match" && opensProposals(user) && (
+              <Link href={`/work/proposals?opportunity=${encodeURIComponent(o.id)}`} className={primaryBtn}>
+                Start the proposal
               </Link>
             )}
-            {o.status === "match" && opensProposals(user) && (
-              <Link href={`/work/proposals?opportunity=${encodeURIComponent(o.id)}`} className={quietBtn}>
-                Start the proposal
+            {o.status === "match" && (
+              <Link href={`/setup?new=1&name=${encodeURIComponent(o.title)}`} className={opensProposals(user) ? quietBtn : primaryBtn}>
+                Set up the project (after award)
               </Link>
             )}
             {(o.status === "match" || o.status === "no_match") && v.can.decide && (
@@ -269,6 +276,7 @@ function Card({ o, v, act }: { o: Opportunity; v: OpportunitiesView; act: (a: Op
               <button type="submit" className={primaryBtn} disabled={reason.trim().length < 10}>
                 {deciding ? "Record match" : "Record no match"}
               </button>
+              {reason.trim().length < 10 && <p className="w-full text-xs text-muted">Write a sentence on why, to record it.</p>}
             </form>
           )}
         </>
@@ -314,8 +322,8 @@ export function OpportunitiesPage() {
     <div className="min-h-screen">
       <TopBar />
       <main className={`mx-auto px-4 py-6 sm:px-6 ${view === "board" ? "max-w-7xl" : "max-w-3xl"}`}>
-        <Link href="/work" className="text-sm text-muted hover:text-ink">
-          ← Work
+        <Link href="/project" className="text-sm text-muted hover:text-ink">
+          ← Projects
         </Link>
         <div className="mt-2 flex flex-wrap items-end gap-3">
           <h1 className="min-w-0 flex-1 font-display text-4xl tracking-tight">Opportunities</h1>
@@ -327,7 +335,7 @@ export function OpportunitiesPage() {
             </button>
           )}
         </div>
-        <p className="mt-1 text-sm text-muted">Develop: frame each opportunity, draft the match brief, and make the match call. A no-match keeps its reason, so resources go to better opportunities.</p>
+        <p className="mt-1 text-sm text-muted">Record funding calls, check if they fit ROP, and decide yes or no.</p>
         {error && <p className="mt-4 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">{error}</p>}
         {adding && (
           <section className="mt-4 rounded-2xl border border-line bg-surface p-4">

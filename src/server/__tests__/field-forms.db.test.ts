@@ -8,7 +8,9 @@ import { userById } from "@/lib/demo";
 import type { Farmer } from "@/lib/field";
 import { dataFlags } from "@/lib/project";
 import { seedDatabase } from "@/server/demo-seed";
-import { loadField, saveItems } from "@/server/field-store";
+import { loadField, saveItems, saveSetup, setupFor } from "@/server/field-store";
+import { loadResults } from "@/server/results-store";
+import { plantingFromVisit } from "@/server/review";
 import { listSubmissions } from "@/server/kobo";
 import { decide } from "@/server/review";
 import { loadHome } from "@/server/home-store";
@@ -94,6 +96,47 @@ describe("training attendance and farm visit forms", { timeout: 60_000 }, () => 
     const after = await farmer(q.id);
     expect(after.step).toBe("plant");
     expect(after.timeline.at(-1)!.what).toMatch(/To follow up: Waiting for irrigation turn/);
+  });
+
+  it("writes the planting date and area from an accepted visit and counts it toward a target that counts at planting", async () => {
+    const setup = (await setupFor(code))!;
+    await saveSetup(code, { ...setup, target: "IND-2", targetAt: "planting" });
+    const f = (await farmers()).find((x) => x.step === "distribute" && !x.planting)!;
+    await saveItems(code, [{ ...f, step: "plant", awaiting: undefined }]);
+    const area = Math.round(f.hectares * 50) / 100;
+    const id = await submit("visit", f.id, { visit_date: "2026-11-12", purpose: "planting_followup", both_present: "yes", planted: "yes", planting_date: "2026-11-06", spacing_ok: "yes", area_planted: String(area) });
+    const sub = (await listSubmissions(code)).submissions.find((x) => x.dbId === id)!;
+    expect(sub.fields.area).toBe(String(area));
+
+    const { applied } = await decide(code, id, "accepted", omar);
+    expect(applied).toBe("Planting recorded. Season path complete. Counted toward the target, waiting for MEL on the Results page.");
+    const after = await farmer(f.id);
+    expect(after.step).toBe("complete");
+    expect(after.planting).toEqual({ date: "2026-11-06", hectares: area });
+    expect(after.timeline.some((t) => t.what.startsWith(`Planting recorded on 2026-11-06, ${area} of ${f.hectares} ha, at the trained spacing`))).toBe(true);
+    const made = (await loadResults(code)).filter((r) => r.planting === f.id);
+    expect(made).toHaveLength(1);
+    expect(made[0]).toMatchObject({ indicator: "IND-2", date: "2026-11-06", status: "pending" });
+    await saveSetup(code, setup);
+  });
+
+  it("keeps the farmer at Plant when the planting record does not hold up", async () => {
+    const f = (await farmers()).find((x) => !["complete", "plant", "train"].includes(x.step) && !x.planting)!;
+    await saveItems(code, [{ ...f, step: "plant", awaiting: undefined }]);
+    const id = await submit("visit", f.id, { visit_date: "2026-11-12", purpose: "planting_followup", both_present: "yes", planted: "yes", planting_date: "2026-11-06", spacing_ok: "yes", area_planted: String(f.hectares + 5) });
+    expect((await decide(code, id, "accepted", omar)).applied).toMatch(/^Visit recorded\. Planting not recorded: .*more than the farmer's plot/);
+    const after = await farmer(f.id);
+    expect(after.step).toBe("plant");
+    expect(after.planting).toBeUndefined();
+  });
+
+  it("works out the area from the number planted for a crop counted one by one", () => {
+    const plan = { by: "count" as const, unit: "vines", rowM: 3, plantM: 1.5 };
+    // 10,000 m² / 4.5 m² = 2,222 vines a hectare: 1,111 vines is 0.5 ha.
+    expect(plantingFromVisit({ planting_date: "2026-11-06", count: "1111", area: "0.9" }, "2026-11-12", 1, plan)).toEqual({ planting: { date: "2026-11-06", count: 1111, hectares: 0.5 }, assumed: false });
+    expect(plantingFromVisit({ planting_date: "2026-11-06", area: "0.4" }, "2026-11-12", 1, null)).toEqual({ planting: { date: "2026-11-06", hectares: 0.4 }, assumed: false });
+    // A visit from the form before it asked the area: the farmer's plot, said so on the record.
+    expect(plantingFromVisit({}, "2026-11-12", 0.7, null)).toEqual({ planting: { date: "2026-11-12", hectares: 0.7 }, assumed: true });
   });
 
   it("moves nobody on a queried record", async () => {

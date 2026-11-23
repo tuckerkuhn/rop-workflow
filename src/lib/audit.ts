@@ -29,6 +29,12 @@ export function describeAudit(entity: string, action: string, d: D): string {
       return `Selected farmer ${str(d.farmer)} (${num(d.met)} of ${num(d.of)} rules met)${d.reason ? `: ${str(d.reason)}` : ""}`;
     case "selection_not_selected":
       return `Did not select farmer ${str(d.farmer)}: ${str(d.reason)}`;
+    case "selection_waitlisted":
+      return `Waitlisted farmer ${str(d.farmer)}: ${str(d.reason)}`;
+    case "selection_not_qualified":
+      return `Farmer ${str(d.farmer)} did not qualify (${num(d.met)} of ${num(d.of)} rules met): ${str(d.reason)}`;
+    case "selection_changed":
+      return `Changed the selection decision for farmer ${str(d.farmer)} from ${str(d.was).toLowerCase()} to ${d.outcome === "not_qualified" ? "did not qualify" : d.outcome ? str(d.outcome) : d.selected ? "selected" : "not selected"}: ${str(d.why)}`;
     case "selection_reopened":
       return `Reopened the selection decision for farmer ${str(d.farmer)}: ${str(d.reason)}`;
     case "project_modules_set":

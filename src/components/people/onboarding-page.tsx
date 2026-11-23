@@ -85,10 +85,17 @@ export function OnboardingPage() {
       <TopBar />
       <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <h1 className="font-display text-3xl tracking-tight">{own ? tx("Welcome to Roots of Peace, {name}", { name: o!.name.split(" ")[0] }) : tx("Onboarding")}</h1>
-          <Link href="/people" className="text-sm font-semibold text-forest hover:underline">
-            {tx("People")}
-          </Link>
+          <h1 className="font-display text-3xl tracking-tight">{own ? tx("Welcome to Roots of Peace, {name}", { name: o!.name.split(" ")[0] }) : tx("Starting at ROP")}</h1>
+          <span className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+            {v && (v.isHr || v.list.some((l) => l.person !== v.me)) && (
+              <Link href="/offboarding" className="font-semibold text-forest hover:underline">
+                {tx("Leaving and contract renewals →")}
+              </Link>
+            )}
+            <Link href="/people" className="font-semibold text-forest hover:underline">
+              {tx("People")}
+            </Link>
+          </span>
         </div>
         {own && <p className="mt-1 text-sm text-muted">{tx("Your first steps, all here. Each one is kept in your HR record.")}</p>}
         {error && (
@@ -129,7 +136,7 @@ export function OnboardingPage() {
             {o ? (
               <Checklist key={o.person} o={o} v={v} own={!!own} fmt={fmt} act={act} />
             ) : (
-              !v.list.length && <p className="mt-8 rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">{tx("No onboarding in progress.")}</p>
+              <p className="mt-8 rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">{v.list.length ? tx("Choose a person to see their checklist.") : tx("No onboarding in progress.")}</p>
             )}
             {v.isHr && <Policies v={v} act={act} fmt={fmt} />}
           </>

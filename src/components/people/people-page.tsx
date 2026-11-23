@@ -2,7 +2,7 @@
 
 import { plainError } from "@/lib/plain-error";
 import { askConfirm } from "@/components/app/dialogs";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useT } from "@/components/app/i18n";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { Pill, SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn, StatusPill as Status } from "@/components/workspace/ui";
@@ -105,6 +105,22 @@ export function PeoplePage() {
   const [rulesOpen, setRulesOpen] = useState(false);
 
   const v = hr.view;
+  // Open on the queue only when something is waiting; otherwise HR lands on the list of people.
+  // A link like ?person=<id>&change=contractEnd (from Leaving and renewals) opens that person's change form.
+  const landed = useRef(false);
+  useEffect(() => {
+    if (!v || !v.started || landed.current) return;
+    landed.current = true;
+    if (v.seesAll && !v.proposals.some((p) => p.canSign)) setTab("people");
+    const q = new URLSearchParams(window.location.search);
+    const who = q.get("person");
+    const change = q.get("change");
+    if (who && v.roles.includes("hr") && who !== v.me && v.people.some((p) => p.id === who)) {
+      setTab("people");
+      const leaving = change === "leave" && !v.people.find((p) => p.id === who)?.separated;
+      setForm(leaving ? { type: "separate", subject: who } : { type: "update", subject: who, ...(change && change in FIELDS ? { first: change as FieldKey } : {}) });
+    }
+  }, [v]);
   if (!user) return null;
   const waiting = v?.proposals.filter((p) => p.canSign) ?? [];
   const mine = v?.people.find((p) => p.id === v.me);
@@ -114,8 +130,8 @@ export function PeoplePage() {
         { id: "waiting", label: `Waiting for you (${waiting.length})` },
         { id: "people", label: "People" },
         { id: "changes", label: "All changes" },
-        { id: "rules", label: "Authority" },
-        { id: "ledger", label: "Ledger" },
+        { id: "rules", label: "Who approves what" },
+        { id: "ledger", label: "Full history (tamper check)" },
       ]
     : [
         { id: "waiting", label: "My record" },
@@ -139,10 +155,10 @@ export function PeoplePage() {
               Leave
             </a>
             <a href="/expenses" className="font-semibold text-forest hover:underline">
-              Expenses
+              Expense reports
             </a>
             <a href="/onboarding" className="font-semibold text-forest hover:underline">
-              Onboarding
+              Starting at ROP
             </a>
             <a href="/offboarding" className="font-semibold text-forest hover:underline">
               Leaving and renewals
@@ -155,7 +171,7 @@ export function PeoplePage() {
           </span>
         </div>
         <p className="mt-1 max-w-2xl text-sm text-muted">
-          The HR record. Nothing in it can be edited or deleted: every change is a new entry, signed by the people the rules name, and sealed so any later tampering shows.
+          The HR record: every change is proposed, signed by the people the rules name, and kept forever.
         </p>
         {v?.sample && (
           <p className="mt-3 rounded-xl bg-sunken px-4 py-2 text-xs text-muted">
@@ -646,7 +662,7 @@ function ProposalCard({ p, view, fmt, act, onDone }: { p: ProposalView; view: Hr
 
 /* ---------------- Proposing a change ---------------- */
 
-type FormState = { type: "hire" } | { type: "update"; subject: string; own?: boolean; corrects?: number } | { type: "separate"; subject: string };
+type FormState = { type: "hire" } | { type: "update"; subject: string; own?: boolean; corrects?: number; first?: FieldKey } | { type: "separate"; subject: string };
 
 function ChangeForm({ state, view, onClose, submit }: { state: FormState; view: HrView; onClose: () => void; submit: (p: ProposalInput) => Promise<void> }) {
   const person = "subject" in state ? view.people.find((p) => p.id === state.subject) : undefined;
@@ -658,6 +674,8 @@ function ChangeForm({ state, view, onClose, submit }: { state: FormState; view: 
   const [error, setError] = useState("");
   const own = state.type === "update" && !!state.own;
   const groups: Group[] = own ? ["details"] : ["job", "pay", "details"];
+  // A link may ask for one field first (e.g. contract end, to renew); it leads the form and is left out of its group.
+  const first = state.type === "update" && state.first && !own ? state.first : undefined;
   const changed = (Object.keys(values) as FieldKey[]).filter((k) => state.type === "hire" ? values[k] !== "" && values[k] != null : values[k] !== (person?.fields[k] ?? null) || corrected);
   const title = state.type === "hire" ? "Add a person" : state.type === "separate" ? `${person?.name}: leaving ROP` : corrected ? `${person?.name}: correct change #${corrected.id}` : own ? "Update my contact details" : `${person?.name}: propose a change`;
 
@@ -681,12 +699,17 @@ function ChangeForm({ state, view, onClose, submit }: { state: FormState; view: 
     <Modal title={title} onClose={onClose}>
       <div className="space-y-5">
         {corrected && <p className="rounded-xl bg-sunken px-3 py-2 text-sm">A correction is a new entry. Change #{corrected.id} stays in the history, marked as corrected.</p>}
+        {first && (
+          <div className="grid gap-3 rounded-xl bg-mist p-3 sm:grid-cols-2">
+            <FieldInput k={first} value={first in values ? values[first] : (person?.fields[first] ?? null)} directory={view.directory} onChange={(val) => setValues((s) => ({ ...s, [first]: val }))} />
+          </div>
+        )}
         {state.type !== "separate" &&
           groups.map((g) => (
             <fieldset key={g}>
               <legend className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">{GROUP_LABEL[g]}</legend>
               <div className="mt-2 grid gap-3 sm:grid-cols-2">
-                {fieldsIn(g).map((k) => (
+                {fieldsIn(g).filter((k) => k !== first).map((k) => (
                   <FieldInput key={k} k={k} value={k in values ? values[k] : (person?.fields[k] ?? null)} directory={view.directory} required={state.type === "hire" && HIRE_REQUIRED.includes(k)} onChange={(val) => setValues((s) => ({ ...s, [k]: val }))} />
                 ))}
               </div>
@@ -1125,7 +1148,7 @@ function Ledger({ view, fmt, seal, reset, onDone }: { view: HrView; fmt: (iso: s
           <ul className="mt-2 space-y-1 text-sm">
             {view.seals.map((s) => (
               <li key={s.n}>
-                {fmt(s.at)}: entries 1 to {s.upTo}, <span className="font-mono text-xs">{s.hash}</span> {s.sentTo ? `· emailed to ${s.sentTo}` : "· not emailed (HR_SEAL_TO not set)"}
+                {fmt(s.at)}: entries 1 to {s.upTo}, <span className="font-mono text-xs">{s.hash}</span> {s.sentTo ? `· emailed to ${s.sentTo}` : "· not emailed: no seal address is set; ask your administrator"}
               </li>
             ))}
           </ul>
@@ -1321,11 +1344,13 @@ function BambooImport({ user, onDone }: { user: string; onDone: (msg: string) =>
   );
 }
 
-/** My details: the signed-in person's own HR record, read-only. Changes go through HR. */
+/** My details: the signed-in person's own HR record. They may propose new contact details (HR approves); anything else goes through HR. */
 export function MyDetailsPage() {
   const { user } = useRequireUser();
   const { date } = useT();
   const hr = useHr();
+  const [form, setForm] = useState<FormState | null>(null);
+  const [notice, setNotice] = useState("");
   if (!user) return null;
   const v = hr.view;
   const mine = v?.people.find((p) => p.id === v.me);
@@ -1338,16 +1363,33 @@ export function MyDetailsPage() {
           ← Home
         </a>
         <h1 className="mt-2 font-display text-4xl tracking-tight">My details</h1>
-        <p className="mt-1 text-sm text-muted">Your HR record as it stands. To change anything, ask HR.</p>
+        <p className="mt-1 text-sm text-muted">Update your phone and emergency contact here; HR approves. For anything else, ask HR.</p>
         {hr.error && <p className="mt-4 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">{hr.error}</p>}
+        {notice && (
+          <p role="status" className="mt-4 rounded-xl bg-mist px-4 py-3 text-sm text-leaf">
+            {notice}
+          </p>
+        )}
         {!v && !hr.error && <p className="mt-6 text-sm text-muted">Loading…</p>}
         {v && !mine && <p className="mt-6 text-sm text-muted">You have no HR record yet. HR adds it when your contract starts.</p>}
         {v && mine && (
           <div className="mt-6">
-            <PersonRecord p={mine} view={v} fmt={fmt} />
+            <PersonRecord p={mine} view={v} fmt={fmt} onChange={() => setForm({ type: "update", subject: mine.id, own: true })} />
           </div>
         )}
       </main>
+      {form && v && (
+        <ChangeForm
+          state={form}
+          view={v}
+          onClose={() => setForm(null)}
+          submit={async (proposal) => {
+            await hr.act({ action: "propose", proposal });
+            setForm(null);
+            setNotice("Sent to HR. Your record changes once HR approves.");
+          }}
+        />
+      )}
     </div>
   );
 }

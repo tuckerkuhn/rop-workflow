@@ -70,6 +70,11 @@ export function WeekAhead() {
   // Choosing: the person's own list if they reopened it, else what the app proposes.
   const list: Draft[] = draft ?? (v.plan.items.length ? v.plan.items.map(({ id, text, href, own }) => ({ id, text, href, own })) : v.suggestions.map((x) => ({ ...x, own: false })));
   const done = v.plan.items.filter((i) => i.done).length;
+  // When the records raise only the approvals, they are already listed one by one in the to-do list
+  // above: the week ahead says so in one line instead of naming them again.
+  const onlyApprovals = list.length === 1 && list[0].id === "approvals" && !list[0].own;
+  const waitingN = Number.parseInt(v.summary.find((x) => x.kind === "waiting")?.parts[0]?.t ?? "", 10);
+  const approvals = waitingN === 1 ? "approval" : waitingN > 1 ? `${waitingN} approvals` : "approvals";
   const full = list.length >= v.max;
   const addOwn = () => {
     const text = add.trim();
@@ -137,6 +142,16 @@ export function WeekAhead() {
             <p className="mt-1 max-w-2xl text-sm text-muted">Drawn from what is due, blocked and waiting on you. Drop what is not yours this week, add what the records cannot know, then confirm. Three at most.</p>
             {list.length === 0 ? (
               <p className="mt-2 border-s-[6px] border-leaf ps-3 text-sm">The records raise nothing for you this week. Add your own priorities, or confirm an open week.</p>
+            ) : onlyApprovals ? (
+              <p className="mt-2 flex min-h-12 items-center gap-3 border-y border-line px-2 py-2 text-sm">
+                <span className="min-w-0 flex-1">
+                  <span className="font-semibold">Clear the {approvals} waiting on you</span>
+                  <span className="text-muted">{v.projects.length > 1 ? ": each project's Home lists its own." : ": they are in your to-do list above."}</span>
+                </span>
+                <button type="button" className="min-h-11 shrink-0 px-2 text-sm text-muted hover:text-clay" aria-label={`Drop: ${list[0].text}`} onClick={() => setDraft([])}>
+                  Drop
+                </button>
+              </p>
             ) : (
               <ol className="mt-2 border-t-2 border-ink">
                 {list.map((i, k) => (

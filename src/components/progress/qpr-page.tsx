@@ -1,6 +1,5 @@
 "use client";
 
-import { storeNames } from "@/lib/file-store";
 import { plainError } from "@/lib/plain-error";
 import { askConfirm } from "@/components/app/dialogs";
 import Link from "next/link";
@@ -17,7 +16,7 @@ import { formatMinutes } from "@/lib/report-copy";
 import { ShareLinks } from "@/components/progress/share-links";
 import { ClaimCheckPanel } from "@/components/progress/claim-check";
 import { ReportDownloads } from "@/components/progress/downloads";
-import { SpreadsheetImport } from "@/components/progress/spend-map";
+import { SpendImport } from "@/components/progress/spend-import";
 import { askForChecks, beforeDownload, PreflightButton, usePreflight } from "@/components/progress/preflight-page";
 import { ReportChecks, ReportKinds } from "@/components/progress/report-checks";
 import { MoneySourceLink, ProofNumber } from "@/components/progress/proof-panel";
@@ -25,6 +24,7 @@ import { useT } from "@/components/app/i18n";
 import { personName } from "@/lib/project";
 import { ErrorNote } from "@/components/app/error-note";
 import { quarterOf, quarterRange } from "@/lib/results";
+import { lastEndedQuarter, useReportQuarter } from "@/components/progress/use-report-quarter";
 import type { QprView } from "@/app/api/projects/[code]/qpr/route";
 
 /**
@@ -60,12 +60,7 @@ function quartersFor(start: string | null) {
   }
   return out.reverse();
 }
-const lastEnded = () => {
-  const today = new Date().toISOString().slice(0, 10);
-  const cur = quarterOf(today);
-  const [y, n] = [Number(cur.slice(0, 4)), Number(cur.slice(6))];
-  return n === 1 ? `${y - 1}-Q4` : `${y}-Q${n - 1}`;
-};
+const lastEnded = () => lastEndedQuarter();
 
 export function QprPage() {
   const { user } = useRequireUser();
@@ -75,7 +70,7 @@ export function QprPage() {
   const router = useRouter();
   const asked = /^\d{4}-Q[1-4]$/.test(params.get("q") ?? "") ? params.get("q")! : null;
   // The quarter Home and pre-flight call "the next report" (server/next-report): the page opens on it.
-  const [nextQ, setNextQ] = useState<string | null>(null);
+  const nextQ = useReportQuarter(project.id, user?.id, ready && project.saved);
   const quarter = asked ?? nextQ ?? lastEnded();
   const [v, setV] = useState<QprView | null>(null);
   const [error, setError] = useState("");
@@ -88,22 +83,12 @@ export function QprPage() {
   // Pre-flight: refreshed every time the report changes, so the count on the buttons is current.
   const pf = usePreflight(project.id, user?.id, { kind: "qpr", quarter }, v);
   const blocking = pf && !pf.released ? pf.items.filter((i) => i.group === "blocks").length : 0;
+  const worthFixing = pf && !pf.released ? pf.items.filter((i) => i.group === "fix").length : 0;
 
   useEffect(() => {
-    if (!ready || !user || !project.saved) return;
-    let live = true;
-    call<{ quarter: string }>(`/api/projects/${project.id}/report-quarter`, user.id)
-      .then((d) => {
-        if (!live) return;
-        setNextQ(d.quarter);
-        if (!asked) router.replace(`/progress/report?q=${d.quarter}${window.location.hash}`);
-      })
-      .catch(() => live && !asked && setNextQ(lastEnded()));
-    return () => {
-      live = false;
-    };
+    if (nextQ && !asked) router.replace(`/progress/report?q=${nextQ}${window.location.hash}`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, user?.id, project.id, project.saved]);
+  }, [nextQ]);
 
   const load = useCallback(async () => {
     // Wait for the quarter to open on, so the page does not show one quarter and then another.
@@ -177,7 +162,7 @@ export function QprPage() {
   };
   const download = async () => {
     if (!v || !user) return;
-    // A copy (released or practice) is downloaded as it was; the live draft goes through pre-flight first.
+    // A copy (released or preview) is downloaded as it was; the live draft goes through pre-flight first.
     const draft = v.frozen ? 0 : await beforeDownload(project.id, user.id, pf, (n) => t("pf.draftConfirm", { n }), { kind: "qpr", quarter }, t("pf.uncheckedConfirm"));
     if (draft === null) return;
     setBusy("download");
@@ -198,6 +183,10 @@ export function QprPage() {
 
   const emptyDraftable = v ? [...SECTIONS.filter((s) => s.draft).map((s) => s.key as string), ...v.activities.map((a) => `act.${a.code}`)].filter((k) => !v.saved.sections[k]?.text.trim()) : [];
   const stops = v?.checks.filter((c) => c.level === "stop") ?? [];
+  // One count everywhere: the Report check's (it includes every "stop" of the report's own checks, and more).
+  // Until the check has loaded, the report's own checks stand in.
+  const blockN = pf ? blocking : stops.length;
+  const fixN = pf ? worthFixing : (v?.checks.length ?? 0) - stops.length;
   const cannot = v ? cannotOnReport({ edit: v.mayEdit, accept: user.project.includes("mel-owner"), import: v.mayImport, release: v.mayRelease }) : [];
   const { from, to } = quarterRange(quarter);
   // Home's "Next report" (the quarter just ended while its report is still due, else the one under way).
@@ -223,7 +212,7 @@ export function QprPage() {
           </label>
         </div>
         <p className="mt-1 max-w-2xl text-sm text-muted">
-          {from} to {to}. Figures come from results MEL has accepted, and each one opens the records and proof behind it. Write or draft the text, fix what the checks list, then download it for Word.
+          {from} to {to}. Figures come from results that monitoring, evaluation and learning (MEL) has accepted, and each one opens the records and proof behind it. Write or draft the text, fix what the checks list, then download it for Word.
         </p>
         <ReportChecks p={pf} />
         <p className="mt-3 rounded-xl bg-sunken px-4 py-3 text-sm font-semibold">
@@ -259,12 +248,12 @@ export function QprPage() {
             <div className="sticky top-0 z-10 -mx-4 mt-4 flex flex-wrap items-center gap-2 border-b border-line bg-paper/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
               <Pill tone="muted">{qLabel(quarter)}</Pill>
               {v.frozen?.kind === "practice" ? (
-                <Pill tone="sky">Practice copy · {v.frozen.at.slice(0, 16).replace("T", " ")} UTC · {v.frozen.by}</Pill>
+                <Pill tone="sky">Preview copy · {v.frozen.at.slice(0, 16).replace("T", " ")} UTC · {v.frozen.by}</Pill>
               ) : v.saved.released ? (
                 <Pill tone="forest">Released {v.saved.released.at.slice(0, 10)} by {personName(v.saved.released.by)}</Pill>
               ) : (
-                <Pill tone={stops.length ? "clay" : "ochre"}>
-                  Draft · {stops.length} to fix · {v.checks.length - stops.length} to check
+                <Pill tone={blockN ? "clay" : "ochre"}>
+                  Draft · {blockN} blocking · {fixN} worth fixing
                 </Pill>
               )}
               {v.work.sittings > 0 && (
@@ -295,33 +284,37 @@ export function QprPage() {
                   className={quietBtn}
                   disabled={!!busy}
                   title="Saves a copy as if released, without locking anything, so you can see what would go out and compare it later."
-                  onClick={() => quiet(act({ action: "practice" }, "Practice copy saved. Nothing is locked: go back to the report to keep working."))}
+                  onClick={() => quiet(act({ action: "practice" }, "Preview copy saved. Nothing is locked or released (a share link made before release shows it): go back to the report to keep working."))}
                 >
-                  Practice release
+                  Save a preview copy
                 </button>
               )}
               {v.mayRelease && (
-                <button type="button" className={primaryBtn} disabled={!!busy || stops.length > 0 || blocking > 0} title={stops.length || blocking ? `The report check lists ${Math.max(blocking, stops.length)} ${Math.max(blocking, stops.length) === 1 ? "thing" : "things"} that block the report: fix ${Math.max(blocking, stops.length) === 1 ? "it" : "them"} first.` : ""} onClick={() => void askConfirm({ message: `Mark the ${quarter} report final? It is locked for good: this copy is what the donor receives. To rehearse, use Practice release instead.`, confirm: "Mark final" }).then((ok) => (ok ? quiet(act({ action: "release" }, "Released: the report is final and can no longer be changed.")) : undefined))}>
-                  Mark final{blocking ? ` (${blocking} blocking)` : ""}
+                <button
+                  type="button"
+                  className={primaryBtn}
+                  disabled={!!busy || stops.length > 0 || blockN > 0}
+                  onClick={() =>
+                    void askConfirm({
+                      message: `Mark the ${qLabel(quarter)} report final and release it to the donor? It is locked for good: this copy is what the donor receives. It appears in the donor's Reports tab, and every share link for this quarter opens it from now on. No email is sent: tell the donor yourself. To see what would go out first, use "Save a preview copy" instead.`,
+                      confirm: "Mark final and release",
+                    }).then((ok) => (ok ? quiet(act({ action: "release" }, "Released: the report is final, it is in the donor's Reports tab, and it can no longer be changed.")) : undefined))
+                  }
+                >
+                  Mark final and release to the donor{blockN ? ` (${blockN} blocking)` : ""}
                 </button>
               )}
               {/* Why it cannot be marked final, in the page: a hover title never shows on a phone. */}
-              {v.mayRelease && (stops.length > 0 || blocking > 0) && (
+              {v.mayRelease && blockN > 0 && (
                 <p className="basis-full text-sm text-clay">
-                  Pre-flight lists {Math.max(blocking, stops.length)} {Math.max(blocking, stops.length) === 1 ? "thing" : "things"} that block the report. Fix {Math.max(blocking, stops.length) === 1 ? "it" : "them"} first, then mark it final.
+                  {blockN === 1 ? t("report.blockedOne") : t("report.blocked", { n: blockN })}{" "}
+                  <a href="#checks" onClick={askForChecks} className="font-semibold underline">
+                    {t("pf.button")}
+                  </a>
                 </p>
               )}
             </div>
 
-            {/* Why "Mark final" is off, in words a phone shows (a tooltip is not enough), with the way on. */}
-            {v.mayRelease && !v.frozen && !v.saved.released && Math.max(blocking, stops.length) > 0 && (
-              <p className="mt-3 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">
-                {Math.max(blocking, stops.length) === 1 ? t("report.blockedOne") : t("report.blocked", { n: Math.max(blocking, stops.length) })}{" "}
-                <a href="#checks" onClick={askForChecks} className="font-semibold underline">
-                  {t("pf.button")}
-                </a>
-              </p>
-            )}
             {/* What this person's roles do not allow on this report, said once, before they start. */}
             {!v.frozen && !v.saved.released && cannot.length > 0 && (
               <div className="mt-3 rounded-xl border border-line bg-surface px-4 py-3 text-sm">
@@ -339,7 +332,7 @@ export function QprPage() {
                 <p className="font-semibold">
                   {v.frozen.kind === "release"
                     ? `This is the report as released on ${v.frozen.at.slice(0, 10)}: what the donor received. It stays as it was.`
-                    : "This is a practice copy: the report as it would have gone out at that moment. Nothing was locked."}
+                    : "This is a preview copy: the report as it would have gone out at that moment. Nothing was locked or released."}
                 </p>
                 {v.changes.length ? (
                   <>
@@ -361,23 +354,6 @@ export function QprPage() {
                 )}
               </section>
             )}
-            {!v.frozen && v.copies.some((c) => c.kind === "practice") && (
-              <p className="mt-3 text-xs text-muted">
-                Practice copies:{" "}
-                {v.copies
-                  .filter((c) => c.kind === "practice")
-                  .reverse()
-                  .map((c, k) => (
-                    <span key={c.at}>
-                      {k > 0 && " · "}
-                      <Link href={`/progress/report?q=${quarter}&copy=${encodeURIComponent(c.at)}`} className="hover:text-ink hover:underline">
-                        {c.at.slice(0, 16).replace("T", " ")} ({formatMinutes(c.minutes)})
-                      </Link>
-                    </span>
-                  ))}
-              </p>
-            )}
-
             {v.photosHeld > 0 && (
               <p className="mt-3 rounded-xl bg-mist px-4 py-3 text-sm">
                 {v.photosHeld} captioned {v.photosHeld === 1 ? "photo is" : "photos are"} held back from the report until checked for people who can be recognised, or until consent covers them.{" "}
@@ -386,27 +362,6 @@ export function QprPage() {
                 </Link>
               </p>
             )}
-            <ReportDownloads project={project.id} quarter={quarter} user={user.id} mayEvidence={!!user.admin || user.project.some((r) => ["mel-owner", "report-release", "plan-approver", "monthly-review"].includes(r))} mayAudit={!!user.admin || user.project.includes("mel-owner")} />
-            <div id="claims" className="scroll-mt-24" />
-            <ClaimCheckPanel
-              check={v.saved.claimCheck}
-              sections={Object.fromEntries(Object.entries(v.saved.sections).map(([k, t]) => [k, t?.text ?? ""]))}
-              headings={Object.fromEntries([...SECTIONS.map((x) => [x.key, x.heading]), ...v.activities.map((x) => [`act.${x.code}`, `Activity ${x.code}`])])}
-              busy={busy === "check-claims"}
-              mayRun={v.mayEdit}
-              onRun={() => quiet(act({ action: "check-claims" }, "Checked. Look at each finding against its records; nothing has been changed."))}
-              onDecide={(index, choice) => {
-                const section = v.saved.claimCheck?.issues[index]?.section;
-                void quiet(
-                  act({ action: "claim-decide", index, choice }, choice === "fix" ? t("ha.claimFix") : choice === "keep" ? t("ha.claimKeep") : t("ha.claimUndo")).then(() => {
-                    // "Fix the text" takes the person straight to the section the sentence is in.
-                    if (choice === "fix" && section) document.getElementById(`sec-${section}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
-                  }),
-                );
-              }}
-            />
-            {!v.frozen?.kind || v.frozen.kind === "release" ? <ShareLinks project={project.id} quarter={quarter} user={user.id} ready={v.copies.length > 0} /> : null}
-
             {questions.length > 0 && (
               <section className="mt-4 rounded-xl border border-ochre/40 bg-ochre-soft px-4 py-3 text-sm">
                 <p className="font-semibold">Claude needs these facts (placeholders are in [brackets] in the drafts):</p>
@@ -467,6 +422,50 @@ export function QprPage() {
             <Risks v={v} act={act} />
             <Section v={v} k="lessons" act={act} busy={busy} />
             <Section v={v} k="next" act={act} busy={busy} />
+
+            {/* Everything for sending the report out, in one place at the end, closed until wanted. */}
+            <Collapsible ids={["send", "claims", "share"]} className="mt-10 rounded-2xl border border-line bg-surface px-4 py-3" summary={<span className="font-ledger text-lg font-bold">Send and share</span>} hint="Downloads for the donor and the auditor, the check of the text against the records, preview copies and share links.">
+              <div id="send" className="scroll-mt-24" />
+            {!v.frozen && v.copies.some((c) => c.kind === "practice") && (
+              <p className="mt-3 text-sm text-muted">
+                Preview copies:{" "}
+                {v.copies
+                  .filter((c) => c.kind === "practice")
+                  .reverse()
+                  .map((c, k) => (
+                    <span key={c.at}>
+                      {k > 0 && " · "}
+                      <Link href={`/progress/report?q=${quarter}&copy=${encodeURIComponent(c.at)}`} className="hover:text-ink hover:underline">
+                        {c.at.slice(0, 16).replace("T", " ")} ({formatMinutes(c.minutes)})
+                      </Link>
+                    </span>
+                  ))}
+              </p>
+            )}
+
+            <ReportDownloads project={project.id} quarter={quarter} user={user.id} mayEvidence={!!user.admin || user.project.some((r) => ["mel-owner", "report-release", "plan-approver", "monthly-review"].includes(r))} mayAudit={!!user.admin || user.project.includes("mel-owner")} />
+            <div id="claims" className="scroll-mt-24" />
+            <ClaimCheckPanel
+              check={v.saved.claimCheck}
+              sections={Object.fromEntries(Object.entries(v.saved.sections).map(([k, t]) => [k, t?.text ?? ""]))}
+              headings={Object.fromEntries([...SECTIONS.map((x) => [x.key, x.heading]), ...v.activities.map((x) => [`act.${x.code}`, `Activity ${x.code}`])])}
+              busy={busy === "check-claims"}
+              mayRun={v.mayEdit}
+              onRun={() => quiet(act({ action: "check-claims" }, "Checked. Look at each finding against its records; nothing has been changed."))}
+              onDecide={(index, choice) => {
+                const section = v.saved.claimCheck?.issues[index]?.section;
+                void quiet(
+                  act({ action: "claim-decide", index, choice }, choice === "fix" ? t("ha.claimFix") : choice === "keep" ? t("ha.claimKeep") : t("ha.claimUndo")).then(() => {
+                    // "Fix the text" takes the person straight to the section the sentence is in.
+                    if (choice === "fix" && section) document.getElementById(`sec-${section}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }),
+                );
+              }}
+            />
+            <div id="share" className="scroll-mt-24" />
+            {!v.frozen?.kind || v.frozen.kind === "release" ? <ShareLinks project={project.id} quarter={quarter} user={user.id} ready={v.copies.length > 0} /> : null}
+
+            </Collapsible>
           </>
         )}
       </main>
@@ -498,8 +497,7 @@ function InfoBox({ v, act, onImported }: { v: QprView; act: Act; onImported: () 
     </label>
   );
   return (
-    <section id="info" className="mt-6 scroll-mt-24 rounded-2xl border border-line bg-surface p-4">
-      <SectionLabel>Project information</SectionLabel>
+    <Collapsible ids={["info", "overspend"]} id="info" className="mt-6 scroll-mt-24 rounded-2xl border border-line bg-surface p-4" summary={<SectionLabel>Project information and spending</SectionLabel>} hint="Title, agreement, budget, this quarter's spending and its import. Carried forward from last quarter.">
       <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
         <div>
           <dt className="text-muted">Total budget</dt>
@@ -546,7 +544,7 @@ function InfoBox({ v, act, onImported }: { v: QprView; act: Act; onImported: () 
         ) : (
           <>From the budget file{v.spend.source.at ? ` imported on ${v.spend.source.at}` : ""}. Import Finance&rsquo;s monthly workbook to fill this quarter&rsquo;s spending.</>
         )}{" "}
-        <SpendImport v={v} onDone={onImported} />
+        {v.mayImport && <SpendImport code={v.project.code} currency={v.spend.currency} onDone={onImported} />}
       </p>
       {v.mayEdit && (
         <label className="mt-3 block max-w-xs text-sm">
@@ -579,7 +577,7 @@ function InfoBox({ v, act, onImported }: { v: QprView; act: Act; onImported: () 
           Save project information
         </button>
       )}
-    </section>
+    </Collapsible>
   );
 }
 
@@ -842,30 +840,65 @@ function GenderStrip({ rows }: { rows: Row[] }) {
   );
 }
 
+/**
+ * Complaints and feedback for the quarter: counted from the feedback log, so nobody counts them a
+ * second time by hand. Figures typed here replace the log's count on the report, like spending.
+ */
 function Grm({ v, act }: { v: QprView; act: Act }) {
   const s = (x: number | null) => (x === null ? "" : String(x));
   const [rec, setRec] = useState(s(v.saved.grm.received));
   const [res, setRes] = useState(s(v.saved.grm.resolved));
+  const [typing, setTyping] = useState(v.saved.grm.received !== null);
   useEffect(() => {
     setRec(s(v.saved.grm.received));
     setRes(s(v.saved.grm.resolved));
+    if (v.saved.grm.received !== null) setTyping(true);
   }, [v.saved.grm.received, v.saved.grm.resolved]);
   const toN = (x: string) => (x.trim() === "" ? null : Math.max(0, Math.round(Number(x))));
   const dirty = rec !== s(v.saved.grm.received) || res !== s(v.saved.grm.resolved);
+  const log = v.grmLog;
+  const typed = v.saved.grm.received !== null;
   return (
-    <div className="mt-6 flex flex-wrap items-end gap-3">
-      <label className="text-sm">
-        Complaints received this quarter
-        <input inputMode="numeric" className={input} value={rec} disabled={!v.mayEdit} onChange={(e) => setRec(e.target.value)} />
-      </label>
-      <label className="text-sm">
-        Resolved
-        <input inputMode="numeric" className={input} value={res} disabled={!v.mayEdit} onChange={(e) => setRes(e.target.value)} />
-      </label>
-      {v.mayEdit && dirty && (
-        <button type="button" className={primaryBtn} onClick={() => void act({ action: "grm", received: toN(rec), resolved: toN(res) }, "Saved.").catch(() => undefined)}>
-          Save
+    <div className="mt-6 text-sm">
+      <p>
+        {log ? (
+          <>
+            From the feedback log: <b>{log.received}</b> received, <b>{log.answered}</b> answered{log.open ? `, ${log.open} still open` : ""}.
+          </>
+        ) : (
+          <>Nothing is recorded in the feedback log yet.</>
+        )}{" "}
+        <Link href="/progress/feedback" className="font-semibold text-forest hover:underline">
+          Open the log
+        </Link>
+      </p>
+      {typed && log && <p className="mt-1 text-xs text-warn">The report uses the figures typed below instead of the log&rsquo;s count.</p>}
+      {v.mayEdit && !typing && (
+        <button type="button" className="mt-1 text-xs font-semibold text-forest hover:underline" onClick={() => setTyping(true)}>
+          Type different figures instead
         </button>
+      )}
+      {typing && (
+        <div className="mt-2 flex flex-wrap items-end gap-3">
+          <label className="text-sm">
+            Complaints received this quarter
+            <input inputMode="numeric" className={input} value={rec} placeholder={log ? `${log.received} from the log` : ""} disabled={!v.mayEdit} onChange={(e) => setRec(e.target.value)} />
+          </label>
+          <label className="text-sm">
+            Resolved
+            <input inputMode="numeric" className={input} value={res} placeholder={log ? `${log.answered} from the log` : ""} disabled={!v.mayEdit} onChange={(e) => setRes(e.target.value)} />
+          </label>
+          {v.mayEdit && dirty && (
+            <button type="button" className={primaryBtn} onClick={() => void act({ action: "grm", received: toN(rec), resolved: toN(res) }, "Saved.").catch(() => undefined)}>
+              Save
+            </button>
+          )}
+          {v.mayEdit && typed && log && (
+            <button type="button" className={quietBtn} onClick={() => void act({ action: "grm", received: null, resolved: null }, "Back to the feedback log's count.").catch(() => undefined)}>
+              Use the log&rsquo;s count
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
@@ -900,98 +933,6 @@ function Risks({ v, act }: { v: QprView; act: Act }) {
         </div>
       )}
     </section>
-  );
-}
-
-/** Finance's monthly budget-against-actual workbook: checked first, then imported. */
-function SpendImport({ v, onDone }: { v: QprView; onDone: () => void }) {
-  const { user } = useSession();
-  const { t } = useT();
-  const [file, setFile] = useState<File | null>(null);
-  // Not Finance's ICE workbook: read with columns the person confirms (B3).
-  const [generic, setGeneric] = useState(false);
-  const [done, setDone] = useState(false);
-  const [link, setLink] = useState("");
-  const [preview, setPreview] = useState<{ months: string[]; monthLabels: Record<string, string>; lines: { code: string }[]; totals: { costs: { actual: number } | null }; problems: string[]; notes: string[]; sheet: string } | null>(null);
-  const [err, setErr] = useState("");
-  const [busy, setBusy] = useState(false);
-  if (!v.mayImport) return null;
-  const send = async (check: boolean) => {
-    if (!file) return;
-    setDone(false);
-    if (/\.csv$/i.test(file.name)) return setGeneric(true);
-    setErr("");
-    setBusy(true);
-    try {
-      const body = new FormData();
-      body.append("file", file);
-      if (link.trim()) body.append("sharepointUrl", link.trim());
-      const res = await fetch(`/api/projects/${v.project.code}/actuals${check ? "?check=1" : ""}`, { method: "POST", body, headers: { "x-demo-user": user?.id ?? "" } });
-      const out = await res.json().catch(() => ({}));
-      if (out.preview) setPreview(out.preview);
-      if (!res.ok) throw new Error(out.error ?? (out.preview?.problems?.length ? "The workbook has problems: see below." : `Import failed (${res.status})`));
-      if (!check) {
-        setFile(null);
-        setPreview(null);
-        onDone();
-      }
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <span className="mt-3 block rounded-xl bg-sunken p-3 text-sm text-ink">
-      <span className="block font-semibold">{t("pw.importBva")}</span>
-      <span className="block text-xs text-muted">The FACE workbook sent to UNDP (.xlsx). Only its ICE Report sheet is read; the ledger sheets, which name staff, are not kept.</span>
-      <span className="block text-xs text-muted">{t("sm.otherHelp")}</span>
-      <input type="file" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="mt-2 block text-sm" onChange={(e) => { setFile(e.target.files?.[0] ?? null); setPreview(null); setGeneric(false); setDone(false); }} />
-      <input className={input} placeholder={`Link to the workbook in ${storeNames()} (optional)`} value={link} onChange={(e) => setLink(e.target.value)} />
-      {preview && (
-        <span className="mt-2 block text-xs">
-          Sheet &ldquo;{preview.sheet}&rdquo;: {preview.lines.length} budget lines, {preview.months.map((m) => preview.monthLabels[m] ?? m).join(", ")}
-          {preview.totals.costs && `; ${num(preview.totals.costs.actual)} ${v.spend.currency} spent in all`}.
-          {preview.problems.map((p) => (
-            <span key={p} className="block text-clay">{p}</span>
-          ))}
-          {preview.notes.map((p) => (
-            <span key={p} className="block text-warn">{p}</span>
-          ))}
-        </span>
-      )}
-      {err && <span role="alert" className="mt-1 block text-xs text-clay">{err}</span>}
-      {done && <span role="status" className="mt-1 block text-xs text-forest">{t("sm.imported")}</span>}
-      {file && generic ? (
-        <SpreadsheetImport
-          code={v.project.code}
-          file={file}
-          link={link}
-          onCancel={() => setGeneric(false)}
-          onDone={() => {
-            setGeneric(false);
-            setFile(null);
-            setPreview(null);
-            setDone(true);
-            onDone();
-          }}
-        />
-      ) : (
-        <span className="mt-2 flex flex-wrap gap-2">
-          <button type="button" className={quietBtn} disabled={!file || busy} onClick={() => void send(true)}>
-            Check it
-          </button>
-          <button type="button" className={primaryBtn} disabled={!file || busy || !preview || preview.problems.length > 0} onClick={() => void send(false)}>
-            Import
-          </button>
-          {file && preview && preview.problems.length > 0 && (
-            <button type="button" className={primaryBtn} onClick={() => { setErr(""); setPreview(null); setGeneric(true); }}>
-              {t("sm.other")}
-            </button>
-          )}
-        </span>
-      )}
-    </span>
   );
 }
 
@@ -1093,6 +1034,30 @@ function Acronyms({ v, act }: { v: QprView; act: Act }) {
           Save acronyms
         </button>
       )}
+    </details>
+  );
+}
+
+/**
+ * A part of the report closed by default. It opens when a link names it or something inside it
+ * (#info, #claims…), so a link from the report check or Home still lands on the right place.
+ */
+function Collapsible({ ids, id, className, summary, hint, children }: { ids: string[]; id?: string; className: string; summary: React.ReactNode; hint?: string; children: React.ReactNode }) {
+  const named = () => typeof window !== "undefined" && ids.includes(window.location.hash.slice(1));
+  const [open, setOpen] = useState(named);
+  useEffect(() => {
+    const go = () => named() && setOpen(true);
+    window.addEventListener("hashchange", go);
+    return () => window.removeEventListener("hashchange", go);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return (
+    <details id={id} open={open} onToggle={(e) => setOpen(e.currentTarget.open)} className={className}>
+      <summary className="cursor-pointer">
+        {summary}
+        {hint && <span className="mt-0.5 block text-xs text-muted">{hint}</span>}
+      </summary>
+      {children}
     </details>
   );
 }

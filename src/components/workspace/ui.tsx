@@ -15,7 +15,7 @@ import { CurrencyToggle, Initials, useSession } from "@/components/app/session";
 import { TaskSourceSwitch } from "@/components/tasks/sources";
 import { LogoMark } from "@/components/logo";
 import { canEditProject, langLabel, users } from "@/lib/demo";
-import { LANGS, isLang } from "@/lib/i18n";
+import { LANGS, isLang, localeOf } from "@/lib/i18n";
 import { plainSources } from "@/components/status-tag";
 
 /** Shared building blocks for the Field activities and Procurement workspaces. */
@@ -506,6 +506,32 @@ export type RoleTab = { id: string; short: string };
 
 const NEW = "__new__";
 
+/** Whether a project's country (a code, or its name in the reader's language) is Afghanistan. */
+function inAfghanistan(country: string | undefined, locale: string) {
+  const c = (country ?? "").trim().toLowerCase();
+  if (c === "af" || c === "afghanistan") return true;
+  try {
+    return c === (new Intl.DisplayNames([locale], { type: "region" }).of("AF") ?? "").toLowerCase();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The USD/Afs switch is for Afghanistan projects only. Elsewhere it is not shown and amounts are in
+ * USD, so nobody sees afghanis on a project in another country.
+ */
+function ProjectCurrency() {
+  const { project } = useCurrentProject();
+  const { currency, setCurrency } = useSession();
+  const { lang } = useT();
+  const afghan = inAfghanistan(project.country, localeOf(lang));
+  useEffect(() => {
+    if (!afghan && currency !== "USD") setCurrency("USD");
+  }, [afghan, currency, setCurrency]);
+  return afghan ? <CurrencyToggle /> : null;
+}
+
 /** Which project Home, Tasks and Progress show; managers can also start a new one. */
 function ProjectSwitcher() {
   const { project, setProject, projects } = useCurrentProject();
@@ -513,8 +539,9 @@ function ProjectSwitcher() {
   const { t } = useT();
   const router = useRouter();
   return (
-    <label className="min-w-0">
-      <span className="sr-only">{t("project.label")}</span>
+    <label className="flex min-w-0 items-center gap-2">
+      {/* Named on a wide screen, so a new person knows what the picker changes; a phone keeps the room. */}
+      <span className="sr-only text-sm font-semibold text-muted lg:not-sr-only">{t("project.label")}</span>
       <select
         value={project.id}
         onChange={(e) => (e.target.value === NEW ? router.push("/setup?new=1") : setProject(e.target.value))}
@@ -555,7 +582,7 @@ export const MY_WORK: { href: string; label: MessageKey }[] = [
   { href: "/timesheets", label: "ts.title" },
   { href: "/leave", label: "lv.title" },
   { href: "/expenses", label: "exp.title" },
-  { href: "/settings", label: "menu.settings" },
+  { href: "/settings#you", label: "menu.settings" },
 ];
 
 export function TopBar({ active, children }: { active?: "design" | "project" | "tasks" | "field" | "procurement"; children?: React.ReactNode }) {
@@ -619,7 +646,7 @@ export function TopBar({ active, children }: { active?: "design" | "project" | "
               <Sparkle className="h-5 w-5" />
             </button>
           )}
-          <CurrencyToggle />
+          <ProjectCurrency />
           {user && (
             <div className="relative">
               <button type="button" onClick={() => setMenu(!menu)} aria-expanded={menu} className="flex items-center gap-2 rounded-full border border-line bg-surface py-1 ps-1 pe-3 text-sm">

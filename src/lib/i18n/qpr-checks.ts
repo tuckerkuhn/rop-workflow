@@ -6,7 +6,7 @@
 
 export const qcEn = {
   "qc.pending": "{code}: {n} result(s) this quarter are still waiting for MEL to check, so they are not counted.",
-  "qc.queried": "{code}: MEL queried {n} result(s) this quarter, so they are not counted until corrected.",
+  "qc.queried": "{code}: MEL sent back {n} result(s) this quarter with a question, so they are not counted until corrected.",
   "qc.noProof": "{code}: {n} result(s) this quarter have no proof attached{note}.",
   "qc.completedShort": "{code}: marked Completed, but this year's result is {done} of a target of {target} {unit}.",
   "qc.notImplemented": "{code}: marked Not implemented, but this year's result is {done} {unit}.",
@@ -22,7 +22,7 @@ export const qcEn = {
   "qc.sectionCopied": "{heading} is copied from {from}: check it still fits this quarter.",
   "qc.activityText": "Activity {code} has results this quarter but nothing written about them.",
   "qc.risks": "The risk table is empty.",
-  "qc.grm": "The complaints (GRM) numbers are not filled in.",
+  "qc.grm": "The complaints numbers are not filled in: record complaints in the feedback log, or type the figures on the report.",
 };
 
 export const qcEs: Record<keyof typeof qcEn, string> = {

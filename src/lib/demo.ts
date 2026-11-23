@@ -54,7 +54,7 @@ export type AppUser = {
 const ROP = "Roots of Peace";
 export const users: AppUser[] = [
   { id: "marcus", name: "Marcus Bell", title: "Vice President, Programs", kind: "employee", org: ROP, field: [], procurement: [], project: ["plan-approver", "monthly-review", "report-release"], fieldAccess: "view", procurementAccess: "view", pii: false, lang: "en", admin: true },
-  { id: "daniel", name: "Daniel Sandoval", title: "Director of Operations; Country Director, Guatemala", kind: "employee", org: ROP, reportsTo: "tucker", field: [], procurement: [], project: ["plan-approver", "monthly-review", "finance-import"], fieldAccess: "view", procurementAccess: "view", pii: false, lang: "en", admin: true },
+  { id: "daniel", name: "Daniel Sandoval", title: "Director of Operations; Country Director, Guatemala; Head of HR", kind: "employee", org: ROP, reportsTo: "tucker", field: [], procurement: [], project: ["plan-approver", "monthly-review", "finance-import"], fieldAccess: "view", procurementAccess: "view", pii: false, lang: "en", admin: true },
   { id: "karim", name: "Karim Ahmadi", title: "Country director", kind: "employee", org: ROP, reportsTo: "tucker", field: [], procurement: ["approver"], project: [], fieldAccess: "view", procurementAccess: "edit", pii: false, lang: "fa" },
   { id: "sarah", name: "Sarah Lee", title: "Compliance reviewer, Home Office", kind: "employee", org: ROP, reportsTo: "daniel", field: [], procurement: ["ho"], project: [], fieldAccess: "view", procurementAccess: "edit", pii: false, lang: "en" },
   { id: "nadia", name: "Nadia Rahimi", title: "Project manager", kind: "employee", org: ROP, reportsTo: "karim", field: ["manager"], procurement: ["holder"], project: [], fieldAccess: "edit", procurementAccess: "edit", pii: true, lang: "fa", feedback: { score: 4.6, n: 12 } },
@@ -74,7 +74,7 @@ export const users: AppUser[] = [
   { id: "shabnam", name: "Shabnam Qaderi", title: "Logistics Officer", kind: "employee", org: ROP, reportsTo: "karim", field: [], procurement: ["holder"], project: [], fieldAccess: "none", procurementAccess: "edit", pii: false, lang: "fa", leads: ["operations"] },
   // HR record placeholders (fictional). Their HR roles are set in the HR ledger, not here.
   { id: "peter", name: "Peter Hale", title: "Chief Financial Officer", kind: "employee", org: ROP, reportsTo: "tucker", field: [], procurement: [], project: [], fieldAccess: "none", procurementAccess: "view", pii: false, lang: "en" },
-  { id: "sima", name: "Sima Rezai", title: "HR Manager", kind: "employee", org: ROP, reportsTo: "peter", field: [], procurement: [], project: [], fieldAccess: "none", procurementAccess: "none", pii: false, lang: "en" },
+  { id: "sima", name: "Sima Rezai", title: "HR Manager", kind: "employee", org: ROP, reportsTo: "daniel", field: [], procurement: [], project: [], fieldAccess: "none", procurementAccess: "none", pii: false, lang: "en" },
   // The second Finance person: reviews and approves the expense vouchers Yusuf prepares.
   { id: "omid", name: "Omid Rahmani", title: "Accounting Manager", kind: "employee", org: ROP, reportsTo: "peter", field: [], procurement: ["finance"], project: [], fieldAccess: "none", procurementAccess: "edit", pii: false, lang: "en" },
   { id: "mina", name: "Mina Sharifi", title: "HR Officer", kind: "employee", org: ROP, reportsTo: "sima", field: [], procurement: [], project: [], fieldAccess: "none", procurementAccess: "none", pii: false, lang: "fa" },

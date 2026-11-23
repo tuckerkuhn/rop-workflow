@@ -102,7 +102,7 @@ export const ps: Messages = {
   "work.myTasks": "زما دندې",
   "work.needsMe": "زما پاملرنې ته اړتیا",
   "home.myDetails": "زما معلومات",
-  "home.myDetailsHint": "ستاسو د بشري سرچینو ریکارډ، یوازې لوستل",
+  "home.myDetailsHint": "ستاسو د بشري سرچینو ریکارډ",
   "work.group.report": "راپور ورکول",
   "work.new.report": "مرسته‌کوونکي ته درې میاشتنی راپور",
   "work.new.reportHint": "راپور داسې چمتو کړئ چې هره شمېره له خپل ثبوت سره تړلې وي",

@@ -9,7 +9,7 @@ import { holdsType } from "@/lib/authority";
 import { mayViewAudit } from "@/lib/audit";
 import { canEditProject } from "@/lib/demo";
 import type { MessageKey } from "@/lib/i18n";
-import { acrossProjectsFor } from "@/lib/org-areas";
+import { acrossProjectsFor, orgAreasFor } from "@/lib/org-areas";
 
 /**
  * The places under Projects, in groups: the work, progress against targets, the reports built
@@ -34,13 +34,30 @@ export function useProjectPlaces(): PlaceGroup[] {
   const several = projects.filter((p) => p.saved).length > 1;
   // All work first, then the workflows this person can open on this project: the order of the tabs on Work.
   const workflows: Place[] = taskSources(user, project).map((w) => ({ href: taskHref(w), label: w === "field" ? "tasks.field" : "tasks.procurement", source: w }));
+  // The procurement calendar, suppliers and bills open for the roles lib/org-areas names (the same
+  // check as their Organization cards); the monthly closeout for anyone with procurement access, as
+  // its API allows. They are part of a project's work, so they are listed here too.
+  const org = new Set(orgAreasFor(user, (r) => holdsType(user.id, r)).map((a) => a.id));
+  const money: Place[] = [
+    ...(org.has("plan") ? [{ href: "/work/plan", label: "nav.procCalendar" } as Place] : []),
+    ...(org.has("suppliers") ? [{ href: "/work/suppliers", label: "nav.suppliers" } as Place] : []),
+    ...(org.has("bills") ? [{ href: "/work/bills", label: "nav.bills" } as Place] : []),
+    ...(user.procurementAccess !== "none" ? [{ href: "/work/closeout", label: "nav.closeout" } as Place] : []),
+  ];
   const across: Place[] = acrossProjectsFor(user, (r) => holdsType(user.id, r)).filter((a) => a.id !== "portfolio" || several).map((a) => ({ href: a.href, label: ACROSS_LABEL[a.id] }));
   const groups: PlaceGroup[] = [
     {
       id: "work",
       label: "hub.work",
-      // Tasks and the workplan's activities are one place, Work, with a tab for each.
-      places: [{ href: "/work", label: "tasks.all", exact: true, also: ["/work/activities"] }, ...workflows, ...(project.workflows.includes("field") ? [{ href: "/work/selection", label: "nav.selection" } as Place] : []), { href: "/work/grants", label: "nav.grants" }],
+      // Tasks first, then the workplan's activities (a tab of Work, named here so it can be found), each workflow, and the money side.
+      places: [
+        { href: "/work", label: "tasks.all", exact: true },
+        { href: "/work/activities", label: "nav.activities" },
+        ...workflows,
+        ...(project.workflows.includes("field") ? [{ href: "/work/selection", label: "nav.selection" } as Place] : []),
+        ...money,
+        { href: "/work/grants", label: "nav.grants" },
+      ],
     },
     {
       id: "progress",
@@ -76,7 +93,7 @@ export function useProjectPlaces(): PlaceGroup[] {
       places: [
         { href: "/setup", label: "setup.editTitle" },
         { href: "/progress/framework", label: "nav.framework", also: ["/progress/targets"] },
-        { href: "/settings", label: "home.settings", exact: true },
+        { href: "/settings", label: "nav.donorSettings", exact: true },
         { href: "/settings/policy", label: "nav.rules" },
         { href: "/design", label: "setup.marketLink" },
       ],

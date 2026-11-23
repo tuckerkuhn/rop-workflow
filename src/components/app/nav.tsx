@@ -6,7 +6,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "@/components/app/session";
 import { useT } from "@/components/app/i18n";
 import { Assistant } from "@/components/app/assistant";
-import { useNewActions } from "@/components/app/new-menu";
+import { groupActions, useNewActions } from "@/components/app/new-menu";
 import { placeIsOpen, useProjectPlaces } from "@/components/app/project-places";
 import { Logo } from "@/components/logo";
 import type { MessageKey } from "@/lib/i18n";
@@ -48,7 +48,7 @@ const SECTIONS: Section[] = [
     id: "organization",
     href: "/organization",
     label: "nav.organization",
-    also: ["/people", "/payroll", "/onboarding", "/offboarding", "/work/plan", "/work/procurements", "/work/suppliers", "/work/bills", "/work/closeout", "/settings/organization", "/settings/people", "/settings/health", "/resources"],
+    also: ["/people", "/payroll", "/onboarding", "/offboarding", "/work/procurements", "/settings/organization", "/settings/people", "/settings/health", "/resources"],
     icon: icon("M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6M9 10h.01M15 10h.01"),
     staffOnly: true,
     orgOnly: true,
@@ -220,21 +220,37 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
             className="absolute inset-x-0 bottom-0 max-h-[85%] overflow-y-auto rounded-t-2xl border border-line bg-paper px-4 pb-24 pt-3 shadow-[0_-20px_40px_-20px_rgb(19_32_26/0.5)]"
           >
             <p className="px-2 pb-1 text-sm font-semibold">{t("nav.newTitle")}</p>
-            <ul className="divide-y divide-line">
-              {actions.map((a) => (
-                <li key={a.key}>
-                  {a.external ? (
-                    <a href={a.href} target="_blank" rel="noopener noreferrer" onClick={() => setAdding(false)} className="flex min-h-12 items-center px-2 text-base">
-                      {t(a.label)}&nbsp;<span aria-hidden>↗</span>
-                    </a>
-                  ) : (
-                    <Link href={a.href} onClick={() => setAdding(false)} className="flex min-h-12 items-center px-2 text-base">
-                      {t(a.label)}
-                    </Link>
-                  )}
-                </li>
-              ))}
-            </ul>
+            {groupActions(actions).map((g) => (
+              <div key={g.group} className="mt-2">
+                <p className="px-2 pt-1 text-xs font-semibold uppercase tracking-wide text-muted">{t(g.group)}</p>
+                <ul className="divide-y divide-line">
+                  {g.actions.map((a) => {
+                    const body = (
+                      <span className="block py-2">
+                        <span className="block text-base">
+                          {t(a.label)}
+                          {a.external && <span aria-hidden>&nbsp;↗</span>}
+                        </span>
+                        {a.hint && <span className="block text-xs text-muted">{t(a.hint)}</span>}
+                      </span>
+                    );
+                    return (
+                      <li key={a.key}>
+                        {a.external ? (
+                          <a href={a.href} target="_blank" rel="noopener noreferrer" onClick={() => setAdding(false)} className="flex min-h-12 items-center px-2">
+                            {body}
+                          </a>
+                        ) : (
+                          <Link href={a.href} onClick={() => setAdding(false)} className="flex min-h-12 items-center px-2">
+                            {body}
+                          </Link>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ))}
           </section>
         </div>
       )}

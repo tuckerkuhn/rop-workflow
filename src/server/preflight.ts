@@ -86,7 +86,7 @@ async function qpr(c: Ctx, quarter: string): Promise<Omit<Preflight, "items" | "
   const noProof = inQ.filter((r) => r.status === "accepted" && !proofCount(r)).length;
   if (pending) add(c, { group: "blocks", owner: "mel", text: `${n(pending, "result", "results")} waiting for MEL to accept or query; they do not count until then`, key: "pf.c.pending", vars: { n: pending }, href: `/progress/results?${q}` });
   else ok(c, "pf.ok.accepted");
-  if (queried) add(c, { group: "fix", owner: "field", text: `${n(queried, "result", "results")} queried by MEL, to correct`, key: "pf.c.queried", vars: { n: queried }, href: `/progress/results?${q}` });
+  if (queried) add(c, { group: "fix", owner: "field", text: `${n(queried, "result", "results")} sent back by MEL with a question, to correct`, key: "pf.c.queried", vars: { n: queried }, href: `/progress/results?${q}` });
   if (noProof) add(c, { group: "fix", owner: "mel", text: `${n(noProof, "accepted result", "accepted results")} with no proof attached`, key: "pf.c.noProof", vars: { n: noProof }, href: `/progress/results?${q}` });
   else if (inQ.length) ok(c, "pf.ok.proof");
 

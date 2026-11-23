@@ -72,8 +72,8 @@ const bodySchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("solo"), on: z.boolean(), reason }),
   /** Where the organization keeps its files and what it calls its accounting and payroll systems. "Any secure link" needs the risk accepted. */
   z.object({ action: z.literal("files"), stores: z.array(z.enum(STORE_IDS)).min(1, "Choose at least one place files are kept."), accounting: z.string().trim().max(40).default(""), payroll: z.string().trim().max(40).default(""), acceptRisk: z.boolean().default(false), reason }),
-  /** Hide the sample project from everyone's project picker and Getting started, or show it again. */
-  z.object({ action: z.literal("sample"), hidden: z.boolean(), reason }),
+  /** Hide the sample project from everyone's project picker and Getting started, or show it again. Fictional data, so no reason is asked; who and when are still kept. */
+  z.object({ action: z.literal("sample"), hidden: z.boolean(), reason: z.string().trim().max(1000).default("") }),
 ]);
 
 export async function POST(req: Request) {

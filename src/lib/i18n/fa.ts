@@ -102,7 +102,7 @@ export const fa: Messages = {
   "work.myTasks": "وظایف من",
   "work.needsMe": "نیاز به توجه من",
   "home.myDetails": "معلومات من",
-  "home.myDetailsHint": "سوابق منابع بشری شما، فقط خواندنی",
+  "home.myDetailsHint": "سوابق منابع بشری شما",
   "work.group.report": "گزارش‌دهی",
   "work.new.report": "گزارش ربعوار به تمویل‌کننده",
   "work.new.reportHint": "گزارش را با پیوند هر رقم به شواهد آن تهیه کنید",

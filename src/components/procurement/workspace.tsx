@@ -292,11 +292,11 @@ function NewRequest({ onCancel, onCreate, from, grant }: { onCancel: () => void;
           funding: from ? from.funding : "Award A-2027 (fictional) · body rules apply",
           neededBy,
           place: item ? place.trim() : "Village B collection point",
-          urgent: item ? false : urgent,
+          urgent: item ? !!item.unplanned?.urgent : urgent,
           step: "need",
           checks: {},
           issues: [],
-          timeline: [{ date: today(), who: "holder", what: (item ? `Request created from procurement calendar ${item.key}` : "Request created") + (grant ? ` for grant ${grant.id} (${grant.business})` : "") }],
+          timeline: [{ date: today(), who: "holder", what: (item ? `Request created from procurement calendar ${item.key}${item.unplanned ? ` (not planned: ${item.unplanned.reason})` : ""}` : "Request created") + (grant ? ` for grant ${grant.id} (${grant.business})` : "") }],
           ...(grant ? { grant: grant.id } : {}),
           ...(item
             ? {
@@ -1032,6 +1032,10 @@ export function ProcurementWorkspace() {
               <Link href="/work/plan" className="mt-4 inline-block rounded-full bg-forest px-4 py-2 font-semibold text-paper">
                 Open the procurement calendar
               </Link>
+              <Link href="/work/plan?ask=1" className="mt-6 block font-semibold text-forest hover:underline">
+                Not on the calendar? Ask for it here
+              </Link>
+              <p className="mt-1 text-xs text-muted">Unplanned or urgent purchases go on the calendar marked as not planned, and are approved the same way before the request starts.</p>
             </div>
           ) : planKey && !fromPlan ? (
             <div className="mx-auto max-w-xl py-16 text-center text-sm text-muted">

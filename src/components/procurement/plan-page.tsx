@@ -9,7 +9,8 @@ import { usePlan } from "@/components/app/use-project-data";
 import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn, type Tone, StatusPill } from "@/components/workspace/ui";
 import type { BudgetLine, WorkplanItem } from "@/lib/budget";
 import { canEditProject, userById, users, type AppUser } from "@/lib/demo";
-import { METHOD, awaiting, isManager, procurementManager, type PlanItem, type PlanStatus } from "@/lib/procurement-plan";
+import { LEAD_DAYS, METHOD, awaiting, canAsk, isManager, procurementManager, toUsd, type PlanItem, type PlanStatus } from "@/lib/procurement-plan";
+import { levelFor } from "@/lib/procurement";
 import { today } from "@/lib/clock";
 
 /**
@@ -42,11 +43,13 @@ export function ProcurementPlanPage() {
   }, [open]);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const [asking, setAsking] = useState(false);
 
-  // Links such as /work/plan?open=PP-003 or ?filter=mine.
+  // Links such as /work/plan?open=PP-003, ?filter=mine or ?ask=1 (ask for something not on the calendar).
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     if (q.get("open")) setOpen(q.get("open"));
+    if (q.get("ask")) setAsking(true);
     const f = q.get("filter");
     if (f === "mine" || f === "approved" || f === "draft" || f === "returned" || f === "started") setFilter(f);
   }, []);
@@ -81,6 +84,7 @@ export function ProcurementPlanPage() {
   const months = [...new Set(shown.map((i) => i.startBy.slice(0, 7)))];
   const current = plan.items.find((i) => i.key === open) ?? null;
   const canBuild = isManager(user) || canEditProject(user) || !!user.admin;
+  const mayAsk = canAsk(user) && !!plan.budget?.lines.length;
   const total = plan.items.reduce((s, i) => s + i.value, 0);
   const count = (s: PlanStatus) => plan.items.filter((i) => i.status === s).length;
 
@@ -110,7 +114,12 @@ export function ProcurementPlanPage() {
             Built from the budget lines marked to procure. The procurement manager and each line&apos;s technical lead approve it; approved purchases go on the Tasks calendar on the day they have to start.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          {mayAsk && !asking && (
+            <button type="button" onClick={() => setAsking(true)} className={quietBtn}>
+              Ask for something not on the calendar
+            </button>
+          )}
           <Link href="/work?source=procurement" className={quietBtn}>
             Procurements in progress
           </Link>
@@ -130,6 +139,21 @@ export function ProcurementPlanPage() {
         <p role="alert" className="mt-3 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">
           {plan.error}
         </p>
+      )}
+      {asking && canAsk(user) && plan.budget && (
+        <AskForm
+          lines={plan.budget.lines}
+          currency={plan.budget.currency}
+          money={money}
+          onAsk={plan.ask}
+          onCancel={() => setAsking(false)}
+          onDone={(item) => {
+            setAsking(false);
+            setFilter("all");
+            setOpen(item.key);
+            setNote(`${item.title} is on the calendar as ${item.key}${item.unplanned?.urgent ? ", marked urgent" : ""}. The procurement manager and the technical lead approve it like any other purchase; then the request can start.`);
+          }}
+        />
       )}
 
       {canBuild && plan.budget && plan.budget.lines.length > 0 && (
@@ -248,6 +272,8 @@ export function ProcurementPlanPage() {
                                 <span>· {i.budgetCode}</span>
                                 <span>· {userById(i.techLead ?? "")?.name ?? "No technical lead"}</span>
                                 {mineKeys.has(i.key) && <span className="font-semibold text-clay">· Waiting on you</span>}
+                                {i.unplanned && <Pill tone="plum">Not planned</Pill>}
+                                {i.unplanned?.urgent && <Pill tone="clay">Urgent</Pill>}
                               </span>
                             </span>
                             <span className="shrink-0 text-end">
@@ -404,6 +430,18 @@ function Detail({
         </button>
       </div>
       {item.returnNote && item.status === "returned" && <p className="mt-3 rounded-xl bg-clay-soft px-3 py-2 text-sm text-clay">Sent back: {item.returnNote}</p>}
+
+      {item.unplanned && (
+        <section className="mt-4 rounded-xl bg-plum-soft px-3 py-2 text-sm">
+          <p className="font-semibold">
+            Not on the calendar{item.unplanned.urgent ? " · urgent" : ""}
+          </p>
+          <p className="mt-1">{item.unplanned.reason}</p>
+          <p className="mt-1 text-xs text-muted">
+            Asked for by {item.unplanned.name}, {date(item.unplanned.at)}. It needs both approvals like any other purchase.
+          </p>
+        </section>
+      )}
 
       <section className="mt-5">
         <SectionLabel>What it is for</SectionLabel>
@@ -635,5 +673,117 @@ function Detail({
         <p className="mt-2 text-xs text-muted">You are an admin, so you can approve for others while the app is in draft. It is recorded as you signing for them.</p>
       )}
     </article>
+  );
+}
+
+/**
+ * Asking for a purchase that is not on the calendar: unplanned or urgent. It goes on the calendar
+ * marked as not planned and needs the same two approvals before the request can start.
+ */
+function AskForm({
+  lines,
+  currency,
+  money,
+  onAsk,
+  onCancel,
+  onDone,
+}: {
+  lines: BudgetLine[];
+  currency: string;
+  money: (n: number) => string;
+  onAsk: ReturnType<typeof usePlan>["ask"];
+  onCancel: () => void;
+  onDone: (item: PlanItem) => void;
+}) {
+  const [title, setTitle] = useState("");
+  const [budgetCode, setBudgetCode] = useState("");
+  const [value, setValue] = useState("");
+  const [neededBy, setNeededBy] = useState("");
+  const [reason, setReason] = useState("");
+  const [urgent, setUrgent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const line = lines.find((l) => l.code === budgetCode);
+  const left = line ? Math.round((line.total - (line.spent ?? 0)) * 100) / 100 : null;
+  const cost = Number(value) || 0;
+  // Sooner than the usual time to buy something this size: it is urgent whether ticked or not.
+  const soon = cost > 0 && !!neededBy && new Date(`${neededBy}T00:00:00Z`).getTime() - new Date(`${today()}T00:00:00Z`).getTime() < LEAD_DAYS[levelFor(toUsd(cost, currency))] * 86400000;
+  const valid = title.trim().length >= 3 && !!line && cost > 0 && !!neededBy && reason.trim().length >= 10;
+  const field = "mt-1 w-full rounded-lg border border-line bg-paper px-2 py-2";
+
+  return (
+    <form
+      onSubmit={async (e) => {
+        e.preventDefault();
+        if (!valid) return;
+        setBusy(true);
+        setError("");
+        try {
+          onDone(await onAsk({ title: title.trim(), budgetCode, value: cost, neededBy, reason: reason.trim(), urgent }));
+        } catch (err) {
+          setError(err instanceof Error ? err.message : String(err));
+        } finally {
+          setBusy(false);
+        }
+      }}
+      className="mt-6 rounded-2xl border border-line bg-surface p-5"
+      aria-labelledby="ask-title"
+    >
+      <h2 id="ask-title" className="text-lg font-semibold">
+        Ask for something not on the calendar
+      </h2>
+      <p className="mt-1 max-w-2xl text-sm text-muted">
+        For a purchase nobody planned, or one that cannot wait. It goes on the calendar marked as not planned. The procurement manager and the technical lead approve it like any other purchase, and then the request starts the usual way.
+      </p>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <label className="text-sm sm:col-span-2">
+          What is needed
+          <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={500} placeholder="e.g. Replacement water pump for the nursery" className={field} />
+        </label>
+        <label className="text-sm sm:col-span-2">
+          Budget line it is charged to
+          <select value={budgetCode} onChange={(e) => setBudgetCode(e.target.value)} className={field}>
+            <option value="">Choose a budget line</option>
+            {lines.map((l) => (
+              <option key={l.code} value={l.code}>
+                {l.code} {l.description}
+              </option>
+            ))}
+          </select>
+          {left !== null && <span className="mt-1 block text-xs text-muted">{money(left)} left on this line.</span>}
+        </label>
+        <label className="text-sm">
+          Estimated cost ({currency})
+          <input type="number" min={0} step="any" inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} className={field} />
+        </label>
+        <label className="text-sm">
+          Needed by
+          <input type="date" min={today()} value={neededBy} onChange={(e) => setNeededBy(e.target.value)} className={field} />
+        </label>
+        <label className="text-sm sm:col-span-2">
+          Why was it not planned, or why is it urgent?
+          <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={2} maxLength={500} placeholder="e.g. The old pump broke and seedlings need water every day." className={field} />
+          <span className="mt-1 block text-xs text-muted">One short sentence. The people who approve it read this.</span>
+        </label>
+        <label className="flex items-center gap-2 text-sm sm:col-span-2">
+          <input type="checkbox" checked={urgent || soon} disabled={soon} onChange={(e) => setUrgent(e.target.checked)} className="h-5 w-5 accent-forest" />
+          Urgent
+          {soon && <span className="text-xs text-muted">(needed sooner than a purchase this size usually takes)</span>}
+        </label>
+      </div>
+      {error && (
+        <p role="alert" className="mt-3 rounded-xl bg-clay-soft px-3 py-2 text-sm text-clay">
+          {error}
+        </p>
+      )}
+      <div className="mt-4 flex gap-2">
+        <button type="submit" disabled={busy || !valid} className={primaryBtn}>
+          {busy ? "Sending…" : "Send for approval"}
+        </button>
+        <button type="button" onClick={onCancel} className={quietBtn}>
+          Cancel
+        </button>
+      </div>
+    </form>
   );
 }

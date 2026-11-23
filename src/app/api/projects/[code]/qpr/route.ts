@@ -111,7 +111,7 @@ export async function POST(req: Request, { params }: Ctx) {
       return NextResponse.json(await view(code, q, u));
     }
     if (a.action === "practice") {
-      if (!mayEdit(u)) return NextResponse.json({ error: "Only the MEL owner and programme leads can do a practice release." }, { status: 403 });
+      if (!mayEdit(u)) return NextResponse.json({ error: "Only the MEL owner and programme leads can save a preview copy." }, { status: 403 });
       await addCopy(code, q, { kind: "practice", by: u.id, at: now, work: await reportWork(code, q), data: copyOf(d) });
       const project = await projectByCode(code);
       await logAudit(db, project.id, { entity: "qpr", entityId: project.id, action: "qpr_practice", by: u.id, detail: { quarter: q } });
@@ -121,7 +121,7 @@ export async function POST(req: Request, { params }: Ctx) {
       if (!mayRelease(u)) return NextResponse.json({ error: "Only the person who releases reports can mark it final." }, { status: 403 });
       // Pre-flight (server/preflight) includes every "stop" in the report's own checks, and more.
       const blocks = (await preflight(code, { kind: "qpr", quarter: q })).items.filter((i) => i.group === "blocks");
-      if (blocks.length) return NextResponse.json({ error: `Pre-flight lists what blocks the report; fix these first: ${blocks.map((c) => c.text).join("; ")}.` }, { status: 409 });
+      if (blocks.length) return NextResponse.json({ error: `The report check lists what blocks the report; fix these first: ${blocks.map((c) => c.text).join("; ")}.` }, { status: 409 });
       next.released = { by: u.id, at: now };
       // The copy the donor receives: shown and downloaded from now on, whatever changes later.
       await addCopy(code, q, { kind: "release", by: u.id, at: now, work: await reportWork(code, q), data: copyOf({ ...d, saved: next }) });

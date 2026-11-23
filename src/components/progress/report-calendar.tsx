@@ -20,10 +20,10 @@ const STATE: Record<CalendarState, { text: string; tone: string }> = {
   released: { text: "Released", tone: "text-leaf" },
 };
 
-export function ReportCalendar() {
+/** The calendar's rows for the current project, for staff on a saved project. null: loading or not shown. */
+export function useReportCalendar() {
   const { user, ready } = useSession();
   const { project } = useCurrentProject();
-  const { date } = useT();
   const [rows, setRows] = useState<CalendarRow[] | null>(null);
   useEffect(() => {
     if (!ready || !user || user.kind !== "employee" || !project.saved) return;
@@ -37,6 +37,30 @@ export function ReportCalendar() {
       live = false;
     };
   }, [ready, user, project.id, project.saved]);
+  return rows;
+}
+
+const reportName = (r: CalendarRow) => (r.kind === "qpr" ? `Quarterly report, ${r.period.replace("-Q", " Q")}` : `Annual report, ${r.period}`);
+
+/** One line under the Progress headline: the report owed soonest, its date, and the way to it. */
+export function NextReportLine({ rows }: { rows: CalendarRow[] | null }) {
+  const { t, date } = useT();
+  const next = rows?.find((r) => !r.released);
+  if (!next) return null;
+  return (
+    <p className="mt-2 text-sm">
+      <span className={next.state === "late" ? "font-semibold text-clay" : next.state === "soon" ? "font-semibold text-warn" : "text-muted"}>
+        {next.due ? t("progress.nextReport", { report: reportName(next), date: date(next.due, { day: "numeric", month: "short", year: "numeric" }) }) : t("progress.nextReportNoDate", { report: reportName(next) })}
+      </span>{" "}
+      <Link href={next.href} className="font-semibold text-forest hover:underline">
+        {t("progress.nextReportOpen")}
+      </Link>
+    </p>
+  );
+}
+
+export function ReportCalendar({ rows }: { rows: CalendarRow[] | null }) {
+  const { date } = useT();
   if (!rows?.length) return null;
   const day = (iso: string) => date(iso, { day: "numeric", month: "short", year: "numeric" });
   const none = rows.every((r) => !r.due);
@@ -55,7 +79,7 @@ export function ReportCalendar() {
               <span aria-hidden className="w-6 shrink-0 font-mono text-xs text-muted">
                 {String(k + 1).padStart(2, "0")}
               </span>
-              <span className="min-w-0 flex-1 font-semibold">{r.kind === "qpr" ? `Quarterly report, ${r.period.replace("-Q", " Q")}` : `Annual report, ${r.period}`}</span>
+              <span className="min-w-0 flex-1 font-semibold">{reportName(r)}</span>
               <span className="w-32 shrink-0 font-mono text-sm">{r.due ? day(r.due) : "No date set"}</span>
               <span className={`w-28 shrink-0 px-2 py-0.5 text-center font-mono text-xs uppercase ${STATE[r.state].tone}`}>{STATE[r.state].text}</span>
               <span aria-hidden className="inline-block text-forest opacity-40 group-hover:opacity-100 rtl:rotate-180">

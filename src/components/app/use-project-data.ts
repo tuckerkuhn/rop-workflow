@@ -7,10 +7,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "@/components/app/session";
 import type { FieldItem, Stock } from "@/lib/field";
 import type { FieldSetup } from "@/lib/package";
+import type { Shown } from "@/lib/selection";
 import type { AutoSyncSecret, FormPurpose, KoboFormInfo, KoboMapping, KoboQuestion, KoboState, SyncCounts } from "@/lib/kobo-setup";
 import type { Procurement } from "@/lib/procurement";
 import type { Closeouts } from "@/lib/closeout";
-import type { PlanAction, PlanItem } from "@/lib/procurement-plan";
+import type { AskInput, PlanAction, PlanItem } from "@/lib/procurement-plan";
 import type { Budget, WorkplanItem } from "@/lib/budget";
 import type { DonorInfo, DonorInput, ProgressData } from "@/lib/progress";
 import type { Roster, Submission } from "@/lib/project";
@@ -40,6 +41,8 @@ export function useFieldData(code = "A-2027", wanted = true) {
   const [stock, setStockState] = useState<Stock>({});
   const [setup, setSetup] = useState<FieldSetup | null>(null);
   const [stockNote, setStockNote] = useState<string | null>(null);
+  /** Each decided farmer's selection outcome (lib/selection Shown), or null when the project does not use selection. */
+  const [selection, setSelection] = useState<Record<string, Shown> | null>(null);
   const [status, setStatus] = useState<Load>("loading");
   const [error, setError] = useState("");
   const current = useRef<FieldItem[]>([]);
@@ -53,9 +56,10 @@ export function useFieldData(code = "A-2027", wanted = true) {
   const reload = useCallback(async () => {
     const mine = ++seq.current;
     try {
-      const r = await call<{ items: FieldItem[]; stock: Stock | null; stockNote?: string | null; setup?: FieldSetup | null }>(`/api/projects/${code}/field`, user?.id);
+      const r = await call<{ items: FieldItem[]; stock: Stock | null; stockNote?: string | null; setup?: FieldSetup | null; selection?: Record<string, Shown> | null }>(`/api/projects/${code}/field`, user?.id);
       if (mine !== seq.current) return;
       setStockNote(r.stockNote ?? null);
+      setSelection(r.selection ?? null);
       setSetup(r.setup ?? null);
       current.current = r.items;
       revs.current = new Map(r.items.map((i) => [i.id, i.rev ?? ""]));
@@ -145,7 +149,7 @@ export function useFieldData(code = "A-2027", wanted = true) {
     await reload();
   }, [code, user?.id, reload]);
 
-  return { items, setItems, stock, stockNote, setStock, setup, status, error, reload, reset };
+  return { items, setItems, stock, stockNote, setStock, setup, selection, status, error, reload, reset };
 }
 
 
@@ -306,6 +310,16 @@ export function usePlan(code: string | null) {
     [code, user?.id],
   );
 
+  /** Asks for a purchase that is not on the calendar. Throws the server's reason when refused. */
+  const ask = useCallback(
+    async (input: AskInput) => {
+      const r = await call<{ item: PlanItem }>(`/api/projects/${code}/procurement-plan/ask`, user?.id, { method: "POST", body: JSON.stringify(input) });
+      await reload();
+      return r.item;
+    },
+    [code, user?.id, reload],
+  );
+
   /** Marks budget lines to buy through procurement (or not), then reloads. */
   const markProcure = useCallback(
     async (procure: Record<string, boolean>) => {
@@ -315,7 +329,7 @@ export function usePlan(code: string | null) {
     [code, user?.id, reload],
   );
 
-  return { items: data?.items ?? [], budget: data?.budget ?? null, workplan: data?.workplan ?? [], status, error, reload, rebuild, act, markProcure };
+  return { items: data?.items ?? [], budget: data?.budget ?? null, workplan: data?.workplan ?? [], status, error, reload, rebuild, act, ask, markProcure };
 }
 
 /** Months closed by Finance, and closing one. */

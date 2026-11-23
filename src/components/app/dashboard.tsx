@@ -368,7 +368,7 @@ function PeopleCard() {
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {onboarding && (
         <Link href="/onboarding" className={`${card(true)} sm:col-span-2 xl:col-span-3`}>
-          <span className="font-semibold">Onboarding</span>
+          <span className="font-semibold">Starting at ROP</span>
           <span className="text-muted">
             Your first steps: {onboarding.done} of {onboarding.total} done
           </span>

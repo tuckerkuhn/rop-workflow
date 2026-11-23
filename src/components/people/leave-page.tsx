@@ -84,9 +84,16 @@ export function LeavePage() {
             <Link href="/timesheets" className="font-semibold text-forest hover:underline">
               {t("lv.timesheets")}
             </Link>
-            <Link href="/people" className="font-semibold text-forest hover:underline">
-              {t("lv.people")}
-            </Link>
+            {/* HR roles go back to People; everyone else came from Home. */}
+            {v?.seesAll ? (
+              <Link href="/people" className="font-semibold text-forest hover:underline">
+                {t("lv.people")}
+              </Link>
+            ) : (
+              <Link href="/home" className="font-semibold text-forest hover:underline">
+                ← {t("nav.home")}
+              </Link>
+            )}
           </span>
         </div>
         {error && (

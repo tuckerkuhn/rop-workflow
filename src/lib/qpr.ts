@@ -28,7 +28,7 @@ export const SECTIONS = [
   { key: "principled", heading: "3.2 Principled Approach", draft: false, help: "" },
   { key: "partnerships", heading: "3.3 Partnerships", draft: false, help: "" },
   { key: "safeguards", heading: "3.4 Social and Environmental Safeguards", draft: false, help: "" },
-  { key: "grm", heading: "3.5 Complaints and Feedback (GRM)", draft: false, help: "Cases received, resolved and open this quarter, and the main themes. Required by UNDP's terms of reference." },
+  { key: "grm", heading: "3.5 Complaints and Feedback", draft: false, help: "The figures come from the feedback log (or what is typed above). Write the main themes and what was done about them. Required by UNDP's terms of reference." },
   { key: "story", heading: "3.6 Human Interest Story", draft: false, help: "Optional." },
   { key: "challenges", heading: "IV. Issues and Challenges", draft: false, help: "Operational and staffing; programmatic." },
   { key: "lessons", heading: "VI. Lessons Learned", draft: false, help: "" },
@@ -208,6 +208,19 @@ export type Spend = {
 /** What the report says was spent this quarter: what the team typed, or the import. */
 export const quarterSpendOf = (saved: Qpr, spend: Spend) => saved.quarterSpend ?? spend.quarter;
 
+/** The feedback and complaints log's count for the report's quarter (lib/feedback feedbackSummary). null: nothing was ever recorded in the log. */
+export type GrmLog = { received: number; answered: number; open: number };
+/**
+ * The complaints figures the report prints: what someone typed on the report, else the feedback
+ * log's count for the quarter, so the same complaints are not counted twice by hand.
+ */
+export function grmOf(saved: Qpr, log: GrmLog | null | undefined): { received: number | null; resolved: number | null; open: number | null; from: "typed" | "log" | null } {
+  const g = saved.grm;
+  if (g.received !== null) return { received: g.received, resolved: g.resolved, open: g.resolved === null ? null : g.received - g.resolved, from: "typed" };
+  if (log) return { received: log.received, resolved: log.answered, open: log.open, from: "log" };
+  return { received: null, resolved: null, open: null, from: null };
+}
+
 export type IndicatorInfo = { code: string; donorCode: string | null; name: string; unit: string; target: number; yearTargets: Record<string, number>; result: string | null; disaggregation: string[] | null; budgetRef: string | null; workplanCode?: string | null };
 
 export type Row = {
@@ -379,7 +392,7 @@ export type QprCheckKey = keyof typeof qcEn;
 export type QprCheck = { level: "stop" | "check"; text: string; key?: QprCheckKey; vars?: Record<string, string | number> };
 
 /** Things to fix before the report goes out. Each one names the target or section. */
-export function checksFor(rows: Row[], results: ResultRecord[], quarter: string, saved: Qpr, spend: Spend, activities: string[]) {
+export function checksFor(rows: Row[], results: ResultRecord[], quarter: string, saved: Qpr, spend: Spend, activities: string[], grmLog: GrmLog | null = null) {
   const { from, to } = quarterRange(quarter);
   // Only the indicators in this report's table: others (annual-report-only) are checked elsewhere.
   const inTable = new Set(rows.map((r) => r.code));
@@ -422,7 +435,7 @@ export function checksFor(rows: Row[], results: ResultRecord[], quarter: string,
     if (has && !saved.sections[`act.${a}`]?.text.trim()) push("check", "qc.activityText", { code: a });
   }
   if (!saved.risks.length) push("check", "qc.risks");
-  if (saved.grm.received === null) push("check", "qc.grm");
+  if (grmOf(saved, grmLog).received === null) push("check", "qc.grm");
   return out;
 }
 

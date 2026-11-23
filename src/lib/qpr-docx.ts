@@ -17,7 +17,7 @@ import {
   TextRun,
   WidthType,
 } from "docx";
-import { SECTIONS, STATUS_LABEL, overspentLines, quarterSpendOf, type Breakdown, type Photo, type Qpr, type Row, type Spend, durationOf } from "@/lib/qpr";
+import { SECTIONS, STATUS_LABEL, grmOf, overspentLines, quarterSpendOf, type Breakdown, type GrmLog, type Photo, type Qpr, type Row, type Spend, durationOf } from "@/lib/qpr";
 import { quarterRange } from "@/lib/results";
 
 /**
@@ -36,6 +36,8 @@ export type DocxInput = {
   activities: { code: string; name: string }[];
   photos: Photo[];
   breakdowns: Breakdown[];
+  /** The feedback log's count for the quarter, printed when no complaints figures were typed on the report. */
+  grmLog?: GrmLog | null;
   /** e.g. https://rop-workflow.vercel.app, for the links to evidence. */
   origin: string;
   /** Downloaded while pre-flight still lists this many blockers: marked as a draft, not checked. */
@@ -186,8 +188,13 @@ export async function qprDocx(d: DocxInput, images: Images): Promise<Blob> {
     ];
   });
 
-  const grm = d.saved.grm;
-  const grmLine = grm.received === null ? [] : [p(`Complaints received this quarter: ${grm.received}. Resolved: ${grm.resolved ?? "[to be entered]"}. Open: ${grm.resolved === null ? "[to be entered]" : grm.received - grm.resolved}.`)];
+  const grm = grmOf(d.saved, d.grmLog);
+  const grmLine =
+    grm.received === null
+      ? []
+      : grm.from === "log"
+        ? [p(`Feedback and complaints received this quarter: ${grm.received}. Answered: ${grm.resolved}. Open: ${grm.open}.`)]
+        : [p(`Complaints received this quarter: ${grm.received}. Resolved: ${grm.resolved ?? "[to be entered]"}. Open: ${grm.open ?? "[to be entered]"}.`)];
   const risks = d.saved.risks.length ? [table(["Risks", "Mitigation Measures"], d.saved.risks.map((r) => [r.risk, r.mitigation]), [45, 55])] : [p("[Risk table to be completed]", { color: "AA3333" })];
 
   const doc = new Document({

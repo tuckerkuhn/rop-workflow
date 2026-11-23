@@ -1,4 +1,4 @@
-import { SECTIONS, STATUS_LABEL, type Breakdown, type Photo, type Qpr, type QprCheck, type Row, type Spend } from "@/lib/qpr";
+import { SECTIONS, STATUS_LABEL, type Breakdown, type GrmLog, type Photo, type Qpr, type QprCheck, type Row, type Spend } from "@/lib/qpr";
 
 /**
  * A frozen copy of a quarterly report: what it said when it was released (or practice-released),
@@ -17,6 +17,8 @@ export type CopyData = {
   activities: { code: string; name: string }[];
   /** Copies saved before the checks had keys show their English text. */
   checks: QprCheck[];
+  /** The feedback log's count for the quarter when the copy was made (older copies lack it). */
+  grmLog?: GrmLog | null;
   /** The accepted results counted in the report's figures (this year to the quarter's end). */
   counted: { id: string; indicator: string; date: string; value: number }[];
 };

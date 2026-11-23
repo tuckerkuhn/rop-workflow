@@ -181,6 +181,8 @@ describe("input distribution, field to finance (demo project)", { timeout: 60_00
     expect(moved.step).toBe("plant");
     expect(moved.awaiting).toBeUndefined();
     expect(moved.timeline.at(-1)!.what).toBe("Distribution approved by Nadia Rahimi: moved to planting");
+    // Approval needs the signed goods received note, so the farmer's record shows it signed.
+    expect(moved.checks["distribute.recipient"]).toBe(true);
     // Charged to the purchases that received goods, never one still on order.
     expect([...res.procurements].sort()).toEqual(["PR-2027-006", "PR-2027-007"]);
     // One result for the target named in the package settings, made from the record already entered.

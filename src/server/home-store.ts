@@ -257,10 +257,10 @@ export async function loadHome(code: string, u: AppUser) {
     const mine = awaitingPlan(allPlan, u);
     const toApprove = [...new Map([...mine.asManager, ...mine.asLead].map((i) => [i.key, i])).values()];
     if (toApprove.length)
-      actions.push({ key: "plan-approve", for: lenses.includes("procurement") ? "procurement" : lenses[0], bucket: "approve", urgent: toApprove.some((i) => i.startBy <= today), text: toApprove.length === 1 ? `Approve ${toApprove[0].key} ${toApprove[0].title} on the procurement calendar` : `Approve ${toApprove.length} purchases on the procurement calendar`, href: "/work/plan" });
+      actions.push({ key: "plan-approve", for: lenses.includes("procurement") ? "procurement" : lenses[0], bucket: "approve", urgent: toApprove.some((i) => i.startBy <= today), text: toApprove.length === 1 ? `Approve ${toApprove[0].title} on the procurement calendar` : `Approve ${toApprove.length} purchases on the procurement calendar`, href: "/work/plan" });
     const toStart = allPlan.filter((i) => i.status === "approved" && i.techLead === u.id && days(today, i.startBy) <= 14);
     for (const i of toStart)
-      actions.push({ key: `plan-start:${i.key}`, for: lenses.includes("procurement") ? "procurement" : lenses[0], bucket: "due", urgent: i.startBy < today, text: `Make the request for ${i.key} ${i.title}: ${i.startBy < today ? `it was due to start ${i.startBy}` : `start by ${i.startBy}`}`, href: "/work/plan" });
+      actions.push({ key: `plan-start:${i.key}`, for: lenses.includes("procurement") ? "procurement" : lenses[0], bucket: "due", urgent: i.startBy < today, text: `Make the request for ${i.title}: ${i.startBy < today ? `it was due to start ${i.startBy}` : `start by ${i.startBy}`}`, href: "/work/plan" });
   }
 
   // Who approves KoboCollect data on this project (lib/kobo-approval): results made from a form
