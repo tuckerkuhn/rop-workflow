@@ -2,7 +2,8 @@ import { ROLE_FOR } from "@/lib/evidence";
 import { donorPhotoRule } from "@/server/photo-consent";
 import { randomBytes } from "node:crypto";
 import { db, schema as s } from "@/db";
-import { STATUS_LABEL, SECTIONS } from "@/lib/qpr";
+import { SECTIONS } from "@/lib/qpr";
+import { targetStatus, targetStatusText } from "@/lib/target-status";
 import { quarterRange } from "@/lib/results";
 import { projectByCode } from "@/server/field-store";
 import { loadProjectState, updateProjectState } from "@/server/project-state";
@@ -107,7 +108,8 @@ export async function donorSafeReport(code: string, projectId: string, quarter: 
       yearTarget: r.yearTarget,
       quarter: r.quarter,
       year: r.year,
-      status: STATUS_LABEL[r.status],
+      // The shared wording (lib/target-status), as of the report's quarter; only the Word file keeps UNDP's terms.
+      status: targetStatusText(targetStatus(r, Number(quarter.slice(-1)))),
       comment: r.comment,
       records: results
         .filter((x) => x.indicator === r.code)

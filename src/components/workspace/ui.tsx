@@ -756,7 +756,10 @@ export function AppShell({
       <TopBar active={active}>
         <div className="order-last -mx-4 flex w-[calc(100%+2rem)] items-center gap-3 overflow-x-auto px-4 sm:mx-0 sm:w-auto sm:px-0 lg:order-none">
           {roles.length === 0 ? (
-            <span className="whitespace-nowrap rounded-full border border-line px-3 py-1.5 text-sm text-muted">{tx("View only")}</span>
+            <span title={tx("You can read everything here; your role signs nothing in this workflow.")} className="whitespace-nowrap rounded-full border border-line px-3 py-1.5 text-sm text-muted">
+              {tx("View only")}
+              <span className="ms-1.5 hidden text-xs sm:inline">· {tx("you can read everything here; your role signs nothing in this workflow")}</span>
+            </span>
           ) : (
             <div role="tablist" aria-label={tx("Your role")} className="flex w-max gap-1 rounded-full border border-line bg-surface p-1">
               {roles.map((r) => (

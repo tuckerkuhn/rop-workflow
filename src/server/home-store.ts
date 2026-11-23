@@ -31,7 +31,7 @@ import { projectProcurementCards } from "@/server/boards-store";
 import { grantRules, loadGrantBook, mayApprove } from "@/server/grants-store";
 import { loadQpr } from "@/server/qpr-store";
 import { loadActivities } from "@/server/activities-store";
-import { reportQuarter } from "@/server/next-report";
+import { joinRunning, reportQuarter, shareRunning } from "@/server/next-report";
 import { early } from "@/server/early";
 
 /**
@@ -86,8 +86,19 @@ async function holdsHrRole(personId: string) {
   return !!(holders.hr?.includes(personId) || holders.payroll?.includes(personId));
 }
 
-async function grantAndProcurementRows(code: string, name: string, u: AppUser, lenses: Lens[], actions: HomeAction[]) {
-  const [book, rules, cop, ho] = await Promise.all([loadGrantBook(code).catch(() => null), grantRules(code).catch(() => null), mayApprove(u, "cop"), mayApprove(u, "ho")]);
+/**
+ * What the grant and procurement rows below read. Started with Home's first reads: they need
+ * nothing Home works out first. Whether the large procurements are read depends on the lead and
+ * procurement views, which the HR role (the only thing not known yet) does not change.
+ */
+function grantAndProcurementReads(code: string, name: string, u: AppUser) {
+  const views = lensesFor(u);
+  const cards = (views.includes("lead") || views.includes("procurement")) && u.procurementAccess !== "none" ? projectProcurementCards({ code, name, sandbox: false }, "Large").catch(() => []) : Promise.resolve([]);
+  return early(Promise.all([loadGrantBook(code).catch(() => null), grantRules(code).catch(() => null), mayApprove(u, "cop"), mayApprove(u, "ho"), cards]));
+}
+
+async function grantAndProcurementRows(code: string, u: AppUser, lenses: Lens[], actions: HomeAction[], reads: ReturnType<typeof grantAndProcurementReads>) {
+  const [book, rules, cop, ho, cards] = await reads;
   const today = realToday();
   if (book && rules) {
     const toApprove = book.items.filter((g) => g.status === "open" && g.step === "approval" && !g.approval && (approverFor(g, rules) === "ho" ? ho : cop));
@@ -102,7 +113,7 @@ async function grantAndProcurementRows(code: string, name: string, u: AppUser, l
     }
   }
   if ((lenses.includes("lead") || lenses.includes("procurement")) && u.procurementAccess !== "none") {
-    const stuck = (await projectProcurementCards({ code, name, sandbox: false }, "Large").catch(() => [])).filter((c) => c.stage >= 0 && isStuck(c.since, today));
+    const stuck = cards.filter((c) => c.stage >= 0 && isStuck(c.since, today));
     if (stuck.length) {
       const n = stuck.length;
       actions.push({ key: "procs-stuck", for: lenses.includes("procurement") ? "procurement" : "lead", bucket: "fix", urgent: false, text: `${n} large ${n === 1 ? "procurement has" : "procurements have"} waited more than ${STUCK_DAYS} days in one step`, msg: { key: n === 1 ? "cn.ha.stuckProc1" : "cn.ha.stuckProc", vars: { n, days: STUCK_DAYS } }, href: n === 1 ? `/work?source=procurement&open=${encodeURIComponent(stuck[0].id)}&project=${encodeURIComponent(code)}` : "/work/procurements" });
@@ -110,7 +121,21 @@ async function grantAndProcurementRows(code: string, name: string, u: AppUser, l
   }
 }
 
-export async function loadHome(code: string, u: AppUser) {
+/**
+ * Home for one project and one person. The week ahead reads Home for every project at the same
+ * moment Home's own page reads it for the open one: it joins that read instead of doing it again
+ * (server/next-report joinRunning). Home itself always reads afresh.
+ */
+const homeKey = (code: string, u: AppUser) => `home:${code}:${JSON.stringify(u)}`;
+export function loadHome(code: string, u: AppUser) {
+  return shareRunning(homeKey(code, u), () => readHome(code, u));
+}
+/** Home as the week ahead reads it: the answer of the same read already under way, if there is one. */
+export function loadHomeJoining(code: string, u: AppUser) {
+  return joinRunning(homeKey(code, u), () => loadHome(code, u));
+}
+
+async function readHome(code: string, u: AppUser) {
   const project = await projectByCode(code);
   const today = new Date().toISOString().slice(0, 10);
   const month = monthOf(new Date());
@@ -123,6 +148,9 @@ export async function loadHome(code: string, u: AppUser) {
   const hrRoleLater = early(holdsHrRole(u.id));
   const koboRuleLater = early(koboApprovalFor(code));
   const peopleLater = early(people());
+  const grantsLater = grantAndProcurementReads(code, project.name, u);
+  // Accepted results changed in KoboToolbox afterwards, for MEL (the HR role does not change who is MEL).
+  const mismatchesLater = lensesFor(u).includes("mel") ? early(koboMismatches(project.id)) : null;
   const formsLater = early(
     db
       .select({ source: s.evidence.source, by: s.evidence.completedBy, at: s.evidence.completedAt, made: s.evidence.createdAt })
@@ -347,7 +375,7 @@ export async function loadHome(code: string, u: AppUser) {
   const myQueried = allResults.filter((r) => r.status === "queried" && r.by === u.id);
   // Accepted results whose KoboToolbox submission was changed or deleted afterwards: MEL reopens them.
   if (lenses.includes("mel")) {
-    const n = (await koboMismatches(project.id)).size;
+    const n = (await (mismatchesLater ?? koboMismatches(project.id))).size;
     if (n) actions.push({ key: "kobo-mismatch", for: "mel", bucket: "fix", urgent: true, text: `${n} accepted ${n === 1 ? "result no longer matches" : "results no longer match"} KoboToolbox: reopen ${n === 1 ? "it" : "them"} to check the new figure`, href: `/progress/results?project=${encodeURIComponent(code)}` });
   }
   if (myQueried.length) actions.push({ key: "queried", for: "field", bucket: "fix", urgent: true, text: `Fix ${myQueried.length} ${myQueried.length === 1 ? "result" : "results"} MEL queried`, msg: { key: myQueried.length === 1 ? "ha.queried1" : "ha.queried", vars: { n: myQueried.length } }, href: "/progress/results" });
@@ -415,7 +443,7 @@ export async function loadHome(code: string, u: AppUser) {
   }
 
   // Grants and large procurements (lib/connections.ts): approvals for the people who give them, and anything stuck for the people who run the project.
-  await grantAndProcurementRows(code, project.name, u, lenses, actions);
+  await grantAndProcurementRows(code, u, lenses, actions, grantsLater);
 
   // Field staff who only use KoboCollect: is this project's data all collected there, and what has arrived lately.
   const [conn] = await connLater;
@@ -448,4 +476,4 @@ export async function loadHome(code: string, u: AppUser) {
     field: { queried: myQueried.length, mine: allResults.filter((r) => r.by === u.id && r.date >= thisQ).length },
   };
 }
-export type HomeView = Awaited<ReturnType<typeof loadHome>>;
+export type HomeView = Awaited<ReturnType<typeof readHome>>;

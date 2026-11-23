@@ -25,6 +25,8 @@ export type PreflightItem = {
   key?: string;
   vars?: Vars;
   href: string;
+  /** The lines behind a count (each target, section or budget line, with its reason): nothing is lost when one item sums them up. */
+  details?: { text: string; key?: string; vars?: Vars; href: string }[];
 };
 /** A check that passed, by message key. */
 export type ReadyItem = { key: string; vars?: Vars };

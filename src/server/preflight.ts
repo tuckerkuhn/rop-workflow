@@ -1,6 +1,6 @@
 import { loadProjectState } from "@/server/project-state";
 import { ANSWER_DAYS, EMPTY_FEEDBACK, overdue, type FeedbackLog } from "@/lib/feedback";
-import { openClaims, overspentLines, SECTIONS } from "@/lib/qpr";
+import { checkHref, checkPlace, openClaims, overspentLines, PREFLIGHT_ITEM_FOR, SECTIONS } from "@/lib/qpr";
 import { addDays, deadlineFor, type Deadline, type Preflight, type PreflightItem, type ReadyItem, type ReportRef, milestoneFits } from "@/lib/preflight";
 import { proofCount, quarterOf, quarterRange, type ResultRecord } from "@/lib/results";
 import { weekOf } from "@/lib/weekly";
@@ -12,20 +12,28 @@ import { projectRules } from "@/server/policy-store";
 import { qprData } from "@/server/qpr-store";
 import { loadResults } from "@/server/results-store";
 import { loadWeekly } from "@/server/weekly-store";
+import { early } from "@/server/early";
+import { oncePerRequest } from "@/server/request-memo";
 import { selfApprovedIn } from "@/server/solo";
 import { listWorkItems } from "@/server/work-store";
 
 /**
- * Pre-flight for a quarterly report, an annual report or a FACE form (lib/preflight). The
- * quarterly report's own checks (lib/qpr checksFor) are the base: every "stop" there blocks here
- * too, so the report page, pre-flight and Home never disagree. Pre-flight adds what the report's
- * checks do not cover: targets with nothing recorded, spending that matches no budget line, the plan
- * and budget sign-off, the claim check's findings, and the deadline.
+ * Pre-flight for a quarterly report, an annual report or a FACE form (lib/preflight). For the
+ * quarterly report it is the one check list: every one of the report's own checks (lib/qpr checksFor)
+ * is in it, a "stop" as blocking and the rest as worth fixing, except those it already says in its own
+ * words (CHECKS_PREFLIGHT_COVERS). So the report page, pre-flight and Home never disagree. It adds what
+ * the report's checks do not cover: targets with nothing recorded, spending that matches no budget
+ * line, the plan and budget sign-off, the claim check's findings, and the deadline.
  */
 
 const n = (k: number, one: string, many: string) => `${k} ${k === 1 ? one : many}`;
 
-type Ctx = { code: string; items: PreflightItem[]; ready: ReadyItem[] };
+/**
+ * `pre`: reads a check needs that were started ahead, all together (each is a round trip to the
+ * database, and one after another they made pre-flight slow). Only a speed-up: a check without one
+ * reads for itself, and what it decides is the same.
+ */
+type Ctx = { code: string; items: PreflightItem[]; ready: ReadyItem[]; pre?: { solo?: Promise<number>; budget?: ReturnType<typeof loadBudgetView> } };
 const add = (c: Ctx, i: PreflightItem) => c.items.push(i);
 const ok = (c: Ctx, key: string, vars?: ReadyItem["vars"]) => c.ready.push({ key, ...(vars ? { vars } : {}) });
 
@@ -38,7 +46,7 @@ async function signOff(c: Ctx) {
 
 /** Spending rows in Finance's import that match no budget line. */
 async function unmatchedSpend(c: Ctx) {
-  const v = await loadBudgetView(c.code).catch(() => null);
+  const v = await (c.pre?.budget ?? loadBudgetView(c.code)).catch(() => null);
   if (!v || !v.imported || !v.activities.length) return;
   const rows = v.notInBudget.filter((l) => Math.abs(l.actual) > 0.5);
   if (rows.length) add(c, { group: "fix", owner: "finance", text: `${n(rows.length, "spending row", "spending rows")} in Finance's import ${rows.length === 1 ? "matches" : "match"} no budget line (${rows.slice(0, 3).map((l) => l.code).join(", ")}${rows.length > 3 ? "…" : ""})`, key: "pf.c.unmatched", vars: { n: rows.length, codes: rows.slice(0, 3).map((l) => l.code).join(", ") }, href: "/progress/budget" });
@@ -47,8 +55,11 @@ async function unmatchedSpend(c: Ctx) {
 
 /** What every report deadline is worked out from: load once when working out several (server/report-calendar). */
 export async function deadlineInputs(code: string) {
-  const [rules, { items }] = await Promise.all([projectRules(code), listWorkItems(code)]);
-  return { rules, items };
+  // Once per read-only request (server/request-memo): Home, its next report and the week ahead each work out several deadlines.
+  return oncePerRequest(`deadline-inputs:${code}`, async () => {
+    const [rules, { items }] = await Promise.all([projectRules(code), listWorkItems(code)]);
+    return { rules, items };
+  });
 }
 
 /**
@@ -77,6 +88,13 @@ function noResult(c: Ctx, rows: { code: string; donorCode: string; name: string 
 }
 
 async function qpr(c: Ctx, quarter: string): Promise<Omit<Preflight, "items" | "ready">> {
+  // Every read below that does not depend on another starts now, with the report's own figures; each is awaited where it is used.
+  const range = quarterRange(quarter);
+  const current = quarterOf(new Date().toISOString().slice(0, 10)) === quarter;
+  c.pre = { solo: early(selfApprovedIn(c.code, range.from, range.to)), budget: early(loadBudgetView(c.code)) };
+  const weeklyLater = current ? early(loadWeekly(c.code)) : null;
+  const feedbackLater = early(projectByCode(c.code).then((p) => loadProjectState<FeedbackLog>(p.id, "feedback", EMPTY_FEEDBACK)));
+  const deadlineLater = early(reportDeadline(c.code, range.to, 60, "quarterlyReportDays"));
   const d = await qprData(c.code, quarter);
   const { from, to } = quarterRange(quarter);
   const q = `q=${quarter}`;
@@ -101,7 +119,8 @@ async function qpr(c: Ctx, quarter: string): Promise<Omit<Preflight, "items" | "
     const keys = [...SECTIONS.filter((s) => s.key !== "story").map((s) => ({ key: s.key as string, heading: s.heading as string })), ...d.activities.map((a) => ({ key: `act.${a.code}`, heading: `Activity ${a.code}` }))];
     const empty = keys.filter((k) => !d.saved.sections[k.key]?.text.trim());
     const drafted = keys.filter((k) => d.saved.sections[k.key]?.drafted);
-    const copied = keys.filter((k) => d.saved.sections[k.key]?.from);
+    // The optional story is never "not written", but a story copied from last quarter is still worth a look.
+    const copied = [...keys, ...SECTIONS.filter((s) => s.key === "story").map((s) => ({ key: s.key as string, heading: s.heading as string }))].filter((k) => d.saved.sections[k.key]?.from);
     if (empty.length) add(c, { group: "fix", owner: "writers", text: `${n(empty.length, "section", "sections")} not written yet (${empty.slice(0, 3).map((k) => k.heading).join(", ")}${empty.length > 3 ? "…" : ""})`, key: "pf.c.empty", vars: { n: empty.length, names: `${empty.slice(0, 3).map((k) => k.heading).join(", ")}${empty.length > 3 ? "…" : ""}` }, href: `/progress/report?${q}#sec-${empty[0].key}` });
     else ok(c, "pf.ok.written");
     if (drafted.length) add(c, { group: "fix", owner: "writers", text: `${n(drafted.length, "AI draft", "AI drafts")} to read and correct`, key: "pf.c.drafted", vars: { n: drafted.length }, href: `/progress/report?${q}#sec-${drafted[0].key}` });
@@ -124,16 +143,22 @@ async function qpr(c: Ctx, quarter: string): Promise<Omit<Preflight, "items" | "
   if (unexplained.length) add(c, { group: "fix", owner: "finance", text: `${n(unexplained.length, "budget line", "budget lines")} over budget without an explanation (${unexplained.map((l) => l.code).join(", ")})`, key: "pf.c.unexplained", vars: { n: unexplained.length, codes: unexplained.map((l) => l.code).join(", ") }, href: `/progress/report?${q}#overspend` });
   await unmatchedSpend(c);
 
-  // Every other stop the report's own checks raise, so nothing that blocks release is missed.
-  const covered = /waiting for MEL|spending import does not include/;
-  for (const x of d.checks.filter((x) => x.level === "stop" && !covered.test(x.text))) add(c, { group: "blocks", owner: "writers", text: x.text, ...(x.key ? { key: x.key } : {}), ...(x.vars ? { vars: x.vars } : {}), href: `/progress/report?${q}` });
+  // Every check the report raises is in this one list. One the report check already counts becomes a
+  // line under that count (which target, section or line, and why); the rest are items of their own:
+  // a "stop" blocks, the others are worth fixing. A check whose count is missing stays an item, so none is lost.
+  for (const x of d.checks) {
+    const line = { text: x.text, ...(x.key ? { key: x.key } : {}), ...(x.vars ? { vars: x.vars } : {}), href: checkHref(x, quarter) };
+    const into = x.key && PREFLIGHT_ITEM_FOR[x.key] ? c.items.find((i) => i.key === PREFLIGHT_ITEM_FOR[x.key!]) : undefined;
+    if (into) into.details = [...(into.details ?? []), line];
+    else add(c, { group: x.level === "stop" ? "blocks" : "fix", owner: checkPlace(x.key).owner, ...line });
+  }
 
   await signOff(c);
 
   // Weekly updates feed the narrative: only for the quarter under way.
   const today = new Date().toISOString().slice(0, 10);
   if (quarterOf(today) === quarter) {
-    const weekly = await loadWeekly(c.code);
+    const weekly = await (weeklyLater ?? loadWeekly(c.code));
     const thisWeek = weekOf(today);
     const lastWeek = weekOf(addDays(thisWeek.from, -2));
     const find = (w: { from: string; to: string }) => weekly.weeks.find((x) => x.from <= w.to && w.from <= x.to);
@@ -143,7 +168,7 @@ async function qpr(c: Ctx, quarter: string): Promise<Omit<Preflight, "items" | "
   }
 
   // Complaints and questions left without an answer: a donor asks how they were handled.
-  const log = await loadProjectState<FeedbackLog>((await projectByCode(c.code)).id, "feedback", EMPTY_FEEDBACK);
+  const log = await feedbackLater;
   const late = log.entries.filter((e) => e.date <= to && overdue(e, today)).length;
   if (late) add(c, { group: "fix", owner: "lead", text: `${n(late, "complaint or question has", "complaints or questions have")} waited more than ${ANSWER_DAYS} days for an answer`, key: late === 1 ? "pf.c.feedbackLate1" : "pf.c.feedbackLate", vars: { n: late, days: ANSWER_DAYS }, href: "/progress/feedback" });
 
@@ -151,12 +176,12 @@ async function qpr(c: Ctx, quarter: string): Promise<Omit<Preflight, "items" | "
     report: { kind: "qpr", quarter },
     label: `Quarterly report ${quarter.replace("-", " ")}`,
     released: !!d.saved.released,
-    deadline: await reportDeadline(c.code, to, 60, "quarterlyReportDays"),
+    deadline: await deadlineLater,
     href: `/progress/report?${q}`,
   };
 }
 async function soloCount(c: Ctx, from: string, to: string) {
-  const k = await selfApprovedIn(c.code, from, to);
+  const k = await (c.pre?.solo ?? selfApprovedIn(c.code, from, to));
   if (k) add(c, { group: "fix", owner: "lead", text: `${n(k, "sign-off", "sign-offs")} in the period ${k === 1 ? "was" : "were"} approved by the person who prepared ${k === 1 ? "it" : "them"} (solo mode): worth a second look before release`, key: k === 1 ? "so.pf1" : "so.pf", vars: { n: k }, href: "/progress/audit" });
 }
 

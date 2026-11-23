@@ -12,6 +12,7 @@ import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn, StatusPill } from "@/
 import { OverspendReasonPicker } from "@/components/progress/overspend-reason";
 import { SECTIONS, STATUSES, STATUS_LABEL, cannotOnReport, durationOf, overspentLines, quarterSpendOf, type QprPatch, type Row, type Status } from "@/lib/qpr";
 import { qprDocx, type Images } from "@/lib/qpr-docx";
+import { targetStatus, wordOfStatus } from "@/lib/target-status";
 import { formatMinutes } from "@/lib/report-copy";
 import { ShareLinks } from "@/components/progress/share-links";
 import { ClaimCheckPanel } from "@/components/progress/claim-check";
@@ -30,7 +31,7 @@ import type { QprView } from "@/app/api/projects/[code]/qpr/route";
 /**
  * The donor's quarterly progress report, in ROP's UNDP layout. Figures come from accepted
  * results and open the records behind them; the team writes the text (Claude can draft it);
- * checks list what to fix before the report goes out; it downloads as a Word document.
+ * the one Report check lists what to fix before the report goes out; it downloads as a Word document.
  */
 
 async function call<T>(url: string, user: string | undefined, init?: RequestInit): Promise<T> {
@@ -42,7 +43,6 @@ async function call<T>(url: string, user: string | undefined, init?: RequestInit
 
 const input = "mt-1 block w-full rounded-xl border border-line bg-paper px-3 py-2 text-base";
 const num = (v: number) => v.toLocaleString("en-US", { maximumFractionDigits: 2 });
-const TONE: Record<Status, "forest" | "sky" | "ochre" | "clay" | "muted"> = { completed: "forest", on_track: "sky", delayed: "clay", not_implemented: "clay", not_started: "muted" };
 
 /** Quarters from the project's start to the last one that has ended (real date, not the demo date). */
 function quartersFor(start: string | null) {
@@ -182,11 +182,11 @@ export function QprPage() {
   };
 
   const emptyDraftable = v ? [...SECTIONS.filter((s) => s.draft).map((s) => s.key as string), ...v.activities.map((a) => `act.${a.code}`)].filter((k) => !v.saved.sections[k]?.text.trim()) : [];
-  const stops = v?.checks.filter((c) => c.level === "stop") ?? [];
-  // One count everywhere: the Report check's (it includes every "stop" of the report's own checks, and more).
-  // Until the check has loaded, the report's own checks stand in.
-  const blockN = pf ? blocking : stops.length;
-  const fixN = pf ? worthFixing : (v?.checks.length ?? 0) - stops.length;
+  // One list, one count: the Report check holds every one of the report's own checks (server/preflight).
+  // Until it has loaded, the report's own checks stand in, so release is never offered too early.
+  const stops = v?.checks.filter((c) => c.level === "stop").length ?? 0;
+  const blockN = pf ? blocking : stops;
+  const fixN = pf ? worthFixing : (v?.checks.length ?? 0) - stops;
   const cannot = v ? cannotOnReport({ edit: v.mayEdit, accept: user.project.includes("mel-owner"), import: v.mayImport, release: v.mayRelease }) : [];
   const { from, to } = quarterRange(quarter);
   // Home's "Next report" (the quarter just ended while its report is still due, else the one under way).
@@ -293,7 +293,7 @@ export function QprPage() {
                 <button
                   type="button"
                   className={primaryBtn}
-                  disabled={!!busy || stops.length > 0 || blockN > 0}
+                  disabled={!!busy || blockN > 0}
                   onClick={() =>
                     void askConfirm({
                       message: `Mark the ${qLabel(quarter)} report final and release it to the donor? It is locked for good: this copy is what the donor receives. It appears in the donor's Reports tab, and every share link for this quarter opens it from now on. No email is sent: tell the donor yourself. To see what would go out first, use "Save a preview copy" instead.`,
@@ -373,26 +373,12 @@ export function QprPage() {
               </section>
             )}
 
-            {v.checks.length > 0 && (
-              <details className="mt-4 rounded-xl border border-line bg-surface px-4 py-3 text-sm" open={stops.length > 0}>
-                <summary className="cursor-pointer font-semibold">Checks before it goes out ({v.checks.length})</summary>
-                <ul className="mt-2 space-y-1">
-                  {v.checks.map((c) => (
-                    <li key={c.text} className="flex gap-2">
-                      <span className={c.level === "stop" ? "font-semibold text-clay" : "text-warn"}>{c.level === "stop" ? "Fix" : "Check"}</span>
-                      <span>{c.key ? t(c.key, c.vars) : c.text}</span>
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            )}
-
             <InfoBox v={v} act={act} onImported={() => void load()} />
             <Acronyms v={v} act={act} />
             <Section v={v} k="summary" act={act} busy={busy} />
             <Section v={v} k="background" act={act} busy={busy} />
 
-            <section className="mt-8">
+            <section id="targets" className="mt-8 scroll-mt-24">
               <h2 className="border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">II. Progress Towards Results</h2>
               <IndicatorTable v={v} act={act} />
             </section>
@@ -673,7 +659,7 @@ function IndicatorTable({ v, act }: { v: QprView; act: Act }) {
       <table className="w-full min-w-[820px] text-sm">
         <thead className="text-start text-xs uppercase tracking-wide text-muted">
           <tr>
-            <th className="py-2 pe-3 text-start">Output indicator</th>
+            <th className="py-2 pe-3 text-start">Output target</th>
             <th className="py-2 pe-3 text-end">{t("rp.col.target", { year })}</th>
             <th className="py-2 pe-3 text-end">{t("rp.col.quarter", { q: qn })}</th>
             <th className="py-2 pe-3 text-end">{t("rp.col.year")}</th>
@@ -737,17 +723,24 @@ function IndicatorRow({ r, v, act, card }: { r: Row; v: QprView; act: Act; card?
         {r.yearTarget > 0 && <span className="block text-xs text-muted">{Math.round((r.year / r.yearTarget) * 100)}%</span>}
     </>
   );
+  // The one wording for a target's status (lib/target-status), as of the report's quarter.
+  const st = targetStatus(r, Number(v.quarter.slice(-1)));
   const statusCell = (
     <>
         {editing ? (
           <div>
             <select className={input} value={status} onChange={(e) => setStatus(e.target.value as Status)}>
-              {STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {STATUS_LABEL[s]}
-                  {s === r.suggested ? " (suggested)" : ""}
-                </option>
-              ))}
+              {STATUSES.map((s) => {
+                // The shared word first; the Word report prints UNDP's own term, which the comment starts with.
+                const w = wordOfStatus(s);
+                return (
+                  <option key={s} value={s}>
+                    {t(`prog.w.${w.word}`)}
+                    {w.detail ? `, ${t(`prog.d.${w.detail}`)}` : ""} · {t("rp.wordTerm", { term: STATUS_LABEL[s] })}
+                    {s === r.suggested ? " (suggested)" : ""}
+                  </option>
+                );
+              })}
             </select>
             <textarea className={input} rows={3} value={comment} onChange={(e) => setComment(e.target.value)} />
             <div className="mt-2 flex flex-wrap gap-2">
@@ -774,8 +767,10 @@ function IndicatorRow({ r, v, act, card }: { r: Row; v: QprView; act: Act; card?
           </div>
         ) : (
           <div>
-            <StatusPill tone={TONE[r.status]}>{STATUS_LABEL[r.status]}</StatusPill>
+            <StatusPill tone={st.tone}>{t(`prog.w.${st.word}`)}</StatusPill>
+            {st.detail && <span className="ms-1 text-xs text-muted">{t(`prog.d.${st.detail}`)}</span>}
             {!r.edited && <span className="ms-2 text-xs text-muted">suggested</span>}
+            <span className="block text-xs text-muted">{t("rp.wordTerm", { term: STATUS_LABEL[r.status] })}</span>
             <p className="mt-1">{r.comment}</p>
             {v.mayEdit && (
               <button type="button" className="mt-1 text-xs font-semibold text-forest hover:underline" onClick={() => setEditing(true)}>
@@ -835,7 +830,7 @@ function GenderStrip({ rows }: { rows: Row[] }) {
           · <b>{num(wl)}</b> women-led and <b>{num(ml)}</b> men-led businesses
         </>
       )}
-      . Counted from accepted results; people may be counted under more than one indicator.
+      . Counted from accepted results; people may be counted under more than one target.
     </p>
   );
 }
@@ -859,7 +854,7 @@ function Grm({ v, act }: { v: QprView; act: Act }) {
   const log = v.grmLog;
   const typed = v.saved.grm.received !== null;
   return (
-    <div className="mt-6 text-sm">
+    <div id="grm" className="mt-6 scroll-mt-24 text-sm">
       <p>
         {log ? (
           <>
@@ -910,7 +905,7 @@ function Risks({ v, act }: { v: QprView; act: Act }) {
   useEffect(() => setList(v.saved.risks), [v.saved.risks]);
   const dirty = JSON.stringify(list) !== JSON.stringify(v.saved.risks);
   return (
-    <section className="mt-6">
+    <section id="risks" className="mt-6 scroll-mt-24">
       <h3 className="text-lg font-semibold">V. Risk Management</h3>
       <div className="mt-2 space-y-2">
         {list.map((r, k) => (

@@ -19,6 +19,11 @@ import { proofCount, quarterRange, totalsOf, type ResultRecord, type UpdateRecor
 
 export const STATUSES = ["completed", "on_track", "delayed", "not_implemented", "not_started"] as const;
 export type Status = (typeof STATUSES)[number];
+/**
+ * UNDP's fixed status terms, for the downloaded Word report (its template lists them in the comment
+ * column) and the comment that starts with one. Every screen uses the shared words instead
+ * (lib/target-status: Done, On track, Behind, Not started, No data).
+ */
 export const STATUS_LABEL: Record<Status, string> = { completed: "Completed", on_track: "On track", delayed: "Delayed", not_implemented: "Not implemented", not_started: "Not yet started" };
 
 /** Fixed sections, in the report's order. Activity narratives come between progress and cross-cutting. */
@@ -408,7 +413,7 @@ export function buildRows(indicators: IndicatorInfo[], results: ResultRecord[], 
 
 export type QprCheckKey = keyof typeof qcEn;
 /** A check before the report goes out: English `text` (Home, pre-flight and the audit log use it), and `key`/`vars` to show it in the reader's language. */
-export type QprCheck = { level: "stop" | "check"; text: string; key?: QprCheckKey; vars?: Record<string, string | number> };
+export type QprCheck = { level: "stop" | "check"; text: string; key?: QprCheckKey; vars?: Record<string, string | number>; /** What it is about: an indicator code, a section key or a budget line. */ ref?: string };
 
 /** Things to fix before the report goes out. Each one names the target or section. */
 export function checksFor(rows: Row[], results: ResultRecord[], quarter: string, saved: Qpr, spend: Spend, activities: string[], grmLog: GrmLog | null = null) {
@@ -419,43 +424,105 @@ export function checksFor(rows: Row[], results: ResultRecord[], quarter: string,
   const code = (ind: string) => rows.find((r) => r.code === ind)?.donorCode ?? ind;
   const out: QprCheck[] = [];
   // The English text is built from the same sentence the other languages translate, so they never drift.
-  const push = (level: QprCheck["level"], key: QprCheckKey, vars: Record<string, string | number> = {}) =>
-    out.push({ level, text: qcEn[key].replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)), key, ...(Object.keys(vars).length ? { vars } : {}) });
+  const push = (level: QprCheck["level"], key: QprCheckKey, vars: Record<string, string | number> = {}, ref?: string) =>
+    out.push({ level, text: qcEn[key].replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)), key, ...(Object.keys(vars).length ? { vars } : {}), ...(ref ? { ref } : {}) });
   const pending = inQ.filter((r) => r.status === "pending");
-  for (const c of [...new Set(pending.map((r) => r.indicator))]) push("stop", "qc.pending", { code: code(c), n: pending.filter((r) => r.indicator === c).length });
+  for (const c of [...new Set(pending.map((r) => r.indicator))]) push("stop", "qc.pending", { code: code(c), n: pending.filter((r) => r.indicator === c).length }, c);
   const queried = inQ.filter((r) => r.status === "queried");
-  for (const c of [...new Set(queried.map((r) => r.indicator))]) push("check", "qc.queried", { code: code(c), n: queried.filter((r) => r.indicator === c).length });
+  for (const c of [...new Set(queried.map((r) => r.indicator))]) push("check", "qc.queried", { code: code(c), n: queried.filter((r) => r.indicator === c).length }, c);
   const noProof = inQ.filter((x) => x.status === "accepted" && !proofCount(x));
   for (const c of [...new Set(noProof.map((r) => r.indicator))]) {
     const list = noProof.filter((r) => r.indicator === c);
-    push("check", "qc.noProof", { code: code(c), n: list.length, note: list[0].noFile ? ` (${list[0].noFile})` : "" });
+    push("check", "qc.noProof", { code: code(c), n: list.length, note: list[0].noFile ? ` (${list[0].noFile})` : "" }, c);
   }
   for (const r of rows) {
-    if (r.status === "completed" && r.year < r.yearTarget) push("stop", "qc.completedShort", { code: r.donorCode, done: n(r.year), target: n(r.yearTarget), unit: r.unit });
-    if (r.status === "not_implemented" && r.year > 0) push("stop", "qc.notImplemented", { code: r.donorCode, done: n(r.year), unit: r.unit });
+    if (r.status === "completed" && r.year < r.yearTarget) push("stop", "qc.completedShort", { code: r.donorCode, done: n(r.year), target: n(r.yearTarget), unit: r.unit }, r.code);
+    if (r.status === "not_implemented" && r.year > 0) push("stop", "qc.notImplemented", { code: r.donorCode, done: n(r.year), unit: r.unit }, r.code);
     if (r.edited) {
       const pcts = [...r.comment.matchAll(/(\d{1,3})\s?%/g)].map((m) => Number(m[1]));
       const real = r.yearTarget ? Math.round((r.year / r.yearTarget) * 100) : null;
-      if (real !== null && pcts.some((p) => Math.abs(p - real) > 1)) push("stop", "qc.commentPct", { code: r.donorCode, pcts: pcts.join("%, "), real });
-      if (!r.comment.toLowerCase().startsWith(STATUS_LABEL[r.status].toLowerCase())) push("check", "qc.commentStatus", { code: r.donorCode, status: STATUS_LABEL[r.status] });
+      if (real !== null && pcts.some((p) => Math.abs(p - real) > 1)) push("stop", "qc.commentPct", { code: r.donorCode, pcts: pcts.join("%, "), real }, r.code);
+      if (!r.comment.toLowerCase().startsWith(STATUS_LABEL[r.status].toLowerCase())) push("check", "qc.commentStatus", { code: r.donorCode, status: STATUS_LABEL[r.status] }, r.code);
     }
   }
   if (spend.cumulative > spend.budget && spend.budget > 0) push("stop", "qc.overBudget", { spent: n(spend.cumulative), budget: n(spend.budget) });
   const qs = quarterSpendOf(saved, spend);
   if (qs !== null && qs > spend.cumulative) push("stop", "qc.quarterOverTotal");
   if (qs === null) push("check", "qc.noQuarterSpend");
-  for (const { code, ...l } of overspentLines(spend, saved).filter((x) => x.explanation.length < 10)) push("check", "qc.lineOver", { code, spent: n(l.actual), budget: n(l.budget), currency: spend.currency, pct: Math.round((l.actual / l.budget) * 100) });
+  for (const { code, ...l } of overspentLines(spend, saved).filter((x) => x.explanation.length < 10)) push("check", "qc.lineOver", { code, spent: n(l.actual), budget: n(l.budget), currency: spend.currency, pct: Math.round((l.actual / l.budget) * 100) }, code);
   if (spend.source.kind === "import" && spend.missingMonths.length) push("stop", "qc.missingMonths", { months: spend.missingMonths.join(", ") });
   if (saved.quarterSpend !== null && spend.quarter !== null && Math.abs(saved.quarterSpend - spend.quarter) > 1) push("check", "qc.typedSpend", { typed: n(saved.quarterSpend), imported: n(spend.quarter) });
-  for (const s of SECTIONS) if (s.key !== "story" && !saved.sections[s.key]?.text.trim()) push("check", "qc.sectionEmpty", { heading: s.heading });
-  for (const s of SECTIONS) if (saved.sections[s.key]?.from) push("check", "qc.sectionCopied", { heading: s.heading, from: saved.sections[s.key]!.from! });
+  for (const s of SECTIONS) if (s.key !== "story" && !saved.sections[s.key]?.text.trim()) push("check", "qc.sectionEmpty", { heading: s.heading }, s.key);
+  for (const s of SECTIONS) if (saved.sections[s.key]?.from) push("check", "qc.sectionCopied", { heading: s.heading, from: saved.sections[s.key]!.from! }, s.key);
   for (const a of activities) {
     const has = rows.some((r) => r.activity === a && r.quarter > 0);
-    if (has && !saved.sections[`act.${a}`]?.text.trim()) push("check", "qc.activityText", { code: a });
+    if (has && !saved.sections[`act.${a}`]?.text.trim()) push("check", "qc.activityText", { code: a }, `act.${a}`);
   }
   if (!saved.risks.length) push("check", "qc.risks");
   if (grmOf(saved, grmLog).received === null) push("check", "qc.grm");
   return out;
+}
+
+/**
+ * The report's own checks that the report check (server/preflight) already counts in one of its own
+ * items, by that item's key. They are not listed twice: each becomes a line under that item's count
+ * (its `details`), naming the target, section or budget line and the reason, so nothing is lost.
+ */
+export const PREFLIGHT_ITEM_FOR: Partial<Record<QprCheckKey, string>> = {
+  "qc.pending": "pf.c.pending",
+  "qc.queried": "pf.c.queried",
+  "qc.noProof": "pf.c.noProof",
+  "qc.missingMonths": "pf.c.notImported",
+  "qc.lineOver": "pf.c.unexplained",
+  "qc.typedSpend": "pf.c.typedSpend",
+  "qc.sectionEmpty": "pf.c.empty",
+  "qc.activityText": "pf.c.empty",
+  "qc.sectionCopied": "pf.c.copied",
+};
+export const CHECKS_PREFLIGHT_COVERS: ReadonlySet<QprCheckKey> = new Set(Object.keys(PREFLIGHT_ITEM_FOR) as QprCheckKey[]);
+
+/** Where one of the report's own checks is fixed: the target's records, the section, the budget or the report part. */
+export function checkHref(c: Pick<QprCheck, "key" | "ref">, quarter: string): string {
+  const q = `q=${quarter}`;
+  switch (c.key) {
+    case "qc.pending":
+    case "qc.queried":
+    case "qc.noProof":
+      return c.ref ? `/progress/results?indicator=${encodeURIComponent(c.ref)}&${q}` : `/progress/results?${q}`;
+    case "qc.missingMonths":
+      return "/progress/budget";
+    case "qc.lineOver":
+      return `/progress/report?${q}#overspend`;
+    case "qc.typedSpend":
+      return `/progress/report?${q}#info`;
+    case "qc.sectionEmpty":
+    case "qc.sectionCopied":
+    case "qc.activityText":
+      return `/progress/report?${q}${c.ref ? `#sec-${c.ref}` : ""}`;
+  }
+  const part = checkPlace(c.key).part;
+  return `/progress/report?${q}${part ? `#${part}` : ""}`;
+}
+
+/** Who fixes one of the report's own checks, and the part of the report page (#id) where it is fixed. */
+export function checkPlace(key?: QprCheckKey): { owner: "writers" | "finance"; part: string } {
+  switch (key) {
+    case "qc.completedShort":
+    case "qc.notImplemented":
+    case "qc.commentPct":
+    case "qc.commentStatus":
+      return { owner: "writers", part: "targets" };
+    case "qc.overBudget":
+    case "qc.quarterOverTotal":
+    case "qc.noQuarterSpend":
+      return { owner: "finance", part: "info" };
+    case "qc.risks":
+      return { owner: "writers", part: "risks" };
+    case "qc.grm":
+      return { owner: "writers", part: "grm" };
+    default:
+      return { owner: "writers", part: "" };
+  }
 }
 
 /** Abbreviations a UNDP report on Afghanistan usually needs; the team edits the list. */

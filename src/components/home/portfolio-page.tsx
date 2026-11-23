@@ -41,7 +41,7 @@ export function PortfolioPage() {
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="min-w-0 flex-1 text-xl font-semibold">{p.name}</h2>
                 <Pill tone="muted">{p.stage}</Pill>
-                {p.ready && <Pill tone={p.level === "good" ? "forest" : p.level === "warning" ? "ochre" : "clay"}>{p.late ? `${p.late} late` : "On schedule"}</Pill>}
+                {p.ready && <Pill tone={p.level === "good" ? "forest" : p.level === "warning" ? "ochre" : "clay"}>{p.late ? `${p.late} behind` : "None behind"}</Pill>}
               </div>
               {p.ready ? (
                 <>
@@ -49,9 +49,9 @@ export function PortfolioPage() {
                     <span className="font-semibold">
                       {p.met} of {p.indicators}
                     </span>{" "}
-                    indicators have met this year&rsquo;s target, {p.onTrack} more on track{p.late ? `, ${p.late} late` : ""}.
+                    targets done this year, {p.onTrack} more on track{p.late ? `, ${p.late} behind` : ""}.
                   </p>
-                  {p.lateNames.length > 0 && <p className="text-xs text-muted">Late: {p.lateNames.join("; ")}</p>}
+                  {p.lateNames.length > 0 && <p className="text-xs text-muted">Behind: {p.lateNames.join("; ")}</p>}
                   <p className="mt-1 text-sm text-muted">
                     {pct(p.budget.spentPct)} of {p.budget.currency} {p.budget.approved.toLocaleString("en-US", { maximumFractionDigits: 0 })} spent with {pct(p.budget.timePct)} of the time gone
                     {p.budget.ahead ? " (spending ahead of time)" : ""}

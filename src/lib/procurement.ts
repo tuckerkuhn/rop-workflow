@@ -49,7 +49,7 @@ export const roles: { id: Role; label: string; short: string }[] = [
   { id: "holder", label: "Budget holder", short: "Budget holder" },
   { id: "procurement", label: "Procurement officer", short: "Procurement" },
   { id: "committee", label: "Bid committee", short: "Committee" },
-  { id: "ho", label: "Home Office reviewer", short: "HO review" },
+  { id: "ho", label: "Home Office reviewer", short: "Home Office review" },
   { id: "approver", label: "Approving authority", short: "Approver" },
   { id: "finance", label: "Finance", short: "Finance" },
 ];
@@ -196,7 +196,16 @@ export function microWithVendor(p: Procurement) {
   return { vendor, months, buys, total };
 }
 
+/**
+ * The eight stages, by position. These short names are keys: other code finds a stage with
+ * stages.indexOf("Receive") and the board's translations are keyed on them, so they stay as they
+ * are. People see `stageLabels`, plain words that match the step titles inside each stage.
+ */
 export const stages = ["Need", "Requisition", "Authorize", "Select", "Contract", "Receive", "Pay-ready", "Close"];
+/** What people see for each stage, same positions as `stages`. */
+export const stageLabels = ["Confirm need", "Request", "Approve", "Choose supplier", "Contract", "Receive", "Pay", "Close out"];
+/** The plain name of a stage key from `stages` (the key itself when unknown). */
+export const stageLabel = (key: string) => stageLabels[stages.indexOf(key)] ?? key;
 
 export type BudgetLine = { code: string; name: string; remainingValue: number; remainingQty?: number; unit?: string };
 

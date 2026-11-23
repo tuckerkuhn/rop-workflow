@@ -3,22 +3,24 @@
 import { useState } from "react";
 import { useSession } from "@/components/app/session";
 import { useSubmissions } from "@/components/app/use-project-data";
-import { Pill, SectionLabel, dangerBtn, primaryBtn, quietBtn } from "@/components/workspace/ui";
+import { Pill, dangerBtn, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { dataFlags, formLabel, personName, type Submission } from "@/lib/project";
 import type { SyncCounts } from "@/lib/kobo-setup";
 
 /**
  * Field forms waiting to be checked: readiness visits, training attendance and farm visits from
- * KoboCollect (and the demo's sample records). It sits on Results and proof so MEL checks
- * everything in one place. Accepting a record is what moves the farmer in Field activities;
- * nothing changes until a named person accepts it. Who may decide each record comes from the server
- * (the project's KoboCollect approval rule; nobody decides their own).
+ * KoboCollect (and the demo's sample records). They are the second part of the one "To check"
+ * place on Results and proof (results-page ToCheck), so MEL checks everything in one place.
+ * Accepting a record is what moves the farmer in Field activities; nothing changes until a named
+ * person accepts it. Who may decide each record comes from the server (the project's KoboCollect
+ * approval rule; nobody decides their own).
+ *
+ * `useFieldForms` holds the records and the actions; the page uses it for the counts and the
+ * "Accept all" button at the top of "To check", and `FieldRecords` shows the records themselves.
  */
-export function FieldRecords({ code }: { code: string }) {
+export function useFieldForms(code: string, wanted = true) {
   const { user } = useSession();
-  const kobo = useSubmissions(code);
-  const [querying, setQuerying] = useState<string | null>(null);
-  const [note, setNote] = useState("");
+  const kobo = useSubmissions(code, wanted);
   const [busy, setBusy] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -49,21 +51,34 @@ export function FieldRecords({ code }: { code: string }) {
       return `${subs.length} record${subs.length === 1 ? "" : "s"} ${status === "accepted" ? "accepted" : "queried"}.`;
     });
   const synced = (r: SyncCounts) => `Synced: ${r.fetched} on KoboToolbox, ${r.added} new${r.updated ? `, ${r.updated} changed` : ""}${r.removed ? `, ${r.removed} deleted in KoboToolbox` : ""}.`;
+  return { show: user?.kind === "employee", kobo, pending, forMe, queried, clean, flagsOf, name, busy, outcome, run, decide, synced };
+}
+export type FieldForms = ReturnType<typeof useFieldForms>;
 
-  if (user?.kind !== "employee") return null;
+export function FieldRecords({ f, open, onToggle }: { f: FieldForms; open: boolean; onToggle: () => void }) {
+  const { kobo, pending, forMe, queried, flagsOf, name, busy, outcome, run, decide, synced } = f;
+  const [querying, setQuerying] = useState<string | null>(null);
+  const [note, setNote] = useState("");
+
+  if (!f.show) return null;
 
   return (
-    <section id="field-records" className="mt-8 scroll-mt-24 rounded-2xl border border-line bg-surface p-4 sm:p-5">
+    <div id="field-records" className="mt-5 scroll-mt-24 border-t border-line pt-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <SectionLabel>
-            Field forms to check · {forMe} for you{pending.length > forMe ? `, ${pending.length - forMe} waiting on others` : ""}
-          </SectionLabel>
+          <h3 className="font-semibold">
+            KoboCollect field forms · {forMe} for you{pending.length > forMe ? `, ${pending.length - forMe} waiting on others` : ""}
+          </h3>
           <p className="mt-1 max-w-2xl text-sm text-muted">
             Readiness visits, training attendance and farm visits from KoboCollect. Accepting one records it on the farmer in Field activities; a query sends it back to whoever collected it.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {pending.length > 0 && (
+            <button type="button" aria-expanded={open} aria-controls="field-records-list" onClick={onToggle} className={`${quietBtn} py-1.5`}>
+              {open ? "Hide" : `Review ${pending.length}`}
+            </button>
+          )}
           <button type="button" disabled={!!busy} onClick={() => run("sync", async () => synced(await kobo.sync()))} className={`${quietBtn} py-1.5`}>
             {busy === "sync" ? "Syncing…" : "Sync from KoboToolbox"}
           </button>
@@ -89,17 +104,8 @@ export function FieldRecords({ code }: { code: string }) {
         </p>
       )}
 
-      {clean.length > 1 && (
-        <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl bg-mist px-4 py-3 text-sm">
-          <span className="me-auto">{clean.length} have no problems flagged.</span>
-          <button type="button" disabled={!!busy} onClick={() => void decide(clean, "accepted")} className={`${primaryBtn} py-1.5`}>
-            Accept all {clean.length}
-          </button>
-        </div>
-      )}
-
-      <ul className="mt-4 space-y-2">
-        {pending.map((s) => {
+      <ul id="field-records-list" className="mt-4 space-y-2">
+        {open && pending.map((s) => {
           const flags = flagsOf(s);
           return (
             <li key={s.id} className={`rounded-xl border p-4 ${flags.length ? "border-clay/40" : "border-line"}`}>
@@ -199,6 +205,6 @@ export function FieldRecords({ code }: { code: string }) {
           {queried.length} queried and back with whoever collected {queried.length === 1 ? "it" : "them"}: {queried.map((s) => `${s.id} (farmer ${s.farmerId})`).join(", ")}.
         </p>
       )}
-    </section>
+    </div>
   );
 }

@@ -6,6 +6,8 @@ import { userById } from "@/lib/demo";
 import { ready } from "@/server/__tests__/test-db";
 import { seedDatabase } from "@/server/demo-seed";
 import { actOnWeek, loadWeek } from "@/server/week-store";
+import { loadHome } from "@/server/home-store";
+import { nextReport } from "@/server/next-report";
 
 /** A manager's week ahead on the seeded demo: read from the records, and a plan that is the person's own. */
 const tucker = userById("tucker")!;
@@ -44,6 +46,12 @@ describe("the week ahead", { timeout: 90_000 }, () => {
     expect(open.confirmedAt).toBeNull();
     expect(await actOnWeek(tucker, { action: "confirm", items: [{ id: open.items[1].id, text: open.items[1].text, href: "", own: true }] })).toBeNull();
     expect((await loadWeek(tucker)).plan.items.map((i) => [i.text, i.done])).toEqual([["Call the board chair", true]]);
+  });
+
+  it("answers the same when it joins Home's own read of the project, running at the same moment", async () => {
+    const alone = await loadWeek(tucker);
+    const [, , joined] = await Promise.all([loadHome("A-2027", tucker), nextReport("A-2027"), loadWeek(tucker)]);
+    expect(joined).toEqual(alone);
   });
 
   it("refuses the same priority twice", async () => {

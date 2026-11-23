@@ -14,7 +14,7 @@ import { SelfConfirmSheet, useSolo } from "@/components/app/self-confirm";
 import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn, Loading, StatusPill } from "@/components/workspace/ui";
 import { userById } from "@/lib/demo";
 import { describeChange, lastMonth, quartersLabel, type Change, type ChangeInput, type ReviewAction } from "@/lib/monthly-review";
-import { STATUS_LABEL, type Status } from "@/lib/qpr";
+import { targetStatus } from "@/lib/target-status";
 import type { ReviewView } from "@/server/monthly-review-store";
 
 /**
@@ -23,7 +23,6 @@ import type { ReviewView } from "@/server/monthly-review-store";
  * approves them. Closed with a sign-off; every step is in the audit trail.
  */
 
-const TONE: Record<Status, "forest" | "sky" | "ochre" | "clay" | "muted"> = { completed: "forest", on_track: "sky", delayed: "clay", not_implemented: "clay", not_started: "muted" };
 const field = "mt-1 w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm";
 const money = (n: number | null) => (n === null ? "—" : Math.round(n).toLocaleString("en-US"));
 const who = (id?: string) => (id ? (userById(id)?.name ?? id) : "");
@@ -143,7 +142,16 @@ export function ReviewPage() {
                               / {i.yearTarget.toLocaleString("en-US")} {i.unit}
                             </td>
                             <td className="px-3 py-2">
-                              <StatusPill tone={TONE[i.status]}>{STATUS_LABEL[i.status]}</StatusPill>
+                              {(() => {
+                                // The one wording for a target's status (lib/target-status), as of the review's quarter.
+                                const st = targetStatus(i, Number(v.quarter.slice(-1)));
+                                return (
+                                  <>
+                                    <StatusPill tone={st.tone}>{t(`prog.w.${st.word}`)}</StatusPill>
+                                    {st.detail && <span className="ms-1 text-xs text-muted">{t(`prog.d.${st.detail}`)}</span>}
+                                  </>
+                                );
+                              })()}
                             </td>
                             <td className="px-4 py-2 text-xs text-muted">{i.planned === null ? "Not linked" : i.planned.length ? i.planned.map((q) => `Q${q}`).join(", ") : `Not in ${v.year}`}</td>
                           </tr>
@@ -385,7 +393,7 @@ function Propose({ v, busy, act }: { v: ReviewView; busy: boolean; act: (a: Revi
       {kind === "target" && (
         <div className="mt-2 grid gap-3 sm:grid-cols-[2fr_1fr]">
           <label>
-            Indicator
+            Target
             <select className={field} value={indicator} onChange={(e) => setIndicator(e.target.value)}>
               {v.indicators.map((i) => (
                 <option key={i.code} value={i.code}>

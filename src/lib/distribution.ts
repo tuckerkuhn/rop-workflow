@@ -1,7 +1,7 @@
 import { plantingValue, type CropPlan } from "@/lib/crops";
 import { received } from "@/lib/connections";
 import { convert, fmtQty as fmt, itemsFor, qtyItem, qtyUnit, type DistItem, type FieldSetup } from "@/lib/package";
-import { receivedQty, stages, stepById, type Procurement } from "@/lib/procurement";
+import { receivedQty, stageLabels, stages, stepById, type Procurement } from "@/lib/procurement";
 import type { ResultInput } from "@/lib/results";
 
 export { toKg, convert, type DistItem } from "@/lib/package";
@@ -59,7 +59,7 @@ export function gate(items: DistItem[], procs: Procurement[], given: Given, setu
     if (!sources.length) return { ...base, received: 0, ok: false, detail: `No purchase on budget line ${line || "(none set)"} supplies ${it.item}. Start one on the procurement calendar.` };
     const done = sources.filter((p) => received(p));
     if (!done.length) {
-      const where = sources.map((p) => `${p.id} is at ${stages[stepById[p.step]?.stage ?? 0] ?? p.step}`).join("; ");
+      const where = sources.map((p) => `${p.id} is at ${stageLabels[stepById[p.step]?.stage ?? 0] ?? p.step}`).join("; ");
       return { ...base, received: 0, ok: false, detail: `${it.item}: the goods received note is not signed yet (${where}).` };
     }
     const odd = done.filter((p) => receivedIn(p, unit) === null);

@@ -103,6 +103,21 @@ function Rows({ items, start }: { items: PreflightItem[]; start: number }) {
               →
             </span>
           </Link>
+          {/* The lines behind a count: each target, section or budget line, and why, each with its own link. */}
+          {i.details?.length ? (
+            <details className="pb-2 ps-11 pe-2">
+              <summary className="min-h-11 cursor-pointer py-2 text-sm font-semibold text-forest">{t("pf.which", { n: i.details.length })}</summary>
+              <ul className="space-y-1">
+                {i.details.map((d) => (
+                  <li key={d.text}>
+                    <Link href={d.href} className="text-sm hover:underline">
+                      {itemText(t, d)}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          ) : null}
         </li>
       ))}
     </ol>

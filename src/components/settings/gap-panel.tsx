@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { primaryBtn } from "@/components/workspace/ui";
+import { ReasonNeeded } from "@/components/settings/reason-needed";
 
 /**
  * Gaps: requirements stricter than the organization's procedures. Each is shown against what the
@@ -98,6 +99,8 @@ export function GapPanel({
           >
             {busy ? "Saving…" : `Layer on ${keys.length} of ${items.length}`}
           </button>
+          {!keys.length && <p className="w-full text-xs text-warn">Tick at least one requirement to layer on.</p>}
+          <ReasonNeeded reason={reason} to="layer these on" className="w-full" />
         </div>
       ) : (
         <p className="mt-3 text-sm text-muted">{cannot}</p>

@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { ProofNumber } from "@/components/progress/proof-panel";
 import { useT } from "@/components/app/i18n";
 import { today } from "@/lib/clock";
-import { quarterOfToday, targetStatus } from "@/lib/target-status";
+import { quarterOfToday, targetStatus, targetStatusText } from "@/lib/target-status";
 import { targetGroups } from "@/lib/framework";
 import type { FrameworkView, TreeNode } from "@/server/framework-store";
 
@@ -14,22 +14,12 @@ import type { FrameworkView, TreeNode } from "@/server/framework-store";
  * year's target, the result so far, a status word (never colour alone) and the date of the last
  * accepted result. Tapping a row opens the records and proof behind it.
  */
-const STATUS: Record<string, { tone: "forest" | "sky" | "ochre" | "clay" | "muted"; text: string }> = {
-  completed: { tone: "forest", text: "Target met" },
-  on_track: { tone: "sky", text: "On track" },
-  not_started: { tone: "muted", text: "Not due yet" },
-  delayed: { tone: "clay", text: "Delayed" },
-  not_implemented: { tone: "clay", text: "Not implemented" },
-};
 const n = (v: number) => v.toLocaleString("en-US", { maximumFractionDigits: 1 });
 
-/** One wording for an indicator's status everywhere. "Not started" splits three ways: not planned, due now, or due later. */
+/** A target's status in the one shared wording (lib/target-status), as English text: "Not started · due this quarter". */
 export function indicatorStatus(i: { status: string; planned: number[] | null; year: number; yearTarget: number }) {
-  const qNow = Math.floor(new Date().getUTCMonth() / 3) + 1;
-  if (i.status === "not_started" && i.planned && i.planned.length === 0 && i.yearTarget > i.year) return { tone: "clay" as const, text: "Not planned" };
-  // Due this quarter: this is the last quarter of its window (the same rule as the summary's list).
-  if (i.status === "not_started" && i.planned?.length && Math.max(...i.planned) === qNow) return { tone: "ochre" as const, text: "Due this quarter" };
-  return STATUS[i.status] ?? { tone: "muted" as const, text: i.status };
+  const st = targetStatus(i, quarterOfToday(today()));
+  return { tone: st.tone, text: targetStatusText(st) };
 }
 
 export function IndicatorTable({ projectId, userId }: { projectId: string; userId: string }) {
@@ -48,8 +38,8 @@ export function IndicatorTable({ projectId, userId }: { projectId: string; userI
   // Every target once: by outcome and output, then the ones with no place in the framework yet.
   const outputs = targetGroups<TreeNode["indicators"][number]>(v);
   const qNow = quarterOfToday(today());
-  const TONE = { forest: "bg-mist text-forest", clay: "bg-clay-soft text-clay", muted: "bg-sunken text-muted" } as const;
-  const ICON = { on_track: "✓", behind: "!", no_data: "–" } as const;
+  const TONE = { forest: "bg-mist text-forest", sky: "bg-mist text-forest", ochre: "bg-ochre-soft text-warn", clay: "bg-clay-soft text-clay", muted: "bg-sunken text-muted" } as const;
+  const ICON = { done: "✓", on_track: "✓", behind: "!", not_started: "–", no_data: "?" } as const;
   return (
     <section className="mt-8" aria-labelledby="ind-year">
       <div className="flex flex-wrap items-baseline justify-between gap-2">

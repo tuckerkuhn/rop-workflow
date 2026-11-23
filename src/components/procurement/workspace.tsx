@@ -65,6 +65,7 @@ import {
   holderFor,
   roles,
   stages,
+  stageLabels,
   stepById,
   stepsFor,
   actionFor,
@@ -568,7 +569,7 @@ function Detail({
       </div>
 
       <div className="rounded-2xl border border-line bg-surface px-4 py-4">
-        <Tracker labels={stages} current={p.step === DONE ? stages.length : step.stage} skipped={stages.map((_, i) => i).filter((i) => !stepsFor(p).some((s) => s.stage === i))} />
+        <Tracker labels={stageLabels} current={p.step === DONE ? stages.length : step.stage} skipped={stages.map((_, i) => i).filter((i) => !stepsFor(p).some((s) => s.stage === i))} />
       </div>
 
       {p.step === DONE ? (
@@ -859,7 +860,6 @@ export function ProcurementWorkspace() {
       }
     : undefined;
   const [pickedRole, setPickedRole] = useState<Role | null>(null);
-  const role = pickedRole && myRoles.includes(pickedRole) ? pickedRole : (myRoles[0] ?? null);
   const [selected, setSelected] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -872,6 +872,8 @@ export function ProcurementWorkspace() {
   const register = useSupplierRegister(!!project.saved && project.id !== "A-2027", user?.id);
   setSupplierRegister(register);
   const counts = useMemo(() => Object.fromEntries(roles.map((r) => [r.id, items.filter((p) => ownerOf(p) === r.id).length])), [items]);
+  // Open on the first of the person's roles with something waiting, not always the first role.
+  const role = pickedRole && myRoles.includes(pickedRole) ? pickedRole : (myRoles.find((r) => counts[r] > 0) ?? myRoles[0] ?? null);
   const readOnly = !role;
   const mineList = role ? items.filter((p) => ownerOf(p) === role) : items;
   const list = showAll || readOnly ? items : mineList;

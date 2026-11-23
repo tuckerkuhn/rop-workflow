@@ -332,6 +332,15 @@ export function SuppliersPage() {
   const [notice, setNotice] = useState("");
   const [adding, setAdding] = useState(false);
   const [q, setQ] = useState("");
+  // ?return=PR-2027-014: the person came from that purchase's "Add it to the register"; once a
+  // supplier is saved, a link takes them back to it.
+  const [back, setBack] = useState("");
+  const [savedOne, setSavedOne] = useState(false);
+  useEffect(() => {
+    const r = new URLSearchParams(window.location.search).get("return") ?? "";
+    if (/^[\w.-]{1,64}$/.test(r)) setBack(r);
+  }, []);
+  const backHref = `/work?source=procurement&open=${encodeURIComponent(back)}`;
   const load = useCallback(async () => {
     if (!user) return;
     try {
@@ -350,6 +359,7 @@ export function SuppliersPage() {
     try {
       setV(await call(user.id, { method: "POST", body: JSON.stringify(a) }));
       setNotice(msg);
+      setSavedOne(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       throw e;
@@ -362,8 +372,8 @@ export function SuppliersPage() {
     <div className="min-h-screen">
       <TopBar active="procurement" />
       <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-        <Link href="/work?source=procurement" className="text-sm text-muted hover:text-ink">
-          ← Procurement
+        <Link href={back ? backHref : "/work?source=procurement"} className="text-sm text-muted hover:text-ink">
+          ← {back ? `Back to ${back}` : "Procurement"}
         </Link>
         <h1 className="mt-2 font-display text-4xl tracking-tight">Suppliers</h1>
         <p className="mt-1 text-sm text-muted">
@@ -380,9 +390,14 @@ export function SuppliersPage() {
           </p>
         )}
         {notice && !error && (
-          <p role="status" className="mt-3 rounded-xl bg-mist px-4 py-3 text-sm text-forest">
-            {notice}
-          </p>
+          <div role="status" className="mt-3 flex flex-wrap items-center gap-3 rounded-xl bg-mist px-4 py-3 text-sm text-forest">
+            <p className="min-w-0 flex-1">{notice}</p>
+            {back && savedOne && (
+              <Link href={backHref} className="font-semibold hover:underline">
+                Back to {back} →
+              </Link>
+            )}
+          </div>
         )}
         <div className="mt-4 flex flex-wrap gap-2">
           <input className="min-w-0 flex-1 rounded-xl border border-line bg-paper px-3 py-2.5 text-base" placeholder="Find by name or licence" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Find a supplier" />

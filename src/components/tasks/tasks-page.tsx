@@ -5,7 +5,7 @@ import { placeAllowed } from "@/lib/project-modules";
 import { PlaceTabs, WORK_TABS } from "@/components/progress/report-checks";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useT } from "@/components/app/i18n";
 import { LockIcon, LockedFeature } from "@/components/app/locked-feature";
@@ -55,6 +55,8 @@ function StaffOnly() {
 }
 
 type View = "list" | "calendar" | "timeline";
+/** How long a deleted task or milestone can still be brought back. */
+const UNDO_MS = 5000;
 type Chip = "all" | "procurement" | "field" | "reporting" | "hr";
 // Mine: tasks and the activities I own. Needs me: everything waiting on me from the project and its workflows.
 const isMine = (r: Row) => r.kind === "task" && (r.source === "manual" || r.source === "activity") && !r.done;
@@ -91,10 +93,10 @@ const VIEWS: { id: View; label: MessageKey }[] = [
  * Calendar show the same list. New work starts from "+ New" in the header.
  */
 function AllTasks({ user }: { user: AppUser }) {
-  const { t } = useT();
+  const { t, tx } = useT();
   const modules = useProjectModules();
   const { project } = useCurrentProject();
-  const { rows, work, projectWorkFailed } = useTaskRows(user, project);
+  const { rows: allRows, work, projectWorkFailed } = useTaskRows(user, project);
   const timeline = useFeature("timeline");
   const [saved, setSaved] = usePersistentState<View>("rop-tasks-view", () => "list");
   // Picking the locked timeline shows the upgrade prompt without remembering it as the choice.
@@ -115,10 +117,42 @@ function AllTasks({ user }: { user: AppUser }) {
     }
   }, []);
 
+  // Delete is one tap, so it waits UNDO_MS behind an "Undo" notice before the server deletes it.
+  // Leaving the page, or deleting another item, carries the waiting delete out at once.
+  const [pending, setPending] = useState<{ id: string; title: string } | null>(null);
+  const pendingRef = useRef<{ id: string; timer: ReturnType<typeof setTimeout> } | null>(null);
+  const removeRef = useRef(work.remove);
+  const reloadRef = useRef(work.reload);
+  useEffect(() => {
+    removeRef.current = work.remove;
+    reloadRef.current = work.reload;
+  });
+  const commitDelete = useCallback(() => {
+    const p = pendingRef.current;
+    if (!p) return;
+    clearTimeout(p.timer);
+    pendingRef.current = null;
+    setPending(null);
+    void removeRef.current(p.id).catch(() => reloadRef.current());
+  }, []);
+  const undoDelete = () => {
+    if (pendingRef.current) clearTimeout(pendingRef.current.timer);
+    pendingRef.current = null;
+    setPending(null);
+  };
+  useEffect(() => commitDelete, [commitDelete]);
+  const rows = allRows.filter((r) => !pending || r.id !== pending.id);
+
   const actions: RowActions = {
     canEdit,
     onToggle: (id, done) => void work.setDone(id, done),
-    onDelete: (id) => void work.remove(id).catch(() => work.reload()),
+    onDelete: (id) => {
+      commitDelete();
+      const title = rows.find((r) => r.id === id)?.title ?? "";
+      pendingRef.current = { id, timer: setTimeout(commitDelete, UNDO_MS) };
+      setPending({ id, title });
+      if (openKey && rows.some((r) => r.key === openKey && r.id === id)) setOpenKey(null);
+    },
     onOpen: (r) => r.id && setOpenKey(r.key),
   };
   const opened = openKey ? rows.find((r) => r.key === openKey && r.id) : undefined;
@@ -232,6 +266,14 @@ function AllTasks({ user }: { user: AppUser }) {
           )}
         </div>
       </main>
+      {pending && (
+        <div role="status" aria-live="polite" className="fixed inset-x-4 bottom-4 z-50 mx-auto flex max-w-md items-center gap-3 rounded-xl bg-ink px-4 py-3 text-sm text-paper shadow-lg">
+          <p className="min-w-0 flex-1 truncate">{pending.title ? tx("Deleted “{title}”", { title: pending.title }) : tx("Deleted")}</p>
+          <button type="button" onClick={undoDelete} className="min-h-11 shrink-0 rounded-lg px-3 font-semibold underline-offset-2 hover:underline">
+            {tx("Undo")}
+          </button>
+        </div>
+      )}
       {adding && <AddSheet user={user} onAdd={work.add} onClose={closeAdd} />}
       {opened && (
         <TaskDetail row={opened} canEdit={canEdit} donor={null} projectCode={project.id} hasField={project.workflows.includes("field")} onToggle={actions.onToggle} onSaveNotes={work.setNotes} onClose={closeDetail} />

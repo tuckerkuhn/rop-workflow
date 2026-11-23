@@ -1,6 +1,6 @@
 import { workplanFor, type BudgetLine, type WorkplanItem } from "@/lib/budget";
 import type { Grant, GrantProc } from "@/lib/grants";
-import { DONE, stages, stepById, valueOf, type Procurement } from "@/lib/procurement";
+import { DONE, stageLabels, stages, stepById, valueOf, type Procurement } from "@/lib/procurement";
 import type { PlanItem } from "@/lib/procurement-plan";
 
 /**
@@ -37,7 +37,7 @@ export const grantProcurementIds = (g: Pick<Grant, "id" | "procurements">, procs
 export function grantProcs(g: Pick<Grant, "id" | "procurements">, procs: Procurement[]): (GrantProc & { title: string; stage: string })[] {
   return grantProcurementIds(g, procs).map((id) => {
     const p = procs.find((x) => x.id === id);
-    return { id, title: p?.title ?? id, received: !!p && received(p), stage: !p ? "?" : p.step === DONE ? "Done" : (stages[stepById[p.step]?.stage ?? 0] ?? "") };
+    return { id, title: p?.title ?? id, received: !!p && received(p), stage: !p ? "?" : p.step === DONE ? "Done" : (stageLabels[stepById[p.step]?.stage ?? 0] ?? "") };
   });
 }
 
@@ -80,7 +80,7 @@ export function linksByActivity(a: {
       continue;
     }
     const step = p.step === DONE ? null : stepById[p.step];
-    at(code).procurements.push({ id: p.id, title: p.title, value: valueOf(p), stage: step ? stages[step.stage] : "Done", done: !step });
+    at(code).procurements.push({ id: p.id, title: p.title, value: valueOf(p), stage: step ? stageLabels[step.stage] : "Done", done: !step });
   }
   for (const g of a.grants) {
     if (!g.activity || !codes.has(g.activity)) {

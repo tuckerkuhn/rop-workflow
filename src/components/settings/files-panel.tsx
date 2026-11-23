@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { OrgSettingsView } from "@/app/api/org/settings/route";
 import { useSession } from "@/components/app/session";
 import { primaryBtn } from "@/components/workspace/ui";
+import { ReasonNeeded } from "@/components/settings/reason-needed";
 import { ANY_LINK_RISK, STORES, type StoreId } from "@/lib/file-store";
 
 /**
@@ -111,6 +112,8 @@ export function FilesPanel({ v, post }: { v: OrgSettingsView; post: (body: objec
           <button type="button" className={`${primaryBtn} mt-3`} disabled={busy || !stores.length || why.trim().length < 5 || (any && !v.files.stores.includes("any") && !acceptRisk)} onClick={() => void save()}>
             Save
           </button>
+          <ReasonNeeded reason={why} className="mt-2" />
+          {any && !v.files.stores.includes("any") && !acceptRisk && <p className="mt-1 text-xs text-warn">Tick &ldquo;I understand the risk&rdquo; above to save with any secure link on.</p>}
           {!stores.length && <p className="mt-2 text-sm text-clay">Choose at least one place files are kept.</p>}
         </div>
       )}

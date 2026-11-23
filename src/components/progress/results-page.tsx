@@ -25,7 +25,7 @@ import { NamesWarning } from "@/components/progress/names-warning";
 import { LookedAt } from "@/components/app/ai-why";
 import { FieldHelp } from "@/components/app/field-help";
 import { ErrorNote } from "@/components/app/error-note";
-import { FieldRecords } from "@/components/progress/field-records";
+import { FieldRecords, useFieldForms, type FieldForms } from "@/components/progress/field-records";
 
 /**
  * Results recorded with their proof. Field staff record what was achieved (10 ha of drip
@@ -111,6 +111,8 @@ export function ResultsPage() {
     if (open && v) document.getElementById(`ind-${open}`)?.scrollIntoView({ block: "start" });
   }, [open, v]);
 
+  // KoboCollect field forms: the second part of "To check" (field-records).
+  const fieldForms = useFieldForms(project.id, project.saved);
   const groups = useMemo(() => {
     const m = new Map<string, Ind[]>();
     for (const i of v?.indicators ?? []) m.set(i.result ?? "", [...(m.get(i.result ?? "") ?? []), i]);
@@ -165,15 +167,24 @@ export function ResultsPage() {
 
         {v && reviewing && <ReviewQueue ids={reviewing} v={v} act={act} onClose={() => setReviewing(null)} />}
 
-        {v && v.indicators.length > 0 && !range && !reviewing && (
-          <WhatNeedsDoing
+        {/* One place for everything waiting to be checked: typed-in results, then KoboCollect field forms. */}
+        {project.saved && !range && !reviewing && (fieldForms.show || waiting.length > 0) && (
+          <ToCheck
             v={v}
-            me={v.me}
+            waiting={waiting}
+            f={fieldForms}
             act={act}
             onReview={(ids) => {
               setReviewing(ids);
               window.scrollTo({ top: 0 });
             }}
+          />
+        )}
+
+        {v && v.indicators.length > 0 && !range && !reviewing && (
+          <WhatNeedsDoing
+            v={v}
+            me={v.me}
             onRecord={(code) => {
               setOpen(code);
               setAdding(code);
@@ -181,8 +192,6 @@ export function ResultsPage() {
             }}
           />
         )}
-
-        {project.saved && !range && !reviewing && <FieldRecords code={project.id} />}
 
         {range && (
           <p className="mt-6 flex flex-wrap items-center gap-2 rounded-xl bg-sunken px-4 py-3 text-sm">
@@ -193,7 +202,8 @@ export function ResultsPage() {
           </p>
         )}
 
-        {v && waiting.length > 0 && !reviewing && (
+        {/* With a period chosen, "To check" is not shown above: the results waiting in it are listed here, as before. */}
+        {v && range && waiting.length > 0 && !reviewing && (
           <section className="mt-6">
             <SectionLabel>To check ({waiting.length})</SectionLabel>
             <div className="mt-3 space-y-3">
@@ -1140,10 +1150,102 @@ function ImportResults({ indicators, act }: { indicators: { code: string; donorC
  * The top of Results, by who is looking: record a result (field staff), what is waiting for MEL,
  * what MEL queried of yours, and accepted results still without proof.
  */
-function WhatNeedsDoing({ v, me, onRecord, act, onReview }: { v: ResultsView; me: string; onRecord: (code: string) => void; act: (a: ResultAction, msg: string) => Promise<void>; onReview: (ids: string[]) => void }) {
+/**
+ * The one "To check" place: what waits for a decision, in two parts (results typed into the app;
+ * KoboCollect field forms). The buttons that decide many at once are at the top; each part's
+ * records stay folded behind "Review N" until opened. "N waiting for you" counts only what this
+ * person may decide.
+ */
+function ToCheck({ v, waiting, f, act, onReview }: { v: ResultsView | null; waiting: Res[]; f: FieldForms; act: (a: ResultAction, msg: string) => Promise<void>; onReview: (ids: string[]) => void }) {
   const { t } = useT();
-  const clean = v.results.filter((r) => r.canReview && r.checks.length === 0);
-  const flagged = v.results.filter((r) => r.canReview && r.checks.length > 0);
+  const [openTyped, setOpenTyped] = useState(false);
+  // Home's "Check N field forms" lands on #field-records: open them.
+  const [openForms, setOpenForms] = useState(false);
+  useEffect(() => {
+    if (window.location.hash === "#field-records") setOpenForms(true);
+  }, []);
+  const clean = v?.results.filter((r) => r.canReview && r.checks.length === 0) ?? [];
+  const flagged = v?.results.filter((r) => r.canReview && r.checks.length > 0) ?? [];
+  const forms = f.show ? f.forMe : 0;
+  const mine = waiting.length + forms;
+  const others = (v?.results.filter((r) => r.status === "pending" && !r.canReview && !r.canSelfAccept).length ?? 0) + (f.show ? f.pending.length - f.forMe : 0);
+  const bulk = clean.length > 0 || flagged.length > 0 || (f.show && f.clean.length > 1);
+  return (
+    <section id="to-check" className="mt-5 scroll-mt-24 rounded-2xl border border-line bg-surface p-4 sm:p-5">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <h2 className="border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">To check</h2>
+        <p className={`text-sm ${mine ? "font-semibold text-warn" : "text-muted"}`}>
+          {mine ? `${mine} waiting for you` : "Nothing waiting for you"}
+          {others > 0 && <span className="font-normal text-muted"> · {others} waiting on someone else</span>}
+        </p>
+      </div>
+
+      {bulk && (
+        <div className="mt-3 space-y-2">
+          {/* Typed-in results: accept what the data checker found nothing in, review the rest one at a time. */}
+          {clean.length + flagged.length > 0 && (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl bg-paper px-3 py-2 text-sm">
+              <span className="font-semibold">Typed-in results: {t("rq.line", { clean: clean.length, flagged: flagged.length })}</span>
+              <span className="flex flex-wrap gap-2 sm:ms-auto">
+                {clean.length > 0 && (
+                  <button
+                    type="button"
+                    className={`${primaryBtn} min-h-12`}
+                    onClick={() => void askConfirm({ message: t("rq.confirm", { n: clean.length }), confirm: t("rq.accept", { n: clean.length }) }).then((ok) => (ok ? act({ action: "accept-many", ids: clean.map((r) => r.id) }, t("rq.accepted", { n: clean.length })).catch(() => undefined) : undefined))}
+                  >
+                    {t("rq.accept", { n: clean.length })}
+                  </button>
+                )}
+                {flagged.length > 0 && (
+                  <button type="button" className={`${quietBtn} min-h-12`} onClick={() => onReview(flagged.map((r) => r.id))}>
+                    Go through {flagged.length} flagged, one at a time
+                  </button>
+                )}
+              </span>
+            </div>
+          )}
+          {f.show && f.clean.length > 1 && (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl bg-mist px-3 py-2 text-sm">
+              <span className="font-semibold">Field forms: {f.clean.length} have no problems flagged.</span>
+              <button type="button" disabled={!!f.busy} onClick={() => void f.decide(f.clean, "accepted")} className={`${primaryBtn} min-h-12 sm:ms-auto`}>
+                Accept all {f.clean.length}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Part 1: results typed into the app (or imported from a sheet), each with its proof. */}
+      <div className="mt-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="font-semibold">Typed-in results · {waiting.length} for you</h3>
+            <p className="mt-1 max-w-2xl text-sm text-muted">Results recorded in the app with their proof. Once accepted they count in Progress and in the donor report.</p>
+          </div>
+          {waiting.length > 0 && (
+            <button type="button" aria-expanded={openTyped} aria-controls="to-check-typed" onClick={() => setOpenTyped(!openTyped)} className={`${quietBtn} py-1.5`}>
+              {openTyped ? "Hide" : `Review ${waiting.length}`}
+            </button>
+          )}
+        </div>
+        {!v && <p className="mt-2 text-sm text-muted">{t("load.wait")}</p>}
+        {v && openTyped && waiting.length > 0 && (
+          <div id="to-check-typed" className="mt-3 space-y-3">
+            {waiting.map((r) => (
+              <ResultCard key={r.id} r={r} ind={v.indicators.find((i) => i.code === r.indicator)} act={act} mayAddProof={v.mayAddProof} me={v.me} />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Part 2: KoboCollect field forms (readiness, training, farm visits). */}
+      <FieldRecords f={f} open={openForms} onToggle={() => setOpenForms(!openForms)} />
+    </section>
+  );
+}
+
+function WhatNeedsDoing({ v, me, onRecord }: { v: ResultsView; me: string; onRecord: (code: string) => void }) {
+  const { t } = useT();
   const [pick, setPick] = useState("");
   const pending = v.results.filter((r) => r.status === "pending").length;
   const queriedMine = v.results.filter((r) => r.status === "queried" && r.by === me).length;
@@ -1185,28 +1287,6 @@ function WhatNeedsDoing({ v, me, onRecord, act, onReview }: { v: ResultsView; me
           <span className={`font-semibold tabular-nums ${noProof ? "text-clay" : ""}`}>{noProof}</span> accepted this year with no proof attached
         </li>
       </ul>
-      {/* MEL's queue in one line: accept what the data checker found nothing in, review the rest one at a time. */}
-      {clean.length + flagged.length > 0 && (
-        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl bg-paper px-3 py-2 text-sm">
-          <span className="font-semibold">{t("rq.line", { clean: clean.length, flagged: flagged.length })}</span>
-          <span className="flex flex-wrap gap-2 sm:ms-auto">
-            {clean.length > 0 && (
-              <button
-                type="button"
-                className={`${primaryBtn} min-h-12`}
-                onClick={() => void askConfirm({ message: t("rq.confirm", { n: clean.length }), confirm: t("rq.accept", { n: clean.length }) }).then((ok) => (ok ? act({ action: "accept-many", ids: clean.map((r) => r.id) }, t("rq.accepted", { n: clean.length })).catch(() => undefined) : undefined))}
-              >
-                {t("rq.accept", { n: clean.length })}
-              </button>
-            )}
-            {flagged.length > 0 && (
-              <button type="button" className={`${quietBtn} min-h-12`} onClick={() => onReview(flagged.map((r) => r.id))}>
-                {t("rq.review", { n: flagged.length })}
-              </button>
-            )}
-          </span>
-        </div>
-      )}
     </section>
   );
 }

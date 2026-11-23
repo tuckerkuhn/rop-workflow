@@ -9,6 +9,7 @@ import { Board, cardClass } from "@/components/workspace/board";
 import { Pill, TopBar, usePersistentState } from "@/components/workspace/ui";
 import { STUCK_DAYS, isStuck, procurementColumns, type ProcCard } from "@/lib/boards";
 import { realToday } from "@/lib/clock";
+import { stageLabel } from "@/lib/procurement";
 import { daysSince } from "@/lib/grants";
 import type { MessageKey } from "@/lib/i18n";
 
@@ -16,7 +17,7 @@ import type { MessageKey } from "@/lib/i18n";
 export function ProcurementBoardPage() {
   const { user } = useRequireUser();
   const { ready } = useSession();
-  const { t } = useT();
+  const { t, lang } = useT();
   const [medium, setMedium] = usePersistentState("rop-proc-board-medium", () => false);
   const [data, setData] = useState<{ cards: ProcCard[]; limit: number } | null>(null);
   const [error, setError] = useState("");
@@ -43,7 +44,8 @@ export function ProcurementBoardPage() {
   const columns = data
     ? procurementColumns(data.cards).map((c) => ({
         id: c.id,
-        title: t(`bd.proc.stage.${c.id}` as MessageKey),
+        // English shows the plain stage names; other languages keep their translated stage keys until translated anew.
+        title: lang === "en" && c.id !== "done" ? stageLabel(c.id) : t(`bd.proc.stage.${c.id}` as MessageKey),
         count: c.items.length,
         folded: c.id === "done",
         cards: c.items.map((p) => {

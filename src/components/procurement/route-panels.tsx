@@ -114,7 +114,7 @@ export function SupplierField({ p, editable, update, register }: { p: Procuremen
         </label>
         <p className="mt-1 text-xs text-muted">
           From the supplier register. Not there yet?{" "}
-          <Link href="/work/suppliers" className="font-semibold text-forest hover:underline">
+          <Link href={`/work/suppliers?return=${encodeURIComponent(p.id)}`} className="font-semibold text-forest hover:underline">
             Add it to the register
           </Link>{" "}
           with its licence, then screen it.

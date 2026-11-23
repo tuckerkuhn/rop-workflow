@@ -206,7 +206,7 @@ export function ProgressPage() {
 
 const TRACK_TONE: Record<TrackStatus, string> = { on_track: "text-leaf", slightly_behind: "text-warn", behind: "text-clay", not_measured: "text-muted" };
 
-const JUDGED_TONE = { forest: "text-leaf", clay: "text-clay", muted: "text-muted" } as const;
+const JUDGED_TONE = { forest: "text-leaf", sky: "text-forest", ochre: "text-warn", clay: "text-clay", muted: "text-muted" } as const;
 
 /** `judged`: the status staff see for this target, for a donor's card. undefined: not a donor's card (the forecast line judges); null: not loaded yet, or a target the workplan does not judge. */
 /** `staff`: a Roots of Peace employee. A donor sees no internal codes, no review queue and no link to the records (staff-only). */

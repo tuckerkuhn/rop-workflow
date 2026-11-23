@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { breakdownsFor, buildRows, cannotOnReport, durationOf, checksFor, emptyQpr, grmLogFor, grmOf, prevQuarterOf, suggestStatus, yearShare, type IndicatorInfo, type Spend } from "@/lib/qpr";
+import { breakdownsFor, buildRows, cannotOnReport, durationOf, checksFor, checkHref, checkPlace, CHECKS_PREFLIGHT_COVERS, PREFLIGHT_ITEM_FOR, emptyQpr, grmLogFor, grmOf, prevQuarterOf, suggestStatus, yearShare, type IndicatorInfo, type Spend } from "@/lib/qpr";
 import { result } from "./fixtures";
 import type { FeedbackEntry } from "@/lib/feedback";
 import { translate } from "@/lib/i18n";
@@ -110,7 +110,7 @@ describe("checksFor: what stops a report", () => {
   });
   it("stops when a row is marked Completed short of its target", () => {
     const saved = { ...emptyQpr("Sandbox"), rows: { "IND-1": { status: "completed" as const, by: "t", at: "2026-10-01" } } };
-    expect(stops(run(undefined, saved)).some((t) => /marked Completed/.test(t))).toBe(true);
+    expect(stops(run(undefined, saved)).some((t) => /marked Done \(Completed in the Word report\)/.test(t))).toBe(true);
   });
   it("stops when an edited comment gives a percentage the figures do not", () => {
     const saved = { ...emptyQpr("Sandbox"), rows: { "IND-1": { comment: "On track: 80% of the annual target.", by: "t", at: "2026-10-01" } } };
@@ -132,6 +132,36 @@ describe("checksFor: what stops a report", () => {
   });
   it("ignores results outside the quarter", () => {
     expect(stops(run([result({ date: "2026-10-05", status: "pending" })])).some((t) => /waiting for MEL/.test(t))).toBe(false);
+  });
+});
+
+describe("one check list: every report check reaches the Report check (server/preflight)", () => {
+  const keys = Object.keys(qcEn) as (keyof typeof qcEn)[];
+  it("each check is either said by the Report check in its own words, or placed in the report", () => {
+    for (const k of keys) {
+      if (CHECKS_PREFLIGHT_COVERS.has(k)) continue;
+      expect(checkPlace(k).part, k).not.toBe("");
+    }
+  });
+  it("never drops a stop the Report check does not say itself", () => {
+    // Only these two stops are covered, by pf.c.pending and pf.c.notImported; every other stop is copied in as blocking.
+    expect([...CHECKS_PREFLIGHT_COVERS].filter((k) => ["qc.pending", "qc.missingMonths"].includes(k))).toHaveLength(2);
+    for (const k of ["qc.completedShort", "qc.notImplemented", "qc.commentPct", "qc.overBudget", "qc.quarterOverTotal"] as const) expect(CHECKS_PREFLIGHT_COVERS.has(k)).toBe(false);
+  });
+  it("names the Report check item each covered check becomes a line under", () => {
+    for (const k of CHECKS_PREFLIGHT_COVERS) expect(PREFLIGHT_ITEM_FOR[k], k).toMatch(/^pf\.c\./);
+  });
+  it("keeps which target lacks proof, and why, with a link to its records", () => {
+    const rows = buildRows([ind()], [result({ date: "2026-08-01", files: [], noFile: "On paper" })], Q, emptyQpr("Sandbox"));
+    const c = checksFor(rows, [result({ date: "2026-08-01", files: [], noFile: "On paper" })], Q, emptyQpr("Sandbox"), spend(), ["1.1.1"]).find((x) => x.key === "qc.noProof")!;
+    expect(c.text).toMatch(/On paper/);
+    expect(checkHref(c, Q)).toBe(`/progress/results?indicator=IND-1&q=${Q}`);
+    expect(checkHref({ key: "qc.sectionEmpty", ref: "summary" }, Q)).toBe(`/progress/report?q=${Q}#sec-summary`);
+  });
+  it("keeps the checks only the report raises: status words, quarter spending, risks and complaints", () => {
+    for (const k of ["qc.commentStatus", "qc.noQuarterSpend", "qc.risks", "qc.grm"] as const) expect(CHECKS_PREFLIGHT_COVERS.has(k)).toBe(false);
+    expect(checkPlace("qc.risks")).toEqual({ owner: "writers", part: "risks" });
+    expect(checkPlace("qc.noQuarterSpend")).toEqual({ owner: "finance", part: "info" });
   });
 });
 

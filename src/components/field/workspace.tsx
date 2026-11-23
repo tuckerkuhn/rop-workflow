@@ -631,9 +631,14 @@ export function FieldWorkspace() {
   const heldBack = all.length - items.length;
   const [panel, setPanel] = useState<"" | "package" | "farmers">("");
   const [pickedRole, setPickedRole] = useState<FieldRole | null>(null);
-  const role = pickedRole && myRoles.includes(pickedRole) ? pickedRole : (myRoles[0] ?? null);
+  const counts = Object.fromEntries(fieldRoles.map((r) => [r.id, items.filter((i) => ownerOfItem(i) === r.id).length]));
+  // Open on the first of the person's roles with something waiting, not always the first role.
+  const role = pickedRole && myRoles.includes(pickedRole) ? pickedRole : (myRoles.find((r) => counts[r] > 0) ?? myRoles[0] ?? null);
   const [selected, setSelected] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
+  // Search (farmer number, village, and the name for people who may see names) and a tapped season count.
+  const [query, setQuery] = useState("");
+  const [stageFilter, setStageFilter] = useState<number | null>(null);
   const [creating, setCreating] = useState(false);
   const [mobileDetail, setMobileDetail] = useState(false);
   const ctx: Ctx = { stock, stockNote, setup: setup ?? { items: [] }, today: today() };
@@ -656,15 +661,28 @@ export function FieldWorkspace() {
     }
   }, []);
 
-  const counts = Object.fromEntries(fieldRoles.map((r) => [r.id, items.filter((i) => ownerOfItem(i) === r.id).length]));
   const farmers = items.filter((i): i is Farmer => i.kind === "farmer");
-  const pipeline = farmerStages.map((label, k) => ({
-    label,
-    n: farmers.filter((f) => f.step !== "removed" && stageOf(f) === k).length + (k === farmerStages.length - 1 ? farmers.filter((f) => f.step === "complete").length : 0),
-  }));
+  // A farmer counts at their stage; a finished season record counts in the last one.
+  const inStage = (f: Farmer, k: number) => f.step !== "removed" && (stageOf(f) === k || (k === farmerStages.length - 1 && f.step === "complete"));
+  const pipeline = farmerStages.map((label, k) => ({ label, n: farmers.filter((f) => inStage(f, k)).length }));
   const readOnly = !role;
   const mineList = role ? items.filter((i) => ownerOfItem(i) === role) : items;
-  const list = showAll || readOnly ? items : mineList;
+  const q = query.trim().toLowerCase();
+  const filtering = !!q || stageFilter !== null;
+  const matches = (i: FieldItem) => {
+    if (stageFilter !== null && (i.kind !== "farmer" || !inStage(i, stageFilter))) return false;
+    if (!q) return true;
+    // Names are searched only for people allowed to see them, so a search never reveals one.
+    const hay = i.kind === "farmer" ? [i.id, i.community, user?.pii ? i.name : ""] : [i.id, i.title];
+    return hay.some((h) => h && h.toLowerCase().includes(q));
+  };
+  // A search or a tapped count looks across everything this season, not only what waits on you.
+  const list = filtering ? items.filter(matches) : showAll || readOnly ? items : mineList;
+  const clearFilters = () => {
+    setQuery("");
+    setStageFilter(null);
+    setShowAll(true);
+  };
   // A link can still open a farmer who is not in the queue (waitlisted, say), to see their record.
   const current = all.find((i) => i.id === selected) ?? list[0] ?? null;
   const upcoming = role ? comingTo(items, role, user, tx).slice(0, 5) : [];
@@ -691,6 +709,8 @@ export function FieldWorkspace() {
         setPickedRole(r as FieldRole);
         setSelected(null);
         setShowAll(false);
+        setQuery("");
+        setStageFilter(null);
         setMobileDetail(false);
       }}
       primary={
@@ -715,13 +735,22 @@ export function FieldWorkspace() {
               {[ctx.setup.season, ctx.setup.village, status === "loading" ? "" : farmers.length === 1 ? tx("1 farmer") : tx("{n} farmers", { n: farmers.length })].filter(Boolean).join(" · ")}
             </p>
             <ol className="mt-2 grid grid-cols-3 gap-x-1 gap-y-3 text-center sm:grid-cols-6">
-              {pipeline.map((s) => (
+              {pipeline.map((s, k) => (
                 <li key={s.label}>
-                  <p className="text-xl tabular-nums font-semibold">{status === "loading" ? "–" : s.n}</p>
-                  <p className="text-xs leading-tight text-muted">{tx(s.label)}</p>
+                  <button
+                    type="button"
+                    aria-pressed={stageFilter === k}
+                    title={tx("Show only farmers at {stage}", { stage: tx(s.label) })}
+                    onClick={() => setStageFilter(stageFilter === k ? null : k)}
+                    className={`w-full rounded-lg px-1 py-1 transition ${stageFilter === k ? "bg-forest text-forest-ink" : "hover:bg-sunken"}`}
+                  >
+                    <span className="block text-xl tabular-nums font-semibold">{status === "loading" ? "–" : s.n}</span>
+                    <span className={`block text-xs leading-tight ${stageFilter === k ? "" : "text-muted"}`}>{tx(s.label)}</span>
+                  </button>
                 </li>
               ))}
             </ol>
+            <p className="mt-1 text-center text-xs text-muted">{tx("Tap a count to see those farmers.")}</p>
             <p className="mt-2 border-t border-line pt-2 text-xs text-muted">
               {tx("Store: {items}", { items: status === "loading" ? "…" : ctx.setup.items.map((p) => qtyItem(stock[p.key] ?? 0, p.unit, p.item)).join(" · ") })}
             </p>
@@ -746,12 +775,36 @@ export function FieldWorkspace() {
               </Link>
             </div>
           </div>
+          <div className="mx-3 mt-4 sm:mx-4">
+            <label className="block">
+              <span className="sr-only">{tx("Search farmers")}</span>
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={user?.pii ? tx("Search by farmer number, name or village") : tx("Search by farmer number or village")}
+                className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm"
+              />
+            </label>
+          </div>
           <QueueHeader
-            title={status === "loading" ? tx("Loading…") : readOnly ? tx("Everything this season") : showAll ? tx("Everything this season") : mineList.length ? tx("{n} waiting on you", { n: mineList.length }) : tx("Nothing waiting on you")}
-            toggleLabel={readOnly ? "" : showAll ? tx("Mine") : tx("Show all")}
-            onToggle={() => setShowAll(!showAll)}
+            title={
+              status === "loading"
+                ? tx("Loading…")
+                : filtering
+                  ? [stageFilter !== null ? tx(farmerStages[stageFilter]) : "", q ? `“${query.trim()}”` : "", list.length === 1 ? tx("1 match") : tx("{n} matches", { n: list.length })].filter(Boolean).join(" · ")
+                  : readOnly ? tx("Everything this season") : showAll ? tx("Everything this season") : mineList.length ? tx("{n} waiting on you", { n: mineList.length }) : tx("Nothing waiting on you")}
+            toggleLabel={filtering ? tx("Everything this season") : readOnly ? "" : showAll ? tx("Mine") : tx("Show all")}
+            onToggle={() => (filtering ? clearFilters() : setShowAll(!showAll))}
           />
-          {list.length === 0 ? (
+          {list.length === 0 && filtering && status !== "loading" ? (
+            <div className="px-4 py-10 text-center sm:px-6">
+              <p className="text-sm text-muted">{tx("No farmer matches.")}</p>
+              <button type="button" onClick={clearFilters} className="mt-2 text-sm font-semibold text-forest hover:underline">
+                {tx("Back to everything this season")}
+              </button>
+            </div>
+          ) : list.length === 0 ? (
             <EmptyQueue loading={status === "loading"} onShowAll={() => setShowAll(true)} />
           ) : (
             <ul className="space-y-1.5 px-2 pb-6 sm:px-3">
@@ -785,7 +838,7 @@ export function FieldWorkspace() {
                       {left !== null && <Pill tone={left < 0 ? "clay" : "ochre"}>{left < 0 ? tx("Deadline passed") : left === 1 ? tx("1 day to fix") : tx("{n} days to fix", { n: left })}</Pill>}
                       {openBlocking(i).length > 0 && <Pill tone="clay">{tx("Issue")}</Pill>}
                       {outcomeOfItem(i) === "selected" && <Pill tone="muted">{tx("Selected")}</Pill>}
-                      {(showAll || readOnly) && o && o !== role && <span className="text-xs text-muted">{holderOf("field", o)?.name}</span>}
+                      {(showAll || readOnly || filtering) && o && o !== role && <span className="text-xs text-muted">{holderOf("field", o)?.name}</span>}
                     </div>
                   </QueueItem>
                 );

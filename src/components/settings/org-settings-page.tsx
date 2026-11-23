@@ -1,6 +1,8 @@
 "use client";
 
 import { FilesPanel } from "@/components/settings/files-panel";
+import { ReasonNeeded, reasonMissing } from "@/components/settings/reason-needed";
+import { STORES } from "@/lib/file-store";
 import { plainError } from "@/lib/plain-error";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
@@ -40,6 +42,12 @@ export function OrgSettingsPage() {
   const [draft, setDraft] = useState<Record<string, Value>>({});
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
+  // Which set-up option is open (files, solo, sample); a link like /settings/org#files opens it.
+  const [openSetup, setOpenSetup] = useState<string | null>(null);
+  useEffect(() => {
+    const h = window.location.hash.slice(1);
+    if (["files", "solo", "sample"].includes(h)) setOpenSetup(h);
+  }, []);
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -104,7 +112,7 @@ export function OrgSettingsPage() {
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-warn">{v?.name ?? "Organization"}</p>
         <h1 className="mt-1 font-display text-3xl tracking-tight">Organization settings</h1>
         <p className="mt-1 max-w-3xl text-sm text-muted">
-          The rules the whole organization works by, by department. Our written policy and procedures always apply. Where a requirement profile or a donor asks for more, it shows as a gap; once approved, it is layered on top. Every change says who approved it, when and why.
+          The rules the whole organization works by, by department: our written policy always applies, stricter requirements can be layered on, and every change keeps who made it, when and why.
         </p>
         <p className="mt-2 text-sm">
           <Link href="/settings" className="font-semibold text-forest hover:underline">
@@ -130,11 +138,54 @@ export function OrgSettingsPage() {
 
         {v && (
           <>
-            <FilesPanel v={v} post={post} />
-            <SoloPanel v={v} post={post} />
-            {v.sampleProject && <SamplePanel v={v} post={post} />}
-            <section className="mt-6">
-              <SectionLabel>Requirement profiles</SectionLabel>
+            <SetupJump open={setOpenSetup} sample={!!v.sampleProject} />
+            <h2 className="mt-6 border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">Rules by department</h2>
+            <nav className="mt-3 flex flex-wrap gap-2" aria-label="Departments">
+              {(["all", ...v.departments] as const).map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => setDept(d)}
+                  className={`rounded-full px-4 py-1.5 text-sm font-medium ${dept === d ? "bg-forest text-forest-ink" : "border border-line bg-surface hover:border-forest"}`}
+                >
+                  {d === "all" ? "All departments" : d}
+                </button>
+              ))}
+            </nav>
+
+            {depts.map((area) => (
+              <section key={area} className="mt-6">
+                <SectionLabel>{area}</SectionLabel>
+                <ul className="mt-2 divide-y divide-line rounded-2xl border border-line bg-surface">
+                  {v.params
+                    .filter((p) => p.area === area)
+                    .map((d) => (
+                      <RuleRow
+                        key={d.key}
+                        d={d}
+                        current={v.current[d.key] ? { value: v.current[d.key].value, source: v.current[d.key].source } : null}
+                        policy={v.policy[d.key] ? { value: v.policy[d.key].value, source: v.policy[d.key].source } : null}
+                        changed={!!v.changed[d.key]}
+                        draft={d.key in draft ? draft[d.key] : undefined}
+                        admin={v.admin}
+                        onChange={(val) => setValue(d.key, val)}
+                        onDrop={() =>
+                          setDraft((dr) => {
+                            const next = { ...dr };
+                            delete next[d.key];
+                            return next;
+                          })
+                        }
+                        onReset={(why) => post({ action: "reset", keys: [d.key], reason: why }, `${d.label}: back to our written policy.`)}
+                      />
+                    ))}
+                </ul>
+              </section>
+            ))}
+
+            <section className="mt-10">
+              <h2 className="border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">Requirement profiles</h2>
+              <p className="mt-1 max-w-3xl text-sm text-muted">Compare a donor or standard&rsquo;s requirements with our procedures; where it asks for more, an administrator can layer it on.</p>
               <div className="mt-2 grid gap-3 sm:grid-cols-2">
                 {v.profiles.map((p) => {
                   const n = p.comparison.filter((c) => c.status === "gap").length;
@@ -187,48 +238,22 @@ export function OrgSettingsPage() {
               </>
             )}
 
-            <nav className="mt-8 flex flex-wrap gap-2" aria-label="Departments">
-              {(["all", ...v.departments] as const).map((d) => (
-                <button
-                  key={d}
-                  type="button"
-                  onClick={() => setDept(d)}
-                  className={`rounded-full px-4 py-1.5 text-sm font-medium ${dept === d ? "bg-forest text-forest-ink" : "border border-line bg-surface hover:border-forest"}`}
-                >
-                  {d === "all" ? "All departments" : d}
-                </button>
-              ))}
-            </nav>
-
-            {depts.map((area) => (
-              <section key={area} className="mt-6">
-                <SectionLabel>{area}</SectionLabel>
-                <ul className="mt-2 divide-y divide-line rounded-2xl border border-line bg-surface">
-                  {v.params
-                    .filter((p) => p.area === area)
-                    .map((d) => (
-                      <RuleRow
-                        key={d.key}
-                        d={d}
-                        current={v.current[d.key] ? { value: v.current[d.key].value, source: v.current[d.key].source } : null}
-                        policy={v.policy[d.key] ? { value: v.policy[d.key].value, source: v.policy[d.key].source } : null}
-                        changed={!!v.changed[d.key]}
-                        draft={d.key in draft ? draft[d.key] : undefined}
-                        admin={v.admin}
-                        onChange={(val) => setValue(d.key, val)}
-                        onDrop={() =>
-                          setDraft((dr) => {
-                            const next = { ...dr };
-                            delete next[d.key];
-                            return next;
-                          })
-                        }
-                        onReset={(why) => post({ action: "reset", keys: [d.key], reason: why }, `${d.label}: back to our written policy.`)}
-                      />
-                    ))}
-                </ul>
-              </section>
-            ))}
+            {/* Set-up options: chosen once, changed rarely. Each opens in place; the links at the top open them too. */}
+            <section id="setup" className="mt-10 scroll-mt-24">
+              <h2 className="border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">Set-up options</h2>
+              <p className="mt-1 max-w-3xl text-sm text-muted">Where files are kept, solo mode for sign-offs, and the sample project. Open one to see it or change it.</p>
+              <SetupItem id="files" title="Where files are kept" now={v.files.stores.map((x) => STORES.find((st) => st.id === x)?.name ?? x).join(", ") || "Not chosen yet"} open={openSetup === "files"} onToggle={(o) => setOpenSetup(o ? "files" : null)}>
+                <FilesPanel v={v} post={post} />
+              </SetupItem>
+              <SetupItem id="solo" title="Solo mode" now={v.solo?.on ? "On" : "Off"} open={openSetup === "solo"} onToggle={(o) => setOpenSetup(o ? "solo" : null)}>
+                <SoloPanel v={v} post={post} />
+              </SetupItem>
+              {v.sampleProject && (
+                <SetupItem id="sample" title="Sample project" now={v.sampleProject.hidden ? "Hidden" : "Shown"} open={openSetup === "sample"} onToggle={(o) => setOpenSetup(o ? "sample" : null)}>
+                  <SamplePanel v={v} post={post} />
+                </SetupItem>
+              )}
+            </section>
 
             {v.history.length > 0 && (
               <section className="mt-10">
@@ -257,9 +282,10 @@ export function OrgSettingsPage() {
             <button type="button" className={quietBtn} onClick={() => setDraft({})}>
               Discard
             </button>
-            <button type="button" disabled={busy || reason.trim().length < 5} onClick={() => void save()} className={primaryBtn}>
+            <button type="button" disabled={busy || reasonMissing(reason)} onClick={() => void save()} className={primaryBtn}>
               {busy ? "Saving…" : "Save"}
             </button>
+            <ReasonNeeded reason={reason} className="w-full text-end" />
           </div>
         </div>
       )}
@@ -335,7 +361,7 @@ function RuleRow({
               <input value={why} onChange={(e) => setWhy(e.target.value)} placeholder="Why" aria-label="Reason" className={`${field} min-w-0 flex-1`} />
               <button
                 type="button"
-                disabled={why.trim().length < 5}
+                disabled={reasonMissing(why)}
                 className={quietBtn}
                 onClick={() =>
                   void onReset(why.trim())
@@ -348,6 +374,7 @@ function RuleRow({
               <button type="button" onClick={() => setResetting(false)} className="text-sm text-muted">
                 Cancel
               </button>
+              <ReasonNeeded reason={why} to="remove it" className="w-full" />
             </span>
           )}
         </div>
@@ -428,9 +455,10 @@ function SoloPanel({ v, post }: { v: OrgSettingsView; post: (body: object, msg: 
       {v.admin ? (
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <input value={why} onChange={(e) => setWhy(e.target.value)} placeholder={t("so.reason")} aria-label={t("so.reason")} className={`${field} min-w-0 flex-1`} />
-          <button type="button" disabled={busy || why.trim().length < 5} onClick={() => void turn()} className={`${on ? quietBtn : primaryBtn} min-h-12`}>
+          <button type="button" disabled={busy || reasonMissing(why)} onClick={() => void turn()} className={`${on ? quietBtn : primaryBtn} min-h-12`}>
             {on ? t("so.turnOff") : t("so.turnOn")}
           </button>
+          <ReasonNeeded reason={why} to={on ? "turn it off" : "turn it on"} className="w-full" />
         </div>
       ) : (
         <p className="mt-2 text-xs text-muted">{t("so.adminOnly")}</p>
@@ -495,5 +523,43 @@ function SamplePanel({ v, post }: { v: OrgSettingsView; post: (body: object, msg
         </details>
       )}
     </section>
+  );
+}
+
+/** The set-up options in one line near the top: each link opens its option further down. */
+function SetupJump({ open, sample }: { open: (id: string) => void; sample: boolean }) {
+  const go = (id: string) => {
+    open(id);
+    setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" }), 30);
+  };
+  return (
+    <p className="mt-3 text-sm text-muted">
+      Set-up options:{" "}
+      {[
+        ["files", "Where files are kept"],
+        ["solo", "Solo mode"],
+        ...(sample ? [["sample", "Sample project"]] : []),
+      ].map(([id, label], i) => (
+        <span key={id}>
+          {i > 0 && " · "}
+          <a href={`#${id}`} onClick={(e) => (e.preventDefault(), go(id))} className="font-semibold text-forest hover:underline">
+            {label}
+          </a>
+        </span>
+      ))}
+    </p>
+  );
+}
+
+/** One set-up option, folded: its name and what it is set to now; opened, the full panel. */
+function SetupItem({ id, title, now, open, onToggle, children }: { id: string; title: string; now: string; open: boolean; onToggle: (open: boolean) => void; children: React.ReactNode }) {
+  return (
+    <details id={id} open={open} onToggle={(e) => (e.currentTarget.open !== open ? onToggle(e.currentTarget.open) : undefined)} className="mt-3 scroll-mt-24 rounded-2xl border border-line bg-surface">
+      <summary className="flex min-h-12 cursor-pointer flex-wrap items-center gap-x-3 px-4 py-2">
+        <span className="font-semibold">{title}</span>
+        <span className="text-sm text-muted">{now}</span>
+      </summary>
+      <div className="px-4 pb-4 [&>section]:mt-0 [&>section]:border-0 [&>section]:p-0">{children}</div>
+    </details>
   );
 }

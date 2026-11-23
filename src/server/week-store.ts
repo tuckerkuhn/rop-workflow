@@ -4,8 +4,9 @@ import type { AppUser } from "@/lib/demo";
 import { EMPTY_FEEDBACK, overdue, type FeedbackLog } from "@/lib/feedback";
 import { MAX_PRIORITIES, mondayOf, safeHref, withProject, suggestPriorities, weekNumbers, weekSummary, type Priority, type ProjectWeek, type WeekAction, type WeekPlan } from "@/lib/week";
 import { demoMode, onProject } from "@/server/auth";
-import { loadHome } from "@/server/home-store";
-import { nextReport } from "@/server/next-report";
+import { early } from "@/server/early";
+import { loadHomeJoining } from "@/server/home-store";
+import { joinRunning, nextReport } from "@/server/next-report";
 import { orgIdForPerson } from "@/server/org-settings-store";
 import { DEMO_PROJECT } from "@/server/procurement-guard";
 import { loadProjectState } from "@/server/project-state";
@@ -24,23 +25,24 @@ const daysBetween = (from: string, to: string) => Math.round((Date.parse(`${to}T
 const addDays = (iso: string, n: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * 864e5).toISOString().slice(0, 10);
 
 async function projectWeek(p: { code: string; name: string; id: string }, u: AppUser, today: string): Promise<ProjectWeek | null> {
-  const [home, nr, cal, log] = await Promise.all([
-    loadHome(p.code, u).catch(() => null),
-    nextReport(p.code).catch(() => null),
-    reportCalendar(p.code, today).catch(() => ({ rows: [] })),
+  const weekAgo = addDays(today, -7);
+  const label = (r: { kind: "qpr" | "annual"; period: string }) => (r.kind === "qpr" ? `${r.period.slice(5)} ${r.period.slice(0, 4)} quarterly report` : `${r.period} annual report`);
+  const calLater = reportCalendar(p.code, today).catch(() => ({ rows: [] as Awaited<ReturnType<typeof reportCalendar>>["rows"] }));
+  // All read together. Home and its next report are what Home's own page is reading for the open
+  // project at this moment: joined, not read twice (server/next-report joinRunning).
+  const [home, nr, cal, log, released] = await Promise.all([
+    loadHomeJoining(p.code, u).catch(() => null),
+    joinRunning(`next-report:${p.code}`, () => nextReport(p.code)).catch(() => null),
+    calLater,
     loadProjectState<FeedbackLog>(p.id, "feedback", EMPTY_FEEDBACK).catch(() => EMPTY_FEEDBACK),
+    // Released in the last seven days: the quarterly reports the calendar lists as released, by their release date.
+    // (Annual reports are written outside the app and never marked released, so none is listed.)
+    calLater.then(async (c) => (await Promise.all(c.rows.filter((r) => r.released && r.kind === "qpr").map(async (r) => (((await rawQpr(p.id, r.period).catch(() => null))?.released?.at ?? "").slice(0, 10) >= weekAgo ? label(r) : null)))).filter((x): x is string => !!x)),
   ]);
   if (!home) return null;
   // "Afghanistan Community Resilience Programme (ACRP)" reads as "ACRP" in a sentence; a long name with no short form reads as its code.
   const short = p.name.match(/\(([^)]+)\)\s*$/)?.[1] ?? (p.name.length <= 24 ? p.name : p.code);
-  const weekAgo = addDays(today, -7);
-  const label = (r: { kind: "qpr" | "annual"; period: string }) => (r.kind === "qpr" ? `${r.period.slice(5)} ${r.period.slice(0, 4)} quarterly report` : `${r.period} annual report`);
   const owed = cal.rows.filter((r) => !r.released && r.due && daysBetween(today, r.due) <= 30);
-  // Released in the last seven days: the quarterly reports the calendar lists as released, by their release date.
-  // (Annual reports are written outside the app and never marked released, so none is listed.)
-  const released = (
-    await Promise.all(cal.rows.filter((r) => r.released && r.kind === "qpr").map(async (r) => ((await rawQpr(p.id, r.period).catch(() => null))?.released?.at ?? "").slice(0, 10) >= weekAgo ? label(r) : null))
-  ).filter((x): x is string => !!x);
   return {
     code: p.code,
     short,
@@ -66,11 +68,12 @@ export async function planOf(orgId: string | null, u: AppUser, week: string): Pr
 
 export async function loadWeek(u: AppUser, today = realToday()) {
   const week = mondayOf(today);
-  const orgId = await orgIdForPerson(u.id).catch(() => null);
+  // The person's own plan does not depend on the projects: read alongside them.
+  const planLater = early(orgIdForPerson(u.id).catch(() => null).then((orgId) => planOf(orgId, u, week)));
   const listed = (await listProjects()).filter((p) => (demoMode() || p.code !== DEMO_PROJECT) && onProject(u, p.code) && p.stage !== "Develop");
   const ids = new Map((await db.select({ id: s.projects.id, code: s.projects.code }).from(s.projects).where(inArray(s.projects.code, listed.map((p) => p.code).concat("")))).map((r) => [r.code, r.id]));
   const projects = (await Promise.all(listed.filter((p) => ids.has(p.code)).map((p) => projectWeek({ code: p.code, name: p.name, id: ids.get(p.code)! }, u, today)))).filter((x): x is ProjectWeek => !!x);
-  const plan = await planOf(orgId, u, week);
+  const plan = await planLater;
   return {
     week,
     today,

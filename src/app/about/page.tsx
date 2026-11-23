@@ -4,6 +4,7 @@ import { LogoMark } from "@/components/logo";
 import { Reveal } from "@/components/reveal";
 import { WorkflowExplorer } from "@/components/workflow-explorer";
 import { lifecycle, principles } from "@/lib/workflow";
+import { stageLabels } from "@/lib/procurement";
 
 const REPO = "https://github.com/tuckerkuhn/rop-workflow";
 
@@ -177,7 +178,7 @@ export default function About() {
             </Reveal>
             <Reveal delay={120}>
               <ol className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                {["Need", "Requisition", "Authorize", "Select", "Contract", "Receive", "Pay-ready", "Close"].map((s, i) => (
+                {stageLabels.map((s, i) => (
                   <li key={s} className="rounded-xl border border-line bg-surface px-3 py-3">
                     <span className="font-mono text-xs text-muted">{String(i + 1).padStart(2, "0")}</span>
                     <span className="mt-1 block text-sm font-semibold">{s}</span>

@@ -9,6 +9,7 @@ import { useT } from "@/components/app/i18n";
 import { primaryBtn, quietBtn } from "@/components/workspace/ui";
 import type { DistView } from "@/server/distribution";
 import { qtyItem } from "@/lib/package";
+import { useFieldData } from "@/components/app/use-project-data";
 
 /**
  * The project manager's one screen for an input distribution: what went out, the goods received
@@ -43,6 +44,14 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
   const [counted, setCounted] = useState<string | null>(null);
   // Other distributions waiting for this person, oldest first: after a decision, the next one is a click away.
   const [waiting, setWaiting] = useState<{ id: string; farmerId: string }[]>([]);
+  // The farmer's name, first in the title as on Home, only for people allowed to see names
+  // (signed in with the pii flag); everyone else sees the farmer number and village.
+  const { items: fieldItems } = useFieldData(code, !!user?.pii);
+  const farmerName = (() => {
+    if (!user?.pii || !d) return "";
+    const f = fieldItems.find((i) => i.kind === "farmer" && i.id === d.farmerId);
+    return f && f.kind === "farmer" ? f.name : "";
+  })();
   const url = `/api/projects/${encodeURIComponent(code)}/distributions/${id}`;
   const headers = { "Content-Type": "application/json", "x-demo-user": user?.id ?? "" };
 
@@ -109,7 +118,7 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
   return (
     <main className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-warn">{tx("Project {code} · input distribution", { code })}</p>
-      <h1 className="mt-1 font-display text-3xl tracking-tight">{d ? `${d.farmerId}${d.village ? `, ${d.village}` : ""}` : tx("Distribution")}</h1>
+      <h1 className="mt-1 font-display text-3xl tracking-tight">{d ? (farmerName ? `${farmerName} (${d.farmerId})` : `${d.farmerId}${d.village ? `, ${d.village}` : ""}`) : tx("Distribution")}</h1>
       {error && <p className="mt-4 rounded-lg border border-clay/40 bg-surface px-4 py-3 text-sm text-clay">{error}</p>}
       {!d && !error && <p className="mt-4 text-muted">{tx("Loading…")}</p>}
       {d && (
