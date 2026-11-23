@@ -1,6 +1,7 @@
 import { spentOver } from "@/lib/budget-view";
 import { lineReasonFields, reasonText, type LineReason, type OverspendReason } from "@/lib/overspend";
 import { z } from "zod";
+import { feedbackSummary, type FeedbackEntry } from "@/lib/feedback";
 import { qcEn } from "@/lib/i18n/qpr-checks";
 import { longDate } from "@/lib/weekly";
 import { proofCount, quarterRange, totalsOf, type ResultRecord, type UpdateRecord } from "@/lib/results";
@@ -208,17 +209,35 @@ export type Spend = {
 /** What the report says was spent this quarter: what the team typed, or the import. */
 export const quarterSpendOf = (saved: Qpr, spend: Spend) => saved.quarterSpend ?? spend.quarter;
 
-/** The feedback and complaints log's count for the report's quarter (lib/feedback feedbackSummary). null: nothing was ever recorded in the log. */
-export type GrmLog = { received: number; answered: number; open: number };
+/**
+ * The feedback and complaints log's count for the report's quarter. `received` counts what needs an
+ * answer (complaints, questions, suggestions), so received = answered + open; thank-you notes are
+ * counted apart. Copies frozen before `thanks` was kept have none.
+ */
+export type GrmLog = { received: number; answered: number; open: number; thanks?: number };
+
+/**
+ * The log's count for a quarter, or null when the log was not in use for it: nothing recorded at
+ * all, or the first entry is dated after the quarter ended. A quarter before the log was started
+ * then keeps asking for typed figures instead of reporting none.
+ */
+export function grmLogFor(entries: FeedbackEntry[], from: string, to: string, today: string): GrmLog | null {
+  if (!entries.length) return null;
+  const first = entries.reduce((a, e) => (e.date < a ? e.date : a), entries[0].date);
+  if (first > to) return null;
+  const s = feedbackSummary(entries, from, to, today);
+  return { received: s.answered + s.open, answered: s.answered, open: s.open, thanks: s.thanks };
+}
+
 /**
  * The complaints figures the report prints: what someone typed on the report, else the feedback
  * log's count for the quarter, so the same complaints are not counted twice by hand.
  */
-export function grmOf(saved: Qpr, log: GrmLog | null | undefined): { received: number | null; resolved: number | null; open: number | null; from: "typed" | "log" | null } {
+export function grmOf(saved: Qpr, log: GrmLog | null | undefined): { received: number | null; resolved: number | null; open: number | null; thanks: number; from: "typed" | "log" | null } {
   const g = saved.grm;
-  if (g.received !== null) return { received: g.received, resolved: g.resolved, open: g.resolved === null ? null : g.received - g.resolved, from: "typed" };
-  if (log) return { received: log.received, resolved: log.answered, open: log.open, from: "log" };
-  return { received: null, resolved: null, open: null, from: null };
+  if (g.received !== null) return { received: g.received, resolved: g.resolved, open: g.resolved === null ? null : g.received - g.resolved, thanks: 0, from: "typed" };
+  if (log) return { received: log.answered + log.open, resolved: log.answered, open: log.open, thanks: log.thanks ?? 0, from: "log" };
+  return { received: null, resolved: null, open: null, thanks: 0, from: null };
 }
 
 export type IndicatorInfo = { code: string; donorCode: string | null; name: string; unit: string; target: number; yearTargets: Record<string, number>; result: string | null; disaggregation: string[] | null; budgetRef: string | null; workplanCode?: string | null };

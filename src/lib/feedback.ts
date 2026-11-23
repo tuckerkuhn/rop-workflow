@@ -64,7 +64,10 @@ export function feedbackSummary(entries: FeedbackEntry[], from: string, to: stri
   const answered = toAnswer.filter((e) => e.answer);
   const took = answered.map((e) => Math.max(0, days(e.date, e.answer!.on)));
   return {
+    /** Everything recorded in the period, thank-you notes included. */
     received: inPeriod.length,
+    /** Thank-you notes: recorded, but nothing to answer. */
+    thanks: inPeriod.length - toAnswer.length,
     complaints: inPeriod.filter((e) => e.kind === "complaint").length,
     answered: answered.length,
     open: toAnswer.length - answered.length,

@@ -2,13 +2,15 @@ import { and, eq } from "drizzle-orm";
 import { mirrorFarmer } from "@/server/farmer-mirror";
 import { db, schema as s } from "@/db";
 import { type AppUser } from "@/lib/demo";
-import { addDays, fieldSteps, plantingProblem, type Farmer, type Planting } from "@/lib/field";
-import { hectaresFor, type CropPlan } from "@/lib/crops";
+import { addDays, fieldSteps, plantingProblem, trainBlock, type Farmer, type Planting } from "@/lib/field";
+import { cropPlanProblem, hectaresFor, type CropPlan } from "@/lib/crops";
+import { selectionHold } from "@/lib/selection";
+import { selectionOutcomes } from "@/server/selection-store";
 import { toSubmission } from "@/server/kobo";
 import { today } from "@/lib/clock";
 import { projectByCode, setupFor } from "@/server/field-store";
 import { HttpError } from "@/server/guard";
-import { correctionOwner, correctionTask, countPlanting } from "@/server/distribution";
+import { correctionOwner, correctionTask, countPlantingIn, plantingTarget } from "@/server/distribution";
 
 /**
  * MEL decisions on the review queue. Accepting a Kobo readiness check, training attendance or farm
@@ -24,11 +26,13 @@ export async function decide(code: string, evidenceId: string, status: "accepted
   // Who would get a correction, worked out before the transaction opens (server/distribution correctionOwner).
   const [pre] = await db.select({ form: s.evidence.form, by: s.evidence.completedBy }).from(s.evidence).where(and(eq(s.evidence.id, evidenceId), eq(s.evidence.projectId, project.id))).limit(1);
   const agent = pre?.form === "readiness" && status === "accepted" ? await correctionOwner(code, pre.by) : null;
-  // A farm visit records planting: a crop counted one by one turns the number planted into hectares from the spacing.
-  const plan = pre?.form === "visit" && status === "accepted" ? ((await setupFor(code))?.plan ?? null) : null;
-  // The farmer whose planting an accepted visit recorded, counted toward the target once the decision is saved.
-  let planted: Farmer | null = null;
-  const decided = await db.transaction(async (tx) => {
+  // A farm visit records planting: a crop counted one by one turns the number planted into hectares
+  // from the spacing. The target it counts toward is read here too: reads on a second connection
+  // inside the transaction can wait for ever (server/distribution correctionOwner).
+  const visit = pre?.form === "visit" && status === "accepted";
+  const plan = visit ? ((await setupFor(code))?.plan ?? null) : null;
+  const target = visit ? await plantingTarget(code) : null;
+  return db.transaction(async (tx) => {
     // Only a record of this project: an id from another project answers as if it did not exist.
     const [row] = await tx.select().from(s.evidence).where(and(eq(s.evidence.id, evidenceId), eq(s.evidence.projectId, project.id))).limit(1);
     if (!row) throw new HttpError(404, "That record is not in this project's review queue. Reload the queue.");
@@ -42,21 +46,30 @@ export async function decide(code: string, evidenceId: string, status: "accepted
     // receipt and quantity checks run.
     if (row.form === "distribution") throw new HttpError(409, "The project manager approves input distributions, from the email or from Home, where the goods received and quantity checks are shown.");
 
+    const moves = status === "accepted" && row.source === "kobo" && (row.form === "readiness" || row.form === "training" || row.form === "visit");
+    // A farmer waitlisted or left out in Farmer selection is not moved along by a field form:
+    // enforced here, not only by the Field activities page. Sending the form back stays open.
+    if (moves) {
+      const hold = selectionHold(await selectionOutcomes(row.projectId, tx), toSubmission(row).farmerId || row.farmerCode);
+      if (hold) throw new HttpError(409, `${hold}. Select them first, or send this form back.`);
+    }
+
     await tx
       .update(s.evidence)
       .set({ reviewStatus: status, reviewedBy: user.id, reviewedAt: new Date(), queryNote: status === "queried" ? (note ?? null) : null, updatedAt: new Date() })
       .where(eq(s.evidence.id, evidenceId));
 
     let applied: string | null = null;
-    if (status === "accepted" && row.source === "kobo" && row.form === "readiness") {
-      applied = await applyReadiness(tx, row, user, { ...project, code }, agent);
-    } else if (status === "accepted" && row.source === "kobo" && (row.form === "training" || row.form === "visit")) {
-      if (row.form === "training") applied = await applyTraining(tx, row, user);
-      else {
-        const v = await applyVisit(tx, row, user, plan);
-        applied = v.summary;
-        planted = v.planted;
-      }
+    if (moves && row.form === "readiness") applied = await applyReadiness(tx, row, user, { ...project, code }, agent);
+    else if (moves && row.form === "training") applied = await applyTraining(tx, row, user);
+    else if (moves && row.form === "visit") {
+      const v = await applyVisit(tx, row, user, plan);
+      applied = v.summary;
+      // Planting recorded from KoboCollect counts toward a target that counts at planting, the same
+      // as it did when planting was entered by hand: once per farmer, waiting for MEL on the Results
+      // page. In this transaction: the planting and its count are saved together or not at all.
+      const counted = v.planted && target ? await countPlantingIn(tx, target, v.planted, user) : null;
+      if (counted) applied = `${applied} ${counted.already ? "Already counted toward the target: not counted again." : "Counted toward the target, waiting for MEL on the Results page."}`;
     }
 
     await tx.insert(s.auditLog).values({
@@ -68,13 +81,6 @@ export async function decide(code: string, evidenceId: string, status: "accepted
     });
     return { already: null, applied };
   });
-  // Planting recorded from KoboCollect counts toward a target that counts at planting, the same
-  // as it did when planting was entered by hand: once per farmer, waiting for MEL on the Results page.
-  const p = planted as Farmer | null;
-  if (!p) return decided;
-  const counted = await countPlanting(code, p, user);
-  if (!counted) return decided;
-  return { ...decided, applied: `${decided.applied} ${counted.already ? "Already counted toward the target: not counted again." : "Counted toward the target, waiting for MEL on the Results page."}` };
 }
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -176,7 +182,8 @@ async function applyTraining(tx: Tx, row: typeof s.evidence.$inferSelect, user: 
     return `Attendance recorded; farmer was at "${fieldSteps[f.step]?.title ?? f.step}", so the step did not move.`;
   }
   const checks = { ...f.checks, "train.attended": true, "train.register": true };
-  const blocked = !f.enrolled ? "not enrolled" : !f.contributionPaid ? "contribution not yet paid" : null;
+  // The Train rule shared with enrolment, the contribution and selection (lib/field leaveTrain).
+  const blocked = trainBlock(f);
   if (blocked) {
     await saveFarmer(tx, item.id, { ...f, checks }, date, `Attended ${session.toLowerCase()}${register}; stays at Train: ${blocked} (${kbo})`);
     return `Attendance recorded. Stays at Train: ${blocked}.`;
@@ -188,23 +195,33 @@ async function applyTraining(tx: Tx, row: typeof s.evidence.$inferSelect, user: 
 /**
  * The planting record a farm visit carries: the date planted (the visit date when not given), and
  * the hectares: worked out from the number planted for a crop counted one by one (lib/crops), else
- * the area typed on the form. A visit from the form before it asked the area falls back to the
- * farmer's plot, and `assumed` says so on the record.
+ * the area typed on the form. A visit from the form before it asked either falls back to the
+ * farmer's plot, and `assumed` says so on the record. A number planted that cannot be turned into
+ * hectares (a crop planned by area, or no spacing) with no area typed is never taken as the whole
+ * plot: `problem` says what to send instead, and nothing is recorded.
  */
-export function plantingFromVisit(fields: Record<string, string>, visitDate: string, plot: number, plan: CropPlan | null | undefined): { planting: Planting; assumed: boolean } {
+export function plantingFromVisit(fields: Record<string, string>, visitDate: string, plot: number, plan: CropPlan | null | undefined): { planting: Planting; assumed: boolean } | { problem: string } {
   const date = fields.planting_date || visitDate;
-  const count = fields.count ? Number(fields.count) : undefined;
-  const fromCount = count !== undefined && Number.isFinite(count) ? hectaresFor(count, plan) : null;
+  const n = fields.count ? Number(fields.count) : undefined;
+  const count = n !== undefined && Number.isFinite(n) ? n : undefined;
+  const fromCount = count !== undefined ? hectaresFor(count, plan) : null;
   const typed = fields.area ? Number(fields.area) : undefined;
   const area = typed !== undefined && Number.isFinite(typed) ? typed : undefined;
+  if (count !== undefined && fromCount === null && area === undefined)
+    return {
+      problem:
+        !plan || plan.by === "area"
+          ? "The visit gave a number planted, but this crop is planned by area: record the area planted."
+          : `The visit gave a number planted, but the crop plan cannot turn it into hectares (${cropPlanProblem(plan) ?? "no spacing"}): record the area planted, or the project manager completes the crop plan.`,
+    };
   const hectares = fromCount ?? area ?? plot;
-  return { planting: { date, hectares, ...(count !== undefined && Number.isFinite(count) ? { count } : {}) }, assumed: fromCount === null && area === undefined };
+  return { planting: { date, hectares, ...(count !== undefined ? { count } : {}) }, assumed: fromCount === null && area === undefined };
 }
 
 /**
  * Farm visit after planting (kobo/build_field_forms.py). Planted at the trained spacing: ticks the
  * Plant checks and writes the planting record (date and area), completing the farmer's season path;
- * decide() then counts it toward a target that counts at planting. Not planted, or not as trained,
+ * decide() counts it toward a target that counts at planting in the same transaction. Not planted, or not as trained,
  * or a planting record that does not hold up (lib/field plantingProblem): what needs follow-up goes
  * on the record and the farmer stays at Plant.
  */
@@ -229,7 +246,12 @@ async function applyVisit(tx: Tx, row: typeof s.evidence.$inferSelect, user: App
     await saveFarmer(tx, item.id, { ...f, checks }, date, `Farm visit, ${purpose}: ${what}${issue ? `. To follow up: ${issue}` : ""} (${kbo})`);
     return { summary: `Visit recorded: ${what}. Stays at Plant for follow-up.`, planted: null };
   }
-  const { planting, assumed } = plantingFromVisit(sub.fields, date, f.hectares, plan);
+  const from = plantingFromVisit(sub.fields, date, f.hectares, plan);
+  if ("problem" in from) {
+    await saveFarmer(tx, item.id, { ...f, checks }, date, `Farm visit, ${purpose}: planted at the trained spacing, but the planting record was not saved: ${from.problem} Send a corrected farm visit from KoboCollect (${kbo})`);
+    return { summary: `Visit recorded. Planting not recorded: ${from.problem} Stays at Plant.`, planted: null };
+  }
+  const { planting, assumed } = from;
   // Checked as a hand-entered record was: a date, not after the visit, a count above zero, within the plot.
   // Not against the handout date: a KoboCollect distribution is dated the day it was approved, often
   // days after the goods went out. The visit date stands for "today", so a real visit is not refused

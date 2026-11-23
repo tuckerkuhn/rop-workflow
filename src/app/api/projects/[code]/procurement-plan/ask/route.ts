@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { askSchema, canAsk } from "@/lib/procurement-plan";
 import { requireViewer } from "@/server/auth";
-import { handle } from "@/server/guard";
+import { handle, readBody } from "@/server/guard";
 import { askForUnplanned } from "@/server/procurement-plan-store";
 
 /**
@@ -13,9 +13,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
   return handle(async () => {
     const v = await requireViewer(req, { write: true, allow: canAsk, why: "You can view Procurement but not ask for purchases." });
     if (v instanceof NextResponse) return v;
-    const parsed = askSchema.safeParse(await req.json().catch(() => null));
-    if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Fill in every field." }, { status: 400 });
-    const r = await askForUnplanned(code, parsed.data, v.user);
+    const input = await readBody(req, askSchema);
+    const r = await askForUnplanned(code, input, v.user);
     if ("error" in r) return NextResponse.json({ error: r.error }, { status: r.status });
     return NextResponse.json(r);
   });

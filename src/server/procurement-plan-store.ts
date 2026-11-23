@@ -73,9 +73,11 @@ export async function askForUnplanned(code: string, input: AskInput, user: AppUs
   const [budget, workplan] = await Promise.all([loadBudget(code), loadWorkplan(code)]);
   return updateProjectState<{ count: number }, { item: PlanItem } | { error: string; status: number }>(project.id, ASK_COUNTER, { count: 0 }, async (cur, tx) => {
     // Past the counter and past any key already in use, so a number is never taken twice.
-    const used = await tx.select({ key: s.procurementPlan.planKey }).from(s.procurementPlan).where(eq(s.procurementPlan.projectId, project.id));
+    const used = await tx.select({ key: s.procurementPlan.planKey, data: s.procurementPlan.data }).from(s.procurementPlan).where(eq(s.procurementPlan.projectId, project.id));
     const n = Math.max(cur.count, ...used.filter((r) => r.key.startsWith("UP-")).map((r) => Number(r.key.slice(3)) || 0)) + 1;
-    const out = unplannedItem(input, { line: budget.lines.find((l) => l.code === input.budgetCode), currency: budget.currency, workplan, people, user, today: today(), key: askKey(n) });
+    // Read under the same lock, so two asks at once cannot both take the line's last money.
+    const items = used.map((r) => r.data as PlanItem);
+    const out = unplannedItem(input, { line: budget.lines.find((l) => l.code === input.budgetCode), currency: budget.currency, workplan, people, user, today: today(), key: askKey(n), items });
     if (typeof out === "string") return { data: null, result: { error: out, status: 400 } };
     await write(tx, project.id, [out]);
     const [row] = await tx

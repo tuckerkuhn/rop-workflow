@@ -490,16 +490,48 @@ export function handRecordProblem(stored: FieldItem | undefined, sent: FieldItem
 }
 
 /**
- * The contribution is recorded in the app ("Record contribution received"): no KoboCollect form
- * asks it. A farmer whose training attendance KoboCollect already recorded, but who stayed at Train
- * because the contribution was unpaid (server/review applyTraining), moves on to Prepare the plot
- * once it is recorded, as an accepted attendance would have moved them. Otherwise `sent` unchanged.
+ * What still keeps a farmer whose training is recorded at Train, or null when they may move on to
+ * Prepare the plot: enrolled, contribution paid, and (`hold`, lib/selection selectionHold) not
+ * waitlisted or left out in Farmer selection.
  */
-export function afterContribution(stored: FieldItem | undefined, sent: FieldItem, date: string): FieldItem {
+export function trainBlock(f: Farmer, hold: string | null = null): string | null {
+  if (!f.enrolled) return "not enrolled";
+  if (!f.contributionPaid) return "contribution not yet paid";
+  return hold;
+}
+
+const trained = (f: Farmer) => !!f.checks["train.attended"] && !!f.checks["train.register"];
+
+/**
+ * The move on from Train, one rule wherever its inputs change: training attendance accepted from
+ * KoboCollect (server/review applyTraining), enrolment or the contribution recorded in the app (no
+ * KoboCollect form asks them), or the farmer selected in Farmer selection. A farmer at Train whose
+ * training is recorded moves on to Prepare the plot once nothing in trainBlock holds them;
+ * otherwise `f` comes back unchanged, with a line saying why when only selection holds them.
+ * `cause`: what just changed, for the farmer's history.
+ */
+export function leaveTrain(f: Farmer, date: string, cause: string, hold: string | null = null): Farmer {
+  if (f.step !== "train" || !trained(f)) return f;
+  const block = trainBlock(f, hold);
+  if (block === hold && hold) return { ...f, timeline: [...f.timeline, { date, who: "system", what: `${cause}; training already recorded, but stays at Train: ${hold}` }] };
+  if (block) return f;
+  return { ...f, step: "prepare", timeline: [...f.timeline, { date, who: "system", what: `${cause}; training already recorded from KoboCollect: moved to Prepare the plot` }] };
+}
+
+/**
+ * A farmer saved from the app (Field activities): when enrolment, the contribution or the training
+ * checks changed on a farmer at Train, the Train rule (leaveTrain) is evaluated again, so a farmer
+ * whose training KoboCollect recorded while not enrolled or unpaid is not left stuck at Train (a
+ * hand move is refused). Otherwise `sent` unchanged.
+ */
+export function afterTrainInputs(stored: FieldItem | undefined, sent: FieldItem, date: string, hold: string | null = null): FieldItem {
   if (sent.kind !== "farmer" || stored?.kind !== "farmer") return sent;
-  if (stored.contributionPaid || !sent.contributionPaid || stored.step !== "train" || sent.step !== "train") return sent;
-  if (!sent.enrolled || !sent.checks["train.attended"] || !sent.checks["train.register"]) return sent;
-  return { ...sent, step: "prepare", timeline: [...sent.timeline, { date, who: "system", what: "Contribution received; training already recorded from KoboCollect: moved to Prepare the plot" }] };
+  if (stored.step !== "train" || sent.step !== "train") return sent;
+  const was = stored as Farmer;
+  const now = sent as Farmer;
+  if (was.enrolled === now.enrolled && was.contributionPaid === now.contributionPaid && trained(was) === trained(now)) return sent;
+  const cause = [!was.enrolled && now.enrolled && "Enrolment recorded", !was.contributionPaid && now.contributionPaid && "Contribution received"].filter(Boolean).join(" and ") || "Training record changed";
+  return leaveTrain(now, date, cause, hold);
 }
 
 export const ownerOfItem = (i: FieldItem): FieldRole | null => {

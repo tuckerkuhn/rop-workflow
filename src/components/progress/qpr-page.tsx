@@ -863,10 +863,11 @@ function Grm({ v, act }: { v: QprView; act: Act }) {
       <p>
         {log ? (
           <>
-            From the feedback log: <b>{log.received}</b> received, <b>{log.answered}</b> answered{log.open ? `, ${log.open} still open` : ""}.
+            From the feedback log: <b>{log.answered + log.open}</b> needing an answer, <b>{log.answered}</b> answered{log.open ? `, ${log.open} still open` : ""}
+            {log.thanks ? `; plus ${log.thanks} thank-you ${log.thanks === 1 ? "note" : "notes"}` : ""}.
           </>
         ) : (
-          <>Nothing is recorded in the feedback log yet.</>
+          <>The feedback log has no count for this quarter: nothing is recorded yet, or the log was started after the quarter ended. Type the figures below.</>
         )}{" "}
         <Link href="/progress/feedback" className="font-semibold text-forest hover:underline">
           Open the log
@@ -882,7 +883,7 @@ function Grm({ v, act }: { v: QprView; act: Act }) {
         <div className="mt-2 flex flex-wrap items-end gap-3">
           <label className="text-sm">
             Complaints received this quarter
-            <input inputMode="numeric" className={input} value={rec} placeholder={log ? `${log.received} from the log` : ""} disabled={!v.mayEdit} onChange={(e) => setRec(e.target.value)} />
+            <input inputMode="numeric" className={input} value={rec} placeholder={log ? `${log.answered + log.open} from the log` : ""} disabled={!v.mayEdit} onChange={(e) => setRec(e.target.value)} />
           </label>
           <label className="text-sm">
             Resolved

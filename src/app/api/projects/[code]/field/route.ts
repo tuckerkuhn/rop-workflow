@@ -7,10 +7,11 @@ import type { FieldItem } from "@/lib/field";
 import { requireViewer } from "@/server/auth";
 import { keepHidden, loadField, saveEdited, saveStock } from "@/server/field-store";
 import { stockFor } from "@/server/distribution";
-import { afterContribution, handRecordProblem, moveProblem, stepRefusal, type Farmer } from "@/lib/field";
+import { afterTrainInputs, handRecordProblem, moveProblem, stepRefusal, type Farmer } from "@/lib/field";
 import { today } from "@/lib/clock";
 import { projectByCode } from "@/server/field-store";
 import { selectionOutcomes } from "@/server/selection-store";
+import { selectionHold } from "@/lib/selection";
 import { audit, handle, HttpError, readBody } from "@/server/guard";
 
 /**
@@ -108,9 +109,11 @@ export async function PUT(req: Request, { params }: { params: Promise<{ code: st
     }
     // Each new history entry gets the time it was saved; older ones keep theirs (lib/history).
     const now = new Date();
-    // The contribution is recorded here (no KoboCollect form asks it): a farmer whose training KoboCollect
-    // already recorded moves on to Prepare the plot once it is paid (lib/field afterContribution).
-    const toSave = items.map((i) => afterContribution(raw.get(i.id), i, ctx.today)).map((i) => ({ ...i, timeline: stampHistory(raw.get(i.id)?.timeline, i.timeline ?? [], now) }) as FieldItem);
+    // Enrolment and the contribution are recorded here (no KoboCollect form asks them): a farmer whose
+    // training KoboCollect already recorded moves on to Prepare the plot once nothing holds them at
+    // Train, never while waitlisted or left out in Farmer selection (lib/field afterTrainInputs).
+    const outcomes = await selectionOutcomes((await projectByCode(code)).id);
+    const toSave = items.map((i) => afterTrainInputs(raw.get(i.id), i, ctx.today, selectionHold(outcomes, i.id))).map((i) => ({ ...i, timeline: stampHistory(raw.get(i.id)?.timeline, i.timeline ?? [], now) }) as FieldItem);
     const revs = toSave.length ? await saveEdited(code, toSave) : {};
     // The store's stock follows the purchases when they supply the package; a typed figure is kept only when none does.
     const derived = await stockFor(code);

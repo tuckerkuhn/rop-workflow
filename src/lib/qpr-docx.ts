@@ -193,7 +193,7 @@ export async function qprDocx(d: DocxInput, images: Images): Promise<Blob> {
     grm.received === null
       ? []
       : grm.from === "log"
-        ? [p(`Feedback and complaints received this quarter: ${grm.received}. Answered: ${grm.resolved}. Open: ${grm.open}.`)]
+        ? [p(`Complaints, questions and suggestions received this quarter: ${grm.received}. Answered: ${grm.resolved}. Open: ${grm.open}.${grm.thanks ? ` Also received: ${grm.thanks} thank-you ${grm.thanks === 1 ? "note" : "notes"}.` : ""}`)]
         : [p(`Complaints received this quarter: ${grm.received}. Resolved: ${grm.resolved ?? "[to be entered]"}. Open: ${grm.open ?? "[to be entered]"}.`)];
   const risks = d.saved.risks.length ? [table(["Risks", "Mitigation Measures"], d.saved.risks.map((r) => [r.risk, r.mitigation]), [45, 55])] : [p("[Risk table to be completed]", { color: "AA3333" })];
 

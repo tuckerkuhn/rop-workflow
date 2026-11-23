@@ -42,7 +42,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
     if (writer) {
       const q = quarterOf(new Date().toISOString().slice(0, 10));
       const copies = [...(await loadCopies(code, q)), ...(await loadCopies(code, prevQ(q)))];
-      steps.push({ key: "practice", text: "Open the quarterly report and do a practice release", href: "/progress/report", done: copies.some((c) => c.by === me) });
+      steps.push({ key: "practice", text: "Open the quarterly report and save a preview copy", href: "/progress/report", done: copies.some((c) => c.by === me) });
       steps.push({ key: "share", text: "Share a report with the donor through a read-only link", href: "/progress/report", done: (await loadShares(code)).some((s) => s.by === me) });
     }
     return NextResponse.json({ steps, sample, mayCreate: canEditProject(u) });

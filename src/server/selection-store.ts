@@ -1,12 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { canEditProject, type AppUser } from "@/lib/demo";
-import type { Farmer } from "@/lib/field";
+import { leaveTrain, type Farmer } from "@/lib/field";
+import { stampHistory } from "@/lib/history";
+import { mirrorFarmer } from "@/server/farmer-mirror";
 import { and, eq } from "drizzle-orm";
 import { db, schema as t } from "@/db";
-import { EMPTY_SELECTION, decisionProblem, outcomeLabel, outcomeOf, outcomesById, sameRules, selectionCounts, type Criterion, type Selection, type SelectionAction, type Shown } from "@/lib/selection";
+import { EMPTY_SELECTION, decisionProblem, selectionHold, outcomeLabel, outcomeOf, outcomesById, sameRules, selectionCounts, type Criterion, type Selection, type SelectionAction, type Shown } from "@/lib/selection";
 import { logAudit } from "@/server/audit";
 import { loadField, projectByCode } from "@/server/field-store";
-import { loadProjectState, updateProjectState } from "@/server/project-state";
+import { loadProjectState, updateProjectState, type Reader } from "@/server/project-state";
 
 const KEY = "selection";
 const today = () => new Date().toISOString().slice(0, 10);
@@ -35,8 +37,8 @@ export type SelectionView = Awaited<ReturnType<typeof loadSelection>>;
  * waitlisted or who did not qualify are not trained or served. Null when the project does not use
  * selection (no rules written), so its field queue is unchanged.
  */
-export async function selectionOutcomes(projectId: string): Promise<Record<string, Shown> | null> {
-  return outcomesById(await loadProjectState<Selection>(projectId, KEY, EMPTY_SELECTION));
+export async function selectionOutcomes(projectId: string, q?: Reader): Promise<Record<string, Shown> | null> {
+  return outcomesById(await loadProjectState<Selection>(projectId, KEY, EMPTY_SELECTION, q));
 }
 
 export async function actOnSelection(code: string, a: SelectionAction, u: AppUser): Promise<string | null> {
@@ -93,6 +95,18 @@ export async function actOnSelection(code: string, a: SelectionAction, u: AppUse
       detail = { farmer: a.farmer, reason: a.reason, was: outcomeLabel[outcomeOf(s, was)], wasReason: was.reason };
     }
     await logAudit(tx, project.id, { entity: "selection", entityId: a.action === "criteria" ? project.id : a.farmer, action, by: u.id, detail });
+    // Selection is one of the Train rule's inputs (lib/field leaveTrain): a farmer whose training and
+    // contribution are recorded moves on once selected (or reopened), in the same step as the decision.
+    if (a.action !== "criteria" && !selectionHold(outcomesById(next), a.farmer)) {
+      const [item] = await tx.select().from(t.fieldItems).where(and(eq(t.fieldItems.projectId, project.id), eq(t.fieldItems.itemKey, a.farmer))).limit(1);
+      const f = item?.data as Farmer | undefined;
+      const moved = f?.kind === "farmer" ? leaveTrain(f, today(), a.action === "decide" ? `Selected in Farmer selection by ${u.name}` : `Selection decision reopened by ${u.name}`) : f;
+      if (item && f && moved && moved !== f) {
+        const saved = { ...moved, timeline: stampHistory(f.timeline, moved.timeline) };
+        await tx.update(t.fieldItems).set({ data: saved, updatedAt: new Date() }).where(eq(t.fieldItems.id, item.id));
+        await mirrorFarmer(tx, project.id, saved);
+      }
+    }
     return { data: next, result: null };
   });
 }

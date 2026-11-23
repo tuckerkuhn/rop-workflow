@@ -2,8 +2,9 @@ import { ourWork } from "@/lib/budget";
 import { and, asc, eq, isNotNull } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { spentIn } from "@/lib/bva";
-import { activityOf, breakdownsFor, buildRows, carryForward, checksFor, DEFAULT_ACRONYMS, photosFor, prevQuarterOf, withLineReasons, type GrmLog, type IndicatorInfo, type Qpr, type Spend } from "@/lib/qpr";
-import { EMPTY_FEEDBACK, feedbackSummary, type FeedbackLog } from "@/lib/feedback";
+import { activityOf, breakdownsFor, buildRows, carryForward, checksFor, DEFAULT_ACRONYMS, grmLogFor, photosFor, prevQuarterOf, withLineReasons, type IndicatorInfo, type Qpr, type Spend } from "@/lib/qpr";
+import { EMPTY_FEEDBACK, type FeedbackLog } from "@/lib/feedback";
+import { today as clockToday } from "@/lib/clock";
 import { quarterRange } from "@/lib/results";
 import { loadActuals } from "@/server/actuals-store";
 import { donorPhotoRule } from "@/server/photo-consent";
@@ -162,10 +163,10 @@ async function readQprData(code: string, quarter: string) {
   const captioned = photosFor(table, results, updates, quarter);
   const photos = captioned.filter((ph) => photoOk(ph.hash).ok);
   // The feedback log's count for this quarter: the report's complaints figures unless someone typed others.
+  // A quarter before the log was started gets none, so the check keeps asking for typed figures.
   const log = await feedbackLater;
   const { from: qFrom, to: qTo } = quarterRange(quarter);
-  const fb = feedbackSummary(log.entries, qFrom, qTo, new Date().toISOString().slice(0, 10));
-  const grmLog: GrmLog | null = log.entries.length ? { received: fb.received, answered: fb.answered, open: fb.open } : null;
+  const grmLog = grmLogFor(log.entries, qFrom, qTo, clockToday());
   return {
     project: { code, name: project.name, goal: await goalOf(project), donor: await donorNameOf(project), start: project.startDate, end: project.endDate },
     quarter,

@@ -7,6 +7,8 @@ import { today } from "@/lib/clock";
 import type { AppUser } from "@/lib/demo";
 import { approverNames, collectorOf, deciderNames, decidersOf, needsKoboCheck, refusalFor } from "@/lib/kobo-approval";
 import { koboApprovalFor } from "@/server/kobo-approval";
+import { selectionHold } from "@/lib/selection";
+import { selectionOutcomes } from "@/server/selection-store";
 import { insertResult } from "@/server/results-store";
 import { addGiven, applyFix, approvalRefusal, approverNamesOf, badCondition, approversOf, closeBlock, drawnFrom, fixOwner, flagsFor, gate, inProcUnit, lineOf, paymentDue, resultFor, resultForPlanting, storeStock, type DistItem, type Fix, type Flag, type Gate, type Given } from "@/lib/distribution";
 import { countsAtPlanting, itemsFor, qtyItem, type FieldSetup } from "@/lib/package";
@@ -535,6 +537,9 @@ export async function decideDistribution(code: string, id: string, decision: "ap
   const m = ctx.st.byId[id];
   if (!m) throw new HttpError(409, "This distribution has not been checked yet. Sync Kobo and try again.");
   if (decision === "sent_back" && !note?.trim()) throw new HttpError(400, "Say what needs fixing, so the person who recorded it knows.");
+  // Inputs go only to farmers selected in Farmer selection (or not yet decided): enforced here, not only by the page.
+  const hold = decision === "approved" ? selectionHold(await selectionOutcomes(project.id), row.farmerCode) : null;
+  if (hold) throw new HttpError(409, `Not approved: ${hold}. Select them first, or send this distribution back.`);
   // From KoboCollect: checked first by whoever this project names for KoboCollect data.
   const rule = await koboApprovalFor(code);
   if (decision === "approved" && needsKoboCheck({ source: row.source, koboChecked: m.koboChecked }, rule))
@@ -810,29 +815,41 @@ async function farmersCounted(tx: Tx | typeof db, projectId: string, target: str
   return out;
 }
 
-/**
- * When the project's target counts at planting (lib/package targetAt), recording a farmer's
- * planting adds them to it: one result waiting for MEL, never twice for the same farmer. Either
- * way the farmer's history says what happened, so the extension agent sees it at once. Returns the
- * result's id when one was made, `already` when the farmer was counted before, or null when the
- * target does not count at planting.
- */
-export async function countPlanting(code: string, f: Farmer, by: { id: string; name: string }): Promise<{ result: string | null; already: boolean } | null> {
+/** The target a recorded planting counts toward: read before a transaction opens (countPlantingIn). */
+export type PlantingTarget = { project: Project; setup: FieldSetup; target: string; indicator: { code: string; name: string; unit: string } };
+
+/** The project's target that counts at planting (lib/package targetAt), or null when it has none. */
+export async function plantingTarget(code: string): Promise<PlantingTarget | null> {
   const project = await projectByCode(code);
   const setup = await setupOf(project);
-  if (!countsAtPlanting(setup) || !f.planting) return null;
-  const target = setup!.target!;
+  if (!setup || !countsAtPlanting(setup)) return null;
+  const target = setup.target!;
   const indicator = (await db.select({ code: s.indicators.code, name: s.indicators.name, unit: s.indicators.unit }).from(s.indicators).where(and(eq(s.indicators.projectId, project.id), eq(s.indicators.code, target), eq(s.indicators.source, "results"))).limit(1))[0];
-  if (!indicator) return null;
-  return db.transaction(async (tx) => {
-    const before = (await farmersCounted(tx, project.id, target)).get(f.id);
-    const r = before ? null : await insertResult(tx, project, resultForPlanting({ ...f, planting: f.planting! }, target, { crop: setup!.crop, recordedBy: by.name, unit: indicator.unit, plan: setup!.plan }), by.id);
-    const what = before
-      ? `Already counted toward "${indicator.name}" ${before.how === "handout" ? "when the package was handed out" : "from an earlier planting"}${before.date ? ` (${before.date})` : ""}: not counted again`
-      : `Counted toward "${indicator.name}": waiting for MEL to accept it on the Results page`;
-    await changeFarmer(tx, project.id, f.id, (x) => ({ ...x, timeline: [...x.timeline, { date: today(), who: "system", what, by: "ROP Workflow" }] }));
-    return { result: r?.id ?? null, already: !!before };
-  });
+  return indicator ? { project, setup, target, indicator } : null;
+}
+
+/**
+ * When the project's target counts at planting, recording a farmer's planting adds them to it: one
+ * result waiting for MEL, never twice for the same farmer. Runs inside the transaction that records
+ * the planting (server/review decide), so the planting and its count are saved together or not at
+ * all. Either way the farmer's history says what happened, so the extension agent sees it at once.
+ * Returns the result's id when one was made, or `already` when the farmer was counted before.
+ */
+export async function countPlantingIn(tx: Tx, t: PlantingTarget, f: Farmer, by: { id: string; name: string }): Promise<{ result: string | null; already: boolean } | null> {
+  if (!f.planting) return null;
+  const before = (await farmersCounted(tx, t.project.id, t.target)).get(f.id);
+  const r = before ? null : await insertResult(tx, t.project, resultForPlanting({ ...f, planting: f.planting }, t.target, { crop: t.setup.crop, recordedBy: by.name, unit: t.indicator.unit, plan: t.setup.plan }), by.id);
+  const what = before
+    ? `Already counted toward "${t.indicator.name}" ${before.how === "handout" ? "when the package was handed out" : "from an earlier planting"}${before.date ? ` (${before.date})` : ""}: not counted again`
+    : `Counted toward "${t.indicator.name}": waiting for MEL to accept it on the Results page`;
+  await changeFarmer(tx, t.project.id, f.id, (x) => ({ ...x, timeline: [...x.timeline, { date: today(), who: "system", what, by: "ROP Workflow" }] }));
+  return { result: r?.id ?? null, already: !!before };
+}
+
+/** countPlantingIn in a transaction of its own, for a planting already saved; null when no target counts at planting. */
+export async function countPlanting(code: string, f: Farmer, by: { id: string; name: string }) {
+  const t = await plantingTarget(code);
+  return t && f.planting ? db.transaction((tx) => countPlantingIn(tx, t, f, by)) : null;
 }
 
 /**

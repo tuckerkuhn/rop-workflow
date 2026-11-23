@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { breakdownsFor, buildRows, cannotOnReport, durationOf, checksFor, emptyQpr, prevQuarterOf, suggestStatus, yearShare, type IndicatorInfo, type Spend } from "@/lib/qpr";
+import { breakdownsFor, buildRows, cannotOnReport, durationOf, checksFor, emptyQpr, grmLogFor, grmOf, prevQuarterOf, suggestStatus, yearShare, type IndicatorInfo, type Spend } from "@/lib/qpr";
 import { result } from "./fixtures";
+import type { FeedbackEntry } from "@/lib/feedback";
 import { translate } from "@/lib/i18n";
 import { en } from "@/lib/i18n/en";
 import { es } from "@/lib/i18n/es";
@@ -215,5 +216,39 @@ describe("checksFor: every check can be shown in each language", () => {
       expect(translate("en", c.key!, c.vars)).toBe(c.text);
     }
     for (const dict of [qcEs, qcFa, qcPs]) expect(Object.keys(dict).sort()).toEqual(Object.keys(qcEn).sort());
+  });
+});
+
+describe("complaints figures from the feedback log", () => {
+  const fe = (id: string, date: string, kind: FeedbackEntry["kind"] = "complaint", answered = false): FeedbackEntry => ({
+    id, date, kind, from: "farmer", channel: "in person", place: "", about: "x", serious: false, by: "t", byName: "T",
+    answer: answered ? { on: date, text: "ok", by: "t", byName: "T" } : null,
+  });
+  const log = [fe("1", "2026-10-03", "complaint", true), fe("2", "2026-10-10", "question"), fe("3", "2026-11-01", "thanks"), fe("4", "2026-11-02", "suggestion", true)];
+
+  it("counts only what needs an answer as received, so received = answered + open, with thank-you notes apart", () => {
+    const g = grmLogFor(log, "2026-10-01", "2026-12-31", "2026-12-01")!;
+    expect(g).toEqual({ received: 3, answered: 2, open: 1, thanks: 1 });
+    const shown = grmOf(emptyQpr("Sandbox"), g);
+    expect(shown).toMatchObject({ received: 3, resolved: 2, open: 1, thanks: 1, from: "log" });
+    expect(shown.received).toBe((shown.resolved ?? 0) + (shown.open ?? 0));
+  });
+
+  it("gives no count for a quarter that ended before the log was started, so the report still asks for typed figures", () => {
+    expect(grmLogFor(log, "2026-07-01", "2026-09-30", "2026-12-01")).toBeNull();
+    expect(grmLogFor([], "2026-10-01", "2026-12-31", "2026-12-01")).toBeNull();
+    const rows = buildRows([ind()], [result({ date: "2026-08-01" })], Q, emptyQpr("Sandbox"));
+    const checks = checksFor(rows, [result({ date: "2026-08-01" })], Q, emptyQpr("Sandbox"), spend(), ["1.1.1"], grmLogFor(log, "2026-07-01", "2026-09-30", "2026-12-01"));
+    expect(checks.some((c) => /complaints numbers are not filled in/.test(c.text))).toBe(true);
+  });
+
+  it("counts a quarter once the log is in use, even a quiet one: zero is a real answer then", () => {
+    const later = grmLogFor(log, "2027-01-01", "2027-03-31", "2027-03-31");
+    expect(later).toEqual({ received: 0, answered: 0, open: 0, thanks: 0 });
+  });
+
+  it("uses typed figures over the log", () => {
+    const saved = { ...emptyQpr("Sandbox"), grm: { received: 5, resolved: 4 } };
+    expect(grmOf(saved, { received: 3, answered: 2, open: 1 })).toMatchObject({ received: 5, resolved: 4, open: 1, from: "typed" });
   });
 });

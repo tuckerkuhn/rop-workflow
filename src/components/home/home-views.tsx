@@ -209,7 +209,7 @@ function Bands({ rows, next }: { rows: Rows; next: Next }) {
           <Link key={b} href={many ? "#waiting-list" : top.href} onClick={many ? showList : undefined} className={`group flex min-h-24 items-center gap-4 py-3 ps-5 pe-20 lg:pe-5 ${BAND[b]} hover:brightness-110 active:brightness-90 ${focus} focus-visible:outline-white`}>
             <span className="w-16 shrink-0 text-6xl font-extrabold leading-none tracking-tighter tabular-nums">{rest.length}</span>
             <span className="min-w-0 flex-1">
-              <span className="block text-2xl font-extrabold leading-tight">{rest.length < rows[b].length ? tx("more {what}", { what: t(`home.b.${b}`).toLowerCase() }) : t(`home.b.${b}`)}</span>
+              <span className="block text-2xl font-extrabold leading-tight">{rest.length < rows[b].length ? (b === "due" ? tx("more due") : tx("more to {what}", { what: t(`home.b.${b}`).toLowerCase() })) : t(`home.b.${b}`)}</span>
               <span className="mt-0.5 block text-[0.95rem] font-medium leading-snug">
                 {short(words(top))[0]}
                 {top.due ? ` (${when(top.due.days)})` : ""}

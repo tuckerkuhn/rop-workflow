@@ -151,7 +151,7 @@ export function ProcurementPlanPage() {
             setAsking(false);
             setFilter("all");
             setOpen(item.key);
-            setNote(`${item.title} is on the calendar as ${item.key}${item.unplanned?.urgent ? ", marked urgent" : ""}. The procurement manager and the technical lead approve it like any other purchase; then the request can start.`);
+            setNote(`${item.title} is on the calendar as ${item.key}${item.unplanned?.urgent ? ", marked urgent" : ""}. The procurement manager and the technical lead approve it like any other purchase; then the request can start.${item.unplanned?.overPlan ? ` Note: ${item.unplanned.overPlan}` : ""}`);
           }}
         />
       )}
@@ -440,6 +440,7 @@ function Detail({
           <p className="mt-1 text-xs text-muted">
             Asked for by {item.unplanned.name}, {date(item.unplanned.at)}. It needs both approvals like any other purchase.
           </p>
+          {item.unplanned.overPlan && <p className="mt-1 font-semibold text-clay">{item.unplanned.overPlan}</p>}
         </section>
       )}
 

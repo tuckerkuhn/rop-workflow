@@ -120,6 +120,18 @@ export function outcomesById(s: Selection): Record<string, Shown> | null {
 /** Whether the field team should train and serve this farmer: no decision yet, or selected. */
 export const inFieldQueue = (o: Shown | undefined) => !o || o === "selected";
 
+const held: Record<Exclude<Shown, "selected">, string> = { waitlisted: "waitlisted", not_qualified: "marked Did not qualify", not_selected: "marked Not selected" };
+/**
+ * Why a farmer may not be moved along the field path or given inputs, or null. Enforced on the
+ * server wherever a farmer moves (an accepted KoboCollect form, an approved distribution, the
+ * contribution), not only by the Field activities page's filter. `outcomes`: outcomesById, null
+ * when the project does not use selection.
+ */
+export function selectionHold(outcomes: Record<string, Shown> | null, farmer: string | null | undefined): string | null {
+  const o = farmer ? outcomes?.[farmer] : undefined;
+  return !o || inFieldQueue(o) ? null : `${farmer} is ${held[o as Exclude<Shown, "selected">]} in Farmer selection`;
+}
+
 export type SelectionCounts = { total: number; selected: number; waitlisted: number; notQualified: number; notSelected: number; undecided: number; women: number; womenSelected: number; exceptions: number };
 /** The counts a report asks for. `farmers` is the project's list; a decision for someone no longer on it is not counted. `notSelected`: older decisions not placed (outcomeOf). */
 export function selectionCounts(s: Selection, farmers: { id: string; gender: string }[]): SelectionCounts {

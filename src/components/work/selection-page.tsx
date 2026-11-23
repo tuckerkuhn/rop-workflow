@@ -81,7 +81,7 @@ function Rules({ v, act }: { v: SelectionView; act: (a: SelectionAction) => Prom
       {rules.map((r, k) => (
         <label key={k} className="mt-3 block text-sm">
           Rule {k + 1}
-          <input className={input} value={r} maxLength={300} placeholder={k === 0 ? "Farms between 0.2 and 2 hectares in the project villages" : ""} onChange={(e) => setRules(rules.map((x, j) => (j === k ? e.target.value : x)))} />
+          <input className={input} value={r} maxLength={300} placeholder={k === 0 ? "For example: farms between 0.2 and 2 hectares in the project villages" : ""} onChange={(e) => setRules(rules.map((x, j) => (j === k ? e.target.value : x)))} />
         </label>
       ))}
       {rules.length < 12 && (
@@ -91,7 +91,7 @@ function Rules({ v, act }: { v: SelectionView; act: (a: SelectionAction) => Prom
       )}
       <label className="mt-4 block text-sm">
         How people heard they could apply
-        <textarea className={input} rows={2} value={outreach} maxLength={1000} placeholder="Announced at the community meeting in each village and through the farmer association, with two weeks to apply" onChange={(e) => setOutreach(e.target.value)} />
+        <textarea className={input} rows={2} value={outreach} maxLength={1000} placeholder="For example: announced at the community meeting in each village and through the farmer association, with two weeks to apply" onChange={(e) => setOutreach(e.target.value)} />
         <span className="mt-1 block text-xs text-muted">An open call is the answer to &ldquo;only friends of the staff were told&rdquo;.</span>
       </label>
       {decided > 0 && (
@@ -101,6 +101,10 @@ function Rules({ v, act }: { v: SelectionView; act: (a: SelectionAction) => Prom
         </label>
       )}
       <div className="mt-4 flex flex-wrap gap-2">
+        {/* A greyed button says what it is waiting for (the examples above are only placeholders). */}
+        {(!clean.length || outreach.trim().length < 10) && (
+          <p className="w-full text-sm text-muted">{!clean.length ? "Write at least one rule" : "Say how people heard they could apply"} to save. The grey text is only an example.</p>
+        )}
         <button type="submit" className={primaryBtn} disabled={!clean.length || outreach.trim().length < 10}>
           Save the rules
         </button>

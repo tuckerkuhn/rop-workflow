@@ -2,6 +2,7 @@ import { z } from "zod";
 import { workplanFor, type BudgetLine, type WorkplanItem } from "@/lib/budget";
 import { AFN_PER_USD, type AppUser } from "@/lib/demo";
 import { levelFor, rulesInForce, type Level } from "@/lib/procurement";
+import { isDay } from "@/lib/clock";
 
 /**
  * The procurement calendar: one planned purchase per budget line marked to procure, built from
@@ -51,7 +52,15 @@ export type PlanItem = {
   unplanned?: Unplanned;
 };
 
-export type Unplanned = { by: string; name: string; at: string; reason: string; urgent: boolean };
+export type Unplanned = {
+  by: string;
+  name: string;
+  at: string;
+  reason: string;
+  urgent: boolean;
+  /** Set when the line's planned purchases already use what is left on it: says how much is left after them, for the approvers. */
+  overPlan?: string;
+};
 
 /** Rough USD value, for choosing the policy level. */
 export const USD_PER: Record<string, number> = { USD: 1, AFN: 1 / AFN_PER_USD };
@@ -188,7 +197,8 @@ export function buildPlan(opts: { lines: BudgetLine[]; currency: string; workpla
 
 /* ---------------- Asking for something not on the calendar ---------------- */
 
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+/** A real calendar date (lib/clock isDay), so "2026-02-31" is refused rather than stored. */
+const strictDay = (message: string) => z.string({ message }).refine(isDay, message);
 
 /** What a person fills in to ask for a purchase that is not on the calendar. */
 export const askSchema = z.object({
@@ -196,7 +206,7 @@ export const askSchema = z.object({
   budgetCode: z.string().trim().min(1, "Choose the budget line it is charged to.").max(40),
   /** Estimated cost, in the budget's currency. */
   value: z.number({ message: "Give an estimated cost." }).positive("Give an estimated cost.").max(1e9),
-  neededBy: isoDate,
+  neededBy: strictDay("Give the date it is needed by."),
   reason: z.string().trim().min(10, "Say in a short sentence why it was not planned, or why it is urgent.").max(500),
   urgent: z.boolean().optional(),
 });
@@ -208,19 +218,49 @@ export const canAsk = (u: AppUser) => (u.kind === "employee" && u.procurementAcc
 /** Keys of items asked for outside the calendar: "UP-001", apart from the "PP-" items built from the budget. */
 export const askKey = (n: number) => `UP-${pad(n)}`;
 
+const round2 = (v: number) => Math.round(v * 100) / 100;
+const money = (v: number, currency: string) => `${v.toLocaleString("en-US", { maximumFractionDigits: 2 })} ${currency}`;
+
+/**
+ * What is left on a budget line for a new purchase. `spent` already counts what has been paid,
+ * and a started item's money goes there once paid, so only items not started yet are counted on
+ * top of it (there is no cancelled status: a dropped ask is deleted).
+ * - `afterAsks`: total less spent less the other open asks on the line. Asks are firm amounts
+ *   someone chose, so a new ask past this over-commits the line and is refused.
+ * - `afterPlanned`: that less the planned (built) items not started yet. A planned item is the
+ *   line's whole remainder by construction (an estimate of what is still to buy), so going past
+ *   it is allowed but marked for the approvers rather than refused.
+ */
+export function lineRoom(line: BudgetLine, items: PlanItem[], exceptKey?: string) {
+  const open = items.filter((i) => i.budgetCode === line.code && i.status !== "started" && i.key !== exceptKey);
+  const sum = (xs: PlanItem[]) => xs.reduce((t, i) => t + (i.value || 0), 0);
+  const afterAsks = round2(line.total - (line.spent ?? 0) - sum(open.filter((i) => i.unplanned)));
+  return { afterAsks, afterPlanned: round2(afterAsks - sum(open.filter((i) => !i.unplanned))) };
+}
+
 /**
  * A calendar item for a purchase asked for outside the calendar, or the reason it cannot be made.
  * It is urgent when the person says so or when it is needed sooner than the usual lead time for
  * its size. It starts as a draft: the procurement manager and the line's technical lead approve it
  * exactly as they approve a planned item, before anyone can start a request.
+ * `items`: what is on the calendar already, so the line is not promised twice (lineRoom).
  */
-export function unplannedItem(a: AskInput, o: { line: BudgetLine | undefined; currency: string; workplan: WorkplanItem[]; people: AppUser[]; user: AppUser; today: string; key: string }): PlanItem | string {
-  const { line, currency, workplan, people, user, today: now, key } = o;
+export function unplannedItem(a: AskInput, o: { line: BudgetLine | undefined; currency: string; workplan: WorkplanItem[]; people: AppUser[]; user: AppUser; today: string; key: string; items?: PlanItem[] }): PlanItem | string {
+  const { line, currency, workplan, people, user, today: now, key, items = [] } = o;
   if (!canAsk(user)) return "You can view Procurement but not ask for purchases.";
   if (!line) return "That budget line is not in this project's budget. Choose one from the list.";
   if (a.neededBy < now) return "The needed-by date has passed. Choose today or a later date.";
-  const left = Math.round((line.total - (line.spent ?? 0)) * 100) / 100;
-  if (a.value > left) return `That is more than the ${left.toLocaleString("en-US")} ${currency} left on budget line ${line.code}. Choose another line or ask Finance about moving money first.`;
+  const room = lineRoom(line, items, key);
+  const spentLeft = round2(line.total - (line.spent ?? 0));
+  if (a.value > room.afterAsks) {
+    const asked = round2(spentLeft - room.afterAsks);
+    const why = asked > 0 ? ` after ${money(asked, currency)} already asked for outside the calendar` : "";
+    return `That is more than the ${money(Math.max(0, room.afterAsks), currency)} left on budget line ${line.code}${why}. Choose another line or ask Finance about moving money first.`;
+  }
+  const overPlan =
+    a.value > room.afterPlanned
+      ? `Budget line ${line.code} has ${money(Math.max(0, room.afterPlanned), currency)} left after the purchases already planned on it, and this asks for ${money(a.value, currency)}. Approving it means buying less of what is planned on the line, or moving money first.`
+      : undefined;
   const usd = toUsd(a.value, currency);
   const level = levelFor(usd);
   const leadDays = LEAD_DAYS[level];
@@ -249,7 +289,7 @@ export function unplannedItem(a: AskInput, o: { line: BudgetLine | undefined; cu
     returnNote: null,
     edited: true,
     procurementKey: null,
-    unplanned: { by: user.id, name: user.name, at: now, reason: a.reason, urgent },
+    unplanned: { by: user.id, name: user.name, at: now, reason: a.reason, urgent, ...(overPlan ? { overPlan } : {}) },
   };
 }
 
@@ -264,7 +304,7 @@ export const planActionSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("edit"),
     title: z.string().trim().min(1).max(500).optional(),
-    neededBy: isoDate.optional(),
+    neededBy: strictDay("Give a real date.").optional(),
     leadDays: z.number().int().min(0).max(365).optional(),
     techLead: z.string().min(1).max(40).nullable().optional(),
     quantity: z.number().min(0).max(1e9).nullable().optional(),

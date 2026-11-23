@@ -3,7 +3,9 @@ import { db, schema as s } from "@/db";
 import { realToday } from "@/lib/clock";
 import { ORG_ID } from "@/lib/demo";
 import type { FarmerRow } from "@/lib/farmer-import";
-import type { Farmer } from "@/lib/field";
+import { afterTrainInputs, type Farmer } from "@/lib/field";
+import { selectionHold } from "@/lib/selection";
+import { selectionOutcomes } from "@/server/selection-store";
 import { projectByCode } from "@/server/field-store";
 import { HttpError } from "@/server/guard";
 
@@ -35,6 +37,8 @@ export async function importFarmers(code: string, rows: FarmerRow[], by: { id: s
     (await db.select().from(s.fieldItems).where(and(eq(s.fieldItems.projectId, project.id), inArray(s.fieldItems.itemKey, ids.concat("__none__"))))).map((r) => [r.itemKey, r]),
   );
   const day = realToday();
+  // Read before the transaction opens: the Train rule (lib/field afterTrainInputs) needs it.
+  const outcomes = await selectionOutcomes(project.id);
   let added = 0;
   let updated = 0;
 
@@ -66,7 +70,9 @@ export async function importFarmers(code: string, rows: FarmerRow[], by: { id: s
         const f = item.data as Farmer;
         // Progress is kept; details are corrected only before any step has been recorded.
         const fresh = f.step === "train" && f.timeline.length <= 1;
-        const next: Farmer = { ...f, community: r.village, ...(fresh ? { gender: r.gender, hectares: r.hectares } : {}), ...(r.ageBand ? { ageBand: r.ageBand } : {}), ...(r.householdSize !== undefined ? { householdSize: r.householdSize } : {}), ...(r.contributionPaid !== undefined ? { contributionPaid: r.contributionPaid } : {}) };
+        const changed: Farmer = { ...f, community: r.village, ...(fresh ? { gender: r.gender, hectares: r.hectares } : {}), ...(r.ageBand ? { ageBand: r.ageBand } : {}), ...(r.householdSize !== undefined ? { householdSize: r.householdSize } : {}), ...(r.contributionPaid !== undefined ? { contributionPaid: r.contributionPaid } : {}) };
+        // A contribution marked paid on the list moves on a farmer whose training is already recorded.
+        const next = afterTrainInputs(f, changed, day, selectionHold(outcomes, r.id)) as Farmer;
         await tx.update(s.fieldItems).set({ data: next, updatedAt: new Date() }).where(eq(s.fieldItems.id, item.id));
         updated++;
         continue;

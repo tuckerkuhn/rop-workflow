@@ -17,7 +17,7 @@ describe("feedback and complaints", () => {
   });
   it("counts a period for the report", () => {
     const s = feedbackSummary([e({ id: "1", answer: ans("2026-10-05") }), e({ id: "2", date: "2026-10-20", kind: "question", answer: ans("2026-10-30") }), e({ id: "3", date: "2026-11-01" }), e({ id: "4", date: "2026-11-02", kind: "thanks" }), e({ id: "5", date: "2026-09-30" })], "2026-10-01", "2026-12-31", "2026-11-21");
-    expect(s).toEqual({ received: 4, complaints: 2, answered: 2, open: 1, overdue: 1, averageDays: 7 });
+    expect(s).toEqual({ received: 4, thanks: 1, complaints: 2, answered: 2, open: 1, overdue: 1, averageDays: 7 });
   });
   it("withholds a serious matter's words from everyone but its recorder, plan approvers and administrators", () => {
     const x = e({ serious: true, answer: ans("2026-10-03") });

@@ -137,6 +137,11 @@ describe("training attendance and farm visit forms", { timeout: 60_000 }, () => 
     expect(plantingFromVisit({ planting_date: "2026-11-06", area: "0.4" }, "2026-11-12", 1, null)).toEqual({ planting: { date: "2026-11-06", hectares: 0.4 }, assumed: false });
     // A visit from the form before it asked the area: the farmer's plot, said so on the record.
     expect(plantingFromVisit({}, "2026-11-12", 0.7, null)).toEqual({ planting: { date: "2026-11-12", hectares: 0.7 }, assumed: true });
+    // A number planted that cannot become hectares is never taken as the whole plot.
+    expect(plantingFromVisit({ count: "400" }, "2026-11-12", 0.7, { by: "area" })).toEqual({ problem: "The visit gave a number planted, but this crop is planned by area: record the area planted." });
+    expect(plantingFromVisit({ count: "400" }, "2026-11-12", 0.7, { by: "count", unit: "vines" })).toMatchObject({ problem: expect.stringMatching(/cannot turn it into hectares/) });
+    // With the area typed too, the area stands and the count is kept.
+    expect(plantingFromVisit({ count: "400", area: "0.3" }, "2026-11-12", 0.7, { by: "area" })).toEqual({ planting: { date: "2026-11-12", hectares: 0.3, count: 400 }, assumed: false });
   });
 
   it("moves nobody on a queried record", async () => {

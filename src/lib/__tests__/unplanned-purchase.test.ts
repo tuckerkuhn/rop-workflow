@@ -73,3 +73,35 @@ describe("asking for something not on the calendar", () => {
     if (line.procure) expect(again.items.some((i) => !i.unplanned && i.budgetCode === "2.1")).toBe(true);
   });
 });
+
+describe("an ask cannot promise a budget line's money twice", () => {
+  const room = Math.round((line.total - (line.spent ?? 0)) * 100) / 100;
+  const other = (over: Partial<PlanItem>): PlanItem => ({ ...(make() as PlanItem), key: "UP-000", ...over });
+  const withItems = (items: PlanItem[], over: Partial<AskInput> = {}) =>
+    unplannedItem(ask(over), { line, currency: budget.currency, workplan, people: users, user: nadia, today: TODAY, key: "UP-001", items });
+
+  it("refuses an ask past what is left after other open asks on the line, and says how much is left", () => {
+    const asked = other({ value: room - 50 });
+    expect(withItems([asked], { value: 60 })).toMatch(/more than the 50 .* left on budget line 2\.1 after .* already asked for/);
+    expect(withItems([asked], { value: 50 })).toMatchObject({ key: "UP-001" });
+  });
+
+  it("does not count a started item again: its money is in spent once paid", () => {
+    expect(withItems([other({ value: room, status: "started" })], { value: 60 })).toMatchObject({ key: "UP-001" });
+  });
+
+  it("allows going past the line's planned items (estimates) but marks it for the approvers", () => {
+    const planned = other({ key: "PP-001", unplanned: undefined, value: room - 30 });
+    const item = withItems([planned], { value: 40 }) as PlanItem;
+    expect(item.unplanned?.overPlan).toMatch(/has 30 .* left after the purchases already planned on it/);
+    expect((withItems([planned], { value: 30 }) as PlanItem).unplanned?.overPlan).toBeUndefined();
+  });
+});
+
+describe("the needed-by date is a real day", () => {
+  it("refuses dates that do not exist", () => {
+    expect(askSchema.safeParse(ask({ neededBy: "2027-02-31" })).success).toBe(false);
+    expect(askSchema.safeParse(ask({ neededBy: "2027-13-01" })).success).toBe(false);
+    expect(askSchema.safeParse(ask({ neededBy: "2027-02-28" })).success).toBe(true);
+  });
+});
