@@ -300,7 +300,6 @@ export const es: Messages = {
   "report.narrative.achievements": "Logros",
   "report.narrative.challenges": "Desafíos y cambios",
   "report.narrative.next": "Próximos pasos",
-  "settings.title": "Configuración del proyecto",
   "settings.password.title": "Su contraseña",
   "settings.password.help": "Defina una contraseña para entrar sin esperar un código por correo. El código sigue funcionando si la olvida.",
   "settings.password.new": "Contraseña nueva",

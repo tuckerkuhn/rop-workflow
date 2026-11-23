@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { selfChangeProblem, staffActionSchema } from "@/lib/access";
-import { ROLE_LABEL } from "@/lib/hr";
+import { ROLE_LABEL, seesAll } from "@/lib/hr";
 import { requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
 import { loadHr } from "@/server/hr-store";
+import { listProjects } from "@/server/project-store";
 import { addPerson, canCreateAccounts, changeLog, createAccount, invitePerson, listPeople, PeopleError, setActive, updatePerson } from "@/server/people-admin";
 
 /**
@@ -28,6 +29,11 @@ async function view(me: string) {
     // Who each person reports to on the HR record: the one source for the reporting line (server/reporting-line).
     supervisors: Object.fromEntries(Object.entries(state.people).flatMap(([id, p]) => (typeof p.current.supervisor === "string" && p.current.supervisor ? [[id, p.current.supervisor]] : []))) as Record<string, string>,
     holders,
+    // Whether this administrator can open People › Who approves what (HR roles only), to link there.
+    seesRules: seesAll(me, state) && !!state.rules,
+    // Every project in the organization, sample and sandboxes included, so any can be ticked on a
+    // person's record. The project picker's list is narrower (it hides some), so it is not used here.
+    projects: (await listProjects({ all: true })).map((p) => ({ id: p.code, name: p.name, kind: p.kind })),
     log: await changeLog(),
   };
 }

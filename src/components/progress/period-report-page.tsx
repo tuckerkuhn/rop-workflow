@@ -8,7 +8,7 @@ import { ProofNumber } from "@/components/progress/proof-panel";
 import { useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser, useSession } from "@/components/app/session";
-import { TopBar, primaryBtn, quietBtn, StatusPill } from "@/components/workspace/ui";
+import { TopBar, cardLabel, primaryBtn, quietBtn, StatusPill } from "@/components/workspace/ui";
 import { periodLabel, type Period } from "@/lib/period-report";
 import { YOUTH } from "@/lib/results";
 import type { PeriodReportView } from "@/server/period-report-store";
@@ -20,8 +20,6 @@ import type { PeriodReportView } from "@/server/period-report-store";
  */
 
 const n = (v: number | null) => (v === null ? "—" : v.toLocaleString("en-US", { maximumFractionDigits: 1 }));
-/** The small label over each figure in the stacked phone layout. */
-const cardHead = "text-xs uppercase tracking-wide text-muted";
 const VERDICT = { met: { tone: "forest", text: "Met" }, partly: { tone: "ochre", text: "Partly" }, not_met: { tone: "clay", text: "Not met" }, no_target: { tone: "muted", text: "No target" } } as const;
 
 export function PeriodReportPage() {
@@ -77,6 +75,7 @@ export function PeriodReportPage() {
     }
   };
   const annual = period.kind === "annual";
+  const rows = v ? v.rows.map((r) => indicatorCells(r, v, project.id, user.id)) : [];
   const met = v?.rows.filter((r) => r.verdict === "met").length ?? 0;
 
   return (
@@ -144,51 +143,8 @@ export function PeriodReportPage() {
             )}
             {/* Below a medium screen: one block per indicator, stacked, so nothing scrolls sideways on a phone. Print keeps the table. */}
             <ul aria-label="Indicators" className="mt-4 divide-y divide-line rounded-2xl border border-line bg-surface md:hidden print:hidden">
-              {v.rows.map((r) => (
-                <li key={r.code} className="px-4 py-3">
-                  <div className="flex items-start gap-2">
-                    <h3 className="flex-1 text-sm">
-                      <span className="font-mono text-xs text-muted">{r.donorCode}</span> {r.name} <span className="text-xs text-muted">({r.unit})</span>
-                    </h3>
-                    <StatusPill tone={VERDICT[r.verdict].tone}>{VERDICT[r.verdict].text}</StatusPill>
-                  </div>
-                  <dl className="mt-2 grid grid-cols-3 gap-2 text-sm tabular-nums">
-                    <div>
-                      <dt className={cardHead}>Baseline</dt>
-                      <dd>{n(r.baseline)}</dd>
-                    </div>
-                    <div>
-                      <dt className={cardHead}>Target</dt>
-                      <dd>{n(r.target)}</dd>
-                    </div>
-                    <div>
-                      <dt className={cardHead}>Achieved</dt>
-                      <dd className="font-semibold">
-                        <ProofNumber project={project.id} user={user.id} indicator={r.code} from={v.range.from} to={v.range.to} value={r.achieved} records={r.records} className="font-semibold tabular-nums">
-                          {n(r.achieved)}
-                        </ProofNumber>
-                      </dd>
-                      {r.pct !== null && <dd className="text-xs text-muted">{r.pct}%</dd>}
-                    </div>
-                    {r.parts.map((x) => (
-                      <div key={x.label}>
-                        <dt className={cardHead}>{x.label}</dt>
-                        <dd className="text-muted">{x.value ? n(x.value) : "—"}</dd>
-                      </div>
-                    ))}
-                    {annual && (
-                      <div className="col-span-2">
-                        <dt className={cardHead}>Cumulative / life</dt>
-                        <dd className="text-muted">
-                          <ProofNumber project={project.id} user={user.id} indicator={r.code} from={null} to={v.range.to} value={r.cumulative} records={r.cumulative ? 1 : 0} className="tabular-nums">
-                            {n(r.cumulative)}
-                          </ProofNumber>{" "}
-                          / {n(r.lifeTarget)}
-                        </dd>
-                      </div>
-                    )}
-                  </dl>
-                </li>
+              {rows.map((c) => (
+                <IndicatorCard key={c.r.code} c={c} annual={annual} />
               ))}
             </ul>
             <div className="mt-4 hidden overflow-x-auto rounded-2xl border border-line bg-surface md:block print:block print:overflow-visible">
@@ -209,36 +165,8 @@ export function PeriodReportPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
-                  {v.rows.map((r) => (
-                    <tr key={r.code} className="align-top">
-                      <td className="px-3 py-2">
-                        <span className="font-mono text-xs text-muted">{r.donorCode}</span> {r.name} <span className="text-xs text-muted">({r.unit})</span>
-                      </td>
-                      <td className="px-2 py-2 text-end tabular-nums">{n(r.baseline)}</td>
-                      <td className="px-2 py-2 text-end tabular-nums">{n(r.target)}</td>
-                      {r.parts.map((x) => (
-                        <td key={x.label} className="px-2 py-2 text-end tabular-nums text-muted">
-                          {x.value ? n(x.value) : "—"}
-                        </td>
-                      ))}
-                      <td className="px-2 py-2 text-end font-semibold tabular-nums">
-                        <ProofNumber project={project.id} user={user.id} indicator={r.code} from={v.range.from} to={v.range.to} value={r.achieved} records={r.records} className="font-semibold tabular-nums">
-                          {n(r.achieved)}
-                        </ProofNumber>
-                        {r.pct !== null && <span className="block text-xs font-normal text-muted">{r.pct}%</span>}
-                      </td>
-                      {annual && (
-                        <td className="px-2 py-2 text-end tabular-nums text-muted">
-                          <ProofNumber project={project.id} user={user.id} indicator={r.code} from={null} to={v.range.to} value={r.cumulative} records={r.cumulative ? 1 : 0} className="tabular-nums">
-                            {n(r.cumulative)}
-                          </ProofNumber>{" "}
-                          / {n(r.lifeTarget)}
-                        </td>
-                      )}
-                      <td className="px-3 py-2">
-                        <StatusPill tone={VERDICT[r.verdict].tone}>{VERDICT[r.verdict].text}</StatusPill>
-                      </td>
-                    </tr>
+                  {rows.map((c) => (
+                    <IndicatorTableRow key={c.r.code} c={c} annual={annual} />
                   ))}
                 </tbody>
               </table>
@@ -329,5 +257,95 @@ export function PeriodReportPage() {
         )}
       </main>
     </div>
+  );
+}
+
+type Row = PeriodReportView["rows"][number];
+/** One indicator's figures, worked out once and shown either as a table row or as a stacked block on a phone. */
+type Cells = { r: Row; name: React.ReactNode; achieved: React.ReactNode; cumulative: React.ReactNode; verdict: React.ReactNode };
+
+function indicatorCells(r: Row, v: PeriodReportView, project: string, user: string): Cells {
+  return {
+    r,
+    name: (
+      <>
+        <span className="font-mono text-xs text-muted">{r.donorCode}</span> {r.name} <span className="text-xs text-muted">({r.unit})</span>
+      </>
+    ),
+    achieved: (
+      <ProofNumber project={project} user={user} indicator={r.code} from={v.range.from} to={v.range.to} value={r.achieved} records={r.records} className="font-semibold tabular-nums">
+        {n(r.achieved)}
+      </ProofNumber>
+    ),
+    cumulative: (
+      <>
+        <ProofNumber project={project} user={user} indicator={r.code} from={null} to={v.range.to} value={r.cumulative} records={r.cumulative ? 1 : 0} className="tabular-nums">
+          {n(r.cumulative)}
+        </ProofNumber>{" "}
+        / {n(r.lifeTarget)}
+      </>
+    ),
+    verdict: <StatusPill tone={VERDICT[r.verdict].tone}>{VERDICT[r.verdict].text}</StatusPill>,
+  };
+}
+
+function IndicatorCard({ c, annual }: { c: Cells; annual: boolean }) {
+  const { r } = c;
+  return (
+    <li className="px-4 py-3">
+      <div className="flex items-start gap-2">
+        <h3 className="flex-1 text-sm">{c.name}</h3>
+        {c.verdict}
+      </div>
+      <dl className="mt-2 grid grid-cols-3 gap-2 text-sm tabular-nums">
+        <div>
+          <dt className={cardLabel}>Baseline</dt>
+          <dd>{n(r.baseline)}</dd>
+        </div>
+        <div>
+          <dt className={cardLabel}>Target</dt>
+          <dd>{n(r.target)}</dd>
+        </div>
+        <div>
+          <dt className={cardLabel}>Achieved</dt>
+          <dd className="font-semibold">{c.achieved}</dd>
+          {r.pct !== null && <dd className="text-xs text-muted">{r.pct}%</dd>}
+        </div>
+        {r.parts.map((x) => (
+          <div key={x.label}>
+            <dt className={cardLabel}>{x.label}</dt>
+            <dd className="text-muted">{n(x.value)}</dd>
+          </div>
+        ))}
+        {annual && (
+          <div className="col-span-2">
+            <dt className={cardLabel}>Cumulative / life</dt>
+            <dd className="text-muted">{c.cumulative}</dd>
+          </div>
+        )}
+      </dl>
+    </li>
+  );
+}
+
+function IndicatorTableRow({ c, annual }: { c: Cells; annual: boolean }) {
+  const { r } = c;
+  return (
+    <tr className="align-top">
+      <td className="px-3 py-2">{c.name}</td>
+      <td className="px-2 py-2 text-end tabular-nums">{n(r.baseline)}</td>
+      <td className="px-2 py-2 text-end tabular-nums">{n(r.target)}</td>
+      {r.parts.map((x) => (
+        <td key={x.label} className="px-2 py-2 text-end tabular-nums text-muted">
+          {n(x.value)}
+        </td>
+      ))}
+      <td className="px-2 py-2 text-end font-semibold tabular-nums">
+        {c.achieved}
+        {r.pct !== null && <span className="block text-xs font-normal text-muted">{r.pct}%</span>}
+      </td>
+      {annual && <td className="px-2 py-2 text-end tabular-nums text-muted">{c.cumulative}</td>}
+      <td className="px-3 py-2">{c.verdict}</td>
+    </tr>
   );
 }

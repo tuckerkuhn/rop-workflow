@@ -3,7 +3,6 @@
 import { plainError } from "@/lib/plain-error";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { Pill, SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn, Loading } from "@/components/workspace/ui";
 import { ACCESS_LABEL, FIELD_ROLES, LANGS, PROC_ROLES, PROJECT_ROLES, ROLE_PRESETS, presetOf, type PersonInput, type StaffAction } from "@/lib/access";
@@ -111,11 +110,18 @@ export function PeopleAdminPage() {
         </p>
         <h1 className="mt-1 font-display text-3xl tracking-tight">People and roles</h1>
         <p className="mt-1 max-w-2xl text-sm text-muted">
-          Roles here decide what each person can open. Who signs what (bills, payroll, purchases) is set in{" "}
-          <Link href="/people" className="font-semibold text-forest hover:underline">
-            People › Who approves what
-          </Link>
-          .
+          Roles here decide what each person can open.{" "}
+          {v?.seesRules ? (
+            <>
+              Who signs what (bills, payroll, purchases) is set in{" "}
+              <Link href="/people?tab=rules" className="font-semibold text-forest hover:underline">
+                People › Who approves what
+              </Link>
+              .
+            </>
+          ) : (
+            <>Who signs what (bills, payroll, purchases) is set by HR in People › Who approves what.</>
+          )}
         </p>
         <p className="mt-1 max-w-2xl text-sm text-muted">
           Who can sign in, and what each person may do. Nobody can change their own roles, and every change is logged below.
@@ -230,11 +236,18 @@ export function PeopleAdminPage() {
             <section className="mt-10">
               <SectionLabel>Who signs approvals</SectionLabel>
               <p className="mt-1 text-sm text-muted">
-                From the authority table. Changing it needs the executive head and the board:{" "}
-                <Link href="/people" className="font-semibold text-forest hover:underline">
-                  propose a change
-                </Link>
-                .
+                From the authority table. Changing it needs the executive head and the board
+                {v.seesRules ? (
+                  <>
+                    :{" "}
+                    <Link href="/people?tab=rules" className="font-semibold text-forest hover:underline">
+                      propose a change
+                    </Link>
+                    .
+                  </>
+                ) : (
+                  <>; HR proposes changes in People › Who approves what.</>
+                )}
               </p>
               <dl className="mt-3 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
                 {v.holders.map((h) => (
@@ -320,10 +333,10 @@ function PersonForm({
   const [leads, setLeads] = useState(initial.leads.join(", "));
   const [projects, setProjects] = useState<string[]>(initial.projects ?? []);
   const [busy, setBusy] = useState(false);
-  // The organization's projects to pick from, by name. The person's record keeps the project codes.
-  const { projects: allProjects } = useCurrentProject();
+  // Every project in the organization to pick from, by name (sample and sandboxes included). The person's record keeps the project codes.
+  const allProjects = v.projects;
   const projectOptions = [
-    ...allProjects.map((x) => ({ id: x.id, label: x.name, help: x.id })),
+    ...allProjects.map((x) => ({ id: x.id, label: x.name, help: x.kind === "real" ? x.id : `${x.id} · ${x.kind}` })),
     // A code saved earlier that is not in the list any more stays on the record, ticked, until unticked.
     ...projects.filter((c) => !allProjects.some((x) => x.id === c)).map((c) => ({ id: c, label: c, help: "Not in the project list" })),
   ];

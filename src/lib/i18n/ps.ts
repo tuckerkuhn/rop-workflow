@@ -294,7 +294,6 @@ export const ps: Messages = {
   "report.narrative.achievements": "لاسته راوړنې",
   "report.narrative.challenges": "ستونزې او بدلونونه",
   "report.narrative.next": "راتلونکي ګامونه",
-  "settings.title": "د پروژې تنظیمات",
   "settings.donors": "تمویلوونکي",
   "settings.addDonor": "تمویلوونکی زیاتول",
   "settings.editDonor": "تمویلوونکی سمول",

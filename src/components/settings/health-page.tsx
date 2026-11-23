@@ -53,7 +53,17 @@ export function HealthPage() {
               <li className="rounded-2xl border border-line bg-surface p-4">
                 <p className="text-xs text-muted">Daily email</p>
                 <p className="text-xl font-semibold">{h.email.configured ? "Switched on" : "Not set up"}</p>
-                {!h.email.configured && <p className="text-xs text-muted">Your technical administrator needs to switch on the email service.</p>}
+                {!h.email.configured && (
+                  <>
+                    <p className="text-xs text-muted">Your technical administrator needs to switch on the email service.</p>
+                    <details className="mt-1 text-xs text-muted">
+                      <summary className="cursor-pointer">For your technical administrator</summary>
+                      <p className="mt-1">
+                        Set <code>RESEND_API_KEY</code> and <code>CRON_SECRET</code> on the server.
+                      </p>
+                    </details>
+                  </>
+                )}
               </li>
               <li className="rounded-2xl border border-line bg-surface p-4 sm:col-span-3">
                 <p className="text-xs text-muted">Database space</p>
@@ -103,8 +113,15 @@ export function HealthPage() {
             <section className="mt-8">
               <h2 className="font-display text-2xl">Copy of the records</h2>
               <p className="mt-1 text-sm text-muted">
-                The records are backed up daily by the database service. This button also downloads the project records as one file to keep in SharePoint; participants&rsquo; names, the HR book and KoboToolbox access keys are left out.
+                The database service keeps backups; daily backups need its paid plan. Ask your technical administrator to confirm they are on, and keep the records export below as your own copy. The
+                button downloads the project records as one file to keep in SharePoint; participants&rsquo; names, the HR book and KoboToolbox access keys are left out.
               </p>
+              <details className="mt-2 text-xs text-muted">
+                <summary className="cursor-pointer">For your technical administrator</summary>
+                <p className="mt-1">
+                  How backups and recovery work, and what to check in the database service: <code>docs/BACKUP-AND-RECOVERY.md</code>.
+                </p>
+              </details>
               <button
                 type="button"
                 className="mt-3 rounded-full bg-forest px-4 py-2 text-sm font-semibold text-paper"

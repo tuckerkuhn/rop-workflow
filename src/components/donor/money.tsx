@@ -2,6 +2,7 @@
 
 import { useT } from "@/components/app/i18n";
 import { quarterLabel } from "@/components/donor/use-donor-view";
+import { cardLabel } from "@/components/workspace/ui";
 import type { MoneyBlock } from "@/lib/donor-funding";
 import type { MoneyView } from "@/server/donor-view-store";
 
@@ -19,36 +20,64 @@ export function MoneySentence({ money }: { money: MoneyView }) {
   const { tx } = useT();
   return (
     <>
-        {tx("{currency} {spent} spent of {currency} {approved} approved ({pct}), as the {quarter} report gave it.", {
-          currency: money.currency,
-          spent: amount(money.total.spent),
-          approved: amount(money.total.approved),
-          pct: share(money.total.spent, money.total.approved),
-          quarter: quarterLabel(money.quarter),
-        })}
+      {tx("{currency} {spent} spent of {currency} {approved} approved ({pct}), as the {quarter} report gave it.", {
+        currency: money.currency,
+        spent: amount(money.total.spent),
+        approved: amount(money.total.approved),
+        pct: share(money.total.spent, money.total.approved),
+        quarter: quarterLabel(money.quarter),
+      })}
     </>
   );
 }
 
+/** Spending over the approved amount shows in red, the same on a phone and in the table. */
+const over = (approved: number, spent: number) => approved - spent < 0;
+const overCls = "font-semibold text-clay";
+
 /** One line's four figures, labelled, for the stacked phone layout. */
 function LineFigures({ approved, inQuarter, spent }: { approved: number; inQuarter: number; spent: number }) {
   const { tx } = useT();
-  const head = "text-xs uppercase tracking-wide text-muted";
   const figures: [string, string, boolean][] = [
     [tx("Approved"), amount(approved), false],
     [tx("Spent this quarter"), amount(inQuarter), false],
     [tx("Spent to date"), amount(spent), false],
-    [tx("Left"), amount(approved - spent), approved - spent < 0],
+    [tx("Left"), amount(approved - spent), over(approved, spent)],
   ];
   return (
     <dl className="mt-2 grid grid-cols-2 gap-2 text-sm tabular-nums">
-      {figures.map(([k, v, over]) => (
+      {figures.map(([k, v, red]) => (
         <div key={k}>
-          <dt className={head}>{k}</dt>
-          <dd className={over ? "font-semibold text-clay" : ""}>{v}</dd>
+          <dt className={cardLabel}>{k}</dt>
+          <dd className={red ? overCls : ""}>{v}</dd>
         </div>
       ))}
     </dl>
+  );
+}
+
+type Line = MoneyBlock["lines"][number];
+
+/** A budget line's name: its code, its description when it says more, and its activity. */
+function LineName({ l }: { l: Line }) {
+  return (
+    <>
+      <span className="font-mono text-xs text-muted">{l.code} </span>
+      {l.description !== l.code && l.description}
+      {l.activity && <span className="block text-xs text-muted">{l.activity}</span>}
+    </>
+  );
+}
+
+/** One row of figures in the wide table: a line or the total. */
+function TableFigures({ approved, inQuarter, spent }: { approved: number; inQuarter: number; spent: number }) {
+  return (
+    <>
+      <td className="px-3 py-2 text-end tabular-nums">{amount(approved)}</td>
+      <td className="px-3 py-2 text-end tabular-nums">{amount(inQuarter)}</td>
+      <td className="px-3 py-2 text-end tabular-nums">{amount(spent)}</td>
+      <td className={`px-4 py-2 text-end tabular-nums ${over(approved, spent) ? overCls : ""}`}>{amount(approved - spent)}</td>
+    </>
   );
 }
 
@@ -56,61 +85,51 @@ function Lines({ block, caption }: { block: MoneyBlock; caption: string }) {
   const { tx } = useT();
   return (
     <>
-    {/* Below a small screen: one block per budget line, stacked, so nothing scrolls sideways on a phone. */}
-    <section aria-label={caption} className="mt-3 divide-y divide-line rounded-2xl border border-line bg-surface sm:hidden print:hidden">
-      {block.lines.map((l) => (
-        <div key={l.code} className="px-4 py-3">
-          <h4 className="text-sm">
-            <span className="font-mono text-xs text-muted">{l.code} </span>
-            {l.description !== l.code && l.description}
-            {l.activity && <span className="block text-xs text-muted">{l.activity}</span>}
-          </h4>
-          <LineFigures approved={l.approved} inQuarter={l.inQuarter} spent={l.spent} />
+      {/* Below a small screen: one block per budget line, stacked, so nothing scrolls sideways on a phone. Print keeps the table. */}
+      <section aria-label={caption} className="mt-3 divide-y divide-line rounded-2xl border border-line bg-surface sm:hidden print:hidden">
+        {block.lines.map((l) => (
+          <div key={l.code} className="px-4 py-3">
+            <h4 className="text-sm">
+              <LineName l={l} />
+            </h4>
+            <LineFigures approved={l.approved} inQuarter={l.inQuarter} spent={l.spent} />
+          </div>
+        ))}
+        <div className="bg-paper px-4 py-3">
+          <h4 className="text-sm font-semibold">{tx("Total of these lines")}</h4>
+          <LineFigures approved={block.approved} inQuarter={block.inQuarter} spent={block.spent} />
         </div>
-      ))}
-      <div className="bg-paper px-4 py-3">
-        <h4 className="text-sm font-semibold">{tx("Total of these lines")}</h4>
-        <LineFigures approved={block.approved} inQuarter={block.inQuarter} spent={block.spent} />
-      </div>
-    </section>
-    <div className="mt-3 hidden overflow-x-auto rounded-2xl border border-line bg-surface sm:block print:block">
-      <table className="w-full min-w-[34rem] text-sm">
-        <caption className="sr-only">{caption}</caption>
-        <thead>
-          <tr className="border-b border-line text-xs uppercase tracking-wide text-muted">
-            <th scope="col" className="px-4 py-2 text-start font-semibold">{tx("Budget line")}</th>
-            <th scope="col" className="px-3 py-2 text-end font-semibold">{tx("Approved")}</th>
-            <th scope="col" className="px-3 py-2 text-end font-semibold">{tx("Spent this quarter")}</th>
-            <th scope="col" className="px-3 py-2 text-end font-semibold">{tx("Spent to date")}</th>
-            <th scope="col" className="px-4 py-2 text-end font-semibold">{tx("Left")}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {block.lines.map((l) => (
-            <tr key={l.code} className="border-b border-line/60 align-top last:border-0">
-              <th scope="row" className="px-4 py-2 text-start font-normal">
-                <span className="font-mono text-xs text-muted">{l.code} </span>
-                {l.description !== l.code && l.description}
-                {l.activity && <span className="block text-xs text-muted">{l.activity}</span>}
-              </th>
-              <td className="px-3 py-2 text-end tabular-nums">{amount(l.approved)}</td>
-              <td className="px-3 py-2 text-end tabular-nums">{amount(l.inQuarter)}</td>
-              <td className="px-3 py-2 text-end tabular-nums">{amount(l.spent)}</td>
-              <td className={`px-4 py-2 text-end tabular-nums ${l.approved - l.spent < 0 ? "font-semibold text-clay" : ""}`}>{amount(l.approved - l.spent)}</td>
+      </section>
+      <div className="mt-3 hidden overflow-x-auto rounded-2xl border border-line bg-surface sm:block print:block">
+        <table className="w-full min-w-[34rem] text-sm">
+          <caption className="sr-only">{caption}</caption>
+          <thead>
+            <tr className="border-b border-line text-xs uppercase tracking-wide text-muted">
+              <th scope="col" className="px-4 py-2 text-start font-semibold">{tx("Budget line")}</th>
+              <th scope="col" className="px-3 py-2 text-end font-semibold">{tx("Approved")}</th>
+              <th scope="col" className="px-3 py-2 text-end font-semibold">{tx("Spent this quarter")}</th>
+              <th scope="col" className="px-3 py-2 text-end font-semibold">{tx("Spent to date")}</th>
+              <th scope="col" className="px-4 py-2 text-end font-semibold">{tx("Left")}</th>
             </tr>
-          ))}
-        </tbody>
-        <tfoot>
-          <tr className="border-t border-line bg-paper font-semibold">
-            <th scope="row" className="px-4 py-2 text-start">{tx("Total of these lines")}</th>
-            <td className="px-3 py-2 text-end tabular-nums">{amount(block.approved)}</td>
-            <td className="px-3 py-2 text-end tabular-nums">{amount(block.inQuarter)}</td>
-            <td className="px-3 py-2 text-end tabular-nums">{amount(block.spent)}</td>
-            <td className="px-4 py-2 text-end tabular-nums">{amount(block.approved - block.spent)}</td>
-          </tr>
-        </tfoot>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {block.lines.map((l) => (
+              <tr key={l.code} className="border-b border-line/60 align-top last:border-0">
+                <th scope="row" className="px-4 py-2 text-start font-normal">
+                  <LineName l={l} />
+                </th>
+                <TableFigures approved={l.approved} inQuarter={l.inQuarter} spent={l.spent} />
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="border-t border-line bg-paper font-semibold">
+              <th scope="row" className="px-4 py-2 text-start">{tx("Total of these lines")}</th>
+              <TableFigures approved={block.approved} inQuarter={block.inQuarter} spent={block.spent} />
+            </tr>
+          </tfoot>
+        </table>
+      </div>
     </>
   );
 }

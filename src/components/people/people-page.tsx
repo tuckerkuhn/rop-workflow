@@ -91,6 +91,9 @@ function show(k: FieldKey, v: Value | undefined, names: Record<string, string>, 
 }
 
 type Tab = "waiting" | "people" | "changes" | "rules" | "ledger";
+/** The tabs HR (everyone who sees all records) has, and the tabs everyone else has. */
+const HR_TABS: Tab[] = ["waiting", "people", "changes", "rules", "ledger"];
+const OWN_TABS: Tab[] = ["waiting", "changes"];
 
 export function PeoplePage() {
   const { user } = useRequireUser();
@@ -113,6 +116,9 @@ export function PeoplePage() {
     landed.current = true;
     if (v.seesAll && !v.proposals.some((p) => p.canSign)) setTab("people");
     const q = new URLSearchParams(window.location.search);
+    // ?tab=<id> (for example ?tab=rules from People and roles) opens that tab when this viewer has it.
+    const want = q.get("tab") as Tab | null;
+    if (want && (v.seesAll ? HR_TABS : OWN_TABS).includes(want)) setTab(want);
     const who = q.get("person");
     const change = q.get("change");
     if (who && v.roles.includes("hr") && who !== v.me && v.people.some((p) => p.id === who)) {

@@ -18,7 +18,7 @@ import type { DonorInfo, DonorInput, IndicatorProgress } from "@/lib/progress";
 import { FORMATS, formatById } from "@/lib/report-formats";
 import { today } from "@/lib/clock";
 
-/** Project settings. For now: the donors, their report format, deadlines and indicator codes. */
+/** Settings: you (password, notifications), then this project (donors and report dates), then the organization. */
 export function SettingsPage() {
   const { user, mode } = useRequireUser();
   const { project } = useCurrentProject();
@@ -26,6 +26,19 @@ export function SettingsPage() {
   const progress = useProgress(project.id);
   const [editing, setEditing] = useState<DonorInfo | "new" | null>(null);
   const close = useCallback(() => setEditing(null), []);
+  // The page draws only once the person is known, after the browser's own jump to #you or #donors
+  // has found nothing, so go to the section named in the address once it is on screen.
+  const ready = !!user;
+  useEffect(() => {
+    if (!ready) return;
+    const go = () => {
+      const id = decodeURIComponent(window.location.hash.slice(1));
+      if (id) document.getElementById(id)?.scrollIntoView({ block: "start" });
+    };
+    go();
+    window.addEventListener("hashchange", go);
+    return () => window.removeEventListener("hashchange", go);
+  }, [ready]);
 
   if (!user) return null;
   const data = progress.data;
@@ -35,11 +48,11 @@ export function SettingsPage() {
     <div className="min-h-screen">
       <TopBar />
       <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-        <h1 className="font-display text-4xl tracking-tight">Settings: you and {project.name}</h1>
+        <h1 className="font-display text-4xl tracking-tight">Settings</h1>
 
         {/* You: how you sign in and what reaches you. */}
         <h2 id="you" className="mt-8 scroll-mt-24 border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">
-          You: your password and notifications
+          You: password and notifications
         </h2>
         <PasswordSection />
         <NotifySection />
@@ -50,7 +63,9 @@ export function SettingsPage() {
         )}
 
         {/* This project: its donors and the rules it follows. */}
-        <h2 className="mt-10 border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">{project.name}</h2>
+        <h2 id="donors" className="mt-10 scroll-mt-24 border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">
+          {project.name}: donors and report dates
+        </h2>
         <p className="mt-2 text-sm">
           <Link href="/settings/policy" className="font-semibold text-forest hover:underline">
             Rules this project follows: organization and donor policy

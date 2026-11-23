@@ -157,7 +157,7 @@ function Glance({ user, project, stage, progress }: { user: AppUser; project: Pr
           </Link>
         )}
         {canEditProject(user) && (
-          <Link href="/settings" className={`${quietBtn} py-2`}>
+          <Link href="/settings#donors" className={`${quietBtn} py-2`}>
             {t("nav.donorSettings")}
           </Link>
         )}

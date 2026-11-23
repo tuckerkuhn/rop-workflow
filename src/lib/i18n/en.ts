@@ -335,7 +335,6 @@ export const en = {
   "report.narrative.challenges": "Challenges and changes",
   "report.narrative.next": "Next steps",
 
-  "settings.title": "Settings",
   "settings.password.title": "Your password",
   "settings.password.help": "Set a password to sign in without waiting for an emailed code. The code still works if you forget it.",
   "settings.password.new": "New password",

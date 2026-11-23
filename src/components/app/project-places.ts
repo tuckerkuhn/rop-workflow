@@ -93,7 +93,7 @@ export function useProjectPlaces(): PlaceGroup[] {
       places: [
         { href: "/setup", label: "setup.editTitle" },
         { href: "/progress/framework", label: "nav.framework", also: ["/progress/targets"] },
-        { href: "/settings", label: "nav.donorSettings", exact: true },
+        { href: "/settings#donors", label: "nav.donorSettings", exact: true },
         { href: "/settings/policy", label: "nav.rules" },
         { href: "/design", label: "setup.marketLink" },
       ],
@@ -105,6 +105,8 @@ export function useProjectPlaces(): PlaceGroup[] {
 /** Whether this place is the page on screen. `source` is the ?source= of /work. */
 export function placeIsOpen(pl: Place, path: string, source: string | null) {
   if (pl.source) return path === "/work" && source === pl.source;
-  if (pl.exact) return (path === pl.href && !(pl.href === "/work" && source)) || (pl.also ?? []).some((h) => path === h || path.startsWith(`${h}/`));
-  return [pl.href, ...(pl.also ?? [])].some((h) => path === h || path.startsWith(`${h}/`));
+  // A link to a section (/settings#donors) is open on its page.
+  const href = pl.href.split("#")[0];
+  if (pl.exact) return (path === href && !(href === "/work" && source)) || (pl.also ?? []).some((h) => path === h || path.startsWith(`${h}/`));
+  return [href, ...(pl.also ?? [])].some((h) => path === h || path.startsWith(`${h}/`));
 }

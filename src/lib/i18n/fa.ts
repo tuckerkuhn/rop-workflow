@@ -294,7 +294,6 @@ export const fa: Messages = {
   "report.narrative.achievements": "دستاوردها",
   "report.narrative.challenges": "چالش‌ها و تغییرات",
   "report.narrative.next": "گام‌های بعدی",
-  "settings.title": "تنظیمات پروژه",
   "settings.donors": "تمویل‌کنندگان",
   "settings.addDonor": "افزودن تمویل‌کننده",
   "settings.editDonor": "ویرایش تمویل‌کننده",

@@ -500,6 +500,9 @@ export const dangerBtn =
 export const quietBtn =
   "rounded-sm border border-line-strong px-4 py-3 text-sm font-medium transition enabled:hover:border-forest enabled:hover:bg-ochre-soft disabled:cursor-not-allowed disabled:opacity-35";
 
+/** The small label over each figure when a table row is shown as a stacked block on a phone. */
+export const cardLabel = "text-xs uppercase tracking-wide text-muted";
+
 /* ---------- shell ---------- */
 
 export type RoleTab = { id: string; short: string };
