@@ -645,6 +645,14 @@ export function TopBar({ active, children }: { active?: "design" | "project" | "
                       ))}
                     </nav>
                   )}
+                  {/* An administrator's settings are where people look for them: under their own name, on every screen. */}
+                  {user.kind === "employee" && user.admin && (
+                    <div className="mt-2 border-t border-line pt-2">
+                      <Link href="/settings/organization" onClick={() => setMenu(false)} className="block rounded-lg px-2 py-1.5 text-sm font-semibold text-forest hover:bg-sunken">
+                        {tx("Organization settings")}
+                      </Link>
+                    </div>
+                  )}
                   <div className="mt-2 border-t border-line pt-2">
                     <LanguagePicker />
                     <Link href="/about" className="block rounded-lg px-2 py-1.5 text-sm hover:bg-sunken">

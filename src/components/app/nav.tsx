@@ -72,7 +72,7 @@ function useSections() {
 
 export function AppFrame({ children }: { children: React.ReactNode }) {
   const { user } = useSession();
-  const { t } = useT();
+  const { t, tx } = useT();
   const { shown, isActive } = useSections();
   const path = usePathname();
   const source = useSearchParams().get("source");
@@ -170,6 +170,17 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
             ];
           })}
         </nav>
+        {/* For an administrator, the organization's settings stay in sight at the foot of the sidebar. */}
+        {staff && user.admin && (
+          <Link
+            href="/settings/organization"
+            aria-current={path.startsWith("/settings/organization") ? "page" : undefined}
+            className={`mx-3 mb-6 mt-auto flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition ${path.startsWith("/settings/organization") ? "bg-mist font-semibold text-forest" : "text-muted hover:bg-sunken hover:text-ink"}`}
+          >
+            {icon("M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z")}
+            {tx("Organization settings")}
+          </Link>
+        )}
       </aside>
 
       {/* Room at the bottom for the tab bar and, on a wide screen for staff, the assistant button, so they never cover the last row. */}
