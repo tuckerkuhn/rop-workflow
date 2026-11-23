@@ -81,6 +81,10 @@ export const users: AppUser[] = [
   { id: "mina", name: "Mina Sharifi", title: "HR Officer", kind: "employee", org: ROP, reportsTo: "sima", field: [], procurement: [], project: [], fieldAccess: "none", procurementAccess: "none", pii: false, lang: "fa" },
   { id: "arthur", name: "Arthur Lindqvist", title: "Board Treasurer", kind: "employee", org: ROP, field: [], procurement: [], project: [], fieldAccess: "none", procurementAccess: "none", pii: false, lang: "en" },
   { id: "zarlasht", name: "Zarlasht Noori", title: "M&E Assistant", kind: "employee", org: ROP, reportsTo: "nadia", field: [], procurement: [], project: [], fieldAccess: "none", procurementAccess: "none", pii: false, lang: "fa" },
+  // The two people building the app, so they can sign in as themselves. Titles and roles are sample values.
+  // Administrators (View as) with read access everywhere and no approval roles, so no workflow changes hands.
+  { id: "tucker", name: "Tucker Kuhn", title: "Program Innovation Lead (sample)", kind: "employee", org: ROP, reportsTo: "marcus", field: [], procurement: [], project: [], fieldAccess: "view", procurementAccess: "view", pii: false, lang: "en", admin: true },
+  { id: "daniel", name: "Daniel Sandoval", title: "Operations Lead (sample)", kind: "employee", org: ROP, reportsTo: "diego", field: [], procurement: [], project: [], fieldAccess: "view", procurementAccess: "view", pii: false, lang: "en", admin: true },
   { id: "elena", name: "Elena Marsh", title: "Program officer", kind: "donor", org: "Demo Foundation (fictional)", field: [], procurement: [], project: [], fieldAccess: "view", procurementAccess: "none", pii: false, lang: "en" },
 ];
 
