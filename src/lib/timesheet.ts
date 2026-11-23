@@ -33,10 +33,19 @@ export const LEAVE = {
   vacation: "Annual leave",
   travel: "Leave travel day",
   sick: "Sick leave",
+  urgent: "Urgent or bereavement leave",
+  compassionate: "Compassionate leave",
+  parental: "Maternity or paternity leave",
+  hajj: "Hajj leave",
+  unpaid: "Unpaid leave",
   other: "Other leave",
 } as const;
 export type LeaveType = keyof typeof LEAVE;
 export const LEAVE_TYPES = Object.keys(LEAVE) as LeaveType[];
+/** The types every timesheet has always offered; the others follow the person's leave rules (lib/leave). */
+export const BASIC_LEAVE: LeaveType[] = ["holiday", "floating", "vacation", "travel", "sick", "other"];
+/** Unpaid leave is recorded but not paid or charged to any funding source. */
+export const UNPAID: LeaveType = "unpaid";
 
 export const ALLOWANCES = { dangerPay: "Danger pay", postDiff: "Post differential", separateMaintenance: "Separate maintenance" } as const;
 export type Allowance = keyof typeof ALLOWANCES;
@@ -174,7 +183,10 @@ export type Split = {
   direct: Record<string, number>;
   directTotal: number;
   leave: Record<LeaveType, number>;
+  /** Paid leave hours (unpaid leave is not included). */
   leaveTotal: number;
+  /** Unpaid leave hours: on the sheet, but not paid or charged. */
+  unpaidHours: number;
   /** Leave shared out by worked hours, to the hour. */
   leaveBySource: Record<string, number>;
   total: Record<string, number>;
@@ -199,14 +211,15 @@ export function splitOf(sheet: Sheet, office: string): Split {
   const sources = [...new Set([...Object.keys(inCountry), ...Object.keys(outside)])].sort();
   const direct = Object.fromEntries(sources.map((s) => [s, (inCountry[s] ?? 0) + (outside[s] ?? 0)]));
   const directTotal = Object.values(direct).reduce((a, b) => a + b, 0);
-  const leaveTotal = Object.values(leave).reduce((a, b) => a + b, 0);
+  const unpaidHours = leave[UNPAID];
+  const leaveTotal = Object.values(leave).reduce((a, b) => a + b, 0) - unpaidHours;
   // Leave with no worked hours (a month all on leave) goes to non-contract.
   const leaveBySource = directTotal ? apportion(direct, leaveTotal, 1) : leaveTotal ? { [NON_CONTRACT]: leaveTotal } : {};
   const all = [...new Set([...sources, ...Object.keys(leaveBySource)])].sort();
   const total = Object.fromEntries(all.map((s) => [s, (direct[s] ?? 0) + (leaveBySource[s] ?? 0)]));
   const grandTotal = Object.values(total).reduce((a, b) => a + b, 0);
   const pct = grandTotal ? apportion(total, 100, 0.01) : {};
-  return { sources: all, inCountry, outside, direct, directTotal, leave, leaveTotal, leaveBySource, total, grandTotal, pct, allowanceDays, expected: expectedHours(sheet.month, office) };
+  return { sources: all, inCountry, outside, direct, directTotal, leave, leaveTotal, unpaidHours, leaveBySource, total, grandTotal, pct, allowanceDays, expected: expectedHours(sheet.month, office) };
 }
 
 /* ---------------- Folding timesheets out of the ledger ---------------- */

@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { db, schema as s } from "@/db";
 import { seesAll, toYou, conflictOf, type HrState } from "@/lib/hr";
-import { NON_CONTRACT, approversFor, foldTimesheets, lastShares, leaveMismatch, prefill, tsActionSchema, type FundingSource, type Timesheet } from "@/lib/timesheet";
-import { foldLeave, leaveDays } from "@/lib/leave";
+import { BASIC_LEAVE, LEAVE_TYPES, NON_CONTRACT, approversFor, foldTimesheets, lastShares, leaveMismatch, prefill, tsActionSchema, type FundingSource, type Timesheet } from "@/lib/timesheet";
+import { ON_TIMESHEET, RULES, foldLeave, groupOf, leaveDays } from "@/lib/leave";
 import { people, requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
 import { append, loadHr, todayIso } from "@/server/hr-store";
@@ -58,6 +58,11 @@ async function view(me: string, month: string, person: string | null) {
     history: who ? sheets.filter((t) => t.person === who).sort((a, b) => b.month.localeCompare(a.month)).slice(0, 12).map((t) => ({ n: t.n, month: t.month, status: t.status, version: t.version })) : [],
     prefill: who && !current ? prefill(month, office, shares, leaveDays(requests, who, month)) : null,
     approvedLeave: who ? leaveDays(requests, who, month) : {},
+    // The usual types, plus the kinds this person's leave rules allow (as on the Leave page).
+    leaveTypes: (() => {
+      const kinds = who && hr.people[who] ? RULES[groupOf(hr.people[who].current)].kinds.map((k) => ON_TIMESHEET[k]) : [];
+      return LEAVE_TYPES.filter((l) => BASIC_LEAVE.includes(l) || kinds.includes(l));
+    })(),
     overview: visible.map((id) => {
       const t = sheets.find((x) => x.person === id && x.month === month);
       return { person: id, status: t?.status ?? "missing", n: t?.n ?? null, by: t?.by ?? null, revised: t?.revisedAfterApproval ?? false };

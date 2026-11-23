@@ -41,7 +41,7 @@ export type LeaveKind = keyof typeof TYPES;
 export const LEAVE_KINDS = Object.keys(TYPES) as LeaveKind[];
 
 /** How each kind shows on the timesheet form. */
-export const ON_TIMESHEET: Record<LeaveKind, TsLeave> = { vacation: "vacation", sick: "sick", floating: "floating", urgent: "other", compassionate: "other", parental: "other", hajj: "other", unpaid: "other", other: "other" };
+export const ON_TIMESHEET: Record<LeaveKind, TsLeave> = { vacation: "vacation", sick: "sick", floating: "floating", urgent: "urgent", compassionate: "compassionate", parental: "parental", hajj: "hajj", unpaid: "unpaid", other: "other" };
 
 type Balance =
   | { mode: "monthly"; hoursPerMonth: (years: number, manager: boolean) => number; capHours: number | null }

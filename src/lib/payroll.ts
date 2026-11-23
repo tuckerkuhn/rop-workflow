@@ -166,6 +166,7 @@ export function lineFor(hr: HrState, person: string, month: string, sheet: Times
   const split = approved ? splitOf(approved.sheet, office) : null;
   const hoursWorked = split ? split.directTotal + split.leaveTotal : 0;
   const daysWorked = hoursWorked / HOURS_PER_DAY;
+  if (split?.unpaidHours) problems.push(`${split.unpaidHours / HOURS_PER_DAY} days of unpaid leave on the timesheet${payBasis === "Month" ? ": monthly pay is not reduced automatically, so check whether to deduct it" : ", not paid"}.`);
 
   const dailyRate = payBasis === "Month" ? rate / AVERAGE_DAYS : payBasis === "Day" ? rate : rate * HOURS_PER_DAY;
   const regular = r2(payBasis === "Month" ? rate * employed : payBasis === "Day" ? rate * daysWorked : rate * hoursWorked);

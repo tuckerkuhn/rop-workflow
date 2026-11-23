@@ -68,6 +68,11 @@ const LEAVE_KEY: Record<LeaveType, MessageKey> = {
   vacation: "ts.leaveType.vacation",
   travel: "ts.leaveType.travel",
   sick: "ts.leaveType.sick",
+  urgent: "ts.leaveType.urgent",
+  compassionate: "ts.leaveType.compassionate",
+  parental: "ts.leaveType.parental",
+  hajj: "ts.leaveType.hajj",
+  unpaid: "ts.leaveType.unpaid",
   other: "ts.leaveType.other",
 };
 const ALLOWANCE_KEY: Record<Allowance, MessageKey> = { dangerPay: "ts.allowance.dangerPay", postDiff: "ts.allowance.postDiff", separateMaintenance: "ts.allowance.separateMaintenance" };
@@ -349,7 +354,7 @@ function Summary({ sheet, v }: { sheet: Sheet; v: TimesheetView }) {
   const { t } = useT();
   const s = useMemo(() => splitOf(sheet, v.office), [sheet, v.office]);
   const label = (id: string) => v.sources.find((x) => x.id === id)?.label ?? id;
-  const recorded = s.directTotal + s.leaveTotal;
+  const recorded = s.directTotal + s.leaveTotal + s.unpaidHours;
   const diff = recorded - s.expected;
   return (
     <div className="rounded-2xl border border-line bg-surface p-4">
@@ -360,7 +365,7 @@ function Summary({ sheet, v }: { sheet: Sheet; v: TimesheetView }) {
         <span className="text-muted">
           {t("ts.expectedMonth", { hours: fmtH(s.expected) })}{diff !== 0 && <span className={diff < 0 ? "text-warn" : "text-clay"}> · {diff > 0 ? "+" : ""}{fmtH(diff)}</span>}
         </span>
-        {s.leaveTotal > 0 && (
+        {s.leaveTotal + s.unpaidHours > 0 && (
           <span className="text-muted">
             {t("ts.leaveColon")}{" "}
             {LEAVE_TYPES.filter((l) => s.leave[l])
@@ -521,7 +526,7 @@ function Editor({ v, sheet, setSheet, own, revising, unsent, onCancel, onSubmit 
           <input type="date" min={leave.from} max={daysIn(sheet.month).at(-1)} value={leave.to} onChange={(e) => setLeave({ ...leave, to: e.target.value })} className={`${sel} mt-1`} />
         </label>
         <select value={leave.type} onChange={(e) => setLeave({ ...leave, type: e.target.value as LeaveType })} className={sel} aria-label={t("ts.leaveType")}>
-          {LEAVE_TYPES.map((l) => (
+          {v.leaveTypes.map((l) => (
             <option key={l} value={l}>
               {t(LEAVE_KEY[l])}
             </option>
@@ -641,7 +646,8 @@ function DayEditor({ date: d, day, v, onChange, onClose }: { date: string; day: 
           aria-label={t("ts.leaveType")}
         >
           <option value="">{t("ts.none")}</option>
-          {LEAVE_TYPES.map((l) => (
+          {/* A type already on the day stays choosable even if the person's rules no longer list it. */}
+          {LEAVE_TYPES.filter((l) => v.leaveTypes.includes(l) || cur.leave?.type === l).map((l) => (
             <option key={l} value={l}>
               {t(LEAVE_KEY[l])}
             </option>
