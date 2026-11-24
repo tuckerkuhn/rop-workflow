@@ -6,7 +6,8 @@
 export type FieldRole = "extension" | "mel" | "store" | "manager";
 export type ProcRole = "holder" | "procurement" | "committee" | "ho" | "approver" | "finance";
 /** Project-level sign-offs and jobs from the build spec. */
-export type ProjectRole = "plan-approver" | "monthly-review" | "report-release" | "mel-owner" | "finance-import" | "comms";
+/** "technical-lead": leads the field teams on the technical side (a senior agronomist): reads the field work and decides farmer selection, without the field manager's approvals. */
+export type ProjectRole = "plan-approver" | "monthly-review" | "report-release" | "mel-owner" | "finance-import" | "comms" | "technical-lead";
 export type Access = "edit" | "view" | "none";
 export type Lang = "en" | "es" | "fa" | "ps";
 
@@ -82,9 +83,9 @@ export const users: AppUser[] = [
   { id: "zarlasht", name: "Zarlasht Noori", title: "M&E Assistant", kind: "employee", org: ROP, reportsTo: "nadia", field: [], procurement: [], project: [], fieldAccess: "none", procurementAccess: "none", pii: false, lang: "fa" },
   // The organization's chief executive, signing in as themselves; the CEO in the HR ledger (server/hr-store).
   { id: "tucker", name: "Tucker Kuhn", title: "Chief Executive Officer", kind: "employee", org: ROP, field: [], procurement: [], project: [], fieldAccess: "view", procurementAccess: "view", pii: false, lang: "en", admin: true },
-  // ROP's senior agronomist, who leads the extension teams of agronomists. He reads the field work; he holds no field
-  // role yet, because the app has one field manager per project (who approves distributions) and no role for a technical lead.
-  { id: "alejandro", name: "Alejandro Cali", title: "Senior Agronomist", kind: "employee", org: ROP, field: [], procurement: [], project: [], fieldAccess: "view", procurementAccess: "none", pii: true, lang: "es" },
+  // ROP's senior agronomist, who leads the extension teams of agronomists: the technical lead. He reads the field work and
+  // decides farmer selection. Approving distributions stays with the project's one field manager.
+  { id: "alejandro", name: "Alejandro Cali", title: "Senior Agronomist", kind: "employee", org: ROP, field: [], procurement: [], project: ["technical-lead"], fieldAccess: "view", procurementAccess: "none", pii: true, lang: "es" },
   { id: "elena", name: "Elena Marsh", title: "Program officer", kind: "donor", org: "Demo Foundation (fictional)", field: [], procurement: [], project: [], fieldAccess: "view", procurementAccess: "none", pii: false, lang: "en" },
 ];
 

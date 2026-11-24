@@ -1,8 +1,13 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
-import type { AppUser } from "@/lib/demo";
+import { canEditProject, type AppUser } from "@/lib/demo";
+import { EMPTY_SELECTION, type Selection } from "@/lib/selection";
+import { weekOf } from "@/lib/weekly";
+import { loadField } from "@/server/field-store";
+import { lensesFor } from "@/server/home-store";
+import { loadWeekly } from "@/server/weekly-store";
 import { EMPTY_FEEDBACK, overdue, type FeedbackLog } from "@/lib/feedback";
-import { MAX_PRIORITIES, mondayOf, safeHref, withProject, suggestPriorities, weekNumbers, weekSummary, type Priority, type ProjectWeek, type WeekAction, type WeekPlan } from "@/lib/week";
+import { MAX_PRIORITIES, mondayOf, safeHref, withProject, suggestFor, weekSummaryFor, type Priority, type ProjectWeek, type ProjectWork, type WeekKind, type WeekAction, type WeekPlan } from "@/lib/week";
 import { demoMode, onProject } from "@/server/auth";
 import { early } from "@/server/early";
 import { loadHomeJoining } from "@/server/home-store";
@@ -15,7 +20,7 @@ import { rawQpr } from "@/server/qpr-store";
 import { reportCalendar } from "@/server/report-calendar";
 
 /**
- * The week ahead for a manager (lib/week): the summary, three numbers and the priorities, across
+ * The week ahead for a manager (lib/week): the summary and the priorities, across
  * every project the person oversees. The person's confirmed priorities are kept per person and per
  * week in organization state (key "week:<person>:<monday>").
  */
@@ -24,7 +29,45 @@ const realToday = () => new Date().toISOString().slice(0, 10);
 const daysBetween = (from: string, to: string) => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 864e5);
 const addDays = (iso: string, n: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * 864e5).toISOString().slice(0, 10);
 
-async function projectWeek(p: { code: string; name: string; id: string }, u: AppUser, today: string): Promise<ProjectWeek | null> {
+/**
+ * Whose week it is, or null for people who have no week page: leadership, then the technical lead,
+ * then the people who run a project (its manager). Field and office staff work from the to-do list.
+ */
+export function weekKindFor(u: AppUser): WeekKind | null {
+  if (u.kind !== "employee") return null;
+  if (lensesFor(u).includes("lead")) return "lead";
+  if (u.project.includes("technical-lead")) return "technical";
+  return canEditProject(u) ? "manager" : null;
+}
+
+/** What a manager or technical lead reads beyond leadership: money, checks, the field, selection and the weekly updates. */
+async function projectWork(p: { code: string; id: string }, u: AppUser, home: NonNullable<Awaited<ReturnType<typeof loadHomeJoining>>>, today: string): Promise<ProjectWork> {
+  const [field, sel, weekly] = await Promise.all([
+    loadField(p.code, u).catch(() => null),
+    loadProjectState<Selection>(p.id, "selection", EMPTY_SELECTION).catch(() => EMPTY_SELECTION),
+    loadWeekly(p.code).catch(() => null),
+  ]);
+  const items = field?.items ?? [];
+  const farmers = items.filter((i) => i.kind === "farmer");
+  const thisWeek = weekOf(today);
+  const lastWeek = weekOf(addDays(thisWeek.from, -2));
+  const find = (w: { from: string; to: string }) => weekly?.weeks.find((x) => x.from <= w.to && w.from <= x.to);
+  return {
+    overBudget: home.budget.overspent.length,
+    toCheck: home.mel.pending,
+    queried: home.mel.queried,
+    fieldIssues: items.reduce((t, i) => t + ((i as { issues?: { status?: string }[] }).issues ?? []).filter((x) => x.status === "open").length, 0),
+    farmers: farmers.length,
+    undecided: sel.criteria.length ? farmers.filter((f) => !sel.decisions[f.id]).length : 0,
+    rulesWritten: sel.criteria.length > 0,
+    // A project that has never written a weekly update is not behind on one.
+    lastWeekSent: !weekly?.weeks.length || !!find(lastWeek)?.sent,
+    thisWeekStarted: !weekly?.weeks.length || !!find(thisWeek),
+    weeklyKept: !!weekly?.weeks.length,
+  };
+}
+
+async function projectWeek(p: { code: string; name: string; id: string }, u: AppUser, today: string, kind: WeekKind): Promise<ProjectWeek | null> {
   const weekAgo = addDays(today, -7);
   const label = (r: { kind: "qpr" | "annual"; period: string }) => (r.kind === "qpr" ? `${r.period.slice(5)} ${r.period.slice(0, 4)} quarterly report` : `${r.period} annual report`);
   const calLater = reportCalendar(p.code, today).catch(() => ({ rows: [] as Awaited<ReturnType<typeof reportCalendar>>["rows"] }));
@@ -55,6 +98,7 @@ async function projectWeek(p: { code: string; name: string; id: string }, u: App
     complaintsNew: log.entries.filter((e) => e.date >= weekAgo && e.kind !== "thanks").length,
     complaintsAnswered: log.entries.filter((e) => e.answer && e.answer.on >= weekAgo).length,
     released,
+    ...(kind === "lead" ? {} : { work: await projectWork(p, u, home, today) }),
   };
 }
 
@@ -68,19 +112,20 @@ export async function planOf(orgId: string | null, u: AppUser, week: string): Pr
 
 export async function loadWeek(u: AppUser, today = realToday()) {
   const week = mondayOf(today);
+  const kind = weekKindFor(u) ?? "lead";
   // The person's own plan does not depend on the projects: read alongside them.
   const planLater = early(orgIdForPerson(u.id).catch(() => null).then((orgId) => planOf(orgId, u, week)));
   const listed = (await listProjects()).filter((p) => (demoMode() || p.code !== DEMO_PROJECT) && onProject(u, p.code) && p.stage !== "Develop");
   const ids = new Map((await db.select({ id: s.projects.id, code: s.projects.code }).from(s.projects).where(inArray(s.projects.code, listed.map((p) => p.code).concat("")))).map((r) => [r.code, r.id]));
-  const projects = (await Promise.all(listed.filter((p) => ids.has(p.code)).map((p) => projectWeek({ code: p.code, name: p.name, id: ids.get(p.code)! }, u, today)))).filter((x): x is ProjectWeek => !!x);
+  const projects = (await Promise.all(listed.filter((p) => ids.has(p.code)).map((p) => projectWeek({ code: p.code, name: p.name, id: ids.get(p.code)! }, u, today, kind)))).filter((x): x is ProjectWeek => !!x);
   const plan = await planLater;
   return {
     week,
     today,
-    summary: weekSummary(projects, today),
-    numbers: weekNumbers(projects),
+    kind,
+    summary: weekSummaryFor(kind, projects, today),
     /** Proposed from the records; the person's own list once confirmed. */
-    suggestions: suggestPriorities(projects),
+    suggestions: suggestFor(kind, projects),
     plan,
     projects: projects.map((p) => ({ code: p.code, short: p.short })),
     max: MAX_PRIORITIES,

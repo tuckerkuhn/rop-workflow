@@ -20,11 +20,11 @@ beforeAll(async () => {
 }, 120_000);
 
 describe("the week ahead", { timeout: 90_000 }, () => {
-  it("reads four sentences, three numbers and at most three suggestions from the records", async () => {
+  it("reads four sentences and at most three suggestions from the records", async () => {
     const v = await loadWeek(tucker);
     expect(v.projects.length).toBeGreaterThan(0);
     expect(v.summary.map((s) => s.kind)).toEqual(["due", "risk", "waiting", "changed"]);
-    expect(v.numbers).toHaveLength(3);
+    expect(v.kind).toBe("lead");
     expect(v.suggestions.length).toBeLessThanOrEqual(3);
     expect(v.plan).toMatchObject({ items: [], confirmedAt: null });
   });
@@ -58,5 +58,18 @@ describe("the week ahead", { timeout: 90_000 }, () => {
     const twice = { id: "approvals", text: "Decide the approvals", href: "/progress/review", own: false };
     expect(await actOnWeek(daniel, { action: "confirm", items: [twice, twice] })).toMatch(/twice/);
     expect((await loadWeek(daniel)).plan.items).toEqual([]);
+  });
+
+  it("gives each job its own week, and none to people who work from the to-do list", async () => {
+    const { weekKindFor } = await import("@/server/week-store");
+    expect(weekKindFor(tucker)).toBe("lead");
+    expect(weekKindFor(userById("alejandro")!)).toBe("technical");
+    expect(weekKindFor(userById("nadia")!)).toBe("manager");
+    expect(weekKindFor(userById("farida")!)).toBeNull();
+    const field = await loadWeek(userById("alejandro")!);
+    expect(field.kind).toBe("technical");
+    expect(field.summary).toHaveLength(4);
+    expect(field.suggestions.length).toBeLessThanOrEqual(3);
+    expect((await loadWeek(userById("nadia")!)).kind).toBe("manager");
   });
 });

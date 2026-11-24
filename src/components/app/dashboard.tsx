@@ -83,7 +83,7 @@ function rolesOf(u: AppUser) {
   return [
     ...u.field.map(fieldRoleLabel),
     ...u.procurement.map(roleLabel),
-    ...u.project.map((r) => ({ "plan-approver": "Plan approver", "monthly-review": "Monthly review", "report-release": "Report release", "mel-owner": "MEL owner", "finance-import": `${opening(acct())} import`, comms: "Communications" })[r]),
+    ...u.project.map((r) => ({ "plan-approver": "Plan approver", "monthly-review": "Monthly review", "report-release": "Report release", "mel-owner": "MEL owner", "finance-import": `${opening(acct())} import`, comms: "Communications", "technical-lead": "Technical lead" })[r]),
   ].filter((r) => r.toLowerCase() !== u.title.toLowerCase());
 }
 

@@ -30,6 +30,33 @@ export type ProjectWeek = {
   complaintsNew: number;
   complaintsAnswered: number;
   released: string[];
+  /** For the people who run a project or lead its field teams. Absent for leadership, who read across projects. */
+  work?: ProjectWork;
+};
+
+/**
+ * Whose week it is. Leadership reads across projects (promises to donors). A project manager reads
+ * their project (evidence, money, deadlines). A technical lead reads the field (farmers, issues,
+ * the team's updates). Each sees four sentences, in the same order, about their own job.
+ */
+export type WeekKind = "lead" | "manager" | "technical";
+export type ProjectWork = {
+  /** Budget lines over budget. */
+  overBudget: number;
+  /** Results waiting for MEL to check, and results MEL sent back to correct. */
+  toCheck: number;
+  queried: number;
+  /** Field issues still open. */
+  fieldIssues: number;
+  /** Farmer selection: farmers on the list, how many have no decision, and whether the rules are written. */
+  farmers: number;
+  undecided: number;
+  rulesWritten: boolean;
+  /** Weekly updates: last week's was sent; this week's is started. */
+  lastWeekSent: boolean;
+  thisWeekStarted: boolean;
+  /** Whether the project writes weekly updates at all: one that never has is not "up to date". */
+  weeklyKept: boolean;
 };
 
 export type Part = { t: string; href?: string };
@@ -146,3 +173,89 @@ export type WeekAction = z.infer<typeof weekAction>;
 
 /** A link the app made is kept; anything else typed in is dropped, so a priority never carries an outside address. */
 export const safeHref = (href: string) => (/^\/[a-z]/.test(href) && !href.startsWith("//") ? href : "");
+
+const sum = (projects: ProjectWeek[], f: (w: ProjectWork) => number) => projects.reduce((t, p) => t + (p.work ? f(p.work) : 0), 0);
+const one = (projects: ProjectWeek[]) => (projects.length === 1 ? `?project=${encodeURIComponent(projects[0].code)}` : "");
+
+/** The four sentences for whoever's week it is (see WeekKind). Leadership's are `weekSummary`. */
+export function weekSummaryFor(kind: WeekKind, projects: ProjectWeek[], today: string): Sentence[] {
+  const [due, risk, waiting, changed] = weekSummary(projects, today);
+  if (kind === "lead") return [due, risk, waiting, changed];
+  const q = one(projects);
+  const over = sum(projects, (w) => w.overBudget);
+  const toCheck = sum(projects, (w) => w.toCheck);
+  const queried = sum(projects, (w) => w.queried);
+  const issues = sum(projects, (w) => w.fieldIssues);
+  const undecided = sum(projects, (w) => w.undecided);
+  const farmers = sum(projects, (w) => w.farmers);
+  const noRules = projects.some((p) => p.work && !p.work.rulesWritten && p.work.farmers > 0);
+  const lastMissing = projects.filter((p) => p.work && !p.work.lastWeekSent);
+  const notStarted = projects.filter((p) => p.work && !p.work.thisWeekStarted);
+  const weekly: Part[] = lastMissing.length
+    ? [{ t: "Last week's " }, { t: "weekly update", href: `/progress/weekly${q}` }, { t: " was not sent." }]
+    : notStarted.length
+      ? [{ t: "This week's " }, { t: "weekly update", href: `/progress/weekly${q}` }, { t: " is not started." }]
+      : projects.some((p) => p.work?.weeklyKept)
+        ? [{ t: "The weekly updates are up to date." }]
+        : [];
+
+  if (kind === "manager") {
+    const extra: Part[] = [
+      ...(over ? [{ t: n(over, "budget line is", "budget lines are"), href: `/progress/budget${q}` }, { t: " over budget. " }] : []),
+      ...(toCheck ? [{ t: n(toCheck, "result waits", "results wait"), href: `/progress/results${q}` }, { t: " for MEL to check and will not count until then. " }] : []),
+    ];
+    const quiet = !risk.flag;
+    const riskM: Sentence = { kind: "risk", flag: risk.flag || over > 0 || toCheck > 0, parts: extra.length ? [...(quiet ? [] : risk.parts), ...extra] : risk.parts };
+    const waitingM: Sentence = queried ? { kind: "waiting", flag: false, parts: [...waiting.parts, { t: " " }, { t: n(queried, "result MEL sent back is", "results MEL sent back are"), href: `/progress/results${q}` }, { t: " to correct." }] } : waiting;
+    return [due, riskM, waitingM, { kind: "changed", flag: lastMissing.length > 0, parts: weekly.length ? [...changed.parts, { t: " " }, ...weekly] : changed.parts }];
+  }
+
+  // Technical lead: the farmers, what is wrong in the field, what waits on them, and the team's updates.
+  const selection: Sentence = {
+    kind: "due",
+    flag: noRules || undecided > 0,
+    parts: noRules
+      ? [{ t: "The " }, { t: "selection rules", href: `/work/selection${q}` }, { t: ` are not written yet, with ${n(farmers, "farmer", "farmers")} on the list.` }]
+      : undecided
+        ? [{ t: `${undecided} of ${n(farmers, "farmer", "farmers")}`, href: `/work/selection${q}` }, { t: ` ${undecided === 1 ? "is" : "are"} still waiting on a selection decision.` }]
+        : farmers
+          ? [{ t: `All ${n(farmers, "farmer", "farmers")} on the list ${farmers === 1 ? "has" : "have"} a selection decision.` }]
+          : [{ t: "No farmers are on the list yet." }],
+  };
+  const behind = projects.filter((p) => p.late > 0);
+  const field: Part[] = [
+    ...(issues ? [{ t: n(issues, "field issue is", "field issues are"), href: `/work?source=field${q ? `&${q.slice(1)}` : ""}` }, { t: " open. " }] : []),
+    ...(queried ? [{ t: n(queried, "result", "results"), href: `/progress/results${q}` }, { t: ` ${queried === 1 ? "was" : "were"} sent back by MEL to correct. ` }] : []),
+    ...behind.flatMap((p) => [{ t: `${p.short} has ` }, { t: n(p.late, "result", "results"), href: `/progress?project=${encodeURIComponent(p.code)}` }, { t: " behind this year's target. " }]),
+  ];
+  const riskT: Sentence = { kind: "risk", flag: field.length > 0, parts: field.length ? field : [{ t: "No field issue is open, no result was sent back and no result is behind target." }] };
+  return [selection, riskT, waiting, { kind: "changed", flag: lastMissing.length > 0, parts: weekly.length ? weekly : [{ t: "No weekly update has been written for this project yet." }] }];
+}
+
+/** Up to three priorities for whoever's week it is, the most pressing first. */
+export function suggestFor(kind: WeekKind, projects: ProjectWeek[]): Suggestion[] {
+  const base = suggestPriorities(projects);
+  if (kind === "lead") return base;
+  const q = one(projects);
+  const over = sum(projects, (w) => w.overBudget);
+  const queried = sum(projects, (w) => w.queried);
+  const issues = sum(projects, (w) => w.fieldIssues);
+  const undecided = sum(projects, (w) => w.undecided);
+  const noRules = projects.some((p) => p.work && !p.work.rulesWritten && p.work.farmers > 0);
+  const lastMissing = projects.some((p) => p.work && !p.work.lastWeekSent);
+  const own: Suggestion[] = [];
+  if (kind === "technical") {
+    if (noRules) own.push({ id: "rules", text: "See that the farmer selection rules are written", href: `/work/selection${q}` });
+    else if (undecided) own.push({ id: "selection", text: undecided === 1 ? "Decide the farmer still waiting on selection" : `Decide the ${undecided} farmers still waiting on selection`, href: `/work/selection${q}` });
+    if (issues) own.push({ id: "issues", text: issues === 1 ? "Close the open field issue" : `Close the ${issues} open field issues`, href: `/work?source=field${q ? `&${q.slice(1)}` : ""}` });
+    if (queried) own.push({ id: "queried", text: queried === 1 ? "Have the result MEL sent back corrected" : `Have the ${queried} results MEL sent back corrected`, href: `/progress/results${q}` });
+    if (lastMissing) own.push({ id: "weekly", text: "Get last week's weekly update sent", href: `/progress/weekly${q}` });
+    return [...own, ...base.filter((b) => b.id === "approvals")].slice(0, MAX_PRIORITIES);
+  }
+  if (over) own.push({ id: "budget", text: over === 1 ? "Explain the budget line that is over budget" : `Explain the ${over} budget lines over budget`, href: `/progress/budget${q}` });
+  if (queried) own.push({ id: "queried", text: queried === 1 ? "Have the result MEL sent back corrected" : `Have the ${queried} results MEL sent back corrected`, href: `/progress/results${q}` });
+  if (lastMissing) own.push({ id: "weekly", text: "Get last week's weekly update sent", href: `/progress/weekly${q}` });
+  // Late and blocked reports first, then the manager's own, then the rest.
+  const first = base.filter((b) => /^(late|block):/.test(b.id));
+  return [...first, ...own, ...base.filter((b) => !/^(late|block):/.test(b.id))].slice(0, MAX_PRIORITIES);
+}

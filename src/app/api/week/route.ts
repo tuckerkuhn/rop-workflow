@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { weekAction } from "@/lib/week";
 import { requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
-import { actOnWeek, loadWeek, planOf } from "@/server/week-store";
+import { actOnWeek, loadWeek, planOf, weekKindFor } from "@/server/week-store";
 import { orgIdForPerson } from "@/server/org-settings-store";
 import { mondayOf } from "@/lib/week";
 
@@ -21,7 +21,7 @@ function dayOf(req: Request): string | undefined {
 /** A manager's week ahead: the summary, three numbers and their priorities (server/week-store). */
 export async function GET(req: Request) {
   return handle(async () => {
-    const v = await requireViewer(req, { allow: (u) => u.kind === "employee", why: WHY });
+    const v = await requireViewer(req, { allow: (u) => !!weekKindFor(u), why: WHY });
     if (v instanceof NextResponse) return v;
     return NextResponse.json(await loadWeek(v.user, dayOf(req)));
   });
@@ -34,7 +34,7 @@ export async function GET(req: Request) {
  */
 export async function POST(req: Request) {
   return handle(async () => {
-    const v = await requireViewer(req, { write: true, allow: (u) => u.kind === "employee", why: WHY });
+    const v = await requireViewer(req, { write: true, allow: (u) => !!weekKindFor(u), why: WHY });
     if (v instanceof NextResponse) return v;
     const parsed = weekAction.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "That is not complete." }, { status: 400 });

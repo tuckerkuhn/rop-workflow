@@ -17,7 +17,7 @@ const today = () => new Date().toISOString().slice(0, 10);
  * The project manager (the field manager) and plan approvers write the rules and decide; an
  * administrator may too. Everyone else who works with farmers reads them.
  */
-export const mayDecide = (u: AppUser) => u.kind === "employee" && (!!u.admin || canEditProject(u));
+export const mayDecide = (u: AppUser) => u.kind === "employee" && (!!u.admin || canEditProject(u) || u.project.includes("technical-lead"));
 /** Who may see the list: those who work with farmers, and those who decide (need to know). */
 export const maySeeSelection = (u: AppUser) => u.kind === "employee" && (u.fieldAccess !== "none" || mayDecide(u));
 
@@ -42,7 +42,7 @@ export async function selectionOutcomes(projectId: string, q?: Reader): Promise<
 }
 
 export async function actOnSelection(code: string, a: SelectionAction, u: AppUser): Promise<string | null> {
-  if (!mayDecide(u)) return a.action === "criteria" ? "Only the project manager and plan approvers write the selection rules." : "Only the project manager and plan approvers record a selection decision.";
+  if (!mayDecide(u)) return a.action === "criteria" ? "Only the project manager, plan approvers and the technical lead write the selection rules." : "Only the project manager, plan approvers and the technical lead record a selection decision.";
   const project = await projectByCode(code);
   if (a.action !== "criteria") {
     const [known] = await db

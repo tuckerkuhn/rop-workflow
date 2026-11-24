@@ -67,3 +67,46 @@ describe("approvals across projects", () => {
     expect(suggestPriorities([p({ approvals: [{ ...a, short: "Maize" }] })])[0].text).toBe("Decide: Sign off the October monthly review");
   });
 });
+
+import { suggestFor, weekSummaryFor, type ProjectWork } from "@/lib/week";
+
+const work = (over: Partial<ProjectWork>): ProjectWork => ({ overBudget: 0, toCheck: 0, queried: 0, fieldIssues: 0, farmers: 0, undecided: 0, rulesWritten: true, lastWeekSent: true, thisWeekStarted: true, weeklyKept: true, ...over });
+
+describe("a week for each job", () => {
+  it("leaves leadership's four sentences as they are", () => {
+    expect(weekSummaryFor("lead", [p({})], "2026-11-23").map(text)).toEqual(weekSummary([p({})], "2026-11-23").map(text));
+  });
+  it("tells a project manager about money, checks and the weekly update", () => {
+    const s = weekSummaryFor("manager", [p({ work: work({ overBudget: 1, toCheck: 10, queried: 2, lastWeekSent: false }) })], "2026-11-23");
+    expect(text(s[1])).toBe("1 budget line is over budget. 10 results wait for MEL to check and will not count until then. ");
+    expect(s[1].flag).toBe(true);
+    expect(text(s[2])).toBe("Nothing is waiting on you. 2 results MEL sent back are to correct.");
+    expect(text(s[3])).toMatch(/Last week's weekly update was not sent\.$/);
+    expect(suggestFor("manager", [p({ work: work({ overBudget: 1, queried: 2, lastWeekSent: false }) })]).map((x) => x.id)).toEqual(["budget", "queried", "weekly"]);
+  });
+  it("tells a technical lead about the farmers, the field and the team's updates", () => {
+    const s = weekSummaryFor("technical", [p({ late: 1, work: work({ farmers: 12, undecided: 5, fieldIssues: 3, queried: 2, thisWeekStarted: false }) })], "2026-11-23");
+    expect(text(s[0])).toBe("5 of 12 farmers are still waiting on a selection decision.");
+    expect(text(s[1])).toBe("3 field issues are open. 2 results were sent back by MEL to correct. Maize has 1 result behind this year's target. ");
+    expect(text(s[2])).toBe("Nothing is waiting on you.");
+    expect(text(s[3])).toBe("This week's weekly update is not started.");
+    expect(s[0].parts[0]).toMatchObject({ href: "/work/selection?project=A-2027" });
+    expect(suggestFor("technical", [p({ work: work({ farmers: 12, undecided: 5, fieldIssues: 3, queried: 2 }) })]).map((x) => x.id)).toEqual(["selection", "issues", "queried"]);
+  });
+  it("says a quiet field week plainly, and asks for the rules before anything else", () => {
+    const quiet = weekSummaryFor("technical", [p({ work: work({ farmers: 12 }) })], "2026-11-23");
+    expect(quiet.map(text)).toEqual(["All 12 farmers on the list have a selection decision.", "No field issue is open, no result was sent back and no result is behind target.", "Nothing is waiting on you.", "The weekly updates are up to date."]);
+    expect(quiet.some((x) => x.flag)).toBe(false);
+    const none = [p({ work: work({ farmers: 12, rulesWritten: false }) })];
+    expect(text(weekSummaryFor("technical", none, "2026-11-23")[0])).toBe("The selection rules are not written yet, with 12 farmers on the list.");
+    expect(suggestFor("technical", none).map((x) => x.id)).toEqual(["rules"]);
+  });
+  it("does not call a project that never wrote a weekly update up to date", () => {
+    const none = [p({ work: work({ farmers: 3, weeklyKept: false }) })];
+    expect(text(weekSummaryFor("technical", none, "2026-11-23")[3])).toBe("No weekly update has been written for this project yet.");
+    expect(text(weekSummaryFor("manager", none, "2026-11-23")[3])).not.toMatch(/weekly/);
+  });
+  it("words a single item as one thing", () => {
+    expect(suggestFor("manager", [p({ work: work({ overBudget: 1, queried: 1 }) })]).map((x) => x.text)).toEqual(["Explain the budget line that is over budget", "Have the result MEL sent back corrected"]);
+  });
+});

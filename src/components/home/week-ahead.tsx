@@ -10,11 +10,10 @@ import type { WeekView } from "@/server/week-store";
 
 /**
  * The week ahead, on a manager's Home under the next thing to do and what waits on them: four sentences built from the
- * records, three numbers, and up to three priorities the app proposes and the person makes their
+ * records and up to three priorities the app proposes and the person makes their
  * own. The priorities come first: they are what the person decided, the rest is what informed it. The sentence that needs attention carries the gold wash; every figure opens its page.
  */
 
-const LEVEL = { good: "text-leaf", warning: "text-warn", critical: "text-clay" } as const;
 type Draft = { id: string; text: string; href: string; own: boolean };
 
 export function WeekAhead() {
@@ -206,19 +205,6 @@ export function WeekAhead() {
         ))}
       </div>
 
-      <dl className="mt-4 grid border-t-2 border-ink sm:grid-cols-3">
-        {v.numbers.map((n) => (
-          <Link key={n.label} href={n.href} className="group border-b border-line px-2 py-3 hover:bg-ochre-soft focus-visible:bg-ochre-soft">
-            <dt className="text-xs text-muted">{n.label}</dt>
-            <dd className={`font-mono text-3xl font-bold ${LEVEL[n.level]}`}>
-              {n.value}
-              <span aria-hidden className="ms-2 inline-block text-base text-forest opacity-40 group-hover:opacity-100 rtl:rotate-180">
-                →
-              </span>
-            </dd>
-          </Link>
-        ))}
-      </dl>
 
     </section>
   );

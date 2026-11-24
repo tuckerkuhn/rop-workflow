@@ -10,7 +10,7 @@ import { GettingStarted } from "@/components/home/getting-started";
 import { HrHome } from "@/components/home/hr-home";
 import { useEffect, useState } from "react";
 import { usePersistentState } from "@/components/workspace/ui";
-import type { AppUser, ProjectInfo } from "@/lib/demo";
+import { canEditProject, type AppUser, type ProjectInfo } from "@/lib/demo";
 import type { HomeView, Lens } from "@/server/home-store";
 import type { NextReport } from "@/server/next-report";
 import { HomeLead, type HomeViewKind } from "@/components/home/home-views";
@@ -333,6 +333,8 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
       </section>
     );
 
+  // Who has a week page (server/week-store weekKindFor): leadership, the technical lead, and the people who run a project.
+  const hasWeek = lens === "lead" || user.project.includes("technical-lead") || canEditProject(user);
   return (
     <section aria-label="Where things stand" className="space-y-5">
       {/* Which role's Home this is comes first, so the choice visibly changes what follows. */}
@@ -342,13 +344,15 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
       {/* First on the page: the one thing to do next, then everything waiting on this person. Where the
           project stands, first steps and stories follow, for when the day's work is clear. */}
       {/* Field roles open in Summary (bands), everyone else in List (ledger); the person's own choice wins and is remembered. */}
+      {/* Managers first: their own three priorities for the week, then what the records say (lib/week).
+          Leadership, the technical lead and the people who run a project each read their own week. */}
+      {hasWeek && <WeekAhead />}
       <HomeLead rows={waiting} next={next} view={view || (lens === "field" ? "bands" : "ledger")} onView={setView} />
-      {/* Then, for managers, their own three priorities for the week and what the records say (lib/week). */}
-      {lens === "lead" && <WeekAhead />}
 
       <div className="flex flex-wrap items-start gap-3">
         <p className="min-w-0 flex-1 text-lg leading-snug">
-          {headline[lens]}
+          {/* The week ahead already says where things stand: the older one-line summary is for everyone else. */}
+          {!hasWeek && headline[lens]}
           {lens === "lead" && (
             <Link href="/portfolio" className="btn-link ms-2 whitespace-nowrap">
               All projects →
