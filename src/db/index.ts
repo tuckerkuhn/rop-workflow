@@ -26,9 +26,33 @@ function connect(): DB {
   // reads side by side, so 3 queued queries behind each other. Through the transaction pooler
   // (port 6543, as DATABASE_URL is set up) a connection is held only for the length of a query,
   // and 6 per instance still leaves room for some 30 busy instances before the 200 are used.
-  instance = drizzle(postgres(url, { prepare: false, max: process.env.VERCEL ? 6 : 10, idle_timeout: 20, connect_timeout: 15 }), { schema });
+  //
+  // SESSION MODE, on purpose (24 Nov 2026). Supabase's transaction pooler (port 6543) was seen to lose
+  // the reply to a query when several requests read at once: the page then waited for ever. With
+  // prepare: false the driver sends each query with parameters in two steps, and the pooler can hand
+  // the second step to another database connection. The session pooler (same host, port 5432) keeps
+  // one database connection per client connection, so it cannot. The price: each open connection
+  // holds one of the project's pooled database connections, so a Vercel instance keeps at most 3 and
+  // lets idle ones go after 10 seconds. DB_POOL_MODE=transaction keeps the address as it is.
+  const target = sessionMode(url);
+  instance = drizzle(postgres(target, { prepare: false, max: process.env.VERCEL ? 3 : 10, idle_timeout: process.env.VERCEL ? 10 : 20, connect_timeout: 15 }), { schema });
   g.__ropDb = instance;
   return instance;
+}
+
+/** The Supabase pooler address on its session port (5432) instead of its transaction port (6543). */
+export function sessionMode(url: string, mode = process.env.DB_POOL_MODE): string {
+  if (mode === "transaction") return url;
+  try {
+    const u = new URL(url);
+    if (u.hostname.endsWith(".pooler.supabase.com") && u.port === "6543") {
+      u.port = "5432";
+      return u.toString();
+    }
+  } catch {
+    // Not a URL the parser reads: leave it exactly as given.
+  }
+  return url;
 }
 
 export const db = new Proxy({} as DB, {
