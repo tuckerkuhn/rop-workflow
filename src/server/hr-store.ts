@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { eq, sql } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { prefill, type Sheet } from "@/lib/timesheet";
 import { DEFAULT_STEPS, DEFAULT_PAYOUT, fold, type Entry, type Fields, type Integrity, type ProposalInput, type Rules } from "@/lib/hr";
@@ -25,10 +25,12 @@ export const todayIso = () => new Date().toISOString().slice(0, 10);
 type Row = { n: number; book: string; at_text: string; actor: string; kind: string; subject: string | null; data_text: string; prev_hash: string; hash: string };
 
 async function rows(book: string): Promise<Row[]> {
-  return (await db.execute(sql`
+  // postgres-js answers with the rows; the tests' in-memory Postgres (PGlite) with { rows }.
+  const result = (await db.execute(sql`
     SELECT n, book, to_char(at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS at_text,
            actor, kind, subject, data::text AS data_text, prev_hash, hash
-    FROM hr_ledger WHERE book = ${book} ORDER BY n`)) as unknown as Row[];
+    FROM hr_ledger WHERE book = ${book} ORDER BY n`)) as unknown as Row[] | { rows: Row[] };
+  return Array.isArray(result) ? result : result.rows;
 }
 
 const hashOf = (r: Row) => createHash("sha256").update([r.prev_hash, r.book, String(r.n), r.at_text, r.actor, r.kind, r.subject ?? "", r.data_text].join("|"), "utf8").digest("hex");
@@ -54,12 +56,64 @@ export function loadHr() {
   return oncePerRequest(`hr:${hrBook()}`, readHr);
 }
 
-async function readHr() {
+type Loaded = Awaited<ReturnType<typeof foldBook>>;
+
+/**
+ * The folded book, kept between requests on this server. Reading the whole book and checking
+ * every entry's fingerprint again costs a long download, so each request asks only for the last
+ * entry (one tiny query) and reuses the fold while the book, its last entry (number and
+ * fingerprint) and today's date are the same. An append, a seal or a sample reset changes the
+ * last entry, so the next read sees it. The full check runs again at least every few minutes, so
+ * a change made around the app and the database triggers still shows soon. Each caller gets its
+ * own copy, so nothing a caller changes reaches the next request.
+ */
+const HR_KEEP_MS = 5 * 60_000;
+let hrKept: { key: string; at: number; loaded: Loaded } | null = null;
+
+/** For tests: forget the kept fold. */
+export function forgetKeptHr() {
+  hrKept = null;
+}
+
+async function lastEntry(book: string): Promise<{ n: number; hash: string } | null> {
+  const [last] = await db.select({ n: s.hrLedger.n, hash: s.hrLedger.hash }).from(s.hrLedger).where(eq(s.hrLedger.book, book)).orderBy(desc(s.hrLedger.n)).limit(1);
+  return last ?? null;
+}
+
+async function readHr(): Promise<Loaded> {
   const book = hrBook();
+  const last = await lastEntry(book);
+  const key = last ? `${book}|${last.n}|${last.hash}|${todayIso()}` : null;
+  if (key && hrKept && hrKept.key === key && Date.now() - hrKept.at < HR_KEEP_MS) return structuredClone(hrKept.loaded);
+  const loaded = await foldBook(book);
+  // Kept under the last entry the full read itself saw (an entry appended meanwhile is in it, or the next probe misses).
+  const end = loaded.entries.at(-1);
+  if (end) hrKept = { key: `${book}|${end.n}|${end.hash}|${todayIso()}`, at: Date.now(), loaded: structuredClone(loaded) };
+  return loaded;
+}
+
+/**
+ * The sample book's first fill, while it runs. Reads that find the book empty at the same moment
+ * (a page opening asks for it from several requests at once) wait for one fill instead of each
+ * writing the sample again; the fill looks once more before writing, for a read that found the
+ * book empty just before another fill ended. On this server only: two servers filling at the same
+ * moment remain possible, only for a brand-new sample book.
+ */
+let filling: Promise<void> | null = null;
+
+async function foldBook(book: string) {
   let list = await rows(book);
   // Only the sample book fills itself; other "demo-…" books start empty, like a real one.
   if (!list.length && book === "demo") {
-    await seedSample();
+    if (!filling) {
+      const mine: Promise<void> = (async () => {
+        if (!(await rows(book)).length) await seedSample();
+      })().finally(() => {
+        if (filling === mine) filling = null;
+      });
+      filling = mine;
+    }
+    await filling;
     requestWrote();
     list = await rows(book);
   }
@@ -113,9 +167,18 @@ export async function seal(actor: string) {
 /** Clears a sample book and fills it again. Refused for real books by the code and by the database. */
 export async function resetSample() {
   if (!isSampleBook()) throw new Error("Only a sample book can be reset.");
-  await db.delete(s.hrLedger).where(eq(s.hrLedger.book, hrBook()));
-  await db.delete(s.hrFiles).where(eq(s.hrFiles.book, hrBook()));
-  await seedSample();
+  // As the first fill (see `filling`): a read that finds the book empty meanwhile waits for this one.
+  const reset = (async () => {
+    await filling?.catch(() => undefined);
+    await db.delete(s.hrLedger).where(eq(s.hrLedger.book, hrBook()));
+    await db.delete(s.hrFiles).where(eq(s.hrFiles.book, hrBook()));
+    await seedSample();
+  })();
+  const mine: Promise<void> = reset.finally(() => {
+    if (filling === mine) filling = null;
+  });
+  filling = mine;
+  await mine;
 }
 
 /* ---------------- Sample records (fictional people and pay) ---------------- */

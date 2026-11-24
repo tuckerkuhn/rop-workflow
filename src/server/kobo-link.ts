@@ -5,6 +5,9 @@ import { protectSubmission } from "@/server/kobo-protect";
 import { isReviewed, REVIEWED_PURPOSES } from "@/lib/kobo-setup";
 import type { AutoSyncSecret, FormPurpose, KoboMapping, KoboState, MappingMethod, MappingOrigin, SyncCounts } from "@/lib/kobo-setup";
 import { logAudit } from "@/server/audit";
+import { projectByCode } from "@/server/field-store";
+import { HttpError } from "@/server/guard";
+import { requestWrote } from "@/server/request-memo";
 import { KoboError, checkServerUrl, formQuestions, formSubmissions, listForms, submissionRefs, type KoboSubmission } from "@/server/kobo-client";
 import { MissingKeyError, decryptSecret, encryptSecret } from "@/server/secrets";
 
@@ -46,15 +49,21 @@ export async function readinessForms(code: string) {
 }
 
 export async function koboState(code: string): Promise<KoboState> {
-  const [project] = await db.select().from(s.projects).where(eq(s.projects.code, code)).limit(1);
+  // The project as the rest of the request reads it (kept once per read-only request); none here is an empty link.
+  const project = await projectByCode(code).catch((e) => {
+    if (e instanceof HttpError && e.status === 404) return null;
+    throw e;
+  });
   if (!project) return { connection: null, forms: [], mappings: [] };
-  const c = await connectionOf(project.id);
-  const forms = await db.select().from(s.koboForms).where(eq(s.koboForms.projectId, project.id));
-  const mappings = await db
-    .select({ code: s.indicators.code, m: s.koboMappings })
-    .from(s.koboMappings)
-    .innerJoin(s.indicators, eq(s.indicators.id, s.koboMappings.indicatorId))
-    .where(eq(s.indicators.projectId, project.id));
+  const [c, forms, mappings] = await Promise.all([
+    connectionOf(project.id),
+    db.select().from(s.koboForms).where(eq(s.koboForms.projectId, project.id)),
+    db
+      .select({ code: s.indicators.code, m: s.koboMappings })
+      .from(s.koboMappings)
+      .innerJoin(s.indicators, eq(s.indicators.id, s.koboMappings.indicatorId))
+      .where(eq(s.indicators.projectId, project.id)),
+  ]);
   return {
     connection: c && { serverUrl: c.serverUrl, tokenHint: c.tokenHint, countOnly: c.countOnly === "approved" ? "approved" : "all", lastSyncedAt: c.lastSyncedAt?.toISOString() ?? null, autoSyncSince: c.hookSecretHash ? (c.hookEnabledAt?.toISOString() ?? null) : null },
     forms: forms.map((f) => ({ uid: f.assetUid, name: f.name, purpose: purposeOf(f.purpose) })),
@@ -319,6 +328,8 @@ export async function sync(code: string, origin?: string): Promise<SyncCounts> {
     counts.already += refs.length - fresh.length - edited.length;
   }
   await db.update(s.koboConnections).set({ lastSyncedAt: new Date() }).where(eq(s.koboConnections.id, c.connection.id));
+  // Anything kept for this request (server/request-memo) is older than the records just written.
+  requestWrote();
   // New distributions: checks, flags and the email to the project manager.
   if (forms.some((f) => f.purpose === "distribution")) {
     const { processPending } = await import("@/server/distribution");

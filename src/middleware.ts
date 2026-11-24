@@ -71,6 +71,12 @@ export async function middleware(request: NextRequest) {
     return path.startsWith("/api/") || (OPEN.includes(path) || path.startsWith("/share/") || path.startsWith("/approve/")) ? NextResponse.next() : toSignIn();
   }
 
+  // API routes check sign-in themselves on every request (server/auth requireViewer, getViewer),
+  // with the same Supabase call, and refresh an expiring sign-in cookie there: route handlers may
+  // set cookies (server/auth supabaseServer). Asking Supabase here as well only doubled the cost of
+  // every API call, and this function never turns an API request away for being signed out.
+  if (path.startsWith("/api/")) return NextResponse.next();
+
   let response = NextResponse.next({ request });
   const supabase = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
     cookies: {

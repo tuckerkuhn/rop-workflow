@@ -1,6 +1,7 @@
 "use client";
 
-import { WeekAhead } from "@/components/home/week-ahead";
+import { WeekAhead, startWeek } from "@/components/home/week-ahead";
+import { weekKindOf } from "@/lib/week";
 import { unitOf } from "@/lib/package";
 import Link from "next/link";
 import { Pill, Loading, StatusPill } from "@/components/workspace/ui";
@@ -10,7 +11,7 @@ import { GettingStarted } from "@/components/home/getting-started";
 import { HrHome } from "@/components/home/hr-home";
 import { useEffect, useState } from "react";
 import { usePersistentState } from "@/components/workspace/ui";
-import { canEditProject, type AppUser, type ProjectInfo } from "@/lib/demo";
+import { type AppUser, type ProjectInfo } from "@/lib/demo";
 import type { HomeView, Lens } from "@/server/home-store";
 import type { NextReport } from "@/server/next-report";
 import { HomeLead, type HomeViewKind } from "@/components/home/home-views";
@@ -110,10 +111,19 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
   const [chosen, setChosen] = usePersistentState<Lens | "">("rop-home-lens", () => "");
   const [view, setView] = usePersistentState<HomeViewKind | "">("rop-home-view", () => "");
 
+  // Which lenses a person has is known for sure only once Home answers; these are the ones their own roles give.
+  const weekLikely = !!weekKindOf(user, [
+    ...(user.admin || user.project.some((r) => r === "plan-approver" || r === "monthly-review") ? ["lead"] : []),
+    ...(user.project.includes("finance-import") || user.procurement.includes("finance") ? ["finance"] : []),
+  ]);
+
   useEffect(() => {
     let live = true;
     setV(null);
     setNr(null);
+    // The week ahead starts reading now, alongside Home, so it can join Home's read of this project
+    // instead of reading it again (components/home/week-ahead startWeek).
+    if (weekLikely) startWeek(user.id);
     // One request for both: Home's data and the next report from pre-flight read the same review and figures.
     fetch(`/api/projects/${project.id}/home?with=next-report`, { cache: "no-store", headers: { "x-demo-user": user.id } })
       .then(async (r) => {
@@ -127,7 +137,7 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
     return () => {
       live = false;
     };
-  }, [project.id, user.id]);
+  }, [project.id, user.id, weekLikely]);
 
   if (error) return <p className="rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">{error}</p>;
   if (!v)
@@ -333,8 +343,8 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
       </section>
     );
 
-  // Who has a week page (server/week-store weekKindFor): leadership, the technical lead, and the people who run a project.
-  const hasWeek = lens === "lead" || user.project.includes("technical-lead") || canEditProject(user);
+  // Who has a week: the same rule as the API (lib/week weekKindOf, server/week-store weekKindFor), from the lenses Home's answer carries.
+  const hasWeek = !!weekKindOf(user, v.lenses);
   return (
     <section aria-label="Where things stand" className="space-y-5">
       {/* Which role's Home this is comes first, so the choice visibly changes what follows. */}

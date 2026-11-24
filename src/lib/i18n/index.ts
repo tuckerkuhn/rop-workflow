@@ -1,8 +1,5 @@
 import type { Lang } from "@/lib/demo";
 import { en, type MessageKey, type Messages } from "./en";
-import { es } from "./es";
-import { fa } from "./fa";
-import { ps } from "./ps";
 
 /**
  * Interface text in English, Spanish, Dari and Pashto. A missing string falls back to English,
@@ -14,7 +11,35 @@ export type { MessageKey };
 export const LANGS: Lang[] = ["en", "es", "fa", "ps"];
 export const LANG_COOKIE = "rop-lang";
 
-const dictionaries: Record<Lang, Messages> = { en, es, fa, ps };
+/**
+ * English ships with every page; Spanish, Dari and Pashto load only for someone reading them
+ * (each is its own chunk). The root layout hands the reader's language to I18nProvider with the
+ * first page, so nothing shows in English first; switching language loads the new one before the
+ * screen changes. Until a language is loaded, translate() falls back to English.
+ */
+export type { Messages };
+const dictionaries: Partial<Record<Lang, Messages>> = { en };
+const loaders: Record<Exclude<Lang, "en">, () => Promise<Messages>> = {
+  es: () => import("./es").then((m) => m.es),
+  fa: () => import("./fa").then((m) => m.fa),
+  ps: () => import("./ps").then((m) => m.ps),
+};
+
+export const hasMessages = (lang: Lang) => !!dictionaries[lang];
+
+/** Keeps a language's dictionary that arrived some other way (from the root layout). */
+export function addMessages(lang: Lang, messages: Messages) {
+  dictionaries[lang] ??= messages;
+}
+
+/** Loads a language's dictionary (once) and returns it. */
+export async function loadMessages(lang: Lang): Promise<Messages> {
+  const have = dictionaries[lang];
+  if (have) return have;
+  const loaded = await loaders[lang as Exclude<Lang, "en">]();
+  dictionaries[lang] ??= loaded;
+  return loaded;
+}
 
 export const isLang = (v: unknown): v is Lang => typeof v === "string" && (LANGS as string[]).includes(v);
 export const dirOf = (lang: Lang) => (lang === "fa" || lang === "ps" ? "rtl" : "ltr");
@@ -40,6 +65,6 @@ export function formatDate(lang: Lang, iso: string, opts: Intl.DateTimeFormatOpt
 
 /** `vars` fills {name}-style placeholders. */
 export function translate(lang: Lang, key: MessageKey, vars?: Record<string, string | number>) {
-  const text = dictionaries[lang][key] ?? en[key];
+  const text = dictionaries[lang]?.[key] ?? en[key];
   return vars ? text.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : text;
 }

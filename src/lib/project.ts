@@ -148,6 +148,8 @@ export type Submission = {
   note?: string;
   /** From the server, for the person viewing: whether they may accept or query it, and who decides it. */
   mayDecide?: boolean;
+  /** The technical lead: may send this field form back with a note, but not accept it. */
+  maySendBack?: boolean;
   deciders?: string;
 };
 

@@ -4,12 +4,13 @@ import { eq, sql } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { projectRolesFromTypes, type Authority } from "@/lib/authority";
 import { HR_ACCESS_ROLES } from "@/lib/hr";
-import { fileStoresFor, loadOrgSettings, withSettings } from "@/server/org-settings-store";
+import { fileStoresFor, loadOrgSettings, storesFromSettings, withSettings, type OrgSettings } from "@/server/org-settings-store";
 import { NextResponse } from "next/server";
 import { db, schema as s } from "@/db";
 import { userById, users, type AppUser } from "@/lib/demo";
-import { withReportingLine } from "@/server/reporting-line";
-import { requestOnlyReads } from "@/server/request-memo";
+import { supervisorsNow, withReportingLine } from "@/server/reporting-line";
+import { oncePerRequest, requestOnlyReads } from "@/server/request-memo";
+import { early } from "@/server/early";
 
 /**
  * Who is making a request.
@@ -59,10 +60,11 @@ export async function supabaseServer() {
   });
 }
 
+type Supabase = Awaited<ReturnType<typeof supabaseServer>>;
+
 /** The signed-in staff row, linking the Auth account by email on first sign-in. */
-async function signedInStaff(): Promise<StaffRow | null> {
-  if (!authConfigured()) return null;
-  const { data } = await (await supabaseServer()).auth.getUser();
+async function signedInStaff(supabase: Supabase): Promise<StaffRow | null> {
+  const { data } = await supabase.auth.getUser();
   const auth = data.user;
   if (!auth?.email) return null;
   const [byId] = await db.select().from(s.staff).where(eq(s.staff.authUserId, auth.id)).limit(1);
@@ -73,12 +75,20 @@ async function signedInStaff(): Promise<StaffRow | null> {
   return byEmail;
 }
 
-/** Whether this session still owes its second step (see Viewer.twoStep). */
-async function twoStepState(organizationId: string, person: AppUser): Promise<Viewer["twoStep"]> {
-  const { data } = await (await supabaseServer()).auth.mfa.getAuthenticatorAssuranceLevel();
+/**
+ * A read started ahead (server/early): marked as handled, so one left unread after an early answer
+ * does not crash the server; awaiting it still throws. Through Promise.resolve, so a query builder
+ * runs once: a Drizzle query runs again each time `then` or `catch` is called on it.
+ */
+const ahead = early;
+
+/** Whether this session still owes its second step (see Viewer.twoStep). `settings`: the organization's settings, already being read. */
+async function twoStepState(supabase: Supabase, settings: Promise<OrgSettings>, person: AppUser): Promise<Viewer["twoStep"]> {
+  // Read from the session the Auth check above has just confirmed (and refreshed, if it was due).
+  const { data } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
   if (!data || data.currentLevel === "aal2") return undefined;
   if (data.nextLevel === "aal2") return "verify";
-  const values = withSettings(await loadOrgSettings(organizationId)).values;
+  const values = withSettings(await settings).values;
   if (values.twoStepRequired?.value === true) return "enroll";
   // People who see personal data: administrators, HR role holders and anyone who sees participants' names.
   if (values.twoStepSensitive?.value === true) {
@@ -90,13 +100,20 @@ async function twoStepState(organizationId: string, person: AppUser): Promise<Vi
 
 /** Who holds each role type, read from the HR record at most once a minute per server. */
 let holdersCache: { at: number; holders: Authority } | null = null;
+/** A read under way, shared by everyone who asks meanwhile (sign-in reads it ahead; see viewerAsStored). */
+let holdersReading: Promise<Authority> | null = null;
 async function roleHolders(): Promise<Authority> {
   if (holdersCache && Date.now() - holdersCache.at < 60_000) return holdersCache.holders;
-  const loaded = await (await import("@/server/hr-store")).loadHr().catch(() => null);
-  const holders = (loaded?.state.rules?.holders ?? {}) as Authority;
-  // A failed read is not remembered, so a database hiccup does not take approvals away for a minute.
-  if (loaded) holdersCache = { at: Date.now(), holders };
-  return holders;
+  holdersReading ??= (async () => {
+    const loaded = await (await import("@/server/hr-store")).loadHr().catch(() => null);
+    const holders = (loaded?.state.rules?.holders ?? {}) as Authority;
+    // A failed read is not remembered, so a database hiccup does not take approvals away for a minute.
+    if (loaded) holdersCache = { at: Date.now(), holders };
+    return holders;
+  })().finally(() => {
+    holdersReading = null;
+  });
+  return holdersReading;
 }
 /** Adds the project roles a person has from the role types they hold (lib/authority PROJECT_ROLE_TYPES). */
 async function withRoleTypes(u: AppUser): Promise<AppUser> {
@@ -105,41 +122,64 @@ async function withRoleTypes(u: AppUser): Promise<AppUser> {
 }
 
 export async function getViewer(req: Request): Promise<Viewer | null> {
-  const v = await viewerAsStored(req);
-  if (!v || v.twoStep) return v;
-  const actor = await withRoleTypes(v.actor);
-  return { ...v, actor, user: v.viewingAs ? await withRoleTypes(v.user) : actor };
+  return (await resolveViewer(req)).viewer;
 }
 
-async function viewerAsStored(req: Request): Promise<Viewer | null> {
+/**
+ * The viewer, with the organization's settings as read during sign-in (live mode), so the file
+ * stores need not read them a second time. The settings are read while the rest is checked.
+ */
+async function resolveViewer(req: Request): Promise<{ viewer: Viewer | null; settings: Promise<OrgSettings> | null }> {
+  const stored = await viewerAsStored(req);
+  const v = stored.viewer;
+  if (!v || v.twoStep) return stored;
+  const actor = await withRoleTypes(v.actor);
+  return { viewer: { ...v, actor, user: v.viewingAs ? await withRoleTypes(v.user) : actor }, settings: stored.settings };
+}
+
+async function viewerAsStored(req: Request): Promise<{ viewer: Viewer | null; settings: Promise<OrgSettings> | null }> {
   if (demoMode()) {
     const u = userById(req.headers.get("x-demo-user") ?? "");
-    return u ? { user: u, actor: u, actorStaffId: null, organizationId: null, viewingAs: false } : null;
+    return { viewer: u ? { user: u, actor: u, actorStaffId: null, organizationId: null, viewingAs: false } : null, settings: null };
   }
-  const row = await signedInStaff();
-  if (!row) return null;
+  if (!authConfigured()) return { viewer: null, settings: null };
+  const supabase = await supabaseServer();
+  const row = await signedInStaff(supabase);
+  if (!row) return { viewer: null, settings: null };
   const actor = toAppUser(row);
-  const twoStep = await twoStepState(row.organizationId, actor);
-  if (twoStep) return { user: actor, actor, actorStaffId: row.id, organizationId: row.organizationId, viewingAs: false, twoStep };
+  // Read now, side by side: the organization's settings (second step, file stores), who holds which
+  // role (project roles from role types), and the person an administrator is viewing as.
+  const settings = ahead(loadOrgSettings(row.organizationId));
+  void roleHolders();
   const asId = (await cookies()).get(VIEW_AS_COOKIE)?.value;
-  if (actor.admin && asId && asId !== actor.id) {
-    const [target] = await db.select().from(s.staff).where(eq(s.staff.personId, asId)).limit(1);
+  const viewed = actor.admin && asId && asId !== actor.id ? ahead(db.select().from(s.staff).where(eq(s.staff.personId, asId)).limit(1)) : null;
+  const twoStep = await twoStepState(supabase, settings, actor);
+  if (twoStep) return { viewer: { user: actor, actor, actorStaffId: row.id, organizationId: row.organizationId, viewingAs: false, twoStep }, settings };
+  if (viewed) {
+    const [target] = await viewed;
     // Only someone in the administrator's own organization.
     if (target?.active && target.organizationId === row.organizationId) {
-      const viewed = toAppUser(target);
+      const shown = toAppUser(target);
       // View as never unlocks names the signed-in person may not see.
-      return { user: { ...viewed, pii: viewed.pii && actor.pii }, actor, actorStaffId: row.id, organizationId: row.organizationId, viewingAs: true };
+      return { viewer: { user: { ...shown, pii: shown.pii && actor.pii }, actor, actorStaffId: row.id, organizationId: row.organizationId, viewingAs: true }, settings };
     }
   }
-  return { user: actor, actor, actorStaffId: row.id, organizationId: row.organizationId, viewingAs: false };
+  return { viewer: { user: actor, actor, actorStaffId: row.id, organizationId: row.organizationId, viewingAs: false }, settings };
 }
 
 /** Everyone the app can name: the database staff list in live mode, the fictional cast in demo mode. */
-export async function people(): Promise<AppUser[]> {
-  // Who reports to whom comes from the HR record when there is one (server/reporting-line).
-  if (demoMode()) return withReportingLine(users);
-  const rows = await db.select().from(s.staff).where(eq(s.staff.active, true));
-  return withReportingLine(rows.filter((r) => r.personId && r.profile).map(toAppUser));
+export function people(): Promise<AppUser[]> {
+  // Read once per read-only request (server/request-memo); a request that changes something reads it every time.
+  return oncePerRequest(`people:${demoMode() ? "demo" : "live"}`, async () => {
+    // Who reports to whom comes from the HR record when there is one (server/reporting-line).
+    if (demoMode()) return withReportingLine(users);
+    // The staff list and the reporting line, read side by side; applied as withReportingLine does.
+    const [rows, line] = await Promise.all([db.select().from(s.staff).where(eq(s.staff.active, true)), supervisorsNow()]);
+    return rows
+      .filter((r) => r.personId && r.profile)
+      .map(toAppUser)
+      .map((p) => (line[p.id] && line[p.id] !== p.reportsTo ? { ...p, reportsTo: line[p.id] } : p));
+  });
 }
 
 const deny = (status: 401 | 403 | 404, error: string) => NextResponse.json({ error }, { status });
@@ -157,34 +197,61 @@ export async function fundedBy(org: string): Promise<Set<string>> {
 export async function requireViewer(req: Request, opts: { write?: boolean; allow?: (u: AppUser) => boolean; why?: string } = {}): Promise<Viewer | NextResponse> {
   // A read may reuse what it has already read in this request (server/request-memo); a change never does.
   if (req.method === "GET") requestOnlyReads();
-  const v = await getViewer(req);
+  const { viewer: v, settings } = await resolveViewer(req);
   if (!v) return deny(401, "Sign in to continue.");
   if (v.twoStep) return deny(401, v.twoStep === "verify" ? "Enter the code from your authenticator app to continue." : "Your organization requires two-step sign-in: set it up to continue.");
-  // Evidence links in this request are checked against this person's organization's file stores.
-  setRequestFileStores(await fileStoresFor(v.user.id, v.organizationId));
+  const path = new URL(req.url).pathname;
+  const code = path.match(/^\/api\/projects\/([^/]+)/)?.[1];
+  // What the checks below need is read side by side; the checks still run one by one, in this order.
+  const decoded = code ? decodedOrNull(code) : null;
+  const project = decoded ? ahead(projectRow(decoded)) : null;
+  const funded = decoded && v.user.kind === "donor" ? ahead(fundedBy(v.user.org)) : null;
+  // Evidence links in this request are checked against this person's organization's file stores,
+  // from the settings already read at sign-in when there are some.
+  setRequestFileStores(v.organizationId && settings ? storesFromSettings(await settings) : await fileStoresFor(v.user.id, v.organizationId));
   if (opts.write && v.viewingAs) return deny(403, `You are viewing as ${v.user.name}. View as is read-only.`);
   // View as never opens HR, pay or personal files beyond what the administrator may see themselves.
-  if (v.viewingAs && /^\/api\/(hr|payroll|files|timesheets|leave|expenses|onboarding|offboarding)(\/|$)/.test(new URL(req.url).pathname)) {
+  if (v.viewingAs && /^\/api\/(hr|payroll|files|timesheets|leave|expenses|onboarding|offboarding)(\/|$)/.test(path)) {
     const holders = await roleHolders();
     if (!HR_ACCESS_ROLES.some((r) => holders[r]?.includes(v.actor.id))) return deny(403, "View as does not open HR records, pay or personal files.");
   }
   if (opts.allow && !opts.allow(v.user)) return deny(403, opts.why ?? "Your role does not allow this.");
   // Per-project access: a person listed on projects has their roles only there.
-  const code = new URL(req.url).pathname.match(/^\/api\/projects\/([^/]+)/)?.[1];
   if (code && !onProject(v.user, decodeURIComponent(code))) return deny(403, "You do not work on this project. An administrator can add it to your projects in Settings, People.");
   // A donor opens only the projects their organization funds; any other answers as if it were not there.
-  if (code && v.user.kind === "donor" && !(await fundedBy(v.user.org)).has(decodeURIComponent(code))) return deny(404, NO_PROJECT(decodeURIComponent(code)));
+  if (code && v.user.kind === "donor" && !(await (funded ?? fundedBy(v.user.org))).has(decodeURIComponent(code))) return deny(404, NO_PROJECT(decodeURIComponent(code)));
+  const row = code ? await (project ?? projectRow(decodeURIComponent(code))) : null;
   // The project must belong to the person's own organization. Another organization's project
   // answers exactly as a project that does not exist, so its code cannot be confirmed by guessing.
-  if (code && v.organizationId) {
-    const org = await organizationOfProject(decodeURIComponent(code));
-    if (org && org !== v.organizationId) return deny(404, NO_PROJECT(decodeURIComponent(code)));
-  }
+  if (code && v.organizationId && row?.organizationId && row.organizationId !== v.organizationId) return deny(404, NO_PROJECT(decodeURIComponent(code)));
   // A parked project is set aside while the app is built: it answers as if it were not there.
-  if (code && (await isParkedProject(decodeURIComponent(code)))) return deny(404, NO_PROJECT(decodeURIComponent(code)));
+  if (code && row?.kind === "parked") return deny(404, NO_PROJECT(decodeURIComponent(code)));
   // The sample project is a finished example: everyone can open it, nobody can change it.
-  if (code && opts.write && (await isSampleProject(decodeURIComponent(code)))) return deny(403, SAMPLE_READ_ONLY);
+  if (code && opts.write && row?.kind === "sample") return deny(403, SAMPLE_READ_ONLY);
   return v;
+}
+
+function decodedOrNull(code: string): string | null {
+  try {
+    return decodeURIComponent(code);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The project a path names (its organization and kind), or null when there is none. The same read
+ * as server/field-store projectByCode, so a read-only request reads the project once for the
+ * checks above and the route together. Read fresh otherwise: a project can be parked and brought back.
+ */
+async function projectRow(code: string): Promise<{ organizationId: string | null; kind: string } | null> {
+  const { projectByCode } = await import("@/server/field-store");
+  try {
+    return await projectByCode(code);
+  } catch (e) {
+    if ((e as { status?: number }).status === 404) return null;
+    throw e;
+  }
 }
 
 export const SAMPLE_READ_ONLY = "This is the sample project, with fictional data: it can be looked at, not changed. Choose your own project to record or edit.";

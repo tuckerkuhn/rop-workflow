@@ -138,3 +138,66 @@ describe("from one week to the next", () => {
     expect(weekScore({ ...last, confirmedAt: null })).toBeNull();
   });
 });
+
+import { weekKindOf, type FinanceWork, type MelWork } from "@/lib/week";
+
+const fin = (over: Partial<FinanceWork>): FinanceWork => ({ unclosed: [], importWanted: "2026-10", importedTo: "2026-10", overspent: [], ahead: false, purchases: [], billsToVoucher: [], imported: 0, closed: [], filed: 0, ...over });
+const mel = (over: Partial<MelWork>): MelWork => ({ results: { n: 0, since: null }, forms: { n: 0, since: null }, queried: 0, mismatched: 0, noData: 0, behind: [], ...over });
+
+describe("a week for Finance and for MEL", () => {
+  const person = (over: Partial<{ kind: string; project: string[]; field: string[] }>) => ({ kind: "employee", project: [], field: [], ...over });
+  it("chooses one week per person, the first that fits", () => {
+    expect(weekKindOf(person({ project: ["finance-import"] }), ["lead", "finance"])).toBe("lead");
+    expect(weekKindOf(person({ project: ["technical-lead", "mel-owner"] }), ["mel"])).toBe("technical");
+    expect(weekKindOf(person({ field: ["manager"] }), ["field", "finance"])).toBe("manager");
+    expect(weekKindOf(person({}), ["finance", "procurement"])).toBe("finance");
+    expect(weekKindOf(person({ field: ["mel"] }), ["field"])).toBe("mel");
+    expect(weekKindOf(person({ project: ["mel-owner"] }), ["mel", "finance"])).toBe("finance");
+    expect(weekKindOf(person({ field: ["extension"] }), ["field"])).toBeNull();
+    expect(weekKindOf(person({ kind: "donor" }), ["lead"])).toBeNull();
+  });
+
+  it("tells Finance about month close, imports, budget lines, what waits and what changed", () => {
+    const projects = [p({ approvals: [{ text: "Approve the purchase", href: "/work", since: "2026-11-10", short: "Maize", key: "purchase:PR-1" }], finance: fin({ importedTo: "2026-09", unclosed: [{ month: "2026-09", blockers: 2 }], overspent: ["1.1", "2.3"], purchases: [{ id: "PR-1", title: "Seed", step: "Pay the supplier", since: "2026-11-17" }], billsToVoucher: [{ id: "B-1", since: "2026-11-20" }], imported: 1, closed: ["2026-08"] }) })];
+    const org = { expenses: { n: 2, since: "2026-11-19" }, payroll: [{ month: "2026-11", since: "2026-11-21" }] };
+    const s = weekSummaryFor("finance", projects, "2026-11-23", org);
+    expect(s.map((x) => x.kind)).toEqual(["due", "risk", "waiting", "changed"]);
+    expect(text(s[0])).toBe("Maize: spending for October 2026 is not imported yet (imported to September 2026). September 2026 is not closed for Maize: 2 vouchers still to finish, file or post. ");
+    expect(s[0].flag).toBe(true);
+    expect(s[0].parts.find((x) => x.href)?.href).toBe("/progress/budget?project=A-2027");
+    expect(text(s[1])).toBe("Maize has 2 budget lines over budget: 1.1, 2.3. ");
+    // Home's purchase row is the same purchase: counted once.
+    expect(text(s[2])).toBe("Waiting on you: 1 purchase step, the voucher for 1 approved bill, 2 expense reports and the November 2026 payroll, the oldest for 6 days.");
+    expect(s[2].parts.find((x) => x.t === "1 purchase step")?.href).toBe("/work?source=procurement&open=PR-1&project=A-2027");
+    expect(text(s[3])).toBe("In the last seven days spending was imported for Maize and August 2026 was closed for Maize.");
+    expect(suggestFor("finance", projects, org).map((x) => x.text)).toEqual(["Approve the November 2026 payroll", "Pay the supplier: PR-1 Seed", "Check the 2 expense reports waiting on you"]);
+  });
+
+  it("says a quiet Finance week plainly", () => {
+    const s = weekSummaryFor("finance", [p({ finance: fin({}) })], "2026-11-23");
+    expect(s.map(text)).toEqual(["Every past month is closed and spending is imported.", "No budget line is over budget and no project is spending ahead of the time gone.", "Nothing is waiting on you.", "No spending was imported and no month was closed in the last seven days."]);
+    expect(s.some((x) => x.flag)).toBe(false);
+    expect(suggestFor("finance", [p({ finance: fin({ unclosed: [{ month: "2026-10", blockers: 0 }] }) })]).map((x) => x.text)).toEqual(["Close October 2026 for Maize"]);
+  });
+
+  it("tells MEL what waits to be checked, oldest first, what was sent back, the targets and the reports", () => {
+    const projects = [p({ blocking: 4, reports: [{ ...q4, days: 21 }], released: ["Q3 2026 quarterly report"], mel: mel({ results: { n: 4, since: "2026-11-11" }, forms: { n: 3, since: "2026-11-18" }, queried: 2, mismatched: 1, noData: 3, behind: ["1.1", "2.3"] }) })];
+    const s = weekSummaryFor("mel", projects, "2026-11-23");
+    expect(s.map(text)).toEqual([
+      "Waiting for you to check: 4 results, the oldest for 12 days and 3 field forms from KoboCollect, the oldest for 5 days.",
+      "2 results sent back for correction are still not corrected. 1 accepted result no longer matches KoboToolbox: reopen to check the new figure. ",
+      "Before the next Maize report, 3 targets have no data, 2 targets are behind (1.1, 2.3) and 4 checks block the report. ",
+      "The Q4 quarterly report for Maize is due in 21 days. In the last seven days Q3 2026 quarterly report for Maize was released.",
+    ]);
+    expect(s[0].flag).toBe(true);
+    expect(s[0].parts.find((x) => x.t === "3 field forms")?.href).toBe("/progress/results?project=A-2027#field-records");
+    expect(suggestFor("mel", projects).map((x) => x.id)).toEqual(["check-results", "check-forms", "block:A-2027"]);
+  });
+
+  it("says a quiet MEL week plainly", () => {
+    const s = weekSummaryFor("mel", [p({ mel: mel({}) })], "2026-11-23");
+    expect(s.map(text)).toEqual(["No result or field form is waiting for you to check.", "No result sent back is waiting to be corrected.", "Every target has data, none is behind and nothing blocks the next report.", "No report is due in the next 30 days. "]);
+    expect(s.some((x) => x.flag)).toBe(false);
+    expect(suggestFor("mel", [p({ mel: mel({}) })])).toEqual([]);
+  });
+});

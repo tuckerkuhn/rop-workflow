@@ -1,6 +1,5 @@
 "use client";
 
-import JSZip from "jszip";
 import { useState } from "react";
 import { useT } from "@/components/app/i18n";
 import { setPending, type Pending } from "@/components/setup/pending";
@@ -31,6 +30,8 @@ async function readFile(f: File): Promise<Sent> {
     return { name: f.name, kind: "pdf", data: btoa(bin) };
   }
   if (lower.endsWith(".docx")) {
+    // jszip loads when a Word file is read, not with the page.
+    const { default: JSZip } = await import("jszip");
     const zip = await JSZip.loadAsync(await f.arrayBuffer());
     const xml = (await zip.file("word/document.xml")?.async("string")) ?? "";
     const text = xml

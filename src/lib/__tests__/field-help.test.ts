@@ -3,7 +3,10 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { FIELD_HELP, registerMarkdown } from "@/lib/field-help";
 import { en } from "@/lib/i18n/en";
-import { fhEn, fhEs, fhFa, fhPs } from "@/lib/i18n/field-help";
+import { fhEn } from "@/lib/i18n/field-help";
+import { fhEs } from "@/lib/i18n/field-help.es";
+import { fhFa } from "@/lib/i18n/field-help.fa";
+import { fhPs } from "@/lib/i18n/field-help.ps";
 
 const DOC = path.resolve(import.meta.dirname, "../../../docs/DATA-PROTECTION.md");
 const START = "<!-- field-help:start (generated from src/lib/field-help.ts; edit the register, then run UPDATE_DOCS=1 npm test) -->";
@@ -22,7 +25,9 @@ describe("why we ask", () => {
   });
   it("the data protection document carries the same register, word for word", () => {
     const doc = readFileSync(DOC, "utf8");
-    const want = `${START}\n${registerMarkdown()}\n${END}`;
+    const want = `${START}
+${registerMarkdown()}
+${END}`;
     if (process.env.UPDATE_DOCS === "1" && doc.includes(START)) writeFileSync(DOC, doc.slice(0, doc.indexOf(START)) + want + doc.slice(doc.indexOf(END) + END.length));
     expect(readFileSync(DOC, "utf8")).toContain(want);
   });

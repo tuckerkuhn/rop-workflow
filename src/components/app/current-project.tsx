@@ -19,7 +19,21 @@ import type { Value } from "@/lib/policy";
  */
 
 /** `rulesFor` changes once a project's rules have loaded, so screens that read them draw again. */
-type CurrentProject = { project: ProjectInfo; setProject: (id: string) => void; projects: ProjectInfo[]; reload: () => Promise<void>; rulesFor: string | null };
+type CurrentProject = {
+  project: ProjectInfo;
+  setProject: (id: string) => void;
+  projects: ProjectInfo[];
+  reload: () => Promise<void>;
+  rulesFor: string | null;
+  /** The project's /policy answer as last fetched here (null for demo projects or when it could not be read), with when. */
+  policy: LoadedPolicy | null;
+  /** Fetches the project's /policy again; the rules and `policy` follow. */
+  reloadPolicy: () => void;
+};
+
+/** The parts of /api/projects/[code]/policy read outside the policy page. */
+export type PolicyAnswer = { lines: { key: string; value: Value; conflict: string | null; decision: unknown }[]; open: string[] };
+export type LoadedPolicy = { projectId: string; answer: PolicyAnswer | null; at: number };
 
 const KEY = "rop-current-project";
 const Ctx = createContext<CurrentProject | null>(null);
@@ -119,6 +133,10 @@ export function CurrentProjectProvider({ children }: { children: React.ReactNode
 
   // The rules this project follows (its organization's policy combined with its donor's): procurement reads them.
   const [rulesFor, setRulesFor] = useState<string | null>(null);
+  // The /policy answer is kept so Home's "Rules to decide" reads it instead of fetching it a second time.
+  const [policy, setPolicy] = useState<LoadedPolicy | null>(null);
+  const [policyAsk, setPolicyAsk] = useState(0);
+  const reloadPolicy = useCallback(() => setPolicyAsk((n) => n + 1), []);
   const projectId = project?.id;
   const projectSaved = !!project?.saved;
   // Saved projects run on the real date; demo projects on their fixed date. Set before children render.
@@ -127,23 +145,29 @@ export function CurrentProjectProvider({ children }: { children: React.ReactNode
     if (!user || !projectId) return;
     if (!projectSaved) {
       setProcurementRules(null);
+      setPolicy(null);
       setRulesFor(projectId);
       return;
     }
     let live = true;
     fetch(`/api/projects/${projectId}/policy`, { cache: "no-store", headers: { "x-demo-user": user.id } })
       .then((r) => (r.ok ? r.json() : null))
-      .then((v: { lines: { key: string; value: Value; conflict: string | null; decision: unknown }[] } | null) => {
+      .then((v: PolicyAnswer | null) => {
         if (!live) return;
         // An undecided conflict leaves that rule at the organization's own value until an administrator decides.
         setProcurementRules(v ? Object.fromEntries(v.lines.filter((l) => !l.conflict || l.decision).map((l) => [l.key, l.value])) : null);
+        setPolicy({ projectId, answer: v, at: Date.now() });
         setRulesFor(projectId);
       })
-      .catch(() => live && setRulesFor(projectId));
+      .catch(() => {
+        if (!live) return;
+        setPolicy({ projectId, answer: null, at: Date.now() });
+        setRulesFor(projectId);
+      });
     return () => {
       live = false;
     };
-  }, [user, projectId, projectSaved]);
+  }, [user, projectId, projectSaved, policyAsk]);
 
   if (waiting)
     return (
@@ -151,7 +175,7 @@ export function CurrentProjectProvider({ children }: { children: React.ReactNode
         <Loading />
       </div>
     );
-  return <Ctx.Provider value={{ project, setProject, projects, reload, rulesFor }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ project, setProject, projects, reload, rulesFor, policy, reloadPolicy }}>{children}</Ctx.Provider>;
 }
 
 export function useCurrentProject() {

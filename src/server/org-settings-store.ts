@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { ROP, type Profile, type Value } from "@/lib/policy";
 import { profileById } from "@/lib/presets";
+import { oncePerRequest } from "@/server/request-memo";
 
 /**
  * The organization's own rules as changed in Settings, kept as one organization_state document.
@@ -20,7 +21,13 @@ export type OrgSettings = { values: Record<string, OrgChange>; history: OrgChang
 
 const EMPTY: OrgSettings = { values: {}, history: [] };
 
-export async function loadOrgSettings(orgId: string): Promise<OrgSettings> {
+export function loadOrgSettings(orgId: string): Promise<OrgSettings> {
+  // Read once per read-only request (server/request-memo): sign-in, file stores and the page all ask.
+  // Not kept between requests: a change must hold at once on every server.
+  return oncePerRequest(`org-settings:${orgId}`, () => readOrgSettings(orgId));
+}
+
+async function readOrgSettings(orgId: string): Promise<OrgSettings> {
   try {
     const [row] = await db
       .select()
@@ -67,13 +74,16 @@ export async function orgIdForPerson(personId: string): Promise<string | null> {
 
 /** The organization's sample project (projects.kind "sample"), if it has one, and whether it is hidden. */
 export async function sampleOf(orgId: string): Promise<{ code: string; name: string; hidden: boolean } | null> {
+  // Both read at once; the settings are usually already read in this request.
+  const settings = loadOrgSettings(orgId);
+  settings.catch(() => {});
   const [p] = await db
     .select({ code: s.projects.code, name: s.projects.name })
     .from(s.projects)
     .where(and(eq(s.projects.organizationId, orgId), eq(s.projects.kind, "sample")))
     .limit(1);
   if (!p?.code) return null;
-  return { code: p.code, name: p.name, hidden: !!(await loadOrgSettings(orgId)).sample?.hidden };
+  return { code: p.code, name: p.name, hidden: !!(await settings).sample?.hidden };
 }
 
 /**
@@ -83,7 +93,11 @@ export async function sampleOf(orgId: string): Promise<{ code: string; name: str
  */
 export async function fileStoresOf(orgId: string | null): Promise<StoreSet> {
   if (!orgId) return storeSet(null);
-  const settings = await loadOrgSettings(orgId);
+  return storesFromSettings(await loadOrgSettings(orgId));
+}
+
+/** The file stores named in settings already read (server/auth reuses the read it made at sign-in). */
+export function storesFromSettings(settings: OrgSettings): StoreSet {
   return { ...storeSet(settings.files?.stores, (settings.filesHistory ?? []).map((c) => c.stores)), accounting: settings.files?.accounting ?? "", payroll: settings.files?.payroll ?? "" };
 }
 

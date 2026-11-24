@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { QueryPromise } from "drizzle-orm";
 import { early } from "@/server/early";
 import { oncePerRequest, requestOnlyReads, withRequestMemo } from "@/server/request-memo";
 
@@ -61,6 +62,20 @@ describe("a read started early", () => {
   it("still fails at the await when the read fails", async () => {
     const later = early(Promise.reject(new Error("no database")));
     await expect(later).rejects.toThrow("no database");
+  });
+  it("runs a Drizzle query once, though it is caught early and awaited later", async () => {
+    // A Drizzle query runs again on every `then` or `catch` (drizzle-orm QueryPromise). Sign-in reads
+    // the viewed person ahead this way (server/auth); calling `.catch` on the query itself ran it twice.
+    let runs = 0;
+    class Query extends QueryPromise<string> {
+      async execute() {
+        runs++;
+        return "row";
+      }
+    }
+    const later = early(new Query());
+    expect(await later).toBe("row");
+    expect(runs).toBe(1);
   });
   it("starts a query that only runs when awaited", async () => {
     let ran = false;

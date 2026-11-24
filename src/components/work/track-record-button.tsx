@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { quietBtn } from "@/components/workspace/ui";
 import type { TrackRecord } from "@/server/track-record";
-import { trackRecordDocx, type TrackImages } from "@/lib/track-record-docx";
+// The Word builder (and the `docx` library) loads on the click, not with the page.
+import type { TrackImages } from "@/lib/track-record-docx";
 
 /** Downloads ROP's track record (Word) for a proposal: projects, accepted results, consented stories. */
 export function TrackRecordButton({ user }: { user: string }) {
@@ -30,6 +31,7 @@ export function TrackRecordButton({ user }: { user: string }) {
         const blob = await new Promise<Blob | null>((ok) => c.toBlob(ok, "image/jpeg", 0.85));
         if (blob) images.set(st.photo.hash, { data: await blob.arrayBuffer(), width: c.width, height: c.height });
       }
+      const { trackRecordDocx } = await import("@/lib/track-record-docx");
       const doc = await trackRecordDocx(t, images);
       const a = document.createElement("a");
       a.href = URL.createObjectURL(doc);

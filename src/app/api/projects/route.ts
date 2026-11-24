@@ -13,15 +13,23 @@ export async function GET(req: Request) {
   return handle(async () => {
     const v = await requireViewer(req);
     if (v instanceof NextResponse) return v;
-    // Only the projects this person works on, each with how many indicators take results by hand.
-    const [hand, withField] = await Promise.all([handRecordedCounts(), projectsWithField()]);
-    // The sample (C5): this organization's own, unless an administrator has hid it.
-    const orgId = await orgIdForPerson(v.user.id);
-    const sample = orgId ? await sampleOf(orgId) : null;
-    // A donor sees only the projects their organization funds: never the training sample or anyone else's grant.
-    const funded = v.user.kind === "donor" ? await fundedBy(v.user.org) : null;
+    // Everything read side by side.
+    const [hand, withField, sample, funded, all] = await Promise.all([
+      // Only the projects this person works on, each with how many indicators take results by hand.
+      handRecordedCounts(),
+      projectsWithField(),
+      // The sample (C5): this organization's own, unless an administrator has hid it. A signed-in
+      // person's organization is known from sign-in; the lookup remains for the demo cast.
+      (async () => {
+        const orgId = v.organizationId ?? (await orgIdForPerson(v.user.id));
+        return orgId ? sampleOf(orgId) : null;
+      })(),
+      // A donor sees only the projects their organization funds: never the training sample or anyone else's grant.
+      v.user.kind === "donor" ? fundedBy(v.user.org) : null,
+      listProjects({ all: true }),
+    ]);
     const shown = (p: { code: string; kind: string }) => (funded ? funded.has(p.code) : p.kind !== "sample" || (!!sample && !sample.hidden && sample.code === p.code));
-    return NextResponse.json({ projects: (await listProjects({ all: true })).filter((p) => shown(p) && onProject(v.user, p.code)).map((p) => ({ ...p, handRecorded: hand.get(p.code) ?? 0, field: withField.has(p.code) })) });
+    return NextResponse.json({ projects: all.filter((p) => shown(p) && onProject(v.user, p.code)).map((p) => ({ ...p, handRecorded: hand.get(p.code) ?? 0, field: withField.has(p.code) })) });
   });
 }
 

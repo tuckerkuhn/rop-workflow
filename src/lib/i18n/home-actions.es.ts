@@ -1,0 +1,35 @@
+/** Spanish for ./home-actions.ts, in its own module so English pages do not download it. */
+
+import type { haEn } from "./home-actions";
+
+export const haEs: Partial<Record<keyof typeof haEn, string>> = {
+  "ha.signoff": "Aprobar el plan y el presupuesto para empezar la ejecución",
+  "ha.decide1": "Decidir 1 cambio propuesto al plan en la revisión de {month}",
+  "ha.decide": "Decidir {n} cambios propuestos al plan en la revisión de {month}",
+  "ha.reviewSignoff": "Aprobar la revisión mensual de {month}",
+  "ha.release": "Publicar el informe de {quarter} en la aplicación",
+  "ha.accept1": "Aceptar o consultar 1 resultado que le espera",
+  "ha.accept": "Aceptar o consultar {n} resultados que le esperan",
+  "ha.fieldForms1": "Revisar 1 formulario de campo de KoboCollect (preparación, capacitación, visitas)",
+  "ha.fieldForms": "Revisar {n} formularios de campo de KoboCollect (preparación, capacitación, visitas)",
+  "ha.queried1": "Corregir 1 resultado consultado por MEL",
+  "ha.queried": "Corregir {n} resultados consultados por MEL",
+  "ha.import": "Importar el gasto de Finanzas de {month} (importado hasta {to})",
+  "ha.importNone": "Importar el gasto de Finanzas de {month} (aún no se ha importado nada)",
+  "ha.overspent1": "Explicar 1 línea presupuestaria sobregastada",
+  "ha.overspent": "Explicar {n} líneas presupuestarias sobregastadas",
+  "ha.tile.label": "Informe de {quarter}",
+  "ha.tile.fix": "{n} por corregir",
+  "ha.tile.ready": "Listo",
+  "ha.tile.body": "{blocks} bloqueantes y {other} pendientes más antes de publicar.",
+  "ha.offPlan": "Fuera del plan",
+  "ha.offPlanNone": "Nada está fuera del plan en esta vista.",
+  "ha.backProgress": "Progreso",
+  "ha.claimFix": "Marcado para corregir. La sección está abajo: corrija la frase y guarde.",
+  "ha.claimKeep": "Se mantiene como está. Su decisión queda registrada.",
+  "ha.claimUndo": "Decisión retirada.",
+  "fp.tooBig": "Ese archivo es demasiado grande para ser una foto. Elija una foto del teléfono.",
+  "fp.unreadable": "La aplicación no pudo leer esa imagen. Pruebe con una foto JPEG o PNG.",
+  "fp.small": "Se guarda una copia pequeña, suficiente para verificar el trabajo. El plan de pago guarda la calidad normal del teléfono.",
+  "fp.full": "Se guarda con la calidad normal del teléfono.",
+};

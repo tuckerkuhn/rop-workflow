@@ -1,5 +1,5 @@
 import { ourWork } from "@/lib/budget";
-import { and, asc, eq, isNotNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { spentIn } from "@/lib/bva";
 import { activityOf, breakdownsFor, buildRows, carryForward, checksFor, DEFAULT_ACRONYMS, grmLogFor, photosFor, prevQuarterOf, withLineReasons, type IndicatorInfo, type Qpr, type Spend } from "@/lib/qpr";
@@ -12,28 +12,41 @@ import { projectByCode, donorNameOf, goalOf } from "@/server/field-store";
 import { loadResults, loadUpdates } from "@/server/results-store";
 import { MAX_PRACTICE, workTime, type CopyData, type ReportCopy, type WorkTime } from "@/lib/report-copy";
 import { auditTrail } from "@/server/audit";
-import { loadProjectState, updateProjectState } from "@/server/project-state";
+import { loadProjectState, loadProjectStateRaw, updateProjectState } from "@/server/project-state";
 import { loadLineReasons } from "@/server/overspend-store";
 import { early } from "@/server/early";
-import { oncePerRequest } from "@/server/request-memo";
+import { oncePerRequest, requestWrote } from "@/server/request-memo";
 
 /** One saved quarterly report per project and quarter, as project_state "qpr:2026-Q3". */
 
 export async function rawQpr(projectId: string, quarter: string) {
-  const [row] = await db
-    .select()
+  // Kept once per read-only request with every other project_state read (server/project-state).
+  return ((await loadProjectStateRaw(projectId, `qpr:${quarter}`)) as Qpr | null) ?? null;
+}
+
+/**
+ * Whether each quarter's report was released (its `released` stamp, or null), without loading
+ * each whole report: one query for all the quarters. A quarter with no saved report is null.
+ */
+export async function rawQprReleased(projectId: string, quarters: string[]): Promise<Map<string, Qpr["released"] | null>> {
+  if (!quarters.length) return new Map();
+  const rows = await db
+    .select({ key: s.projectState.key, released: sql<Qpr["released"] | null>`${s.projectState.data} -> 'released'` })
     .from(s.projectState)
-    .where(and(eq(s.projectState.projectId, projectId), eq(s.projectState.key, `qpr:${quarter}`)))
-    .limit(1);
-  return (row?.data as Qpr | undefined) ?? null;
+    .where(and(eq(s.projectState.projectId, projectId), inArray(s.projectState.key, quarters.map((q) => `qpr:${q}`))));
+  const by = new Map(rows.map((r) => [r.key.slice("qpr:".length), r.released ?? null]));
+  return new Map(quarters.map((q) => [q, by.get(q) ?? null]));
 }
 
 export async function loadQpr(code: string, quarter: string): Promise<Qpr> {
   const project = await projectByCode(code);
   const prev = prevQuarterOf(quarter);
-  const saved = (await rawQpr(project.id, quarter)) ?? carryForward(await rawQpr(project.id, prev), project.name, prev);
+  // Read together: the quarter's own report, the one before (carried forward when this one is not
+  // saved yet) and the lines' reasons (for a report not yet released).
+  const [own, before, reasons] = await Promise.all([rawQpr(project.id, quarter), rawQpr(project.id, prev), loadLineReasons(project.id)]);
+  const saved = own ?? carryForward(before, project.name, prev);
   // Each line's reason for being over budget lives on the line; a released report keeps its own.
-  return saved.released ? saved : withLineReasons(saved, await loadLineReasons(project.id));
+  return saved.released ? saved : withLineReasons(saved, reasons);
 }
 
 export async function saveQpr(code: string, quarter: string, data: Qpr) {
@@ -42,6 +55,7 @@ export async function saveQpr(code: string, quarter: string, data: Qpr) {
     .insert(s.projectState)
     .values({ projectId: project.id, key: `qpr:${quarter}`, data })
     .onConflictDoUpdate({ target: [s.projectState.projectId, s.projectState.key], set: { data, updatedAt: new Date() } });
+  requestWrote();
 }
 
 type LineRow = { code: string; amount: string | null; spent: string | null; currency: string; updatedAt: Date };

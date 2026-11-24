@@ -1,0 +1,41 @@
+/** Spanish for ./connections.ts, in its own module so English pages do not download it. */
+
+import type { cnEn } from "./connections";
+
+// Drafts for a native reader to check.
+export const cnEs: Record<keyof typeof cnEn, string> = {
+  "cn.f.activity": "Actividad a la que sirve",
+  "cn.f.line": "Línea presupuestaria que la paga",
+  "cn.f.none": "Sin elegir todavía",
+  "cn.lineLeft": "Quedan {left} en esta línea para subvenciones",
+  "cn.lineOver": "Supera los {left} que quedan en esta línea: consulte a Finanzas antes de seguir",
+  "cn.forActivity": "Para {code} {title}",
+  "cn.noActivity": "Sin actividad todavía: edite la subvención para elegirla",
+  "cn.paidFrom": "Pagada con {line}",
+  "cn.received": "Recibido",
+  "cn.start": "Iniciar la compra desde {key}",
+  "cn.start.noLine": "Elija la línea presupuestaria de la subvención para iniciar su compra desde el calendario de adquisiciones.",
+  "cn.start.none": "La línea {line} no está en el calendario de adquisiciones. La agrega el responsable de adquisiciones; o vincule una adquisición ya hecha.",
+  "cn.start.waiting": "{key} en el calendario de adquisiciones necesita las dos aprobaciones antes de iniciar la compra.",
+  "cn.start.used": "{key} en el calendario de adquisiciones ya tiene su solicitud ({pr}). Pida otro elemento al responsable de adquisiciones, o vincule aquí la adquisición.",
+  "gr.block.noProc": "La adquisición que compra el equipo",
+  "gr.block.notReceived": "{id}: el equipo aún no se ha recibido",
+  "cn.result": "Registrar el resultado",
+  "cn.resultHelp": "La subvención está cerrada. Abra Resultados con los datos ya puestos, revise la meta y las cifras y envíelo: MEL lo revisa como cualquier otro resultado.",
+  "cn.resultBtn": "Registrarlo en Resultados",
+  "cn.act.procurements": "Adquisiciones",
+  "cn.act.grants": "Subvenciones",
+  "cn.act.updates": "Novedades",
+  "cn.act.spent": "{spent} de {total} gastado ({n} líneas presupuestarias)",
+  "cn.act.more": "+{n} más",
+  "cn.act.addUpdate": "Añadir una novedad",
+  "cn.act.record": "Registrar un resultado",
+  "cn.act.unlinked": "Aún sin actividad: {p} adquisiciones, {g} subvenciones abiertas.",
+  "cn.act.unlinkedHelp": "Una adquisición se vincula por su elemento del calendario de adquisiciones o su línea presupuestaria; una subvención, al elegir su actividad.",
+  "cn.ha.approveGrant1": "Aprobar 1 subvención",
+  "cn.ha.approveGrant": "Aprobar {n} subvenciones",
+  "cn.ha.stuckGrant1": "1 subvención lleva más de {days} días en el mismo paso",
+  "cn.ha.stuckGrant": "{n} subvenciones llevan más de {days} días en el mismo paso",
+  "cn.ha.stuckProc1": "1 adquisición grande lleva más de {days} días en el mismo paso",
+  "cn.ha.stuckProc": "{n} adquisiciones grandes llevan más de {days} días en el mismo paso",
+};

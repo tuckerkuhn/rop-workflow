@@ -72,4 +72,21 @@ describe("the week ahead", { timeout: 90_000 }, () => {
     expect(field.suggestions.length).toBeLessThanOrEqual(3);
     expect((await loadWeek(userById("nadia")!)).kind).toBe("manager");
   });
+
+  it("gives Finance and MEL their own weeks, read from the records", async () => {
+    const { weekKindFor } = await import("@/server/week-store");
+    expect(weekKindFor(userById("omid")!)).toBe("finance");
+    expect(weekKindFor(userById("yusuf")!)).toBe("finance");
+    expect(weekKindFor(userById("omar")!)).toBe("mel");
+    expect(weekKindFor(userById("rahima")!)).toBeNull();
+    const money = await loadWeek(userById("omid")!);
+    expect(money.kind).toBe("finance");
+    expect(money.summary.map((s) => s.kind)).toEqual(["due", "risk", "waiting", "changed"]);
+    expect(money.suggestions.length).toBeLessThanOrEqual(3);
+    const evidence = await loadWeek(userById("omar")!);
+    expect(evidence.kind).toBe("mel");
+    expect(evidence.summary.map((s) => s.kind)).toEqual(["due", "risk", "waiting", "changed"]);
+    // The seeded demo has results waiting for MEL: the first sentence names them and opens Results.
+    expect(evidence.summary[0].parts.some((p) => p.href?.startsWith("/progress/results"))).toBe(true);
+  });
 });

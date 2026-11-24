@@ -1,7 +1,7 @@
 import { CROP_PLAN_KEY, type CropPlan } from "@/lib/crops";
 import { EMPTY_FRAMEWORK, FRAMEWORK_KEY, type Framework } from "@/lib/framework";
 import { mirrorFarmer } from "@/server/farmer-mirror";
-import { loadProjectState, saveProjectState, type Reader } from "@/server/project-state";
+import { loadProjectState, loadProjectStateRaw, loadProjectStates, saveProjectState, type Reader } from "@/server/project-state";
 import { DEMO_SETUP, FIELD_SETUP_KEY, type FieldSetup } from "@/lib/package";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
@@ -9,7 +9,7 @@ import { canSeePII, type AppUser } from "@/lib/demo";
 import { hideName, namePattern, type Farmer, type FieldItem, type Stock } from "@/lib/field";
 import { docNamesPerson } from "@/lib/doc-links";
 import { HttpError } from "@/server/guard";
-import { oncePerRequest } from "@/server/request-memo";
+import { oncePerRequest, requestWrote } from "@/server/request-memo";
 
 /**
  * Field activities state in Postgres. Each farmer or MEL finding is one `field_items` row.
@@ -56,12 +56,16 @@ export const DEMO_FIELD_PROJECT = "A-2027";
  * one once its manager sets it up in Field activities, and until then has no field workflow.
  */
 export async function setupOf(project: { id: string; code: string | null; crop?: string | null }, q?: Reader): Promise<FieldSetup | null> {
-  // A draft (pre-filled for a manager to confirm) does not switch Field activities on.
-  const stored = await loadProjectState<(FieldSetup & { draft?: boolean }) | null>(project.id, FIELD_SETUP_KEY, null, q);
+  // A draft (pre-filled for a manager to confirm) does not switch Field activities on. The crop
+  // plan decided at initiation (Set up → Crop) rides along, for planting and its checks: both
+  // documents come in one read.
+  const { [FIELD_SETUP_KEY]: stored, [CROP_PLAN_KEY]: plan } = await loadProjectStates<{ [FIELD_SETUP_KEY]: (FieldSetup & { draft?: boolean }) | null; [CROP_PLAN_KEY]: CropPlan | null }>(
+    project.id,
+    { [FIELD_SETUP_KEY]: null, [CROP_PLAN_KEY]: null },
+    q,
+  );
   const setup = stored?.items?.length && !stored.draft ? stored : project.code === DEMO_FIELD_PROJECT ? DEMO_SETUP : null;
   if (!setup) return null;
-  // The crop plan decided at initiation (Set up → Crop) rides along, for planting and its checks.
-  const plan = await loadProjectState<CropPlan | null>(project.id, CROP_PLAN_KEY, null, q);
   // The crop is the project's, from its design: asked once, never again for the package.
   const crop = project.crop !== undefined ? project.crop : ((await (q ?? db).select({ crop: s.projects.crop }).from(s.projects).where(eq(s.projects.id, project.id)).limit(1))[0]?.crop ?? null);
   const { plan: _old, ...rest } = setup;
@@ -70,12 +74,17 @@ export async function setupOf(project: { id: string; code: string | null; crop?:
 }
 /** Codes of the projects with an input package (not a draft), so Field activities runs on them. */
 export async function projectsWithField(): Promise<Set<string>> {
+  // Only what decides it comes back, not each package: whether it has items, and whether it is a draft.
   const rows = await db
-    .select({ code: s.projects.code, data: s.projectState.data })
+    .select({
+      code: s.projects.code,
+      items: sql<number>`case jsonb_typeof(${s.projectState.data} -> 'items') when 'array' then jsonb_array_length(${s.projectState.data} -> 'items') when 'string' then length(${s.projectState.data} ->> 'items') else 0 end`,
+      draft: sql<boolean>`coalesce(${s.projectState.data} -> 'draft' not in ('false'::jsonb, 'null'::jsonb, '0'::jsonb, '""'::jsonb), false)`,
+    })
     .from(s.projectState)
     .innerJoin(s.projects, eq(s.projects.id, s.projectState.projectId))
     .where(eq(s.projectState.key, FIELD_SETUP_KEY));
-  return new Set(rows.filter((r) => r.code && (r.data as { items?: unknown[]; draft?: boolean } | null)?.items?.length && !(r.data as { draft?: boolean }).draft).map((r) => r.code!));
+  return new Set(rows.filter((r) => r.code && Number(r.items) > 0 && !r.draft).map((r) => r.code!));
 }
 
 export const setupFor = async (code: string) => setupOf(await projectByCode(code));
@@ -261,21 +270,20 @@ export async function keepHidden(code: string, user: AppUser, items: FieldItem[]
  */
 export async function loadField(code: string, user?: AppUser) {
   const project = await projectByCode(code);
-  const rows = await db.select().from(s.fieldItems).where(eq(s.fieldItems.projectId, project.id));
-  const [stockRow] = await db
-    .select()
-    .from(s.projectState)
-    .where(and(eq(s.projectState.projectId, project.id), eq(s.projectState.key, "stock")))
-    .limit(1);
-
-  const names = await farmerNames(project.id, user);
-  const hiddenFrom = user && !canSeePII(user) ? await namesOf(project.id) : null;
+  // None of these depends on another: they go together.
+  const [rows, stock, names, hiddenFrom, setup] = await Promise.all([
+    db.select().from(s.fieldItems).where(eq(s.fieldItems.projectId, project.id)),
+    loadProjectStateRaw(project.id, "stock"),
+    farmerNames(project.id, user),
+    user && !canSeePII(user) ? namesOf(project.id) : null,
+    setupOf(project),
+  ]);
 
   const items = rows
     .map((r) => ({ ...(r.data as FieldItem), rev: r.updatedAt.toISOString() }) as FieldItem)
     .map((i): FieldItem => (i.kind === "farmer" ? (hiddenFrom ? withoutName({ ...i, name: "" }, hiddenFrom.get(i.id) ?? "") : { ...i, name: names.get(i.id) ?? "" }) : i))
     .sort((a, b) => a.id.localeCompare(b.id));
-  return { items, stock: (stockRow?.data as Stock | undefined) ?? null, setup: await setupOf(project) };
+  return { items, stock: (stock as Stock | null) ?? null, setup };
 }
 
 /** What is stored for an item: no name (farmer_pii holds it) and no version stamp. */
@@ -315,6 +323,7 @@ export async function saveEdited(code: string, items: FieldItem[]): Promise<Reco
       revs[item.id] = updated.at.toISOString();
     }
   });
+  requestWrote();
   return revs;
 }
 
@@ -330,6 +339,7 @@ export async function saveItems(code: string, items: FieldItem[]) {
       .onConflictDoUpdate({ target: [s.fieldItems.projectId, s.fieldItems.itemKey], set: { data: item, kind: item.kind, updatedAt: new Date() } });
     await mirrorFarmer(db, project.id, item);
   }
+  requestWrote();
 }
 
 export async function saveStock(code: string, stock: Stock) {
@@ -338,6 +348,7 @@ export async function saveStock(code: string, stock: Stock) {
     .insert(s.projectState)
     .values({ projectId: project.id, key: "stock", data: stock })
     .onConflictDoUpdate({ target: [s.projectState.projectId, s.projectState.key], set: { data: stock, updatedAt: new Date() } });
+  requestWrote();
 }
 
 /** Farmer code → current step, for the data checker. */

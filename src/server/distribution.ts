@@ -19,7 +19,7 @@ import { demoMode, onProject, people, toAppUser } from "@/server/auth";
 import { projectByCode, setupOf } from "@/server/field-store";
 import { HttpError } from "@/server/guard";
 import { loadProjectState, type Reader } from "@/server/project-state";
-import { requestWrote } from "@/server/request-memo";
+import { oncePerRequest, requestWrote } from "@/server/request-memo";
 
 /**
  * One input distribution, field to finance (strategy brief, example 3):
@@ -104,6 +104,24 @@ export const mayFix = (u: AppUser, code: string) => u.kind === "employee" && u.f
 const setupOrEmpty = async (project: Project, q?: Reader): Promise<FieldSetup> => (await setupOf(project, q)) ?? { items: [] };
 
 /**
+ * Reads that the distribution list, the store's stock and Home each need: once per read-only
+ * request (server/request-memo). Inside a transaction, and in any request that writes, they are
+ * read afresh every time.
+ */
+const procurementRows = (projectId: string, q: Reader = db) => {
+  // An async function, so the query runs once: a query builder runs again each time it is awaited.
+  const read = async () => q.select().from(s.procurements).where(eq(s.procurements.projectId, projectId));
+  return q === db ? oncePerRequest(`procurements:${projectId}`, read) : read();
+};
+const distributionRows = (projectId: string, q: Reader = db) => {
+  const read = async () => q.select().from(s.evidence).where(and(eq(s.evidence.projectId, projectId), eq(s.evidence.form, "distribution")));
+  return q === db ? oncePerRequest(`distribution-rows:${projectId}`, read) : read();
+};
+/** Every field record of the project (its key and data), as the list and Home read them. */
+export const fieldItemRows = (projectId: string) =>
+  oncePerRequest(`field-items:${projectId}`, async () => db.select({ key: s.fieldItems.itemKey, data: s.fieldItems.data }).from(s.fieldItems).where(eq(s.fieldItems.projectId, projectId)));
+
+/**
  * Stock decisions on a project happen one at a time: the lock is held until the transaction ends,
  * so a second distribution recorded or approved at the same moment waits, then checks the stock
  * against the first one's outcome instead of the same remaining stock.
@@ -117,8 +135,8 @@ const lockStock = (tx: Tx, projectId: string) => tx.execute(sql`select pg_adviso
 async function context(project: Project, opts: { excluding?: string; countPending: boolean }, q: Reader = db) {
   const reads = [
     () => setupOrEmpty(project, q),
-    () => q.select().from(s.procurements).where(eq(s.procurements.projectId, project.id)),
-    () => q.select().from(s.evidence).where(and(eq(s.evidence.projectId, project.id), eq(s.evidence.form, "distribution"))),
+    () => procurementRows(project.id, q),
+    () => distributionRows(project.id, q),
     () => loadState(project.id, q),
   ] as const;
   // On the pool the four reads go at once; inside a transaction (one connection) one after another.
@@ -278,6 +296,9 @@ export async function processPending(code: string, origin = appOrigin()) {
   // twice" list leaves out the record being checked, as before.
   const ctx = await context(project, { countPending: false });
   let done = 0;
+  // Reads kept for this request (server/request-memo) may be from before these writes, so they
+  // are dropped once anything is written, also when a later record fails.
+  try {
   for (const r of todo) {
     const p = (r.payload ?? {}) as Record<string, unknown>;
     // Kobo answers sit at the top of the submission; a record made in the app keeps them in `fields`.
@@ -300,8 +321,9 @@ export async function processPending(code: string, origin = appOrigin()) {
     await prepare(code, project, r.id, { farmerId: code_, items, gender, village: farmer?.community ?? (typeof p.village === "string" ? p.village : ""), recordedBy, recorderId: r.source === "kobo" ? null : r.completedBy, photo, signed, gate: g, flags }, origin, undefined, r.source === "kobo");
     done++;
   }
-  // Reads kept for this request (server/request-memo) may be from before these writes.
-  if (done) requestWrote();
+  } finally {
+    requestWrote();
+  }
   return done;
 }
 
@@ -423,20 +445,20 @@ const signedOf = (r: { source: string; payload: unknown }) => {
 
 export async function listDistributions(code: string): Promise<DistView[]> {
   const project = await projectByCode(code);
-  await processPending(code);
-  const rows = await db.select().from(s.evidence).where(and(eq(s.evidence.projectId, project.id), eq(s.evidence.form, "distribution")));
-  const st = await loadState(project.id);
-  const rule = await koboApprovalFor(code);
-  const team = (await people()).filter((u) => onProject(u, code));
+  // What processing waiting records does not change (the rule, the team, purchases, the package)
+  // is read alongside it; the records, their checks and the field records after it, as they may
+  // have just been written.
+  const [, rule, everyone, procRows, setup] = await Promise.all([processPending(code), koboApprovalFor(code), people(), procurementRows(project.id), setupOrEmpty(project)]);
+  const [rows, st, fieldRows] = await Promise.all([distributionRows(project.id), loadState(project.id), fieldItemRows(project.id)]);
+  const team = everyone.filter((u) => onProject(u, code));
   const approvers = approverNames(team, rule);
-  const procs = (await db.select().from(s.procurements).where(eq(s.procurements.projectId, project.id))).map((r) => r.data as Procurement);
-  const setup = await setupOrEmpty(project);
+  const procs = procRows.map((r) => r.data as Procurement);
   // What approved distributions have taken so far, for the checks of the ones still waiting.
   const approved: Given = {};
   for (const r of rows) if (r.reviewStatus === "accepted" && !r.koboRemovedAt) addGiven(approved, st.byId[r.id]?.items ?? itemsFor(setup), setup);
-  const hectares = new Map((await db.select({ key: s.fieldItems.itemKey, data: s.fieldItems.data }).from(s.fieldItems).where(eq(s.fieldItems.projectId, project.id))).map((r) => [r.key, (r.data as { hectares?: number }).hectares]));
+  const hectares = new Map(fieldRows.map((r) => [r.key, (r.data as { hectares?: number }).hectares]));
   // Farmers whose record now holds a photo of the signed note: a record still waiting counts it at once.
-  const noted = new Set((await db.select({ key: s.fieldItems.itemKey, data: s.fieldItems.data }).from(s.fieldItems).where(eq(s.fieldItems.projectId, project.id))).filter((r) => hasSignedNotePhoto(r.data as Farmer)).map((r) => r.key));
+  const noted = new Set(fieldRows.filter((r) => hasSignedNotePhoto(r.data as Farmer)).map((r) => r.key));
   const photoNow = (r: { source: string; payload: unknown; farmerCode: string | null; reviewStatus: string }, m: DistMeta) => (m.photo ?? photoOf(r)) || (r.reviewStatus === "pending" && noted.has(r.farmerCode ?? ""));
   return rows
     .filter((r) => st.byId[r.id] && !r.koboRemovedAt)

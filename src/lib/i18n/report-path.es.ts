@@ -1,0 +1,37 @@
+/** Spanish for ./report-path.ts, in its own module so English pages do not download it. */
+
+import type { rpEn } from "./report-path";
+
+export const rpEs: Partial<Record<keyof typeof rpEn, string>> = {
+  "nr.title": "Próximo informe: {q}",
+  "nr.dates": "listo para el {aim} (días que quedan: {n}), se entrega al donante el {due}",
+  "nr.noDeadline": "sin fecha límite",
+  "nr.blocksOne": "1 cosa lo bloquea",
+  "nr.blocks": "{n} cosas lo bloquean",
+  "nr.blocksNone": "nada lo bloquea",
+  "nr.toDo": "{n} por hacer",
+  "nr.released": "Entregado. Nada lo impide.",
+  "nr.clear": "Por ahora nada lo impide: sigue registrando resultados y actualizaciones semanales a medida que ocurren.",
+  "nr.sumBlockedOne": "1 cosa impide que salga; por hacer antes de que salga: {m}.",
+  "nr.sumBlocked": "{n} cosas impiden que salga; por hacer antes de que salga: {m}.",
+  "nr.sumOpen": "Por hacer antes de que salga: {n}. Nada lo bloquea.",
+  "nr.yours": "Te toca a ti: {n}.",
+  "nr.others": "Con otras personas: {n} ({who}). La verificación previa los lista todos.",
+  "rp.quarterPast": "Este es el informe de {q}, del {from} al {to}. El próximo informe en Inicio es {now}.",
+  "rp.quarterNow": "Este es el informe de {q}, el trimestre en curso. Termina el {to}.",
+  "rp.quarterDue": "Este es el informe de {q}, del {from} al {to}: el trimestre terminó y es el próximo informe que se entrega al donante.",
+  "rp.openQuarter": "Abrir {q}",
+  "rp.durationFromDates": "Si lo dejas vacío, el informe imprime las fechas del proyecto: {dates}. Escribe aquí solo si el acuerdo dice otra cosa.",
+  "rp.cannot": "En este informe no puedes:",
+  "rp.cannot.edit": "escribir ni cambiar el texto (hace falta ser responsable de MEL o líder de programa)",
+  "rp.cannot.release": "marcarlo como final (hace falta el rol \"Releases donor reports\")",
+  "rp.cannot.import": "importar el gasto (hace falta Finanzas o el rol \"Imports spending\")",
+  "rp.cannot.accept": "aceptar resultados (hace falta ser responsable de MEL)",
+  "rp.cannot.ask": "Un administrador puede darte un rol.",
+  "rp.wordTerm": "En el informe de Word: {term}",
+  "rp.totals.onReport": "La página de Presupuesto muestra solo la fase actual, antes de gastos generales, así que sus totales no son iguales a estos.",
+  "rp.totals.onBudget": "El informe trimestral muestra todo el acuerdo, con gastos generales cuando el archivo de Finanzas los trae, así que sus totales no son iguales a estos.",
+  "rp.col.target": "Meta {year}",
+  "rp.col.quarter": "Logrado en {q}",
+  "rp.col.year": "Este año",
+};

@@ -13,7 +13,8 @@ import type { SyncCounts } from "@/lib/kobo-setup";
  * place on Results and proof (results-page ToCheck), so MEL checks everything in one place.
  * Accepting a record is what moves the farmer in Field activities; nothing changes until a named
  * person accepts it. Who may decide each record comes from the server (the project's KoboCollect
- * approval rule; nobody decides their own).
+ * approval rule; nobody decides their own). The technical lead may send a field form back with a
+ * note (`maySendBack`), but not accept it.
  *
  * `useFieldForms` holds the records and the actions; the page uses it for the counts and the
  * "Accept all" button at the top of "To check", and `FieldRecords` shows the records themselves.
@@ -29,6 +30,8 @@ export function useFieldForms(code: string, wanted = true) {
   // Records this person decides come first; the rest show who they are waiting on.
   const pending = all.filter((s) => s.status === "pending" && s.form !== "distribution").sort((a, b) => Number(!!b.mayDecide) - Number(!!a.mayDecide));
   const forMe = pending.filter((s) => s.mayDecide).length;
+  // The technical lead's: forms they may send back for correction, not accept.
+  const toSendBack = pending.filter((s) => s.maySendBack).length;
   const queried = all.filter((s) => s.status === "queried" && s.form !== "distribution");
   const flagsOf = (s: Submission) => dataFlags(s, all, kobo.roster);
   const clean = pending.filter((s) => s.mayDecide && flagsOf(s).length === 0);
@@ -48,15 +51,16 @@ export function useFieldForms(code: string, wanted = true) {
     run(`decide-${subs[0]?.id}`, async () => {
       const applied = await kobo.decide(subs.map((x) => x.dbId!).filter(Boolean), status, why);
       if (applied.length) return `Field activities updated: ${applied.join(" ")}`;
+      if (status === "queried" && subs.length === 1) return `Sent back to ${name(subs[0].enumerator)} with your note.`;
       return `${subs.length} record${subs.length === 1 ? "" : "s"} ${status === "accepted" ? "accepted" : "queried"}.`;
     });
   const synced = (r: SyncCounts) => `Synced: ${r.fetched} on KoboToolbox, ${r.added} new${r.updated ? `, ${r.updated} changed` : ""}${r.removed ? `, ${r.removed} deleted in KoboToolbox` : ""}.`;
-  return { show: user?.kind === "employee", kobo, pending, forMe, queried, clean, flagsOf, name, busy, outcome, run, decide, synced };
+  return { show: user?.kind === "employee", kobo, pending, forMe, toSendBack, queried, clean, flagsOf, name, busy, outcome, run, decide, synced };
 }
 export type FieldForms = ReturnType<typeof useFieldForms>;
 
 export function FieldRecords({ f, open, onToggle }: { f: FieldForms; open: boolean; onToggle: () => void }) {
-  const { kobo, pending, forMe, queried, flagsOf, name, busy, outcome, run, decide, synced } = f;
+  const { kobo, pending, forMe, toSendBack, queried, flagsOf, name, busy, outcome, run, decide, synced } = f;
   const [querying, setQuerying] = useState<string | null>(null);
   const [note, setNote] = useState("");
 
@@ -67,7 +71,8 @@ export function FieldRecords({ f, open, onToggle }: { f: FieldForms; open: boole
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="font-semibold">
-            KoboCollect field forms · {forMe} for you{pending.length > forMe ? `, ${pending.length - forMe} waiting on others` : ""}
+            KoboCollect field forms · {toSendBack > 0 && forMe === 0 ? `${toSendBack} you can send back` : `${forMe} for you`}
+            {pending.length > forMe && !(toSendBack > 0 && forMe === 0) ? `, ${pending.length - forMe} waiting on others` : ""}
           </h3>
           <p className="mt-1 max-w-2xl text-sm text-muted">
             Readiness visits, training attendance and farm visits from KoboCollect. Accepting one records it on the farmer in Field activities; a query sends it back to whoever collected it.
@@ -157,6 +162,22 @@ export function FieldRecords({ f, open, onToggle }: { f: FieldForms; open: boole
                       </button>
                     </div>
                   )
+                ) : s.maySendBack ? (
+                  querying !== s.id && (
+                    <div className="flex max-w-[18rem] flex-col items-end gap-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setQuerying(s.id);
+                          setNote(flags[0] ?? "");
+                        }}
+                        className={`${quietBtn} py-1.5`}
+                      >
+                        Send back with a note
+                      </button>
+                      <p className="text-end text-xs text-muted">Only {s.deciders ?? "MEL"} can accept it. If something needs fixing, send it back with a note.</p>
+                    </div>
+                  )
                 ) : (
                   <p className="max-w-[16rem] text-xs text-muted">Waiting on {s.deciders ?? "the reviewer"}.</p>
                 )}
@@ -183,8 +204,8 @@ export function FieldRecords({ f, open, onToggle }: { f: FieldForms; open: boole
                     placeholder={`What should ${name(s.enumerator)} check or fix?`}
                     className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm focus:border-forest focus:outline-none"
                   />
-                  <button type="submit" className={dangerBtn}>
-                    Send back with a question
+                  <button type="submit" disabled={!note.trim()} className={dangerBtn}>
+                    {s.mayDecide ? "Send back with a question" : "Send back with a note"}
                   </button>
                   <button type="button" onClick={() => setQuerying(null)} className="px-2 text-sm text-muted hover:text-ink">
                     Cancel

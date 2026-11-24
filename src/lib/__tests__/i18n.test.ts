@@ -3,10 +3,22 @@ import { en } from "@/lib/i18n/en";
 import { es } from "@/lib/i18n/es";
 import { fa } from "@/lib/i18n/fa";
 import { ps } from "@/lib/i18n/ps";
-import { awEn, awEs, awFa, awPs } from "@/lib/i18n/ai-why";
-import { sgEn, sgEs, sgFa, sgPs } from "@/lib/i18n/surge";
-import { rpEn, rpEs, rpFa, rpPs } from "@/lib/i18n/report-path";
-import { tdEn, tdEs, tdFa, tdPs } from "@/lib/i18n/target-details";
+import { awEn } from "@/lib/i18n/ai-why";
+import { awEs } from "@/lib/i18n/ai-why.es";
+import { awFa } from "@/lib/i18n/ai-why.fa";
+import { awPs } from "@/lib/i18n/ai-why.ps";
+import { sgEn } from "@/lib/i18n/surge";
+import { sgEs } from "@/lib/i18n/surge.es";
+import { sgFa } from "@/lib/i18n/surge.fa";
+import { sgPs } from "@/lib/i18n/surge.ps";
+import { rpEn } from "@/lib/i18n/report-path";
+import { rpEs } from "@/lib/i18n/report-path.es";
+import { rpFa } from "@/lib/i18n/report-path.fa";
+import { rpPs } from "@/lib/i18n/report-path.ps";
+import { tdEn } from "@/lib/i18n/target-details";
+import { tdEs } from "@/lib/i18n/target-details.es";
+import { tdFa } from "@/lib/i18n/target-details.fa";
+import { tdPs } from "@/lib/i18n/target-details.ps";
 import { translate } from "@/lib/i18n";
 
 describe("interface text", () => {

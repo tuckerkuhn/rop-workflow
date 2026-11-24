@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ANSWER_DAYS } from "@/lib/feedback";
+import { canEditProject } from "@/lib/demo";
 
 /**
  * The week ahead for a manager: a four-sentence summary built from the records (what is due, what
@@ -22,8 +23,8 @@ export type ProjectWeek = {
   /** What blocks the next report, or 0. */
   blocking: number;
   blockingHref: string;
-  /** Approvals waiting on this person, with the day the oldest has waited since. Each link opens its own project. */
-  approvals: { text: string; href: string; since: string | null; short: string }[];
+  /** Approvals waiting on this person, with the day the oldest has waited since. Each link opens its own project. `key`: Home's row it came from. */
+  approvals: { text: string; href: string; since: string | null; short: string; key?: string }[];
   /** Complaints and questions waiting more than the answer days. */
   complaintsLate: number;
   /** In the last seven days. */
@@ -32,14 +33,44 @@ export type ProjectWeek = {
   released: string[];
   /** For the people who run a project or lead its field teams. Absent for leadership, who read across projects. */
   work?: ProjectWork;
+  /** For Finance: month close, spending imports, budget lines and what waits on them. */
+  finance?: FinanceWork;
+  /** For MEL: what waits to be checked, what was sent back, targets before the next report. */
+  mel?: MelWork;
 };
 
 /**
  * Whose week it is. Leadership reads across projects (promises to donors). A project manager reads
  * their project (evidence, money, deadlines). A technical lead reads the field (farmers, issues,
- * the team's updates). Each sees four sentences, in the same order, about their own job.
+ * the team's updates). Finance reads the money (month close, spending imports, budget lines, what
+ * waits to be paid or checked). MEL reads the evidence (what waits to be checked, what was sent
+ * back, targets before the next report, the report calendar). Each sees four sentences, in the same
+ * order, about their own job.
  */
-export type WeekKind = "lead" | "manager" | "technical";
+export type WeekKind = "lead" | "manager" | "technical" | "finance" | "mel";
+
+/**
+ * Whose week it is, or null for people who have no week: one rule for the server (server/week-store,
+ * with lensesFor) and for Home's page (with the lenses Home's own answer carries), so the page never
+ * shows a week the API refuses, or hides one it would give.
+ *
+ * One week each, the first that fits: leadership, then the technical lead, then the person who runs
+ * the project, then Finance, then MEL. Leadership answers for every promise, so their week is the
+ * widest and wins. A technical lead or a manager who also imports spending or owns the evidence
+ * reads that in their own week already (budget lines over, results to check), and their job is the
+ * project as a whole. Finance comes before MEL because nobody in the demo holds both, and someone
+ * who did would be paid to close the books first: the evidence has a manager's week behind it.
+ * Field and office staff work from the to-do list.
+ */
+export function weekKindOf(u: { kind: string; project: readonly string[]; field: readonly string[] }, lenses: readonly string[]): WeekKind | null {
+  if (u.kind !== "employee") return null;
+  if (lenses.includes("lead")) return "lead";
+  if (u.project.includes("technical-lead")) return "technical";
+  if (canEditProject({ project: [...u.project], field: [...u.field] })) return "manager";
+  if (lenses.includes("finance")) return "finance";
+  if (u.field.includes("mel") || u.project.includes("mel-owner")) return "mel";
+  return null;
+}
 export type ProjectWork = {
   /** Budget lines over budget. */
   overBudget: number;
@@ -58,6 +89,43 @@ export type ProjectWork = {
   /** Whether the project writes weekly updates at all: one that never has is not "up to date". */
   weeklyKept: boolean;
 };
+
+/** Finance's part of one project. Months are YYYY-MM; `since` days are YYYY-MM-DD. */
+export type FinanceWork = {
+  /** Past months with vouchers that are not closed, oldest first, and how many vouchers still stop each. */
+  unclosed: { month: string; blockers: number }[];
+  /** The month whose spending should be imported by now, and the last month imported (null: none yet). */
+  importWanted: string;
+  importedTo: string | null;
+  /** Budget lines over budget, by code, and whether the project spends well ahead of the time gone. */
+  overspent: string[];
+  ahead: boolean;
+  /** Purchases whose current step waits on this person, oldest first. */
+  purchases: { id: string; title: string; step: string; since: string | null }[];
+  /** Approved bills waiting for Finance's voucher. */
+  billsToVoucher: { id: string; since: string | null }[];
+  /** In the last seven days: spending imports, months closed, bill vouchers filed. */
+  imported: number;
+  closed: string[];
+  filed: number;
+};
+
+/** MEL's part of one project. */
+export type MelWork = {
+  /** Results and KoboCollect field forms waiting for this person to check, with the day the oldest arrived. */
+  results: { n: number; since: string | null };
+  forms: { n: number; since: string | null };
+  /** Results sent back for correction and not corrected yet. */
+  queried: number;
+  /** Accepted results whose KoboToolbox record changed afterwards. */
+  mismatched: number;
+  /** Targets under way with no accepted result, and targets behind (their codes). */
+  noData: number;
+  behind: string[];
+};
+
+/** What waits on Finance across the organization, not one project: expense reports and payroll. */
+export type OrgWeek = { expenses: { n: number; since: string | null }; payroll: { month: string; since: string | null }[] };
 
 export type Part = { t: string; href?: string };
 export type Sentence = { kind: "due" | "risk" | "waiting" | "changed"; parts: Part[]; flag: boolean };
@@ -179,7 +247,9 @@ const sum = (projects: ProjectWeek[], f: (w: ProjectWork) => number) => projects
 const one = (projects: ProjectWeek[]) => (projects.length === 1 ? `?project=${encodeURIComponent(projects[0].code)}` : "");
 
 /** The four sentences for whoever's week it is (see WeekKind). Leadership's are `weekSummary`. */
-export function weekSummaryFor(kind: WeekKind, projects: ProjectWeek[], today: string): Sentence[] {
+export function weekSummaryFor(kind: WeekKind, projects: ProjectWeek[], today: string, org?: OrgWeek): Sentence[] {
+  if (kind === "finance") return financeSummary(projects, today, org);
+  if (kind === "mel") return melSummary(projects, today);
   const [due, risk, waiting, changed] = weekSummary(projects, today);
   if (kind === "lead") return [due, risk, waiting, changed];
   const q = one(projects);
@@ -234,7 +304,9 @@ export function weekSummaryFor(kind: WeekKind, projects: ProjectWeek[], today: s
 }
 
 /** Up to three priorities for whoever's week it is, the most pressing first. */
-export function suggestFor(kind: WeekKind, projects: ProjectWeek[]): Suggestion[] {
+export function suggestFor(kind: WeekKind, projects: ProjectWeek[], org?: OrgWeek): Suggestion[] {
+  if (kind === "finance") return financeSuggestions(projects, org);
+  if (kind === "mel") return melSuggestions(projects);
   const base = suggestPriorities(projects);
   if (kind === "lead") return base;
   const q = one(projects);
@@ -259,6 +331,167 @@ export function suggestFor(kind: WeekKind, projects: ProjectWeek[]): Suggestion[
   // Late and blocked reports first, then the manager's own, then the rest.
   const first = base.filter((b) => /^(late|block):/.test(b.id));
   return [...first, ...own, ...base.filter((b) => !/^(late|block):/.test(b.id))].slice(0, MAX_PRIORITIES);
+}
+
+const monthName = (m: string) => new Date(`${m}-15T00:00:00Z`).toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" });
+const proj = (href: string, p: ProjectWeek) => withProject(href, p.code);
+/** "the oldest for 6 days", or nothing when the oldest arrived today or no day is known. */
+const oldestFor = (sinces: (string | null)[], today: string) => {
+  const first = sinces.filter((x): x is string => !!x).sort()[0];
+  const d = first ? days(first.slice(0, 10), today) : 0;
+  return d > 0 ? `, the oldest for ${n(d, "day", "days")}` : "";
+};
+/** Things that are not Home's purchase rows (Finance's week counts purchases from the procurements themselves). */
+const otherApprovals = (projects: ProjectWeek[]) => oldestFirst(projects.flatMap((p) => p.approvals.filter((a) => !a.key?.startsWith("purchase:"))));
+const sentence = (kind: Sentence["kind"], parts: Part[], quiet: string): Sentence => ({ kind, flag: parts.length > 0, parts: parts.length ? parts : [{ t: quiet }] });
+const joined = (bits: Part[][]): Part[] => bits.flatMap((b, k) => (k === 0 ? b : [{ t: k === bits.length - 1 ? " and " : ", " }, ...b]));
+
+/** Finance: month close and imports, budget lines, what waits on them, what changed. */
+function financeSummary(projects: ProjectWeek[], today: string, org?: OrgWeek): Sentence[] {
+  const fin = projects.filter((p) => p.finance);
+  const due: Part[] = fin.flatMap((p) => {
+    const f = p.finance!;
+    return [
+      ...(!f.importedTo || f.importedTo < f.importWanted ? [{ t: `${p.short}: ` }, { t: `spending for ${monthName(f.importWanted)}`, href: proj("/progress/budget", p) }, { t: ` is not imported yet (${f.importedTo ? `imported to ${monthName(f.importedTo)}` : "nothing imported yet"}). ` }] : []),
+      ...f.unclosed.flatMap((m) => [{ t: `${monthName(m.month)} is not closed for ${p.short}: ` }, { t: m.blockers ? `${n(m.blockers, "voucher", "vouchers")} still to finish, file or post` : "it is ready to close", href: proj("/work/closeout", p) }, { t: ". " }]),
+    ];
+  });
+  const risk: Part[] = fin.flatMap((p) => {
+    const f = p.finance!;
+    return [
+      ...(f.overspent.length ? [{ t: `${p.short} has ` }, { t: `${n(f.overspent.length, "budget line", "budget lines")} over budget`, href: proj("/progress/budget", p) }, { t: `: ${f.overspent.join(", ")}. ` }] : []),
+      ...(f.ahead ? [{ t: `${p.short} is ` }, { t: "spending well ahead of the time gone", href: proj("/progress/budget", p) }, { t: ". " }] : []),
+    ];
+  });
+
+  // What waits on Finance, oldest first across every kind of thing.
+  const purchases = fin.flatMap((p) => p.finance!.purchases.map((x) => ({ ...x, p })));
+  const bills = fin.flatMap((p) => p.finance!.billsToVoucher.map((x) => ({ ...x, p })));
+  const others = otherApprovals(projects);
+  const q = one(projects);
+  const items: { parts: Part[]; since: string | null }[] = [
+    ...(purchases.length ? [{ parts: [{ t: n(purchases.length, "purchase step", "purchase steps"), href: purchases.length === 1 ? proj(`/work?source=procurement&open=${encodeURIComponent(purchases[0].id)}`, purchases[0].p) : `/work/procurements${q}` }], since: oldestFirst(purchases)[0].since }] : []),
+    ...(bills.length ? [{ parts: [{ t: `the ${bills.length === 1 ? "voucher" : "vouchers"} for ${n(bills.length, "approved bill", "approved bills")}`, href: bills.length === 1 ? proj("/work/bills", bills[0].p) : `/work/bills${q}` }], since: oldestFirst(bills)[0].since }] : []),
+    ...(org?.expenses.n ? [{ parts: [{ t: n(org.expenses.n, "expense report", "expense reports"), href: "/expenses" }], since: org.expenses.since }] : []),
+    ...(org?.payroll ?? []).map((r) => ({ parts: [{ t: `the ${monthName(r.month)} payroll`, href: "/payroll" }], since: r.since })),
+    ...(others.length ? [{ parts: [{ t: n(others.length, "other approval", "other approvals"), href: others[0].href }], since: others[0].since }] : []),
+  ];
+  const waiting: Sentence = { kind: "waiting", flag: false, parts: items.length ? [{ t: "Waiting on you: " }, ...joined(items.map((i) => i.parts)), { t: `${oldestFor(items.map((i) => i.since), today)}.` }] : [{ t: "Nothing is waiting on you." }] };
+
+  const changedBits: Part[][] = fin.flatMap((p) => {
+    const f = p.finance!;
+    return [
+      ...(f.imported ? [[{ t: `spending was imported for ${p.short}` }]] : []),
+      ...f.closed.map((m) => [{ t: `${monthName(m)} was closed for ${p.short}` }]),
+      ...(f.filed ? [[{ t: `${n(f.filed, "bill voucher was", "bill vouchers were")} filed for ${p.short}` }]] : []),
+    ];
+  });
+  const changed: Sentence = { kind: "changed", flag: false, parts: changedBits.length ? [{ t: "In the last seven days " }, ...joined(changedBits), { t: "." }] : [{ t: "No spending was imported and no month was closed in the last seven days." }] };
+  return [sentence("due", due, "Every past month is closed and spending is imported."), sentence("risk", risk, "No budget line is over budget and no project is spending ahead of the time gone."), waiting, changed];
+}
+
+function financeSuggestions(projects: ProjectWeek[], org?: OrgWeek): Suggestion[] {
+  const fin = projects.filter((p) => p.finance);
+  const q = one(projects);
+  const out: Suggestion[] = [];
+  // People are paid first, then suppliers, then staff out of pocket; then the books.
+  for (const r of org?.payroll ?? []) out.push({ id: `payroll:${r.month}`, text: `Approve the ${monthName(r.month)} payroll`, href: "/payroll" });
+  const purchases = oldestFirst(fin.flatMap((p) => p.finance!.purchases.map((x) => ({ ...x, p }))));
+  if (purchases.length) out.push({ id: "purchases", text: purchases.length === 1 ? `${purchases[0].step}: ${purchases[0].id} ${purchases[0].title}` : `Do the ${purchases.length} purchase steps waiting on you`, href: purchases.length === 1 ? proj(`/work?source=procurement&open=${encodeURIComponent(purchases[0].id)}`, purchases[0].p) : `/work/procurements${q}` });
+  if (org?.expenses.n) out.push({ id: "expenses", text: org.expenses.n === 1 ? "Check the expense report waiting on you" : `Check the ${org.expenses.n} expense reports waiting on you`, href: "/expenses" });
+  for (const p of fin) if (!p.finance!.importedTo || p.finance!.importedTo < p.finance!.importWanted) out.push({ id: `import:${p.code}`, text: `Import the ${monthName(p.finance!.importWanted)} spending for ${p.short}`, href: proj("/progress/budget", p) });
+  for (const p of fin) {
+    const m = p.finance!.unclosed[0];
+    if (m) out.push({ id: `close:${p.code}:${m.month}`, text: m.blockers ? `Finish the ${n(m.blockers, "voucher", "vouchers")} that keep ${monthName(m.month)} open for ${p.short}` : `Close ${monthName(m.month)} for ${p.short}`, href: proj("/work/closeout", p) });
+  }
+  const bills = fin.reduce((t, p) => t + p.finance!.billsToVoucher.length, 0);
+  if (bills) out.push({ id: "bills", text: bills === 1 ? "Prepare the voucher for the approved bill" : `Prepare the vouchers for ${bills} approved bills`, href: `/work/bills${q}` });
+  const others = otherApprovals(projects);
+  if (others.length) out.push({ id: "other-approvals", text: others.length === 1 ? others[0].text : `Decide the ${others.length} other approvals waiting on you`, href: others[0].href });
+  return out.slice(0, MAX_PRIORITIES);
+}
+
+/** A check waiting this many days or more is flagged: the field team waits on it, and so does the report. */
+export const CHECK_DAYS = 7;
+
+/** MEL: what waits to be checked, what was sent back, targets before the next report, the report calendar. */
+function melSummary(projects: ProjectWeek[], today: string): Sentence[] {
+  const mel = projects.filter((p) => p.mel);
+  const q = one(projects);
+  const results = mel.reduce((t, p) => t + p.mel!.results.n, 0);
+  const forms = mel.reduce((t, p) => t + p.mel!.forms.n, 0);
+  const resultsSince = mel.map((p) => p.mel!.results.since);
+  const formsSince = mel.map((p) => p.mel!.forms.since);
+  const all = [...resultsSince, ...formsSince].filter((x): x is string => !!x).sort()[0];
+  const checks: Sentence = {
+    kind: "due",
+    flag: !!all && days(all.slice(0, 10), today) >= CHECK_DAYS,
+    parts:
+      results || forms
+        ? [
+            { t: "Waiting for you to check: " },
+            ...joined([
+              ...(results ? [[{ t: n(results, "result", "results"), href: `/progress/results${q}` }, { t: oldestFor(resultsSince, today) }]] : []),
+              ...(forms ? [[{ t: n(forms, "field form", "field forms"), href: `/progress/results${q}#field-records` }, { t: ` from KoboCollect${oldestFor(formsSince, today)}` }]] : []),
+            ]),
+            { t: "." },
+          ]
+        : [{ t: "No result or field form is waiting for you to check." }],
+  };
+  const queried = mel.reduce((t, p) => t + p.mel!.queried, 0);
+  const mismatched = mel.reduce((t, p) => t + p.mel!.mismatched, 0);
+  const sentBack = sentence(
+    "risk",
+    [
+      ...(queried ? [{ t: n(queried, "result", "results"), href: `/progress/results${q}` }, { t: ` sent back for correction ${queried === 1 ? "is" : "are"} still not corrected. ` }] : []),
+      ...(mismatched ? [{ t: n(mismatched, "accepted result no longer matches", "accepted results no longer match"), href: `/progress/results${q}` }, { t: " KoboToolbox: reopen to check the new figure. " }] : []),
+    ],
+    "No result sent back is waiting to be corrected.",
+  );
+  const targets = sentence(
+    "waiting",
+    mel.flatMap((p) => {
+      const m = p.mel!;
+      const bits: Part[][] = [
+        ...(m.noData ? [[{ t: `${n(m.noData, "target has", "targets have")} ` }, { t: "no data", href: proj("/progress", p) }]] : []),
+        ...(m.behind.length ? [[{ t: `${n(m.behind.length, "target is", "targets are")} ` }, { t: "behind", href: proj("/progress", p) }, { t: ` (${m.behind.join(", ")})` }]] : []),
+        ...(p.blocking ? [[{ t: n(p.blocking, "check blocks", "checks block"), href: p.blockingHref }, { t: " the report" }]] : []),
+      ];
+      return bits.length ? [{ t: `Before the next ${p.short} report, ` }, ...joined(bits), { t: ". " }] : [];
+    }),
+    "Every target has data, none is behind and nothing blocks the next report.",
+  );
+  const reports = mel.flatMap((p) => p.reports.map((r) => ({ ...r, short: p.short }))).sort((a, b) => a.days - b.days);
+  const released = mel.flatMap((p) => p.released.map((r) => `${r} for ${p.short}`));
+  const calendar: Sentence = {
+    kind: "changed",
+    flag: reports.some((r) => r.late),
+    parts: [
+      ...(reports.length
+        ? [...joined(reports.map((r) => [{ t: `The ${r.label} for ${r.short}`, href: r.href }, { t: r.late ? " is late" : ` is due in ${n(Math.max(r.days, 0), "day", "days")}` }])), { t: ". " }]
+        : [{ t: "No report is due in the next 30 days. " }]),
+      ...(released.length ? [{ t: `In the last seven days ${released.join(" and ")} ${released.length === 1 ? "was" : "were"} released.` }] : []),
+    ],
+  };
+  return [checks, sentBack, targets, calendar];
+}
+
+function melSuggestions(projects: ProjectWeek[]): Suggestion[] {
+  const mel = projects.filter((p) => p.mel);
+  const q = one(projects);
+  const out: Suggestion[] = [];
+  // A late report first: the donor is already waiting.
+  for (const p of mel) for (const r of p.reports.filter((x) => x.late)) out.push({ id: `late:${p.code}:${r.label}`, text: `Get the ${r.label} for ${p.short} to the donor: it is late`, href: r.href });
+  const results = mel.reduce((t, p) => t + p.mel!.results.n, 0);
+  const forms = mel.reduce((t, p) => t + p.mel!.forms.n, 0);
+  if (results) out.push({ id: "check-results", text: results === 1 ? "Check the result waiting for you" : `Check the ${results} results waiting for you, oldest first`, href: `/progress/results${q}` });
+  if (forms) out.push({ id: "check-forms", text: forms === 1 ? "Check the field form from KoboCollect" : `Check the ${forms} field forms from KoboCollect, oldest first`, href: `/progress/results${q}#field-records` });
+  for (const p of mel) if (p.blocking && p.reports.some((r) => !r.late && r.days <= 30)) out.push({ id: `block:${p.code}`, text: `Clear what blocks the next ${p.short} report (${n(p.blocking, "thing", "things")})`, href: p.blockingHref });
+  const queried = mel.reduce((t, p) => t + p.mel!.queried, 0);
+  if (queried) out.push({ id: "queried", text: queried === 1 ? "Follow up the result sent back for correction" : `Follow up the ${queried} results sent back for correction`, href: `/progress/results${q}` });
+  const mismatched = mel.reduce((t, p) => t + p.mel!.mismatched, 0);
+  if (mismatched) out.push({ id: "mismatch", text: mismatched === 1 ? "Reopen the result that no longer matches KoboToolbox" : `Reopen the ${mismatched} results that no longer match KoboToolbox`, href: `/progress/results${q}` });
+  return out.slice(0, MAX_PRIORITIES);
 }
 
 /**

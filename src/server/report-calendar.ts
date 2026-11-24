@@ -2,18 +2,19 @@ import { calendarPeriods, calendarRow, sortCalendar, type CalendarRow } from "@/
 import { quarterRange } from "@/lib/results";
 import { projectByCode } from "@/server/field-store";
 import { deadlineInputs, reportDeadline } from "@/server/preflight";
-import { rawQpr } from "@/server/qpr-store";
+import { rawQprReleased } from "@/server/qpr-store";
 
 /** Every donor report the project owes around now, with its date (lib/report-calendar). */
 export async function reportCalendar(code: string, today = new Date().toISOString().slice(0, 10)): Promise<{ rows: CalendarRow[] }> {
   const project = await projectByCode(code);
   const { quarters, years } = calendarPeriods(project.startDate ?? null, project.endDate ?? null, today);
-  const inputs = await deadlineInputs(code);
+  // Whether each quarter's report is released comes in one read, alongside the deadline rules.
+  const [inputs, released] = await Promise.all([deadlineInputs(code), rawQprReleased(project.id, quarters)]);
   const rows = await Promise.all([
     ...quarters.map(async (q) => {
       const end = quarterRange(q).to;
-      const [d, saved] = await Promise.all([reportDeadline(code, end, 60, "quarterlyReportDays", inputs), rawQpr(project.id, q)]);
-      return calendarRow("qpr", q, end, d, !!saved?.released, today);
+      const d = await reportDeadline(code, end, 60, "quarterlyReportDays", inputs);
+      return calendarRow("qpr", q, end, d, !!released.get(q), today);
     }),
     ...years.map(async (y) => {
       const end = `${y}-12-31`;

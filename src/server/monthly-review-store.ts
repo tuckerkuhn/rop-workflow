@@ -15,7 +15,8 @@ import { projectByCode } from "@/server/field-store";
 import { qprData } from "@/server/qpr-store";
 import { ROP_VOICE } from "@/lib/voice";
 import { early } from "@/server/early";
-import { oncePerRequest } from "@/server/request-memo";
+import { oncePerRequest, requestWrote } from "@/server/request-memo";
+import { loadProjectStateRaw } from "@/server/project-state";
 
 /** Whether a quarter ("2026-Q4") has ended as of today. */
 const quarterEnded = (q: string) => {
@@ -33,12 +34,8 @@ export const mayEditReview = (u: AppUser) => u.kind === "employee" && (u.admin |
 export const mayDecideReview = (u: AppUser) => u.kind === "employee" && u.project.some((r) => ["monthly-review", "plan-approver"].includes(r));
 
 export async function rawReview(projectId: string, month: string): Promise<MonthlyReview> {
-  const [row] = await db
-    .select({ data: s.projectState.data })
-    .from(s.projectState)
-    .where(and(eq(s.projectState.projectId, projectId), eq(s.projectState.key, KEY(month))))
-    .limit(1);
-  return (row?.data as MonthlyReview | undefined) ?? emptyReview(month);
+  // Kept once per read-only request with every other project_state read (server/project-state).
+  return ((await loadProjectStateRaw(projectId, KEY(month))) as MonthlyReview | null) ?? emptyReview(month);
 }
 
 async function saveReview(exec: Tx, projectId: string, r: MonthlyReview) {
@@ -49,6 +46,7 @@ async function saveReview(exec: Tx, projectId: string, r: MonthlyReview) {
       target: [s.projectState.projectId, s.projectState.key],
       set: { data: r, updatedAt: new Date() },
     });
+  requestWrote();
 }
 
 /** ROP's rows when the workplan lists several partners. */
@@ -70,21 +68,24 @@ async function readReview(code: string, month: string, u: AppUser) {
   const reportLater = early(qprData(code, quarter));
   const budgetLater = early(loadBudgetView(code));
   const workplanLater = early(ourWorkplan(project.id));
+  const linesLater = early(
+    db
+      .select({
+        code: s.budgetLines.code,
+        description: s.budgetLines.description,
+        amount: s.budgetLines.amount,
+        spent: s.budgetLines.spent,
+        currency: s.budgetLines.currency,
+      })
+      .from(s.budgetLines)
+      .where(eq(s.budgetLines.projectId, project.id)),
+  );
   const review = await rawReview(project.id, month);
   const report = await reportLater;
   const budget = await budgetLater;
   const pending = report.results.filter((r) => r.status === "pending").length;
   const queried = report.results.filter((r) => r.status === "queried").length;
-  const lines = await db
-    .select({
-      code: s.budgetLines.code,
-      description: s.budgetLines.description,
-      amount: s.budgetLines.amount,
-      spent: s.budgetLines.spent,
-      currency: s.budgetLines.currency,
-    })
-    .from(s.budgetLines)
-    .where(eq(s.budgetLines.projectId, project.id));
+  const lines = await linesLater;
   const workplan = await workplanLater;
   const activities = [
     ...new Map(

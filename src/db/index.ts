@@ -22,7 +22,11 @@ function connect(): DB {
   // laptops, scripts). Each server instance keeps a small pool and lets idle connections go, so
   // many instances at once cannot use them all up. A laptop or a script gets 10: a screen makes a
   // dozen requests at once, and far from the database each query is a slow round trip.
-  instance = drizzle(postgres(url, { prepare: false, max: process.env.VERCEL ? 3 : 10, idle_timeout: 20, connect_timeout: 15 }), { schema });
+  // On Vercel, 6: one instance serves several requests at once (Fluid compute) and each request now
+  // reads side by side, so 3 queued queries behind each other. Through the transaction pooler
+  // (port 6543, as DATABASE_URL is set up) a connection is held only for the length of a query,
+  // and 6 per instance still leaves room for some 30 busy instances before the 200 are used.
+  instance = drizzle(postgres(url, { prepare: false, max: process.env.VERCEL ? 6 : 10, idle_timeout: 20, connect_timeout: 15 }), { schema });
   g.__ropDb = instance;
   return instance;
 }

@@ -1,0 +1,37 @@
+/** Pashto for ./report-path.ts, in its own module so English pages do not download it. */
+
+import type { rpEn } from "./report-path";
+
+export const rpPs: Partial<Record<keyof typeof rpEn, string>> = {
+  "nr.title": "راتلونکی راپور: {q}",
+  "nr.dates": "تر {aim} پورې چمتو شي (پاتې ورځې: {n})، تمویلوونکي ته د سپارلو نېټه {due}",
+  "nr.noDeadline": "نېټه نه ده ټاکل شوې",
+  "nr.blocksOne": "۱ ټکی یې دروي",
+  "nr.blocks": "{n} ټکي یې دروي",
+  "nr.blocksNone": "هېڅ شی یې نه دروي",
+  "nr.toDo": "{n} کارونه پاتې",
+  "nr.released": "وروستی شو. هېڅ خنډ نشته.",
+  "nr.clear": "اوس لپاره هېڅ خنډ نشته: پایلې او اوونیز راپورونه هغه وخت ثبت کړئ چې کار کېږي.",
+  "nr.sumBlockedOne": "۱ ټکی یې لېږل دروي؛ له لېږلو مخکې نور کارونه: {m}.",
+  "nr.sumBlocked": "{n} ټکي یې لېږل دروي؛ له لېږلو مخکې نور کارونه: {m}.",
+  "nr.sumOpen": "له لېږلو مخکې کارونه: {n}. هېڅ شی یې نه دروي.",
+  "nr.yours": "ستاسو کارونه: {n}.",
+  "nr.others": "د نورو سره: {n} ({who}). مخکینۍ کتنه ټول لېست کوي.",
+  "rp.quarterPast": "دا د {q} راپور دی، له {from} تر {to}. په کور پاڼه کې راتلونکی راپور {now} دی.",
+  "rp.quarterNow": "دا د {q} راپور دی، هغه ربع چې اوس روانه ده. په {to} پای ته رسېږي.",
+  "rp.quarterDue": "دا د {q} راپور دی، له {from} تر {to}: دا درېیمه برخه پای ته رسېدلې او دا بل راپور دی چې تمویلوونکي ته لېږل کېږي.",
+  "rp.openQuarter": "{q} پرانیزئ",
+  "rp.durationFromDates": "که تش پاتې شي، راپور د پروژې نېټې چاپوي: {dates}. دلته یوازې هغه وخت ولیکئ چې تړون بل څه وایي.",
+  "rp.cannot": "په دې راپور کې تاسو نه شئ کولی:",
+  "rp.cannot.edit": "متن ولیکئ یا بدل کړئ (د MEL مسئول یا د پروګرام مشر ته اړتیا ده)",
+  "rp.cannot.release": "وروستی یې کړئ (د «Releases donor reports» رول ته اړتیا ده)",
+  "rp.cannot.import": "لګښتونه داخل کړئ (مالي څانګې یا د «Imports spending» رول ته اړتیا ده)",
+  "rp.cannot.accept": "پایلې ومنئ (د MEL مسئول ته اړتیا ده)",
+  "rp.cannot.ask": "مدیر تاسو ته رول درکولی شي.",
+  "rp.wordTerm": "په Word راپور کې: {term}",
+  "rp.totals.onReport": "د بودجې پاڼه یوازې روانه مرحله، له اداري لګښتونو مخکې، ښيي؛ نو د هغې مجموعې له دې سره یو شان نه دي.",
+  "rp.totals.onBudget": "ربعوار راپور ټول تړون ښيي، له اداري لګښتونو سره کله چې د مالي څانګې فایل یې ولري؛ نو د هغه مجموعې له دې سره یو شان نه دي.",
+  "rp.col.target": "د {year} هدف",
+  "rp.col.quarter": "په {q} کې ترلاسه شوي",
+  "rp.col.year": "سږکال",
+};

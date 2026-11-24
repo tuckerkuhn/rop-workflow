@@ -11,7 +11,8 @@ import { useRequireUser, useSession } from "@/components/app/session";
 import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn, StatusPill } from "@/components/workspace/ui";
 import { OverspendReasonPicker } from "@/components/progress/overspend-reason";
 import { SECTIONS, STATUSES, STATUS_LABEL, cannotOnReport, checkHref, durationOf, overspentLines, quarterSpendOf, type QprPatch, type Row, type Status } from "@/lib/qpr";
-import { qprDocx, type Images } from "@/lib/qpr-docx";
+// The Word builder (and the `docx` library) loads on the Download click, not with the page.
+import type { Images } from "@/lib/qpr-docx";
 import { targetStatus, wordOfStatus } from "@/lib/target-status";
 import { formatMinutes } from "@/lib/report-copy";
 import { ShareLinks } from "@/components/progress/share-links";
@@ -169,6 +170,7 @@ export function QprPage() {
     setBusy("download");
     setError("");
     try {
+      const { qprDocx } = await import("@/lib/qpr-docx");
       const blob = await qprDocx({ ...v, origin: window.location.origin, draft }, await loadImages(v.photos));
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);

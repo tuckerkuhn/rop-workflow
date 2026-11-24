@@ -139,3 +139,36 @@ export function refusalFor(u: Pick<Person, "id">, people: Person[], rec: Rec, ru
   if (rec.collector === u.id) return `You collected this record, so someone else decides it: ${who}.`;
   return rec.fromKobo ? `This record came from KoboCollect. On this project ${who} approves it.` : `Only ${who} can accept or query this record.`;
 }
+
+/* ---------- the technical lead sends field work back ---------- */
+
+/** The field forms in the review queue: a readiness check, training attendance, a farm visit. */
+export const FIELD_FORMS = ["readiness", "training", "visit"] as const;
+export const isFieldForm = (form: string | null | undefined) => (FIELD_FORMS as readonly string[]).includes(form ?? "");
+
+/**
+ * The technical lead (a senior agronomist) reads the field work, so they may send a field form back
+ * for correction with a note. They never accept one (accepting counts results: that stays with the
+ * people the project's rule names) and never act on a distribution (the project manager approves
+ * those). Only on a project they are on, and never a record they collected themselves.
+ */
+export function maySendBack(u: Pick<Person, "id" | "project">, people: Person[], rec: Rec & { form: string | null | undefined }): boolean {
+  return u.project.includes("technical-lead") && isFieldForm(rec.form) && people.some((p) => p.id === u.id) && rec.collector !== u.id;
+}
+
+/**
+ * Why this person may not make this decision on a record in the review queue, in words; null when
+ * they may. The usual rule (refusalFor) first; then the technical lead's narrower one: sending a
+ * field form back, with a note.
+ */
+export function reviewRefusal(u: Pick<Person, "id" | "project">, people: Person[], rec: Rec & { form: string | null | undefined }, rule: KoboApproval, status: "accepted" | "queried", note?: string | null): string | null {
+  const usual = refusalFor(u, people, rec, rule);
+  if (!usual) return null;
+  if (!u.project.includes("technical-lead") || !people.some((p) => p.id === u.id)) return usual;
+  if (rec.form === "distribution") return "The project manager approves input distributions. You can read them, but not approve or send them back.";
+  if (!isFieldForm(rec.form)) return usual;
+  if (rec.collector === u.id) return "You collected this record, so someone else checks it. You cannot send back your own work.";
+  if (status === "accepted") return `Only ${rule.who === "mel" ? "MEL" : deciderNames(people, rec, rule)} accepts field forms; you can send one back with a note.`;
+  if (!note?.trim()) return "Write a note saying what to fix. It goes to the person who collected the form.";
+  return null;
+}

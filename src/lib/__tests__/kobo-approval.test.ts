@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { users } from "@/lib/demo";
-import { approverNames, collectorOf, deciderNames, decidersOf, DEFAULT_KOBO_APPROVAL, koboApprovalProblem, koboApprovers, mayApproveKobo, mayDecide, mayDecideRecord, needsKoboCheck, refusalFor, suggestedCollector, type KoboApproval } from "@/lib/kobo-approval";
+import { approverNames, collectorOf, deciderNames, decidersOf, DEFAULT_KOBO_APPROVAL, koboApprovalProblem, koboApprovers, mayApproveKobo, mayDecide, mayDecideRecord, maySendBack, needsKoboCheck, refusalFor, reviewRefusal, suggestedCollector, type KoboApproval } from "@/lib/kobo-approval";
 
 const u = (id: string) => users.find((x) => x.id === id)!;
 const named: KoboApproval = { who: "named", person: "karim", standIn: "nadia" };
@@ -107,5 +107,37 @@ describe("nobody approves what they collected", () => {
     const alone = [{ ...u("omar"), reportsTo: undefined }];
     expect(decidersOf(alone, { fromKobo: true, collector: "omar" }, rule)).toEqual([]);
     expect(deciderNames(alone, { fromKobo: true, collector: "omar" }, rule)).toMatch(/^nobody yet/);
+  });
+});
+
+describe("the technical lead sends field forms back", () => {
+  const rule: KoboApproval = { who: "mel" };
+  const visit = { fromKobo: true, collector: "farida", form: "visit" };
+  const lead = u("alejandro");
+
+  it("may send back a field form with a note, never accept it", () => {
+    expect(reviewRefusal(lead, users, visit, rule, "queried", "Measure the rows again")).toBeNull();
+    expect(reviewRefusal(lead, users, visit, rule, "accepted")).toBe("Only MEL accepts field forms; you can send one back with a note.");
+    expect(reviewRefusal(lead, users, visit, rule, "queried", " ")).toMatch(/^Write a note/);
+    expect(maySendBack(lead, users, visit)).toBe(true);
+  });
+
+  it("names who accepts under a named rule", () => {
+    expect(reviewRefusal(lead, users, visit, named, "accepted")).toBe(`Only ${u("karim").name} or ${u("nadia").name} accepts field forms; you can send one back with a note.`);
+  });
+
+  it("does not touch distributions, results, their own record, or a project they are not on", () => {
+    expect(reviewRefusal(lead, users, { ...visit, form: "distribution" }, rule, "queried", "x")).toMatch(/project manager approves input distributions/);
+    expect(reviewRefusal(lead, users, { ...visit, form: "result" }, rule, "queried", "x")).toBe(refusalFor(lead, users, visit, rule));
+    expect(reviewRefusal(lead, users, { ...visit, collector: "alejandro" }, rule, "queried", "x")).toMatch(/^You collected this record/);
+    expect(maySendBack(lead, users, { ...visit, collector: "alejandro" })).toBe(false);
+    expect(reviewRefusal(lead, users.filter((p) => p.id !== "alejandro"), visit, rule, "queried", "x")).not.toBeNull();
+  });
+
+  it("leaves MEL and everyone else as before", () => {
+    expect(reviewRefusal(u("omar"), users, visit, rule, "accepted")).toBeNull();
+    expect(reviewRefusal(u("omar"), users, visit, rule, "queried")).toBeNull();
+    expect(reviewRefusal(u("bilal"), users, visit, rule, "queried", "x")).toBe(refusalFor(u("bilal"), users, visit, rule));
+    expect(maySendBack(u("omar"), users, visit)).toBe(false);
   });
 });

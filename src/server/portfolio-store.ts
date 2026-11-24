@@ -1,6 +1,7 @@
 import type { AppUser } from "@/lib/demo";
 import { demoMode, onProject } from "@/server/auth";
-import { loadHome } from "@/server/home-store";
+import { homeStanding } from "@/server/home-store";
+import { loadReview } from "@/server/monthly-review-store";
 import { listProjects } from "@/server/project-store";
 import { loadProgressSummary } from "@/server/progress-summary-store";
 import { DEMO_PROJECT } from "@/server/procurement-guard";
@@ -13,29 +14,34 @@ import { DEMO_PROJECT } from "@/server/procurement-guard";
  */
 export async function loadPortfolio(u: AppUser) {
   const projects = (await listProjects()).filter((p) => (demoMode() || p.code !== DEMO_PROJECT) && onProject(u, p.code));
+  // As of this month, the month Home and the summary judge by. In a read-only request the summary
+  // shares this same review (server/request-memo), so it is built once per project.
+  const month = new Date().toISOString().slice(0, 7);
   const rows = await Promise.all(
     projects.map(async (p) => {
       const short = p.name.match(/\(([^)]+)\)\s*$/)?.[1] ?? p.code;
       if (p.stage === "Develop") return { code: p.code, name: p.name, short, stage: p.stage, ready: false as const };
-      const [home, sum] = await Promise.all([loadHome(p.code, u).catch(() => null), loadProgressSummary(p.code, u).catch(() => null)]);
-      if (!home) return { code: p.code, name: p.name, short, stage: p.stage, ready: false as const };
+      const [review, sum] = await Promise.all([loadReview(p.code, month, u).catch(() => null), loadProgressSummary(p.code, u).catch(() => null)]);
+      if (!review) return { code: p.code, name: p.name, short, stage: p.stage, ready: false as const };
       // The shared words (lib/target-status), as Progress and the report say them: a target
       // marked under way with no accepted result is "No data", not "On track".
-      const w = home.schedule.words;
+      // Judged exactly as Home's "On time" and "On budget" panels judge it (server/home-store homeStanding).
+      const { schedule, budget } = homeStanding(review);
+      const w = schedule.words;
       return {
         code: p.code,
         name: p.name,
         short,
         stage: p.stage,
         ready: true as const,
-        indicators: home.schedule.total,
+        indicators: schedule.total,
         met: w.done,
         onTrack: w.on_track,
         noData: w.no_data,
-        late: home.schedule.late.length,
-        level: home.schedule.level,
-        lateNames: home.schedule.late.slice(0, 3).map((l) => `${l.code} ${l.name}`),
-        budget: { currency: home.budget.currency, approved: home.budget.approved, spentPct: home.budget.spentPct, timePct: home.budget.timePct, ahead: home.budget.ahead, overspent: home.budget.overspent.length },
+        late: schedule.late.length,
+        level: schedule.level,
+        lateNames: schedule.late.slice(0, 3).map((i) => `${i.code} ${i.name}`),
+        budget: { currency: budget.currency, approved: budget.approved, spentPct: budget.spentPct, timePct: budget.timePct, ahead: budget.ahead, overspent: budget.overspent.length },
         // Impact first: a slipping result or activity before money or workflow.
         topConcern: (sum?.concerns.find((c) => /^(late-|due$|acts-|unplanned-)/.test(c.key)) ?? sum?.concerns[0])?.text ?? null,
         topWin: sum?.wins[0]?.text ?? null,

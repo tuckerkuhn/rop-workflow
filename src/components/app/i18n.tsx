@@ -1,8 +1,8 @@
 "use client";
 
-import { createContext, useCallback, useContext, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 import type { Lang } from "@/lib/demo";
-import { LANG_COOKIE, dirOf, formatDate, translate, type MessageKey } from "@/lib/i18n";
+import { LANG_COOKIE, addMessages, dirOf, formatDate, loadMessages, translate, type MessageKey, type Messages } from "@/lib/i18n";
 import { translateText } from "@/lib/i18n/text";
 
 /**
@@ -23,14 +23,24 @@ type I18n = {
 
 const I18nContext = createContext<I18n | null>(null);
 
-export function I18nProvider({ initial, children }: { initial: Lang; children: React.ReactNode }) {
+/** `messages`: the dictionary of `initial` when it is not English, sent by the root layout so the first render is already in that language. */
+export function I18nProvider({ initial, messages, children }: { initial: Lang; messages?: Messages; children: React.ReactNode }) {
+  if (messages) addMessages(initial, messages);
   const [lang, setLangState] = useState<Lang>(initial);
+  const asked = useRef<Lang>(initial);
 
   const setLang = useCallback((l: Lang) => {
-    setLangState(l);
+    asked.current = l;
     document.cookie = `${LANG_COOKIE}=${l}; path=/; max-age=31536000; samesite=lax`;
-    document.documentElement.lang = l;
-    document.documentElement.dir = dirOf(l);
+    const show = () => {
+      // A quicker later choice wins over a language still loading.
+      if (asked.current !== l) return;
+      setLangState(l);
+      document.documentElement.lang = l;
+      document.documentElement.dir = dirOf(l);
+    };
+    // The screen changes once the language has loaded; if it cannot load, it changes anyway and shows English.
+    loadMessages(l).then(show, show);
   }, []);
 
   const value = useMemo<I18n>(() => ({ lang, dir: dirOf(lang), setLang, t: (key, vars) => translate(lang, key, vars), tx: (text, vars) => translateText(lang, text, vars), date: (iso, opts) => formatDate(lang, iso, opts) }), [lang, setLang]);

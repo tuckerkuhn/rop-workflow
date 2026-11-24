@@ -70,9 +70,9 @@ async function loadCore(orgId: string): Promise<Core> {
 
 /** The staff list, who holds each role type, and the organization's core. */
 async function roster(orgId: string | null) {
-  const [hr, all] = [await loadHr().catch(() => null), await people()];
+  // Read side by side.
+  const [hr, all, core] = await Promise.all([loadHr().catch(() => null), people(), orgId ? loadCore(orgId) : DEFAULT_CORE]);
   const holders = (hr?.state.rules?.holders ?? {}) as Holders;
-  const core = orgId ? await loadCore(orgId) : DEFAULT_CORE;
   const staff = all.filter((u) => u.kind === "employee");
   return { all, staff, holders, core, is: (id: string) => staff.some((u) => u.id === id) && inCore(id, core, holders) };
 }
@@ -94,9 +94,8 @@ export async function proposalAccessMap(orgId: string | null): Promise<Record<st
  * proposal; the demo's sign-in page lists everyone and gets the whole (fictional) team.
  */
 export async function proposalMenuMap(orgId: string | null, only?: string): Promise<Record<string, "core" | "team">> {
-  const core = await proposalAccessMap(orgId);
+  const [core, b] = await Promise.all([proposalAccessMap(orgId), orgId ? load(orgId).catch(() => null) : null]);
   if (!orgId) return core;
-  const b = await load(orgId).catch(() => null);
   const team = new Set((b?.items ?? []).flatMap((p) => p.team));
   const out: Record<string, "core" | "team"> = { ...core };
   for (const id of team) if (!out[id] && (!only || id === only)) out[id] = "team";

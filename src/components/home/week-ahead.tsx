@@ -16,6 +16,35 @@ import type { WeekView } from "@/server/week-store";
 
 type Draft = { id: string; text: string; href: string; own: boolean; carried?: boolean };
 
+/** The person's own calendar day, so a week starts on their Monday (api/week ?day=). */
+const localDay = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+};
+
+/**
+ * The week, asked for as soon as Home starts loading rather than once Home has arrived: the server
+ * then reads it while Home's own read of the open project is still running, and joins that read
+ * instead of doing it again (server/next-report joinRunning). Taken once, by the first WeekAhead
+ * that mounts for this person and day, and only while fresh.
+ */
+const started = new Map<string, { at: number; res: Promise<Response> }>();
+const FRESH_MS = 30_000;
+export function startWeek(userId: string) {
+  const key = `${userId}:${localDay()}`;
+  const was = started.get(key);
+  if (was && Date.now() - was.at < FRESH_MS) return;
+  const res = fetch(`/api/week?day=${localDay()}`, { cache: "no-store", headers: { "Content-Type": "application/json", "x-demo-user": userId } });
+  res.catch(() => undefined);
+  started.set(key, { at: Date.now(), res });
+}
+function takeStarted(userId: string): Promise<Response> | null {
+  const key = `${userId}:${localDay()}`;
+  const was = started.get(key);
+  started.delete(key);
+  return was && Date.now() - was.at < FRESH_MS ? was.res : null;
+}
+
 export function WeekAhead() {
   const { user } = useSession();
   const [v, setV] = useState<WeekView | null>(null);
@@ -28,9 +57,7 @@ export function WeekAhead() {
   const call = useCallback(
     async (init?: RequestInit) => {
       if (!userId) return;
-      const now = new Date();
-      const day = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-      const res = await fetch(`/api/week?day=${day}`, { cache: "no-store", ...init, headers: { "Content-Type": "application/json", "x-demo-user": userId } });
+      const res = (!init ? await takeStarted(userId) : null) ?? (await fetch(`/api/week?day=${localDay()}`, { cache: "no-store", ...init, headers: { "Content-Type": "application/json", "x-demo-user": userId } }));
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error((body as { error?: string }).error ?? plainError(res.status));
       // A change answers with the plan alone (api/week POST); the rest of the week stays as read.

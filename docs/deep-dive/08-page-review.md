@@ -110,7 +110,11 @@ that is green nine weeks in ten was noise.
 | Leadership (admin, plan approvers, monthly review) | Reports due, what is blocked or behind, approvals waiting, what changed |
 | Project manager (may change the project) | The same, plus budget lines over, results to check or correct, the weekly update |
 | Technical lead (project role `technical-lead`) | Farmer selection, field issues and results sent back, approvals, the team's weekly updates |
+| Finance (the Finance lens: procurement role `finance` or project role `finance-import`) | Month close and spending imports, budget lines over budget, what waits on them (purchase steps, bill vouchers, expense reports, payroll), what changed |
+| MEL (field role `mel` or project role `mel-owner`) | Results and KoboCollect field forms to check (oldest first), results sent back and not corrected, targets with no data or behind before the next report, the report calendar |
 
+- One week each, the first that fits (`lib/week` `weekKindOf`, used by the API and by Home's page): leadership, technical lead, manager, Finance, MEL.
+- The week reads in few queries: the documents it needs for every project in one, field counts in one, procurements in one, and only what its kind uses. Home starts it alongside its own read, so it joins Home's read of the open project.
 - A priority confirmed last week and not ticked done is proposed first the next week ("from last
   week"), with last week's score under the heading.
 - The technical lead reads the field work and decides farmer selection. Approving distributions

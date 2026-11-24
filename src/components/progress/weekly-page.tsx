@@ -18,7 +18,9 @@ import type { Receipt } from "@/lib/expense";
 import type { ResultAction, UpdateInput } from "@/lib/results";
 import { exifDate, longDate, periodLabel, weekOf, type WeeklyPatch } from "@/lib/weekly";
 import { addToOutbox, isOffline, localHash } from "@/lib/outbox";
-import { captionWithDate, weeklyDocx, type WeeklyImages } from "@/lib/weekly-docx";
+// The Word builder (and the `docx` library) loads on the Download click, not with the page.
+import type { WeeklyImages } from "@/lib/weekly-docx";
+import { captionWithDate } from "@/lib/weekly-caption";
 import type { WeeklyView } from "@/server/weekly-store";
 import { NamesWarning } from "@/components/progress/names-warning";
 
@@ -429,6 +431,7 @@ export function WeeklyPage() {
           /* marked in the document */
         }
       }
+      const { weeklyDocx } = await import("@/lib/weekly-docx");
       const blob = await weeklyDocx({ project: v.project, region: v.region, week: v.week, items }, images);
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);

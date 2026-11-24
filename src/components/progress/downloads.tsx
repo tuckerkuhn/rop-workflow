@@ -1,6 +1,5 @@
 "use client";
 
-import JSZip from "jszip";
 import { useState } from "react";
 import type { ReportRef } from "@/lib/preflight";
 import type { PackIndex, PackKind } from "@/server/proof";
@@ -40,6 +39,8 @@ async function buildPack(
   idx: PackIndex,
   user: string,
 ): Promise<{ blob: Blob; missing: number }> {
+  // jszip loads when a pack is built, not with the page.
+  const { default: JSZip } = await import("jszip");
   const zip = new JSZip();
   const audit = idx.kind === "audit";
   const rows: (string | number)[][] = [

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { collectorOf, deciderNames, refusalFor } from "@/lib/kobo-approval";
+import { collectorOf, deciderNames, maySendBack, refusalFor } from "@/lib/kobo-approval";
 import type { Submission } from "@/lib/project";
 import { isEmployee, onProject, people, requireViewer } from "@/server/auth";
 import { roster } from "@/server/field-store";
@@ -24,7 +24,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
       const fromKobo = s.source === "kobo";
       return { fromKobo, collector: fromKobo ? collectorOf(s.enumerator, rule, team) : s.enumerator };
     };
-    const annotated = submissions.map((s) => ({ ...s, mayDecide: !refusalFor(v.user, team, rec(s), rule), deciders: deciderNames(team, rec(s), rule) }));
+    // `maySendBack`: the technical lead may send a field form back with a note, without accepting it.
+    const annotated = submissions.map((s) => {
+      const mayDecide = !refusalFor(v.user, team, rec(s), rule);
+      return { ...s, mayDecide, maySendBack: !mayDecide && maySendBack(v.user, team, { ...rec(s), form: s.form }), deciders: deciderNames(team, rec(s), rule) };
+    });
     return NextResponse.json({ submissions: annotated, roster: await roster(project.id) });
   });
 }

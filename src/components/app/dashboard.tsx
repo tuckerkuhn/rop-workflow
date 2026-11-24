@@ -25,6 +25,7 @@ import { PACKAGE_USD, farmerName, farmerStages, fieldRoleLabel, maskName, type F
 import { DONE, procRolesFor, roleLabel, valueOf } from "@/lib/procurement";
 import { GATED_KEYS, seedProject, type ProjectState } from "@/lib/project";
 import { onDemoClock, today } from "@/lib/clock";
+import type { HrSummary } from "@/server/hr-summary";
 
 const buckets = [
   { label: "This week", max: 6 },
@@ -348,18 +349,23 @@ function DonorHome({ field, project }: { field: FieldItem[]; project: ProjectSta
 function PeopleCard() {
   const { user } = useSession();
   const { date, t } = useT();
-  const [ts, setTs] = useState<{ hasRecord: boolean; month: string; status: string } | null>(null);
-  const [ex, setEx] = useState<{ hasRecord: boolean; returned: number } | null>(null);
-  const [lv, setLv] = useState<{ hasRecord: boolean; annualDays: number | null; returned: number } | null>(null);
-  const [ob, setOb] = useState<{ mine: { done: number; total: number } | null } | null>(null);
+  const [sum, setSum] = useState<HrSummary | null>(null);
   useEffect(() => {
     if (!user) return;
-    const get = (url: string) => fetch(url, { cache: "no-store", headers: { "x-demo-user": user.id } }).then((r) => (r.ok ? r.json() : null));
-    get("/api/timesheets?summary=1").then(setTs).catch(() => setTs(null));
-    get("/api/expenses?summary=1").then(setEx).catch(() => setEx(null));
-    get("/api/onboarding?summary=1").then(setOb).catch(() => setOb(null));
-    get("/api/leave?summary=1").then(setLv).catch(() => setLv(null));
+    // One request for the four parts (api/hr/summary) instead of one each, each paying sign-in and a read of the HR ledger.
+    let live = true;
+    fetch("/api/hr/summary", { cache: "no-store", headers: { "x-demo-user": user.id } })
+      .then((r) => (r.ok ? (r.json() as Promise<HrSummary>) : null))
+      .then((v) => live && setSum(v))
+      .catch(() => live && setSum(null));
+    return () => {
+      live = false;
+    };
   }, [user]);
+  const ts = sum?.timesheet;
+  const ex = sum?.expenses;
+  const lv = sum?.leave;
+  const ob = sum?.onboarding;
   if (!ts?.hasRecord) return null;
   const tsText: Record<string, string> = { missing: "not submitted yet", pending: "waiting for approval", approved: "approved", returned: "sent back: open it to see why" };
   const card = (on: boolean) => `flex flex-wrap items-center gap-x-4 gap-y-1 rounded-2xl border px-5 py-3 text-sm transition hover:border-forest ${on ? "border-forest/40 bg-mist/60" : "border-line bg-surface"}`;
@@ -403,15 +409,18 @@ function PeopleCard() {
 /** For administrators: conflicts between the organization's and the donor's rules on this project, waiting for a decision. */
 function RulesConflicts() {
   const { user } = useSession();
-  const { project } = useCurrentProject();
-  const [open, setOpen] = useState(0);
+  const { project, policy, reloadPolicy } = useCurrentProject();
+  // The project's rules were fetched by CurrentProjectProvider: read them from there. Coming back to
+  // Home later (a rule may have been decided since) asks the provider to fetch them again.
+  // While no answer for this project is here, the provider is already fetching it.
+  const loaded = policy?.projectId === project.id ? policy : null;
+  const show = !!user?.admin && project.saved;
   useEffect(() => {
-    if (!user?.admin || !project.saved) return;
-    fetch(`/api/projects/${project.id}/policy`, { cache: "no-store", headers: { "x-demo-user": user.id } })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((v: { open: string[] } | null) => setOpen(v?.open.length ?? 0))
-      .catch(() => setOpen(0));
-  }, [user, project.id, project.saved]);
+    if (show && loaded && Date.now() - loaded.at > 30_000) reloadPolicy();
+    // Only on arriving at Home or changing project, not each time the answer arrives.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [show, project.id]);
+  const open = show ? (loaded?.answer?.open.length ?? 0) : 0;
   if (!open) return null;
   return (
     <Link href="/settings/policy" className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-2xl border border-clay bg-clay-soft px-5 py-3 text-sm text-clay transition hover:border-forest">

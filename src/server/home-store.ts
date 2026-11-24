@@ -7,14 +7,14 @@ import { and, asc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import { fieldRows, purchaseRows, taskRow } from "@/lib/home-buckets";
 import { loadLineReasons } from "@/server/overspend-store";
 import { onProject, people } from "@/server/auth";
-import { collectorOf, mayApproveKobo, mayDecideRecord } from "@/lib/kobo-approval";
+import { collectorOf, mayApproveKobo, mayDecideRecord, maySendBack } from "@/lib/kobo-approval";
 import { koboApprovalFor } from "@/server/kobo-approval";
 import { koboState } from "@/server/kobo-link";
 import { loadProcurements } from "@/server/procurement-store";
 import type { FieldItem } from "@/lib/field";
 import { koboMismatches } from "@/server/results-store";
 import { db, schema as s } from "@/db";
-import { listDistributions, stockFor } from "@/server/distribution";
+import { fieldItemRows, listDistributions, stockFor } from "@/server/distribution";
 import { canEditProject, type AppUser } from "@/lib/demo";
 import { quartersLabel } from "@/lib/monthly-review";
 import { STATUS_LABEL, mayWriteReport, type Status } from "@/lib/qpr";
@@ -154,13 +154,13 @@ async function readHome(code: string, u: AppUser) {
   const mismatchesLater = lensesFor(u).includes("mel") ? early(koboMismatches(project.id)) : null;
   const formsLater = early(
     db
-      .select({ source: s.evidence.source, by: s.evidence.completedBy, at: s.evidence.completedAt, made: s.evidence.createdAt })
+      .select({ source: s.evidence.source, form: s.evidence.form, by: s.evidence.completedBy, at: s.evidence.completedAt, made: s.evidence.createdAt })
       .from(s.evidence)
       .where(and(eq(s.evidence.projectId, project.id), inArray(s.evidence.form, ["readiness", "training", "visit"]), eq(s.evidence.reviewStatus, "pending"), isNull(s.evidence.koboRemovedAt))),
   );
   // Not started early: listing distributions first deals with records that have just arrived
-  // (server/distribution processPending), which writes. It runs below, where it always did, and so
-  // does the read of open tasks that follows it.
+  // (server/distribution processPending), which writes. It runs below, where it always did, and the
+  // reads that must see its writes (open tasks, the field records) start once it is done.
   // For the people who can match a KoboCollect account to a person (the project manager, plan approvers, administrators).
   const matchesAccounts = u.kind === "employee" && (canEditProject(u) || !!u.admin);
   // For the people who can link a form to a target: the same, and the MEL owner.
@@ -182,45 +182,7 @@ async function readHome(code: string, u: AppUser) {
   const lastReview = { month: prevMonth(month), review: last };
   const report = { checks: review.checks, results: review.results };
 
-  // On time: the indicators as of this month.
-  const counts: Record<Status, number> = { completed: 0, on_track: 0, not_started: 0, delayed: 0, not_implemented: 0 };
-  for (const i of review.indicators) counts[i.status] += 1;
-  const late = review.indicators.filter((i) => i.status === "delayed" || i.status === "not_implemented");
-  const schedule = {
-    total: review.indicators.length,
-    counts,
-    // In the shared words (lib/target-status): "On track" with no accepted result is "No data".
-    words: countTargetWords(review.indicators, Number(review.quarter.slice(-1))),
-    late: late.map((i) => ({ code: i.donorCode, name: i.name, status: STATUS_LABEL[i.status], achieved: i.year, target: i.yearTarget, unit: i.unit })),
-    level: (late.length === 0 ? "good" : late.length <= 2 ? "warning" : "critical") as "good" | "warning" | "critical",
-  };
-
-  // On budget.
-  const b = review.budget;
-  const spentPct = b.totals.approved ? (b.totals.spent / b.totals.approved) * 100 : null;
-  const timePct = b.timeGone === null ? null : b.timeGone * 100;
-  const overspent = b.flagged.filter((l) => l.flags.some((f) => f.level === "stop"));
-  const budget = {
-    currency: b.currency,
-    approved: b.totals.approved,
-    spent: b.totals.spent,
-    forecast: b.totals.forecast,
-    spentPct,
-    timePct,
-    importedTo: b.period?.to ?? null,
-    flagged: b.flagged.length,
-    overspent: overspent.map((l) => ({ code: l.code, description: l.description, spentPct: l.spentPct })),
-    // The project as a whole decides the alarm: spending well ahead of the time gone, or a forecast
-    // above approved. Single overspent lines, or many lines to explain, are worth watching.
-    ahead: spentPct !== null && timePct !== null && spentPct > timePct + 10,
-    level: (b.period === null
-      ? "unknown"
-      : (spentPct !== null && timePct !== null && spentPct > timePct + 10) || b.totals.forecast > b.totals.approved * 1.05
-        ? "critical"
-        : overspent.length || b.flagged.length > 5
-          ? "warning"
-          : "good") as "good" | "warning" | "critical" | "unknown",
-  };
+  const { schedule, budget } = homeStanding(review);
 
   // The report's deadline comes from the same function as pre-flight (a "Report deadline" in Tasks,
   // else the donor's rule), so Home never shows a different date. Only when neither sets one does
@@ -319,6 +281,14 @@ async function readHome(code: string, u: AppUser) {
     });
     const n = mine.length;
     if (n) actions.push({ key: "field-forms", for: isMel ? "mel" : lenses[0], bucket: "approve", urgent: false, text: `Check ${n} field ${n === 1 ? "form" : "forms"} from KoboCollect (readiness, training, farm visits)`, msg: { key: n === 1 ? "ha.fieldForms1" : "ha.fieldForms", vars: { n } }, href: "/progress/results#field-records", since: oldest(mine.map((f) => f.made?.toISOString())) });
+    // The technical lead does not accept field forms but may send one back with a note
+    // (lib/kobo-approval maySendBack). One quiet row, only when the forms are not already theirs
+    // to check above, so it never doubles up with the "Check" row.
+    if (!n) {
+      const readable = forms.filter((f) => maySendBack(u, team, { fromKobo: f.source === "kobo", collector: f.source === "kobo" ? collectorOf(f.by, koboRule, team) : f.by, form: f.form }));
+      const k = readable.length;
+      if (k) actions.push({ key: "field-forms-send-back", for: lenses[0] ?? "field", bucket: "fix", urgent: false, text: `${k} field ${k === 1 ? "form is" : "forms are"} waiting for MEL: send back any that need fixing, with a note`, href: "/progress/results#field-records" });
+    }
   }
   // KoboCollect accounts that have sent records and are not matched to a person. Until they are,
   // the app cannot tell who collected those records, so the rule that nobody approves what they
@@ -347,6 +317,19 @@ async function readHome(code: string, u: AppUser) {
   }
   // Read once for both rows below.
   const dists = await listDistributions(code).catch(() => []);
+  // Read once the list above has dealt with records that just arrived (it may have written), and
+  // all together: names, the field records, open tasks. The field records come from the read the
+  // list itself made when nothing was written (server/distribution fieldItemRows).
+  const manages = u.kind === "employee" && (canEditProject(u) || u.field.includes("manager"));
+  const fieldWork = (u.field.length && u.fieldAccess !== "none") || manages;
+  const itemsLater = fieldWork ? early(fieldItemRows(project.id).then((rows) => rows.map((r) => r.data as FieldItem))) : null;
+  const openLater = early(
+    db
+      .select({ id: s.workItems.id, title: s.workItems.title, date: s.workItems.date, assignee: s.workItems.assignee, sourceKey: s.workItems.sourceKey })
+      .from(s.workItems)
+      .where(and(eq(s.workItems.projectId, project.id), eq(s.workItems.type, "task"), isNull(s.workItems.doneAt)))
+      .orderBy(asc(s.workItems.date)),
+  );
   // The farmer's name first for people allowed to see it ("Shirin Ahmadi (F-0007)"); the number alone for anyone else.
   const names = dists.length ? await farmerNames(project.id, u) : new Map<string, string>();
   const farmerOf = (id: string) => (names.get(id) ? `${names.get(id)} (${id})` : id);
@@ -390,8 +373,8 @@ async function readHome(code: string, u: AppUser) {
   // lib/qpr mayWriteReport), as the Budget page and its API require; Finance reports the spend.
   if (mayWriteReport(u)) {
     // Only the lines nobody has explained yet: an explained line stays overspent, but there is nothing left to ask for.
-    const reasons = overspent.length ? await loadLineReasons(project.id) : {};
-    const toExplain = overspent.filter((l) => !reasons[l.code]);
+    const reasons = budget.overspent.length ? await loadLineReasons(project.id) : {};
+    const toExplain = budget.overspent.filter((l) => !reasons[l.code]);
     if (toExplain.length) actions.push({ key: "overspent", for: isMel ? "mel" : lenses.includes("lead") ? "lead" : lenses[0], bucket: "fix", urgent: false, text: `Explain ${toExplain.length} overspent budget ${toExplain.length === 1 ? "line" : "lines"}`, msg: { key: toExplain.length === 1 ? "ha.overspent1" : "ha.overspent", vars: { n: toExplain.length } }, href: "/progress/budget" });
   }
 
@@ -399,9 +382,8 @@ async function readHome(code: string, u: AppUser) {
   // Farmers at Distribute that nothing has been recorded for yet, and whether the store can supply
   // them: the storekeeper is told when there is nothing to hand out, and whoever runs the field
   // programme is told to get the inputs bought, so a farmer never sits at Inputs with no one acting.
-  const manages = u.kind === "employee" && (canEditProject(u) || u.field.includes("manager"));
-  if ((u.field.length && u.fieldAccess !== "none") || manages) {
-    const items = (await db.select({ data: s.fieldItems.data }).from(s.fieldItems).where(eq(s.fieldItems.projectId, project.id))).map((r) => r.data as FieldItem);
+  if (fieldWork && itemsLater) {
+    const items = await itemsLater;
     const waiting = items.filter((i) => i.kind === "farmer" && i.step === "distribute" && (i as { awaiting?: { status: string } }).awaiting?.status !== "pending");
     const short = waiting.length ? ((await stockFor(code).catch(() => null))?.block ?? null) : null;
     if (u.field.length && u.fieldAccess !== "none") {
@@ -430,11 +412,7 @@ async function readHome(code: string, u: AppUser) {
 
   // Tasks made at a handoff (a distribution sent back, a readiness correction, a payment to
   // release) and tasks given to this person: on Home, one tap from the place to act.
-  const open = await db
-    .select({ id: s.workItems.id, title: s.workItems.title, date: s.workItems.date, assignee: s.workItems.assignee, sourceKey: s.workItems.sourceKey })
-    .from(s.workItems)
-    .where(and(eq(s.workItems.projectId, project.id), eq(s.workItems.type, "task"), isNull(s.workItems.doneAt)))
-    .orderBy(asc(s.workItems.date));
+  const open = await openLater;
   // Purchases whose current step waits on this person: each one named, one tap from its step.
   const waitingPurchases = u.procurementAccess === "none" ? [] : purchaseRows((await procurementsLater) ?? [], u, code, lenses.includes("procurement") ? "procurement" : lenses[0]);
   actions.push(...waitingPurchases);
@@ -480,3 +458,51 @@ async function readHome(code: string, u: AppUser) {
   };
 }
 export type HomeView = Awaited<ReturnType<typeof readHome>>;
+
+/**
+ * Home's "On time" and "On budget" panels, from the monthly review alone (no reads). The portfolio
+ * (server/portfolio-store) judges each project with the same function, so the two never disagree.
+ */
+export function homeStanding(review: Awaited<ReturnType<typeof loadReview>>) {
+  // On time: the indicators as of this month.
+  const counts: Record<Status, number> = { completed: 0, on_track: 0, not_started: 0, delayed: 0, not_implemented: 0 };
+  for (const i of review.indicators) counts[i.status] += 1;
+  const late = review.indicators.filter((i) => i.status === "delayed" || i.status === "not_implemented");
+  const schedule = {
+    total: review.indicators.length,
+    counts,
+    // In the shared words (lib/target-status): "On track" with no accepted result is "No data".
+    words: countTargetWords(review.indicators, Number(review.quarter.slice(-1))),
+    late: late.map((i) => ({ code: i.donorCode, name: i.name, status: STATUS_LABEL[i.status], achieved: i.year, target: i.yearTarget, unit: i.unit })),
+    level: (late.length === 0 ? "good" : late.length <= 2 ? "warning" : "critical") as "good" | "warning" | "critical",
+  };
+
+  // On budget.
+  const b = review.budget;
+  const spentPct = b.totals.approved ? (b.totals.spent / b.totals.approved) * 100 : null;
+  const timePct = b.timeGone === null ? null : b.timeGone * 100;
+  const overspent = b.flagged.filter((l) => l.flags.some((f) => f.level === "stop"));
+  const budget = {
+    currency: b.currency,
+    approved: b.totals.approved,
+    spent: b.totals.spent,
+    forecast: b.totals.forecast,
+    spentPct,
+    timePct,
+    importedTo: b.period?.to ?? null,
+    flagged: b.flagged.length,
+    overspent: overspent.map((l) => ({ code: l.code, description: l.description, spentPct: l.spentPct })),
+    // The project as a whole decides the alarm: spending well ahead of the time gone, or a forecast
+    // above approved. Single overspent lines, or many lines to explain, are worth watching.
+    ahead: spentPct !== null && timePct !== null && spentPct > timePct + 10,
+    level: (b.period === null
+      ? "unknown"
+      : (spentPct !== null && timePct !== null && spentPct > timePct + 10) || b.totals.forecast > b.totals.approved * 1.05
+        ? "critical"
+        : overspent.length || b.flagged.length > 5
+          ? "warning"
+          : "good") as "good" | "warning" | "critical" | "unknown",
+  };
+
+  return { schedule, budget };
+}

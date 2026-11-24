@@ -7,7 +7,10 @@ import { en } from "@/lib/i18n/en";
 import { es } from "@/lib/i18n/es";
 import { fa } from "@/lib/i18n/fa";
 import { ps } from "@/lib/i18n/ps";
-import { qcEn, qcEs, qcFa, qcPs } from "@/lib/i18n/qpr-checks";
+import { qcEn } from "@/lib/i18n/qpr-checks";
+import { qcEs } from "@/lib/i18n/qpr-checks.es";
+import { qcFa } from "@/lib/i18n/qpr-checks.fa";
+import { qcPs } from "@/lib/i18n/qpr-checks.ps";
 import type { QprCheckKey } from "@/lib/qpr";
 
 /** The report's own checks the report check (server/preflight) says in its own words. */
