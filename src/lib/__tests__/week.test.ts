@@ -63,8 +63,8 @@ describe("approvals across projects", () => {
   });
   it("names the project when there is more than one", () => {
     const a = { text: "Sign off the October monthly review", href: "/progress/review?project=B", since: "2027-01-02", short: "Grapes" };
-    expect(suggestPriorities([p({}), p({ code: "B", short: "Grapes", approvals: [a] })])[0].text).toBe("Decide for Grapes: Sign off the October monthly review");
-    expect(suggestPriorities([p({ approvals: [{ ...a, short: "Maize" }] })])[0].text).toBe("Decide: Sign off the October monthly review");
+    expect(suggestPriorities([p({}), p({ code: "B", short: "Grapes", approvals: [a] })])[0].text).toBe("Sign off the October monthly review (Grapes)");
+    expect(suggestPriorities([p({ approvals: [{ ...a, short: "Maize" }] })])[0].text).toBe("Sign off the October monthly review");
   });
 });
 
@@ -122,6 +122,10 @@ describe("from one week to the next", () => {
   it("carries what was confirmed and not done to the top of the next week, once", () => {
     const out = withCarried(last, [{ id: "budget", text: "Explain the budget line that is over budget", href: "/progress/budget" }, { id: "weekly", text: "Get last week's weekly update sent", href: "/progress/weekly" }]);
     expect(out.map((x) => [x.id, !!x.carried, !!x.own])).toEqual([["carried:own:1", true, true], ["budget", true, false], ["weekly", false, false]]);
+  });
+  it("keeps one carried mark on a line of your own carried a second week", () => {
+    const again: WeekPlan = { week: "2026-11-23", confirmedAt: "2026-11-23T14:00:00Z", items: [{ id: "carried:own:1", text: "Write the article", href: "", own: true, done: false }] };
+    expect(withCarried(again, []).map((x) => x.id)).toEqual(["carried:own:1"]);
   });
   it("carries nothing from a week that was never confirmed, and never more than three", () => {
     const fresh = [1, 2, 3, 4].map((k) => ({ id: `f${k}`, text: `Fresh ${k}`, href: "/work" }));

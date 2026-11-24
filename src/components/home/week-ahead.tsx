@@ -89,7 +89,8 @@ export function WeekAhead() {
           The week ahead
         </h2>
         <span className="font-mono text-xs text-muted">
-          week of {v.week}, as of today · {v.projects.length} {v.projects.length === 1 ? "project" : "projects"}
+          {/* Named, so nobody reads it as the project open in the picker: the week covers every project the person runs. */}
+          week of {new Date(`${v.week}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "long", timeZone: "UTC" })} · {v.projects.length === 0 ? "no running project" : v.projects.length <= 3 ? v.projects.map((p) => p.short).join(", ") : `${v.projects.length} projects`}
         </span>
       </div>
 
@@ -150,7 +151,7 @@ export function WeekAhead() {
               <p className="mt-2 flex min-h-12 items-center gap-3 border-y border-line px-2 py-2 text-sm">
                 <span className="min-w-0 flex-1">
                   <span className="font-semibold">Clear the {approvals} waiting on you</span>
-                  <span className="text-muted">{v.projects.length > 1 ? ": each project's Home lists its own." : ": they are in your to-do list above."}</span>
+                  <span className="text-muted">{v.projects.length > 1 ? ": each project's Home lists its own." : `: they are in the to-do list below, with ${v.projects[0]?.short ?? "the project"} open.`}</span>
                 </span>
                 <button type="button" className="min-h-11 shrink-0 px-2 text-sm text-muted hover:text-clay" aria-label={`Drop: ${list[0].text}`} onClick={() => setDraft([])}>
                   Drop

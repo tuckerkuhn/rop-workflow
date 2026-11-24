@@ -154,7 +154,7 @@ export function suggestPriorities(projects: ProjectWeek[]): Suggestion[] {
   for (const p of projects) if (p.blocking && p.reports.some((r) => !r.late && r.days <= 14)) out.push({ id: `block:${p.code}`, text: `Clear what blocks the next ${p.short} report (${n(p.blocking, "thing", "things")})`, href: p.blockingHref });
   const approvals = oldestFirst(projects.flatMap((p) => p.approvals));
   // With more than one project, the approval names its own: "Sign off the October review" alone does not say where.
-  if (approvals.length) out.push({ id: "approvals", text: approvals.length === 1 ? `Decide${projects.length > 1 ? ` for ${approvals[0].short}` : ""}: ${approvals[0].text}` : `Decide the ${approvals.length} approvals waiting on you`, href: approvals[0].href });
+  if (approvals.length) out.push({ id: "approvals", text: approvals.length === 1 ? `${approvals[0].text}${projects.length > 1 ? ` (${approvals[0].short})` : ""}` : `Decide the ${approvals.length} approvals waiting on you`, href: approvals[0].href });
   for (const p of projects) if (p.complaintsLate) out.push({ id: `complaints:${p.code}`, text: `See that ${n(p.complaintsLate, "complaint", "complaints")} on ${p.short} ${p.complaintsLate === 1 ? "is" : "are"} answered`, href: `/progress/feedback?project=${encodeURIComponent(p.code)}` });
   for (const p of projects) if (p.late) out.push({ id: `behind:${p.code}`, text: `Ask about ${p.short}: ${n(p.late, "result is", "results are")} behind target`, href: `/progress?project=${encodeURIComponent(p.code)}` });
   return out.slice(0, MAX_PRIORITIES);
@@ -267,7 +267,7 @@ export function suggestFor(kind: WeekKind, projects: ProjectWeek[]): Suggestion[
  * in all. A carried line the records raise again is listed once.
  */
 export function withCarried(lastWeek: WeekPlan | null, fresh: Suggestion[]): Suggestion[] {
-  const carried: Suggestion[] = lastWeek?.confirmedAt ? lastWeek.items.filter((i) => !i.done).map((i) => ({ id: i.own ? `carried:${i.id}` : i.id, text: i.text, href: i.own ? "" : i.href, own: i.own, carried: true })) : [];
+  const carried: Suggestion[] = lastWeek?.confirmedAt ? lastWeek.items.filter((i) => !i.done).map((i) => ({ id: i.own && !i.id.startsWith("carried:") ? `carried:${i.id}` : i.id, text: i.text, href: i.own ? "" : i.href, own: i.own, carried: true })) : [];
   const seen = new Set(carried.map((c) => c.id));
   return [...carried, ...fresh.filter((f) => !seen.has(f.id))].slice(0, MAX_PRIORITIES);
 }
