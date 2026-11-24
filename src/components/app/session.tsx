@@ -8,6 +8,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { formatMoney, registerPeople, userById, type AppUser, type Currency } from "@/lib/demo";
 import { registerAuthority, type Authority } from "@/lib/authority";
 import { registerProposalAccess } from "@/lib/org-areas";
+import { forgetHome } from "@/components/home/home-cache";
 import { hasFeature, type Feature, type Plan } from "@/lib/plans";
 
 /**
@@ -112,6 +113,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, [demoId, currency, stored]);
 
   const signOut = useCallback(async () => {
+    // Home's kept answers (components/home/home-cache) belong to the person signing out.
+    forgetHome();
     if (mode === "live") {
       await fetch("/api/session/view-as", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: null }) }).catch(() => {});
       await supabaseBrowser().auth.signOut();
@@ -121,6 +124,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   const viewAs = useCallback(
     async (id: string | null) => {
+      forgetHome();
       const res = await fetch("/api/session/view-as", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
       if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? "Could not switch.");
       await refresh();
@@ -139,7 +143,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       actor: mode === "live" ? live.actor : demoUser,
       viewingAs: mode === "live" && live.viewingAs,
       ready: stored && mode !== "loading",
-      signIn: setDemoId,
+      signIn: (id: string) => {
+        forgetHome();
+        setDemoId(id);
+      },
       signOut,
       refresh,
       viewAs,

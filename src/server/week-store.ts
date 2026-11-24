@@ -8,15 +8,15 @@ import { nextSigners } from "@/lib/hr";
 import { DONE, maySign, stepById, type Procurement } from "@/lib/procurement";
 import { EMPTY_SELECTION, type Selection } from "@/lib/selection";
 import { emptyWeekly, weekOf, type WeeklyState } from "@/lib/weekly";
-import { lensesFor } from "@/server/home-store";
+import { homeForWeekJoining, lensesFor, type HomeForWeek } from "@/server/home-store";
 import { EMPTY_FEEDBACK, overdue, type FeedbackLog } from "@/lib/feedback";
 import { MAX_PRIORITIES, mondayOf, safeHref, weekKindOf, withProject, suggestFor, weekScore, weekSummaryFor, withCarried, type FinanceWork, type MelWork, type OrgWeek, type Priority, type ProjectWeek, type ProjectWork, type WeekKind, type WeekAction, type WeekPlan } from "@/lib/week";
 import { demoMode, onProject } from "@/server/auth";
 import { early } from "@/server/early";
 import { loadHr } from "@/server/hr-store";
-import { loadHomeJoining } from "@/server/home-store";
 import { joinRunning, nextReport } from "@/server/next-report";
 import { orgIdForPerson } from "@/server/org-settings-store";
+import { latestLedgerCheck } from "@/server/ledger-check";
 import { DEMO_PROJECT } from "@/server/procurement-guard";
 import { PARKED } from "@/server/project-store";
 import { reportCalendar } from "@/server/report-calendar";
@@ -55,7 +55,7 @@ const NEEDS = {
 type Docs = { feedback: FeedbackLog; selection: Selection; weekly: WeeklyState | null; bills: Bill[]; closeouts: Closeouts; imports: { at: string }[]; released: Map<string, string> };
 const emptyDocs = (): Docs => ({ feedback: EMPTY_FEEDBACK, selection: EMPTY_SELECTION, weekly: null, bills: [], closeouts: {}, imports: [], released: new Map() });
 type FieldRow = { projectId: string; id: string | null; kind: string | null; issues: { status?: string }[] | null };
-type Home = NonNullable<Awaited<ReturnType<typeof loadHomeJoining>>>;
+type Home = HomeForWeek;
 
 /**
  * The project_state documents the week reads, for every project in one query. A quarterly report
@@ -201,9 +201,10 @@ async function projectWeek(p: { code: string; name: string; id: string }, u: App
   const weekAgo = addDays(today, -7);
   const label = (r: { kind: "qpr" | "annual"; period: string }) => (r.kind === "qpr" ? `${r.period.slice(5)} ${r.period.slice(0, 4)} quarterly report` : `${r.period} annual report`);
   // All read together. Home and its next report are what Home's own page is reading for the open
-  // project at this moment: joined, not read twice (server/next-report joinRunning).
+  // project at this moment: joined, not read twice (server/next-report joinRunning). Any other
+  // project reads only the part of Home the week uses (server/home-store homeForWeek).
   const [home, nr, cal, docs] = await Promise.all([
-    loadHomeJoining(p.code, u).catch(() => null),
+    homeForWeekJoining(p.code, u).catch(() => null),
     need.reports ? joinRunning(`next-report:${p.code}`, () => nextReport(p.code)).catch(() => null) : null,
     need.reports ? reportCalendar(p.code, today).catch(() => ({ rows: [] as Awaited<ReturnType<typeof reportCalendar>>["rows"] })) : { rows: [] as Awaited<ReturnType<typeof reportCalendar>>["rows"] },
     reads.docs.then((m) => m.get(p.id) ?? emptyDocs()),
@@ -256,6 +257,8 @@ export async function loadWeek(u: AppUser, today = realToday()) {
   // This week's plan, and last week's for what was left undone.
   const planLater = early(orgIdForPerson(u.id).catch(() => null).then((orgId) => plansOf(orgId, u, [week, addDays(week, -7)])));
   const orgLater = need.finance ? early(readOrg(u)) : null;
+  // The nightly check of the books, for leadership and Finance (server/ledger-check).
+  const booksLater = kind === "lead" || kind === "finance" ? early(orgIdForPerson(u.id).then((orgId) => (orgId ? latestLedgerCheck(orgId) : null)).catch(() => null)) : null;
   // The running projects this person is on, as server/project-store listProjects lists them (real, not parked), with their ids, in one query.
   const listed = (await db.select({ id: s.projects.id, code: s.projects.code, name: s.projects.name, stage: s.projects.stage, kind: s.projects.kind }).from(s.projects).orderBy(asc(s.projects.createdAt)))
     .filter((p): p is typeof p & { code: string } => !!p.code && p.kind !== PARKED && p.kind !== "sample" && p.kind !== "sandbox")
@@ -274,7 +277,7 @@ export async function loadWeek(u: AppUser, today = realToday()) {
     week,
     today,
     kind,
-    summary: weekSummaryFor(kind, projects, today, org),
+    summary: weekSummaryFor(kind, projects, today, org, (await booksLater) ?? null),
     /** Proposed from the records; the person's own list once confirmed. */
     suggestions: withCarried(lastWeek, suggestFor(kind, projects, org)),
     /** How last week's confirmed list ended, for the line under the heading. */

@@ -95,20 +95,39 @@ async function readHr(): Promise<Loaded> {
 /**
  * The sample book's first fill, while it runs. Reads that find the book empty at the same moment
  * (a page opening asks for it from several requests at once) wait for one fill instead of each
- * writing the sample again; the fill looks once more before writing, for a read that found the
- * book empty just before another fill ended. On this server only: two servers filling at the same
- * moment remain possible, only for a brand-new sample book.
+ * writing the sample again. Across servers the fill is one transaction that first takes the book's
+ * lock (the one every append takes, migration 0017) and looks once more: a second server waits
+ * for the first fill to end, then finds the book full and writes nothing.
  */
 let filling: Promise<void> | null = null;
+
+/**
+ * Fills a sample book in one transaction, under the book's lock: only when it is empty, or after
+ * clearing it (`clear`, a reset). Nothing is written when it is not empty, and a fill that fails
+ * part way leaves the book as it was.
+ */
+export async function fillSampleBook(book: string, clear = false) {
+  await db.transaction(async (tx) => {
+    // The same lock the ledger's own trigger takes for each entry of this book (hashtext('hr_ledger:' || book)).
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`hr_ledger:${book}`}))`);
+    if (clear) {
+      await tx.delete(s.hrLedger).where(eq(s.hrLedger.book, book));
+      await tx.delete(s.hrFiles).where(eq(s.hrFiles.book, book));
+    } else if ((await tx.select({ n: s.hrLedger.n }).from(s.hrLedger).where(eq(s.hrLedger.book, book)).limit(1)).length) return;
+    const write: typeof append = async (actor, kind, subject, data) => {
+      const [r] = await tx.insert(s.hrLedger).values({ book, n: 0, actor, kind, subject, data, prevHash: "", hash: "" }).returning({ n: s.hrLedger.n });
+      return r.n;
+    };
+    await seedSample(write, (name, text, by) => storeSampleFile(name, text, by, tx, book));
+  });
+}
 
 async function foldBook(book: string) {
   let list = await rows(book);
   // Only the sample book fills itself; other "demo-…" books start empty, like a real one.
   if (!list.length && book === "demo") {
     if (!filling) {
-      const mine: Promise<void> = (async () => {
-        if (!(await rows(book)).length) await seedSample();
-      })().finally(() => {
+      const mine: Promise<void> = fillSampleBook(book).finally(() => {
         if (filling === mine) filling = null;
       });
       filling = mine;
@@ -170,9 +189,9 @@ export async function resetSample() {
   // As the first fill (see `filling`): a read that finds the book empty meanwhile waits for this one.
   const reset = (async () => {
     await filling?.catch(() => undefined);
-    await db.delete(s.hrLedger).where(eq(s.hrLedger.book, hrBook()));
-    await db.delete(s.hrFiles).where(eq(s.hrFiles.book, hrBook()));
-    await seedSample();
+    // Cleared and filled again in one transaction under the book's lock (fillSampleBook), so a read
+    // on another server never finds it empty part way and fills it a second time.
+    await fillSampleBook(hrBook(), true);
   })();
   const mine: Promise<void> = reset.finally(() => {
     if (filling === mine) filling = null;
@@ -211,10 +230,10 @@ function samplePdf(text: string) {
   return Buffer.from(pdf, "latin1");
 }
 
-async function storeSampleFile(name: string, text: string, by: string) {
+async function storeSampleFile(name: string, text: string, by: string, q: Pick<typeof db, "insert"> = db, book = hrBook()) {
   const buf = samplePdf(text);
   const hash = createHash("sha256").update(buf).digest("hex");
-  await db.insert(s.hrFiles).values({ hash, book: hrBook(), name, type: "application/pdf", size: buf.length, data: buf, uploadedBy: by }).onConflictDoNothing();
+  await q.insert(s.hrFiles).values({ hash, book, name, type: "application/pdf", size: buf.length, data: buf, uploadedBy: by }).onConflictDoNothing();
   return { hash, name, type: "application/pdf", size: buf.length };
 }
 

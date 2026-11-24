@@ -36,7 +36,12 @@ export async function DELETE(req: Request, { params }: Ctx) {
     const v = await requireViewer(req, { write: true, allow: canEditProject, why: WHY });
     if (v instanceof NextResponse) return v;
     if (!uuid.safeParse(id).success) return NextResponse.json({ error: "Invalid request." }, { status: 400 });
-    if (!(await deleteDonor(code, id))) return NextResponse.json({ error: "No such donor on this project." }, { status: 404 });
+    try {
+      if (!(await deleteDonor(code, id))) return NextResponse.json({ error: "No such donor on this project." }, { status: 404 });
+    } catch (e) {
+      if (e instanceof InputError) return NextResponse.json({ error: e.message }, { status: 409 });
+      throw e;
+    }
     // Its report deadlines in Tasks went with it.
     await audit(code, { entity: "donor", entityId: id, action: "donor_removed", by: v.user.id });
     return NextResponse.json({ ok: true });

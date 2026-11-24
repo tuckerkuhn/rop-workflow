@@ -5,6 +5,7 @@ import { DEMO_TARGET_PLACES, demoTakesResults } from "@/lib/demo-design";
 import { actualFor, indicators as demoIndicators, results as demoResults, type Indicator, type Submission } from "@/lib/project";
 import { totalsOf, type ResultRecord } from "@/lib/results";
 import { loadResults } from "@/server/results-store";
+import { ledgerUses } from "@/server/ledger-spent";
 import { BUILT_IN_SOURCES, forecastFor, periodOf, projectYears, reportPeriod, trackFor, type DonorInfo, type ForecastYear, type DonorInput, type IndicatorProgress, type Level, type ProgressData, type ReportValues } from "@/lib/progress";
 import { FORMATS } from "@/lib/report-formats";
 import { listSubmissions } from "@/server/kobo";
@@ -220,6 +221,8 @@ export async function saveDonor(code: string, id: string | null, input: DonorInp
 export async function deleteDonor(code: string, id: string) {
   const project = await projectOrNull(code);
   if (!project) return false;
+  // Payments and donor money in the books name the donor, and the books keep them (migration 0027).
+  if (await ledgerUses({ donorIds: [id] })) throw new InputError("This donor has payments or donor money in the books, so it stays. Correct a wrong entry by reversing it.");
   const gone = await db.delete(s.donors).where(and(eq(s.donors.id, id), eq(s.donors.projectId, project.id))).returning({ id: s.donors.id });
   return gone.length > 0;
 }

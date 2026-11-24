@@ -2,6 +2,7 @@ import { and, asc, eq, inArray, notInArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import type { Budget, BudgetLine, WorkplanItem } from "@/lib/budget";
 import { projectByCode } from "@/server/field-store";
+import { ledgerSpent, ledgerUses } from "@/server/ledger-spent";
 
 /** The project's budget and workplan in Postgres. */
 
@@ -9,7 +10,7 @@ const n = (v: string | null) => (v === null ? null : Number(v));
 
 export async function loadBudget(code: string): Promise<Budget> {
   const project = await projectByCode(code);
-  const rows = await db.select().from(s.budgetLines).where(eq(s.budgetLines.projectId, project.id)).orderBy(asc(s.budgetLines.sort), asc(s.budgetLines.code));
+  const [rows, ledger] = await Promise.all([db.select().from(s.budgetLines).where(eq(s.budgetLines.projectId, project.id)).orderBy(asc(s.budgetLines.sort), asc(s.budgetLines.code)), ledgerSpent(project.id)]);
   return {
     currency: rows[0]?.currency ?? "USD",
     lines: rows.map(
@@ -22,7 +23,8 @@ export async function loadBudget(code: string): Promise<Budget> {
         quantity: n(r.quantity),
         unitCost: n(r.unitCost),
         total: n(r.amount) ?? 0,
-        spent: n(r.spent),
+        // Spent from the ledger; a project with no posted spending there yet keeps budget_lines.spent (server/ledger-spent).
+        spent: ledger ? (ledger.byCode[r.code] ?? 0) : n(r.spent),
         schedule: (r.schedule ?? {}) as Record<string, number>,
         kind: r.kind as BudgetLine["kind"],
         procure: r.procure,
@@ -51,7 +53,7 @@ export async function saveBudget(code: string, budget: Budget) {
       const used =
         (await tx.select({ id: s.activities.id }).from(s.activities).where(inArray(s.activities.budgetLineId, ids)).limit(1)).length +
         (await tx.select({ id: s.expenditures.id }).from(s.expenditures).where(inArray(s.expenditures.budgetLineId, ids)).limit(1)).length;
-      if (used) throw new Error("Some budget lines you removed already have activities or spending recorded against them. Keep those lines.");
+      if (used || (await ledgerUses({ budgetLineIds: ids }, tx))) throw new Error("Some budget lines you removed already have activities or spending recorded against them. Keep those lines.");
       await tx.delete(s.budgetLines).where(inArray(s.budgetLines.id, ids));
     }
     for (const [i, l] of budget.lines.entries()) {

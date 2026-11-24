@@ -1,6 +1,6 @@
 import { setRequestFileStores } from "@/server/request-memo";
 import { createServerClient } from "@supabase/ssr";
-import { eq, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { projectRolesFromTypes, type Authority } from "@/lib/authority";
 import { HR_ACCESS_ROLES } from "@/lib/hr";
@@ -295,6 +295,26 @@ export async function inOwnOrganization(v: Viewer, code: string): Promise<boolea
   if (!v.organizationId) return true;
   const org = await organizationOfProject(code);
   return !org || org === v.organizationId;
+}
+
+/**
+ * inOwnOrganization for several projects at once (a board across projects): the codes this person
+ * may act on, each judged exactly as inOwnOrganization judges it, with the projects not known yet
+ * read in one query instead of one each.
+ */
+export async function inOwnOrganizationOf(v: Viewer, codes: string[]): Promise<Set<string>> {
+  if (!v.organizationId) return new Set(codes);
+  const unknown = [...new Set(codes.filter((c) => !orgOfProject.has(c)))];
+  if (unknown.length) {
+    const rows = await db.select({ code: s.projects.code, org: s.projects.organizationId }).from(s.projects).where(inArray(s.projects.code, unknown));
+    for (const r of rows) if (r.code && r.org) orgOfProject.set(r.code, r.org);
+  }
+  return new Set(
+    codes.filter((c) => {
+      const org = orgOfProject.get(c) ?? null;
+      return !org || org === v.organizationId;
+    }),
+  );
 }
 
 export const isEmployee = (u: AppUser) => u.kind === "employee";

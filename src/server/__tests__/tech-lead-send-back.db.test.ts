@@ -11,6 +11,7 @@ import { loadHome } from "@/server/home-store";
 import { GET as listQueue } from "@/app/api/projects/[code]/submissions/route";
 import { POST as decideRoute } from "@/app/api/projects/[code]/submissions/[id]/route";
 import { ready } from "@/server/__tests__/test-db";
+import { loadMessages, translate, type MessageKey } from "@/lib/i18n";
 
 /**
  * The technical lead (Alejandro, senior agronomist) sends field work back for correction with a
@@ -106,6 +107,13 @@ describe("the technical lead sends field work back", { timeout: 60_000 }, () => 
     const keys = home.actions.map((a) => a.key);
     expect(keys).toContain("field-forms-send-back");
     expect(keys).not.toContain("field-forms");
+    // In the reader's language like Home's other rows; in English exactly the row's own words.
+    const row = home.actions.find((a) => a.key === "field-forms-send-back")!;
+    expect(row.msg?.key).toMatch(/^ha\.sendBack1?$/);
+    expect(translate("en", row.msg!.key as MessageKey, row.msg!.vars)).toBe(row.text);
+    for (const n of [1, 3]) expect(translate("en", (n === 1 ? "ha.sendBack1" : "ha.sendBack") as MessageKey, { n })).toBe(`${n} field ${n === 1 ? "form is" : "forms are"} waiting for MEL: send back any that need fixing, with a note`);
+    await loadMessages("es");
+    expect(translate("es", "ha.sendBack" as MessageKey, { n: 2 })).toMatch(/^2 formularios de campo/);
   });
 
   it("leaves MEL as it was: the stand-in accepts and queries, with no send-back row on Home", async () => {

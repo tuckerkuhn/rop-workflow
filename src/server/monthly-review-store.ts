@@ -17,6 +17,7 @@ import { ROP_VOICE } from "@/lib/voice";
 import { early } from "@/server/early";
 import { oncePerRequest, requestWrote } from "@/server/request-memo";
 import { loadProjectStateRaw } from "@/server/project-state";
+import { ledgerSpent } from "@/server/ledger-spent";
 
 /** Whether a quarter ("2026-Q4") has ended as of today. */
 const quarterEnded = (q: string) => {
@@ -68,6 +69,7 @@ async function readReview(code: string, month: string, u: AppUser) {
   const reportLater = early(qprData(code, quarter));
   const budgetLater = early(loadBudgetView(code));
   const workplanLater = early(ourWorkplan(project.id));
+  const ledgerLater = early(ledgerSpent(project.id));
   const linesLater = early(
     db
       .select({
@@ -86,6 +88,7 @@ async function readReview(code: string, month: string, u: AppUser) {
   const pending = report.results.filter((r) => r.status === "pending").length;
   const queried = report.results.filter((r) => r.status === "queried").length;
   const lines = await linesLater;
+  const ledger = await ledgerLater;
   const workplan = await workplanLater;
   const activities = [
     ...new Map(
@@ -145,7 +148,8 @@ async function readReview(code: string, month: string, u: AppUser) {
       code: l.code,
       description: l.description,
       amount: l.amount === null ? null : Number(l.amount),
-      spent: l.spent === null ? 0 : Number(l.spent),
+      // From the ledger; budget_lines.spent while the project has no posted spending there (server/ledger-spent).
+      spent: ledger ? (ledger.byCode[l.code] ?? 0) : l.spent === null ? 0 : Number(l.spent),
       currency: l.currency,
     })),
     activities,
@@ -222,8 +226,10 @@ export async function applyChange(tx: Tx, projectId: string, c: Change): Promise
     if (!a || !b) throw new Error("One of the budget lines no longer exists.");
     if (a.currency !== b.currency) throw new Error(`${a.code} is in ${a.currency} and ${b.code} in ${b.currency}: move money within one currency.`);
     const left = Number(a.amount ?? 0) - c.amount;
-    if (left < Number(a.spent ?? 0))
-      throw new Error(`${a.code} has already spent ${Math.round(Number(a.spent)).toLocaleString("en-US")}; it cannot drop to ${Math.round(left).toLocaleString("en-US")}.`);
+    // Spent from the ledger (read in this transaction); budget_lines.spent while the project has none there.
+    const ledger = await ledgerSpent(projectId, tx);
+    const spent = ledger ? (ledger.byCode[a.code] ?? 0) : Number(a.spent ?? 0);
+    if (left < spent) throw new Error(`${a.code} has already spent ${Math.round(spent).toLocaleString("en-US")}; it cannot drop to ${Math.round(left).toLocaleString("en-US")}.`);
     await tx
       .update(s.budgetLines)
       .set({ amount: String(left), updatedAt: new Date() })

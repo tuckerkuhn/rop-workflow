@@ -117,6 +117,14 @@ export function describeAudit(entity: string, action: string, d: D): string {
       return `Set what ${str(d.name)} funds: ${str(d.funds)}${Number(d.costShare) > 0 ? `, with ${num(d.costShare)} cost-share line(s)` : ""}`;
     case "month_closed":
       return `Closed ${str(d.month)}: ${num(d.vouchers)} voucher(s), ${num(d.totalUsd)} USD`;
+    case "ledger_statement_imported":
+      return `Imported the bank statement of ${str(d.bankAccount)} for ${str(d.period).slice(0, 7)}: ${num(d.added)} line(s) added, ${num(d.already)} already there`;
+    case "ledger_line_matched":
+      return `Matched the ${str(d.bankAccount)} statement line of ${str(d.date)} (${str(d.amount)}) to the ledger`;
+    case "ledger_line_unmatched":
+      return `Took off the match of the ${str(d.bankAccount)} statement line of ${str(d.date)} (${str(d.amount)})`;
+    case "ledger_reconciled":
+      return `Reconciled ${str(d.bankAccount)} for ${str(d.period).slice(0, 7)} at a zero difference: statement ${str(d.statementBalance)} ${str(d.currency)}, book ${str(d.bookBalance)} ${str(d.currency)}`;
     case "bill_recorded":
       return `Recorded bill ${str(d.bill ?? d.ref)}: ${num(d.amount)} ${str(d.currency)}${d.budgetLine ? ` on budget line ${str(d.budgetLine)}` : ""}`;
     case "kobo_approval_set":

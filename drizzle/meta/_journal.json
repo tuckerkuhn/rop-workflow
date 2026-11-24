@@ -190,6 +190,20 @@
       "when": 1795312598610,
       "tag": "0026_org_trial",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1795498843834,
+      "tag": "0027_ledger",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1795498903834,
+      "tag": "0028_hot_indexes",
+      "breakpoints": true
     }
   ]
 }

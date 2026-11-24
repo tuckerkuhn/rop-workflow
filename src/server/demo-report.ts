@@ -37,7 +37,7 @@ export function demoReportQuarter(projectStart: string | null, today: string): s
 }
 
 /** Programme lines paid by the Demo Foundation grant, salaries reported to it as cost share; operations paid by Agri Futures. */
-const FUNDING: Record<string, { lines: string[]; share: string[] }> = {
+export const DEMO_FUNDING: Record<string, { lines: string[]; share: string[] }> = {
   "Demo Foundation (fictional)": { lines: ["2.1", "2.2", "2.3", "2.4", "2.5", "3.1", "4.1", "4.2", "4.3"], share: ["1.1", "1.2"] },
   "Agri Futures Fund (fictional)": { lines: ["5.1", "5.2"], share: [] },
 };
@@ -66,7 +66,7 @@ export async function seedDemoReport(projectId: string, today = realToday()) {
 
   const donors = await db.select({ id: s.donors.id, name: s.donors.name }).from(s.donors).where(eq(s.donors.projectId, projectId)).orderBy(asc(s.donors.createdAt));
   const book: DonorFundingBook = {};
-  for (const d of donors) if (FUNDING[d.name]) book[d.id] = FUNDING[d.name];
+  for (const d of donors) if (DEMO_FUNDING[d.name]) book[d.id] = DEMO_FUNDING[d.name];
   if (Object.keys(book).length) await saveProjectState(projectId, DONOR_FUNDING_KEY, book);
 
   const quarter = demoReportQuarter(project.startDate, today);

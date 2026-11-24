@@ -12,6 +12,8 @@ export const haEs: Partial<Record<keyof typeof haEn, string>> = {
   "ha.accept": "Aceptar o consultar {n} resultados que le esperan",
   "ha.fieldForms1": "Revisar 1 formulario de campo de KoboCollect (preparación, capacitación, visitas)",
   "ha.fieldForms": "Revisar {n} formularios de campo de KoboCollect (preparación, capacitación, visitas)",
+  "ha.sendBack1": "1 formulario de campo espera a MEL: devuelva los que necesiten corrección, con una nota",
+  "ha.sendBack": "{n} formularios de campo esperan a MEL: devuelva los que necesiten corrección, con una nota",
   "ha.queried1": "Corregir 1 resultado consultado por MEL",
   "ha.queried": "Corregir {n} resultados consultados por MEL",
   "ha.import": "Importar el gasto de Finanzas de {month} (importado hasta {to})",

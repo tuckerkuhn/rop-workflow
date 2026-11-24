@@ -201,3 +201,16 @@ describe("a week for Finance and for MEL", () => {
     expect(suggestFor("mel", [p({ mel: mel({}) })])).toEqual([]);
   });
 });
+
+import { booksCheckParts } from "@/lib/week";
+describe("the nightly check of the books on the week", () => {
+  it("names a problem, says when it stopped running, and is silent otherwise", () => {
+    const text = (parts: { t: string }[]) => parts.map((p) => p.t).join("");
+    expect(booksCheckParts(null, "2027-01-10")).toEqual([]);
+    expect(booksCheckParts({ at: "2027-01-10T03:15:00Z", ok: true, problems: [] }, "2027-01-10")).toEqual([]);
+    expect(text(booksCheckParts({ at: "2027-01-10T03:15:00Z", ok: false, problems: ["The trial balance is off by 10.00.", "October no longer matches the bank."] }, "2027-01-10"))).toBe(
+      "The nightly check of the books found a problem: The trial balance is off by 10.00 (and 1 more). Finance looks at it before anything else is posted.",
+    );
+    expect(text(booksCheckParts({ at: "2027-01-05T03:15:00Z", ok: true, problems: [] }, "2027-01-10"))).toBe("The nightly check of the books has not run since 2027-01-05.");
+  });
+});

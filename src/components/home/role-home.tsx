@@ -18,6 +18,8 @@ import { HomeLead, type HomeViewKind } from "@/components/home/home-views";
 import { WaitingOnYou } from "@/components/home/waiting";
 import { waitingCount, waitingRows } from "@/lib/home-buckets";
 import { useT } from "@/components/app/i18n";
+import { useSession } from "@/components/app/session";
+import { cachedHome, homeCacheKey, keepHome } from "@/components/home/home-cache";
 
 /**
  * Home for a database project, shaped by role. The eye goes, in order, to: one sentence that says
@@ -100,12 +102,19 @@ function StatusBar({ counts, total }: { counts: HomeView["schedule"]["counts"]; 
   );
 }
 
+type HomeAnswer = HomeView & { nextReport?: NextReport };
+
 export function RoleHome({ user, project }: { user: AppUser; project: ProjectInfo }) {
   const { t, tx, date } = useT();
-  const [v, setV] = useState<HomeView | null>(null);
+  const { actor } = useSession();
+  // One request for both: Home's data and the next report from pre-flight read the same review and figures.
+  const homeUrl = `/api/projects/${project.id}/home?with=next-report`;
+  // The last answer for this person, project and address, shown at once while a fresh read runs (components/home/home-cache).
+  const cacheKey = homeCacheKey(actor?.id, user.id, homeUrl);
+  const [v, setV] = useState<HomeView | null>(() => cachedHome<HomeAnswer>(cacheKey) ?? null);
   const [error, setError] = useState("");
   // The next report from pre-flight, loaded once for the panel and for the Fix and Due groups.
-  const [nr, setNr] = useState<NextReport | null>(null);
+  const [nr, setNr] = useState<NextReport | null>(() => cachedHome<HomeAnswer>(cacheKey)?.nextReport ?? null);
   // "More" is drawn (and its panels load their data) only once it is opened.
   const [more, setMore] = useState(false);
   const [chosen, setChosen] = usePersistentState<Lens | "">("rop-home-lens", () => "");
@@ -119,25 +128,27 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
 
   useEffect(() => {
     let live = true;
-    setV(null);
-    setNr(null);
+    // Coming back to Home: the last answer at once, then the fresh one when it arrives. Nothing kept: the loading line, as before.
+    const was = cachedHome<HomeAnswer>(cacheKey);
+    setV(was ?? null);
+    setNr(was?.nextReport ?? null);
     // The week ahead starts reading now, alongside Home, so it can join Home's read of this project
     // instead of reading it again (components/home/week-ahead startWeek).
     if (weekLikely) startWeek(user.id);
-    // One request for both: Home's data and the next report from pre-flight read the same review and figures.
-    fetch(`/api/projects/${project.id}/home?with=next-report`, { cache: "no-store", headers: { "x-demo-user": user.id } })
+    fetch(homeUrl, { cache: "no-store", headers: { "x-demo-user": user.id } })
       .then(async (r) => {
         const d = await r.json();
         if (!r.ok) throw new Error(d.error ?? "Could not load Home.");
         if (!live) return;
+        keepHome(cacheKey, d);
         setV(d);
-        if (d.nextReport) setNr(d.nextReport);
+        setNr(d.nextReport ?? null);
       })
       .catch((e) => live && setError(e instanceof Error ? e.message : String(e)));
     return () => {
       live = false;
     };
-  }, [project.id, user.id, weekLikely]);
+  }, [homeUrl, cacheKey, user.id, weekLikely]);
 
   if (error) return <p className="rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">{error}</p>;
   if (!v)

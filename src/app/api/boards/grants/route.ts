@@ -8,6 +8,6 @@ export async function GET(req: Request) {
   return handle(async () => {
     const v = await requireViewer(req, { allow: isEmployee, why: "Grants are for staff." });
     if (v instanceof NextResponse) return v;
-    return NextResponse.json(await grantBoard(v, v.user));
+    return NextResponse.json(await grantBoard(v));
   });
 }

@@ -14,6 +14,8 @@ export const haEn = {
   "ha.accept": "Accept or query {n} results waiting for you",
   "ha.fieldForms1": "Check 1 field form from KoboCollect (readiness, training, farm visits)",
   "ha.fieldForms": "Check {n} field forms from KoboCollect (readiness, training, farm visits)",
+  "ha.sendBack1": "1 field form is waiting for MEL: send back any that need fixing, with a note",
+  "ha.sendBack": "{n} field forms are waiting for MEL: send back any that need fixing, with a note",
   "ha.queried1": "Fix 1 result MEL sent back with a question",
   "ha.queried": "Fix {n} results MEL sent back with a question",
   "ha.import": "Import Finance's spending for {month} (imported to {to})",

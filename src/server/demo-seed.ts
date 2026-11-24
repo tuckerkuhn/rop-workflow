@@ -21,6 +21,7 @@ import { saveProjectState } from "@/server/project-state";
 import { seedDonors, seedIndicators } from "@/server/progress-store";
 import { seedWorkItems } from "@/server/work-store";
 import { seedDemoReport } from "@/server/demo-report";
+import { demoBooksSpending, resetDemoLedger, seedDemoLedger } from "@/server/demo-ledger";
 
 /**
  * Demo project A-2027 in the database: the same fictional farmers, findings, stock and sample
@@ -37,6 +38,10 @@ const initials = (name: string) =>
 
 /** Wipes the whole database and loads the demo project. Development databases only. */
 export async function seedDatabase() {
+  // Posted ledger entries refuse TRUNCATE: the demo's own books go first, through the database's
+  // audited demo-reset exception. Any other organization's posted books still stop the wipe.
+  const [demo] = await db.select({ id: s.projects.id }).from(s.projects).where(eq(s.projects.code, PROJECT.id)).limit(1);
+  if (demo) await resetDemoLedger(PROJECT.id, "demo-seed");
   await db.execute(sql`
     truncate table audit_log, work_items, donors, indicators, management_actions, finding_sources, mel_findings,
       field_visits, input_distributions, expenditures, corrections, readiness_checks,
@@ -112,6 +117,9 @@ export async function resetDemo(code: string) {
   }
   await db.delete(s.fieldItems).where(eq(s.fieldItems.projectId, project.id));
   await db.delete(s.workItems).where(eq(s.workItems.projectId, project.id));
+  // The demo's books, before its donors (journal lines point to them): the database's one audited
+  // exception to "a posted entry is never deleted", for the demo project only (drizzle/0027_ledger.sql).
+  await resetDemoLedger(code, "demo-reset");
   await db.delete(s.donors).where(eq(s.donors.projectId, project.id));
   await db.delete(s.indicators).where(eq(s.indicators.projectId, project.id));
   await db.delete(s.projectState).where(eq(s.projectState.projectId, project.id));
@@ -179,7 +187,7 @@ async function loadDemoState(projectId: string, organizationId: string) {
   await seedProcurementRows(projectId, organizationId, days);
   await seedWorkItems(projectId, organizationId, days);
   await seedIndicators(projectId);
-  await seedDesign(projectId);
+  const spending = await seedDesign(projectId);
   // Report deadlines name calendar months and years ("Monthly report: February"), so they stay as written.
   await seedDonors(projectId, organizationId);
   await seedResults(projectId, organizationId, subs);
@@ -205,6 +213,9 @@ async function loadDemoState(projectId: string, organizationId: string) {
   }
   // What each donor funds, and the last ended quarter's report released, so a donor's account opens on something real.
   await seedDemoReport(projectId);
+  // The demo's books (server/demo-ledger): October on the main bank account as the sample statement
+  // shows it, and the rest of the imported sample spending, so the ledger and the import agree.
+  await seedDemoLedger(projectId, organizationId, spending);
 }
 
 /**
@@ -214,17 +225,19 @@ async function loadDemoState(projectId: string, organizationId: string) {
  */
 async function seedDesign(projectId: string) {
   const [project] = await db.select({ code: s.projects.code, startDate: s.projects.startDate }).from(s.projects).where(eq(s.projects.id, projectId)).limit(1);
-  if (!project?.code) return;
+  if (!project?.code) return null;
   const today = realToday();
   await saveBudget(project.code, demoBudget(today));
   await saveWorkplan(project.code, demoWorkplan(today));
   await saveProjectState(projectId, FRAMEWORK_KEY, demoFramework(today));
   await saveProjectState(projectId, "activities", demoActivities(today));
-  const spending = demoSpending(project.startDate ?? today, today);
+  // The sample workbook, with October as the demo's bank statement has it (server/demo-ledger): the ledger holds the same.
+  const spending = demoBooksSpending(demoSpending(project.startDate ?? today, today));
   if (spending) await saveActuals(project.code, spending, { name: "Sample spending (fictional).xlsx", hash: "demo", sharepointUrl: null }, "demo");
   // The procurement calendar, built from the budget as the procurement manager would with one
   // tap, so the finished demo project opens with every part of its plan in place.
   await rebuildPlan(project.code);
+  return spending;
 }
 
 /**

@@ -73,6 +73,20 @@ export async function loadGrantBook(code: string): Promise<Book> {
   return { ...EMPTY, ...((row?.data as Partial<Book>) ?? {}) };
 }
 
+/** Each grant's procurements, with whether the goods have arrived. */
+const procsByGrant = (items: Grant[], procs: Awaited<ReturnType<typeof loadProcurements>>) => Object.fromEntries(items.map((g) => [g.id, grantProcs(g, procs)]));
+
+/**
+ * What the grant board across projects (server/boards-store grantBoard) reads of one project: its
+ * grants, its grant rules and each grant's procurements, worked out as loadGrants does, without the
+ * workplan, budget, calendar and approvers the grants page also needs. All three read at once.
+ * Fails as loadGrants does: when the grants or the rules cannot be read; purchases that cannot be read count as none.
+ */
+export async function loadGrantBoardInputs(code: string) {
+  const [book, rules, procs] = await Promise.all([loadGrantBook(code), grantRules(code), loadProcurements(code).catch(() => [])]);
+  return { items: book.items, rules, procs: procsByGrant(book.items, procs) };
+}
+
 export async function loadGrants(code: string, u: AppUser) {
   const book = await loadGrantBook(code);
   const [rules, c] = await Promise.all([grantRules(code), connections(code)]);
@@ -82,7 +96,7 @@ export async function loadGrants(code: string, u: AppUser) {
     steps: book.steps,
     rules,
     /** Each grant's procurements, with whether the goods have arrived. */
-    procs: Object.fromEntries(book.items.map((g) => [g.id, grantProcs(g, c.procs)])),
+    procs: procsByGrant(book.items, c.procs),
     options: {
       activities: c.workplan.map((w) => ({ code: w.code, title: w.title })),
       // Left for a new grant: the line less what is spent and the open grants on it.

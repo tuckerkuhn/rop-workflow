@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useT } from "@/components/app/i18n";
+import { BankReconciliation } from "@/components/procurement/bank-reconciliation";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { useCloseouts, useProcurements } from "@/components/app/use-project-data";
 import { Pill, SectionLabel, TopBar, primaryBtn, Loading, StatusPill } from "@/components/workspace/ui";
@@ -51,9 +52,9 @@ export function CloseoutPage() {
       <TopBar active="procurement" />
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-warn">{project.name}</p>
-        <h1 className="mt-1 font-display text-3xl tracking-tight">Monthly closeout</h1>
+        <h1 className="mt-1 font-display text-3xl tracking-tight">Month close</h1>
         <p className="mt-1 max-w-2xl text-sm text-muted">
-          Expense vouchers by month, from procurements and from bills paid directly, with where each is filed in {storeNames()} and posted in {acct()}. Finance closes a month once every voucher in it is filed and posted.
+          Expense vouchers by month, from procurements and from bills paid directly, with where each is filed in {storeNames()} and posted in {acct()}. Finance closes a month once every voucher in it is filed and posted, then reconciles each bank account and locks the month.
         </p>
         <p className="mt-2 text-sm">
           <Link href="/work?source=procurement" className="font-semibold text-forest hover:underline">
@@ -63,6 +64,15 @@ export function CloseoutPage() {
           <Link href="/work/bills" className="font-semibold text-forest hover:underline">
             Bills paid directly
           </Link>
+          {project.saved && (
+            <>
+              {" "}
+              ·{" "}
+              <a href="#bank" className="font-semibold text-forest hover:underline">
+                Bank reconciliation
+              </a>
+            </>
+          )}
         </p>
         {(error || closeouts.error) && (
           <p role="alert" className="mt-4 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">
@@ -74,6 +84,7 @@ export function CloseoutPage() {
             {t("closeout.loadFailed")}
           </p>
         )}
+        {project.saved && <BankReconciliation code={project.id} user={user} />}
         {procs.status === "loading" && <Loading className="mt-6" />}
         {procs.status !== "loading" && !months.length && !billsFailed && !closeouts.error && <p className="mt-10 rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">No expense vouchers yet. They appear here once Finance prepares them.</p>}
         {months.map(([m, list]) => {

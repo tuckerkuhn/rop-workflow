@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useT } from "@/components/app/i18n";
 import { useSession } from "@/components/app/session";
+import { forgetHome } from "@/components/home/home-cache";
 import { primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { STAGES, userById, type ProjectInfo, type Stage } from "@/lib/demo";
 import type { StageChange } from "@/server/stage-store";
@@ -53,6 +54,8 @@ export function StageControl({ project, stage }: { project: ProjectInfo; stage: 
       setHistory(d.history);
       setOpen(false);
       setNote("");
+      // Home's kept answers are from before the change (components/home/home-cache).
+      forgetHome();
       await reload();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

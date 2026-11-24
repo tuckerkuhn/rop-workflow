@@ -119,5 +119,26 @@ that is green nine weeks in ten was noise.
   week"), with last week's score under the heading.
 - The technical lead reads the field work and decides farmer selection. Approving distributions
   stays with the project's one field manager.
-- Not built: visits against a plan (visits are planned a week ahead; agronomists to be asked), and
-  the technical lead sending field work back for correction.
+- Not built: visits against a plan (visits are planned a week ahead). The questions for the
+  agronomists are in `09-visit-plan-questions.md`.
+
+## 24 Nov 2026: field send-back, speed, and the first slice of the grant ledger
+
+- **The technical lead sends field work back.** On Check › Results and proof he may send a pending
+  readiness check, training record or farm visit back with a note (never accept it, never touch a
+  distribution, never his own record). Enforced on the server (`lib/kobo-approval` `reviewRefusal`).
+- **Speed.** Reads are kept for the length of a request; Home, the week ahead, sign-in, the
+  portfolio and the boards read far less; the HR book is kept between requests behind a one-row
+  check; Word and zip libraries load on click; other languages load only for their readers. Home and
+  the week each answer in about 2 seconds locally (they took 4 to 6). Migration 0028 adds four
+  indexes for the hottest reads.
+- **The grant ledger** (`09-finance.md`, migration 0027): a chart of accounts, journal entries the
+  database keeps balanced and unchangeable, months that lock, and bank reconciliation.
+  - New pages: **Record a payment** (`/work/payments`, beside Bills), **Budget vs actual from the
+    books** (foot of Budget), **Bank reconciliation** (a section of Month close, `/work/closeout#bank`).
+  - A project's pages read spending from the books only once its books are kept in the app
+    (project state `books`, set by the demo books and by `npm run ledger:post-expenditures -- --apply`).
+    Until then a payment shows in Budget vs actual from the books and nothing else moves.
+  - A nightly check (`/api/cron/ledger-check`) confirms the books balance and every completed
+    reconciliation still matches; a problem shows on the leadership and Finance week ahead.
+  - "Monthly closeout" is now called **Month close**.

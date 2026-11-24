@@ -68,8 +68,15 @@ export const LIMITS = { overPct: 0.5, revisionPct: 10, behindPts: 25, aheadPts: 
  */
 export const spentOver = (spent: number, approved: number) => spent - approved > (approved * LIMITS.overPct) / 100;
 
-export function budgetView(args: { lines: BudgetLineIn[]; imported: ImportLineIn[]; months: string[]; currency: string; start: string | null; end: string | null; results: ResultIn[]; revisionPct?: number }): BudgetView {
-  const { lines, imported, months, currency, start, end, results } = args;
+/**
+ * Spent per line from the grant ledger (server/ledger-spent), in each line's currency. When given,
+ * it replaces the import's actuals and months for every budget line; the import still gives the
+ * approved budget. Absent for a project with no posted spending in the ledger yet.
+ */
+export type LedgerSpentIn = { byCode: Record<string, number>; monthsByCode: Record<string, Record<string, number>> };
+
+export function budgetView(args: { lines: BudgetLineIn[]; imported: ImportLineIn[]; months: string[]; currency: string; start: string | null; end: string | null; results: ResultIn[]; revisionPct?: number; ledger?: LedgerSpentIn | null }): BudgetView {
+  const { lines, imported, months, currency, start, end, results, ledger } = args;
   const revisionPct = args.revisionPct ?? LIMITS.revisionPct;
   const last = months.at(-1) ?? null;
   const asOf = last ? monthEnd(last) : null;
@@ -79,7 +86,7 @@ export function budgetView(args: { lines: BudgetLineIn[]; imported: ImportLineIn
   const views: (LineView & { activityCode: string; activity: string })[] = lines.map((l) => {
     const imp = byCode.get(l.code);
     const approved = imp ? imp.budget : null;
-    const spent = imp?.actual ?? 0;
+    const spent = ledger ? (ledger.byCode[l.code] ?? 0) : (imp?.actual ?? 0);
     // Planned from the month after the last import: the quarters not yet reported on.
     const remainingPlanned = Object.entries(l.schedule ?? {})
       .filter(([q]) => !last || q.slice(0, 7) > last)
@@ -107,7 +114,8 @@ export function budgetView(args: { lines: BudgetLineIn[]; imported: ImportLineIn
       approved,
       revised: l.amount,
       spent,
-      months: imp?.months ?? {},
+      // Every month shown, 0 where the line spent nothing (as the import gives them).
+      months: ledger ? Object.fromEntries(months.map((m) => [m, ledger.monthsByCode[l.code]?.[m] ?? 0])) : (imp?.months ?? {}),
       remainingPlanned,
       forecast,
       spentPct: pct(spent, approved),

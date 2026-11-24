@@ -7,6 +7,7 @@ import { overspentLines, withLineReasons } from "@/lib/qpr";
 import { loadLineReasons } from "@/server/overspend-store";
 import { quarterOf, totalsOf } from "@/lib/results";
 import { loadActuals } from "@/server/actuals-store";
+import { ledgerSpent } from "@/server/ledger-spent";
 import { projectByCode } from "@/server/field-store";
 import { loadQpr, spendFor } from "@/server/qpr-store";
 import { loadResults } from "@/server/results-store";
@@ -28,6 +29,7 @@ async function readBudgetView(code: string, mayWrite: boolean): Promise<BudgetVi
   const indicatorsLater = early(db.select().from(s.indicators).where(eq(s.indicators.projectId, project.id)).orderBy(asc(s.indicators.position)));
   const resultsLater = early(loadResults(code));
   const rulesLater = early(projectRules(code));
+  const ledgerLater = early(ledgerSpent(project.id));
   const lines = await db.select().from(s.budgetLines).where(eq(s.budgetLines.projectId, project.id)).orderBy(asc(s.budgetLines.sort));
   const actuals = await actualsLater;
   const startMonth = (project.startDate ?? "0000-00").slice(0, 7);
@@ -40,11 +42,14 @@ async function readBudgetView(code: string, mayWrite: boolean): Promise<BudgetVi
   const priorYear = String(Number(from.slice(0, 4)) - 1);
   // The donor's budget flexibility, from the agreement in policy; ROP's starting value when it sets none.
   const revisionPct = Number((await rulesLater).values.budgetRevisionPct) || LIMITS.revisionPct;
+  // Spent from the ledger when the project has posted spending there; otherwise Finance's import as before.
+  const ledger = await ledgerLater;
   const view = budgetView({
+    ledger,
     revisionPct,
     lines: lines.map((l) => ({ code: l.code, description: l.description, activityCode: l.activityCode, activity: l.activity, kind: l.kind, currency: l.currency, amount: l.amount === null ? null : Number(l.amount), schedule: (l.schedule as Record<string, number>) ?? {} })),
     imported: (current?.lines ?? []).filter((l) => !l.currency).map((l) => ({ code: l.code, description: l.description, budget: l.budget, actual: l.actual, months: l.months })),
-    months: current?.months ?? [],
+    months: ledger ? [...new Set([...(current?.months ?? []), ...ledger.months])].sort() : (current?.months ?? []),
     currency: current?.currency ?? lines[0]?.currency ?? "USD",
     start: project.startDate,
     end: project.endDate,

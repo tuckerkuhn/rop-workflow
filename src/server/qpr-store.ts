@@ -14,6 +14,7 @@ import { MAX_PRACTICE, workTime, type CopyData, type ReportCopy, type WorkTime }
 import { auditTrail } from "@/server/audit";
 import { loadProjectState, loadProjectStateRaw, updateProjectState } from "@/server/project-state";
 import { loadLineReasons } from "@/server/overspend-store";
+import { ledgerSpent, spentBetween, type LedgerSpent } from "@/server/ledger-spent";
 import { early } from "@/server/early";
 import { oncePerRequest, requestWrote } from "@/server/request-memo";
 
@@ -60,12 +61,18 @@ export async function saveQpr(code: string, quarter: string, data: Qpr) {
 
 type LineRow = { code: string; amount: string | null; spent: string | null; currency: string; updatedAt: Date };
 
-/** The quarter's spending: from the latest budget-against-actual import, else the budget file's totals. */
+/**
+ * The quarter's spending: from the latest budget-against-actual import, else the budget file's totals.
+ * When the project has posted spending in the grant ledger, each line's spending (to the quarter's
+ * end and in the quarter) comes from the ledger instead (server/ledger-spent); the import still gives
+ * the approved budget, its phases, the months still missing and any overhead on top of the lines.
+ */
 export async function spendFor(code: string, quarter: string, lines: LineRow[]): Promise<Spend> {
-  const { imports } = await loadActuals(code);
+  const [{ imports }, ledger] = await Promise.all([loadActuals(code), projectByCode(code).then((p) => ledgerSpent(p.id))]);
   const { from, to } = quarterRange(quarter);
   const [fm, tm] = [from.slice(0, 7), to.slice(0, 7)];
   if (!imports.length) {
+    if (ledger) return fromLedger(ledger, lines, fm, tm, { budget: Math.round(lines.reduce((t, l) => t + Number(l.amount ?? 0), 0)), overheadToEnd: 0, overheadInQuarter: 0, budgets: {} });
     return {
       currency: lines[0]?.currency ?? "USD",
       budget: Math.round(lines.reduce((t, l) => t + Number(l.amount ?? 0), 0)),
@@ -101,6 +108,25 @@ export async function spendFor(code: string, quarter: string, lines: LineRow[]):
   const thisMonth = new Date().toISOString().slice(0, 7);
   const missing = qMonths.filter((m) => m > last && m < thisMonth).map(label);
   const withOverhead = imports.every((i) => !!i.totals.grand);
+  if (ledger) {
+    // What the import counts on top of its lines (overhead): its grand totals less its line totals.
+    const toEndOf = (i: (typeof imports)[number], x: { actual: number; months: Record<string, number> }) => ((i.months.at(-1) ?? "") <= tm ? x.actual : sumMonths(x.months, "0000-00", tm));
+    const overOf = (i: (typeof imports)[number]) => (i.totals.grand && i.totals.costs ? { toEnd: toEndOf(i, i.totals.grand) - toEndOf(i, i.totals.costs), inQ: sumMonths(i.totals.grand.months, fm, tm) - sumMonths(i.totals.costs.months, fm, tm) } : { toEnd: 0, inQ: 0 });
+    const base = fromLedger(ledger, lines, fm, tm, {
+      budget: Math.round(imports.reduce((t, i) => t + grandOf(i).budget, 0)),
+      overheadToEnd: imports.reduce((t, i) => t + overOf(i).toEnd, 0),
+      overheadInQuarter: imports.reduce((t, i) => t + overOf(i).inQ, 0),
+      budgets: Object.fromEntries(phase.lines.filter((l) => !l.currency).map((l) => [l.code, l.budget])),
+    });
+    return {
+      ...base,
+      currency: phase.currency,
+      withOverhead,
+      source: { kind: "import", files: imports.map((i) => ({ name: i.file.name, sharepointUrl: i.file.sharepointUrl, by: i.by, at: i.at.slice(0, 10), period: period(i) })) },
+      phases: imports.map((i) => ({ period: period(i), budget: Math.round(grandOf(i).budget), actual: Math.round(grandOf(i).actual) })),
+      missingMonths: missing,
+    };
+  }
   return {
     currency: phase.currency,
     budget: Math.round(imports.reduce((t, i) => t + grandOf(i).budget, 0)),
@@ -112,6 +138,33 @@ export async function spendFor(code: string, quarter: string, lines: LineRow[]):
     phases: imports.map((i) => ({ period: period(i), budget: Math.round(grandOf(i).budget), actual: Math.round(grandOf(i).actual) })),
     missingMonths: missing,
     byLine: Object.fromEntries(phase.lines.filter((l) => !l.currency).map((l) => [l.code, { budget: l.budget, actual: toEnd.byLine[l.code] ?? 0, quarter: inQ.byLine[l.code] ?? 0 }])),
+  };
+}
+
+/**
+ * The quarter's spending from the ledger: per budget line, spent to the end of the quarter and in
+ * it, in the line's currency; the totals are the lines plus any overhead the import counts on top.
+ * `budgets`: the approved budget per line from the import; a line without one shows its budget line's amount.
+ */
+function fromLedger(ledger: LedgerSpent, lines: LineRow[], fm: string, tm: string, extra: { budget: number; overheadToEnd: number; overheadInQuarter: number; budgets: Record<string, number> }): Spend {
+  const codes = [...new Set([...Object.keys(extra.budgets), ...lines.map((l) => l.code)])];
+  const amount = new Map(lines.map((l) => [l.code, Number(l.amount ?? 0)]));
+  const byLine = Object.fromEntries(
+    codes
+      .filter((c) => c in extra.budgets || ledger.byCode[c] !== undefined)
+      .map((c) => [c, { budget: extra.budgets[c] ?? amount.get(c) ?? 0, actual: spentBetween(ledger.monthsByCode[c], "0000-00", tm), quarter: spentBetween(ledger.monthsByCode[c], fm, tm) }]),
+  );
+  const sum = (k: "actual" | "quarter") => Object.values(byLine).reduce((t, l) => t + l[k], 0);
+  return {
+    currency: lines[0]?.currency ?? "USD",
+    budget: extra.budget,
+    cumulative: Math.round(sum("actual") + extra.overheadToEnd),
+    quarter: Math.round(sum("quarter") + extra.overheadInQuarter),
+    withOverhead: false,
+    source: { kind: "budget", at: lines.map((l) => l.updatedAt.toISOString().slice(0, 10)).sort().at(-1) ?? null },
+    phases: [],
+    missingMonths: [],
+    byLine,
   };
 }
 

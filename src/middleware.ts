@@ -34,7 +34,7 @@ function tooManyWrites(request: NextRequest) {
  * and donor share links are read-only by design.
  */
 const KOBO_HOOK = /^\/api\/projects\/[^/]+\/kobo\/hook$/;
-const NIGHTLY_JOBS = ["/api/hr/seal", "/api/notify/digest", "/api/kobo/reconcile"];
+const NIGHTLY_JOBS = ["/api/hr/seal", "/api/notify/digest", "/api/kobo/reconcile", "/api/cron/ledger-check"];
 function sitePasswordMissing(request: NextRequest) {
   const password = process.env.SITE_PASSWORD;
   const path = request.nextUrl.pathname;

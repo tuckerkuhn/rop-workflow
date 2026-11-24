@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSession } from "@/components/app/session";
+import { cachedHome, homeCacheKey, keepHome } from "@/components/home/home-cache";
 import { primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { plainError } from "@/lib/plain-error";
 import type { WeekAction } from "@/lib/week";
@@ -46,31 +47,46 @@ function takeStarted(userId: string): Promise<Response> | null {
 }
 
 export function WeekAhead() {
-  const { user } = useSession();
-  const [v, setV] = useState<WeekView | null>(null);
+  const { user, actor } = useSession();
+  const userId = user?.id;
+  const actorId = actor?.id;
+  // The last week read for this person, shown at once while a fresh read runs (components/home/home-cache).
+  const keyOf = useCallback((id: string) => homeCacheKey(actorId, id, `/api/week?day=${localDay()}`), [actorId]);
+  const [v, setV] = useState<WeekView | null>(() => (userId ? (cachedHome<WeekView>(keyOf(userId)) ?? null) : null));
   const [error, setError] = useState("");
   const [draft, setDraft] = useState<Draft[] | null>(null);
   const [add, setAdd] = useState("");
   const [busy, setBusy] = useState(false);
-  const userId = user?.id;
+  // Whose week is on screen now: an answer that arrives after the person changed is dropped.
+  const current = useRef(userId);
+  current.current = userId;
 
   const call = useCallback(
     async (init?: RequestInit) => {
       if (!userId) return;
+      const key = keyOf(userId);
       const res = (!init ? await takeStarted(userId) : null) ?? (await fetch(`/api/week?day=${localDay()}`, { cache: "no-store", ...init, headers: { "Content-Type": "application/json", "x-demo-user": userId } }));
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error((body as { error?: string }).error ?? plainError(res.status));
+      if (current.current !== userId) return;
       // A change answers with the plan alone (api/week POST); the rest of the week stays as read.
-      setV((was) => (init?.method === "POST" ? (was ? { ...was, plan: (body as Pick<WeekView, "plan">).plan } : was) : (body as WeekView)));
+      // What is kept for coming back is always what is now on screen, the change included.
+      setV((was) => {
+        const next = init?.method === "POST" ? (was ? { ...was, plan: (body as Pick<WeekView, "plan">).plan } : was) : (body as WeekView);
+        if (next) keepHome(key, next);
+        return next;
+      });
       setError("");
     },
-    [userId],
+    [userId, keyOf],
   );
   useEffect(() => {
-    setV(null);
+    const was = userId ? cachedHome<WeekView>(keyOf(userId)) : undefined;
+    setV(was ?? null);
     setDraft(null);
-    call().catch((e) => setError(e instanceof Error ? e.message : String(e)));
-  }, [call]);
+    // Behind a week already on screen, a failed fresh read leaves it as it is: Home still works without it.
+    call().catch((e) => !was && setError(e instanceof Error ? e.message : String(e)));
+  }, [call, keyOf, userId]);
 
   if (error && !v) return null; // Home still works without it.
   if (!v)

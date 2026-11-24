@@ -10,9 +10,10 @@ import { eq } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { userById, type AppUser } from "@/lib/demo";
 import { DEFAULT_STEP_SETTINGS, type Grant } from "@/lib/grants";
-import type { Viewer } from "@/server/auth";
+import { inOwnOrganization, inOwnOrganizationOf, type Viewer } from "@/server/auth";
 import { grantBoard, procurementBoard, projectProcurementCards } from "@/server/boards-store";
 import { seedDatabase, seedProcurementRows } from "@/server/demo-seed";
+import { loadGrantBoardInputs, loadGrants } from "@/server/grants-store";
 import { loadHome } from "@/server/home-store";
 import { loadPortfolio } from "@/server/portfolio-store";
 import { DEMO_PROJECT } from "@/server/procurement-guard";
@@ -153,7 +154,7 @@ describe("the boards across projects", { timeout: 120_000 }, () => {
     expect(await procurementBoard(viewer({ ...karim, procurementAccess: "none" }), "Large")).toEqual({ cards: [] });
   });
   it("lists every grant of every project, in the projects' order", async () => {
-    const { cards, steps } = await grantBoard(viewer(karim), karim);
+    const { cards, steps } = await grantBoard(viewer(karim));
     expect(steps).toEqual(DEFAULT_STEP_SETTINGS);
     expect(cards.map((c) => [c.project.code, c.id, c.project.sandbox])).toEqual([
       ["B-2027", "G-001", false],
@@ -163,6 +164,41 @@ describe("the boards across projects", { timeout: 120_000 }, () => {
     ]);
     expect(cards[0]).toMatchObject({ value: 30000, step: "approval", approver: "ho", contributed: 3000, owed: 0, left: expect.any(Number) });
     expect(cards[1]).toMatchObject({ value: 10000, womenOwned: true, type: "inKind", approver: "cop", owed: 15000 });
-    expect(plain(await readOnly(() => grantBoard(viewer(karim), karim)))).toEqual(plain({ cards, steps }));
+    expect(plain(await readOnly(() => grantBoard(viewer(karim))))).toEqual(plain({ cards, steps }));
+  });
+  it("reads of each project only what the grant board uses, the same as the grants page reads it", async () => {
+    const counts: string[] = [];
+    for (const code of ["B-2027", "S-2027", DEMO_PROJECT]) {
+      const page = await loadGrants(code, karim);
+      const board = await queries(() => loadGrantBoardInputs(code));
+      const whole = await queries(() => loadGrants(code, karim));
+      expect(plain(await loadGrantBoardInputs(code))).toEqual(plain({ items: page.items, rules: page.rules, procs: page.procs }));
+      expect(board.length).toBeLessThan(whole.length);
+      counts.push(`${code}: ${whole.length} -> ${board.length}`);
+    }
+    console.log(`Grant board queries per project, loadGrants -> loadGrantBoardInputs:\n${counts.join("\n")}`);
+    await expect(loadGrantBoardInputs("NO-SUCH-PROJECT")).rejects.toThrow();
+  });
+});
+
+describe("the organization check for several projects at once", { timeout: 60_000 }, () => {
+  it("answers for each project as the one-project check does, in one query", async () => {
+    const [other] = await db.insert(s.organizations).values({ name: "Another organization" }).returning();
+    await db.insert(s.projects).values([
+      { organizationId: other.id, code: "X-2027", name: "Not ours", country: "AF", stage: "Execute", kind: "real" },
+      { organizationId: orgId, code: "Y-2027", name: "Ours too", country: "AF", stage: "Execute", kind: "real" },
+    ]);
+    const codes = ["X-2027", "Y-2027", "NOWHERE-1", "B-2027", "Y-2027"];
+    let got = new Set<string>();
+    const sent = await queries(async () => {
+      got = await inOwnOrganizationOf(viewer(karim), codes);
+    });
+    expect(sent).toHaveLength(1);
+    for (const code of codes) expect([code, got.has(code)]).toEqual([code, await inOwnOrganization(viewer(karim), code)]);
+    expect([...got].sort()).toEqual(["B-2027", "NOWHERE-1", "Y-2027"]);
+    // Known now: asked again, nothing is read (a code that names no project is looked up again, as one by one).
+    expect(await queries(() => inOwnOrganizationOf(viewer(karim), ["X-2027", "Y-2027", "B-2027"]))).toHaveLength(0);
+    // With no organization (demo sign-in), every project passes, as one by one.
+    expect([...(await inOwnOrganizationOf({ ...viewer(karim), organizationId: null }, codes))].sort()).toEqual([...new Set(codes)].sort());
   });
 });

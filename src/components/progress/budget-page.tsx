@@ -12,6 +12,7 @@ import { LIMITS, type ActivityView, type LineView } from "@/lib/budget-view";
 import type { Explain, loadBudgetView } from "@/server/budget-view-store";
 import { OverspendReasonPicker } from "@/components/progress/overspend-reason";
 import { SpendImport } from "@/components/progress/spend-import";
+import { LedgerBudget } from "@/components/ledger/ledger-budget";
 import type { OverspendReason } from "@/lib/overspend";
 
 /**
@@ -168,6 +169,8 @@ export function BudgetPage() {
             )}
           </ExplainCtx.Provider>
         )}
+        {/* Spending from the books (the grant ledger), beside the workbook figures above; it changes none of them. */}
+        {project.saved && <LedgerBudget code={project.id} user={user.id} />}
       </main>
     </div>
   );

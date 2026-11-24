@@ -7,10 +7,12 @@
  */
 import { sql } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   boolean,
   check,
   customType,
   date,
+  index,
   integer,
   jsonb,
   numeric,
@@ -812,4 +814,199 @@ export const hrFiles = pgTable(
     at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.book, t.hash] }), check("hr_files_size", sql`${t.size} > 0 AND ${t.size} <= 5000000`)],
+);
+
+// ---------- Grant ledger (migration 0027, docs/deep-dive/09-finance.md) ----------
+//
+// Double-entry books behind payments and donor money. The database enforces the accounting rules
+// (see drizzle/0027_ledger.sql): a line is a debit or a credit, a posted entry balances, posted
+// entries and their lines never change (corrections are reversals), nothing posts into a locked
+// month, and a person cannot post their own payment above the organization's limit. Money is
+// numeric(16,2), rates numeric(18,8). Functional currency: organization_state key "ledger".
+
+/** The chart of accounts, per organization (default chart: lib/ledger/chart.ts). */
+export const ledgerAccounts = pgTable(
+  "ledger_accounts",
+  {
+    id: id(),
+    organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+    code: text("code").notNull(),
+    name: text("name").notNull(),
+    /** asset | liability | net_assets | revenue | expense */
+    type: text("type").notNull(),
+    /** Money a donor limited to a purpose. */
+    restricted: boolean("restricted").notNull().default(false),
+    active: boolean("active").notNull().default(true),
+    /** The budget line kind (program, personnel, operations) whose spending this expense account takes by default. */
+    budgetKind: text("budget_kind"),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("ledger_accounts_org_code").on(t.organizationId, t.code),
+    uniqueIndex("ledger_accounts_org_budget_kind").on(t.organizationId, t.budgetKind).where(sql`${t.budgetKind} IS NOT NULL`),
+    check("ledger_accounts_type", sql`${t.type} IN ('asset', 'liability', 'net_assets', 'revenue', 'expense')`),
+    check("ledger_accounts_budget_kind", sql`${t.budgetKind} IS NULL OR (${t.type} = 'expense' AND ${t.budgetKind} IN ('program', 'personnel', 'operations'))`),
+  ],
+);
+
+/**
+ * One journal entry: a payment, donor money received or a reversal. Always written as a draft, its
+ * lines added, then posted (in one transaction for an entry posted at once);
+ * the only change ever allowed is draft to posted. `period` is the first day of the entry's month.
+ */
+export const journalEntries = pgTable(
+  "journal_entries",
+  {
+    id: id(),
+    organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+    projectId: uuid("project_id").references(() => projects.id),
+    entryDate: date("entry_date").notNull(),
+    period: date("period").notNull(),
+    memo: text("memo").notNull(),
+    /** payment | donor_receipt | reversal */
+    kind: text("kind").notNull(),
+    /** What the entry is the record of, e.g. "expenditure", "payment", "donor_receipt", "reversal". */
+    sourceType: text("source_type").notNull(),
+    /** The source document's id (an expenditure's uuid, a bill number...). */
+    sourceId: text("source_id"),
+    /** draft | posted */
+    status: text("status").notNull().default("draft"),
+    /** Person ids, as everywhere in the app. */
+    recordedBy: text("recorded_by").notNull(),
+    postedBy: text("posted_by"),
+    /** Stamped by the database when posted. */
+    postedAt: timestamp("posted_at", { withTimezone: true }),
+    reversesId: uuid("reverses_id").references((): AnyPgColumn => journalEntries.id),
+    idempotencyKey: text("idempotency_key").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("journal_entries_idempotency_key").on(t.idempotencyKey),
+    uniqueIndex("journal_entries_reverses_id").on(t.reversesId).where(sql`${t.reversesId} IS NOT NULL`),
+    index("journal_entries_org_period").on(t.organizationId, t.period),
+    index("journal_entries_source").on(t.sourceType, t.sourceId),
+    check("journal_entries_kind", sql`${t.kind} IN ('payment', 'donor_receipt', 'reversal')`),
+    check(
+      "journal_entries_status",
+      sql`(${t.status} = 'draft' AND ${t.postedBy} IS NULL AND ${t.postedAt} IS NULL) OR (${t.status} = 'posted' AND ${t.postedBy} IS NOT NULL AND ${t.postedAt} IS NOT NULL)`,
+    ),
+    check("journal_entries_period", sql`${t.period} = date_trunc('month', ${t.entryDate})::date`),
+    check("journal_entries_reversal", sql`(${t.kind} = 'reversal') = (${t.reversesId} IS NOT NULL)`),
+  ],
+);
+
+/** A line of an entry: a debit or a credit in its own currency, with the functional amounts beside it. */
+export const journalLines = pgTable(
+  "journal_lines",
+  {
+    id: id(),
+    entryId: uuid("entry_id")
+      .notNull()
+      .references(() => journalEntries.id, { onDelete: "cascade" }),
+    lineNo: integer("line_no").notNull(),
+    accountId: uuid("account_id").notNull().references(() => ledgerAccounts.id),
+    debit: numeric("debit", { precision: 16, scale: 2 }).notNull().default("0"),
+    credit: numeric("credit", { precision: 16, scale: 2 }).notNull().default("0"),
+    currency: text("currency").notNull(),
+    /** One unit of `currency` in the functional currency. */
+    fxRate: numeric("fx_rate", { precision: 18, scale: 8 }).notNull(),
+    functionalDebit: numeric("functional_debit", { precision: 16, scale: 2 }).notNull().default("0"),
+    functionalCredit: numeric("functional_credit", { precision: 16, scale: 2 }).notNull().default("0"),
+    donorId: uuid("donor_id").references(() => donors.id),
+    projectId: uuid("project_id").references(() => projects.id),
+    budgetLineId: uuid("budget_line_id").references(() => budgetLines.id),
+    memo: text("memo"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("journal_lines_entry_line").on(t.entryId, t.lineNo),
+    index("journal_lines_account").on(t.accountId),
+    index("journal_lines_budget_line").on(t.budgetLineId),
+    index("journal_lines_project").on(t.projectId),
+    check("journal_lines_not_negative", sql`${t.debit} >= 0 AND ${t.credit} >= 0 AND ${t.functionalDebit} >= 0 AND ${t.functionalCredit} >= 0`),
+    check(
+      "journal_lines_one_side",
+      sql`(${t.debit} > 0 AND ${t.credit} = 0 AND ${t.functionalCredit} = 0) OR (${t.credit} > 0 AND ${t.debit} = 0 AND ${t.functionalDebit} = 0)`,
+    ),
+    check("journal_lines_currency", sql`${t.currency} ~ '^[A-Z]{3}$'`),
+    check("journal_lines_fx_rate", sql`${t.fxRate} > 0`),
+  ],
+);
+
+/** A month of an organization's books. Once locked, nothing more posts into it and it stays locked. */
+export const fiscalPeriods = pgTable(
+  "fiscal_periods",
+  {
+    id: id(),
+    organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+    /** First day of the month. */
+    period: date("period").notNull(),
+    lockedAt: timestamp("locked_at", { withTimezone: true }),
+    lockedBy: text("locked_by"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("fiscal_periods_org_period").on(t.organizationId, t.period),
+    check("fiscal_periods_first_of_month", sql`${t.period} = date_trunc('month', ${t.period})::date`),
+    check("fiscal_periods_locked_by", sql`${t.lockedAt} IS NULL OR ${t.lockedBy} IS NOT NULL`),
+  ],
+);
+
+/** A bank account (or cash box) and the ledger account that holds its money. */
+export const bankAccounts = pgTable(
+  "bank_accounts",
+  {
+    id: id(),
+    organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+    ledgerAccountId: uuid("ledger_account_id").notNull().references(() => ledgerAccounts.id),
+    name: text("name").notNull(),
+    currency: text("currency").notNull(),
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("bank_accounts_ledger_account").on(t.ledgerAccountId), check("bank_accounts_currency", sql`${t.currency} ~ '^[A-Z]{3}$'`)],
+);
+
+/** One line of an imported bank statement. Positive: money in. `importKey` stops the same line being imported twice. */
+export const bankStatementLines = pgTable(
+  "bank_statement_lines",
+  {
+    id: id(),
+    bankAccountId: uuid("bank_account_id").notNull().references(() => bankAccounts.id),
+    date: date("date").notNull(),
+    description: text("description").notNull(),
+    amount: numeric("amount", { precision: 16, scale: 2 }).notNull(),
+    importedBy: text("imported_by").notNull(),
+    importedAt: timestamp("imported_at", { withTimezone: true }).notNull().defaultNow(),
+    importKey: text("import_key"),
+    matchedLineId: uuid("matched_line_id").references(() => journalLines.id),
+  },
+  (t) => [
+    uniqueIndex("bank_statement_lines_import_key").on(t.bankAccountId, t.importKey).where(sql`${t.importKey} IS NOT NULL`),
+    uniqueIndex("bank_statement_lines_matched").on(t.matchedLineId).where(sql`${t.matchedLineId} IS NOT NULL`),
+    index("bank_statement_lines_account_date").on(t.bankAccountId, t.date),
+    check("bank_statement_lines_amount", sql`${t.amount} <> 0`),
+  ],
+);
+
+/** A bank account's month, reconciled. Completed only at a zero difference; never changed after. */
+export const reconciliations = pgTable(
+  "reconciliations",
+  {
+    id: id(),
+    bankAccountId: uuid("bank_account_id").notNull().references(() => bankAccounts.id),
+    period: date("period").notNull(),
+    statementBalance: numeric("statement_balance", { precision: 16, scale: 2 }).notNull(),
+    bookBalance: numeric("book_balance", { precision: 16, scale: 2 }).notNull(),
+    difference: numeric("difference", { precision: 16, scale: 2 }).notNull(),
+    completedBy: text("completed_by"),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("reconciliations_account_period").on(t.bankAccountId, t.period),
+    check("reconciliations_first_of_month", sql`${t.period} = date_trunc('month', ${t.period})::date`),
+    check("reconciliations_difference", sql`${t.difference} = ${t.statementBalance} - ${t.bookBalance}`),
+    check("reconciliations_complete_at_zero", sql`${t.completedAt} IS NULL OR (${t.difference} = 0 AND ${t.completedBy} IS NOT NULL)`),
+  ],
 );

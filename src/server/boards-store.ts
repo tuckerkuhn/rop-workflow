@@ -1,12 +1,11 @@
 import { eq, inArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
-import type { AppUser } from "@/lib/demo";
 import { DEFAULT_STEP_SETTINGS, approverFor, blockers, contributed, type Grant } from "@/lib/grants";
 import { procurementCards, type ProcCard } from "@/lib/boards";
 import { levelFor, setProcurementRules, type Procurement } from "@/lib/procurement";
 import type { Value } from "@/lib/policy";
-import { inOwnOrganization, onProject, type Viewer } from "@/server/auth";
-import { loadGrants } from "@/server/grants-store";
+import { inOwnOrganizationOf, onProject, type Viewer } from "@/server/auth";
+import { loadGrantBoardInputs } from "@/server/grants-store";
 import { projectRules } from "@/server/policy-store";
 import { DEMO_PROJECT } from "@/server/procurement-guard";
 import { loadProcurements } from "@/server/procurement-store";
@@ -20,8 +19,9 @@ import { listProjects } from "@/server/project-store";
 
 async function projectsFor(v: Viewer) {
   const all = (await listProjects({ all: true })).filter((p) => p.kind !== "sample" && p.code !== DEMO_PROJECT && onProject(v.user, p.code));
-  const mine = await Promise.all(all.map(async (p) => ((await inOwnOrganization(v, p.code)) ? p : null)));
-  return mine.filter((p) => p !== null);
+  // Each project's organization checked as inOwnOrganization checks one, all in one query.
+  const ours = await inOwnOrganizationOf(v, all.map((p) => p.code));
+  return all.filter((p) => ours.has(p.code));
 }
 
 /** Procurements at or above `min` ("Large", or "Medium" to include those too), each by its own project's thresholds. */
@@ -82,10 +82,10 @@ export type GrantCard = Pick<Grant, "id" | "business" | "province" | "type" | "v
 };
 
 /** Every grant in every project the person works on. */
-export async function grantBoard(v: Viewer, u: AppUser) {
+export async function grantBoard(v: Viewer) {
   const projects = await projectsFor(v);
-  // Read at the same time, listed in the projects' order.
-  const views = await Promise.all(projects.map((p) => loadGrants(p.code, u).catch(() => null)));
+  // Read at the same time, listed in the projects' order: only what the cards use (server/grants-store loadGrantBoardInputs).
+  const views = await Promise.all(projects.map((p) => loadGrantBoardInputs(p.code).catch(() => null)));
   const cards: GrantCard[] = [];
   for (const [k, p] of projects.entries()) {
     const view = views[k];

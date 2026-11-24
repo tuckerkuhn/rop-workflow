@@ -247,11 +247,36 @@ const sum = (projects: ProjectWeek[], f: (w: ProjectWork) => number) => projects
 const one = (projects: ProjectWeek[]) => (projects.length === 1 ? `?project=${encodeURIComponent(projects[0].code)}` : "");
 
 /** The four sentences for whoever's week it is (see WeekKind). Leadership's are `weekSummary`. */
-export function weekSummaryFor(kind: WeekKind, projects: ProjectWeek[], today: string, org?: OrgWeek): Sentence[] {
-  if (kind === "finance") return financeSummary(projects, today, org);
+/** The nightly check of the books (server/ledger-check), as the week needs it. */
+export type BooksCheck = { at: string; ok: boolean; problems: string[] } | null;
+
+/**
+ * What leadership and Finance hear about the nightly check of the books: a problem it found, or that it
+ * has stopped running. Nothing when it has never run (the books are not kept in the app) or all is well.
+ */
+export function booksCheckParts(check: BooksCheck, today: string): Part[] {
+  if (!check) return [];
+  const href = "/work/closeout#bank";
+  if (!check.ok && check.problems.length) {
+    const more = check.problems.length > 1 ? ` (and ${check.problems.length - 1} more)` : "";
+    return [{ t: "The nightly check of the books found a problem: ", href }, { t: `${check.problems[0].replace(/\.$/, "")}${more}. Finance looks at it before anything else is posted.` }];
+  }
+  if (days(check.at.slice(0, 10), today) > 2) return [{ t: `The nightly check of the books has not run since ${check.at.slice(0, 10)}.`, href }];
+  return [];
+}
+
+/** Adds the books' check to the "at risk" sentence, flagged when there is something to say. */
+function withBooks(out: Sentence[], books: BooksCheck | undefined, today: string): Sentence[] {
+  const parts = booksCheckParts(books ?? null, today);
+  if (!parts.length) return out;
+  return out.map((x) => (x.kind === "risk" ? { ...x, flag: true, parts: [...(x.flag ? [...x.parts, { t: " " }] : []), ...parts] } : x));
+}
+
+export function weekSummaryFor(kind: WeekKind, projects: ProjectWeek[], today: string, org?: OrgWeek, books?: BooksCheck): Sentence[] {
+  if (kind === "finance") return withBooks(financeSummary(projects, today, org), books, today);
   if (kind === "mel") return melSummary(projects, today);
   const [due, risk, waiting, changed] = weekSummary(projects, today);
-  if (kind === "lead") return [due, risk, waiting, changed];
+  if (kind === "lead") return withBooks([due, risk, waiting, changed], books, today);
   const q = one(projects);
   const over = sum(projects, (w) => w.overBudget);
   const toCheck = sum(projects, (w) => w.toCheck);

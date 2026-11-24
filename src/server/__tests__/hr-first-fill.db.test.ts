@@ -2,9 +2,9 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/db", () => import("@/server/__tests__/test-db"));
 
-import { forgetKeptHr, loadHr, resetSample } from "@/server/hr-store";
+import { fillSampleBook, forgetKeptHr, loadHr, resetSample } from "@/server/hr-store";
 import { db, ready, schema as s } from "@/server/__tests__/test-db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 beforeAll(async () => {
   await ready;
@@ -32,5 +32,35 @@ describe("the sample HR book's first fill", { timeout: 60_000 }, () => {
     const starts = await db.select({ n: s.hrLedger.n }).from(s.hrLedger).where(eq(s.hrLedger.kind, "start"));
     expect(starts.length).toBe(1);
     expect(during.integrity.ok).toBe(true);
+  });
+
+  /**
+   * Two servers do not share the in-process wait above: each fills through fillSampleBook, which
+   * takes the book's lock and looks again inside one transaction. Called here side by side, as two
+   * servers would, it still writes the sample once. (The in-memory Postgres has one connection, so
+   * the second transaction runs once the first has ended rather than waiting on the lock; on Supabase
+   * the lock is what makes it wait. Either way it finds the book full and writes nothing.)
+   */
+  it("is written once when two servers fill an empty book at the same moment", async () => {
+    await db.delete(s.hrLedger).where(eq(s.hrLedger.book, "demo"));
+    await Promise.all([fillSampleBook("demo"), fillSampleBook("demo"), fillSampleBook("demo", true)]);
+    const starts = await db.select({ n: s.hrLedger.n }).from(s.hrLedger).where(eq(s.hrLedger.kind, "start"));
+    expect(starts.length).toBe(1);
+    forgetKeptHr();
+    expect((await loadHr()).integrity.ok).toBe(true);
+    // A full book is left as it is.
+    const before = (await loadHr()).entries.length;
+    await fillSampleBook("demo");
+    forgetKeptHr();
+    expect((await loadHr()).entries.length).toBe(before);
+  });
+
+  it("takes the book's lock inside the fill (the in-memory Postgres has advisory locks)", async () => {
+    const got = await db.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext('hr_ledger:demo'))`);
+      const r = (await tx.execute(sql`select count(*)::int as n from pg_locks where locktype = 'advisory'`)) as unknown as { rows: { n: number }[] };
+      return r.rows[0].n;
+    });
+    expect(got).toBeGreaterThan(0);
   });
 });
