@@ -2,9 +2,12 @@ import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import type { AppUser } from "@/lib/demo";
-import { briefSchema, MATCH_ROLE_TYPES, type OppAction, type Opportunity } from "@/lib/opportunities";
+import { briefSchema, MATCH_ROLE_TYPES, readSchema, type CallReading, type OppAction, type OppDoc, type Opportunity } from "@/lib/opportunities";
 import { draftStructured } from "@/server/ai-structured";
 import { asIs } from "@/server/ai";
+import { EXCEL_TYPE, loadFile, WORD_TYPE } from "@/server/hr-files";
+import { readWorkbook } from "@/lib/read-sheet";
+import type { SetupFile } from "@/server/setup-extract";
 import { loadHr } from "@/server/hr-store";
 import { listProjects } from "@/server/project-store";
 
@@ -52,8 +55,32 @@ async function briefFacts(o: Opportunity, all: Opportunity[]) {
     rop: "Roots of Peace (ROP): an international NGO that turns former conflict areas into productive farmland. Its model: market-led agricultural livelihoods for smallholder farmers (high-value crops, post-harvest handling, market linkages, agribusiness and MSME support, water and climate resilience), working through local staff and partners, mainly in Afghanistan and Central America.",
     ropProjects: projects,
     earlierNoMatchDecisions: earlierNoMatch,
-    opportunity: { title: o.title, donor: o.donor, source: o.source, link: o.link, country: o.country, deadline: o.deadline, value: o.value, currency: o.currency, need: o.need, donorPriorities: o.donorPriorities, capacity: o.capacity, risks: o.risks, grossIncomeAnalysis: o.grossIncome },
+    opportunity: { title: o.title, donor: o.donor, source: o.source, link: o.link, country: o.country, deadline: o.deadline, value: o.value, currency: o.currency, need: o.need, donorPriorities: o.donorPriorities, capacity: o.capacity, risks: o.risks, teamNotes: o.notes ?? "", contactWithTheFunder: o.funderContact ?? "" },
+    attachedDocuments: (o.documents ?? []).map((d) => `${d.label}: ${d.name}`),
   };
+}
+
+/** The attached call documents as the model reads them: a PDF as itself, a Word file as its text. */
+async function callDocuments(o: Pick<Opportunity, "documents">): Promise<SetupFile[]> {
+  const out: SetupFile[] = [];
+  for (const d of o.documents ?? []) {
+    const f = await loadFile(d.hash);
+    if (!f) continue;
+    const buf = Buffer.from(f.data as Uint8Array);
+    if (f.type === "application/pdf") out.push({ name: d.name, kind: "pdf", data: buf.toString("base64") });
+    else if (f.type === WORD_TYPE) {
+      const { default: JSZip } = await import("jszip");
+      const xml = (await (await JSZip.loadAsync(buf)).file("word/document.xml")?.async("string")) ?? "";
+      const text = xml.replace(/<\/w:p>/g, "\n").replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'");
+      out.push({ name: d.name, kind: "text", text: text.slice(0, 300_000) });
+    } else if (f.type === EXCEL_TYPE) {
+      const ab = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
+      const sheets = await readWorkbook(ab).catch(() => []);
+      const text = sheets.map((sh) => `Sheet: ${sh.name}\n${sh.grid.map((r) => r.map((c) => (c == null ? "" : String(c).replace(/\s+/g, " ").trim())).join("\t").replace(/\t+$/, "")).filter(Boolean).join("\n")}`).join("\n\n");
+      if (text.trim()) out.push({ name: d.name, kind: "text", text: text.slice(0, 200_000) });
+    }
+  }
+  return out;
 }
 
 /**
@@ -63,11 +90,83 @@ async function briefFacts(o: Opportunity, all: Opportunity[]) {
  */
 const logOpp = (q: Tx, orgId: string, action: string, by: string, detail: Record<string, unknown>) => q.insert(s.auditLog).values({ projectId: null, entity: "opportunity", entityId: orgId, action, detail: { by, ...detail } });
 
-export async function actOnOpportunity(orgId: string, a: OppAction, u: AppUser): Promise<string | null> {
+/**
+ * The page a call's link points to, as the model can read it: a PDF as itself, a web page as its
+ * text. Only a public https address; nothing on this network, and nothing large.
+ */
+async function linkDocument(link: string): Promise<SetupFile | null> {
+  let url: URL;
+  try {
+    url = new URL(link);
+  } catch {
+    return null;
+  }
+  const host = url.hostname.toLowerCase();
+  const local = host === "localhost" || host.endsWith(".local") || host.endsWith(".internal") || /^[\d.]+$/.test(host) || host.includes(":") || !host.includes(".");
+  if (url.protocol !== "https:" || local) throw new Error("The link must be a public web address starting with https://.");
+  const res = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(15_000), headers: { "User-Agent": "Mozilla/5.0 (compatible; grant-call-reader)" } }).catch(() => null);
+  if (!res || !res.ok) throw new Error("The link did not open from here. Download the call and attach it instead.");
+  const type = res.headers.get("content-type") ?? "";
+  const buf = Buffer.from(await res.arrayBuffer());
+  if (buf.length > 4_000_000) throw new Error("The page behind the link is over 4 MB. Download the call and attach it instead.");
+  if (type.includes("pdf")) return { name: url.pathname.split("/").pop() || "call.pdf", kind: "pdf", data: buf.toString("base64") };
+  if (!type.includes("html") && !type.includes("text")) throw new Error("The link is not a web page or a PDF. Download the call and attach it instead.");
+  const text = buf
+    .toString("utf8")
+    .replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (text.length < 200) throw new Error("The page behind the link has almost no text (it may need a sign-in). Download the call and attach it instead.");
+  return { name: url.hostname, kind: "text", text: text.slice(0, 200_000) };
+}
+
+/**
+ * Documents a person may put on an opportunity: files they uploaded themselves, or ones already on
+ * it. Otherwise a fingerprint copied from elsewhere (an HR file) could be attached and so opened.
+ */
+async function docsAllowed(docs: OppDoc[], u: AppUser, already: OppDoc[] = []): Promise<string | null> {
+  for (const d of docs) {
+    if (already.some((x) => x.hash === d.hash)) continue;
+    const f = await loadFile(d.hash);
+    if (!f || f.uploadedBy !== u.id) return `${d.name} is not a file you attached. Attach it again.`;
+  }
+  return null;
+}
+
+/** Reads a call from its link or attached documents and proposes the form's fields. Nothing is saved. */
+export async function readCall(link: string, documents: OppDoc[], u: AppUser): Promise<CallReading> {
+  const bad = await docsAllowed(documents, u);
+  if (bad) throw new Error(bad);
+  const files = await callDocuments({ documents });
+  if (link) {
+    const page = await linkDocument(link);
+    if (page) files.unshift(page);
+  }
+  if (!files.length) throw new Error("Add the link to the call or attach the call first.");
+  const { out } = await draftStructured({
+    job: "opportunityRead",
+    by: u.id,
+    system: "You read a funding call (a call for proposals, request for proposals or applications, or a notice of funding) so a small organization can record it. Take every value from the documents; never invent. Leave a value empty when it is not there, and say so in missing. Plain, short sentences.",
+    task: `Read this funding call and fill in the fields. Today is ${today()}.`,
+    facts: asIs(null, "the funding call the person linked or attached"),
+    documents: files,
+    schema: readSchema,
+    effort: "low",
+    maxTokens: 6000,
+  });
+  return { ...out, deadline: /^\d{4}-\d{2}-\d{2}$/.test(out.deadline) ? out.deadline : "", currency: /^[A-Z]{3}$/.test(out.currency) ? out.currency : "" };
+}
+
+export async function actOnOpportunity(orgId: string, a: Exclude<OppAction, { action: "read" }>, u: AppUser): Promise<string | null> {
   const b = await load(orgId);
   const ev = (what: string) => ({ at: today(), by: u.id, byName: u.name, what });
   if (a.action === "add") {
     if (u.kind !== "employee") return "Opportunities are recorded by staff.";
+    const bad = await docsAllowed(a.fields.documents ?? [], u);
+    if (bad) return bad;
     const o: Opportunity = { id: `OPP-${randomUUID().slice(0, 6).toUpperCase()}`, ...a.fields, brief: null, status: "tracking", decision: null, projectCode: null, history: [ev("Recorded")] };
     // Saved and logged together: one is never there without the other.
     await db.transaction(async (tx) => {
@@ -81,15 +180,19 @@ export async function actOnOpportunity(orgId: string, a: OppAction, u: AppUser):
   let next: Opportunity;
   if (a.action === "edit") {
     if (o.status !== "tracking") return "Decided already: reopen it to change it.";
+    const bad = await docsAllowed(a.fields.documents ?? [], u, o.documents ?? []);
+    if (bad) return bad;
     next = { ...o, ...a.fields, history: [...o.history, ev("Details changed")] };
   } else if (a.action === "brief") {
     if (o.status !== "tracking") return "Decided already.";
     const { out, model } = await draftStructured({
       job: "opportunityBrief",
       by: u.id,
-      system: "You draft the match brief for Roots of Peace's match call on a funding opportunity. Use only the facts given; where a fact is missing, say so plainly rather than guessing. You inform the decision; you do not make it. Plain, short sentences.",
+      system: "You draft the match brief for Roots of Peace's match call on a funding opportunity. Read the attached call documents first: what the donor will fund, who is eligible, the deadline and the value come from them before the team's notes. Use only the facts and documents given; where a fact is missing, say so plainly rather than guessing. You inform the decision; you do not make it. Plain, short sentences.",
       task: "Draft the match brief for this opportunity.",
       facts: asIs(await briefFacts(o, b.items), "the opportunity's details, project names and stages, and earlier no-match reasons; no record about a person"),
+      // The donor's own call documents, attached by staff: no record about a person.
+      documents: await callDocuments(o),
       schema: briefSchema,
       effort: "medium",
       maxTokens: 8000,

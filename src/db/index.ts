@@ -32,12 +32,23 @@ function connect(): DB {
   // prepare: false the driver sends each query with parameters in two steps, and the pooler can hand
   // the second step to another database connection. The session pooler (same host, port 5432) keeps
   // one database connection per client connection, so it cannot. The price: each open connection
-  // holds one of the project's pooled database connections, so a Vercel instance keeps at most 3 and
-  // lets idle ones go after 10 seconds. DB_POOL_MODE=transaction keeps the address as it is.
+  // holds one of the project's pooled database connections, and the session pooler allows only its
+  // pool size (15 on this project) for everything at once: the live site, previews, laptops and
+  // scripts. Over it, a new connection is refused at once ("max clients reached"). So a Vercel
+  // instance keeps at most 2 and a laptop or script 3, and both let an idle one go after 5 seconds:
+  // a screen's dozen reads queue behind each other for a moment instead of failing.
+  // DB_POOL_MODE=transaction keeps the address as it is; DB_POOL_MAX sets the size.
   const target = sessionMode(url);
-  instance = drizzle(postgres(target, { prepare: false, max: process.env.VERCEL ? 3 : 10, idle_timeout: process.env.VERCEL ? 10 : 20, connect_timeout: 15 }), { schema });
+  instance = drizzle(postgres(target, { prepare: false, max: poolMax(), idle_timeout: 5, connect_timeout: 15 }), { schema });
   g.__ropDb = instance;
   return instance;
+}
+
+/** Connections one server instance may hold: few, because the session pooler's limit is shared by all of them. */
+export function poolMax(env: Record<string, string | undefined> = process.env): number {
+  const set = Number(env.DB_POOL_MAX);
+  if (Number.isInteger(set) && set >= 1 && set <= 20) return set;
+  return env.VERCEL ? 2 : 3;
 }
 
 /** The Supabase pooler address on its session port (5432) instead of its transaction port (6543). */

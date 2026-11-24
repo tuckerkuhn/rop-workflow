@@ -40,7 +40,7 @@ const icon = (d: string) => (
  * the person menu.
  */
 const SECTIONS: Section[] = [
-  { id: "home", href: "/home", label: "nav.home", also: ["/people/me", "/timesheets", "/expenses", "/leave"], icon: icon("M3 10.5 12 3l9 7.5M5 9v11h5v-6h4v6h5V9") },
+  { id: "home", href: "/home", label: "nav.home", also: ["/people/me", "/timesheets", "/expenses", "/leave", "/training"], icon: icon("M3 10.5 12 3l9 7.5M5 9v11h5v-6h4v6h5V9") },
   { id: "project", href: "/project", label: "nav.projects", also: ["/work", "/field", "/procurement", "/progress", "/setup", "/settings", "/design", "/portfolio"], icon: icon("M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z") },
   // A donor's third place: the reports Roots of Peace has released to them, with how their grant is being spent.
   { id: "released", href: "/progress/released", label: "hub.reports", also: [], icon: icon("M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6"), donorOnly: true },

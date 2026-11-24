@@ -36,6 +36,7 @@ export const ORG_AREAS: (OrgArea & { allow: (u: AppUser, holds: Holds) => boolea
   { id: "people", href: "/people", title: "People and HR record", help: "Staff records, contracts, approvals and the HR ledger.", allow: (_u, h) => hr(h) },
   { id: "payroll", href: "/payroll", title: "Payroll", help: "Monthly payroll, the ADP RUN file and the bank file.", allow: (_u, h) => (["payroll", "cfo", "ceo", "finance"] as HrRole[]).some(h) },
   { id: "onboarding", href: "/onboarding", title: "Starting at ROP, leaving and renewals", help: "Onboarding and offboarding steps.", allow: (_u, h) => hr(h) },
+  { id: "training", href: "/training", title: "Training log", help: "Who is due an induction or a yearly refresher, each training with its proof, and the year's priorities.", allow: (u, h) => hr(h) || lead(u, h) },
   { id: "plan", href: "/work/plan", title: "Procurement calendar", help: "Planned purchases and the requests made from them.", allow: (u) => u.procurementAccess !== "none" },
   { id: "procurements", href: "/work/procurements", title: "Large purchases across your projects", help: "Every large purchase in all your projects, by step, with the ones waiting longest on top. One project's purchases are under Projects → Procurement.", allow: (u) => u.procurementAccess !== "none" },
   { id: "suppliers", href: "/work/suppliers", title: "Suppliers", help: "The supplier register and its screening.", allow: (u) => u.procurementAccess !== "none" },

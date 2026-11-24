@@ -157,3 +157,19 @@ received, payment voucher, close out), so the report is read from those records:
   refresher on anti-fraud and each donor's rules, up to three priorities a year) and a **quarterly
   internal review** (sample drawn by the procedure's rules, checklist, findings rated High, Medium
   or Low, nobody testing what they prepared or approved).
+
+## 24 Nov 2026 (later): training log and opportunities from the call
+
+- **Training log** (`/training`, `lib/training`, HR ledger kinds `training`, `training-plan`,
+  `training-void`, `training-start`): carries out the Staff Training Policy in the UNDP response.
+  Induction within 30 days, yearly anti-fraud and donor-rules refreshers, up to three priorities a
+  year, proof per training, withdrawals kept, a spreadsheet for auditors. Nothing is due before HR
+  sets the day the policy took effect. The onboarding induction counts.
+- **Opportunities start from the call** (owner's request): paste the link or attach the CFP, RFP or
+  similar (PDF, Word or Excel, several at once), and the app reads it and fills in the name, funder, deadline, value, country and what
+  the funder wants. The fields appear only once there is a link or a document (or the person chooses to type it all). The person adds notes and any contact with the funder. The match brief reads the
+  attached call. Only files the person attached themselves can be put on an opportunity.
+- **The 50% gross income analysis is gone** from the form and the match brief (owner's decision).
+  Older records keep what they had.
+- **Connections:** each server instance holds at most 2 connections (Vercel) or 3 (laptop): the
+  session pooler's 15 are shared by all of them.

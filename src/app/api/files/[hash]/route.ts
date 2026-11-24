@@ -5,10 +5,12 @@ import { seesAll } from "@/lib/hr";
 import { foldExpenses, nextFor } from "@/lib/expense";
 import { foldOnboarding } from "@/lib/onboarding";
 import { foldLeave } from "@/lib/leave";
+import { foldTraining } from "@/lib/training";
 import { onProject, requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
 import { loadFile } from "@/server/hr-files";
 import { loadHr } from "@/server/hr-store";
+import { orgIdForPerson } from "@/server/org-settings-store";
 import type { Story } from "@/lib/stories";
 import { mayApproveStory } from "@/server/stories-store";
 import { commsMayOpen, mayComms } from "@/server/photos-store";
@@ -38,6 +40,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ hash: st
         // A sick-leave certificate: the person and their supervisor.
         const { requests } = foldLeave(entries, hr);
         if (requests.some((r) => r.certificate?.hash === hash && (r.person === me || hr.people[r.person]?.current.supervisor === me))) ok = true;
+        // Proof of a training: the person and their supervisor.
+        if (!ok) ok = foldTraining(entries, hr).records.some((r) => r.proof?.hash === hash && (r.person === me || hr.people[r.person]?.current.supervisor === me));
         const mine = onboarding.find((o) => o.person === me);
         if (mine && (mine.contract.hash === hash || Object.values(mine.done).some((d) => d.value.kind === "upload" && d.value.file.hash === hash))) ok = true;
         ok ||= reports.some(
@@ -51,6 +55,15 @@ export async function GET(req: Request, { params }: { params: Promise<{ hash: st
             .select({ key: s.projectState.key })
             .from(s.projectState)
             .where(and(eq(s.projectState.key, "bills"), sql`${s.projectState.data}::text like ${`%${hash}%`}`))
+            .limit(1);
+          ok = !!row;
+        }
+        // A funding call attached to an opportunity: the staff who see opportunities, in that organization.
+        if (!ok) {
+          const [row] = await db
+            .select({ key: s.organizationState.key })
+            .from(s.organizationState)
+            .where(and(eq(s.organizationState.key, "opportunities"), sql`${s.organizationState.data}::text like ${`%${hash}%`}`, eq(s.organizationState.organizationId, (await orgIdForPerson(me)) ?? "")))
             .limit(1);
           ok = !!row;
         }

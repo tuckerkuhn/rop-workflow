@@ -90,7 +90,7 @@ describe("opportunities in the audit log", { timeout: 60_000 }, () => {
   const log = () => db.select().from(s.auditLog).where(and(isNull(s.auditLog.projectId), eq(s.auditLog.entity, "opportunity")));
   it("records an opportunity, the match call and a reopening, each with who did it", async () => {
     const before = (await log()).length;
-    const fields = { title: "Dried fruit corridor", donor: "Demo Fund (fictional)", source: "Donor call" as const, link: "", country: "AF", deadline: null, value: null, currency: "USD", need: "", donorPriorities: "", capacity: "", risks: "", grossIncome: "" };
+    const fields = { title: "Dried fruit corridor", donor: "Demo Fund (fictional)", source: "Donor call" as const, link: "", country: "AF", deadline: null, value: null, currency: "USD", need: "", donorPriorities: "", capacity: "", risks: "" };
     expect(await actOnOpportunity(orgId, { action: "add", fields }, nadia)).toBeNull();
     const made = (await loadOpportunities(orgId, tucker)).items.find((o) => o.title === "Dried fruit corridor")!;
     expect(await actOnOpportunity(orgId, { action: "decide", id: made.id, match: false, reason: "No field team in that province yet." }, tucker)).toBeNull();
@@ -196,5 +196,25 @@ describe("the way in to Proposals for someone added to one", { timeout: 60_000 }
     const forBilal = await proposalMenuMap(orgId, "bilal");
     expect(forBilal.nadia).toBeUndefined();
     expect(forBilal.tucker).toBe("core");
+  });
+});
+
+describe("opportunity documents", { timeout: 60_000 }, () => {
+  const base = { title: "Orchard call (fictional)", donor: "Demo Fund (fictional)", source: "Donor call" as const, link: "", country: "AF", deadline: null, value: 250000.5, currency: "EUR", need: "", donorPriorities: "", capacity: "", risks: "" };
+  it("keeps the call documents, notes and contact with the funder; only files the person attached themselves", async () => {
+    const { saveFile } = await import("@/server/hr-files");
+    const mine = await saveFile(Buffer.from("%PDF-1.4 fictional call"), "call.pdf", "application/pdf", "nadia");
+    const theirs = await saveFile(Buffer.from("%PDF-1.4 someone else's file"), "contract.pdf", "application/pdf", "sima");
+    const doc = (r: typeof mine) => ({ ...r, label: "The call (CFP, RFP, RFA, NOFO or similar)" as const, by: "nadia", at: "2026-11-24" });
+    expect(await actOnOpportunity(orgId, { action: "add", fields: { ...base, documents: [doc(theirs)] } }, nadia)).toMatch(/not a file you attached/);
+    expect(await actOnOpportunity(orgId, { action: "add", fields: { ...base, documents: [doc(mine)], notes: "Fits the orchard work.", funderContact: "Spoke to the programme officer on 20 Nov (fictional)." } }, nadia)).toBeNull();
+    const o = (await loadOpportunities(orgId, nadia)).items.find((x) => x.title === base.title)!;
+    expect(o.documents?.map((d) => d.name)).toEqual(["call.pdf"]);
+    expect(o.notes).toBe("Fits the orchard work.");
+    expect(o.funderContact).toMatch(/programme officer/);
+    expect(o.value).toBe(250000.5);
+    // An edit keeps the documents already there and refuses one copied from elsewhere.
+    expect(await actOnOpportunity(orgId, { action: "edit", id: o.id, fields: { ...base, documents: [doc(mine), doc(theirs)] } }, nadia)).toMatch(/not a file you attached/);
+    expect(await actOnOpportunity(orgId, { action: "edit", id: o.id, fields: { ...base, documents: [doc(mine)] } }, tucker)).toBeNull();
   });
 });

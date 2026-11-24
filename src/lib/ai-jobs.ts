@@ -35,6 +35,7 @@ export const AI_JOBS = {
   spendColumns: { label: "Propose the columns of a spending file", voice: false, looksAt: "the first rows of the file, with name columns blanked" },
   postDraft: { label: "Draft a post from photos", voice: true, looksAt: "the photos' captions and their records, with names replaced" },
   // Opportunities are on the do-not-touch list: the brief's prompt is left exactly as written.
+  opportunityRead: { label: "Read a funding call to fill in an opportunity", voice: false, looksAt: "the call's link or the documents you attached" },
   opportunityBrief: { label: "Draft an opportunity match brief", voice: false, looksAt: "the opportunity's details and the projects' names and stages" },
   proposalPlan: { label: "List what a call for proposals requires", voice: false, looksAt: "the call text you pasted and the win themes chosen for the proposal" },
   proposalAssess: { label: "Rate a proposal section against the call's grid", voice: false, looksAt: "the section draft you pasted, what the grid asks for and the win themes" },

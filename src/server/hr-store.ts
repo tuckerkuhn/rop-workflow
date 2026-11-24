@@ -368,6 +368,24 @@ export async function seedSample(write: typeof append = append, file: typeof sto
   ] as const)
     await write("sima", "policy", null, { id, title, version: "2026-01", file: await file(`${id}.pdf`, `Sample policy: ${title}. Replace with ROP's document.`, "sima") });
 
+  // The training log (lib/training): the policy took effect a little over a year ago, so staff with
+  // nothing recorded since are due their yearly refreshers. Trainers and courses are fictional.
+  await write("sima", "training-start", null, { effective: addDays(today, -380) });
+  const cert = await file("certificate-hact-webinar.pdf", "Sample certificate: partner webinar on cash transfers (fictional)", "sima");
+  const sheetFile = await file("attendance-anti-fraud.pdf", "Sample attendance sheet: anti-fraud refresher, Kabul office (fictional)", "sima");
+  for (const who of ["karim", "yusuf", "mina", "hamid", "nadia"])
+    await write("sima", "training", who, { date: addDays(today, -40), kind: "anti-fraud", topic: "Anti-fraud, anti-corruption and conflict of interest: yearly refresher", deliveredBy: "Home Office operations (fictional session)", method: "home-office", hours: 2, proof: sheetFile });
+  for (const who of ["karim", "yusuf"])
+    await write("sima", "training", who, { date: addDays(today, -35), kind: "donor-rules", donor: "UNDP", topic: "Cash transfers and spot checks: what the donor checks", deliveredBy: "Partner webinar (fictional)", method: "free-course", hours: 3, proof: cert });
+  await write("karim", "training", "yusuf", { date: addDays(today, -12), kind: "finance-procurement", topic: "Monthly bank reconciliation in the app, side by side", deliveredBy: "Karim, on the job", method: "coaching", hours: 4 });
+  await write("karim", "training-plan", "yusuf", {
+    year: Number(today.slice(0, 4)),
+    priorities: [
+      { what: "Close the books each month without help", how: "Coaching from the finance lead at each month close" },
+      { what: "Know each active donor's cost rules", how: "Free donor webinars and the Rules page" },
+    ],
+  });
+
   // A new hire who started this week, part way through onboarding.
   const zStart = addDays(today, -3);
   const zHire = await propose("sima", {
