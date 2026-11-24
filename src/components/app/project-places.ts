@@ -42,7 +42,7 @@ export function useProjectPlaces(): PlaceGroup[] {
     ...(org.has("plan") ? [{ href: "/work/plan", label: "nav.procCalendar" } as Place] : []),
     ...(org.has("suppliers") ? [{ href: "/work/suppliers", label: "nav.suppliers" } as Place] : []),
     ...(org.has("bills") ? [{ href: "/work/bills", label: "nav.bills" } as Place, { href: "/work/payments", label: "nav.payment" } as Place] : []),
-    ...(user.procurementAccess !== "none" ? [{ href: "/work/closeout", label: "nav.closeout" } as Place] : []),
+    ...(user.procurementAccess !== "none" ? [{ href: "/work/register", label: "nav.register" } as Place, { href: "/work/closeout", label: "nav.closeout" } as Place] : []),
   ];
   const across: Place[] = acrossProjectsFor(user, (r) => holdsType(user.id, r)).filter((a) => a.id !== "portfolio" || several).map((a) => ({ href: a.href, label: ACROSS_LABEL[a.id] }));
   const groups: PlaceGroup[] = [

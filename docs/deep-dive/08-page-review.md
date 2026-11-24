@@ -142,3 +142,18 @@ that is green nine weeks in ten was noise.
   - A nightly check (`/api/cron/ledger-check`) confirms the books balance and every completed
     reconciliation still matches; a problem shows on the leadership and Finance week ahead.
   - "Monthly closeout" is now called **Month close**.
+
+## 24 Nov 2026 (later): procurement register, from the UNDP HACT follow-up
+
+UNDP's open finding says no reports come out of a procurement system. The app already runs the
+whole purchase (request, approval, quotes or bids, committee, supplier checks, contract, goods
+received, payment voucher, close out), so the report is read from those records:
+
+- **Procurement register** (`/work/register`, `lib/procurement-register`): one row per purchase with
+  who asked and approved, how it was bought, the supplier, order, goods received, value, payments,
+  voucher numbers, documents filed and where it stands. A month's report keeps purchases that moved
+  that month or were still open at its end. Downloads as a spreadsheet. Nothing is stored.
+- Still to build from the same follow-up: a **training log** (induction within 30 days, yearly
+  refresher on anti-fraud and each donor's rules, up to three priorities a year) and a **quarterly
+  internal review** (sample drawn by the procedure's rules, checklist, findings rated High, Medium
+  or Low, nobody testing what they prepared or approved).

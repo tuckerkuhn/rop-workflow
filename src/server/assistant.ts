@@ -36,6 +36,7 @@ const PAGE_INFO: Record<string, string> = {
   "/work/activities": "Workplan activities: owners, status, tasks",
   "/work/plan": "Procurement calendar (planned purchases)",
   "/work/suppliers": "Supplier register",
+  "/work/register": "Procurement register and monthly report",
   "/work?source=procurement": "Procurement requests in progress",
   "/setup": "Project setup (plan, budget, workplan, indicators)",
 };

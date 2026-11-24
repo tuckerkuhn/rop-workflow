@@ -943,6 +943,10 @@ export function ProcurementWorkspace() {
                 Suppliers
                 <Arrow />
               </Link>
+              <Link href="/work/register" className="flex items-center justify-between rounded-xl bg-mist px-3 py-2 text-sm font-semibold text-forest hover:bg-sunken">
+                Procurement register and monthly report
+                <Arrow />
+              </Link>
               <Link href="/work/bills" className="flex items-center justify-between rounded-xl bg-mist px-3 py-2 text-sm font-semibold text-forest hover:bg-sunken">
                 Bills paid directly (rent, utilities, insurance)
                 <Arrow />
