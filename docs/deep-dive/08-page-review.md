@@ -97,3 +97,23 @@ system", "your payroll", "your shared folder") with the name coming from Organiz
   change a farmer's status in Field activities.
 - **Baseline** already lived on Target details. That page now says why it matters and counts the
   targets without one.
+
+## 23 Nov 2026: a week for each job
+
+Home, for the people who manage, opens with **The week ahead** (`lib/week`, `server/week-store`,
+`/api/week`): up to three priorities the app proposes and the person confirms, then four sentences
+built from the records. No AI, and no numbers: the sentences report every exception, and a number
+that is green nine weeks in ten was noise.
+
+| Whose week (`weekKindFor`) | The four sentences |
+|---|---|
+| Leadership (admin, plan approvers, monthly review) | Reports due, what is blocked or behind, approvals waiting, what changed |
+| Project manager (may change the project) | The same, plus budget lines over, results to check or correct, the weekly update |
+| Technical lead (project role `technical-lead`) | Farmer selection, field issues and results sent back, approvals, the team's weekly updates |
+
+- A priority confirmed last week and not ticked done is proposed first the next week ("from last
+  week"), with last week's score under the heading.
+- The technical lead reads the field work and decides farmer selection. Approving distributions
+  stays with the project's one field manager.
+- Not built: visits against a plan (visits are planned a week ahead; agronomists to be asked), and
+  the technical lead sending field work back for correction.

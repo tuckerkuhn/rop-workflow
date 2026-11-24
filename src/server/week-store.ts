@@ -7,7 +7,7 @@ import { loadField } from "@/server/field-store";
 import { lensesFor } from "@/server/home-store";
 import { loadWeekly } from "@/server/weekly-store";
 import { EMPTY_FEEDBACK, overdue, type FeedbackLog } from "@/lib/feedback";
-import { MAX_PRIORITIES, mondayOf, safeHref, withProject, suggestFor, weekSummaryFor, type Priority, type ProjectWeek, type ProjectWork, type WeekKind, type WeekAction, type WeekPlan } from "@/lib/week";
+import { MAX_PRIORITIES, mondayOf, safeHref, withProject, suggestFor, weekScore, weekSummaryFor, withCarried, type Priority, type ProjectWeek, type ProjectWork, type WeekKind, type WeekAction, type WeekPlan } from "@/lib/week";
 import { demoMode, onProject } from "@/server/auth";
 import { early } from "@/server/early";
 import { loadHomeJoining } from "@/server/home-store";
@@ -114,18 +114,21 @@ export async function loadWeek(u: AppUser, today = realToday()) {
   const week = mondayOf(today);
   const kind = weekKindFor(u) ?? "lead";
   // The person's own plan does not depend on the projects: read alongside them.
-  const planLater = early(orgIdForPerson(u.id).catch(() => null).then((orgId) => planOf(orgId, u, week)));
+  // This week's plan, and last week's for what was left undone.
+  const planLater = early(orgIdForPerson(u.id).catch(() => null).then(async (orgId) => Promise.all([planOf(orgId, u, week), planOf(orgId, u, addDays(week, -7))])));
   const listed = (await listProjects()).filter((p) => (demoMode() || p.code !== DEMO_PROJECT) && onProject(u, p.code) && p.stage !== "Develop");
   const ids = new Map((await db.select({ id: s.projects.id, code: s.projects.code }).from(s.projects).where(inArray(s.projects.code, listed.map((p) => p.code).concat("")))).map((r) => [r.code, r.id]));
   const projects = (await Promise.all(listed.filter((p) => ids.has(p.code)).map((p) => projectWeek({ code: p.code, name: p.name, id: ids.get(p.code)! }, u, today, kind)))).filter((x): x is ProjectWeek => !!x);
-  const plan = await planLater;
+  const [plan, lastWeek] = await planLater;
   return {
     week,
     today,
     kind,
     summary: weekSummaryFor(kind, projects, today),
     /** Proposed from the records; the person's own list once confirmed. */
-    suggestions: suggestFor(kind, projects),
+    suggestions: withCarried(lastWeek, suggestFor(kind, projects)),
+    /** How last week's confirmed list ended, for the line under the heading. */
+    lastWeek: weekScore(lastWeek),
     plan,
     projects: projects.map((p) => ({ code: p.code, short: p.short })),
     max: MAX_PRIORITIES,

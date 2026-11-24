@@ -62,7 +62,8 @@ export type ProjectWork = {
 export type Part = { t: string; href?: string };
 export type Sentence = { kind: "due" | "risk" | "waiting" | "changed"; parts: Part[]; flag: boolean };
 export type WeekNumber = { label: string; value: string; href: string; level: "good" | "warning" | "critical" };
-export type Suggestion = { id: string; text: string; href: string };
+/** `own`: the person's own line, not from the records. `carried`: confirmed last week and not ticked done. */
+export type Suggestion = { id: string; text: string; href: string; own?: boolean; carried?: boolean };
 
 const days = (from: string, to: string) => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 864e5);
 const n = (k: number, one: string, many: string) => `${k} ${k === 1 ? one : many}`;
@@ -258,4 +259,22 @@ export function suggestFor(kind: WeekKind, projects: ProjectWeek[]): Suggestion[
   // Late and blocked reports first, then the manager's own, then the rest.
   const first = base.filter((b) => /^(late|block):/.test(b.id));
   return [...first, ...own, ...base.filter((b) => !/^(late|block):/.test(b.id))].slice(0, MAX_PRIORITIES);
+}
+
+/**
+ * This week's proposals: what the person confirmed last week and did not tick done comes first
+ * (an unfinished priority does not quietly disappear on Monday), then what the records raise, three
+ * in all. A carried line the records raise again is listed once.
+ */
+export function withCarried(lastWeek: WeekPlan | null, fresh: Suggestion[]): Suggestion[] {
+  const carried: Suggestion[] = lastWeek?.confirmedAt ? lastWeek.items.filter((i) => !i.done).map((i) => ({ id: i.own ? `carried:${i.id}` : i.id, text: i.text, href: i.own ? "" : i.href, own: i.own, carried: true })) : [];
+  const seen = new Set(carried.map((c) => c.id));
+  return [...carried, ...fresh.filter((f) => !seen.has(f.id))].slice(0, MAX_PRIORITIES);
+}
+
+/** Friday's line: how the confirmed week went. Null before a week is confirmed. */
+export function weekScore(plan: WeekPlan): { done: number; of: number; left: number } | null {
+  if (!plan.confirmedAt || !plan.items.length) return null;
+  const done = plan.items.filter((i) => i.done).length;
+  return { done, of: plan.items.length, left: plan.items.length - done };
 }

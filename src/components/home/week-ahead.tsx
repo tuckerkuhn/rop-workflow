@@ -14,7 +14,7 @@ import type { WeekView } from "@/server/week-store";
  * own. The priorities come first: they are what the person decided, the rest is what informed it. The sentence that needs attention carries the gold wash; every figure opens its page.
  */
 
-type Draft = { id: string; text: string; href: string; own: boolean };
+type Draft = { id: string; text: string; href: string; own: boolean; carried?: boolean };
 
 export function WeekAhead() {
   const { user } = useSession();
@@ -67,7 +67,7 @@ export function WeekAhead() {
   };
   const confirmed = !!v.plan.confirmedAt;
   // Choosing: the person's own list if they reopened it, else what the app proposes.
-  const list: Draft[] = draft ?? (v.plan.items.length ? v.plan.items.map(({ id, text, href, own }) => ({ id, text, href, own })) : v.suggestions.map((x) => ({ ...x, own: false })));
+  const list: Draft[] = draft ?? (v.plan.items.length ? v.plan.items.map(({ id, text, href, own }) => ({ id, text, href, own })) : v.suggestions.map((x) => ({ id: x.id, text: x.text, href: x.href, own: !!x.own, carried: !!x.carried })));
   const done = v.plan.items.filter((i) => i.done).length;
   // When the records raise only the approvals, they are already listed one by one in the to-do list
   // above: the week ahead says so in one line instead of naming them again.
@@ -138,6 +138,11 @@ export function WeekAhead() {
           </>
         ) : (
           <>
+            {v.lastWeek && (
+              <p className="mt-1 font-mono text-xs text-muted">
+                Last week: {v.lastWeek.done} of {v.lastWeek.of} done{v.lastWeek.left ? `, ${v.lastWeek.left} carried over` : ""}
+              </p>
+            )}
             <p className="mt-1 max-w-2xl text-sm text-muted">Drawn from what is due, blocked and waiting on you. Drop what is not yours this week, add what the records cannot know, then confirm. Three at most.</p>
             {list.length === 0 ? (
               <p className="mt-2 border-s-[6px] border-leaf ps-3 text-sm">The records raise nothing for you this week. Add your own priorities, or confirm an open week.</p>
@@ -159,6 +164,7 @@ export function WeekAhead() {
                       {String(k + 1).padStart(2, "0")}
                     </span>
                     <span className="min-w-0 flex-1 text-sm font-semibold">{i.text}</span>
+                    {i.carried && <span className="shrink-0 bg-ochre px-1.5 font-mono text-xs uppercase text-ink">from last week</span>}
                     {i.own && <span className="shrink-0 font-mono text-xs uppercase text-muted">yours</span>}
                     <button type="button" className="min-h-11 shrink-0 px-2 text-sm text-muted hover:text-clay" aria-label={`Drop: ${i.text}`} onClick={() => setDraft(list.filter((x) => x.id !== i.id))}>
                       Drop

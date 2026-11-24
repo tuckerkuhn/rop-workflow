@@ -110,3 +110,27 @@ describe("a week for each job", () => {
     expect(suggestFor("manager", [p({ work: work({ overBudget: 1, queried: 1 }) })]).map((x) => x.text)).toEqual(["Explain the budget line that is over budget", "Have the result MEL sent back corrected"]);
   });
 });
+
+import { weekScore, withCarried, type WeekPlan } from "@/lib/week";
+
+describe("from one week to the next", () => {
+  const last: WeekPlan = { week: "2026-11-16", confirmedAt: "2026-11-16T14:00:00Z", items: [
+    { id: "approvals", text: "Decide the 2 approvals waiting on you", href: "/work", own: false, done: true },
+    { id: "own:1", text: "Write the article", href: "", own: true, done: false },
+    { id: "budget", text: "Explain the budget line that is over budget", href: "/progress/budget", own: false, done: false },
+  ] };
+  it("carries what was confirmed and not done to the top of the next week, once", () => {
+    const out = withCarried(last, [{ id: "budget", text: "Explain the budget line that is over budget", href: "/progress/budget" }, { id: "weekly", text: "Get last week's weekly update sent", href: "/progress/weekly" }]);
+    expect(out.map((x) => [x.id, !!x.carried, !!x.own])).toEqual([["carried:own:1", true, true], ["budget", true, false], ["weekly", false, false]]);
+  });
+  it("carries nothing from a week that was never confirmed, and never more than three", () => {
+    const fresh = [1, 2, 3, 4].map((k) => ({ id: `f${k}`, text: `Fresh ${k}`, href: "/work" }));
+    expect(withCarried({ ...last, confirmedAt: null }, fresh).map((x) => x.id)).toEqual(["f1", "f2", "f3"]);
+    expect(withCarried(null, fresh)).toHaveLength(3);
+    expect(withCarried(last, fresh)).toHaveLength(3);
+  });
+  it("scores a confirmed week", () => {
+    expect(weekScore(last)).toEqual({ done: 1, of: 3, left: 2 });
+    expect(weekScore({ ...last, confirmedAt: null })).toBeNull();
+  });
+});
