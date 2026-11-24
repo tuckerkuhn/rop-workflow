@@ -118,7 +118,7 @@ export const en = {
   "nav.suppliers": "Suppliers",
   "nav.bills": "Bills",
   "nav.payment": "Record a payment",
-  "nav.closeout": "Monthly closeout",
+  "nav.closeout": "Month close",
   /** The project's own settings page, named for what is on it. */
   "nav.donorSettings": "Donors and report dates",
   "hub.changeProject": "Change project",

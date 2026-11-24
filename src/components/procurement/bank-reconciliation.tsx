@@ -1,5 +1,6 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Why } from "@/components/app/why";
@@ -78,17 +79,23 @@ export function BankReconciliation({ code, user }: { code: string; user: AppUser
     },
     [base, user.id],
   );
+  // Opened from a link that names the account and month (for example back from Record a payment).
+  const search = useSearchParams();
+  const askedBank = search.get("bank") ?? "";
+  const askedMonth = /^\d{4}-\d{2}$/.test(search.get("month") ?? "") ? search.get("month")! : "";
   useEffect(() => {
-    void load("", "");
-  }, [load]);
+    void load(askedBank, askedMonth);
+  }, [load, askedBank, askedMonth]);
 
   const act = async (body: Record<string, unknown>, done?: (a: Answer) => string) => {
     if (!data?.view) return;
     setBusy(true);
     setError("");
-    setNotice("");
+    // Some steps take several seconds against the database: say so at once.
+    setNotice("Working on it…");
     try {
       const a = await call<Answer>(base, user.id, { bankAccountId: data.view.bankAccount.id, month, ...body });
+      setNotice("");
       setData(a);
       setBalance(a.view?.statementBalance ?? "");
       if (done) setNotice(done(a));

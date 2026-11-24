@@ -949,7 +949,7 @@ export function ProcurementWorkspace() {
               </Link>
               {(myRoles.includes("finance") || user.admin) && (
                 <Link href="/work/closeout" className="flex items-center justify-between rounded-xl bg-mist px-3 py-2 text-sm font-semibold text-forest hover:bg-sunken">
-                  Monthly closeout
+                  Month close
                   <Arrow />
                 </Link>
               )}

@@ -78,7 +78,7 @@ export function BillsPage() {
         </p>
         <p className="mt-2 flex gap-4 text-sm">
           <Link href="/work/closeout" className="font-semibold text-forest hover:underline">
-            Monthly closeout
+            Month close
           </Link>
           <Link href="/work?source=procurement" className="font-semibold text-forest hover:underline">
             Procurement

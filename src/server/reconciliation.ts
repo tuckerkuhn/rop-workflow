@@ -55,8 +55,11 @@ export async function bankAccountsOf(orgId: string): Promise<BankAccount[]> {
   return db
     .select({ id: s.bankAccounts.id, name: s.bankAccounts.name, currency: s.bankAccounts.currency, ledgerAccountId: s.bankAccounts.ledgerAccountId, active: s.bankAccounts.active })
     .from(s.bankAccounts)
+    .innerJoin(s.ledgerAccounts, eq(s.ledgerAccounts.id, s.bankAccounts.ledgerAccountId))
     .where(eq(s.bankAccounts.organizationId, orgId))
-    .orderBy(asc(s.bankAccounts.createdAt), asc(s.bankAccounts.name));
+    // The main bank account (1010) first and cash on hand (1000) last: the page opens on the account
+    // that has a statement to reconcile.
+    .orderBy(sql`case ${s.ledgerAccounts.code} when '1010' then 0 when '1000' then 2 else 1 end`, asc(s.bankAccounts.createdAt), asc(s.bankAccounts.name));
 }
 
 async function bankOf(exec: Exec, orgId: string, bankAccountId: string): Promise<BankAccount> {

@@ -16,7 +16,9 @@ type Row = BudgetActualView["rows"][number];
 const rowKey = (r: Row) => `${r.budgetLineId ?? "none"}:${r.donorId ?? "none"}`;
 
 /** How far through its budget a line is, when both are in the same currency. Null: not comparable. */
-const used = (r: Row, currency: string) => (r.budget && Number(r.budget) > 0 && r.budgetCurrency === currency ? Number(r.actual) / Number(r.budget) : null);
+const used = (r: Row, currency: string, spent = Number(r.actual)) => (r.budget && Number(r.budget) > 0 && r.budgetCurrency === currency ? spent / Number(r.budget) : null);
+/** Everything spent on a budget line, every donor's share together. */
+const lineTotal = (rows: Row[], r: Row) => (r.budgetLineId ? rows.filter((x) => x.budgetLineId === r.budgetLineId).reduce((t, x) => t + Number(x.actual), 0) : Number(r.actual));
 
 export function LedgerBudget({ code, user }: { code: string; user: string }) {
   const [v, setV] = useState<BudgetActualView | null>(null);
@@ -37,7 +39,8 @@ export function LedgerBudget({ code, user }: { code: string; user: string }) {
   const spent = v?.rows.filter((r) => r.entries > 0) ?? [];
   const shown = all ? (v?.rows ?? []) : spent;
   // The row to look at first: the line furthest through its budget, else the one with the most spent.
-  const first = v ? [...spent].sort((a, b) => (used(b, v.currency) ?? -1) - (used(a, v.currency) ?? -1) || Number(b.actual) - Number(a.actual))[0] : undefined;
+  // The line furthest through its budget, all donors together; its first row is the one to look at.
+  const first = v ? [...spent].sort((a, b) => (used(b, v.currency, lineTotal(v.rows, b)) ?? -1) - (used(a, v.currency, lineTotal(v.rows, a)) ?? -1) || lineTotal(v.rows, b) - lineTotal(v.rows, a))[0] : undefined;
   const otherCurrencies = v ? [...new Set(v.rows.map((r) => r.budgetCurrency).filter((c): c is string => !!c && c !== v.currency))] : [];
 
   return (
@@ -50,7 +53,8 @@ export function LedgerBudget({ code, user }: { code: string; user: string }) {
         <Link href="/work/payments" className="font-semibold text-forest hover:underline">
           Record a payment
         </Link>{" "}
-        or posted to the books another way; the figures above come from the imported workbook.
+        or posted to the books another way.{" "}
+        {v?.booksKept ? "This project's books are kept here, so the figures above come from them too." : "The figures above come from the imported workbook until the project's books are kept here."}
       </p>
       <Why>A donor asks what was spent on each line of their grant. An auditor picks figures from this table and asks for the payments behind them: open a line to see them.</Why>
       {error ? (
@@ -89,9 +93,15 @@ export function LedgerBudget({ code, user }: { code: string; user: string }) {
               {shown.map((r, k) => {
                 const id = rowKey(r);
                 const share = used(r, v.currency);
-                const left = share === null || !r.budget ? null : Number(r.budget) - Number(r.actual);
+                // A line shared by several donors is one budget: its budget and what is left show once,
+                // on its first row, from the whole line's spending. Repeating the budget on each donor's
+                // row would make a line over budget look under it.
+                const firstOfLine = k === 0 || shown[k - 1].budgetLineId !== r.budgetLineId || !r.budgetLineId;
+                const lineSpent = lineTotal(v.rows, r);
+                const shared = !!r.budgetLineId && v.rows.filter((x) => x.budgetLineId === r.budgetLineId && Number(x.actual) !== 0).length > 1;
+                const left = !firstOfLine || share === null || !r.budget ? null : Number(r.budget) - lineSpent;
                 return (
-                  <li key={id} className={`border-b border-line ${first && rowKey(first) === id ? "bg-ochre-soft" : ""}`}>
+                  <li key={id} className={`border-b border-line ${first && (first.budgetLineId ? first.budgetLineId === r.budgetLineId && firstOfLine : rowKey(first) === id) ? "bg-ochre-soft" : ""}`}>
                     <button type="button" aria-expanded={open === id} disabled={!r.entries} onClick={() => setOpen(open === id ? null : id)} className="group flex min-h-12 w-full flex-wrap items-center gap-x-4 gap-y-1 px-2 py-2 text-start enabled:hover:bg-ochre-soft">
                       <span aria-hidden className="w-6 shrink-0 font-mono text-xs text-muted">
                         {String(k + 1).padStart(2, "0")}
@@ -106,10 +116,11 @@ export function LedgerBudget({ code, user }: { code: string; user: string }) {
                           {r.entries ? ` · ${r.entries} ${r.entries === 1 ? "payment" : "payments"}` : ""}
                         </span>
                       </span>
-                      <span className="w-32 shrink-0 text-end font-mono text-sm tabular-nums">{r.budget && r.budgetCurrency ? money(r.budget, r.budgetCurrency) : "None"}</span>
+                      <span className="w-32 shrink-0 text-end font-mono text-sm tabular-nums">{!firstOfLine ? <span className="text-xs text-muted">same line</span> : r.budget && r.budgetCurrency ? money(r.budget, r.budgetCurrency) : "None"}</span>
                       <span className="w-32 shrink-0 text-end font-mono text-sm tabular-nums">{money(r.actual, v.currency)}</span>
                       <span className={`w-32 shrink-0 text-end font-mono text-sm tabular-nums ${left !== null && left < 0 ? "font-semibold text-warn" : ""}`}>
                         {left === null ? "" : left < 0 ? `${money(-left, v.currency)} over` : money(left, v.currency)}
+                        {left !== null && shared && <span className="block text-xs font-normal text-muted">all donors</span>}
                       </span>
                     </button>
                     {open === id && <Drill code={code} user={user} r={r} currency={v.currency} />}

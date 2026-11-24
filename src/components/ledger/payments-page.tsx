@@ -28,7 +28,9 @@ export function PaymentsPage() {
   const { user } = useRequireUser();
   const { ready } = useSession();
   const { project } = useCurrentProject();
-  const opened = useSearchParams().get("entry");
+  const search = useSearchParams();
+  const opened = search.get("entry");
+  const fromStatement = search.get("from");
   const [v, setV] = useState<PaymentsView | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -51,6 +53,8 @@ export function PaymentsPage() {
   const done = (message: string) => {
     setNotice(message);
     void load();
+    // The confirmation sits at the top of the page: bring it into view.
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   return (
@@ -76,6 +80,14 @@ export function PaymentsPage() {
         {notice && (
           <p role="status" className="mt-4 border-s-[6px] border-forest bg-mist px-4 py-3 text-sm">
             {notice}
+            {fromStatement && (
+              <>
+                {" "}
+                <Link href={`/work/closeout?${new URLSearchParams({ bank: fromStatement, ...(/^\d{4}-\d{2}/.test(search.get("date") ?? "") ? { month: search.get("date")!.slice(0, 7) } : {}) })}#bank`} className="font-medium underline underline-offset-2">
+                  Back to the bank reconciliation
+                </Link>
+              </>
+            )}
           </p>
         )}
         {project.saved && !v && !error && <Loading className="mt-6" />}
@@ -141,7 +153,25 @@ function PaymentForm({ v, code, user, onSaved }: { v: PaymentsView; code: string
     (): Form => ({ payee: "", what: "", budgetLineId: "", donorId: v.donors.length === 1 ? v.donors[0].id : "", amount: "", currency: currencies.includes(v.currency) ? v.currency : (currencies[0] ?? v.currency), fxRate: "1", paidFrom: "", date: today() }),
     [v.donors, v.currency, currencies],
   );
-  const [f, setF] = useState<Form>(blank);
+  // Opened from a bank statement line (Month close › Bank reconciliation): the date, amount, what it
+  // was and the account come with the link, so nothing is typed twice.
+  const params = useSearchParams();
+  const fromStatement = params.get("from");
+  const [f, setF] = useState<Form>(() => {
+    const start = blank();
+    if (!fromStatement) return start;
+    const account = v.money.find((m) => m.bankAccountId === fromStatement || m.ledgerAccountId === fromStatement);
+    const amount = (params.get("amount") ?? "").replace(/^-/, "");
+    const date = params.get("date") ?? "";
+    return {
+      ...start,
+      what: params.get("what") ?? "",
+      payee: params.get("payee") ?? (account ? account.name : ""),
+      amount: Number(amount) > 0 ? amount : "",
+      date: /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : start.date,
+      ...(account ? { paidFrom: account.ledgerAccountId, currency: account.currency, fxRate: account.currency === v.currency ? "1" : "" } : {}),
+    };
+  });
   const [file, setFile] = useState<Receipt | null>(null);
   // One key per form: a double click, or a retry after a lost answer, never posts the payment twice.
   const [key, setKey] = useState(() => newKey("pay"));
@@ -202,7 +232,7 @@ function PaymentForm({ v, code, user, onSaved }: { v: PaymentsView; code: string
         <div className="text-sm sm:col-span-2">
           <span className="font-medium">The receipt (photo or PDF)</span>
           <label className={`${quietBtn} mt-1 block cursor-pointer text-center`}>
-            {file ? `Attached: ${file.name}` : "Choose or photograph the receipt"}
+            {file ? `Attached: ${file.name}` : fromStatement ? "Attach the bank statement: for a bank charge it is the receipt" : "Choose or photograph the receipt"}
             <input
               type="file"
               accept="image/*,application/pdf"
@@ -250,7 +280,7 @@ function PaymentForm({ v, code, user, onSaved }: { v: PaymentsView; code: string
           <label className="text-sm sm:col-span-2">
             <span className="font-medium">Whose money paid for it</span>
             <select value={f.donorId} onChange={(e) => set({ donorId: e.target.value })} className={field}>
-              <option value="">No one donor</option>
+              <option value="">No donor named</option>
               {v.donors.map((d) => (
                 <option key={d.id} value={d.id}>
                   {d.name}
