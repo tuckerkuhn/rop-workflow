@@ -9,7 +9,7 @@ import { usePlan } from "@/components/app/use-project-data";
 import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn, type Tone, StatusPill } from "@/components/workspace/ui";
 import type { BudgetLine, WorkplanItem } from "@/lib/budget";
 import { canEditProject, userById, users, type AppUser } from "@/lib/demo";
-import { LEAD_DAYS, METHOD, awaiting, canAsk, isManager, procurementManager, toUsd, type PlanItem, type PlanStatus } from "@/lib/procurement-plan";
+import { LEAD_DAYS, METHOD, awaiting, canAsk, isManager, isProcurementManager, procurementManager, toUsd, type PlanItem, type PlanStatus } from "@/lib/procurement-plan";
 import { levelFor } from "@/lib/procurement";
 import { today } from "@/lib/clock";
 
@@ -380,7 +380,8 @@ function Detail({
 
   const lead = userById(item.techLead ?? "");
   const manager = procurementManager(users);
-  const asManager = isManager(user) || !!user.admin;
+  // Only the procurement manager approves for procurement; an administrator may sign for them.
+  const asManager = isProcurementManager(user, users) || !!user.admin;
   const asLead = user.id === item.techLead || !!user.admin;
   const canChange = (isManager(user) || user.id === item.techLead || !!user.admin) && item.status !== "approved" && item.status !== "started";
   const leads = users.filter((u) => u.leads?.length || u.procurement.includes("holder"));
@@ -645,7 +646,7 @@ function Detail({
         <div className="mt-5 flex flex-wrap gap-2">
           {item.status !== "approved" && item.status !== "started" && asManager && !item.approvals.manager && (
             <button type="button" disabled={busy} onClick={() => void run({ action: "approve", as: "manager" })} className={primaryBtn}>
-              {isManager(user) ? "Approve for procurement" : `Approve for ${manager?.name ?? "procurement"}`}
+              {isProcurementManager(user, users) ? "Approve for procurement" : `Approve for ${manager?.name ?? "procurement"}`}
             </button>
           )}
           {item.status !== "approved" && item.status !== "started" && asLead && !item.approvals.lead && item.techLead && (
@@ -663,14 +664,14 @@ function Detail({
               </button>
             </>
           )}
-          {item.status === "approved" && (isManager(user) || !!user.admin) && (
+          {item.status === "approved" && (isProcurementManager(user, users) || !!user.admin) && (
             <button type="button" disabled={busy} onClick={() => void run({ action: "reopen" })} className={quietBtn}>
               Reopen
             </button>
           )}
         </div>
       )}
-      {user.admin && !isManager(user) && user.id !== item.techLead && item.status !== "approved" && (
+      {user.admin && !isProcurementManager(user, users) && user.id !== item.techLead && item.status !== "approved" && (
         <p className="mt-2 text-xs text-muted">You are an admin, so you can approve for others while the app is in draft. It is recorded as you signing for them.</p>
       )}
     </article>

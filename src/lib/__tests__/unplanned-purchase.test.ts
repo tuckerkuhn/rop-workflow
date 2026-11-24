@@ -6,7 +6,8 @@ import { addDays, applyAction, askSchema, buildPlan, canAsk, unplannedItem, type
 /** Asking for a purchase that is not on the procurement calendar: an added path, never a shortcut past the approvals. */
 const TODAY = "2026-11-15";
 const by = (id: string) => users.find((u) => u.id === id)!;
-const zahra = by("zahra"); // procurement manager's team
+const zahra = by("zahra"); // procurement officer on the manager's team
+const hamid = by("hamid"); // the procurement manager
 const nadia = by("nadia"); // project manager, procurement edit
 const budget = demoBudget(TODAY);
 const workplan = demoWorkplan(TODAY);
@@ -54,7 +55,9 @@ describe("asking for something not on the calendar", () => {
     expect(applyAction(item, { action: "start", procurementKey: "PR-2027-900" }, lead, users, TODAY, rows)).toBe("It needs both approvals before the request starts.");
     // The person who asked cannot approve for procurement unless they are procurement.
     expect(applyAction(item, { action: "approve", as: "manager" }, nadia, users, TODAY, rows)).toMatch(/Only the procurement manager/);
-    const one = applyAction(item, { action: "approve", as: "manager" }, zahra, users, TODAY, rows) as PlanItem;
+    // A procurement officer is not the procurement manager: only the manager approves for procurement.
+    expect(applyAction(item, { action: "approve", as: "manager" }, zahra, users, TODAY, rows)).toMatch(/Only the procurement manager \(Hamid Wardak\)/);
+    const one = applyAction(item, { action: "approve", as: "manager" }, hamid, users, TODAY, rows) as PlanItem;
     expect(one.status).toBe("draft");
     expect(applyAction(one, { action: "start", procurementKey: "PR-2027-900" }, lead, users, TODAY, rows)).toMatch(/both approvals/);
     const two = applyAction(one, { action: "approve", as: "lead" }, lead, users, TODAY, rows) as PlanItem;

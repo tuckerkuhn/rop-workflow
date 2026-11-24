@@ -340,6 +340,52 @@ function DonorHome({ field, project }: { field: FieldItem[]; project: ProjectSta
   );
 }
 
+/**
+ * The person's HR summary (api/hr/summary), asked for once per visit to Home: the first-steps panel
+ * at the top and the cards below share one request.
+ */
+const hrSummaries = new Map<string, { at: number; p: Promise<HrSummary | null> }>();
+function useHrSummary(userId: string | undefined) {
+  const [sum, setSum] = useState<HrSummary | null>(null);
+  useEffect(() => {
+    if (!userId) return;
+    let live = true;
+    let got = hrSummaries.get(userId);
+    if (!got || Date.now() - got.at > 5_000) {
+      got = {
+        at: Date.now(),
+        p: fetch("/api/hr/summary", { cache: "no-store", headers: { "x-demo-user": userId } })
+          .then((r) => (r.ok ? (r.json() as Promise<HrSummary>) : null))
+          .catch(() => null),
+      };
+      hrSummaries.set(userId, got);
+    }
+    void got.p.then((v) => live && setSum(v));
+    return () => {
+      live = false;
+    };
+  }, [userId]);
+  return sum;
+}
+
+/** A new person's first steps, first on Home until they are done: nothing else matters as much in week one. */
+function FirstSteps() {
+  const { user } = useSession();
+  const ob = useHrSummary(user?.id)?.onboarding?.mine;
+  if (!ob || ob.done >= ob.total) return null;
+  return (
+    <Link href="/onboarding" className="mb-5 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border-2 border-ochre bg-ochre-soft px-5 py-4 transition hover:border-forest">
+      <span className="min-w-0 flex-1">
+        <span className="block text-lg font-semibold">Your first steps at ROP</span>
+        <span className="block text-sm text-muted">
+          {ob.done} of {ob.total} done. Give your details, read the policies, sign your contract and upload your ID. Your supervisor and HR do the rest.
+        </span>
+      </span>
+      <span className="inline-flex min-h-12 items-center rounded-xl bg-forest px-5 font-semibold text-forest-ink">Continue</span>
+    </Link>
+  );
+}
+
 /** The HR record on Home: changes waiting for this person's signature, their timesheet, and timesheets to approve. */
 /**
  * The person's own admin, only for people with an HR record: my timesheet, my leave, my expenses,
@@ -349,37 +395,17 @@ function DonorHome({ field, project }: { field: FieldItem[]; project: ProjectSta
 function PeopleCard() {
   const { user } = useSession();
   const { date, t } = useT();
-  const [sum, setSum] = useState<HrSummary | null>(null);
-  useEffect(() => {
-    if (!user) return;
-    // One request for the four parts (api/hr/summary) instead of one each, each paying sign-in and a read of the HR ledger.
-    let live = true;
-    fetch("/api/hr/summary", { cache: "no-store", headers: { "x-demo-user": user.id } })
-      .then((r) => (r.ok ? (r.json() as Promise<HrSummary>) : null))
-      .then((v) => live && setSum(v))
-      .catch(() => live && setSum(null));
-    return () => {
-      live = false;
-    };
-  }, [user]);
+  // One request for the four parts (api/hr/summary) instead of one each, shared with the first-steps panel.
+  const sum = useHrSummary(user?.id);
   const ts = sum?.timesheet;
   const ex = sum?.expenses;
   const lv = sum?.leave;
-  const ob = sum?.onboarding;
   if (!ts?.hasRecord) return null;
   const tsText: Record<string, string> = { missing: "not submitted yet", pending: "waiting for approval", approved: "approved", returned: "sent back: open it to see why" };
   const card = (on: boolean) => `flex flex-wrap items-center gap-x-4 gap-y-1 rounded-2xl border px-5 py-3 text-sm transition hover:border-forest ${on ? "border-forest/40 bg-mist/60" : "border-line bg-surface"}`;
-  const onboarding = ob?.mine && ob.mine.done < ob.mine.total ? ob.mine : null;
+  // Unfinished first steps are shown at the top of Home (FirstSteps), not here.
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-      {onboarding && (
-        <Link href="/onboarding" className={`${card(true)} sm:col-span-2 xl:col-span-3`}>
-          <span className="font-semibold">Starting at ROP</span>
-          <span className="text-muted">
-            Your first steps: {onboarding.done} of {onboarding.total} done
-          </span>
-        </Link>
-      )}
       <Link href="/timesheets" className={card(ts.status === "returned" || ts.status === "missing")}>
         <span className="font-semibold">Timesheet</span>
         <span className="text-muted">
@@ -516,6 +542,7 @@ export function Dashboard() {
           )}
         </header>
         {!readOnly && user.admin && <RulesConflicts />}
+        {!readOnly && user.kind === "employee" && <FirstSteps />}
         {user.kind === "donor" ? (
           <DonorHome field={field} project={project} />
         ) : readOnly ? (

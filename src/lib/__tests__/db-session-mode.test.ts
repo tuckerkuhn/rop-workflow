@@ -15,8 +15,8 @@ describe("the database address", () => {
   });
   it("keeps each instance's pool small: the session pooler's 15 are shared by every instance and laptop", () => {
     expect(poolMax({ VERCEL: "1" })).toBe(2);
-    expect(poolMax({})).toBe(3);
+    expect(poolMax({})).toBe(5);
     expect(poolMax({ DB_POOL_MAX: "5" })).toBe(5);
-    expect(poolMax({ DB_POOL_MAX: "500" })).toBe(3);
+    expect(poolMax({ DB_POOL_MAX: "500" })).toBe(5);
   });
 });

@@ -360,15 +360,17 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
     <section aria-label="Where things stand" className="space-y-5">
       {/* Which role's Home this is comes first, so the choice visibly changes what follows. */}
       {switcher}
-      {/* A new person's first steps stay in sight until they are done or hidden (the panel hides itself). */}
-      <GettingStarted project={project.id} user={user.id} />
       {/* First on the page: the one thing to do next, then everything waiting on this person. Where the
           project stands, first steps and stories follow, for when the day's work is clear. */}
       {/* Field roles open in Summary (bands), everyone else in List (ledger); the person's own choice wins and is remembered. */}
       {/* Managers first: their own three priorities for the week, then what the records say (lib/week).
           Leadership, the technical lead and the people who run a project each read their own week. */}
       {hasWeek && <WeekAhead />}
-      <HomeLead rows={waiting} next={next} view={view || (lens === "field" ? "bands" : "ledger")} onView={setView} />
+      {/* The fallback "add to the weekly update" is not shown on top of a row that already says it. */}
+      <HomeLead rows={waiting} next={!mine[0] && waitingCount(waiting) > 0 ? null : next} view={view || (lens === "field" ? "bands" : "ledger")} onView={setView} />
+      {/* A new person's first steps stay in sight until they are done or hidden (the panel hides itself).
+          Below the to-do list: it loads on its own, and above the list it pushed the rows down as they were clicked. */}
+      <GettingStarted project={project.id} user={user.id} />
 
       <div className="flex flex-wrap items-start gap-3">
         <p className="min-w-0 flex-1 text-lg leading-snug">

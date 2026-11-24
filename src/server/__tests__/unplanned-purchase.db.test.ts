@@ -64,7 +64,7 @@ describe("asking for something not on the procurement calendar", { timeout: 60_0
     const lead = item.techLead!;
     expect(lead).toBeTruthy();
     expect((await act(lead, "UP-001", { action: "start", procurementKey: "PR-2027-901" })).body.error).toBe("It needs both approvals before the request starts.");
-    const manager = await act("zahra", "UP-001", { action: "approve", as: "manager" });
+    const manager = await act("hamid", "UP-001", { action: "approve", as: "manager" });
     expect(manager.body.error).toBeUndefined();
     expect((await act(lead, "UP-001", { action: "start", procurementKey: "PR-2027-901" })).status).toBe(403);
     expect((await act(lead, "UP-001", { action: "approve", as: "lead" })).body.item?.status).toBe("approved");

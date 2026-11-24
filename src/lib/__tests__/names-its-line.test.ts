@@ -2,10 +2,11 @@ import { describe, expect, it } from "vitest";
 import { billLineProblem } from "@/lib/bills";
 import { users } from "@/lib/demo";
 import { demoBudget, demoWorkplan } from "@/lib/demo-design";
-import { applyAction, itemFor, type PlanItem } from "@/lib/procurement-plan";
+import { applyAction, itemFor, type PlanItem, procurementManager } from "@/lib/procurement-plan";
 
 const TODAY = "2026-11-15";
-const zahra = users.find((u) => u.procurement.includes("procurement"))!;
+// The procurement manager: the one who approves for procurement.
+const zahra = procurementManager(users)!;
 const plan = demoWorkplan(TODAY);
 const rows = plan.map((w) => w.code);
 const line = demoBudget(TODAY).lines.find((l) => l.code === "2.1")!;

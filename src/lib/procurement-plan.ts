@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { workplanFor, type BudgetLine, type WorkplanItem } from "@/lib/budget";
-import { AFN_PER_USD, type AppUser } from "@/lib/demo";
+import { AFN_PER_USD, users, type AppUser } from "@/lib/demo";
 import { levelFor, rulesInForce, type Level } from "@/lib/procurement";
 import { isDay } from "@/lib/clock";
 
@@ -317,6 +317,11 @@ export type PlanAction = z.infer<typeof planActionSchema>;
 export const isManager = (u: AppUser) => u.procurement.includes("procurement");
 /** The procurement manager: the procurement person titled manager, else the first procurement person. */
 export const procurementManager = (people: AppUser[]) => people.find((u) => isManager(u) && /manager/i.test(u.title)) ?? people.find(isManager);
+/**
+ * The one person who approves a calendar line for procurement (owner's decision, 24 Nov 2026): the
+ * procurement manager, not every procurement officer. An administrator may still sign for them.
+ */
+export const isProcurementManager = (u: AppUser, people: AppUser[] = users) => procurementManager(people)?.id === u.id;
 
 /** Applies an action, or returns why the person cannot. */
 /**
@@ -331,10 +336,10 @@ export function applyAction(item: PlanItem, a: PlanAction, u: AppUser, people: A
     case "approve": {
       if (item.status === "approved") return "Already approved.";
       if (a.as === "manager") {
-        if (!isManager(u) && !u.admin) return "Only the procurement manager approves for procurement.";
-        if (rows?.length && !(item.workplanCode && rows.includes(item.workplanCode))) return "Choose the workplan row this purchase serves before approving it.";
         const holder = procurementManager(people);
-        const approvals = { ...item.approvals, manager: sign("Procurement manager", isManager(u) ? u : holder) };
+        if (!isProcurementManager(u, people) && !u.admin) return `Only the procurement manager${holder ? ` (${holder.name})` : ""} approves for procurement.`;
+        if (rows?.length && !(item.workplanCode && rows.includes(item.workplanCode))) return "Choose the workplan row this purchase serves before approving it.";
+        const approvals = { ...item.approvals, manager: sign("Procurement manager", isProcurementManager(u, people) ? u : holder) };
         return settle({ ...item, approvals, returnNote: null });
       }
       if (u.id !== item.techLead && !u.admin) return "Only this line's technical lead approves it.";
@@ -350,7 +355,7 @@ export function applyAction(item: PlanItem, a: PlanAction, u: AppUser, people: A
       if (item.status !== "approved") return "It needs both approvals before the request starts.";
       return { ...item, status: "started", procurementKey: a.procurementKey };
     case "reopen":
-      if (!isManager(u) && !u.admin) return "Only the procurement manager can reopen an approved item.";
+      if (!isProcurementManager(u, people) && !u.admin) return "Only the procurement manager can reopen an approved item.";
       return { ...item, status: "draft", approvals: {} };
     case "edit": {
       if (!isManager(u) && u.id !== item.techLead && !u.admin) return "Only the procurement manager or the technical lead can change it.";
@@ -381,6 +386,6 @@ const settle = (i: PlanItem): PlanItem => ({ ...i, status: i.approvals.manager &
 
 /** What a person still has to approve. */
 export const awaiting = (items: PlanItem[], u: AppUser) => ({
-  asManager: isManager(u) ? items.filter((i) => i.status === "draft" && !i.approvals.manager) : [],
+  asManager: isProcurementManager(u) ? items.filter((i) => i.status === "draft" && !i.approvals.manager) : [],
   asLead: items.filter((i) => i.status === "draft" && i.techLead === u.id && !i.approvals.lead),
 });
