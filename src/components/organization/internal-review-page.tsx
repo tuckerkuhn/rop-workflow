@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { Why } from "@/components/app/why";
-import { Loading, SectionLabel, TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
+import { Loading, TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
+import { Empty, Fig, LedgerRow, LedgerTable, PageHead, SectionHead, Sheet, StatusBlock } from "@/components/workspace/ledger";
 import type { ReviewView } from "@/server/internal-review-store";
 import { AREAS, AREA_KEYS, RATINGS, STEPS, previousQuarter, quarterOf, quarterRange, stepDue, type Area, type Finding, type Rating, type ReviewAction, type Roles, type SampleItem } from "@/lib/internal-review";
 import { toCsv } from "@/lib/field-data";
@@ -12,7 +13,12 @@ import { plainError } from "@/lib/plain-error";
 
 /** The quarterly internal review: roles, the sample, the cycle and the findings log (lib/internal-review). */
 
-const input = "mt-1 block w-full rounded-xl border border-line bg-paper px-3 py-2.5 text-base";
+const input = "mt-1 block min-h-11 w-full border border-line bg-paper px-3 py-2.5 text-base";
+// Ruled rows: numbered rows add their own 2.25rem column, so a numbered table's head starts with it.
+const ROLES = "minmax(10rem,16rem) 1fr";
+const STEP = "1fr auto";
+const ITEM = "1fr auto";
+const FINDING = "1fr";
 const day = (d: string) => (d ? new Date(`${d.slice(0, 10)}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }) : "");
 const usd = (n: number) => (n ? `$${Math.round(n).toLocaleString("en-US")}` : "");
 const qName = (q: string) => {
@@ -79,22 +85,18 @@ export function InternalReviewPage() {
     <div className="min-h-screen">
       <TopBar />
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
-        <Link href="/organization" className="text-sm text-muted hover:text-ink">
-          ← Organization
-        </Link>
-        <h1 className="mt-2 font-display text-3xl tracking-tight">Quarterly internal review</h1>
-        <p className="mt-1 max-w-3xl text-sm text-muted">
+        <PageHead back={{ href: "/organization", label: "Organization" }} title="Quarterly internal review" meta={v ? day(v.today) : undefined}>
           After each quarter the lead draws a sample from the app&apos;s records, the country office files the documents, the lead and an independent reviewer test each item, and findings are tracked until closed. Nobody tests something they prepared or approved.
-        </p>
+        </PageHead>
         <Why>A donor asks whether the organization checks its own country offices. This review is that check, and its reports and findings log are what an auditor will ask to see.</Why>
 
         {error && (
-          <p role="alert" className="mt-4 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">
+          <p role="alert" className="mt-4 bg-clay-soft px-4 py-3 text-sm text-clay">
             {error}
           </p>
         )}
         {notice && (
-          <p role="status" className="mt-4 rounded-xl bg-mist px-4 py-3 text-sm text-leaf">
+          <p role="status" className="mt-4 bg-mist px-4 py-3 text-sm text-leaf">
             {notice}
           </p>
         )}
@@ -103,27 +105,30 @@ export function InternalReviewPage() {
         {v && <RolesPanel v={v} busy={busy} onSave={(roles) => act({ action: "roles", roles }, "Saved who runs the review.")} />}
 
         {v?.roles && (
-          <section className="mt-8">
-            <div className="flex flex-wrap items-end gap-3">
-              <div className="min-w-0 flex-1">
-                <SectionLabel>The quarter</SectionLabel>
-              </div>
-              {v.reviews.length > 0 && (
-                <select aria-label="Quarter" className="min-h-12 rounded-xl border border-line bg-paper px-3 text-base" value={shown ?? ""} onChange={(e) => setQuarter(e.target.value)}>
-                  {[...v.reviews].reverse().map((r) => (
-                    <option key={r.quarter} value={r.quarter}>
-                      {qName(r.quarter)}
-                    </option>
-                  ))}
-                </select>
-              )}
-              {is("lead") && !v.reviews.some((r) => r.quarter === lastQuarter) && (
-                <button type="button" className={primaryBtn} disabled={busy} onClick={() => void act({ action: "draw", quarter: lastQuarter }, `The sample for ${qName(lastQuarter)} is drawn. It stays as drawn.`).then((ok) => ok && setQuarter(lastQuarter))}>
-                  Draw the sample for {qName(lastQuarter)}
-                </button>
-              )}
-            </div>
-            {!review && <p className="mt-3 rounded-2xl border border-dashed border-line p-6 text-center text-sm text-muted">No review yet. {is("lead") ? "Draw the first sample when you are ready." : `${name(v.roles.lead)}, the lead, draws the first sample.`}</p>}
+          <section>
+            <SectionHead
+              aside={
+                <>
+                  {v.reviews.length > 0 && (
+                    <select aria-label="Quarter" className="min-h-12 border border-line bg-paper px-3 text-base" value={shown ?? ""} onChange={(e) => setQuarter(e.target.value)}>
+                      {[...v.reviews].reverse().map((r) => (
+                        <option key={r.quarter} value={r.quarter}>
+                          {qName(r.quarter)}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {is("lead") && !v.reviews.some((r) => r.quarter === lastQuarter) && (
+                    <button type="button" className={primaryBtn} disabled={busy} onClick={() => void act({ action: "draw", quarter: lastQuarter }, `The sample for ${qName(lastQuarter)} is drawn. It stays as drawn.`).then((ok) => ok && setQuarter(lastQuarter))}>
+                      Draw the sample for {qName(lastQuarter)}
+                    </button>
+                  )}
+                </>
+              }
+            >
+              The quarter
+            </SectionHead>
+            {!review && <Empty>No review yet. {is("lead") ? "Draw the first sample when you are ready." : `${name(v.roles.lead)}, the lead, draws the first sample.`}</Empty>}
             {review && <ReviewPanel v={v} review={review} busy={busy} act={act} />}
           </section>
         )}
@@ -140,17 +145,17 @@ function RolesPanel({ v, busy, onSave }: { v: ReviewView; busy: boolean; onSave:
   const admin = v.mine.includes("admin");
   const ok = r.lead && r.reviewer && r.focal && r.ceo && r.lead !== r.reviewer && r.focal !== r.lead && r.focal !== r.reviewer;
   return (
-    <section className="mt-6">
-      <SectionLabel>Who runs it</SectionLabel>
+    <section>
+      <SectionHead>Who runs it</SectionHead>
       {!editing && v.roles && (
-        <dl className="mt-2 grid gap-2 sm:grid-cols-4">
+        <LedgerTable cols={ROLES} head={["Role", "Person"]} label="Who runs it">
           {(Object.keys(ROLE_TITLE) as (keyof Roles)[]).map((k) => (
-            <div key={k} className="rounded-xl border border-line bg-surface p-3 text-sm">
-              <dt className="text-xs font-semibold uppercase tracking-wide text-muted">{ROLE_TITLE[k]}</dt>
-              <dd className="mt-1 font-medium">{v.names[v.roles![k]] ?? v.roles![k]}</dd>
-            </div>
+            <LedgerRow key={k} cols={ROLES} className="text-sm">
+              <span className="text-muted">{ROLE_TITLE[k]}</span>
+              <span className="font-semibold">{v.names[v.roles![k]] ?? v.roles![k]}</span>
+            </LedgerRow>
           ))}
-        </dl>
+        </LedgerTable>
       )}
       {!editing && admin && (
         <button type="button" className={`${quietBtn} mt-3`} onClick={() => setEditing(true)}>
@@ -159,7 +164,7 @@ function RolesPanel({ v, busy, onSave }: { v: ReviewView; busy: boolean; onSave:
       )}
       {editing && !admin && <p className="mt-2 text-sm text-muted">An administrator names the four people who run the review.</p>}
       {editing && admin && (
-        <div className="mt-2 grid gap-3 rounded-2xl border border-line bg-surface p-4 sm:grid-cols-2">
+        <Sheet className="mt-3 grid gap-3 sm:grid-cols-2">
           {(Object.keys(ROLE_TITLE) as (keyof Roles)[]).map((k) => (
             <label key={k} className="text-sm">
               <span className="font-semibold">{ROLE_TITLE[k]}</span>
@@ -186,7 +191,7 @@ function RolesPanel({ v, busy, onSave }: { v: ReviewView; busy: boolean; onSave:
               </button>
             )}
           </div>
-        </div>
+        </Sheet>
       )}
     </section>
   );
@@ -214,8 +219,8 @@ function ReviewPanel({ v, review, busy, act }: { v: ReviewView; review: Review; 
   };
 
   return (
-    <div className="mt-4 space-y-6">
-      <ol className="divide-y divide-line rounded-2xl border border-line bg-surface">
+    <div>
+      <LedgerTable cols={`2.25rem ${STEP}`} head={["#", "Step", ""]} label="Steps of the review">
         {STEPS.map((s, i) => {
           const done = review.steps[s.id];
           const due = stepDue(review.quarter, s.day);
@@ -223,9 +228,8 @@ function ReviewPanel({ v, review, busy, act }: { v: ReviewView; review: Review; 
           const who = roles[s.by as keyof Roles];
           const mine = next?.id === s.id && v.mine.includes(s.by as keyof Roles);
           return (
-            <li key={s.id} className={`flex flex-wrap items-center gap-3 px-3 py-2.5 text-sm ${next?.id === s.id ? "bg-ochre-soft" : ""}`}>
-              <span className="w-5 tabular-nums text-muted">{i + 1}</span>
-              <span className="min-w-0 flex-1">
+            <LedgerRow key={s.id} cols={STEP} n={i + 1} first={next?.id === s.id} className="text-sm">
+              <span className="min-w-0">
                 <span className={done ? "text-muted line-through" : "font-medium"}>{s.title}</span>
                 <span className="block text-xs text-muted">
                   {done ? `Done by ${name(done.by)} on ${day(done.at)}` : `${name(who)} · by ${day(due)}`}
@@ -237,34 +241,40 @@ function ReviewPanel({ v, review, busy, act }: { v: ReviewView; review: Review; 
                   Mark done
                 </button>
               )}
-            </li>
+            </LedgerRow>
           );
         })}
-      </ol>
+      </LedgerTable>
+      {next && <p className="mt-2 text-xs text-muted">The shaded step is the next one to do.</p>}
 
       <div>
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="min-w-0 flex-1">
-            <SectionLabel>The sample</SectionLabel>
-            <p className="text-sm text-muted">
-              Drawn by {name(review.drawnBy)} on {day(review.drawnAt)} from the records of {qName(review.quarter)}. {tested} of {review.items.length} tested.
-            </p>
-          </div>
-          <button type="button" className={quietBtn} onClick={download}>
-            Download the sample and results
-          </button>
-        </div>
+        <SectionHead
+          aside={
+            <button type="button" className={quietBtn} onClick={download}>
+              Download the sample and results
+            </button>
+          }
+        >
+          The sample
+        </SectionHead>
+        <p className="mt-1 text-sm text-muted">
+          Drawn by {name(review.drawnBy)} on <Fig className="text-sm">{day(review.drawnAt)}</Fig> from the records of {qName(review.quarter)}.{" "}
+          <Fig className="text-sm">
+            {tested} of {review.items.length}
+          </Fig>{" "}
+          tested.
+        </p>
         {byArea.map(({ a, items }) => (
-          <div key={a} className="mt-4">
-            <p className="text-sm font-semibold">{AREAS[a].title}</p>
+          <div key={a} className="mt-6">
+            <p className="font-ledger font-bold">{AREAS[a].title}</p>
             <p className="text-xs text-muted">
               Checks: {AREAS[a].checks}. Sample: {AREAS[a].sample}.
             </p>
-            <ol className="mt-2 divide-y divide-line rounded-2xl border border-line bg-surface">
+            <LedgerTable cols={`2.25rem ${ITEM}`} head={["#", "Item", ""]} label={AREAS[a].title} className="mt-2">
               {items.map((i, n) => (
                 <ItemRow key={i.ref} n={n + 1} i={i} v={v} quarter={review.quarter} busy={busy || !!review.steps.finalSigned} act={act} />
               ))}
-            </ol>
+            </LedgerTable>
           </div>
         ))}
         {!byArea.some((g) => g.a !== "assets") && <p className="mt-3 text-sm text-muted">The app had no records for this quarter beyond the asset spot check.</p>}
@@ -282,11 +292,10 @@ function ItemRow({ n, i, v, quarter, busy, act }: { n: number; i: SampleItem; v:
   const touched = [...i.preparedBy, ...i.approvedBy].includes(v.me);
   const mayTest = !touched && (i.tester === "lead" ? v.mine.includes("lead") : i.tester === "reviewer" ? v.mine.includes("reviewer") : v.mine.includes("admin") && v.me !== roles.focal);
   const tester = i.tester === "lead" ? name(roles.lead) : i.tester === "reviewer" ? name(roles.reviewer) : "Someone who did not prepare or approve it";
+  const figs = [day(i.date), usd(i.usd)].filter(Boolean).join(" · ");
   return (
-    <li className="px-3 py-2.5 text-sm">
-      <div className="flex flex-wrap items-start gap-3">
-        <span className="w-5 tabular-nums text-muted">{n}</span>
-        <span className="min-w-0 flex-1">
+    <LedgerRow cols={ITEM} n={n} className="text-sm">
+        <span className="min-w-0">
           {i.href ? (
             <Link href={i.href} className="font-medium text-forest hover:underline">
               {i.what}
@@ -295,7 +304,9 @@ function ItemRow({ n, i, v, quarter, busy, act }: { n: number; i: SampleItem; v:
             <span className="font-medium">{i.what}</span>
           )}
           <span className="block text-xs text-muted">
-            {[day(i.date), usd(i.usd), i.why, `tested by ${tester}`].filter(Boolean).join(" · ")}
+            {figs && <span className="font-mono tabular-nums">{figs}</span>}
+            {figs && " · "}
+            {[i.why, `tested by ${tester}`].filter(Boolean).join(" · ")}
           </span>
           {i.result && (
             <span className={`block text-xs ${i.result.ok ? "text-leaf" : "font-semibold text-clay"}`}>
@@ -305,7 +316,7 @@ function ItemRow({ n, i, v, quarter, busy, act }: { n: number; i: SampleItem; v:
           )}
         </span>
         {mayTest && !i.result && !open && (
-          <span className="flex gap-2">
+          <span className="flex flex-col gap-2 sm:flex-row">
             <button type="button" className={quietBtn} disabled={busy} onClick={() => setOpen("ok")}>
               No problem
             </button>
@@ -314,9 +325,8 @@ function ItemRow({ n, i, v, quarter, busy, act }: { n: number; i: SampleItem; v:
             </button>
           </span>
         )}
-      </div>
       {open && (
-        <div className="mt-2 grid gap-2 ps-8 sm:grid-cols-[1fr_auto]">
+        <div className="col-span-full mt-2 grid gap-2 border-t border-line pt-3 sm:grid-cols-[1fr_auto]">
           <label className="text-xs">
             {open === "ok" ? "Note (optional)" : "What is wrong"}
             <input className={input} value={note} onChange={(e) => setNote(e.target.value)} />
@@ -352,7 +362,7 @@ function ItemRow({ n, i, v, quarter, busy, act }: { n: number; i: SampleItem; v:
           </span>
         </div>
       )}
-    </li>
+    </LedgerRow>
   );
 }
 
@@ -364,21 +374,25 @@ function FindingsLog({ v, busy, act, name }: { v: ReviewView; busy: boolean; act
   const quarter = v.reviews[v.reviews.length - 1]?.quarter;
   return (
     <section className="mt-10">
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="min-w-0 flex-1">
-          <SectionLabel>Findings log</SectionLabel>
-          <p className="text-sm text-muted">
-            High: {RATINGS.high.rule.toLowerCase()}. Medium: {RATINGS.medium.rule.toLowerCase()}. Low: {RATINGS.low.rule.toLowerCase()}. A finding closes once the lead re-tests the fix.
-          </p>
-        </div>
-        {quarter && (v.mine.includes("lead") || v.mine.includes("reviewer")) && !adding && (
-          <button type="button" className={quietBtn} onClick={() => setAdding(true)}>
-            Record a finding
-          </button>
-        )}
-      </div>
+      <SectionHead
+        className=""
+        aside={
+          quarter &&
+          (v.mine.includes("lead") || v.mine.includes("reviewer")) &&
+          !adding && (
+            <button type="button" className={quietBtn} onClick={() => setAdding(true)}>
+              Record a finding
+            </button>
+          )
+        }
+      >
+        Findings log
+      </SectionHead>
+      <p className="mt-1 text-sm text-muted">
+        High: {RATINGS.high.rule.toLowerCase()}. Medium: {RATINGS.medium.rule.toLowerCase()}. Low: {RATINGS.low.rule.toLowerCase()}. A finding closes once the lead re-tests the fix.
+      </p>
       {adding && quarter && (
-        <div className="mt-3 grid gap-3 rounded-2xl border border-line bg-surface p-4 sm:grid-cols-2">
+        <Sheet className="mt-3 grid gap-3 sm:grid-cols-2">
           <label className="text-sm">
             Area
             <select className={input} value={f.area} onChange={(e) => setF({ ...f, area: e.target.value as Area })}>
@@ -411,16 +425,19 @@ function FindingsLog({ v, busy, act, name }: { v: ReviewView; busy: boolean; act
               Cancel
             </button>
           </span>
-        </div>
+        </Sheet>
       )}
       {v.findings.length === 0 ? (
-        <p className="mt-3 rounded-2xl border border-dashed border-line p-6 text-center text-sm text-muted">No findings recorded.</p>
+        <Empty>No findings recorded.</Empty>
       ) : (
-        <ol className="mt-3 divide-y divide-line rounded-2xl border border-line bg-surface">
-          {[...open, ...closed].map((x, n) => (
-            <FindingRow key={x.id} n={n + 1} x={x} v={v} busy={busy} act={act} name={name} first={n === 0 && !x.closed} />
-          ))}
-        </ol>
+        <>
+          <LedgerTable cols={`2.25rem ${FINDING}`} head={["#", "Finding"]} label="Findings log">
+            {[...open, ...closed].map((x, n) => (
+              <FindingRow key={x.id} n={n + 1} x={x} v={v} busy={busy} act={act} name={name} first={n === 0 && !x.closed} />
+            ))}
+          </LedgerTable>
+          {open.length > 0 && <p className="mt-2 text-xs text-muted">The shaded finding is the open one due soonest.</p>}
+        </>
       )}
     </section>
   );
@@ -431,12 +448,10 @@ function FindingRow({ n, x, v, busy, act, name, first }: { n: number; x: Finding
   const [text, setText] = useState("");
   const late = !x.closed && x.due < v.today;
   return (
-    <li className={`px-3 py-3 text-sm ${first ? "bg-ochre-soft" : ""} ${x.closed ? "opacity-70" : ""}`}>
-      <div className="flex gap-3">
-        <span className="w-5 tabular-nums text-muted">{n}</span>
-        <div className="min-w-0 flex-1">
+    <LedgerRow cols={FINDING} n={n} first={first} className={`text-sm ${x.closed ? "opacity-70" : ""}`}>
+        <div className="min-w-0">
           <p>
-            <span className={`font-semibold ${x.rating === "high" ? "text-clay" : x.rating === "medium" ? "text-warn" : ""}`}>{RATINGS[x.rating].title}</span> · {AREAS[x.area].title} · {qName(x.quarter)}
+            <StatusBlock tone={x.rating === "high" ? "clay" : x.rating === "medium" ? "ochre" : "muted"}>{RATINGS[x.rating].title}</StatusBlock> · {AREAS[x.area].title} · {qName(x.quarter)}
           </p>
           <p className="mt-0.5">{x.text}</p>
           <p className="text-xs text-muted">
@@ -493,7 +508,6 @@ function FindingRow({ n, x, v, busy, act, name, first }: { n: number; x: Finding
             </div>
           )}
         </div>
-      </div>
-    </li>
+    </LedgerRow>
   );
 }

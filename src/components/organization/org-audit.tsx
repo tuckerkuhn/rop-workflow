@@ -1,9 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRequireUser } from "@/components/app/session";
-import { Pill, TopBar } from "@/components/workspace/ui";
+import { TopBar, quietBtn } from "@/components/workspace/ui";
+import { Empty, Fig, LedgerRow, LedgerTable, PageHead, SectionHead } from "@/components/workspace/ledger";
+
+const COLS = "9rem 7rem 1.2fr 8rem 8rem 1.4fr";
 import type { OrgAuditRow } from "@/app/api/org/audit/route";
 import { toCsv } from "@/lib/field-data";
 
@@ -57,14 +59,12 @@ export function OrgAudit() {
   return (
     <div className="min-h-screen">
       <TopBar />
-      <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
-        <Link href="/organization" className="text-sm text-muted hover:text-ink">
-          ← Organization
-        </Link>
-        <h1 className="mt-2 font-display text-4xl tracking-tight">Organization audit log</h1>
-        <p className="mt-1 max-w-2xl text-sm text-muted">Every change to people&rsquo;s access, the HR record, pay settings, suppliers, the organization&rsquo;s rules, opportunities and proposals, and each use of View as: who made it and when. HR entries show what kind of change it was, not its contents.</p>
-        {!intact && <p className="mt-4 rounded-xl bg-clay-soft px-4 py-3 text-sm font-semibold text-clay">The HR record shows signs of tampering. Open People to see where.</p>}
-        {error && <p className="mt-4 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">{error}</p>}
+      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+        <PageHead back={{ href: "/organization", label: "Organization" }} title="Organization audit log" meta={rows ? `${listed.length} ${listed.length === 1 ? "entry" : "entries"}` : undefined}>
+          Every change to people&rsquo;s access, the HR record, pay settings, suppliers, the organization&rsquo;s rules, opportunities and proposals, and each use of View as: who made it and when. HR entries show what kind of change it was, not its contents.
+        </PageHead>
+        {!intact && <p className="mt-4 bg-clay-soft px-4 py-3 text-sm font-semibold text-clay">The HR record shows signs of tampering. Open People to see where.</p>}
+        {error && <p className="mt-4 bg-clay-soft px-4 py-3 text-sm text-clay">{error}</p>}
         {/* A period for an audit: a quarter, a year. Empty shows the newest entries. */}
         <form
           className="mt-5 flex flex-wrap items-end gap-3 text-sm"
@@ -74,62 +74,59 @@ export function OrgAudit() {
           }}
         >
           <label className="flex flex-col gap-1">
-            <span className="text-xs text-muted">From</span>
-            <input type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} className="rounded-lg border border-line bg-paper px-3 py-1.5" />
+            <span className="font-mono text-xs text-muted">From</span>
+            <input type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} className="min-h-11 border border-line bg-paper px-3" />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-xs text-muted">To</span>
-            <input type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} className="rounded-lg border border-line bg-paper px-3 py-1.5" />
+            <span className="font-mono text-xs text-muted">To</span>
+            <input type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} className="min-h-11 border border-line bg-paper px-3" />
           </label>
-          <button type="submit" className="rounded-lg border border-line bg-surface px-3 py-1.5 hover:border-forest">
+          <button type="submit" className={quietBtn}>
             Show
           </button>
           <span className="text-xs text-muted">{shown.from || shown.to ? `Every entry ${shown.from ? `from ${shown.from}` : ""}${shown.from && shown.to ? " " : ""}${shown.to ? `to ${shown.to}` : ""} (UTC)` : "The newest 800 entries. Choose dates for a whole period."}</span>
         </form>
-        {more && <p className="mt-3 rounded-xl bg-ochre-soft px-4 py-3 text-sm">This period has more than 5,000 entries: only the newest 5,000 are listed. Choose a shorter period to see the rest.</p>}
+        {more && <p className="mt-3 bg-ochre-soft px-4 py-3 text-sm">This period has more than 5,000 entries: only the newest 5,000 are listed. Choose a shorter period to see the rest.</p>}
         {!rows && !error && <p className="mt-6 text-sm text-muted">Loading…</p>}
         {rows && (
           <>
-            <div className="mt-4 flex flex-wrap items-center gap-2">
+            <SectionHead
+              aside={
+                <>
+                  <input className="min-h-11 border border-line bg-paper px-3 text-sm" placeholder="Person" value={who} onChange={(e) => setWho(e.target.value)} aria-label="Filter by person" />
+                  <button type="button" onClick={() => download(listed)} disabled={!listed.length} className={quietBtn}>
+                    Download (CSV)
+                  </button>
+                </>
+              }
+            >
+              Entries
+            </SectionHead>
+            <div className="mt-3 flex flex-wrap gap-1" role="group" aria-label="Area">
               {areas.map((a) => (
-                <button key={a} type="button" onClick={() => setArea(a)} className={`rounded-full px-3 py-1 text-sm ${a === area ? "bg-forest text-paper" : "bg-sunken text-muted hover:text-ink"}`}>
+                <button key={a} type="button" aria-pressed={a === area} onClick={() => setArea(a)} className={`min-h-11 px-3 font-mono text-xs ${a === area ? "font-bold underline decoration-ochre decoration-4 underline-offset-8" : "text-muted hover:text-ink"}`}>
                   {a}
                 </button>
               ))}
-              <input className="ms-auto rounded-lg border border-line bg-paper px-3 py-1.5 text-sm" placeholder="Person" value={who} onChange={(e) => setWho(e.target.value)} aria-label="Filter by person" />
-              <button type="button" onClick={() => download(listed)} disabled={!listed.length} className="rounded-lg border border-line bg-surface px-3 py-1.5 text-sm hover:border-forest disabled:opacity-40">
-                Download (CSV)
-              </button>
             </div>
-            <div className="mt-3 overflow-x-auto rounded-2xl border border-line bg-surface">
-              <table className="w-full text-sm">
-                <thead className="text-start text-xs text-muted">
-                  <tr>
-                    <th className="px-3 py-2 font-medium">When (UTC)</th>
-                    <th className="px-3 py-2 font-medium">Area</th>
-                    <th className="px-3 py-2 font-medium">What</th>
-                    <th className="px-3 py-2 font-medium">By</th>
-                    <th className="px-3 py-2 font-medium">About</th>
-                    <th className="px-3 py-2 font-medium">Detail</th>
-                  </tr>
-                </thead>
-                <tbody>
+            {listed.length === 0 ? (
+              <Empty>Nothing recorded.</Empty>
+            ) : (
+              <div className="overflow-x-auto">
+                <LedgerTable cols={COLS} head={["When (UTC)", "Area", "What", "By", "About", "Detail"]} label="Organization audit log" className="mt-2 min-w-[52rem]">
                   {listed.map((r) => (
-                    <tr key={r.ref} className="border-t border-line align-top">
-                      <td className="whitespace-nowrap px-3 py-2 tabular-nums text-muted">{r.at.slice(0, 16).replace("T", " ")}</td>
-                      <td className="px-3 py-2">
-                        <Pill tone="muted">{r.area}</Pill>
-                      </td>
-                      <td className="px-3 py-2">{r.action}</td>
-                      <td className="px-3 py-2">{r.by ?? "—"}</td>
-                      <td className="px-3 py-2">{r.about ?? "—"}</td>
-                      <td className="px-3 py-2 text-muted">{r.note ?? ""}</td>
-                    </tr>
+                    <LedgerRow key={r.ref} cols={COLS} className="text-sm">
+                      <Fig className="text-start text-muted">{r.at.slice(0, 16).replace("T", " ")}</Fig>
+                      <span className="font-mono text-xs">{r.area}</span>
+                      <span className="font-semibold">{r.action}</span>
+                      <span>{r.by ?? "None"}</span>
+                      <span>{r.about ?? ""}</span>
+                      <span className="text-muted">{r.note ?? ""}</span>
+                    </LedgerRow>
                   ))}
-                </tbody>
-              </table>
-              {listed.length === 0 && <p className="px-3 py-6 text-center text-sm text-muted">Nothing recorded.</p>}
-            </div>
+                </LedgerTable>
+              </div>
+            )}
           </>
         )}
       </main>

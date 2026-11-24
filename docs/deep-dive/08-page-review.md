@@ -187,3 +187,14 @@ received, payment voucher, close out), so the report is read from those records:
   closed by the lead after a re-test. Every action is in the audit log.
 - **Opportunities without the AI key:** when a call cannot be read, the form says so plainly and the
   person fills it in by hand. A funder site that blocks reading gets "save it as a PDF and attach it".
+
+## 24 Nov 2026 (night): Daniel's pages on the Ledger template
+
+The Ledger template (round 3, "ROP Workflow Home: three directions", artboard D) is now a set of
+shared pieces (`components/workspace/ledger.tsx`) with its rules in `docs/DESIGN-LEDGER.md`. Every
+page Daniel uses (People, People access, Payroll, Timesheets, Leave, Expenses, Starting at ROP,
+Leaving and renewals, Training log, Organization, Organization audit log, Quarterly internal
+review, Organization settings, Health, Procurement register) uses it: a page head with the double
+rule, gold-ticked section heads, ruled numbered rows with a mono column head, figures in mono, one
+gold row where something clearly comes first, square status blocks, no floating cards. Markup and
+classes only: no behaviour changed. The loading line everywhere is a ruled line, not a box.

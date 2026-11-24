@@ -5,7 +5,8 @@ import { askConfirm } from "@/components/app/dialogs";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useT } from "@/components/app/i18n";
 import { useRequireUser, useSession } from "@/components/app/session";
-import { Pill, SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn, StatusPill as Status } from "@/components/workspace/ui";
+import { Pill, TopBar, dangerBtn, primaryBtn, quietBtn, StatusPill as Status } from "@/components/workspace/ui";
+import { Empty, Fig, LedgerRow, LedgerTable, PageHead, SectionHead, Sheet, StatusBlock } from "@/components/workspace/ledger";
 import {
   CHANGE_KINDS,
   FIELDS,
@@ -90,6 +91,18 @@ function show(k: FieldKey, v: Value | undefined, names: Record<string, string>, 
   return String(v);
 }
 
+/** Column templates for the ruled tables on this page. */
+const TEAM_COLS = "minmax(0,1fr) 7rem";
+const PEOPLE_COLS = "minmax(0,1fr) auto";
+const REL_COLS = "minmax(0,1fr) 7rem";
+const HISTORY_COLS = "3rem minmax(0,1fr)";
+const ROLE_COLS = "12rem minmax(0,1fr)";
+const STEP_COLS = "minmax(0,1fr) minmax(0,1.6fr)";
+const ENTRY_COLS = "3.5rem 11rem minmax(0,1fr) minmax(0,1.4fr) 8rem";
+const SEAL_COLS = "8rem minmax(0,1fr)";
+/** Field types shown as figures (mono, lined up). */
+const isFigure = (k: FieldKey) => ["money", "number", "date"].includes(FIELDS[k].type);
+
 type Tab = "waiting" | "people" | "changes" | "rules" | "ledger";
 /** The tabs HR (everyone who sees all records) has, and the tabs everyone else has. */
 const HR_TABS: Tab[] = ["waiting", "people", "changes", "rules", "ledger"];
@@ -150,10 +163,10 @@ export function PeoplePage() {
     <div className="min-h-screen">
       <TopBar />
       <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
-        <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <h1 className="font-display text-3xl tracking-tight">People</h1>
+        <PageHead title="People" meta={v?.seesAll && v.started ? `${v.people.length} ${v.people.length === 1 ? "person" : "people"}` : undefined}>
+          <p>The HR record: every change is proposed, signed by the people the rules name, and kept forever.</p>
           {/* Seven links: on a phone they wrap onto a second line instead of squeezing the last ones off the edge. */}
-          <span className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+          <span className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
             <a href="/timesheets" className="font-semibold text-forest hover:underline">
               Timesheets
             </a>
@@ -178,22 +191,19 @@ export function PeoplePage() {
               </a>
             )}
           </span>
-        </div>
-        <p className="mt-1 max-w-2xl text-sm text-muted">
-          The HR record: every change is proposed, signed by the people the rules name, and kept forever.
-        </p>
+        </PageHead>
         {v?.sample && (
-          <p className="mt-3 rounded-xl bg-sunken px-4 py-2 text-xs text-muted">
+          <p className="mt-4 bg-sunken px-4 py-2 text-xs text-muted">
             Sample records: fictional people and pay. Real records go in a separate book that can never be reset.
           </p>
         )}
         {hr.error && (
-          <p role="alert" className="mt-4 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">
+          <p role="alert" className="mt-4 bg-clay-soft px-4 py-3 text-sm text-clay">
             {hr.error}
           </p>
         )}
         {notice && (
-          <p role="status" className="mt-4 rounded-xl bg-mist px-4 py-3 text-sm text-leaf">
+          <p role="status" className="mt-4 bg-mist px-4 py-3 text-sm text-leaf">
             {notice}
           </p>
         )}
@@ -212,7 +222,7 @@ export function PeoplePage() {
                   role="tab"
                   aria-selected={tab === t.id}
                   onClick={() => setTab(t.id)}
-                  className={`shrink-0 border-b-2 px-3 py-2.5 text-sm ${tab === t.id ? "border-forest font-semibold text-forest" : "border-transparent text-muted hover:text-ink"}`}
+                  className={`min-h-11 shrink-0 px-3 font-mono text-xs ${tab === t.id ? "font-bold text-ink underline decoration-ochre decoration-4 underline-offset-8" : "text-muted hover:text-ink"}`}
                 >
                   {t.label}
                 </button>
@@ -223,7 +233,12 @@ export function PeoplePage() {
               <section className="mt-6 space-y-4">
                 {v.seesAll ? (
                   waiting.length ? (
-                    waiting.map((p) => <ProposalCard key={p.id} p={p} view={v} fmt={fmt} act={hr.act} onDone={setNotice} />)
+                    <>
+                      {waiting.map((p) => (
+                        <ProposalCard key={p.id} p={p} view={v} fmt={fmt} act={hr.act} onDone={setNotice} first={waiting.length > 1 && p.id === Math.min(...waiting.map((x) => x.id))} />
+                      ))}
+                      {waiting.length > 1 && <p className="text-xs text-muted">Shaded: the change that has waited longest.</p>}
+                    </>
                   ) : (
                     <Empty>Nothing is waiting for your signature.</Empty>
                   )
@@ -234,20 +249,30 @@ export function PeoplePage() {
                 )}
                 {!v.seesAll && v.people.some((p) => p.id !== v.me) && (
                   <section>
-                    <SectionLabel>My team</SectionLabel>
-                    <ul className="mt-2 divide-y divide-line rounded-2xl border border-line bg-surface">
+                    <SectionHead>My team</SectionHead>
+                    <LedgerTable cols={TEAM_COLS} head={["Person", "Since"]} label="My team">
                       {v.people
                         .filter((p) => p.id !== v.me)
                         .map((p) => (
-                          <li key={p.id} className="px-4 py-3 text-sm">
-                            <span className="block font-medium">{p.name}</span>
-                            <span className="block text-muted">
-                              {p.title} · since {p.fields.startDate ? fmt(String(p.fields.startDate)) : "—"}
-                              {p.fields.contractEnd ? ` · contract ends ${fmt(String(p.fields.contractEnd))}` : ""}
+                          <LedgerRow key={p.id} cols={TEAM_COLS} className="text-sm">
+                            <span className="min-w-0">
+                              <span className="block font-bold">{p.name}</span>
+                              <span className="block text-muted">
+                                {p.title}
+                                {p.fields.contractEnd ? (
+                                  <>
+                                    {" · contract ends "}
+                                    <Fig className="text-xs">{fmt(String(p.fields.contractEnd))}</Fig>
+                                  </>
+                                ) : (
+                                  ""
+                                )}
+                              </span>
                             </span>
-                          </li>
+                            <Fig className="text-start">{p.fields.startDate ? fmt(String(p.fields.startDate)) : "—"}</Fig>
+                          </LedgerRow>
                         ))}
-                    </ul>
+                    </LedgerTable>
                   </section>
                 )}
                 {!v.seesAll && <Relations view={v} onDeclare={() => setDeclare(true)} fmt={fmt} />}
@@ -256,19 +281,23 @@ export function PeoplePage() {
 
             {tab === "people" && v.seesAll && (
               <section className="mt-6">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <SectionLabel>{v.people.length} people</SectionLabel>
-                  {isHr && (
-                    <div className="flex flex-wrap gap-2">
-                      <button type="button" className={quietBtn} onClick={() => setImporting(!importing)}>
-                        Move people from BambooHR
-                      </button>
-                      <button type="button" className={primaryBtn} onClick={() => setForm({ type: "hire" })}>
-                        Add a person
-                      </button>
-                    </div>
-                  )}
-                </div>
+                <SectionHead
+                  className=""
+                  aside={
+                    isHr && (
+                      <>
+                        <button type="button" className={quietBtn} onClick={() => setImporting(!importing)}>
+                          Move people from BambooHR
+                        </button>
+                        <button type="button" className={primaryBtn} onClick={() => setForm({ type: "hire" })}>
+                          Add a person
+                        </button>
+                      </>
+                    )
+                  }
+                >
+                  {v.people.length} people
+                </SectionHead>
                 {isHr && importing && (
                   <BambooImport
                     user={user!.id}
@@ -279,26 +308,24 @@ export function PeoplePage() {
                     }}
                   />
                 )}
-                <ul className="mt-3 divide-y divide-line rounded-2xl border border-line bg-surface">
+                <LedgerTable cols={PEOPLE_COLS} head={["Person", "Notes"]} label="People">
                   {v.people.map((p) => (
-                    <li key={p.id}>
-                      <button type="button" onClick={() => setOpen(p.id)} className="flex w-full items-center gap-3 px-4 py-3 text-start hover:bg-sunken">
-                        <span className="min-w-0 flex-1">
-                          <span className="block font-medium">{p.name}</span>
-                          <span className="block truncate text-sm text-muted">
-                            {p.title} · {p.office}
-                          </span>
+                    <LedgerRow key={p.id} cols={PEOPLE_COLS} onClick={() => setOpen(p.id)}>
+                      <span className="min-w-0">
+                        <span className="block font-bold">{p.name}</span>
+                        <span className="block truncate text-sm text-muted">
+                          {p.title} · {p.office}
                         </span>
+                      </span>
+                      <span className="flex flex-wrap justify-end gap-1">
                         {p.separated && <Pill tone="muted">Left {fmt(p.separated.effective)}</Pill>}
                         {v.proposals.some((x) => x.subject === p.id && x.status === "pending") && <Status tone="ochre">Change pending</Status>}
                         {v.relations.some((r) => r.a === p.id || r.b === p.id) && <Pill tone="plum">Related party</Pill>}
-                      </button>
-                    </li>
+                      </span>
+                    </LedgerRow>
                   ))}
-                </ul>
-                <div className="mt-6">
-                  <Relations view={v} onDeclare={() => setDeclare(true)} fmt={fmt} />
-                </div>
+                </LedgerTable>
+                <Relations view={v} onDeclare={() => setDeclare(true)} fmt={fmt} />
               </section>
             )}
 
@@ -371,28 +398,40 @@ export function PeoplePage() {
   );
 }
 
-function Empty({ children }: { children: React.ReactNode }) {
-  return <p className="rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">{children}</p>;
-}
-
 /* ---------------- Integrity ---------------- */
 
 function IntegrityBar({ view, fmt }: { view: HrView; fmt: (iso: string) => string }) {
   const i = view.integrity;
   if (!i.ok)
     return (
-      <div role="alert" className="mt-5 rounded-2xl border border-clay bg-clay-soft p-4 text-sm text-clay">
+      <div role="alert" className="mt-5 border-y border-clay bg-clay-soft px-4 py-3 text-sm text-clay">
         <p className="font-semibold">The HR record has been tampered with.</p>
         <p className="mt-1">{i.problem} Do not approve anything until this is explained. Compare the seal emails with the Ledger tab.</p>
       </div>
     );
   return (
-    <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-2xl border border-line bg-surface px-4 py-3 text-sm">
-      <span className="font-semibold text-leaf">✓ Record intact</span>
+    <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-1 border-y border-ink py-3 font-ledger text-sm">
+      <span className="font-bold text-leaf">✓ Record intact</span>
       <span className="text-muted">
-        {i.entries} entries, each sealed to the one before
-        {i.lastSeal ? ` · last daily seal ${fmt(i.lastSeal.at)}${i.lastSeal.sentTo ? " (emailed)" : ""}` : " · not sealed yet"}
-        {i.unsealed > 0 && i.lastSeal ? ` · ${i.unsealed} since` : ""}
+        <Fig className="text-ink">{i.entries}</Fig> entries, each sealed to the one before
+        {i.lastSeal ? (
+          <>
+            {" · last daily seal "}
+            <Fig className="text-ink">{fmt(i.lastSeal.at)}</Fig>
+            {i.lastSeal.sentTo ? " (emailed)" : ""}
+          </>
+        ) : (
+          " · not sealed yet"
+        )}
+        {i.unsealed > 0 && i.lastSeal ? (
+          <>
+            {" · "}
+            <Fig className="text-ink">{i.unsealed}</Fig>
+            {" since"}
+          </>
+        ) : (
+          ""
+        )}
       </span>
     </div>
   );
@@ -421,7 +460,7 @@ function PersonRecord({
   return (
     <div className="space-y-5">
       {p.separated && (
-        <p className="rounded-xl bg-sunken px-4 py-3 text-sm">
+        <p className="bg-sunken px-4 py-3 text-sm">
           Left ROP on {fmt(p.separated.effective)}: {p.separated.reason}
         </p>
       )}
@@ -429,12 +468,19 @@ function PersonRecord({
         .filter((g) => p.groups.includes(g))
         .map((g) => (
           <section key={g}>
-            <SectionLabel>{GROUP_LABEL[g]}</SectionLabel>
-            <dl className="mt-2 divide-y divide-line rounded-2xl border border-line bg-surface px-4">
+            <SectionHead className="">{GROUP_LABEL[g]}</SectionHead>
+            {/* A detail under a rule: label and value on ruled lines, figures in mono. */}
+            <dl className="mt-3 divide-y divide-line border-y border-ink font-ledger">
               {fieldsIn(g).map((k) => (
-                <div key={k} className="grid grid-cols-[10rem_1fr] gap-3 py-2 text-sm">
+                <div key={k} className="grid grid-cols-[10rem_1fr] gap-3 px-3 py-2 text-sm">
                   <dt className="text-muted">{FIELDS[k].label}</dt>
-                  <dd className="min-w-0 tabular-nums">{show(k, p.fields[k], view.names, FIELDS[k].type === "money" ? p.fields.currency : undefined)}</dd>
+                  <dd className="min-w-0 tabular-nums">
+                    {isFigure(k) ? (
+                      <Fig className="text-start">{show(k, p.fields[k], view.names, FIELDS[k].type === "money" ? p.fields.currency : undefined)}</Fig>
+                    ) : (
+                      show(k, p.fields[k], view.names, FIELDS[k].type === "money" ? p.fields.currency : undefined)
+                    )}
+                  </dd>
                 </div>
               ))}
             </dl>
@@ -442,11 +488,11 @@ function PersonRecord({
         ))}
       {p.upcoming.length > 0 && (
         <section>
-          <SectionLabel>Approved, starting later</SectionLabel>
-          <ul className="mt-2 space-y-1 text-sm">
+          <SectionHead className="">Approved, starting later</SectionHead>
+          <ul className="mt-3 divide-y divide-line border-y border-ink text-sm">
             {p.upcoming.map((u) => (
-              <li key={u.proposal}>
-                From {fmt(u.effective)}: {Object.entries(u.fields).map(([k, val]) => `${FIELDS[k as FieldKey].label} ${show(k as FieldKey, val, view.names, p.fields.currency)}`).join(", ")}
+              <li key={u.proposal} className="px-3 py-2">
+                From <Fig>{fmt(u.effective)}</Fig>: {Object.entries(u.fields).map(([k, val]) => `${FIELDS[k as FieldKey].label} ${show(k as FieldKey, val, view.names, p.fields.currency)}`).join(", ")}
               </li>
             ))}
           </ul>
@@ -454,10 +500,10 @@ function PersonRecord({
       )}
       {related.length > 0 && view.seesAll && (
         <section>
-          <SectionLabel>Related parties</SectionLabel>
-          <ul className="mt-2 text-sm">
+          <SectionHead className="">Related parties</SectionHead>
+          <ul className="mt-3 divide-y divide-line border-y border-ink text-sm">
             {related.map((r) => (
-              <li key={r.n}>
+              <li key={r.n} className="px-3 py-2">
                 {view.names[r.a === p.id ? r.b : r.a] ?? (r.a === p.id ? r.b : r.a)} ({r.relation}), declared by {view.names[r.by] ?? r.by}
               </li>
             ))}
@@ -478,41 +524,52 @@ function PersonRecord({
       </div>
       {history.length > 0 && (
         <section>
-          <SectionLabel>History</SectionLabel>
-          <ul className="mt-2 space-y-2">
+          <SectionHead className="">History</SectionHead>
+          <LedgerTable cols={HISTORY_COLS} head={["#", "Change"]} label="History">
             {history.map((h) => (
-              <li key={h.id} className="rounded-xl border border-line bg-surface px-3 py-2 text-sm">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium">
-                    #{h.id} {KIND_LABEL[h.kind]}
-                  </span>
-                  <StatusPill p={h} />
-                  <span className="text-muted">from {fmt(h.effective)}</span>
-                  {onCorrect && h.status === "approved" && (h.type === "update" || h.type === "hire") && (
-                    <button type="button" onClick={() => onCorrect(h.id)} className="ms-auto text-sm font-semibold text-forest hover:underline">
-                      Correct
-                    </button>
-                  )}
+              <LedgerRow key={h.id} cols={HISTORY_COLS} className="text-sm">
+                <Fig className="text-start" tone="muted">
+                  #{h.id}
+                </Fig>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-bold">{KIND_LABEL[h.kind]}</span>
+                    <StatusPill p={h} />
+                    <span className="text-muted">
+                      from <Fig>{fmt(h.effective)}</Fig>
+                    </span>
+                    {onCorrect && h.status === "approved" && (h.type === "update" || h.type === "hire") && (
+                      <button type="button" onClick={() => onCorrect(h.id)} className="ms-auto min-h-11 px-2 text-sm font-semibold text-forest hover:underline">
+                        Correct
+                      </button>
+                    )}
+                  </div>
+                  <Diff p={h} names={view.names} currency={p.fields.currency} />
+                  <p className="mt-1 text-muted">
+                    {h.reason} · proposed by {view.names[h.by] ?? h.by}
+                    {h.signatures.length > 0 && `, signed by ${h.signatures.map((s) => `${view.names[s.by] ?? s.by} (${ROLE_LABEL[s.as]})`).join(", ")}`}
+                  </p>
                 </div>
-                <Diff p={h} names={view.names} currency={p.fields.currency} />
-                <p className="mt-1 text-muted">
-                  {h.reason} · proposed by {view.names[h.by] ?? h.by}
-                  {h.signatures.length > 0 && `, signed by ${h.signatures.map((s) => `${view.names[s.by] ?? s.by} (${ROLE_LABEL[s.as]})`).join(", ")}`}
-                </p>
-              </li>
+              </LedgerRow>
             ))}
-          </ul>
+          </LedgerTable>
         </section>
       )}
     </div>
   );
 }
 
+function statusOf(p: ProposalView): { tone: "forest" | "clay" | "muted" | "ochre"; label: string } {
+  if (p.status === "approved") return { tone: "forest", label: "Approved" };
+  if (p.status === "rejected") return { tone: "clay", label: "Sent back" };
+  if (p.status === "withdrawn") return { tone: "muted", label: "Withdrawn" };
+  return { tone: "ochre", label: "Waiting" };
+}
+
+/** In a dense list (a person's history), a pill. */
 function StatusPill({ p }: { p: ProposalView }) {
-  if (p.status === "approved") return <Status tone="forest">Approved</Status>;
-  if (p.status === "rejected") return <Status tone="clay">Sent back</Status>;
-  if (p.status === "withdrawn") return <Status tone="muted">Withdrawn</Status>;
-  return <Status tone="ochre">Waiting</Status>;
+  const s = statusOf(p);
+  return <Status tone={s.tone}>{s.label}</Status>;
 }
 
 function Diff({ p, names, currency }: { p: ProposalView; names: Record<string, string>; currency?: Value }) {
@@ -540,7 +597,7 @@ function Diff({ p, names, currency }: { p: ProposalView; names: Record<string, s
 
 /* ---------------- A proposed change ---------------- */
 
-function ProposalCard({ p, view, fmt, act, onDone }: { p: ProposalView; view: HrView; fmt: (iso: string) => string; act: (a: HrAction) => Promise<void>; onDone: (s: string) => void }) {
+function ProposalCard({ p, view, fmt, act, onDone, first }: { p: ProposalView; view: HrView; fmt: (iso: string) => string; act: (a: HrAction) => Promise<void>; onDone: (s: string) => void; first?: boolean }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [back, setBack] = useState<string | null>(null);
@@ -560,112 +617,116 @@ function ProposalCard({ p, view, fmt, act, onDone }: { p: ProposalView; view: Hr
   // Fields that only some kinds of change carry.
   const extra = p as ProposalView & { other?: string; rules?: RulesInput; month?: string; group?: string; lines?: unknown[]; leave?: string; hours?: number };
   return (
-    <article className="rounded-2xl border border-line bg-surface p-4 sm:p-5">
-      <div className="flex flex-wrap items-center gap-2">
-        <StatusPill p={p} />
-        <span className="text-xs text-muted">
-          #{p.id} · proposed by {view.names[p.by] ?? p.by}, {fmt(p.at)}
-        </span>
-      </div>
-      <h3 className="mt-2 text-lg font-semibold">
-        {KIND_LABEL[p.kind]}: {who}
-      </h3>
-      <p className="text-sm text-muted">Takes effect {fmt(p.effective)}</p>
-      {p.type === "separate" && <p className="mt-2 text-sm">Leaving ROP.</p>}
-      {extra.other && <p className="mt-2 text-sm">Remove the link between {who} and {view.names[extra.other] ?? extra.other}.</p>}
-      {extra.leave && typeof extra.hours === "number" && (
-        <p className="mt-2 text-sm">
-          {extra.hours > 0 ? "Add" : "Take away"} {Math.abs(extra.hours / 8)} days of {extra.leave === "vacation" ? "annual" : extra.leave} leave.
+    <Sheet className="" tone={first ? "gold" : undefined}>
+      <article className="font-ledger">
+        <div className="flex flex-wrap items-center gap-2">
+          <StatusBlock tone={statusOf(p).tone}>{statusOf(p).label}</StatusBlock>
+          <span className="text-xs text-muted">
+            <Fig className="text-xs">#{p.id}</Fig> · proposed by {view.names[p.by] ?? p.by}, <Fig className="text-xs">{fmt(p.at)}</Fig>
+          </span>
+        </div>
+        <h3 className="mt-2 text-xl font-bold leading-tight">
+          {KIND_LABEL[p.kind]}: {who}
+        </h3>
+        <p className="text-sm text-muted">
+          Takes effect <Fig>{fmt(p.effective)}</Fig>
         </p>
-      )}
-      {extra.rules && <RulesView rules={fullRules(extra.rules)} names={view.names} compact />}
-      {extra.month && extra.group && (
-        <p className="mt-2 text-sm">
-          {extra.group} payroll for {extra.month}
-          {extra.lines ? `, ${extra.lines.length} people` : ""}.{" "}
-          <a href={`/payroll?month=${extra.month}&group=${encodeURIComponent(extra.group)}`} className="font-semibold text-forest hover:underline">
-            Open the register
-          </a>
+        {p.type === "separate" && <p className="mt-2 text-sm">Leaving ROP.</p>}
+        {extra.other && <p className="mt-2 text-sm">Remove the link between {who} and {view.names[extra.other] ?? extra.other}.</p>}
+        {extra.leave && typeof extra.hours === "number" && (
+          <p className="mt-2 text-sm">
+            {extra.hours > 0 ? "Add" : "Take away"} {Math.abs(extra.hours / 8)} days of {extra.leave === "vacation" ? "annual" : extra.leave} leave.
+          </p>
+        )}
+        {extra.rules && <RulesView rules={fullRules(extra.rules)} names={view.names} compact />}
+        {extra.month && extra.group && (
+          <p className="mt-2 text-sm">
+            {extra.group} payroll for {extra.month}
+            {extra.lines ? `, ${extra.lines.length} people` : ""}.{" "}
+            <a href={`/payroll?month=${extra.month}&group=${encodeURIComponent(extra.group)}`} className="font-semibold text-forest hover:underline">
+              Open the register
+            </a>
+          </p>
+        )}
+        <Diff p={p} names={view.names} currency={view.people.find((x) => x.id === p.subject)?.fields.currency} />
+        <p className="mt-3 text-sm">
+          <span className="text-muted">Reason: </span>
+          {p.reason}
         </p>
-      )}
-      <Diff p={p} names={view.names} currency={view.people.find((x) => x.id === p.subject)?.fields.currency} />
-      <p className="mt-3 text-sm">
-        <span className="text-muted">Reason: </span>
-        {p.reason}
-      </p>
-      {p.warnings.length > 0 && (
-        <ul className="mt-3 space-y-1 rounded-xl bg-ochre-soft px-3 py-2 text-sm text-warn">
-          {p.warnings.map((w) => (
-            <li key={w}>⚠ {w}</li>
-          ))}
-        </ul>
-      )}
-      <ol className="mt-3 flex flex-wrap gap-2 text-xs">
-        {p.roles.map((r, i) => {
-          const s = p.signatures[i];
-          const isNext = p.status === "pending" && i === p.signatures.length;
-          return (
-            <li key={i} className={`rounded-full border px-3 py-1 ${s ? "border-forest text-leaf" : isNext ? "border-ochre text-warn" : "border-line text-muted"}`}>
-              {i + 1}. {ROLE_LABEL[r]}
-              {s ? `: ${view.names[s.by] ?? s.by}${s.as !== r ? ` for the ${ROLE_LABEL[s.as]}` : ""}, ${fmt(s.at)}` : isNext && p.next?.fellBack ? ": falls to the Board (conflict)" : isNext ? ": waiting" : ""}
-            </li>
-          );
-        })}
-      </ol>
-      {p.status === "pending" && p.next && view.seesAll && (
-        <p className="mt-2 text-xs text-muted">
-          Can sign now: {p.next.people.length ? p.next.people.map((x) => view.names[x] ?? x).join(", ") : "nobody: everyone holding this role has a conflict. Change the rules to add someone."}
-          {p.next.blocked.length > 0 && ` · Cannot: ${p.next.blocked.map((b) => `${view.names[b.id] ?? b.id} (${b.why})`).join(", ")}`}
-        </p>
-      )}
-      {p.closedBy?.note && (
-        <p className="mt-2 text-sm text-clay">
-          Sent back by {view.names[p.closedBy.by] ?? p.closedBy.by}: {p.closedBy.note}
-        </p>
-      )}
-      {p.cannotSign && <p className="mt-2 text-sm text-muted">You hold this role but cannot sign: {p.cannotSign}.</p>}
-      {error && (
-        <p role="alert" className="mt-2 text-sm text-clay">
-          {error}
-        </p>
-      )}
-      {(p.canSign || p.canWithdraw) && back === null && (
-        <div className="mt-4 flex flex-wrap gap-2">
-          {p.canSign && (
-            <>
-              <button type="button" disabled={busy} className={primaryBtn} onClick={() => run({ action: "approve", proposal: p.id }, `Signed #${p.id}.`)}>
-                Approve as {ROLE_LABEL[p.next?.fellBack ? "board" : p.next!.role]}
+        {p.warnings.length > 0 && (
+          <ul className="mt-3 space-y-1 bg-ochre-soft px-3 py-2 text-sm text-warn">
+            {p.warnings.map((w) => (
+              <li key={w}>⚠ {w}</li>
+            ))}
+          </ul>
+        )}
+        <ol className="mt-3 flex flex-wrap gap-2 text-xs">
+          {p.roles.map((r, i) => {
+            const s = p.signatures[i];
+            const isNext = p.status === "pending" && i === p.signatures.length;
+            return (
+              <li key={i} className={`border px-3 py-1 ${s ? "border-forest text-leaf" : isNext ? "border-2 border-ochre font-bold text-warn" : "border-line text-muted"}`}>
+                {i + 1}. {ROLE_LABEL[r]}
+                {s ? `: ${view.names[s.by] ?? s.by}${s.as !== r ? ` for the ${ROLE_LABEL[s.as]}` : ""}, ${fmt(s.at)}` : isNext && p.next?.fellBack ? ": falls to the Board (conflict)" : isNext ? ": waiting" : ""}
+              </li>
+            );
+          })}
+        </ol>
+        {p.status === "pending" && p.next && view.seesAll && (
+          <p className="mt-2 text-xs text-muted">
+            Can sign now: {p.next.people.length ? p.next.people.map((x) => view.names[x] ?? x).join(", ") : "nobody: everyone holding this role has a conflict. Change the rules to add someone."}
+            {p.next.blocked.length > 0 && ` · Cannot: ${p.next.blocked.map((b) => `${view.names[b.id] ?? b.id} (${b.why})`).join(", ")}`}
+          </p>
+        )}
+        {p.closedBy?.note && (
+          <p className="mt-2 text-sm text-clay">
+            Sent back by {view.names[p.closedBy.by] ?? p.closedBy.by}: {p.closedBy.note}
+          </p>
+        )}
+        {p.cannotSign && <p className="mt-2 text-sm text-muted">You hold this role but cannot sign: {p.cannotSign}.</p>}
+        {error && (
+          <p role="alert" className="mt-2 text-sm text-clay">
+            {error}
+          </p>
+        )}
+        {(p.canSign || p.canWithdraw) && back === null && (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {p.canSign && (
+              <>
+                <button type="button" disabled={busy} className={primaryBtn} onClick={() => run({ action: "approve", proposal: p.id }, `Signed #${p.id}.`)}>
+                  Approve as {ROLE_LABEL[p.next?.fellBack ? "board" : p.next!.role]}
+                </button>
+                <button type="button" disabled={busy} className={quietBtn} onClick={() => setBack("")}>
+                  Send back
+                </button>
+              </>
+            )}
+            {p.canWithdraw && (
+              <button type="button" disabled={busy} className={quietBtn} onClick={() => void askConfirm({ message: "Withdraw this proposal? It stays on the record as withdrawn and nothing in it takes effect.", confirm: "Withdraw proposal" }).then((ok) => (ok ? run({ action: "withdraw", proposal: p.id }, `Withdrew #${p.id}.`) : undefined))}>
+                Withdraw
               </button>
-              <button type="button" disabled={busy} className={quietBtn} onClick={() => setBack("")}>
+            )}
+          </div>
+        )}
+        {back !== null && (
+          <div className="mt-4">
+            <label className="text-sm font-medium" htmlFor={`back-${p.id}`}>
+              Why are you sending it back?
+            </label>
+            <textarea id={`back-${p.id}`} value={back} onChange={(e) => setBack(e.target.value)} rows={3} className="mt-1 w-full border border-line bg-paper px-3 py-2 text-base" />
+            <div className="mt-2 flex gap-2">
+              <button type="button" disabled={busy || back.trim().length < 3} className={dangerBtn} onClick={() => run({ action: "reject", proposal: p.id, note: back }, `Sent back #${p.id}.`).then(() => setBack(null))}>
                 Send back
               </button>
-            </>
-          )}
-          {p.canWithdraw && (
-            <button type="button" disabled={busy} className={quietBtn} onClick={() => void askConfirm({ message: "Withdraw this proposal? It stays on the record as withdrawn and nothing in it takes effect.", confirm: "Withdraw proposal" }).then((ok) => (ok ? run({ action: "withdraw", proposal: p.id }, `Withdrew #${p.id}.`) : undefined))}>
-              Withdraw
-            </button>
-          )}
-        </div>
-      )}
-      {back !== null && (
-        <div className="mt-4">
-          <label className="text-sm font-medium" htmlFor={`back-${p.id}`}>
-            Why are you sending it back?
-          </label>
-          <textarea id={`back-${p.id}`} value={back} onChange={(e) => setBack(e.target.value)} rows={3} className="mt-1 w-full rounded-xl border border-line bg-paper px-3 py-2 text-base" />
-          <div className="mt-2 flex gap-2">
-            <button type="button" disabled={busy || back.trim().length < 3} className={dangerBtn} onClick={() => run({ action: "reject", proposal: p.id, note: back }, `Sent back #${p.id}.`).then(() => setBack(null))}>
-              Send back
-            </button>
-            <button type="button" className={quietBtn} onClick={() => setBack(null)}>
-              Cancel
-            </button>
+              <button type="button" className={quietBtn} onClick={() => setBack(null)}>
+                Cancel
+              </button>
+            </div>
+            {back.trim().length < 3 && <p className="mt-1 text-xs text-muted">Write a few words on what needs fixing to send it back.</p>}
           </div>
-          {back.trim().length < 3 && <p className="mt-1 text-xs text-muted">Write a few words on what needs fixing to send it back.</p>}
-        </div>
-      )}
-    </article>
+        )}
+      </article>
+    </Sheet>
   );
 }
 
@@ -707,16 +768,16 @@ function ChangeForm({ state, view, onClose, submit }: { state: FormState; view: 
   return (
     <Modal title={title} onClose={onClose}>
       <div className="space-y-5">
-        {corrected && <p className="rounded-xl bg-sunken px-3 py-2 text-sm">A correction is a new entry. Change #{corrected.id} stays in the history, marked as corrected.</p>}
+        {corrected && <p className="bg-sunken px-3 py-2 text-sm">A correction is a new entry. Change #{corrected.id} stays in the history, marked as corrected.</p>}
         {first && (
-          <div className="grid gap-3 rounded-xl bg-mist p-3 sm:grid-cols-2">
+          <Sheet tone="gold" className="grid gap-3 sm:grid-cols-2">
             <FieldInput k={first} value={first in values ? values[first] : (person?.fields[first] ?? null)} directory={view.directory} onChange={(val) => setValues((s) => ({ ...s, [first]: val }))} />
-          </div>
+          </Sheet>
         )}
         {state.type !== "separate" &&
           groups.map((g) => (
             <fieldset key={g}>
-              <legend className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">{GROUP_LABEL[g]}</legend>
+              <legend className="font-mono text-xs uppercase tracking-[0.12em] text-muted">{GROUP_LABEL[g]}</legend>
               <div className="mt-2 grid gap-3 sm:grid-cols-2">
                 {fieldsIn(g).filter((k) => k !== first).map((k) => (
                   <FieldInput key={k} k={k} value={k in values ? values[k] : (person?.fields[k] ?? null)} directory={view.directory} required={state.type === "hire" && HIRE_REQUIRED.includes(k)} onChange={(val) => setValues((s) => ({ ...s, [k]: val }))} />
@@ -727,13 +788,13 @@ function ChangeForm({ state, view, onClose, submit }: { state: FormState; view: 
         {state.type !== "hire" && (
           <label className="block text-sm">
             <span className="font-medium">{state.type === "separate" ? "Last day" : "Takes effect"}</span>
-            <input type="date" value={effective} onChange={(e) => setEffective(e.target.value)} className="mt-1 block w-full rounded-xl border border-line bg-paper px-3 py-2.5 text-base sm:w-56" />
+            <input type="date" value={effective} onChange={(e) => setEffective(e.target.value)} className="mt-1 block min-h-11 w-full border border-line bg-paper px-3 py-2.5 text-base sm:w-56" />
             {effective < today() && <span className="mt-1 block text-warn">Backdated: the approvers will see this.</span>}
           </label>
         )}
         <label className="block text-sm">
           <span className="font-medium">Reason (required, kept forever)</span>
-          <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} className="mt-1 w-full rounded-xl border border-line bg-paper px-3 py-2 text-base" />
+          <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} className="mt-1 w-full border border-line bg-paper px-3 py-2 text-base" />
         </label>
         {error && (
           <p role="alert" className="text-sm text-clay">
@@ -758,7 +819,7 @@ function ChangeForm({ state, view, onClose, submit }: { state: FormState; view: 
 
 function FieldInput({ k, value, onChange, directory, required }: { k: FieldKey; value: Value | undefined; onChange: (v: Value) => void; directory: { id: string; name: string }[]; required?: boolean }) {
   const f = FIELDS[k];
-  const cls = "mt-1 block w-full rounded-xl border border-line bg-paper px-3 py-2.5 text-base";
+  const cls = "mt-1 block min-h-11 w-full border border-line bg-paper px-3 py-2.5 text-base";
   const label = (
     <span className="font-medium">
       {f.label}
@@ -798,21 +859,31 @@ function FieldInput({ k, value, onChange, directory, required }: { k: FieldKey; 
 
 function Relations({ view, onDeclare, fmt }: { view: HrView; onDeclare: () => void; fmt: (iso: string) => string }) {
   return (
-    <section className="rounded-2xl border border-line bg-surface p-4">
-      <SectionLabel>Related parties</SectionLabel>
-      <p className="mt-1 text-sm text-muted">Family members and other close relations. Nobody can sign a change to the record of someone they are related to. Declaring takes effect at once; removing a link needs approval.</p>
+    <section>
+      <SectionHead
+        aside={
+          <button type="button" className={quietBtn} onClick={onDeclare}>
+            Declare a related person
+          </button>
+        }
+      >
+        Related parties
+      </SectionHead>
+      <p className="mt-1 max-w-3xl text-sm text-muted">Family members and other close relations. Nobody can sign a change to the record of someone they are related to. Declaring takes effect at once; removing a link needs approval.</p>
       {view.relations.length > 0 && (
-        <ul className="mt-3 space-y-1 text-sm">
+        <LedgerTable cols={REL_COLS} head={["Related", "Declared"]} label="Related parties">
           {view.relations.map((r) => (
-            <li key={r.n}>
-              {view.names[r.a] ?? r.a} and {view.names[r.b] ?? r.b}: {r.relation} <span className="text-muted">(declared by {view.names[r.by] ?? r.by}, {fmt(r.at)})</span>
-            </li>
+            <LedgerRow key={r.n} cols={REL_COLS} className="text-sm">
+              <span className="min-w-0">
+                {view.names[r.a] ?? r.a} and {view.names[r.b] ?? r.b}: {r.relation} <span className="text-muted">(declared by {view.names[r.by] ?? r.by})</span>
+              </span>
+              <Fig className="text-start" tone="muted">
+                {fmt(r.at)}
+              </Fig>
+            </LedgerRow>
           ))}
-        </ul>
+        </LedgerTable>
       )}
-      <button type="button" className={`${quietBtn} mt-3`} onClick={onDeclare}>
-        Declare a related person
-      </button>
     </section>
   );
 }
@@ -824,7 +895,7 @@ function DeclareForm({ view, onClose, submit }: { view: HrView; onClose: () => v
   const [relation, setRelation] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const cls = "mt-1 block w-full rounded-xl border border-line bg-paper px-3 py-2.5 text-base";
+  const cls = "mt-1 block min-h-11 w-full border border-line bg-paper px-3 py-2.5 text-base";
   return (
     <Modal title="Declare a related person" onClose={onClose}>
       <div className="space-y-4">
@@ -889,63 +960,67 @@ function DeclareForm({ view, onClose, submit }: { view: HrView; onClose: () => v
 
 function RulesView({ rules, names, onPropose, compact }: { rules: Rules; names: Record<string, string>; onPropose?: () => void; compact?: boolean }) {
   return (
-    <section className={compact ? "mt-3" : "mt-6 space-y-6"}>
+    <section className={compact ? "mt-3" : "mt-6"}>
       {!compact && (
         <>
-          <p className="max-w-2xl text-sm text-muted">
+          <p className="max-w-3xl text-sm text-muted">
             Every signature in the app needs a type of role, not a title. This table says who in this organization holds each type. Whatever it says, nobody signs anything about themselves, a related person or their own supervisor, or anything they
             proposed; a step whose holders all have a conflict falls to the board. Changing this table needs the executive head and the board.
           </p>
-          <div className="space-y-3">
-            {HR_ROLES.map((r) => (
-              <article key={r} className="rounded-2xl border border-line bg-surface p-4">
-                <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <h3 className="font-semibold">{ROLE_LABEL[r]}</h3>
-                  <span className="text-sm">{rules.holders[r].map((x) => names[x] ?? x).join(", ") || <span className="text-clay">Nobody named yet</span>}</span>
-                </div>
-                <p className="mt-1 text-sm text-muted">{ROLE_HELP[r]}</p>
-                {SIGNATURES.some((g) => g.by.includes(r)) && (
-                  <ul className="mt-2 list-disc ps-5 text-sm">
-                    {SIGNATURES.filter((g) => g.by.includes(r)).map((g) => (
-                      <li key={g.area + g.what}>
-                        <span className="text-muted">{g.area}:</span> {g.what}
-                        {g.by.length > 1 && <span className="text-muted"> (with {g.by.filter((x) => x !== r).map((x) => SIGNER_LABEL[x].toLowerCase()).join(", ")})</span>}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </article>
-            ))}
+          <SectionHead
+            aside={
+              onPropose && (
+                <button type="button" className={quietBtn} onClick={onPropose}>
+                  Propose changes to the authority table
+                </button>
+              )
+            }
+          >
+            Who holds each role
+          </SectionHead>
+          <div className="overflow-x-auto">
+            <LedgerTable cols={ROLE_COLS} head={["Role", "Holders and what they sign"]} label="Who holds each role" className="mt-3 min-w-[36rem]">
+              {HR_ROLES.map((r) => (
+                <LedgerRow key={r} cols={ROLE_COLS} className="text-sm">
+                  <span className="font-bold">{ROLE_LABEL[r]}</span>
+                  <div className="min-w-0">
+                    <p>{rules.holders[r].map((x) => names[x] ?? x).join(", ") || <span className="text-clay">Nobody named yet</span>}</p>
+                    <p className="mt-1 text-muted">{ROLE_HELP[r]}</p>
+                    {SIGNATURES.some((g) => g.by.includes(r)) && (
+                      <ul className="mt-2 list-disc ps-5">
+                        {SIGNATURES.filter((g) => g.by.includes(r)).map((g) => (
+                          <li key={g.area + g.what}>
+                            <span className="text-muted">{g.area}:</span> {g.what}
+                            {g.by.length > 1 && <span className="text-muted"> (with {g.by.filter((x) => x !== r).map((x) => SIGNER_LABEL[x].toLowerCase()).join(", ")})</span>}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </LedgerRow>
+              ))}
+            </LedgerTable>
           </div>
-          <SectionLabel>Steps for each kind of HR change</SectionLabel>
+          <SectionHead>Steps for each kind of HR change</SectionHead>
         </>
       )}
-      <table className="w-full text-sm">
-        <tbody className="divide-y divide-line">
-          {CHANGE_KINDS.map((k) => (
-            <tr key={k}>
-              <td className="py-1.5 pe-3 text-muted">{KIND_LABEL[k]}</td>
-              <td className="py-1.5">HR proposes → {rules.steps[k].map((r) => ROLE_LABEL[r]).join(" → ")}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <LedgerTable cols={STEP_COLS} head={["Change", "Steps"]} label="Steps for each kind of HR change">
+        {CHANGE_KINDS.map((k) => (
+          <LedgerRow key={k} cols={STEP_COLS} className="text-sm">
+            <span className="text-muted">{KIND_LABEL[k]}</span>
+            <span>HR proposes → {rules.steps[k].map((r) => ROLE_LABEL[r]).join(" → ")}</span>
+          </LedgerRow>
+        ))}
+      </LedgerTable>
       {compact && (
-        <table className="w-full text-sm">
-          <tbody className="divide-y divide-line">
-            {HR_ROLES.map((r) => (
-              <tr key={r}>
-                <td className="w-40 py-1.5 pe-3 text-muted">{ROLE_LABEL[r]}</td>
-                <td className="py-1.5">{rules.holders[r].map((x) => names[x] ?? x).join(", ") || "—"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-      {onPropose && (
-        <button type="button" className={quietBtn} onClick={onPropose}>
-          Propose changes to the authority table
-        </button>
+        <LedgerTable cols={STEP_COLS} head={["Role", "Held by"]} label="Role holders">
+          {HR_ROLES.map((r) => (
+            <LedgerRow key={r} cols={STEP_COLS} className="text-sm">
+              <span className="text-muted">{ROLE_LABEL[r]}</span>
+              <span>{rules.holders[r].map((x) => names[x] ?? x).join(", ") || "—"}</span>
+            </LedgerRow>
+          ))}
+        </LedgerTable>
       )}
     </section>
   );
@@ -964,15 +1039,15 @@ function RulesForm({ rules, view, onClose, submit }: { rules: Rules; view: HrVie
       return { ...d, steps: { ...d.steps, [k]: steps.length ? steps : d.steps[k] } };
     });
   const toggle = (r: HrRole, id: string) => setDraft((d) => ({ ...d, holders: { ...d.holders, [r]: d.holders[r].includes(id) ? d.holders[r].filter((x) => x !== id) : [...d.holders[r], id] } }));
-  const sel = "rounded-lg border border-line bg-paper px-2 py-1.5 text-sm";
+  const sel = "min-h-11 border border-line bg-paper px-2 py-1.5 text-sm";
   return (
     <Modal title="Propose changes to the authority table" onClose={onClose}>
       <div className="space-y-5">
         <section>
-          <SectionLabel>Steps</SectionLabel>
-          <div className="mt-2 space-y-2">
+          <SectionHead className="">Steps</SectionHead>
+          <div className="mt-3 divide-y divide-line border-y border-ink">
             {CHANGE_KINDS.map((k) => (
-              <div key={k} className="flex flex-wrap items-center gap-2 text-sm">
+              <div key={k} className="flex flex-wrap items-center gap-2 py-2 text-sm">
                 <span className="w-56 text-muted">{KIND_LABEL[k]}</span>
                 {[...draft.steps[k], ""].slice(0, 4).map((r, i) => (
                   <select key={i} value={r} onChange={(e) => setStep(k, i, e.target.value as HrRole | "")} className={sel} aria-label={`${KIND_LABEL[k]} step ${i + 1}`}>
@@ -989,14 +1064,14 @@ function RulesForm({ rules, view, onClose, submit }: { rules: Rules; view: HrVie
           </div>
         </section>
         <section>
-          <SectionLabel>Role holders</SectionLabel>
-          <div className="mt-2 space-y-3">
+          <SectionHead className="">Role holders</SectionHead>
+          <div className="mt-3 divide-y divide-line border-y border-ink">
             {HR_ROLES.map((r) => (
-              <fieldset key={r}>
-                <legend className="text-sm font-medium">{ROLE_LABEL[r]}</legend>
-                <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+              <fieldset key={r} className="py-2">
+                <legend className="float-left w-full text-sm font-bold">{ROLE_LABEL[r]}</legend>
+                <div className="clear-left flex flex-wrap gap-x-4">
                   {view.directory.map((d) => (
-                    <label key={d.id} className="flex items-center gap-1.5 text-sm">
+                    <label key={d.id} className="flex min-h-11 items-center gap-1.5 text-sm">
                       <input type="checkbox" checked={draft.holders[r].includes(d.id)} onChange={() => toggle(r, d.id)} />
                       {d.name}
                     </label>
@@ -1007,14 +1082,14 @@ function RulesForm({ rules, view, onClose, submit }: { rules: Rules; view: HrVie
           </div>
         </section>
         <section>
-          <SectionLabel>Unused annual leave when someone leaves</SectionLabel>
+          <SectionHead className="">Unused annual leave when someone leaves</SectionHead>
           <p className="mt-1 text-xs text-muted">Follow the law and policy in force for each group, and say where it comes from. While a group is &ldquo;not decided&rdquo;, a leaver&rsquo;s final pay waits for HR.</p>
-          <div className="mt-2 space-y-2">
+          <div className="mt-3 divide-y divide-line border-y border-ink">
             {PAYOUT_GROUPS.map((g) => {
               const v = draft.leavePayout?.[g] ?? DEFAULT_PAYOUT[g];
               const put = (patch: Partial<typeof v>) => setDraft((d) => ({ ...d, leavePayout: { ...DEFAULT_PAYOUT, ...d.leavePayout, [g]: { ...v, ...patch } } }));
               return (
-                <div key={g} className="grid gap-2 text-sm sm:grid-cols-[11rem_9rem_7rem_1fr] sm:items-center">
+                <div key={g} className="grid gap-2 py-2 text-sm sm:grid-cols-[11rem_9rem_7rem_1fr] sm:items-center">
                   <span className="text-muted">{PAYOUT_GROUP_LABEL[g]}</span>
                   <select value={v.rule} onChange={(e) => put({ rule: e.target.value as typeof v.rule })} className={sel} aria-label={`${PAYOUT_GROUP_LABEL[g]}: payout`}>
                     <option value="pays">Paid out</option>
@@ -1039,7 +1114,7 @@ function RulesForm({ rules, view, onClose, submit }: { rules: Rules; view: HrVie
         </section>
         <label className="block text-sm">
           <span className="font-medium">Reason (required, kept forever)</span>
-          <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={2} className="mt-1 w-full rounded-xl border border-line bg-paper px-3 py-2 text-base" />
+          <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={2} className="mt-1 w-full border border-line bg-paper px-3 py-2 text-base" />
         </label>
         {error && (
           <p role="alert" className="text-sm text-clay">
@@ -1089,28 +1164,34 @@ function Ledger({ view, fmt, seal, reset, onDone }: { view: HrView; fmt: (iso: s
     }
   };
   return (
-    <section className="mt-6 space-y-6">
-      <p className="max-w-2xl text-sm text-muted">
+    <section className="mt-6">
+      <p className="max-w-3xl text-sm text-muted">
         Every entry, newest first. Each fingerprint is worked out from the entry and the fingerprint before it, so changing any entry changes every fingerprint after it. Once a day the latest fingerprint is
         sealed and emailed outside the app; if it ever differs from the email, the record was changed.
       </p>
-      <div className="flex flex-wrap gap-2">
-        <button type="button" disabled={busy} className={quietBtn} onClick={() => run(async () => { const r = await seal(); return r.sealed ? "Sealed." : (r.why ?? "Not sealed."); })}>
-          Seal now (lock today&rsquo;s fingerprint)
-        </button>
-        {reset && (
-          <button type="button" disabled={busy} className={quietBtn} onClick={() => void askConfirm({ message: "Restore the sample records? Every change made to the fictional people and pay since they were loaded is undone.", confirm: "Restore sample records", danger: true }).then((ok) => (ok ? run(async () => { await reset(); return "Sample records restored."; }) : undefined))}>
-            Reset sample records
-          </button>
-        )}
-      </div>
+      <SectionHead
+        aside={
+          <>
+            <button type="button" disabled={busy} className={quietBtn} onClick={() => run(async () => { const r = await seal(); return r.sealed ? "Sealed." : (r.why ?? "Not sealed."); })}>
+              Seal now (lock today&rsquo;s fingerprint)
+            </button>
+            {reset && (
+              <button type="button" disabled={busy} className={quietBtn} onClick={() => void askConfirm({ message: "Restore the sample records? Every change made to the fictional people and pay since they were loaded is undone.", confirm: "Restore sample records", danger: true }).then((ok) => (ok ? run(async () => { await reset(); return "Sample records restored."; }) : undefined))}>
+                Reset sample records
+              </button>
+            )}
+          </>
+        }
+      >
+        Entries
+      </SectionHead>
       {error && (
-        <p role="alert" className="text-sm text-clay">
+        <p role="alert" className="mt-3 text-sm text-clay">
           {error}
         </p>
       )}
       {view.ignored.length > 0 && (
-        <div className="rounded-2xl border border-clay bg-clay-soft p-4 text-sm text-clay">
+        <div className="mt-4 border-y border-clay bg-clay-soft px-4 py-3 text-sm text-clay">
           <p className="font-semibold">Entries that do not count</p>
           <p className="mt-1">Written to the record but not allowed by the rules, so they have no effect. Ask who wrote them and why.</p>
           <ul className="mt-2 list-disc ps-5">
@@ -1122,45 +1203,39 @@ function Ledger({ view, fmt, seal, reset, onDone }: { view: HrView; fmt: (iso: s
           </ul>
         </div>
       )}
-      <div className="overflow-x-auto rounded-2xl border border-line bg-surface">
-        <table className="w-full min-w-[36rem] text-sm">
-          <thead className="text-start text-xs text-muted">
-            <tr>
-              <th className="px-3 py-2 text-start font-medium">#</th>
-              <th className="px-3 py-2 text-start font-medium">When</th>
-              <th className="px-3 py-2 text-start font-medium">Who</th>
-              <th className="px-3 py-2 text-start font-medium">What</th>
-              <th className="px-3 py-2 text-start font-medium">Tamper check (fingerprint)</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-line">
-            {view.entries.map((e) => (
-              <tr key={e.n} className={ignored.has(e.n) ? "bg-clay-soft" : e.kind === "seal" ? "bg-mist" : ""}>
-                <td className="px-3 py-1.5 tabular-nums">{e.n}</td>
-                <td className="px-3 py-1.5 whitespace-nowrap">{new Date(e.at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}</td>
-                <td className="px-3 py-1.5">{view.names[e.actor] ?? e.actor}</td>
-                <td className="px-3 py-1.5">
-                  {KIND_TEXT[e.kind] ?? e.kind}
-                  {e.subject ? `: ${view.names[e.subject] ?? e.subject}` : ""}
-                </td>
-                <td className="px-3 py-1.5 font-mono text-xs text-muted" title={e.hash}>
+      <div className="overflow-x-auto">
+        <LedgerTable cols={ENTRY_COLS} head={[{ label: "#", end: true }, "When", "Who", "What", "Tamper check (fingerprint)"]} label="Full history" className="mt-3 min-w-[44rem]">
+          {view.entries.map((e) => (
+            <LedgerRow key={e.n} cols={ENTRY_COLS} className={`text-sm ${ignored.has(e.n) ? "bg-clay-soft" : e.kind === "seal" ? "bg-mist" : ""}`}>
+              <Fig>{e.n}</Fig>
+              <Fig className="whitespace-nowrap text-start">{new Date(e.at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}</Fig>
+              <span>{view.names[e.actor] ?? e.actor}</span>
+              <span>
+                {KIND_TEXT[e.kind] ?? e.kind}
+                {e.subject ? `: ${view.names[e.subject] ?? e.subject}` : ""}
+              </span>
+              <span title={e.hash}>
+                <Fig className="text-start text-xs" tone="muted">
                   {e.hash.slice(0, 12)}…
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                </Fig>
+              </span>
+            </LedgerRow>
+          ))}
+        </LedgerTable>
       </div>
       {view.seals.length > 0 && (
         <section>
-          <SectionLabel>Seals</SectionLabel>
-          <ul className="mt-2 space-y-1 text-sm">
+          <SectionHead>Seals</SectionHead>
+          <LedgerTable cols={SEAL_COLS} head={["Sealed", "Entries and fingerprint"]} label="Seals">
             {view.seals.map((s) => (
-              <li key={s.n}>
-                {fmt(s.at)}: entries 1 to {s.upTo}, <span className="font-mono text-xs">{s.hash}</span> {s.sentTo ? `· emailed to ${s.sentTo}` : "· not emailed: no seal address is set; ask your administrator"}
-              </li>
+              <LedgerRow key={s.n} cols={SEAL_COLS} className="text-sm">
+                <Fig className="text-start">{fmt(s.at)}</Fig>
+                <span className="min-w-0">
+                  entries 1 to <Fig>{s.upTo}</Fig>, <span className="break-all font-mono text-xs">{s.hash}</span> {s.sentTo ? `· emailed to ${s.sentTo}` : "· not emailed: no seal address is set; ask your administrator"}
+                </span>
+              </LedgerRow>
             ))}
-          </ul>
+          </LedgerTable>
         </section>
       )}
     </section>
@@ -1182,11 +1257,11 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
         aria-modal="true"
         aria-label={title}
         onClick={(e) => e.stopPropagation()}
-        className="max-h-[92vh] w-full overflow-y-auto bg-paper p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:max-w-2xl sm:rounded-2xl sm:border sm:border-line"
+        className="max-h-[92vh] w-full overflow-y-auto border-t-4 border-forest bg-paper p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] font-ledger sm:max-w-2xl"
       >
         <div className="flex items-start gap-3">
-          <h2 className="min-w-0 flex-1 font-display text-2xl leading-snug">{title}</h2>
-          <button type="button" onClick={onClose} aria-label="Close" className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-xl text-muted hover:bg-sunken">
+          <h2 className="min-w-0 flex-1 text-2xl font-bold leading-snug tracking-tight">{title}</h2>
+          <button type="button" onClick={onClose} aria-label="Close" className="grid h-11 w-11 shrink-0 place-items-center text-xl text-muted hover:bg-sunken">
             ×
           </button>
         </div>
@@ -1208,9 +1283,7 @@ function StartRecord({ view, admin, userId, onStarted }: { view: HrView; admin: 
   const [error, setError] = useState("");
   if (!admin)
     return (
-      <p className="mt-6 rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">
-        The HR record has not been started yet. An administrator starts it by naming who holds each approval role.
-      </p>
+      <Empty className="mt-6">The HR record has not been started yet. An administrator starts it by naming who holds each approval role.</Empty>
     );
   const toggle = (r: HrRole, id: string) => setHolders((h) => ({ ...h, [r]: (h[r] ?? []).includes(id) ? (h[r] ?? []).filter((x) => x !== id) : [...(h[r] ?? []), id] }));
   const name = (id: string) => view.names[id] ?? id;
@@ -1230,19 +1303,19 @@ function StartRecord({ view, admin, userId, onStarted }: { view: HrView; admin: 
     }
   };
   return (
-    <section className="mt-6 rounded-2xl border border-line bg-surface p-5">
-      <h2 className="font-display text-2xl">Start the HR record</h2>
-      <p className="mt-1 max-w-2xl text-sm text-muted">
+    <section>
+      <SectionHead>Start the HR record</SectionHead>
+      <p className="mt-1 max-w-3xl text-sm text-muted">
         Name who holds each approval role. This is the record&rsquo;s first entry{view.sample ? "" : ", and in this real book it can never be changed or deleted"}. After it, the table changes only through a proposal signed by the executive head and the board. Only people added under{" "}
         <a href="/settings/people" className="font-semibold text-forest hover:underline">
           People and roles
         </a>{" "}
         who have a sign-in email can be named.
       </p>
-      <div className="mt-4 divide-y divide-line">
+      <div className="mt-4 divide-y divide-line border-y border-ink">
         {HR_ROLES.map((r) => (
-          <div key={r} className="py-3">
-            <p className="text-sm font-semibold">
+          <div key={r} className="px-3 py-3">
+            <p className="text-sm font-bold">
               {ROLE_LABEL[r]}
               {(["ceo", "board", "hr"] as HrRole[]).includes(r) && <span className="ms-2 text-xs font-normal text-clay">required</span>}
             </p>
@@ -1251,7 +1324,7 @@ function StartRecord({ view, admin, userId, onStarted }: { view: HrView; admin: 
               {view.directory.filter((d) => !view.eligible || view.eligible.includes(d.id)).map((d) => {
                 const on = (holders[r] ?? []).includes(d.id);
                 return (
-                  <button key={d.id} type="button" aria-pressed={on} onClick={() => toggle(r, d.id)} className={`rounded-full border px-3 py-1 text-xs ${on ? "border-forest bg-mist font-semibold text-leaf" : "border-line text-muted hover:border-forest"}`}>
+                  <button key={d.id} type="button" aria-pressed={on} onClick={() => toggle(r, d.id)} className={`min-h-11 border px-3 text-sm ${on ? "border-2 border-forest bg-mist font-bold text-leaf" : "border-line text-muted hover:border-forest"}`}>
                     {d.name}
                   </button>
                 );
@@ -1264,7 +1337,7 @@ function StartRecord({ view, admin, userId, onStarted }: { view: HrView; admin: 
       {missing.length > 0 && <p className="mt-3 text-sm text-muted">Still needed: {missing.map((r) => ROLE_LABEL[r]).join(", ")}.</p>}
       <label className="mt-4 block max-w-sm text-sm">
         To confirm, type the book&rsquo;s name: <span className="font-mono">{view.book}</span>
-        <input className="mt-1 block w-full rounded-xl border border-line bg-paper px-3 py-2 text-base" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+        <input className="mt-1 block min-h-11 w-full border border-line bg-paper px-3 py-2 text-base" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
       </label>
       {error && (
         <p role="alert" className="mt-3 text-sm text-clay">
@@ -1302,54 +1375,64 @@ function BambooImport({ user, onDone }: { user: string; onDone: (msg: string) =>
   const ready = rows?.filter((r) => !r.skip && !r.errors.length) ?? [];
   const bad = rows?.filter((r) => !r.skip && r.errors.length) ?? [];
   return (
-    <section className="mt-3 rounded-2xl border border-line bg-surface p-4">
-      <p className="text-sm font-semibold">Move people from BambooHR</p>
-      <p className="mt-1 text-sm text-muted">
-        In BambooHR, run a report with First Name, Last Name, Job Title, Location, Employment Status, Hire Date, Reports To, Pay Rate, Pay Per, Mobile Phone and Contract End Date, and export it. Each active person becomes a new-person proposal that the finance head and the executive head approve as usual. Bank details, ID and leave balances are added after, through the normal changes.
-      </p>
-      <input type="file" accept=".csv,.xlsx" className="mt-3 block text-sm" onChange={(e) => e.target.files?.[0] && void read(e.target.files[0])} aria-label="BambooHR report" />
-      {err && <p className="mt-2 text-sm text-clay">{err}</p>}
-      {rows && (
-        <>
-          <p className="mt-3 text-sm">
-            {ready.length} ready, {bad.length} to fix in the report, {rows.filter((r) => r.skip).length} skipped (inactive).
-          </p>
-          <ul className="mt-2 max-h-72 divide-y divide-line overflow-auto rounded-xl border border-line text-sm">
-            {rows.map((r) => (
-              <li key={r.row} className={`px-3 py-2 ${r.skip ? "text-muted" : ""}`}>
-                <span className="font-semibold">{String(r.fields.name || `Row ${r.row}`)}</span> · {String(r.fields.title ?? "")} · {String(r.fields.office ?? "")}, {String(r.fields.employment ?? "")}
-                {r.fields.pay != null && ` · ${r.fields.currency} ${Number(r.fields.pay).toLocaleString("en-US")} per ${String(r.fields.payBasis).toLowerCase()}`}
-                {r.reportsTo && ` · reports to ${r.reportsTo}`}
-                {r.skip && <span className="block text-xs">{r.skip}</span>}
-                {r.errors.length > 0 && <span className="block text-xs text-clay">{r.errors.join("; ")}</span>}
-                {r.warnings.length > 0 && <span className="block text-xs text-warn">{r.warnings.join("; ")}</span>}
-              </li>
-            ))}
-          </ul>
-          <button
-            type="button"
-            className={`${primaryBtn} mt-3`}
-            disabled={busy || !ready.length}
-            onClick={async () => {
-              setBusy(true);
-              setErr("");
-              try {
-                const res = await fetch("/api/hr/import", { method: "POST", headers: { "Content-Type": "application/json", "x-demo-user": user }, body: JSON.stringify({ file, rows: ready.map((r) => ({ fields: r.fields, reportsTo: r.reportsTo })) }) });
-                const d = await res.json();
-                if (!res.ok) throw new Error(d.error ?? "Import failed.");
-                onDone(`${d.made.length} people proposed from BambooHR${d.skipped.length ? `; ${d.skipped.length} skipped (${d.skipped.map((x: { name: string; why: string }) => `${x.name}: ${x.why}`).slice(0, 3).join("; ")})` : ""}. They join the record once approved.`);
-              } catch (e) {
-                setErr(e instanceof Error ? e.message : String(e));
-              } finally {
-                setBusy(false);
-              }
-            }}
-          >
-            Propose {ready.length} people
-          </button>
-        </>
-      )}
-    </section>
+    <Sheet>
+      <section>
+        <p className="font-ledger text-lg font-bold">Move people from BambooHR</p>
+        <p className="mt-1 text-sm text-muted">
+          In BambooHR, run a report with First Name, Last Name, Job Title, Location, Employment Status, Hire Date, Reports To, Pay Rate, Pay Per, Mobile Phone and Contract End Date, and export it. Each active person becomes a new-person proposal that the finance head and the executive head approve as usual. Bank details, ID and leave balances are added after, through the normal changes.
+        </p>
+        <input type="file" accept=".csv,.xlsx" className="mt-3 block min-h-11 text-sm" onChange={(e) => e.target.files?.[0] && void read(e.target.files[0])} aria-label="BambooHR report" />
+        {err && <p className="mt-2 text-sm text-clay">{err}</p>}
+        {rows && (
+          <>
+            <p className="mt-3 text-sm">
+              <Fig>{ready.length}</Fig> ready, <Fig>{bad.length}</Fig> to fix in the report, <Fig>{rows.filter((r) => r.skip).length}</Fig> skipped (inactive).
+            </p>
+            <ul className="mt-2 max-h-72 divide-y divide-line overflow-auto border-y border-ink text-sm">
+              {rows.map((r) => (
+                <li key={r.row} className={`px-3 py-2 ${r.skip ? "text-muted" : ""}`}>
+                  <span className="font-semibold">{String(r.fields.name || `Row ${r.row}`)}</span> · {String(r.fields.title ?? "")} · {String(r.fields.office ?? "")}, {String(r.fields.employment ?? "")}
+                  {r.fields.pay != null && (
+                    <>
+                      {" · "}
+                      <Fig>
+                        {String(r.fields.currency)} {Number(r.fields.pay).toLocaleString("en-US")}
+                      </Fig>
+                      {` per ${String(r.fields.payBasis).toLowerCase()}`}
+                    </>
+                  )}
+                  {r.reportsTo && ` · reports to ${r.reportsTo}`}
+                  {r.skip && <span className="block text-xs">{r.skip}</span>}
+                  {r.errors.length > 0 && <span className="block text-xs text-clay">{r.errors.join("; ")}</span>}
+                  {r.warnings.length > 0 && <span className="block text-xs text-warn">{r.warnings.join("; ")}</span>}
+                </li>
+              ))}
+            </ul>
+            <button
+              type="button"
+              className={`${primaryBtn} mt-3`}
+              disabled={busy || !ready.length}
+              onClick={async () => {
+                setBusy(true);
+                setErr("");
+                try {
+                  const res = await fetch("/api/hr/import", { method: "POST", headers: { "Content-Type": "application/json", "x-demo-user": user }, body: JSON.stringify({ file, rows: ready.map((r) => ({ fields: r.fields, reportsTo: r.reportsTo })) }) });
+                  const d = await res.json();
+                  if (!res.ok) throw new Error(d.error ?? "Import failed.");
+                  onDone(`${d.made.length} people proposed from BambooHR${d.skipped.length ? `; ${d.skipped.length} skipped (${d.skipped.map((x: { name: string; why: string }) => `${x.name}: ${x.why}`).slice(0, 3).join("; ")})` : ""}. They join the record once approved.`);
+                } catch (e) {
+                  setErr(e instanceof Error ? e.message : String(e));
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              Propose {ready.length} people
+            </button>
+          </>
+        )}
+      </section>
+    </Sheet>
   );
 }
 
@@ -1368,24 +1451,22 @@ export function MyDetailsPage() {
     <div className="min-h-screen">
       <TopBar />
       <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-        <a href="/home" className="text-sm text-muted hover:text-ink">
-          ← Home
-        </a>
-        <h1 className="mt-2 font-display text-4xl tracking-tight">My details</h1>
-        <p className="mt-1 text-sm text-muted">Update your phone and emergency contact here; HR approves. For anything else, ask HR.</p>
-        <p className="mt-2 text-sm">
-          <a href="/training" className="font-semibold text-forest hover:underline">
-            My training log
-          </a>
-        </p>
-        {hr.error && <p className="mt-4 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">{hr.error}</p>}
+        <PageHead back={{ href: "/home", label: "Home" }} title="My details">
+          <p>Update your phone and emergency contact here; HR approves. For anything else, ask HR.</p>
+          <p className="mt-2">
+            <a href="/training" className="font-semibold text-forest hover:underline">
+              My training log
+            </a>
+          </p>
+        </PageHead>
+        {hr.error && <p className="mt-4 bg-clay-soft px-4 py-3 text-sm text-clay">{hr.error}</p>}
         {notice && (
-          <p role="status" className="mt-4 rounded-xl bg-mist px-4 py-3 text-sm text-leaf">
+          <p role="status" className="mt-4 bg-mist px-4 py-3 text-sm text-leaf">
             {notice}
           </p>
         )}
         {!v && !hr.error && <p className="mt-6 text-sm text-muted">Loading…</p>}
-        {v && !mine && <p className="mt-6 text-sm text-muted">You have no HR record yet. HR adds it when your contract starts.</p>}
+        {v && !mine && <Empty className="mt-6">You have no HR record yet. HR adds it when your contract starts.</Empty>}
         {v && mine && (
           <div className="mt-6">
             <PersonRecord p={mine} view={v} fmt={fmt} onChange={() => setForm({ type: "update", subject: mine.id, own: true })} />

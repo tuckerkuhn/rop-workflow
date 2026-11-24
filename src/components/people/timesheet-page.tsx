@@ -6,23 +6,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useT } from "@/components/app/i18n";
 import { localeOf, type MessageKey } from "@/lib/i18n";
 import { useRequireUser, useSession } from "@/components/app/session";
-import { Pill, SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn, StatusPill } from "@/components/workspace/ui";
-import {
-  ALLOWANCE_TYPES,
-  HOLIDAYS,
-  HOURS_PER_DAY,
-  LEAVE_TYPES,
-  USUAL_PLACE,
-  WORK_WEEK,
-  daysIn,
-  splitOf,
-  weekday,
-  type Allowance,
-  type Day,
-  type LeaveType,
-  type Sheet,
-  type TsAction,
-} from "@/lib/timesheet";
+import { Pill, SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn } from "@/components/workspace/ui";
+import { Empty, Fig, Figures, LedgerRow, LedgerTable, PageHead, SectionHead, Sheet as RuledSheet, StatusBlock } from "@/components/workspace/ledger";
+import { ALLOWANCE_TYPES, HOLIDAYS, HOURS_PER_DAY, LEAVE_TYPES, USUAL_PLACE, WORK_WEEK, daysIn, splitOf, weekday, type Allowance, type Day, type LeaveType, type Sheet, type TsAction } from "@/lib/timesheet";
 import type { TimesheetView } from "@/app/api/timesheets/route";
 
 /**
@@ -59,6 +45,10 @@ const writeDraft = (k: string, s: Sheet | null) => {
 };
 const dayHours = (d?: Day) => Object.values(d?.hours ?? {}).reduce((a, b) => a + b, 0);
 const fmtH = (h: number) => (Number.isInteger(h) ? String(h) : h.toFixed(1));
+/** Ruled-table columns: waiting sheets, the funding split, and everyone's month. */
+const WAIT_COLS = "minmax(0,1fr) minmax(0,11rem)";
+const SPLIT_COLS = "minmax(10rem,1fr) 6rem 6rem 6rem 6rem 6rem";
+const OVERVIEW_COLS = "minmax(0,1fr) minmax(0,9rem) minmax(0,10rem)";
 type T = (key: MessageKey, vars?: Record<string, string | number>) => string;
 
 /** The lib keeps English labels; the screen shows them through these keys. */
@@ -81,7 +71,7 @@ const SHORT: MessageKey[] = ["ts.wd.0", "ts.wd.1", "ts.wd.2", "ts.wd.3", "ts.wd.
 export function TimesheetPage() {
   const { user } = useRequireUser();
   const { ready } = useSession();
-  const { t, date } = useT();
+  const { t, tx, date } = useT();
   const [month, setMonth] = useState<string | null>(null);
   const [person, setPerson] = useState<string | null>(null);
   const [v, setV] = useState<TimesheetView | null>(null);
@@ -143,10 +133,12 @@ export function TimesheetPage() {
     setNotice("");
     if (next.month) setMonth(next.month);
     if (next.person) setPerson(next.person);
-    const q = new URLSearchParams({ month: next.month ?? m, ...(next.person ?? v?.person ? { person: (next.person ?? v?.person)! } : {}) });
+    const q = new URLSearchParams({ month: next.month ?? m, ...((next.person ?? v?.person) ? { person: (next.person ?? v?.person)! } : {}) });
     history.replaceState(null, "", `/timesheets?${q}`);
   };
   const subject = v?.people.find((p) => p.id === v.person);
+  // The one to look at first: the oldest month waiting, when there is more than one.
+  const oldest = v && v.waiting.length > 1 ? [...v.waiting].sort((a, b) => a.month.localeCompare(b.month) || a.n - b.n)[0] : undefined;
   const own = v?.person === v?.me;
   const mayEdit = !!v && (own || v.isHr);
 
@@ -154,67 +146,57 @@ export function TimesheetPage() {
     <div className="min-h-screen">
       <TopBar />
       <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className="font-display text-3xl tracking-tight">{t("ts.title")}</h1>
-            <p className="mt-1 max-w-2xl text-sm text-muted">{t("ts.intro")}</p>
-          </div>
-          {/* HR roles go back to People; everyone else came from Home. */}
-          {v?.seesAll ? (
-            <Link href="/people" className="text-sm font-semibold text-forest hover:underline">
-              {t("ts.people")}
-            </Link>
-          ) : (
-            <Link href="/home" className="text-sm font-semibold text-forest hover:underline">
-              ← {t("nav.home")}
-            </Link>
-          )}
-        </div>
+        {/* HR roles go back to People; everyone else came from Home. */}
+        <PageHead back={v?.seesAll ? { href: "/people", label: t("ts.people") } : { href: "/home", label: t("nav.home") }} title={t("ts.title")}>
+          {t("ts.intro")}
+        </PageHead>
 
         {error && (
-          <p role="alert" className="mt-4 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">
+          <p role="alert" className="mt-4 bg-clay-soft px-4 py-3 text-sm text-clay">
             {error}
           </p>
         )}
         {notice && (
-          <p role="status" className="mt-4 rounded-xl bg-mist px-4 py-3 text-sm text-leaf">
+          <p role="status" className="mt-4 bg-mist px-4 py-3 text-sm text-leaf">
             {notice}
           </p>
         )}
         {!v ? (
           !error && <p className="mt-10 text-sm text-muted">{t("ts.loading")}</p>
         ) : !v.person ? (
-          <p className="mt-8 rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">{t("ts.noRecord")}</p>
+          <Empty className="mt-8">{t("ts.noRecord")}</Empty>
         ) : (
           <>
             {v.waiting.length > 0 && (
-              <section className="mt-5 rounded-2xl border border-forest/40 bg-mist/60 p-4">
-                <p className="text-sm font-semibold">{t("ts.waitingForYou")}</p>
-                <ul className="mt-2 flex flex-wrap gap-2">
+              <section className="mt-6">
+                <SectionHead className="mt-0">{t("ts.waitingForYou")}</SectionHead>
+                <LedgerTable cols={WAIT_COLS} head={[tx("Person"), { label: tx("Month"), end: true }]} label={t("ts.waitingForYou")}>
                   {v.waiting.map((w) => (
-                    <li key={w.n}>
-                      <button type="button" onClick={() => go({ month: w.month, person: w.person })} className="rounded-full border border-line bg-paper px-3 py-1.5 text-sm hover:border-forest">
-                        {v.names[w.person] ?? w.person} · {monthName(w.month)}
-                        {w.revised ? ` · ${t("ts.revisedLower")}` : ""}
-                      </button>
-                    </li>
+                    <LedgerRow key={w.n} cols={WAIT_COLS} first={w.n === oldest?.n} onClick={() => go({ month: w.month, person: w.person })} className="text-sm">
+                      <span className="min-w-0 font-semibold">
+                        {v.names[w.person] ?? w.person}
+                        {w.revised ? <span className="font-normal text-muted"> · {t("ts.revisedLower")}</span> : ""}
+                      </span>
+                      <Fig>{monthName(w.month)}</Fig>
+                    </LedgerRow>
                   ))}
-                </ul>
+                </LedgerTable>
+                {oldest && <p className="mt-2 text-xs text-muted">{tx("Shaded: the oldest month waiting.")}</p>}
               </section>
             )}
 
-            <div className="mt-5 flex flex-wrap items-center gap-3">
-              <div className="flex items-center rounded-full border border-line bg-surface">
-                <button type="button" aria-label={t("ts.prevMonth")} onClick={() => go({ month: shiftMonth(m, -1) })} className="grid h-11 w-11 place-items-center rounded-full hover:bg-sunken">
+            <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-3 font-ledger">
+              <div className="flex items-center border-y border-ink">
+                <button type="button" aria-label={t("ts.prevMonth")} onClick={() => go({ month: shiftMonth(m, -1) })} className="grid h-11 w-11 place-items-center hover:bg-ochre-soft">
                   ‹
                 </button>
-                <span className="min-w-36 text-center text-sm font-semibold">{monthName(m)}</span>
-                <button type="button" aria-label={t("ts.nextMonth")} disabled={m >= v.today.slice(0, 7)} onClick={() => go({ month: shiftMonth(m, 1) })} className="grid h-11 w-11 place-items-center rounded-full hover:bg-sunken disabled:opacity-30">
+                <span className="min-w-36 text-center font-mono text-sm font-bold tabular-nums">{monthName(m)}</span>
+                <button type="button" aria-label={t("ts.nextMonth")} disabled={m >= v.today.slice(0, 7)} onClick={() => go({ month: shiftMonth(m, 1) })} className="grid h-11 w-11 place-items-center hover:bg-ochre-soft disabled:opacity-30">
                   ›
                 </button>
               </div>
               {v.people.length > 1 && (
-                <select value={v.person} onChange={(e) => go({ person: e.target.value })} className="rounded-full border border-line bg-surface px-4 py-2.5 text-sm" aria-label={t("ts.whose")}>
+                <select value={v.person} onChange={(e) => go({ person: e.target.value })} className="min-h-11 border border-line-strong bg-paper px-3 text-sm" aria-label={t("ts.whose")}>
                   {v.people.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.name}
@@ -223,7 +205,7 @@ export function TimesheetPage() {
                   ))}
                 </select>
               )}
-              <span className="text-sm text-muted">
+              <span className="font-mono text-xs text-muted">
                 {subject?.title} · {v.office}
               </span>
             </div>
@@ -260,7 +242,7 @@ export function TimesheetPage() {
                 onSubmit={() => act({ action: "submit", person: v.person!, sheet: editing, certify: true }, own ? t("ts.notice.submitted") : t("ts.notice.submittedFor", { name: String(subject?.name) }))}
               />
             )}
-            {editing && !mayEdit && <p className="mt-8 rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">{t("ts.notSubmittedYet")}</p>}
+            {editing && !mayEdit && <Empty className="mt-8">{t("ts.notSubmittedYet")}</Empty>}
 
             {v.seesAll && <Overview v={v} monthName={monthName} go={go} />}
           </>
@@ -289,7 +271,13 @@ function CurrentSheet({ v, monthName, onApprove, onReturn, onRevise }: { v: Time
   return (
     <section className="mt-6 space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        {t.status === "approved" ? <Pill tone="forest">{tr("ts.status.approved")}</Pill> : t.status === "returned" ? <Pill tone="clay">{tr("ts.status.returned")}</Pill> : <Pill tone="ochre">{tr("ts.status.pending")}</Pill>}
+        {t.status === "approved" ? (
+          <StatusBlock tone="forest">{tr("ts.status.approved")}</StatusBlock>
+        ) : t.status === "returned" ? (
+          <StatusBlock tone="clay">{tr("ts.status.returned")}</StatusBlock>
+        ) : (
+          <StatusBlock tone="ochre">{tr("ts.status.pending")}</StatusBlock>
+        )}
         {t.revisedAfterApproval && <Pill tone="plum">{tr("ts.revisedAfterApproval")}</Pill>}
         <span className="text-sm text-muted">
           {tr(t.by === t.person ? "ts.versionSubmitted" : "ts.versionEnteredBy", { version: t.version, name: name(t.by), date: new Date(t.at).toLocaleDateString(localeOf(lang), { day: "numeric", month: "short" }) })}
@@ -297,9 +285,9 @@ function CurrentSheet({ v, monthName, onApprove, onReturn, onRevise }: { v: Time
           {t.status === "pending" && ` · ${tr("ts.goesTo", { names: t.approvers.map(name).join(` ${tr("ts.or")} `) || tr("ts.nobody") })}${t.via === "hr" ? ` ${tr("ts.viaHr")}` : ""}`}
         </span>
       </div>
-      {t.decidedBy?.note && <p className="rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">“{t.decidedBy.note}”</p>}
+      {t.decidedBy?.note && <p className="bg-clay-soft px-4 py-3 text-sm text-clay">“{t.decidedBy.note}”</p>}
       {t.leaveCheck.length > 0 && (
-        <div className="rounded-xl bg-ochre-soft px-4 py-3 text-sm text-warn">
+        <div className="bg-ochre-soft px-4 py-3 text-sm text-warn">
           <p className="font-semibold">{tr("ts.leaveMismatch")}</p>
           <ul className="mt-1 list-disc ps-5">
             {t.leaveCheck.map((x) => (
@@ -329,11 +317,11 @@ function CurrentSheet({ v, monthName, onApprove, onReturn, onRevise }: { v: Time
         )}
       </div>
       {back !== null && (
-        <div>
+        <RuledSheet className="">
           <label className="text-sm font-medium" htmlFor="ts-back">
             {tr("ts.whatChange")}
           </label>
-          <textarea id="ts-back" value={back} onChange={(e) => setBack(e.target.value)} rows={3} className="mt-1 w-full rounded-xl border border-line bg-paper px-3 py-2 text-base" />
+          <textarea id="ts-back" value={back} onChange={(e) => setBack(e.target.value)} rows={3} className="mt-1 w-full border border-line-strong bg-paper px-3 py-2 text-base" />
           <div className="mt-2 flex gap-2">
             <button type="button" disabled={busy || back.trim().length < 3} className={dangerBtn} onClick={wrap(() => onReturn(back))}>
               {tr("ts.sendBack")}
@@ -342,7 +330,7 @@ function CurrentSheet({ v, monthName, onApprove, onReturn, onRevise }: { v: Time
               {tr("ts.cancel")}
             </button>
           </div>
-        </div>
+        </RuledSheet>
       )}
     </section>
   );
@@ -357,13 +345,18 @@ function Summary({ sheet, v }: { sheet: Sheet; v: TimesheetView }) {
   const recorded = s.directTotal + s.leaveTotal + s.unpaidHours;
   const diff = recorded - s.expected;
   return (
-    <div className="rounded-2xl border border-line bg-surface p-4">
-      <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1 text-sm">
-        <span>
-          <span className="font-display text-2xl tabular-nums">{fmtH(recorded)}</span> <span className="text-muted">{t("ts.hoursRecorded")}</span>
-        </span>
+    <div>
+      <Figures className="mt-0" items={[{ label: t("ts.hoursRecorded"), value: fmtH(recorded) }]} />
+      <div className="mt-2 flex flex-wrap items-baseline gap-x-6 gap-y-1 text-sm">
         <span className="text-muted">
-          {t("ts.expectedMonth", { hours: fmtH(s.expected) })}{diff !== 0 && <span className={diff < 0 ? "text-warn" : "text-clay"}> · {diff > 0 ? "+" : ""}{fmtH(diff)}</span>}
+          {t("ts.expectedMonth", { hours: fmtH(s.expected) })}
+          {diff !== 0 && (
+            <span className={`font-mono tabular-nums ${diff < 0 ? "text-warn" : "text-clay"}`}>
+              {" "}
+              · {diff > 0 ? "+" : ""}
+              {fmtH(diff)}
+            </span>
+          )}
         </span>
         {s.leaveTotal + s.unpaidHours > 0 && (
           <span className="text-muted">
@@ -382,31 +375,32 @@ function Summary({ sheet, v }: { sheet: Sheet; v: TimesheetView }) {
         )}
       </div>
       {s.sources.length > 0 && (
-        <div className="mt-3 overflow-x-auto">
-          <table className="w-full min-w-[32rem] text-sm">
-            <thead className="text-xs text-muted">
-              <tr>
-                <th className="py-1 pe-3 text-start font-medium">{t("ts.col.source")}</th>
-                <th className="py-1 pe-3 text-end font-medium">{t("ts.col.inCountry")}</th>
-                <th className="py-1 pe-3 text-end font-medium">{t("ts.col.outside")}</th>
-                <th className="py-1 pe-3 text-end font-medium">{t("ts.col.leaveShare")}</th>
-                <th className="py-1 pe-3 text-end font-medium">{t("ts.col.total")}</th>
-                <th className="py-1 text-end font-medium">{t("ts.col.charged")}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line tabular-nums">
+        <div className="mt-3">
+          <div className="overflow-x-auto">
+            <LedgerTable
+              cols={SPLIT_COLS}
+              className="mt-0 min-w-[36rem]"
+              head={[
+                t("ts.col.source"),
+                { label: t("ts.col.inCountry"), end: true },
+                { label: t("ts.col.outside"), end: true },
+                { label: t("ts.col.leaveShare"), end: true },
+                { label: t("ts.col.total"), end: true },
+                { label: t("ts.col.charged"), end: true },
+              ]}
+            >
               {s.sources.map((id) => (
-                <tr key={id}>
-                  <td className="py-1.5 pe-3">{label(id)}</td>
-                  <td className="py-1.5 pe-3 text-end">{fmtH(s.inCountry[id] ?? 0)}</td>
-                  <td className="py-1.5 pe-3 text-end">{fmtH(s.outside[id] ?? 0)}</td>
-                  <td className="py-1.5 pe-3 text-end">{fmtH(s.leaveBySource[id] ?? 0)}</td>
-                  <td className="py-1.5 pe-3 text-end">{fmtH(s.total[id] ?? 0)}</td>
-                  <td className="py-1.5 text-end font-semibold">{(s.pct[id] ?? 0).toFixed(2)}%</td>
-                </tr>
+                <LedgerRow key={id} cols={SPLIT_COLS} className="text-sm">
+                  <span className="min-w-0">{label(id)}</span>
+                  <Fig>{fmtH(s.inCountry[id] ?? 0)}</Fig>
+                  <Fig>{fmtH(s.outside[id] ?? 0)}</Fig>
+                  <Fig>{fmtH(s.leaveBySource[id] ?? 0)}</Fig>
+                  <Fig>{fmtH(s.total[id] ?? 0)}</Fig>
+                  <Fig strong>{(s.pct[id] ?? 0).toFixed(2)}%</Fig>
+                </LedgerRow>
               ))}
-            </tbody>
-          </table>
+            </LedgerTable>
+          </div>
           <p className="mt-2 text-xs text-muted">{t("ts.splitNote")}</p>
         </div>
       )}
@@ -419,7 +413,13 @@ function Summary({ sheet, v }: { sheet: Sheet; v: TimesheetView }) {
 function describe(d: Day | undefined, v: TimesheetView, t: T) {
   const parts: string[] = [];
   const label = (id: string) => (id === "non-contract" ? t("ts.nonContract") : id);
-  if (dayHours(d)) parts.push(Object.entries(d!.hours!).filter(([, h]) => h > 0).map(([s, h]) => t("ts.dayHours", { hours: fmtH(h), source: label(s) })).join(" + ") + (d?.place === "out" ? ` · ${t("ts.outside")}` : ""));
+  if (dayHours(d))
+    parts.push(
+      Object.entries(d!.hours!)
+        .filter(([, h]) => h > 0)
+        .map(([s, h]) => t("ts.dayHours", { hours: fmtH(h), source: label(s) }))
+        .join(" + ") + (d?.place === "out" ? ` · ${t("ts.outside")}` : ""),
+    );
   if (d?.leave?.hours) parts.push(`${t(LEAVE_KEY[d.leave.type])} ${t("ts.hoursShort", { hours: fmtH(d.leave.hours) })}`);
   if (d?.allowances?.length) parts.push(d.allowances.map((a) => t(ALLOWANCE_KEY[a])).join(", "));
   void v;
@@ -430,7 +430,7 @@ function DayList({ sheet, v, onEdit, open, editor }: { sheet: Sheet; v: Timeshee
   const { t } = useT();
   const work = WORK_WEEK[v.office] ?? WORK_WEEK["Home Office"];
   return (
-    <ul className="divide-y divide-line rounded-2xl border border-line bg-surface">
+    <ul className="divide-y divide-line border-y border-ink font-ledger">
       {daysIn(sheet.month).map((d) => {
         const day = sheet.days[d];
         const off = !work.includes(weekday(d));
@@ -441,17 +441,19 @@ function DayList({ sheet, v, onEdit, open, editor }: { sheet: Sheet; v: Timeshee
           <li key={d}>
             <Tag
               {...(onEdit ? { type: "button" as const, onClick: () => onEdit(d), "aria-expanded": open === d } : {})}
-              className={`flex w-full items-center gap-3 px-4 py-2.5 text-start text-sm ${off && !total ? "text-muted" : ""} ${onEdit ? "hover:bg-sunken" : ""} ${open === d ? "bg-sunken" : ""}`}
+              className={`flex min-h-12 w-full items-center gap-3 px-3 py-2.5 text-start text-sm ${off && !total ? "text-muted" : ""} ${onEdit ? "hover:bg-ochre-soft" : ""} ${open === d ? "bg-sunken" : ""}`}
             >
-              <span className="min-w-16 shrink-0 tabular-nums">
-                <span className="font-semibold">{d.slice(8)}</span> {t(SHORT[weekday(d)])}
+              <span className="min-w-16 shrink-0">
+                <span className="font-mono font-bold tabular-nums">{d.slice(8)}</span> <span className="font-mono text-xs">{t(SHORT[weekday(d)])}</span>
               </span>
               <span className="min-w-0 flex-1 truncate">
                 {describe(day, v, t)}
                 {holiday && <span className="text-muted"> · {holiday}</span>}
                 {day?.note && !holiday && <span className="text-muted"> · {day.note}</span>}
               </span>
-              <span className={`shrink-0 tabular-nums ${total > HOURS_PER_DAY ? "text-clay" : "text-muted"}`}>{total ? t("ts.hoursShort", { hours: fmtH(total) }) : off ? t("ts.off") : t("ts.hoursShort", { hours: 0 })}</span>
+              <Fig tone={total > HOURS_PER_DAY ? "clay" : "muted"} className="shrink-0">
+                {total ? t("ts.hoursShort", { hours: fmtH(total) }) : off ? t("ts.off") : t("ts.hoursShort", { hours: 0 })}
+              </Fig>
             </Tag>
             {/* The open day's form sits right under its row, so on a phone it appears where the finger tapped. */}
             {open === d && editor && <div className="px-2 pb-2">{editor}</div>}
@@ -464,7 +466,25 @@ function DayList({ sheet, v, onEdit, open, editor }: { sheet: Sheet; v: Timeshee
 
 /* ---------------- Filling it in ---------------- */
 
-function Editor({ v, sheet, setSheet, own, revising, unsent, onCancel, onSubmit }: { v: TimesheetView; sheet: Sheet; setSheet: (s: Sheet) => void; own: boolean; revising: boolean; unsent: boolean; onCancel: () => void; onSubmit: () => Promise<void> }) {
+function Editor({
+  v,
+  sheet,
+  setSheet,
+  own,
+  revising,
+  unsent,
+  onCancel,
+  onSubmit,
+}: {
+  v: TimesheetView;
+  sheet: Sheet;
+  setSheet: (s: Sheet) => void;
+  own: boolean;
+  revising: boolean;
+  unsent: boolean;
+  onCancel: () => void;
+  onSubmit: () => Promise<void>;
+}) {
   const { t } = useT();
   const [open, setOpen] = useState<string | null>(null);
   const [certify, setCertify] = useState(false);
@@ -491,18 +511,18 @@ function Editor({ v, sheet, setSheet, own, revising, unsent, onCancel, onSubmit 
     for (const d of daysIn(sheet.month)) if (d >= leave.from && d <= leave.to && work.includes(weekday(d))) days[d] = { leave: { type: leave.type, hours: HOURS_PER_DAY }, ...(days[d]?.note ? { note: days[d].note } : {}) };
     setSheet({ ...sheet, days });
   };
-  const sel = "rounded-xl border border-line bg-paper px-3 py-2.5 text-base sm:text-sm";
+  const sel = "min-h-11 border border-line-strong bg-paper px-3 py-2.5 text-base sm:text-sm";
   return (
     <section className="mt-6 space-y-4">
-      {revising && <p className="rounded-xl bg-ochre-soft px-4 py-3 text-sm text-warn">{t("ts.newVersion")}</p>}
+      {revising && <p className="bg-ochre-soft px-4 py-3 text-sm text-warn">{t("ts.newVersion")}</p>}
       {!revising && <p className="text-sm text-muted">{t("ts.prefilled")}</p>}
       {unsent && (
-        <p role="status" className="rounded-xl border border-warn/40 bg-ochre-soft px-4 py-3 text-sm font-semibold text-warn">
+        <p role="status" className="border border-warn/40 bg-ochre-soft px-4 py-3 text-sm font-semibold text-warn">
           {t("ts.unsent")}
         </p>
       )}
       <Summary sheet={sheet} v={v} />
-      <div className="flex flex-wrap items-end gap-2 rounded-2xl border border-line bg-surface p-3">
+      <RuledSheet className="flex flex-wrap items-end gap-2">
         <label className="text-sm">
           <span className="block text-xs text-muted">{t("ts.fillLabel", { hours: HOURS_PER_DAY })}</span>
           <select value={fill} onChange={(e) => setFill(e.target.value)} className={`${sel} mt-1`}>
@@ -519,11 +539,18 @@ function Editor({ v, sheet, setSheet, own, revising, unsent, onCancel, onSubmit 
         <span className="mx-2 hidden h-10 w-px bg-line sm:block" />
         <label className="text-sm">
           <span className="block text-xs text-muted">{t("ts.leaveFrom")}</span>
-          <input type="date" min={`${sheet.month}-01`} max={daysIn(sheet.month).at(-1)} value={leave.from} onChange={(e) => setLeave({ ...leave, from: e.target.value, to: e.target.value > leave.to ? e.target.value : leave.to })} className={`${sel} mt-1`} />
+          <input
+            type="date"
+            min={`${sheet.month}-01`}
+            max={daysIn(sheet.month).at(-1)}
+            value={leave.from}
+            onChange={(e) => setLeave({ ...leave, from: e.target.value, to: e.target.value > leave.to ? e.target.value : leave.to })}
+            className={`${sel} mt-1 font-mono`}
+          />
         </label>
         <label className="text-sm">
           <span className="block text-xs text-muted">{t("ts.to")}</span>
-          <input type="date" min={leave.from} max={daysIn(sheet.month).at(-1)} value={leave.to} onChange={(e) => setLeave({ ...leave, to: e.target.value })} className={`${sel} mt-1`} />
+          <input type="date" min={leave.from} max={daysIn(sheet.month).at(-1)} value={leave.to} onChange={(e) => setLeave({ ...leave, to: e.target.value })} className={`${sel} mt-1 font-mono`} />
         </label>
         <select value={leave.type} onChange={(e) => setLeave({ ...leave, type: e.target.value as LeaveType })} className={sel} aria-label={t("ts.leaveType")}>
           {v.leaveTypes.map((l) => (
@@ -541,22 +568,18 @@ function Editor({ v, sheet, setSheet, own, revising, unsent, onCancel, onSubmit 
             {t("ts.askLeaveLink")}
           </Link>
         </p>
-      </div>
+      </RuledSheet>
 
       <div>
-        <DayList
-          sheet={sheet}
-          v={v}
-          onEdit={(d) => setOpen(open === d ? null : d)}
-          open={open}
-          editor={open && <DayEditor key={open} date={open} day={sheet.days[open]} v={v} onChange={(day) => setDay(open, day)} onClose={() => setOpen(null)} />}
-        />
+        <DayList sheet={sheet} v={v} onEdit={(d) => setOpen(open === d ? null : d)} open={open} editor={open && <DayEditor key={open} date={open} day={sheet.days[open]} v={v} onChange={(day) => setDay(open, day)} onClose={() => setOpen(null)} />} />
       </div>
 
-      <label className="flex items-start gap-3 rounded-2xl border border-line bg-surface p-4 text-sm">
-        <input type="checkbox" checked={certify} onChange={(e) => setCertify(e.target.checked)} className="mt-0.5 h-5 w-5" />
-        <span>{own ? t("ts.certifyOwn") : t("ts.certifyHr")}</span>
-      </label>
+      <RuledSheet className="">
+        <label className="flex items-start gap-3 text-sm">
+          <input type="checkbox" checked={certify} onChange={(e) => setCertify(e.target.checked)} className="mt-0.5 h-5 w-5" />
+          <span>{own ? t("ts.certifyOwn") : t("ts.certifyHr")}</span>
+        </label>
+      </RuledSheet>
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
@@ -585,7 +608,7 @@ function DayEditor({ date: d, day, v, onChange, onClose }: { date: string; day: 
   const { t } = useT();
   const cur: Day = day ?? { place: USUAL_PLACE[v.office] ?? "in" };
   const set = (patch: Partial<Day>) => onChange({ ...cur, ...patch });
-  const input = "w-24 rounded-xl border border-line bg-paper px-3 py-2 text-base tabular-nums";
+  const input = "min-h-11 w-24 border border-line-strong bg-paper px-3 py-2 text-end font-mono text-base tabular-nums";
   // Bring the form into view when it opens (it can start below the fold on a phone) and put the cursor in it.
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -593,86 +616,84 @@ function DayEditor({ date: d, day, v, onChange, onClose }: { date: string; day: 
     box.current?.querySelector<HTMLInputElement>("input")?.focus({ preventScroll: true });
   }, []);
   return (
-    <div ref={box} className="mt-2 rounded-2xl border border-forest/40 bg-paper p-4" role="group" aria-label={t("ts.hoursFor", { date: d })}>
-      <div className="flex items-center justify-between">
-        <p className="font-semibold">
-          {t(SHORT[weekday(d)])} {d.slice(8)}
-          {HOLIDAYS[v.office]?.[d] && <span className="font-normal text-muted"> · {HOLIDAYS[v.office][d]}</span>}
-        </p>
-        <button type="button" onClick={onClose} className="text-sm font-semibold text-forest hover:underline">
-          {t("ts.done")}
-        </button>
-      </div>
-      <SectionLabel>{t("ts.hoursWorked")}</SectionLabel>
-      <div className="mt-2 grid gap-2 sm:grid-cols-2">
-        {v.sources.map((s) => (
-          <label key={s.id} className="flex items-center justify-between gap-3 text-sm">
-            <span className="min-w-0 truncate">{s.label}</span>
-            <input
-              type="number"
-              inputMode="decimal"
-              min={0}
-              max={24}
-              step={0.5}
-              value={cur.hours?.[s.id] ?? ""}
-              onChange={(e) => {
-                const hours = { ...(cur.hours ?? {}) };
-                const n = e.target.value === "" ? 0 : Math.max(0, Math.min(24, Number(e.target.value)));
-                if (n) hours[s.id] = n;
-                else delete hours[s.id];
-                set({ hours });
-              }}
-              className={input}
-              aria-label={t("ts.sourceHours", { source: s.label })}
-            />
-          </label>
-        ))}
-      </div>
-      <fieldset className="mt-3 flex flex-wrap gap-4 text-sm">
-        <legend className="sr-only">{t("ts.where")}</legend>
-        {(["in", "out"] as const).map((p) => (
-          <label key={p} className="flex items-center gap-2">
-            <input type="radio" name={`place-${d}`} checked={(cur.place ?? "in") === p} onChange={() => set({ place: p })} />
-            {p === "in" ? t("ts.placeIn") : t("ts.placeOut")}
-          </label>
-        ))}
-      </fieldset>
-      <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
-        <span>{t("ts.leave")}</span>
-        <select
-          value={cur.leave?.type ?? ""}
-          onChange={(e) => set({ leave: e.target.value ? { type: e.target.value as LeaveType, hours: cur.leave?.hours || HOURS_PER_DAY } : undefined })}
-          className="rounded-xl border border-line bg-paper px-3 py-2 text-base sm:text-sm"
-          aria-label={t("ts.leaveType")}
-        >
-          <option value="">{t("ts.none")}</option>
-          {/* A type already on the day stays choosable even if the person's rules no longer list it. */}
-          {LEAVE_TYPES.filter((l) => v.leaveTypes.includes(l) || cur.leave?.type === l).map((l) => (
-            <option key={l} value={l}>
-              {t(LEAVE_KEY[l])}
-            </option>
+    <div ref={box} className="mt-2" role="group" aria-label={t("ts.hoursFor", { date: d })}>
+      <RuledSheet className="mt-0 bg-paper px-2 pb-4">
+        <div className="flex items-center justify-between">
+          <p className="font-ledger font-bold">
+            <span className="font-mono text-xs">{t(SHORT[weekday(d)])}</span> <span className="font-mono">{d.slice(8)}</span>
+            {HOLIDAYS[v.office]?.[d] && <span className="font-normal text-muted"> · {HOLIDAYS[v.office][d]}</span>}
+          </p>
+          <button type="button" onClick={onClose} className="min-h-11 px-2 text-sm font-semibold text-forest hover:underline">
+            {t("ts.done")}
+          </button>
+        </div>
+        <SectionLabel>{t("ts.hoursWorked")}</SectionLabel>
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          {v.sources.map((s) => (
+            <label key={s.id} className="flex items-center justify-between gap-3 text-sm">
+              <span className="min-w-0 truncate">{s.label}</span>
+              <input
+                type="number"
+                inputMode="decimal"
+                min={0}
+                max={24}
+                step={0.5}
+                value={cur.hours?.[s.id] ?? ""}
+                onChange={(e) => {
+                  const hours = { ...(cur.hours ?? {}) };
+                  const n = e.target.value === "" ? 0 : Math.max(0, Math.min(24, Number(e.target.value)));
+                  if (n) hours[s.id] = n;
+                  else delete hours[s.id];
+                  set({ hours });
+                }}
+                className={input}
+                aria-label={t("ts.sourceHours", { source: s.label })}
+              />
+            </label>
           ))}
-        </select>
-        {cur.leave && (
-          <input type="number" inputMode="decimal" min={0} max={24} step={0.5} value={cur.leave.hours} onChange={(e) => set({ leave: { ...cur.leave!, hours: Number(e.target.value) || 0 } })} className={input} aria-label={t("ts.leaveHours")} />
-        )}
-      </div>
-      <div className="mt-3 flex flex-wrap gap-4 text-sm">
-        {ALLOWANCE_TYPES.map((a) => (
-          <label key={a} className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={!!cur.allowances?.includes(a)}
-              onChange={(e) => set({ allowances: e.target.checked ? [...(cur.allowances ?? []), a] : (cur.allowances ?? []).filter((x: Allowance) => x !== a) })}
-            />
-            {t(ALLOWANCE_KEY[a])}
-          </label>
-        ))}
-      </div>
-      <label className="mt-3 block text-sm">
-        <span className="text-muted">{t("ts.note")}</span>
-        <input value={cur.note ?? ""} maxLength={300} onChange={(e) => set({ note: e.target.value || undefined })} className="mt-1 w-full rounded-xl border border-line bg-paper px-3 py-2 text-base" />
-      </label>
+        </div>
+        <fieldset className="mt-3 flex flex-wrap gap-4 text-sm">
+          <legend className="sr-only">{t("ts.where")}</legend>
+          {(["in", "out"] as const).map((p) => (
+            <label key={p} className="flex min-h-11 items-center gap-2">
+              <input type="radio" name={`place-${d}`} checked={(cur.place ?? "in") === p} onChange={() => set({ place: p })} />
+              {p === "in" ? t("ts.placeIn") : t("ts.placeOut")}
+            </label>
+          ))}
+        </fieldset>
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+          <span>{t("ts.leave")}</span>
+          <select
+            value={cur.leave?.type ?? ""}
+            onChange={(e) => set({ leave: e.target.value ? { type: e.target.value as LeaveType, hours: cur.leave?.hours || HOURS_PER_DAY } : undefined })}
+            className="min-h-11 border border-line-strong bg-paper px-3 py-2 text-base sm:text-sm"
+            aria-label={t("ts.leaveType")}
+          >
+            <option value="">{t("ts.none")}</option>
+            {/* A type already on the day stays choosable even if the person's rules no longer list it. */}
+            {LEAVE_TYPES.filter((l) => v.leaveTypes.includes(l) || cur.leave?.type === l).map((l) => (
+              <option key={l} value={l}>
+                {t(LEAVE_KEY[l])}
+              </option>
+            ))}
+          </select>
+          {cur.leave && (
+            <input type="number" inputMode="decimal" min={0} max={24} step={0.5} value={cur.leave.hours} onChange={(e) => set({ leave: { ...cur.leave!, hours: Number(e.target.value) || 0 } })} className={input} aria-label={t("ts.leaveHours")} />
+          )}
+        </div>
+        <div className="mt-3 flex flex-wrap gap-4 text-sm">
+          {ALLOWANCE_TYPES.map((a) => (
+            <label key={a} className="flex min-h-11 items-center gap-2">
+              <input type="checkbox" checked={!!cur.allowances?.includes(a)} onChange={(e) => set({ allowances: e.target.checked ? [...(cur.allowances ?? []), a] : (cur.allowances ?? []).filter((x: Allowance) => x !== a) })} />
+              {t(ALLOWANCE_KEY[a])}
+            </label>
+          ))}
+        </div>
+        <label className="mt-3 block text-sm">
+          <span className="text-muted">{t("ts.note")}</span>
+          <input value={cur.note ?? ""} maxLength={300} onChange={(e) => set({ note: e.target.value || undefined })} className="mt-1 min-h-11 w-full border border-line-strong bg-paper px-3 py-2 text-base" />
+        </label>
+      </RuledSheet>
     </div>
   );
 }
@@ -680,24 +701,26 @@ function DayEditor({ date: d, day, v, onChange, onClose }: { date: string; day: 
 /* ---------------- The month, for HR ---------------- */
 
 function Overview({ v, monthName, go }: { v: TimesheetView; monthName: (m: string) => string; go: (n: { person: string }) => void }) {
-  const { t } = useT();
+  const { t, tx } = useT();
   const tone = { approved: "forest", pending: "ochre", returned: "clay", missing: "muted" } as const;
   const text: Record<keyof typeof tone, MessageKey> = { approved: "ts.status.approved", pending: "ts.status.waiting", returned: "ts.status.returned", missing: "ts.status.missing" };
   return (
     <section className="mt-10">
-      <SectionLabel>{t("ts.everyone", { month: monthName(v.month) })}</SectionLabel>
-      <ul className="mt-2 divide-y divide-line rounded-2xl border border-line bg-surface">
+      <SectionHead className="mt-0">{t("ts.everyone", { month: monthName(v.month) })}</SectionHead>
+      <LedgerTable cols={OVERVIEW_COLS} head={[tx("Person"), "", tx("Status")]} label={t("ts.everyone", { month: monthName(v.month) })}>
         {v.overview.map((o) => (
-          <li key={o.person}>
-            <button type="button" onClick={() => go({ person: o.person })} className="flex w-full items-center gap-3 px-4 py-2.5 text-start text-sm hover:bg-sunken">
-              <span className="min-w-0 flex-1 truncate">{v.names[o.person] ?? o.person}</span>
+          <LedgerRow key={o.person} cols={OVERVIEW_COLS} onClick={() => go({ person: o.person })} className="items-center text-sm">
+            <span className="min-w-0 truncate font-semibold">{v.names[o.person] ?? o.person}</span>
+            <span className="flex min-w-0 flex-wrap items-center gap-2">
               {o.by && o.by !== o.person && <span className="text-xs text-muted">{t("ts.enteredByHr")}</span>}
               {o.revised && <Pill tone="plum">{t("ts.revised")}</Pill>}
-              <StatusPill tone={tone[o.status as keyof typeof tone]}>{t(text[o.status as keyof typeof text])}</StatusPill>
-            </button>
-          </li>
+            </span>
+            <span>
+              <StatusBlock tone={tone[o.status as keyof typeof tone]}>{t(text[o.status as keyof typeof text])}</StatusBlock>
+            </span>
+          </LedgerRow>
         ))}
-      </ul>
+      </LedgerTable>
     </section>
   );
 }

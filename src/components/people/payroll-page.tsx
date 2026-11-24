@@ -5,23 +5,10 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useT } from "@/components/app/i18n";
 import { useRequireUser, useSession } from "@/components/app/session";
-import { Pill, SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn, StatusPill } from "@/components/workspace/ui";
+import { Pill, SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn } from "@/components/workspace/ui";
+import { Fig, Figures, LedgerRow, LedgerTable, PageHead, SectionHead, Sheet, StatusBlock } from "@/components/workspace/ledger";
 import { ROLE_LABEL } from "@/lib/hr";
-import {
-  ADJUSTMENTS,
-  ADJUSTMENT_KEYS,
-  GROUPS,
-  RUN_COLUMNS,
-  RUN_COLUMN_LABEL,
-  RUN_EARNINGS,
-  RUN_EARNING_LABEL,
-  type Adjustment,
-  type Group,
-  type Line,
-  type RunColumn,
-  type RunLayout,
-  type Totals,
-} from "@/lib/payroll";
+import { ADJUSTMENTS, ADJUSTMENT_KEYS, GROUPS, RUN_COLUMNS, RUN_COLUMN_LABEL, RUN_EARNINGS, RUN_EARNING_LABEL, type Adjustment, type Group, type Line, type RunColumn, type RunLayout, type Totals } from "@/lib/payroll";
 import type { PayrollView } from "@/app/api/payroll/route";
 
 /**
@@ -104,44 +91,39 @@ export function PayrollPage() {
     <div className="min-h-screen">
       <TopBar />
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className="font-display text-3xl tracking-tight">Payroll</h1>
-            <p className="mt-1 max-w-2xl text-sm text-muted">
-              Worked out from the HR record and approved timesheets. Payroll adds adjustments with reasons; the CFO and the CEO sign; then the files for ADP RUN or the bank are released.
-            </p>
-          </div>
-          <span className="flex gap-4 text-sm">
-            <Link href="/timesheets" className="font-semibold text-forest hover:underline">
+        <PageHead
+          back={{ href: "/people", label: "People" }}
+          title="Payroll"
+          actions={
+            <Link href="/timesheets" className="inline-flex min-h-11 items-center text-sm font-semibold text-forest hover:underline">
               Timesheets
             </Link>
-            <Link href="/people" className="font-semibold text-forest hover:underline">
-              People
-            </Link>
-          </span>
-        </div>
+          }
+        >
+          Worked out from the HR record and approved timesheets. Payroll adds adjustments with reasons; the CFO and the CEO sign; then the files for ADP RUN or the bank are released.
+        </PageHead>
         {error && (
-          <p role="alert" className="mt-4 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">
+          <p role="alert" className="mt-4 bg-clay-soft px-4 py-3 text-sm text-clay">
             {error}
           </p>
         )}
         {notice && (
-          <p role="status" className="mt-4 rounded-xl bg-mist px-4 py-3 text-sm text-leaf">
+          <p role="status" className="mt-4 bg-mist px-4 py-3 text-sm text-leaf">
             {notice}
           </p>
         )}
 
-        <div className="mt-5 flex flex-wrap items-center gap-3">
-          <div className="flex items-center rounded-full border border-line bg-surface">
-            <button type="button" aria-label="Previous month" onClick={() => go({ month: shiftMonth(m, -1) })} className="grid h-11 w-11 place-items-center rounded-full hover:bg-sunken">
+        <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-3 font-ledger">
+          <div className="flex items-center border-y border-ink">
+            <button type="button" aria-label="Previous month" onClick={() => go({ month: shiftMonth(m, -1) })} className="grid h-11 w-11 place-items-center hover:bg-ochre-soft">
               ‹
             </button>
-            <span className="min-w-36 text-center text-sm font-semibold">{monthName(m)}</span>
-            <button type="button" aria-label="Next month" onClick={() => go({ month: shiftMonth(m, 1) })} className="grid h-11 w-11 place-items-center rounded-full hover:bg-sunken">
+            <span className="min-w-36 text-center font-mono text-sm font-bold tabular-nums">{monthName(m)}</span>
+            <button type="button" aria-label="Next month" onClick={() => go({ month: shiftMonth(m, 1) })} className="grid h-11 w-11 place-items-center hover:bg-ochre-soft">
               ›
             </button>
           </div>
-          <div role="radiogroup" aria-label="Pay group" className="flex rounded-full border border-line bg-surface p-1">
+          <div role="radiogroup" aria-label="Pay group" className="flex flex-wrap gap-1">
             {GROUPS.map((g) => (
               <button
                 key={g}
@@ -149,7 +131,7 @@ export function PayrollPage() {
                 role="radio"
                 aria-checked={group === g}
                 onClick={() => go({ group: g })}
-                className={`rounded-full px-4 py-2 text-sm ${group === g ? "bg-forest font-semibold text-forest-ink" : "text-muted"}`}
+                className={`min-h-11 px-3 font-mono text-xs ${group === g ? "font-bold underline decoration-ochre decoration-4 underline-offset-8" : "text-muted hover:text-ink"}`}
               >
                 {g} · {g === "Home Office" ? "ADP RUN" : "bank"}
               </button>
@@ -184,7 +166,7 @@ export function PayrollPage() {
               />
             ) : (
               !v.runs.length && (
-                <section className="mt-6">
+                <section className="mt-8">
                   <p className="text-sm text-muted">Not prepared yet. This is how it works out today:</p>
                   <Register lines={v.draft} totals={v.draftTotals} v={v} />
                 </section>
@@ -200,6 +182,9 @@ export function PayrollPage() {
 
 /* ---------------- Amounts ---------------- */
 
+/** The register's columns after the row number: person, six amounts, net. */
+const REG_COLS = "minmax(13rem,1.6fr) 6.5rem 6.5rem 6.5rem 7rem 7rem 9rem 7rem";
+
 const amt = (n: number, cur: string) => (cur === "AFN" ? Math.round(n).toLocaleString("en-US") : n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 
 function Register({ lines, totals, v, adjust, onAdjust }: { lines: Line[]; totals: Totals; v: PayrollView; adjust?: Record<string, Adjustment>; onAdjust?: (person: string) => void }) {
@@ -207,110 +192,117 @@ function Register({ lines, totals, v, adjust, onAdjust }: { lines: Line[]; total
   const ho = v.group === "Home Office";
   const extra = (l: Line) => l.bonus + l.retro + l.vacationPayout + l.medicalReimb + l.expenses;
   return (
-    <div className="mt-3 space-y-4">
-      <div className="overflow-x-auto rounded-2xl border border-line bg-surface">
-        <table className="w-full min-w-[52rem] text-sm tabular-nums">
-          <thead className="text-xs text-muted">
-            <tr>
-              <th className="px-3 py-2 text-start font-medium">Person</th>
-              <th className="px-3 py-2 text-end font-medium">Regular</th>
-              <th className="px-3 py-2 text-end font-medium">Danger / post</th>
-              <th className="px-3 py-2 text-end font-medium">Allowances</th>
-              <th className="px-3 py-2 text-end font-medium">Adjustments</th>
-              <th className="px-3 py-2 text-end font-medium">Gross</th>
-              {ho ? <th className="px-3 py-2 text-end font-medium">
-                  403(b) EE / ROP{" "}
-                  <a href="#about-403b" title={ABOUT_403B} aria-label={`What is 403(b)? ${ABOUT_403B}`} className="rounded-full border border-line px-1.5 text-forest hover:border-forest">
-                    ?
-                  </a>
-                </th> : <th className="px-3 py-2 text-end font-medium">Tax</th>}
-              <th className="px-3 py-2 text-end font-medium">Net</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-line">
-            {lines.map((l) => (
-              <tr key={l.person} className="align-top">
-                <td className="px-3 py-2">
-                  <span className="font-medium">{l.name}</span>
-                  <span className="block text-xs text-muted">
-                    {l.title} · {amt(l.rate, l.currency)} per {l.payBasis.toLowerCase()}
+    <div className="mt-3">
+      <div className="overflow-x-auto">
+        <LedgerTable
+          cols={`2.25rem ${REG_COLS}`}
+          label="Payroll register"
+          className="mt-0 min-w-[66rem]"
+          head={[
+            "#",
+            "Person",
+            { label: "Regular", end: true },
+            { label: "Danger / post", end: true },
+            { label: "Allowances", end: true },
+            { label: "Adjustments", end: true },
+            { label: "Gross", end: true },
+            ho
+              ? {
+                  label: (
+                    <>
+                      403(b) EE / ROP{" "}
+                      <a href="#about-403b" title={ABOUT_403B} aria-label={`What is 403(b)? ${ABOUT_403B}`} className="border border-line px-1.5 text-forest hover:border-forest">
+                        ?
+                      </a>
+                    </>
+                  ),
+                  end: true,
+                }
+              : { label: "Tax", end: true },
+            { label: "Net", end: true },
+          ]}
+        >
+          {lines.map((l, i) => (
+            <LedgerRow key={l.person} n={i + 1} cols={REG_COLS} className="text-sm">
+              <span className="min-w-0">
+                <span className="font-semibold">{l.name}</span>
+                <span className="block text-xs text-muted">
+                  {l.title} · {amt(l.rate, l.currency)} per {l.payBasis.toLowerCase()}
+                </span>
+                {l.problems.map((p) => (
+                  <span key={p} className="mt-0.5 block text-xs text-warn">
+                    ⚠ {p}
                   </span>
-                  {l.problems.map((p) => (
-                    <span key={p} className="mt-0.5 block text-xs text-warn">
-                      ⚠ {p}
-                    </span>
-                  ))}
-                  {l.note && <span className="mt-0.5 block text-xs text-muted">“{l.note}”</span>}
-                  {(l.expenseReports ?? []).length > 0 && (
-                    <span className="mt-0.5 block text-xs text-muted">
-                      Reimburses expense report{l.expenseReports.length > 1 ? "s" : ""}{" "}
-                      {l.expenseReports.map((n, i) => (
-                        <span key={n}>
-                          {i > 0 && ", "}
-                          <a href={`/expenses?open=${n}`} className="underline">
-                            #{n}
-                          </a>
-                        </span>
-                      ))}{" "}
-                      ({amt(l.expenses, l.currency)})
-                    </span>
-                  )}
-                  {onAdjust && (
-                    <button type="button" onClick={() => onAdjust(l.person)} className="mt-1 text-xs font-semibold text-forest hover:underline">
-                      {adjust?.[l.person] ? "Change adjustments" : "Add an adjustment"}
-                    </button>
-                  )}
-                </td>
-                <td className="px-3 py-2 text-end">{amt(l.regular, l.currency)}</td>
-                <td className="px-3 py-2 text-end">
-                  {amt(l.dangerPay + l.postDiff, l.currency)}
-                  {(l.dangerDays > 0 || l.postDiffDays > 0) && <span className="block text-xs text-muted">{l.dangerDays + l.postDiffDays} days</span>}
-                </td>
-                <td className="px-3 py-2 text-end">{amt(l.comms + l.living, l.currency)}</td>
-                <td className="px-3 py-2 text-end">
-                  {amt(extra(l), l.currency)}
-                  {l.advance > 0 && <span className="block text-xs text-muted">−{amt(l.advance, l.currency)} advance</span>}
-                </td>
-                <td className="px-3 py-2 text-end font-semibold">{amt(l.gross, l.currency)}</td>
-                {ho ? (
-                  <td className="px-3 py-2 text-end">
-                    {amt(l.ee403b, l.currency)} / {amt(l.er403b, l.currency)}
-                  </td>
-                ) : (
-                  <td className="px-3 py-2 text-end">{amt(l.tax, l.currency)}</td>
+                ))}
+                {l.note && <span className="mt-0.5 block text-xs text-muted">“{l.note}”</span>}
+                {(l.expenseReports ?? []).length > 0 && (
+                  <span className="mt-0.5 block text-xs text-muted">
+                    Reimburses expense report{l.expenseReports.length > 1 ? "s" : ""}{" "}
+                    {l.expenseReports.map((n, i) => (
+                      <span key={n}>
+                        {i > 0 && ", "}
+                        <a href={`/expenses?open=${n}`} className="underline">
+                          #{n}
+                        </a>
+                      </span>
+                    ))}{" "}
+                    ({amt(l.expenses, l.currency)})
+                  </span>
                 )}
-                <td className="px-3 py-2 text-end font-semibold">{amt(l.net, l.currency)}</td>
-              </tr>
-            ))}
-          </tbody>
-          <tfoot className="border-t-2 border-line font-semibold">
-            <tr>
-              <td className="px-3 py-2">{lines.length} people</td>
-              <td colSpan={4} />
-              <td className="px-3 py-2 text-end">{amt(totals.gross, cur)}</td>
-              <td className="px-3 py-2 text-end">{ho ? `${amt(totals.ee403b, cur)} / ${amt(totals.er403b, cur)}` : amt(totals.tax, cur)}</td>
-              <td className="px-3 py-2 text-end">{amt(totals.net, cur)}</td>
-            </tr>
-          </tfoot>
-        </table>
+                {onAdjust && (
+                  <button type="button" onClick={() => onAdjust(l.person)} className="mt-1 block min-h-11 text-xs font-semibold text-forest hover:underline">
+                    {adjust?.[l.person] ? "Change adjustments" : "Add an adjustment"}
+                  </button>
+                )}
+              </span>
+              <Fig>{amt(l.regular, l.currency)}</Fig>
+              <span className="text-end">
+                <Fig>{amt(l.dangerPay + l.postDiff, l.currency)}</Fig>
+                {(l.dangerDays > 0 || l.postDiffDays > 0) && <span className="block font-mono text-xs text-muted">{l.dangerDays + l.postDiffDays} days</span>}
+              </span>
+              <Fig>{amt(l.comms + l.living, l.currency)}</Fig>
+              <span className="text-end">
+                <Fig>{amt(extra(l), l.currency)}</Fig>
+                {l.advance > 0 && <span className="block font-mono text-xs text-muted">−{amt(l.advance, l.currency)} advance</span>}
+              </span>
+              <Fig strong>{amt(l.gross, l.currency)}</Fig>
+              {ho ? (
+                <Fig>
+                  {amt(l.ee403b, l.currency)} / {amt(l.er403b, l.currency)}
+                </Fig>
+              ) : (
+                <Fig>{amt(l.tax, l.currency)}</Fig>
+              )}
+              <Fig strong>{amt(l.net, l.currency)}</Fig>
+            </LedgerRow>
+          ))}
+        </LedgerTable>
       </div>
+      <Figures
+        items={[
+          { label: "People", value: lines.length },
+          { label: `Gross (${cur})`, value: amt(totals.gross, cur) },
+          ho ? { label: `403(b) EE / ROP (${cur})`, value: `${amt(totals.ee403b, cur)} / ${amt(totals.er403b, cur)}` } : { label: `Tax (${cur})`, value: amt(totals.tax, cur) },
+          { label: `Net (${cur})`, value: amt(totals.net, cur) },
+        ]}
+      />
       {ho && (
-        <p id="about-403b" className="text-xs text-muted">
+        <p id="about-403b" className="mt-2 text-xs text-muted">
           {ABOUT_403B}
         </p>
       )}
-      <div className="rounded-2xl border border-line bg-surface p-4">
+      <div className="mt-6">
         <SectionLabel>Cost by funding source ({cur}, gross plus ROP&apos;s 403(b))</SectionLabel>
-        <ul className="mt-2 grid gap-1 text-sm sm:grid-cols-2">
+        <LedgerTable cols="minmax(0,1fr) 9rem" head={["Funding source", { label: cur, end: true }]} label="Cost by funding source" className="mt-2 max-w-2xl">
           {Object.entries(totals.cost)
             .sort((a, b) => b[1] - a[1])
             .map(([s, c]) => (
-              <li key={s} className="flex justify-between gap-3">
+              <LedgerRow key={s} cols="minmax(0,1fr) 9rem" className="text-sm">
                 <span className="truncate">{v.sources[s] ?? s}</span>
-                <span className="tabular-nums">{amt(c, cur)}</span>
-              </li>
+                <Fig>{amt(c, cur)}</Fig>
+              </LedgerRow>
             ))}
-        </ul>
+        </LedgerTable>
         {ho && <p className="mt-2 text-xs text-muted">Employer FICA and SUI are calculated by ADP and are not included.</p>}
         {!ho && <p className="mt-2 text-xs text-muted">Salary tax uses the Afghan monthly schedule (0% to 5,000; 2% to 12,500; 10% to 100,000; 20% above). Finance confirms before paying it.</p>}
       </div>
@@ -320,21 +312,7 @@ function Register({ lines, totals, v, adjust, onAdjust }: { lines: Line[]; total
 
 /* ---------------- A prepared payroll ---------------- */
 
-function RunCard({
-  r,
-  v,
-  monthName,
-  approve,
-  reject,
-  withdraw,
-}: {
-  r: Run;
-  v: PayrollView;
-  monthName: (m: string) => string;
-  approve: () => Promise<void>;
-  reject: (note: string) => Promise<void>;
-  withdraw: () => Promise<void>;
-}) {
+function RunCard({ r, v, monthName, approve, reject, withdraw }: { r: Run; v: PayrollView; monthName: (m: string) => string; approve: () => Promise<void>; reject: (note: string) => Promise<void>; withdraw: () => Promise<void> }) {
   const [open, setOpen] = useState(r.status !== "rejected" && r.status !== "withdrawn");
   const [back, setBack] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -359,44 +337,46 @@ function RunCard({
     URL.revokeObjectURL(a.href);
   };
   return (
-    <article className="mt-6 rounded-2xl border border-line bg-paper p-4 sm:p-5">
-      <div className="flex flex-wrap items-center gap-2">
+    <article className="mt-10">
+      <SectionHead
+        className="mt-0"
+        aside={
+          <button type="button" onClick={() => setOpen(!open)} className="min-h-11 text-sm font-semibold text-forest hover:underline" aria-expanded={open}>
+            {open ? "Hide register" : "Show register"}
+          </button>
+        }
+      >
+        {v.group}, {monthName(v.month)}: <span className="font-mono tabular-nums">{amt(r.totals.net, r.lines[0]?.currency ?? "USD")}</span> net to {r.lines.length} people
+      </SectionHead>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
         {r.status === "approved" ? (
-          <StatusPill tone="forest">Approved</StatusPill>
+          <StatusBlock tone="forest">Approved</StatusBlock>
         ) : r.status === "pending" ? (
-          <StatusPill tone="ochre">Waiting for signatures</StatusPill>
+          <StatusBlock tone="ochre">Waiting for signatures</StatusBlock>
         ) : r.status === "rejected" ? (
-          <StatusPill tone="clay">Sent back</StatusPill>
+          <StatusBlock tone="clay">Sent back</StatusBlock>
         ) : (
-          <StatusPill tone="muted">Withdrawn</StatusPill>
+          <StatusBlock tone="muted">Withdrawn</StatusBlock>
         )}
         {r.supplemental && <Pill tone="plum">Supplemental</Pill>}
-        <span className="text-xs text-muted">
+        <span className="font-mono text-xs text-muted">
           #{r.id} · prepared by {name(r.by)} · pay date {r.payDate}
         </span>
-        <button type="button" onClick={() => setOpen(!open)} className="ms-auto text-sm font-semibold text-forest hover:underline" aria-expanded={open}>
-          {open ? "Hide register" : "Show register"}
-        </button>
       </div>
-      <h2 className="mt-2 text-lg font-semibold">
-        {v.group}, {monthName(v.month)}: {amt(r.totals.net, r.lines[0]?.currency ?? "USD")} net to {r.lines.length} people
-      </h2>
-      <p className="text-sm text-muted">{r.reason}</p>
+      <p className="mt-1 text-sm text-muted">{r.reason}</p>
       {r.changedSince.length > 0 && (
-        <div className="mt-3 rounded-xl border border-clay bg-clay-soft px-3 py-2 text-sm text-clay">
+        <div className="mt-3 border border-clay bg-clay-soft px-3 py-2 text-sm text-clay">
           <p className="font-semibold">Worked out again today, this payroll comes out differently:</p>
           <ul className="mt-1 list-disc ps-5">
             {r.changedSince.map((c) => (
               <li key={c}>{c}</li>
             ))}
           </ul>
-          <p className="mt-1">
-            {r.status === "approved" ? "A timesheet or record changed after approval: pay the difference in a supplemental payroll." : "Send it back so payroll prepares it again."}
-          </p>
+          <p className="mt-1">{r.status === "approved" ? "A timesheet or record changed after approval: pay the difference in a supplemental payroll." : "Send it back so payroll prepares it again."}</p>
         </div>
       )}
       {r.warnings.length > 0 && (
-        <ul className="mt-3 space-y-1 rounded-xl bg-ochre-soft px-3 py-2 text-sm text-warn">
+        <ul className="mt-3 space-y-1 bg-ochre-soft px-3 py-2 text-sm text-warn">
           {r.warnings.map((w) => (
             <li key={w}>⚠ {w}</li>
           ))}
@@ -407,8 +387,8 @@ function RunCard({
           const s = r.signatures[i];
           const isNext = r.status === "pending" && i === r.signatures.length;
           return (
-            <li key={i} className={`rounded-full border px-3 py-1 ${s ? "border-forest text-leaf" : isNext ? "border-ochre text-warn" : "border-line text-muted"}`}>
-              {i + 1}. {ROLE_LABEL[role]}
+            <li key={i} className={`border px-3 py-1 ${s ? "border-forest text-leaf" : isNext ? "border-ochre bg-ochre-soft text-warn" : "border-line text-muted"}`}>
+              <span className="font-mono">{String(i + 1).padStart(2, "0")}</span> {ROLE_LABEL[role]}
               {s ? `: ${name(s.by)}${s.as !== role ? ` for the ${ROLE_LABEL[s.as]}` : ""}` : isNext && r.next?.fellBack ? ": falls to the Board (conflict)" : isNext ? ": waiting" : ""}
             </li>
           );
@@ -463,11 +443,11 @@ function RunCard({
       )}
       {r.status === "approved" && v.group === "Home Office" && <p className="mt-2 text-xs text-muted">The ADP file uses a draft layout until ROP&apos;s RUN import template is matched.</p>}
       {back !== null && (
-        <div className="mt-4">
+        <Sheet>
           <label className="text-sm font-medium" htmlFor={`pay-back-${r.id}`}>
             What needs to change?
           </label>
-          <textarea id={`pay-back-${r.id}`} value={back} onChange={(e) => setBack(e.target.value)} rows={3} className="mt-1 w-full rounded-xl border border-line bg-paper px-3 py-2 text-base" />
+          <textarea id={`pay-back-${r.id}`} value={back} onChange={(e) => setBack(e.target.value)} rows={3} className="mt-1 w-full border border-line-strong bg-paper px-3 py-2 text-base" />
           <div className="mt-2 flex gap-2">
             <button type="button" disabled={busy || back.trim().length < 3} className={dangerBtn} onClick={wrap(() => reject(back))}>
               Send back
@@ -476,7 +456,7 @@ function RunCard({
               Cancel
             </button>
           </div>
-        </div>
+        </Sheet>
       )}
       {open && <Register lines={r.lines} totals={r.totals} v={v} />}
     </article>
@@ -517,8 +497,8 @@ function Prepare({ v, supplemental, onDone }: { v: PayrollView; supplemental: bo
   const problems = preview.lines.filter((l) => l.problems.length).length;
   const people = v.draft.map((l) => [l.person, l.name] as const).filter(([id]) => !preview.lines.some((l) => l.person === id));
   return (
-    <section className="mt-8">
-      <h2 className="text-lg font-semibold">{supplemental ? "Prepare a supplemental payroll" : "Prepare this payroll"}</h2>
+    <section className="mt-10">
+      <SectionHead className="mt-0">{supplemental ? "Prepare a supplemental payroll" : "Prepare this payroll"}</SectionHead>
       <p className="mt-1 max-w-2xl text-sm text-muted">
         {supplemental
           ? "This month is already paid. A supplemental payroll pays only adjustments and newly accepted expense reports: a late bonus, retro pay, a correction after a revised timesheet."
@@ -526,7 +506,7 @@ function Prepare({ v, supplemental, onDone }: { v: PayrollView; supplemental: bo
       </p>
       {supplemental && (
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <select value={addPerson} onChange={(e) => setAddPerson(e.target.value)} className="rounded-xl border border-line bg-paper px-3 py-2.5 text-sm" aria-label="Person">
+          <select value={addPerson} onChange={(e) => setAddPerson(e.target.value)} className="min-h-11 border border-line-strong bg-paper px-3 py-2.5 text-sm" aria-label="Person">
             <option value="">Choose a person…</option>
             {people.map(([id, n]) => (
               <option key={id} value={id}>
@@ -569,21 +549,16 @@ function Prepare({ v, supplemental, onDone }: { v: PayrollView; supplemental: bo
         />
       )}
       {preview.lines.length > 0 && <Register lines={preview.lines} totals={preview.totals} v={v} adjust={adjust} onAdjust={setEditing} />}
-      <div className="mt-4 grid gap-3 sm:grid-cols-[12rem_1fr]">
+      <Sheet className="mt-6 grid gap-3 sm:grid-cols-[12rem_1fr]">
         <label className="text-sm">
           <span className="font-medium">Pay date</span>
-          <input type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)} className="mt-1 block w-full rounded-xl border border-line bg-paper px-3 py-2.5 text-base" />
+          <input type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)} className="mt-1 block min-h-11 w-full border border-line-strong bg-paper px-3 py-2.5 font-mono text-base" />
         </label>
         <label className="text-sm">
           <span className="font-medium">What this covers (kept forever)</span>
-          <input
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            placeholder={`${v.group} payroll, ${v.month}`}
-            className="mt-1 block w-full rounded-xl border border-line bg-paper px-3 py-2.5 text-base"
-          />
+          <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder={`${v.group} payroll, ${v.month}`} className="mt-1 block min-h-11 w-full border border-line-strong bg-paper px-3 py-2.5 text-base" />
         </label>
-      </div>
+      </Sheet>
       {problems > 0 && <p className="mt-3 text-sm text-warn">{problems} lines have something to check. The signers will see them; fix what you can first (approve timesheets, complete records).</p>}
       <button
         type="button"
@@ -615,36 +590,38 @@ function AdjustForm({ name, value, onSave, onClose }: { name: string; value: Adj
   const [a, setA] = useState<Adjustment>(value);
   const any = ADJUSTMENT_KEYS.some((k) => a[k]);
   return (
-    <div className="mt-4 rounded-2xl border border-forest/40 bg-paper p-4" role="group" aria-label={`Adjustments for ${name}`}>
-      <p className="font-semibold">Adjustments for {name}</p>
-      <div className="mt-3 grid gap-3 sm:grid-cols-3">
-        {ADJUSTMENT_KEYS.map((k) => (
-          <label key={k} className="text-sm">
-            <span className="text-muted">{ADJUSTMENTS[k]}</span>
-            <input
-              type="number"
-              inputMode="decimal"
-              min={k === "retro" ? undefined : 0}
-              step="0.01"
-              value={a[k] ?? ""}
-              onChange={(e) => setA({ ...a, [k]: e.target.value === "" ? undefined : Number(e.target.value) })}
-              className="mt-1 block w-full rounded-xl border border-line bg-paper px-3 py-2 text-base tabular-nums"
-            />
-          </label>
-        ))}
-      </div>
-      <label className="mt-3 block text-sm">
-        <span className="text-muted">Why (required, kept forever)</span>
-        <input value={a.note ?? ""} onChange={(e) => setA({ ...a, note: e.target.value })} className="mt-1 block w-full rounded-xl border border-line bg-paper px-3 py-2 text-base" />
-      </label>
-      <div className="mt-3 flex gap-2">
-        <button type="button" disabled={any && (a.note ?? "").trim().length < 3} className={primaryBtn} onClick={() => onSave(a)}>
-          {any ? "Save" : "Remove adjustments"}
-        </button>
-        <button type="button" className={quietBtn} onClick={onClose}>
-          Cancel
-        </button>
-      </div>
+    <div className="mt-4" role="group" aria-label={`Adjustments for ${name}`}>
+      <Sheet className="mt-0">
+        <p className="font-ledger font-bold">Adjustments for {name}</p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+          {ADJUSTMENT_KEYS.map((k) => (
+            <label key={k} className="text-sm">
+              <span className="text-muted">{ADJUSTMENTS[k]}</span>
+              <input
+                type="number"
+                inputMode="decimal"
+                min={k === "retro" ? undefined : 0}
+                step="0.01"
+                value={a[k] ?? ""}
+                onChange={(e) => setA({ ...a, [k]: e.target.value === "" ? undefined : Number(e.target.value) })}
+                className="mt-1 block min-h-11 w-full border border-line-strong bg-paper px-3 py-2 text-end font-mono text-base tabular-nums"
+              />
+            </label>
+          ))}
+        </div>
+        <label className="mt-3 block text-sm">
+          <span className="text-muted">Why (required, kept forever)</span>
+          <input value={a.note ?? ""} onChange={(e) => setA({ ...a, note: e.target.value })} className="mt-1 block min-h-11 w-full border border-line-strong bg-paper px-3 py-2 text-base" />
+        </label>
+        <div className="mt-3 flex gap-2">
+          <button type="button" disabled={any && (a.note ?? "").trim().length < 3} className={primaryBtn} onClick={() => onSave(a)}>
+            {any ? "Save" : "Remove adjustments"}
+          </button>
+          <button type="button" className={quietBtn} onClick={onClose}>
+            Cancel
+          </button>
+        </div>
+      </Sheet>
     </div>
   );
 }
@@ -662,7 +639,7 @@ function RunLayoutPanel({ user }: { user: string }) {
       .then((x) => x && (setD(x), setDraft(x.run)));
   }, [user]);
   if (!d || !draft) return null;
-  const sel = "rounded-lg border border-line bg-paper px-2 py-1.5 text-sm";
+  const sel = "min-h-11 border border-line-strong bg-paper px-2 py-1.5 text-sm";
   const save = async () => {
     setError("");
     const r = await fetch("/api/payroll/settings", { method: "POST", headers: { "Content-Type": "application/json", "x-demo-user": user }, body: JSON.stringify({ run: draft, reason }) });
@@ -675,14 +652,12 @@ function RunLayoutPanel({ user }: { user: string }) {
   };
   const move = (i: number, by: number) => setDraft({ ...draft, columns: draft.columns.map((c, j, all) => (j === i ? all[i + by] : j === i + by ? all[i] : c)) });
   return (
-    <section className="mt-10 border-t border-line pt-6">
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 className="min-w-0 flex-1 font-display text-2xl">ADP RUN file layout</h2>
-        <Pill tone={d.run.confirmed ? "forest" : "ochre"}>{d.run.confirmed ? "Matches the RUN template" : "Draft layout"}</Pill>
-      </div>
+    <section className="mt-12">
+      <SectionHead className="mt-0" aside={<StatusBlock tone={d.run.confirmed ? "forest" : "ochre"}>{d.run.confirmed ? "Matches the RUN template" : "Draft layout"}</StatusBlock>}>
+        ADP RUN file layout
+      </SectionHead>
       <p className="mt-1 text-sm text-muted">
-        {d.run.source}. Columns: {d.run.columns.map((c) => c.heading).join(", ")}.
-        {d.history.length ? ` Last changed ${d.history[d.history.length - 1].at} by ${d.history[d.history.length - 1].byName}.` : ""}
+        {d.run.source}. Columns: {d.run.columns.map((c) => c.heading).join(", ")}.{d.history.length ? ` Last changed ${d.history[d.history.length - 1].at} by ${d.history[d.history.length - 1].byName}.` : ""}
       </p>
       {d.mayEdit && !open && (
         <button type="button" className={`${quietBtn} mt-2`} onClick={() => setOpen(true)}>
@@ -690,26 +665,24 @@ function RunLayoutPanel({ user }: { user: string }) {
         </button>
       )}
       {open && (
-        <div className="mt-3 space-y-4 rounded-2xl border border-line bg-surface p-4">
+        <Sheet className="mt-3 space-y-4">
           <div>
             <SectionLabel>Columns, in order</SectionLabel>
-            <ul className="mt-2 space-y-1.5">
+            <ul className="mt-2 border-t border-ink">
               {draft.columns.map((c, i) => (
-                <li key={c.key} className="flex flex-wrap items-center gap-2 text-sm">
+                <li key={c.key} className="flex flex-wrap items-center gap-2 border-b border-line py-1.5 text-sm last:border-ink">
+                  <span aria-hidden className="w-6 font-mono text-xs text-muted">
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
                   <span className="w-48 text-muted">{RUN_COLUMN_LABEL[c.key]}</span>
-                  <input
-                    value={c.heading}
-                    onChange={(e) => setDraft({ ...draft, columns: draft.columns.map((x, j) => (j === i ? { ...x, heading: e.target.value } : x)) })}
-                    className={sel}
-                    aria-label={`Heading for ${RUN_COLUMN_LABEL[c.key]}`}
-                  />
-                  <button type="button" disabled={i === 0} onClick={() => move(i, -1)} className="px-1 text-muted disabled:opacity-30" aria-label="Move up">
+                  <input value={c.heading} onChange={(e) => setDraft({ ...draft, columns: draft.columns.map((x, j) => (j === i ? { ...x, heading: e.target.value } : x)) })} className={sel} aria-label={`Heading for ${RUN_COLUMN_LABEL[c.key]}`} />
+                  <button type="button" disabled={i === 0} onClick={() => move(i, -1)} className="grid min-h-11 min-w-11 place-items-center text-muted hover:bg-ochre-soft disabled:opacity-30" aria-label="Move up">
                     ↑
                   </button>
-                  <button type="button" disabled={i === draft.columns.length - 1} onClick={() => move(i, 1)} className="px-1 text-muted disabled:opacity-30" aria-label="Move down">
+                  <button type="button" disabled={i === draft.columns.length - 1} onClick={() => move(i, 1)} className="grid min-h-11 min-w-11 place-items-center text-muted hover:bg-ochre-soft disabled:opacity-30" aria-label="Move down">
                     ↓
                   </button>
-                  <button type="button" onClick={() => setDraft({ ...draft, columns: draft.columns.filter((_, j) => j !== i) })} className="text-xs text-muted hover:text-clay">
+                  <button type="button" onClick={() => setDraft({ ...draft, columns: draft.columns.filter((_, j) => j !== i) })} className="min-h-11 px-2 text-xs text-muted hover:text-clay">
                     Remove
                   </button>
                 </li>
@@ -735,14 +708,14 @@ function RunLayoutPanel({ user }: { user: string }) {
               {RUN_EARNINGS.map((k) => (
                 <label key={k} className="flex items-center gap-2 text-sm">
                   <span className="w-44 text-muted">{RUN_EARNING_LABEL[k]}</span>
-                  <input value={draft.codes[k]} onChange={(e) => setDraft({ ...draft, codes: { ...draft.codes, [k]: e.target.value } })} className={`${sel} w-28`} />
+                  <input value={draft.codes[k]} onChange={(e) => setDraft({ ...draft, codes: { ...draft.codes, [k]: e.target.value } })} className={`${sel} w-28 font-mono`} />
                 </label>
               ))}
             </div>
           </div>
           <div className="flex flex-wrap gap-4 text-sm">
             <label className="flex items-center gap-2">
-              Company code <input value={draft.companyCode} onChange={(e) => setDraft({ ...draft, companyCode: e.target.value })} className={`${sel} w-28`} />
+              Company code <input value={draft.companyCode} onChange={(e) => setDraft({ ...draft, companyCode: e.target.value })} className={`${sel} w-28 font-mono`} />
             </label>
             <label className="flex items-center gap-2">
               Pay date as
@@ -756,7 +729,7 @@ function RunLayoutPanel({ user }: { user: string }) {
             Where this layout comes from
             <input value={draft.source} onChange={(e) => setDraft({ ...draft, source: e.target.value })} className={`${sel} mt-1 w-full`} />
           </label>
-          <label className="flex items-center gap-2 text-sm">
+          <label className="flex min-h-11 items-center gap-2 text-sm">
             <input type="checkbox" checked={draft.confirmed} onChange={(e) => setDraft({ ...draft, confirmed: e.target.checked })} />
             This matches ROP&rsquo;s ADP RUN import template
           </label>
@@ -773,7 +746,7 @@ function RunLayoutPanel({ user }: { user: string }) {
               Cancel
             </button>
           </div>
-        </div>
+        </Sheet>
       )}
     </section>
   );

@@ -898,7 +898,7 @@ export function QueueFooter({ onReset, note = msg("Fictional records, saved in t
 export function Loading({ what, className = "" }: { what?: string; className?: string }) {
   const { t } = useT();
   return (
-    <div role="status" aria-live="polite" className={`flex items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-4 text-sm text-muted ${className}`}>
+    <div role="status" aria-live="polite" className={`flex items-center gap-3 border-y border-line px-3 py-4 text-sm text-muted ${className}`}>
       <span aria-hidden className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-line border-t-forest" />
       {what ?? t("load.wait")}
     </div>

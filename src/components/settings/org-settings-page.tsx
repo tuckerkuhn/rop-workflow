@@ -9,7 +9,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { useT } from "@/components/app/i18n";
 import { GapPanel } from "@/components/settings/gap-panel";
-import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn, Loading, StatusPill } from "@/components/workspace/ui";
+import { Pill, TopBar, primaryBtn, quietBtn, Loading } from "@/components/workspace/ui";
+import { Fig, LedgerRow, LedgerTable, PageHead, SectionHead, Sheet, StatusBlock } from "@/components/workspace/ledger";
 import { layerable, show, type Area, type ParamDef, type Value } from "@/lib/policy";
 import { kindOf } from "@/lib/presets";
 import type { OrgSettingsView } from "@/app/api/org/settings/route";
@@ -28,7 +29,11 @@ async function call<T>(user: string | undefined, init?: RequestInit): Promise<T>
   return body as T;
 }
 
-const field = "w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm focus:border-forest focus:outline-none";
+const field = "min-h-11 w-full border border-line bg-paper px-3 py-2 text-sm focus:border-forest focus:outline-none";
+// Ruled rows: a rule and its value; a requirement profile, how it compares and its button; a change and when.
+const RULE = "1fr auto";
+const PROFILE = "1fr auto";
+const CHANGE = "9rem 1fr";
 const same = (a: Value, b: Value) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
 export function OrgSettingsPage() {
@@ -109,44 +114,43 @@ export function OrgSettingsPage() {
     <div className="min-h-screen pb-40">
       <TopBar />
       <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-warn">{v?.name ?? "Organization"}</p>
-        <h1 className="mt-1 font-display text-3xl tracking-tight">Organization settings</h1>
-        <p className="mt-1 max-w-3xl text-sm text-muted">
-          The rules the whole organization works by, by department: our written policy always applies, stricter requirements can be layered on, and every change keeps who made it, when and why.
-        </p>
-        <p className="mt-2 text-sm">
-          <Link href="/settings" className="font-semibold text-forest hover:underline">
-            Project settings
-          </Link>{" "}
-          ·{" "}
-          <Link href="/settings/policy" className="font-semibold text-forest hover:underline">
-            Rules a project follows, with its donor&apos;s gaps
-          </Link>
-        </p>
+        <PageHead kicker={v?.name ?? "Organization"} title="Organization settings">
+          <p>The rules the whole organization works by, by department: our written policy always applies, stricter requirements can be layered on, and every change keeps who made it, when and why.</p>
+          <p className="mt-2">
+            <Link href="/settings" className="font-semibold text-forest hover:underline">
+              Project settings
+            </Link>{" "}
+            ·{" "}
+            <Link href="/settings/policy" className="font-semibold text-forest hover:underline">
+              Rules a project follows, with its donor&apos;s gaps
+            </Link>
+          </p>
+        </PageHead>
         {error && (
-          <p role="alert" className="mt-4 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">
+          <p role="alert" className="mt-4 bg-clay-soft px-4 py-3 text-sm text-clay">
             {error}
           </p>
         )}
         {notice && (
-          <p role="status" className="mt-4 rounded-xl bg-mist px-4 py-3 text-sm text-leaf">
+          <p role="status" className="mt-4 bg-mist px-4 py-3 text-sm text-leaf">
             {notice}
           </p>
         )}
         {!v && !error && <Loading className="mt-6" />}
-        {v && !v.admin && <p className="mt-4 rounded-xl bg-sunken px-4 py-3 text-sm text-muted">Only an administrator adds to these. You can see every rule and where it comes from.</p>}
+        {v && !v.admin && <p className="mt-4 bg-sunken px-4 py-3 text-sm text-muted">Only an administrator adds to these. You can see every rule and where it comes from.</p>}
 
         {v && (
           <>
             <SetupJump open={setOpenSetup} sample={!!v.sampleProject} />
-            <h2 className="mt-6 border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">Rules by department</h2>
-            <nav className="mt-3 flex flex-wrap gap-2" aria-label="Departments">
+            <SectionHead>Rules by department</SectionHead>
+            <nav className="mt-3 flex flex-wrap gap-1" aria-label="Departments">
               {(["all", ...v.departments] as const).map((d) => (
                 <button
                   key={d}
                   type="button"
                   onClick={() => setDept(d)}
-                  className={`rounded-full px-4 py-1.5 text-sm font-medium ${dept === d ? "bg-forest text-forest-ink" : "border border-line bg-surface hover:border-forest"}`}
+                  aria-pressed={dept === d}
+                  className={`min-h-11 px-3 font-mono text-xs ${dept === d ? "font-bold underline decoration-ochre decoration-4 underline-offset-8" : "text-muted hover:text-ink"}`}
                 >
                   {d === "all" ? "All departments" : d}
                 </button>
@@ -154,9 +158,9 @@ export function OrgSettingsPage() {
             </nav>
 
             {depts.map((area) => (
-              <section key={area} className="mt-6">
-                <SectionLabel>{area}</SectionLabel>
-                <ul className="mt-2 divide-y divide-line rounded-2xl border border-line bg-surface">
+              <section key={area}>
+                <SectionHead className="mt-6">{area}</SectionHead>
+                <LedgerTable cols={RULE} head={["Rule", { label: "Now", end: true }]} label={area}>
                   {v.params
                     .filter((p) => p.area === area)
                     .map((d) => (
@@ -179,30 +183,38 @@ export function OrgSettingsPage() {
                         onReset={(why) => post({ action: "reset", keys: [d.key], reason: why }, `${d.label}: back to our written policy.`)}
                       />
                     ))}
-                </ul>
+                </LedgerTable>
               </section>
             ))}
 
             <section className="mt-10">
-              <h2 className="border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">Requirement profiles</h2>
+              <SectionHead className="">Requirement profiles</SectionHead>
               <p className="mt-1 max-w-3xl text-sm text-muted">Compare a donor or standard&rsquo;s requirements with our procedures; where it asks for more, an administrator can layer it on.</p>
-              <div className="mt-2 grid gap-3 sm:grid-cols-2">
+              <LedgerTable cols={PROFILE} head={["Profile", "Compared with ours"]} label="Requirement profiles">
                 {v.profiles.map((p) => {
                   const n = p.comparison.filter((c) => c.status === "gap").length;
                   return (
-                    <div key={p.id} className={`flex flex-col rounded-2xl border p-4 ${profile === p.id ? "border-forest bg-mist" : "border-line bg-surface"}`}>
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="font-semibold">{p.name}</p>
-                        {n > 0 ? <Pill tone="ochre">{n} {n === 1 ? "gap" : "gaps"}</Pill> : <StatusPill tone="forest">Met</StatusPill>}
-                      </div>
-                      <p className="mt-1 flex-1 text-sm text-muted">{p.summary}</p>
-                      <button type="button" onClick={() => setProfile(profile === p.id ? null : p.id)} className={`${quietBtn} mt-3 self-start`}>
-                        {profile === p.id ? "Close" : "Compare with our procedures"}
-                      </button>
-                    </div>
+                    <LedgerRow key={p.id} cols={PROFILE} selected={profile === p.id} className="text-sm">
+                      <span className="min-w-0">
+                        <span className="block font-bold">{p.name}</span>
+                        <span className="mt-0.5 block text-muted">{p.summary}</span>
+                        <button type="button" onClick={() => setProfile(profile === p.id ? null : p.id)} className={`${quietBtn} mt-2`}>
+                          {profile === p.id ? "Close" : "Compare with our procedures"}
+                        </button>
+                      </span>
+                      <span>
+                        {n > 0 ? (
+                          <StatusBlock tone="ochre">
+                            {n} {n === 1 ? "gap" : "gaps"}
+                          </StatusBlock>
+                        ) : (
+                          <StatusBlock tone="forest">Met</StatusBlock>
+                        )}
+                      </span>
+                    </LedgerRow>
                   );
                 })}
-              </div>
+              </LedgerTable>
             </section>
 
             {chosen && (
@@ -218,10 +230,10 @@ export function OrgSettingsPage() {
                     onApprove={(keys, why) => post({ action: "layer", profile: chosen.id, keys, reason: why }, `${keys.length} ${chosen.name} ${keys.length === 1 ? "requirement" : "requirements"} layered on.`)}
                   />
                 ) : (
-                  <p className="mt-6 rounded-2xl border border-forest/40 bg-mist px-4 py-3 text-sm text-leaf">Our procedures already meet everything {chosen.name} requires.</p>
+                  <p className="mt-6 bg-mist px-4 py-3 text-sm text-leaf">Our procedures already meet everything {chosen.name} requires.</p>
                 )}
                 {(met.length > 0 || ours.length > 0) && (
-                  <div className="mt-3 rounded-2xl border border-line bg-surface px-4 py-3 text-sm">
+                  <Sheet className="mt-4 text-sm">
                     {met.length > 0 && (
                       <p>
                         <span className="font-semibold">Already met:</span> <span className="text-muted">{met.map((c) => def(c.key).label).join("; ")}.</span>
@@ -233,39 +245,44 @@ export function OrgSettingsPage() {
                         <span className="text-muted">{ours.map((c) => `${def(c.key).label} (ours ${show(def(c.key), c.ours)}, profile ${show(def(c.key), c.required)})`).join("; ")}.</span>
                       </p>
                     )}
-                  </div>
+                  </Sheet>
                 )}
               </>
             )}
 
             {/* Set-up options: chosen once, changed rarely. Each opens in place; the links at the top open them too. */}
             <section id="setup" className="mt-10 scroll-mt-24">
-              <h2 className="border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">Set-up options</h2>
+              <SectionHead className="">Set-up options</SectionHead>
               <p className="mt-1 max-w-3xl text-sm text-muted">Where files are kept, solo mode for sign-offs, and the sample project. Open one to see it or change it.</p>
-              <SetupItem id="files" title="Where files are kept" now={v.files.stores.map((x) => STORES.find((st) => st.id === x)?.name ?? x).join(", ") || "Not chosen yet"} open={openSetup === "files"} onToggle={(o) => setOpenSetup(o ? "files" : null)}>
-                <FilesPanel v={v} post={post} />
-              </SetupItem>
-              <SetupItem id="solo" title="Solo mode" now={v.solo?.on ? "On" : "Off"} open={openSetup === "solo"} onToggle={(o) => setOpenSetup(o ? "solo" : null)}>
-                <SoloPanel v={v} post={post} />
-              </SetupItem>
-              {v.sampleProject && (
-                <SetupItem id="sample" title="Sample project" now={v.sampleProject.hidden ? "Hidden" : "Shown"} open={openSetup === "sample"} onToggle={(o) => setOpenSetup(o ? "sample" : null)}>
-                  <SamplePanel v={v} post={post} />
+              <div className="mt-3 border-t border-ink [&>details:last-child]:border-ink">
+                <SetupItem id="files" title="Where files are kept" now={v.files.stores.map((x) => STORES.find((st) => st.id === x)?.name ?? x).join(", ") || "Not chosen yet"} open={openSetup === "files"} onToggle={(o) => setOpenSetup(o ? "files" : null)}>
+                  <FilesPanel v={v} post={post} />
                 </SetupItem>
-              )}
+                <SetupItem id="solo" title="Solo mode" now={v.solo?.on ? "On" : "Off"} open={openSetup === "solo"} onToggle={(o) => setOpenSetup(o ? "solo" : null)}>
+                  <SoloPanel v={v} post={post} />
+                </SetupItem>
+                {v.sampleProject && (
+                  <SetupItem id="sample" title="Sample project" now={v.sampleProject.hidden ? "Hidden" : "Shown"} open={openSetup === "sample"} onToggle={(o) => setOpenSetup(o ? "sample" : null)}>
+                    <SamplePanel v={v} post={post} />
+                  </SetupItem>
+                )}
+              </div>
             </section>
 
             {v.history.length > 0 && (
               <section className="mt-10">
-                <SectionLabel>Changes</SectionLabel>
-                <ul className="mt-2 space-y-1 text-sm">
+                <SectionHead className="">Changes</SectionHead>
+                <LedgerTable cols={CHANGE} head={["When", "What changed"]} label="Changes">
                   {v.history.slice(0, 50).map((h, i) => (
-                    <li key={i}>
-                      {h.at}: {def(h.key)?.label ?? h.key} {h.reset ? "back to the written policy" : `set to ${show(def(h.key), h.value)}`}
-                      {h.preset ? `, layered on from the ${v.profiles.find((p) => p.id === h.preset)?.name ?? h.preset} profile` : ""} by {h.name}. <span className="text-muted">{h.reason}</span>
-                    </li>
+                    <LedgerRow key={i} cols={CHANGE} className="text-sm">
+                      <Fig className="text-start text-muted">{h.at}</Fig>
+                      <span className="min-w-0">
+                        {def(h.key)?.label ?? h.key} {h.reset ? "back to the written policy" : `set to ${show(def(h.key), h.value)}`}
+                        {h.preset ? `, layered on from the ${v.profiles.find((p) => p.id === h.preset)?.name ?? h.preset} profile` : ""} by {h.name}. <span className="text-muted">{h.reason}</span>
+                      </span>
+                    </LedgerRow>
                   ))}
-                </ul>
+                </LedgerTable>
               </section>
             )}
           </>
@@ -320,39 +337,37 @@ function RuleRow({
   const shown = draft !== undefined ? draft : (current?.value ?? null);
   const pendingChange = draft !== undefined;
   return (
-    <li className={`px-4 py-3 ${pendingChange ? "bg-ochre-soft/40" : ""}`}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="font-medium">{d.label}</p>
+    <LedgerRow cols={RULE} className={pendingChange ? "bg-ochre-soft/40" : ""}>
+        <div className="min-w-0">
+          <p className="font-semibold">{d.label}</p>
           {d.help && <p className="text-xs text-muted">{d.help}</p>}
         </div>
         <div className="text-end">
-          <p className="font-semibold tabular-nums">{show(d, shown)}</p>
+          <Fig strong className="block">{show(d, shown)}</Fig>
           {pendingChange && <p className="text-xs text-warn">Now {show(d, current?.value ?? null)} · not saved</p>}
           {!pendingChange && changed && <Pill tone="sky">Added to our policy</Pill>}
         </div>
-      </div>
-      <p className="mt-1 text-xs text-muted">
+      <p className="col-span-full text-xs text-muted">
         {current?.source ?? "Not set"}
         {!pendingChange && changed && policy ? ` · Written policy: ${show(d, policy.value)}` : ""}
       </p>
       {admin && (
-        <div className="mt-2 flex flex-wrap items-center gap-3">
+        <div className="col-span-full flex flex-wrap items-center gap-3">
           {editing || pendingChange ? (
             <>
               <Editor d={d} value={shown} onChange={onChange} />
-              <button type="button" onClick={() => (onDrop(), setEditing(false))} className="text-sm text-muted hover:text-clay">
+              <button type="button" onClick={() => (onDrop(), setEditing(false))} className="min-h-11 text-sm text-muted hover:text-clay">
                 Keep as it is
               </button>
               {layerable(d) && <span className="w-full text-xs text-muted">Only stricter than our written policy ({show(d, policy?.value ?? null)}): it always applies.</span>}
             </>
           ) : (
-            <button type="button" onClick={() => setEditing(true)} className="text-sm font-medium text-forest hover:underline">
+            <button type="button" onClick={() => setEditing(true)} className="min-h-11 text-sm font-medium text-forest hover:underline">
               {layerable(d) ? "Add a stricter requirement" : "Update"}
             </button>
           )}
           {changed && !pendingChange && !resetting && (
-            <button type="button" onClick={() => setResetting(true)} className="text-sm text-muted hover:text-clay">
+            <button type="button" onClick={() => setResetting(true)} className="min-h-11 text-sm text-muted hover:text-clay">
               Back to our written policy
             </button>
           )}
@@ -371,7 +386,7 @@ function RuleRow({
               >
                 Remove the addition
               </button>
-              <button type="button" onClick={() => setResetting(false)} className="text-sm text-muted">
+              <button type="button" onClick={() => setResetting(false)} className="min-h-11 text-sm text-muted">
                 Cancel
               </button>
               <ReasonNeeded reason={why} to="remove it" className="w-full" />
@@ -379,7 +394,7 @@ function RuleRow({
           )}
         </div>
       )}
-    </li>
+    </LedgerRow>
   );
 }
 
@@ -444,10 +459,10 @@ function SoloPanel({ v, post }: { v: OrgSettingsView; post: (body: object, msg: 
     }
   };
   return (
-    <section className="mt-6 rounded-2xl border border-line bg-surface p-4">
+    <section className="mt-6">
       <div className="flex flex-wrap items-center gap-2">
-        <h2 className="text-xl font-semibold">{t("so.title")}</h2>
-        <Pill tone={on ? "ochre" : "muted"}>{on ? t("so.on") : t("so.off")}</Pill>
+        <h2 className="font-ledger text-xl font-bold">{t("so.title")}</h2>
+        <StatusBlock tone={on ? "ochre" : "muted"}>{on ? t("so.on") : t("so.off")}</StatusBlock>
       </div>
       <p className="mt-1 max-w-3xl text-sm text-muted">{t("so.help")}</p>
       <p className="mt-1 max-w-3xl text-sm font-semibold">{t("so.never")}</p>
@@ -496,10 +511,10 @@ function SamplePanel({ v, post }: { v: OrgSettingsView; post: (body: object, msg
     }
   };
   return (
-    <section className="mt-6 rounded-2xl border border-line bg-surface p-4">
+    <section className="mt-6">
       <div className="flex flex-wrap items-center gap-2">
-        <h2 className="text-xl font-semibold">{t("sample.title")}</h2>
-        <Pill tone={hidden ? "muted" : "forest"}>{hidden ? t("sample.hidden") : t("sample.shown")}</Pill>
+        <h2 className="font-ledger text-xl font-bold">{t("sample.title")}</h2>
+        <StatusBlock tone={hidden ? "muted" : "forest"}>{hidden ? t("sample.hidden") : t("sample.shown")}</StatusBlock>
       </div>
       <p className="mt-1 max-w-3xl text-sm text-muted">{t("sample.help")}</p>
       {v.sampleChange && <p className="mt-2 text-xs text-muted">{plain(t("sample.since", { date: day(v.sampleChange.at), who: v.sampleChange.name, reason: v.sampleChange.reason }))}</p>}
@@ -554,12 +569,12 @@ function SetupJump({ open, sample }: { open: (id: string) => void; sample: boole
 /** One set-up option, folded: its name and what it is set to now; opened, the full panel. */
 function SetupItem({ id, title, now, open, onToggle, children }: { id: string; title: string; now: string; open: boolean; onToggle: (open: boolean) => void; children: React.ReactNode }) {
   return (
-    <details id={id} open={open} onToggle={(e) => (e.currentTarget.open !== open ? onToggle(e.currentTarget.open) : undefined)} className="mt-3 scroll-mt-24 rounded-2xl border border-line bg-surface">
-      <summary className="flex min-h-12 cursor-pointer flex-wrap items-center gap-x-3 px-4 py-2">
-        <span className="font-semibold">{title}</span>
-        <span className="text-sm text-muted">{now}</span>
+    <details id={id} open={open} onToggle={(e) => (e.currentTarget.open !== open ? onToggle(e.currentTarget.open) : undefined)} className="scroll-mt-24 border-b border-line font-ledger">
+      <summary className="flex min-h-12 cursor-pointer flex-wrap items-center gap-x-3 px-3 py-2 hover:bg-ochre-soft">
+        <span className="font-bold">{title}</span>
+        <span className="font-mono text-xs text-muted">{now}</span>
       </summary>
-      <div className="px-4 pb-4 [&>section]:mt-0 [&>section]:border-0 [&>section]:p-0">{children}</div>
+      <div className="px-3 pb-4 [&>section]:mt-0 [&>section]:border-0 [&>section]:p-0">{children}</div>
     </details>
   );
 }

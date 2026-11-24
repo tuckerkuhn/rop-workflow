@@ -1,11 +1,11 @@
 "use client";
 
 import { plainError } from "@/lib/plain-error";
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useT } from "@/components/app/i18n";
 import { useRequireUser, useSession } from "@/components/app/session";
-import { Pill, SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn, StatusPill } from "@/components/workspace/ui";
+import { TopBar, dangerBtn, primaryBtn, quietBtn, StatusPill } from "@/components/workspace/ui";
+import { Empty, Fig, LedgerRow, LedgerTable, PageHead, SectionHead, Sheet, StatusBlock } from "@/components/workspace/ledger";
 import { CATEGORIES, CATEGORY_KEYS, FIRST_LAST_DAY, MILEAGE_RATE, amountOf, mileageRateOf, perDiemOf, summary, type Category, type ExAction, type ExpenseLine, type Receipt, type Report } from "@/lib/expense";
 import type { ExpenseView } from "@/app/api/expenses/route";
 import type { MessageKey } from "@/lib/i18n";
@@ -22,6 +22,11 @@ async function call<T>(url: string, user: string | undefined, init?: RequestInit
   if (!res.ok) throw new Error((body as { error?: string }).error ?? plainError(res.status));
   return body as T;
 }
+
+/** A list of reports: who and when, the total, the status. On a phone the three stack and wrap. */
+const LIST = "minmax(0,1fr) 9rem 15rem";
+/** One report's lines: what it was for, then the amount at the right. */
+const LINES = "2.25rem minmax(0,1fr) auto";
 
 const money = (n: number, cur: string) => (cur === "AFN" ? `${Math.round(n).toLocaleString("en-US")} AFN` : `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
 const draftKey = (person: string, month: string) => `rop-ex-${person}-${month}`;
@@ -175,29 +180,17 @@ export function ExpensePage() {
     <div className="min-h-screen">
       <TopBar />
       <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className="font-display text-3xl tracking-tight">{t("exp.title")}</h1>
-            <p className="mt-1 max-w-2xl text-sm text-muted">{t("exp.intro")}</p>
-          </div>
-          {/* HR roles go back to People; everyone else came from Home. */}
-          {v?.seesAll ? (
-            <Link href="/people" className="text-sm font-semibold text-forest hover:underline">
-              {t("exp.people")}
-            </Link>
-          ) : (
-            <Link href="/home" className="text-sm font-semibold text-forest hover:underline">
-              ← {t("nav.home")}
-            </Link>
-          )}
-        </div>
+        {/* HR roles go back to People; everyone else came from Home. */}
+        <PageHead back={v?.seesAll ? { href: "/people", label: t("exp.people") } : { href: "/home", label: t("nav.home") }} title={t("exp.title")}>
+          {t("exp.intro")}
+        </PageHead>
         {error && (
-          <p role="alert" className="mt-4 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">
+          <p role="alert" className="mt-4 bg-clay-soft px-4 py-3 text-sm text-clay">
             {error}
           </p>
         )}
         {notice && (
-          <p role="status" className="mt-4 rounded-xl bg-mist px-4 py-3 text-sm text-leaf">
+          <p role="status" className="mt-4 bg-mist px-4 py-3 text-sm text-leaf">
             {notice}
           </p>
         )}
@@ -231,30 +224,32 @@ export function ExpensePage() {
           />
         ) : (
           <>
-            {v.waiting.length > 0 && <List title={t("exp.waitingYou")} items={v.waiting} v={v} monthName={monthName} onOpen={show} highlight />}
+            {v.waiting.length > 0 && <List title={t("exp.waitingYou")} items={v.waiting} v={v} monthName={monthName} onOpen={show} />}
             {v.paperPeople.length > 0 && (
-              <section className="mt-6 rounded-2xl border border-line bg-surface p-4">
-                <SectionLabel>{t("exp.paperTitle")}</SectionLabel>
-                <p className="mt-1 text-sm text-muted">{t("exp.paperHelp")}</p>
-                <div className="mt-2 flex flex-wrap items-end gap-2">
-                  <select value={paperFor} onChange={(e) => setPaperFor(e.target.value)} className="rounded-xl border border-line bg-paper px-3 py-2.5 text-sm" aria-label={t("exp.whoseClaim")}>
-                    <option value="">{t("exp.whoseClaimPick")}</option>
-                    {v.paperPeople.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                      </option>
+              <section>
+                <SectionHead>{t("exp.paperTitle")}</SectionHead>
+                <Sheet className="mt-3">
+                  <p className="text-sm text-muted">{t("exp.paperHelp")}</p>
+                  <div className="mt-3 flex flex-wrap items-end gap-2">
+                    <select value={paperFor} onChange={(e) => setPaperFor(e.target.value)} className="min-h-11 border border-line bg-paper px-3 py-2.5 text-sm" aria-label={t("exp.whoseClaim")}>
+                      <option value="">{t("exp.whoseClaimPick")}</option>
+                      {v.paperPeople.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                    {[thisMonth, lastMonth].map((m) => (
+                      <button key={m} type="button" disabled={!paperFor} className={quietBtn} onClick={() => startReport(m, undefined, v.paperPeople.find((p) => p.id === paperFor))}>
+                        {monthName(m)}
+                      </button>
                     ))}
-                  </select>
-                  {[thisMonth, lastMonth].map((m) => (
-                    <button key={m} type="button" disabled={!paperFor} className={quietBtn} onClick={() => startReport(m, undefined, v.paperPeople.find((p) => p.id === paperFor))}>
-                      {monthName(m)}
-                    </button>
-                  ))}
-                </div>
+                  </div>
+                </Sheet>
               </section>
             )}
             {v.hasRecord && (
-              <section className="mt-6 flex flex-wrap gap-2">
+              <section className="mt-8 flex flex-wrap gap-2">
                 {[thisMonth, lastMonth]
                   .filter((m) => !v.mine.some((r) => r.month === m && r.status !== "returned" && r.status !== "withdrawn"))
                   .map((m) => (
@@ -273,10 +268,10 @@ export function ExpensePage() {
                 <p className="w-full text-xs text-muted">{t("exp.olderMonths")}</p>
               </section>
             )}
-            {v.mine.length > 0 && <List title={t("exp.yours")} items={v.mine} v={v} monthName={monthName} onOpen={show} />}
+            {v.mine.length > 0 && <List title={t("exp.yours")} items={v.mine} v={v} monthName={monthName} onOpen={show} first={v.mine.find((r) => r.status === "returned")?.n} />}
             {v.owed.length > 0 && <List title={t("exp.owed")} items={v.owed} v={v} monthName={monthName} onOpen={show} />}
             {v.others.length > 0 && <List title={v.seesAll ? t("exp.everyone") : t("exp.team")} items={v.others} v={v} monthName={monthName} onOpen={show} />}
-            {!v.hasRecord && !v.waiting.length && !v.others.length && <p className="mt-8 rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">{t("exp.noRecord")}</p>}
+            {!v.hasRecord && !v.waiting.length && !v.others.length && <Empty className="mt-8">{t("exp.noRecord")}</Empty>}
           </>
         )}
       </main>
@@ -284,15 +279,16 @@ export function ExpensePage() {
   );
 }
 
-function List({ title, items, v, monthName, onOpen, highlight }: { title: string; items: ExpenseView["mine"]; v: ExpenseView; monthName: (m: string) => string; onOpen: (n: number) => void; highlight?: boolean }) {
+/** `first`: the one report to look at first (one of yours sent back to correct); its status says why. */
+function List({ title, items, v, monthName, onOpen, first }: { title: string; items: ExpenseView["mine"]; v: ExpenseView; monthName: (m: string) => string; onOpen: (n: number) => void; first?: number }) {
   const { t } = useT();
   return (
-    <section className="mt-6">
-      <SectionLabel>{title}</SectionLabel>
-      <ul className={`mt-2 divide-y divide-line rounded-2xl border bg-surface ${highlight ? "border-forest/40" : "border-line"}`}>
+    <section>
+      <SectionHead>{title}</SectionHead>
+      <LedgerTable cols={LIST} head={["", { label: t("exp.total"), end: true }, ""]} label={title}>
         {items.map((r) => (
-          <li key={r.n}>
-            <button type="button" onClick={() => onOpen(r.n)} className="flex w-full flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 text-start text-sm hover:bg-sunken">
+          <LedgerRow key={r.n} cols="minmax(0,1fr)" onClick={() => onOpen(r.n)} first={r.n === first} className="text-sm">
+            <span className="flex flex-wrap items-center gap-x-3 gap-y-1 sm:grid sm:grid-cols-[minmax(0,1fr)_9rem_15rem]">
               <span className="min-w-0 flex-1">
                 <span className="font-medium">{r.person === v.me ? monthName(r.month) : `${v.names[r.person] ?? r.person} · ${monthName(r.month)}`}</span>
                 <span className="block text-xs text-muted">
@@ -300,12 +296,12 @@ function List({ title, items, v, monthName, onOpen, highlight }: { title: string
                   {r.version > 1 ? ` · ${t("exp.version", { n: r.version })}` : ""}
                 </span>
               </span>
-              <span className="tabular-nums">{money(r.total, r.currency)}</span>
-              {r.paid ? <StatusPill tone={r.paid.status === "approved" ? "forest" : "sky"}>{r.paid.status === "approved" ? t("exp.paidList", { month: r.paid.month }) : t("exp.inPayroll")}</StatusPill> : <StatusPill tone={STATUS[r.status].tone}>{t(STATUS[r.status].text)}</StatusPill>}
-            </button>
-          </li>
+              <Fig>{money(r.total, r.currency)}</Fig>
+              <span>{r.paid ? <StatusPill tone={r.paid.status === "approved" ? "forest" : "sky"}>{r.paid.status === "approved" ? t("exp.paidList", { month: r.paid.month }) : t("exp.inPayroll")}</StatusPill> : <StatusPill tone={STATUS[r.status].tone}>{t(STATUS[r.status].text)}</StatusPill>}</span>
+            </span>
+          </LedgerRow>
         ))}
-      </ul>
+      </LedgerTable>
     </section>
   );
 }
@@ -329,23 +325,20 @@ function Detail({ v, monthName, back, act, revise }: { v: ExpenseView; monthName
   };
   const name = (id: string) => v.names[id] ?? id;
   return (
-    <section className="mt-6 space-y-4">
-      <button type="button" onClick={back} className="text-sm font-semibold text-forest hover:underline">
+    <section className="mt-4 space-y-4">
+      <button type="button" onClick={back} className="inline-flex min-h-11 items-center text-sm font-semibold text-forest hover:underline">
         {t("exp.allReports")}
       </button>
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 className="text-xl font-semibold">
-          {r.person === v.me ? t("exp.yourExpenses", { month: monthName(r.report.month) }) : t("exp.theirExpenses", { name: name(r.person), month: monthName(r.report.month) })}
-        </h2>
-        {r.paid ? <Pill tone="forest">{r.paid.status === "approved" ? t("exp.paidDetail", { month: r.paid.month }) : t("exp.inPayroll")}</Pill> : <StatusPill tone={STATUS[r.status].tone}>{t(STATUS[r.status].text)}</StatusPill>}
-      </div>
+      <SectionHead className="" aside={r.paid ? <StatusBlock tone="forest">{r.paid.status === "approved" ? t("exp.paidDetail", { month: r.paid.month }) : t("exp.inPayroll")}</StatusBlock> : <StatusBlock tone={STATUS[r.status].tone}>{t(STATUS[r.status].text)}</StatusBlock>}>
+        {r.person === v.me ? t("exp.yourExpenses", { month: monthName(r.report.month) }) : t("exp.theirExpenses", { name: name(r.person), month: monthName(r.report.month) })}
+      </SectionHead>
       <p className="text-sm text-muted">
         {t("exp.submitted", { version: r.version, date: date(r.at.slice(0, 10)) })}
         {r.signatures.map((s) => ` · ${t(s.step === "supervisor" ? "exp.sigApproved" : "exp.sigAccepted", { name: name(s.by) })}`).join("")}
         {r.next && ` · ${t("exp.next", { people: r.next.people.map(name).join(` ${t("exp.or")} `) || t("exp.nobody") })}${r.next.via !== "supervisor" && r.next.via !== "Finance" ? ` (${VIA_KEY[r.next.via] ? t(VIA_KEY[r.next.via]) : r.next.via})` : ""}`}
       </p>
       {r.by !== r.person && (
-        <p className="rounded-xl bg-sunken px-4 py-3 text-sm">
+        <p className="bg-sunken px-4 py-3 text-sm">
           {t("exp.enteredBy", { by: name(r.by), person: name(r.person) })}{" "}
           {r.report.paperClaim && (
             <button type="button" onClick={() => void openReceipt(r.report.paperClaim!.hash, user?.id)} className="font-semibold text-forest hover:underline">
@@ -354,39 +347,42 @@ function Detail({ v, monthName, back, act, revise }: { v: ExpenseView; monthName
           )}
         </p>
       )}
-      {r.returned && <p className="rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">{t("exp.sentBackBy", { name: name(r.returned.by), note: r.returned.note })}</p>}
+      {r.returned && <p className="bg-clay-soft px-4 py-3 text-sm text-clay">{t("exp.sentBackBy", { name: name(r.returned.by), note: r.returned.note })}</p>}
       {(r.canSign || v.seesAll) && r.flags.length > 0 && (
-        <ul className="space-y-1 rounded-xl bg-ochre-soft px-3 py-2 text-sm text-warn">
+        <ul className="space-y-1 bg-ochre-soft px-3 py-2 text-sm text-warn">
           {r.flags.map((f) => (
             <li key={f}>⚠ {f}</li>
           ))}
         </ul>
       )}
-      <ul className="divide-y divide-line rounded-2xl border border-line bg-surface">
+      <LedgerTable cols={LINES} head={["", t("exp.for"), { label: t("exp.amount", { currency: r.report.currency }), end: true }]} label={t("exp.monthExpenses", { month: monthName(r.report.month) })}>
         {r.report.lines.map((l, i) => (
-          <li key={i} className="px-4 py-3 text-sm">
-            <div className="flex flex-wrap items-baseline gap-x-3">
-              <span className="w-6 text-muted">{i + 1}</span>
-              <span className="min-w-0 flex-1 font-medium">{l.description}</span>
-              <span className="tabular-nums font-semibold">{money(amountOf(l), r.report.currency)}</span>
+          <LedgerRow key={i} cols="minmax(0,1fr) auto" n={i + 1} className="text-sm">
+            <div className="min-w-0">
+              <p className="font-medium">{l.description}</p>
+              <p className="text-xs text-muted">
+                <span className="font-mono tabular-nums">{l.date}</span> · {t(CAT_KEY[l.category])}
+                {(r.canSign || v.seesAll) && CATEGORIES[l.category].gl ? ` (GL ${CATEGORIES[l.category].gl})` : ""} · {label(l.source)}
+                {l.perDiem && ` · ${t("exp.perDiemLine", { place: l.perDiem.place, start: l.perDiem.start, end: l.perDiem.end, rate: l.perDiem.rate })}`}
+                {l.category === "mileage" && ` · ${t("exp.mileageLine", { miles: l.miles ?? "", rate: mileageRateOf(l) })}`}
+              </p>
+              {(l.receipts.length > 0 || l.noReceipt) && (
+                <p className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                  {l.receipts.map((rc) => (
+                    <button key={rc.hash} type="button" onClick={() => void openReceipt(rc.hash, user?.id)} className="inline-flex min-h-11 items-center border border-line px-3 hover:border-forest" title={t("exp.fingerprint", { hash: rc.hash })}>
+                      📎 {rc.name}
+                    </button>
+                  ))}
+                  {l.noReceipt && <span className="text-warn">{t("exp.noReceiptWhy", { reason: l.noReceipt })}</span>}
+                </p>
+              )}
             </div>
-            <p className="ms-9 text-xs text-muted">
-              {l.date} · {t(CAT_KEY[l.category])}
-              {(r.canSign || v.seesAll) && CATEGORIES[l.category].gl ? ` (GL ${CATEGORIES[l.category].gl})` : ""} · {label(l.source)}
-              {l.perDiem && ` · ${t("exp.perDiemLine", { place: l.perDiem.place, start: l.perDiem.start, end: l.perDiem.end, rate: l.perDiem.rate })}`}
-              {l.category === "mileage" && ` · ${t("exp.mileageLine", { miles: l.miles ?? "", rate: mileageRateOf(l) })}`}
-            </p>
-            <p className="ms-9 mt-1 flex flex-wrap gap-2 text-xs">
-              {l.receipts.map((rc) => (
-                <button key={rc.hash} type="button" onClick={() => void openReceipt(rc.hash, user?.id)} className="rounded-full border border-line px-2 py-0.5 hover:border-forest" title={t("exp.fingerprint", { hash: rc.hash })}>
-                  📎 {rc.name}
-                </button>
-              ))}
-              {l.noReceipt && <span className="text-warn">{t("exp.noReceiptWhy", { reason: l.noReceipt })}</span>}
-            </p>
-          </li>
+            <Fig strong className="whitespace-nowrap">
+              {money(amountOf(l), r.report.currency)}
+            </Fig>
+          </LedgerRow>
         ))}
-      </ul>
+      </LedgerTable>
       <Totals report={r.report} v={v} codes={r.canSign || v.seesAll} />
       {r.cannotSign && <p className="text-sm text-muted">{t("exp.cannotSign", { reason: r.cannotSign })}</p>}
       {note === null ? (
@@ -413,11 +409,11 @@ function Detail({ v, monthName, back, act, revise }: { v: ExpenseView; monthName
           )}
         </div>
       ) : (
-        <div>
+        <Sheet className="">
           <label className="text-sm font-medium" htmlFor="ex-back">
             {t("exp.whatChange")}
           </label>
-          <textarea id="ex-back" value={note} onChange={(e) => setNote(e.target.value)} rows={3} className="mt-1 w-full rounded-xl border border-line bg-paper px-3 py-2 text-base" />
+          <textarea id="ex-back" value={note} onChange={(e) => setNote(e.target.value)} rows={3} className="mt-1 w-full border border-line bg-paper px-3 py-2 text-base" />
           <div className="mt-2 flex gap-2">
             <button type="button" disabled={busy || note.trim().length < 3} className={dangerBtn} onClick={() => run({ action: "return", report: r.n, note }, t("exp.sentBackMsg")).then(() => setNote(null))}>
               {t("exp.sendBack")}
@@ -426,7 +422,7 @@ function Detail({ v, monthName, back, act, revise }: { v: ExpenseView; monthName
               {t("exp.cancel")}
             </button>
           </div>
-        </div>
+        </Sheet>
       )}
     </section>
   );
@@ -438,34 +434,36 @@ function Totals({ report, v, codes = v.seesAll }: { report: Report; v: ExpenseVi
   const s = useMemo(() => summary(report), [report]);
   const label = useSourceLabel(v);
   return (
-    <div className="grid gap-3 rounded-2xl border border-line bg-surface p-4 text-sm sm:grid-cols-2">
+    <div className="grid gap-x-8 gap-y-4 border-y border-ink py-3 font-ledger text-sm sm:grid-cols-2">
       <div>
-        <SectionLabel>{t("exp.byAccount")}</SectionLabel>
-        <ul className="mt-2 space-y-0.5">
+        <h3 className="font-mono text-xs text-muted">{t("exp.byAccount")}</h3>
+        <ul className="mt-1">
           {(Object.entries(s.byCategory) as [Category, number][]).map(([c, a]) => (
-            <li key={c} className="flex justify-between gap-3">
+            <li key={c} className="flex justify-between gap-3 border-b border-line py-1.5">
               <span className="truncate">
-                {codes && CATEGORIES[c].gl ? `${CATEGORIES[c].gl} ` : ""}
+                {codes && CATEGORIES[c].gl ? <span className="font-mono">{CATEGORIES[c].gl} </span> : ""}
                 {t(CAT_KEY[c])}
               </span>
-              <span className="tabular-nums">{money(a, report.currency)}</span>
+              <Fig className="whitespace-nowrap">{money(a, report.currency)}</Fig>
             </li>
           ))}
         </ul>
       </div>
       <div>
-        <SectionLabel>{t("exp.bySource")}</SectionLabel>
-        <ul className="mt-2 space-y-0.5">
+        <h3 className="font-mono text-xs text-muted">{t("exp.bySource")}</h3>
+        <ul className="mt-1">
           {Object.entries(s.bySource).map(([k, a]) => (
-            <li key={k} className="flex justify-between gap-3">
+            <li key={k} className="flex justify-between gap-3 border-b border-line py-1.5">
               <span className="truncate">{label(k)}</span>
-              <span className="tabular-nums">{money(a, report.currency)}</span>
+              <Fig className="whitespace-nowrap">{money(a, report.currency)}</Fig>
             </li>
           ))}
         </ul>
-        <p className="mt-2 flex justify-between border-t border-line pt-2 font-semibold">
+        <p className="mt-2 flex justify-between gap-3 font-bold">
           <span>{t("exp.total")}</span>
-          <span className="tabular-nums">{money(s.total, report.currency)}</span>
+          <Fig strong className="whitespace-nowrap">
+            {money(s.total, report.currency)}
+          </Fig>
         </p>
       </div>
     </div>
@@ -507,15 +505,13 @@ function Editor({
     setEdit(null);
   };
   return (
-    <section className="mt-6 space-y-4">
-      <h2 className="text-xl font-semibold">
-        {forName ? t("exp.theirExpenses", { name: forName, month: monthName(report.month) }) : t("exp.monthExpenses", { month: monthName(report.month) })}
-      </h2>
+    <section className="mt-8 space-y-4">
+      <SectionHead className="">{forName ? t("exp.theirExpenses", { name: forName, month: monthName(report.month) }) : t("exp.monthExpenses", { month: monthName(report.month) })}</SectionHead>
       {forName && (
-        <div className="rounded-2xl border border-ochre/50 bg-ochre-soft p-4 text-sm">
+        <Sheet tone="gold" className="text-sm">
           <p className="font-semibold">{t("exp.paperSigned")}</p>
           <p className="mt-1 text-muted">{t("exp.paperScan", { name: forName })}</p>
-          <label className={`${quietBtn} mt-2 inline-block cursor-pointer`}>
+          <label className={`${quietBtn} mt-2 block w-fit cursor-pointer`}>
             {report.paperClaim ? `📎 ${report.paperClaim.name}` : t("exp.attachClaim")}
             <input
               type="file"
@@ -537,31 +533,31 @@ function Editor({
             />
           </label>
           {scanError && <p className="mt-1 text-clay">{scanError}</p>}
-        </div>
+        </Sheet>
       )}
       <p className="text-sm text-muted">{t("exp.currencyNote", { currency: report.currency })}</p>
       {report.lines.length > 0 && (
-        <p role="status" className="rounded-xl border border-warn/40 bg-ochre-soft px-4 py-3 text-sm font-semibold text-warn">
+        <p role="status" className="border border-warn/40 bg-ochre-soft px-4 py-3 text-sm font-semibold text-warn">
           {t("exp.unsent")}
         </p>
       )}
       {report.lines.length > 0 && (
-        <ul className="divide-y divide-line rounded-2xl border border-line bg-surface">
+        <LedgerTable cols={`${LINES} 2.75rem`} head={["", t("exp.for"), { label: t("exp.amount", { currency: report.currency }), end: true }, ""]} label={t("exp.monthExpenses", { month: monthName(report.month) })} className="">
           {report.lines.map((l, i) => (
-            <li key={i} className="flex items-center gap-3 px-4 py-3 text-sm">
-              <button type="button" onClick={() => setEdit({ i, line: l })} className="min-w-0 flex-1 text-start">
+            <LedgerRow key={i} cols="minmax(0,1fr) auto 2.75rem" n={i + 1} className="text-sm">
+              <button type="button" onClick={() => setEdit({ i, line: l })} className="min-h-11 min-w-0 text-start hover:underline">
                 <span className="block truncate font-medium">{l.description || t(CAT_KEY[l.category])}</span>
                 <span className="block text-xs text-muted">
-                  {l.date} · {t(CAT_KEY[l.category])} · {l.receipts.length ? t(l.receipts.length > 1 ? "exp.receiptMany" : "exp.receiptOne", { n: l.receipts.length }) : l.category === "perDiem" || l.category === "mileage" ? t("exp.workedOut") : t("exp.noReceipt")}
+                  <span className="font-mono tabular-nums">{l.date}</span> · {t(CAT_KEY[l.category])} · {l.receipts.length ? t(l.receipts.length > 1 ? "exp.receiptMany" : "exp.receiptOne", { n: l.receipts.length }) : l.category === "perDiem" || l.category === "mileage" ? t("exp.workedOut") : t("exp.noReceipt")}
                 </span>
               </button>
-              <span className="tabular-nums">{money(amountOf(l), report.currency)}</span>
-              <button type="button" aria-label={t("exp.removeLine", { n: i + 1 })} onClick={() => setReport({ ...report, lines: report.lines.filter((_, j) => j !== i) })} className="grid h-9 w-9 place-items-center rounded-full text-muted hover:bg-sunken">
+              <Fig className="whitespace-nowrap">{money(amountOf(l), report.currency)}</Fig>
+              <button type="button" aria-label={t("exp.removeLine", { n: i + 1 })} onClick={() => setReport({ ...report, lines: report.lines.filter((_, j) => j !== i) })} className="grid h-11 w-11 place-items-center text-muted hover:bg-sunken hover:text-ink">
                 ×
               </button>
-            </li>
+            </LedgerRow>
           ))}
-        </ul>
+        </LedgerTable>
       )}
       {edit ? (
         <LineForm v={v} month={report.month} currency={report.currency} line={edit.line} onSave={(l) => save(l, edit.i)} onCancel={() => setEdit(null)} />
@@ -573,7 +569,7 @@ function Editor({
       {report.lines.length > 0 && !edit && (
         <>
           <Totals report={report} v={v} />
-          <label className="flex items-start gap-3 rounded-2xl border border-line bg-surface p-4 text-sm">
+          <label className="flex items-start gap-3 border-t-2 border-ink pt-4 text-sm">
             <input type="checkbox" checked={certify} onChange={(e) => setCertify(e.target.checked)} className="mt-0.5 h-5 w-5" />
             <span>
               {forName
@@ -615,7 +611,7 @@ function LineForm({ v, month, currency, line, onSave, onCancel }: { v: ExpenseVi
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const set = (patch: Partial<ExpenseLine>) => setL((cur) => ({ ...cur, ...patch }));
-  const input = "mt-1 block w-full rounded-xl border border-line bg-paper px-3 py-2.5 text-base";
+  const input = "mt-1 block min-h-11 w-full border border-line bg-paper px-3 py-2.5 text-base";
   const isPerDiem = l.category === "perDiem";
   const isMiles = l.category === "mileage";
   // The paying donor's rate, or ROP's default; the server fixes it again on submission.
@@ -657,7 +653,7 @@ function LineForm({ v, month, currency, line, onSave, onCancel }: { v: ExpenseVi
               ? t("exp.err.receipt")
               : null;
   return (
-    <div className="space-y-3 rounded-2xl border border-forest/40 bg-paper p-4">
+    <Sheet className="space-y-3">
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="text-sm sm:col-span-2">
           <span className="font-medium">{t("exp.kind")}</span>
@@ -706,7 +702,7 @@ function LineForm({ v, month, currency, line, onSave, onCancel }: { v: ExpenseVi
         )}
       </div>
       {isPerDiem && (
-        <fieldset className="grid gap-3 rounded-xl bg-sunken p-3 sm:grid-cols-2">
+        <fieldset className="grid gap-3 bg-sunken p-3 sm:grid-cols-2">
           <legend className="sr-only">{t("exp.perDiem")}</legend>
           <label className="text-sm">
             <span className="font-medium">{t("exp.place")}</span>
@@ -737,7 +733,7 @@ function LineForm({ v, month, currency, line, onSave, onCancel }: { v: ExpenseVi
           </label>
           {calc && calc.days > 0 && (
             <p className="text-sm sm:col-span-2">
-              {t("exp.calc", { travel: t(calc.partial === 1 ? "exp.travelDay" : "exp.travelDays", { n: calc.partial }), pct: FIRST_LAST_DAY * 100, full: t(calc.full === 1 ? "exp.fullDay" : "exp.fullDays", { n: calc.full }) })} <span className="font-semibold">{money(calc.amount, currency)}</span>
+              {t("exp.calc", { travel: t(calc.partial === 1 ? "exp.travelDay" : "exp.travelDays", { n: calc.partial }), pct: FIRST_LAST_DAY * 100, full: t(calc.full === 1 ? "exp.fullDay" : "exp.fullDays", { n: calc.full }) })} <Fig strong>{money(calc.amount, currency)}</Fig>
             </p>
           )}
         </fieldset>
@@ -747,9 +743,9 @@ function LineForm({ v, month, currency, line, onSave, onCancel }: { v: ExpenseVi
           <span className="font-medium">{t("exp.receipt")}</span>
           <div className="mt-1 flex flex-wrap items-center gap-2">
             {l.receipts.map((rc) => (
-              <span key={rc.hash} className="inline-flex items-center gap-1 rounded-full border border-line px-3 py-1 text-xs">
+              <span key={rc.hash} className="inline-flex items-center gap-1 border border-line ps-3 text-xs">
                 📎 {rc.name}
-                <button type="button" aria-label={t("exp.removeFile", { name: rc.name })} onClick={() => set({ receipts: l.receipts.filter((x) => x.hash !== rc.hash) })} className="text-muted">
+                <button type="button" aria-label={t("exp.removeFile", { name: rc.name })} onClick={() => set({ receipts: l.receipts.filter((x) => x.hash !== rc.hash) })} className="grid h-11 w-11 place-items-center text-muted hover:text-ink">
                   ×
                 </button>
               </span>
@@ -781,6 +777,6 @@ function LineForm({ v, month, currency, line, onSave, onCancel }: { v: ExpenseVi
         </button>
         {problem && <span className="text-xs text-muted">{problem}</span>}
       </div>
-    </div>
+    </Sheet>
   );
 }
