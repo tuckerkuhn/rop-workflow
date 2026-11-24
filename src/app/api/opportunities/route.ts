@@ -38,7 +38,8 @@ export async function POST(req: Request) {
       try {
         return NextResponse.json({ reading: await readCall(a.link, a.documents, v.user) });
       } catch (e) {
-        if (e instanceof DraftingUnavailable) return NextResponse.json({ error: e.message }, { status: 503 });
+        // Without a working AI key the form is filled in by hand: say that, not how the server is set up.
+        if (e instanceof DraftingUnavailable) return NextResponse.json({ error: "The app cannot read calls for you right now. Fill in the fields below from the call." }, { status: 503 });
         return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 422 });
       }
     }

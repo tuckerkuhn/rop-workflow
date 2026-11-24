@@ -105,6 +105,8 @@ async function linkDocument(link: string): Promise<SetupFile | null> {
   const local = host === "localhost" || host.endsWith(".local") || host.endsWith(".internal") || /^[\d.]+$/.test(host) || host.includes(":") || !host.includes(".");
   if (url.protocol !== "https:" || local) throw new Error("The link must be a public web address starting with https://.");
   const res = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(15_000), headers: { "User-Agent": "Mozilla/5.0 (compatible; grant-call-reader)" } }).catch(() => null);
+  if (res && (res.status === 401 || res.status === 403 || res.status === 429))
+    throw new Error("This funder's site does not let the app read its pages. Open the link in your browser, save the page as a PDF (Print, then Save as PDF) and attach it here.");
   if (!res || !res.ok) throw new Error("The link did not open from here. Download the call and attach it instead.");
   const type = res.headers.get("content-type") ?? "";
   const buf = Buffer.from(await res.arrayBuffer());
@@ -146,7 +148,8 @@ export async function readCall(link: string, documents: OppDoc[], u: AppUser): P
     if (page) files.unshift(page);
   }
   if (!files.length) throw new Error("Add the link to the call or attach the call first.");
-  const { out } = await draftStructured({
+  // Without a working AI key (or when the reading fails) the person fills in the form from the call.
+  const read = await draftStructured({
     job: "opportunityRead",
     by: u.id,
     system: "You read a funding call (a call for proposals, request for proposals or applications, or a notice of funding) so a small organization can record it. Take every value from the documents; never invent. Leave a value empty when it is not there, and say so in missing. Plain, short sentences.",
@@ -156,7 +159,9 @@ export async function readCall(link: string, documents: OppDoc[], u: AppUser): P
     schema: readSchema,
     effort: "low",
     maxTokens: 6000,
-  });
+  }).catch(() => null);
+  if (!read) throw new Error("The app could not read this call for you. Fill in the fields below from the call.");
+  const out = read.out;
   return { ...out, deadline: /^\d{4}-\d{2}-\d{2}$/.test(out.deadline) ? out.deadline : "", currency: /^[A-Z]{3}$/.test(out.currency) ? out.currency : "" };
 }
 

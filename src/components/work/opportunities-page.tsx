@@ -278,7 +278,7 @@ function OppForm({ start, canRead, onSave, onCancel }: { start: Fields; canRead:
           <p className="text-xs text-muted">Reading the call needs the AI assistant, which is not set up here.</p>
         )}
         {readNote && (
-          <div role="status" className={`rounded-lg px-3 py-2 text-xs ${readNote.ok ? "bg-mist text-leaf" : "bg-clay-soft text-clay"}`}>
+          <div role="status" className={`rounded-lg px-3 py-2 text-xs ${readNote.ok ? "bg-mist text-leaf" : "bg-ochre-soft text-ink"}`}>
             <p>{readNote.text}</p>
             {readNote.missing.length > 0 && (
               <ul className="mt-1 list-disc ps-4 text-ink">

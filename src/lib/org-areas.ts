@@ -45,6 +45,7 @@ export const ORG_AREAS: (OrgArea & { allow: (u: AppUser, holds: Holds) => boolea
   { id: "proposals", href: "/work/proposals", title: "Proposals", help: "From a matched opportunity to submitted: what the call requires, who owns each item and how it would score.", allow: (u) => onProposals(u) },
   { id: "portfolio", href: "/portfolio", title: "All projects", help: "Every project at a glance.", allow: (u, h) => lead(u, h) },
   { id: "settings", href: "/settings/organization", title: "Organization settings", help: "Policy, people's access and the organization's rules.", allow: (u) => !!u.admin },
+  { id: "internal-review", href: "/organization/internal-review", title: "Quarterly internal review", help: "The sample drawn from the records each quarter, who tests it, and the findings log until each is closed.", allow: (u, h) => !!u.admin || lead(u, h) || hr(h) },
   { id: "audit", href: "/organization/audit", title: "Organization audit log", help: "Every change in these areas: who, when and what.", allow: (u, h) => !!u.admin || hr(h) },
 ];
 

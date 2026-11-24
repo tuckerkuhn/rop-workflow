@@ -173,3 +173,17 @@ received, payment voucher, close out), so the report is read from those records:
   Older records keep what they had.
 - **Connections:** each server instance holds at most 2 connections (Vercel) or 3 (laptop): the
   session pooler's 15 are shared by all of them.
+
+## 24 Nov 2026 (evening): quarterly internal review
+
+- **Quarterly internal review** (`/organization/internal-review`, `lib/internal-review`,
+  organization_state `internal-review`): the Internal Audit and Compliance Procedure in the UNDP
+  response. An administrator names the lead, the independent reviewer, the country office's focal
+  point and the CEO. After a quarter ends the lead draws the sample from the app's records by the
+  procedure's rules (every bank month; payments over $5,000 plus 10% or 25; one payroll month;
+  purchases over $1,000 plus 5 below; each award; an asset spot check). The sample is repeatable and
+  kept as drawn. Nobody tests what they prepared or approved. The six-step cycle has its due dates;
+  findings are rated High, Medium or Low, answered by the focal point, approved by the CEO and
+  closed by the lead after a re-test. Every action is in the audit log.
+- **Opportunities without the AI key:** when a call cannot be read, the form says so plainly and the
+  person fills it in by hand. A funder site that blocks reading gets "save it as a PDF and attach it".
