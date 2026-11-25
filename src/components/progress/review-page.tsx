@@ -2,6 +2,7 @@
 
 import { Why } from "@/components/app/why";
 import { PlaceTabs, REVIEW_TABS } from "@/components/progress/report-checks";
+import { longDate } from "@/lib/weekly";
 import { askConfirm } from "@/components/app/dialogs";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
@@ -110,7 +111,7 @@ export function ReviewPage() {
                 <span>{v.project.stage} ·</span>
                 {v.review.signedOff ? (
                   <StatusBlock tone="forest">
-                    Signed off by {who(v.review.signedOff.by)} on <span className={mono}>{day(v.review.signedOff.at)}</span>
+                    Signed off by {who(v.review.signedOff.by)} on {longDate(day(v.review.signedOff.at))}
                   </StatusBlock>
                 ) : (
                   <StatusBlock tone="ochre">Not signed off yet</StatusBlock>
@@ -148,7 +149,7 @@ export function ReviewPage() {
                           <p>
                             Spent <Fig>{money(v.budget.totals.spent)}</Fig> of <Fig>{money(v.budget.totals.approved)}</Fig> {v.budget.currency} approved (
                             <Fig>{v.budget.totals.approved ? Math.round((v.budget.totals.spent / v.budget.totals.approved) * 100) : 0}%</Fig>) with{" "}
-                            <Fig>{v.budget.timeGone === null ? "—" : `${Math.round(v.budget.timeGone * 100)}%`}</Fig> of the time gone, to <Fig>{v.budget.period.to}</Fig>. Expected total at the end{" "}
+                            <Fig>{v.budget.timeGone === null ? "—" : `${Math.round(v.budget.timeGone * 100)}%`}</Fig> of the time gone, to the end of {/^\d{4}-\d{2}$/.test(v.budget.period.to) ? monthName(v.budget.period.to) : v.budget.period.to}. Expected total at the end{" "}
                             <Fig>{money(v.budget.totals.forecast)}</Fig>.
                           </p>
                           <p className="mt-2">
@@ -218,12 +219,26 @@ export function ReviewPage() {
                   {v.mayEdit && <Propose v={v} busy={busy} act={act} />}
                 </section>
 
+                {!v.mayEdit && !v.mayDecide && !v.review.signedOff && (
+                  <p className="mt-10 bg-sunken px-4 py-3 text-sm text-muted">You can read this review. MEL and the monthly reviewers write it. A monthly reviewer or a plan approver signs it off, and it then shows here as signed.</p>
+                )}
                 {v.mayDecide && !v.review.signedOff && (
                   <Sheet className="mt-10">
-                    <button type="button" className={primaryBtn} disabled={busy || proposed > 0} onClick={() => void act({ action: "signoff" })}>
-                      Sign off the <span className={mono}>{month}</span> review
+                    <button
+                      type="button"
+                      className={primaryBtn}
+                      disabled={busy || proposed > 0}
+                      onClick={async () => {
+                        // Signing off locks the review: say so, and say what is still empty.
+                        const empty = [!v.review.summary?.text.trim() && "the summary", !v.review.attention?.text.trim() && "the needs-attention note"].filter(Boolean).join(" and ");
+                        const message = `Sign off the review for ${monthName(month)}? It cannot be changed after.${empty ? ` Nothing is written in ${empty}.` : ""}`;
+                        if (await askConfirm({ message, confirm: "Sign off" })) void act({ action: "signoff" });
+                      }}
+                    >
+                      Sign off the review for {monthName(month)}
                     </button>
                     {proposed > 0 && <p className="mt-2 text-xs text-muted">Decide or withdraw the proposed changes first.</p>}
+                    <p className="mt-2 text-xs text-muted">Signing off locks the summary, the needs-attention note and the changes for this month.</p>
                   </Sheet>
                 )}
               </>
@@ -234,6 +249,9 @@ export function ReviewPage() {
     </div>
   );
 }
+
+/** "2026-10" as "October 2026". */
+const monthName = (m: string) => new Date(`${m}-01T00:00:00Z`).toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" });
 
 function Note({ label, hint, value, editable, busy, onSave }: { label: string; hint: string; value?: { text: string; by: string; at: string; drafted?: boolean }; editable: boolean; busy: boolean; onSave: (text: string) => Promise<boolean> }) {
   const [text, setText] = useState(value?.text ?? "");
