@@ -392,7 +392,12 @@ export type ReportRange = { from: string; to: string; label?: string };
  * `plans`: for each workplan activity code, the first days of the quarters with work planned
  * (workplan_items.active, e.g. ["2026-07-01"]), for the partner whose report this is.
  */
-export function buildRows(indicators: IndicatorInfo[], results: ResultRecord[], quarter: string, saved: Qpr, plans: Record<string, string[]> = {}, range: ReportRange = quarterRange(quarter)): Row[] {
+/**
+ * `over`: whether the period has ended as the rows are built. A report opened, previewed or
+ * released while its period is under way judges like the monthly review: work due this quarter
+ * is not yet late (suggestStatus `quarterOver`).
+ */
+export function buildRows(indicators: IndicatorInfo[], results: ResultRecord[], quarter: string, saved: Qpr, plans: Record<string, string[]> = {}, range: ReportRange = quarterRange(quarter), over = true): Row[] {
   const { from, to } = range;
   const y = quarter.slice(0, 4);
   // This year to the period's end; an agreement period that starts in the year before counts from its own start.
@@ -432,7 +437,7 @@ export function buildRows(indicators: IndicatorInfo[], results: ResultRecord[], 
       // A target that adds up keeps the row as it always was; only a survey measure adds these.
       ...(i.measure && i.measure !== "sum" ? { measure: i.measure, baseline: i.baseline ?? null, latestDate: yr.date, note: { quarter: q.note, year: yr.note } } : {}),
     };
-    const suggested = suggestStatus(base.year, base.yearTarget, quarterNo, base.year > 0 || open > 0, base.planned);
+    const suggested = suggestStatus(base.year, base.yearTarget, quarterNo, base.year > 0 || open > 0, base.planned, over);
     const o = saved.rows[i.code];
     const status = o?.status ?? suggested;
     return { ...base, suggested, status, comment: o?.comment ?? suggestComment(base, status, label), edited: !!(o?.status || o?.comment) };
