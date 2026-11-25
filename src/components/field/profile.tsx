@@ -8,6 +8,8 @@ import { useRouter } from "next/navigation";
 import { mayWriteStory } from "@/lib/stories";
 import { useState } from "react";
 import { stageOf } from "@/components/field/workspace";
+import { PhotoTagger, filedAs } from "@/components/field/photo-tagger";
+import { tagLabels, type PhotoTag } from "@/lib/kobo-photo";
 import { useFieldData } from "@/components/app/use-project-data";
 import { Initials, useFeature, useRequireUser, useSession } from "@/components/app/session";
 import { PHOTO_QUALITY } from "@/lib/plans";
@@ -157,9 +159,6 @@ export function FarmerProfile({ id }: { id: string }) {
   const [score, setScore] = useState(0);
   const [comment, setComment] = useState("");
   const [addingPhoto, setAddingPhoto] = useState(false);
-  const [photoKind, setPhotoKind] = useState<PhotoKind>("visit");
-  const [photoCaption, setPhotoCaption] = useState("");
-  const [photoError, setPhotoError] = useState("");
   // Photo quality follows the plan: a small copy on the free plan, normal phone quality on the paid one.
   const fullPhotos = useFeature("full_photos");
   const [noteTitle, setNoteTitle] = useState("");
@@ -325,56 +324,35 @@ export function FarmerProfile({ id }: { id: string }) {
                 )}
               </div>
               {addingPhoto && (
-                <div className="mt-3 flex flex-wrap items-end gap-2 bg-sunken p-4">
-                  <label className="text-sm">
-                    <span className="block font-bold">{tx("Activity")}</span>
-                    <select id="photo-kind" value={photoKind} onChange={(e) => setPhotoKind(e.target.value as PhotoKind)} className={`mt-1 ${field}`}>
-                      {(Object.keys(photoLabels) as PhotoKind[]).map((k) => (
-                        <option key={k} value={k}>
-                          {tx(photoLabels[k])}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="min-w-48 flex-1 text-sm">
-                    <span className="block font-bold">{tx("Caption")}</span>
-                    <input id="photo-caption" value={photoCaption} onChange={(e) => setPhotoCaption(e.target.value)} className={`mt-1 ${field}`} />
-                  </label>
-                  <label className={`${primaryBtn} inline-flex min-h-12 cursor-pointer items-center text-base font-bold`}>
-                    {tx("Choose image")}
-                    <input
-                      id="photo-file"
-                      type="file"
-                      accept="image/*"
-                      className="sr-only"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        e.target.value = "";
-                        if (!file) return;
-                        if (file.size > 25_000_000) {
-                          setPhotoError(t("fp.tooBig"));
-                          return;
-                        }
-                        void shrinkPhoto(file, fullPhotos ? PHOTO_QUALITY.full : PHOTO_QUALITY.small)
-                          .then((src) => {
-                            update((f) => ({
-                              ...f,
-                              photos: [...f.photos, { id: `${f.id}-${Date.now()}`, activity: photoKind, date: TODAY, caption: photoCaption.trim() || `${photoLabels[photoKind]} · ${f.id}`, src }],
-                            }));
-                            setAddingPhoto(false);
-                            setPhotoCaption("");
-                            setPhotoError("");
-                          })
-                          .catch(() => setPhotoError(t("fp.unreadable")));
-                      }}
-                    />
-                  </label>
-                  <button type="button" onClick={() => setAddingPhoto(false)} className={`min-h-12 px-3 text-base font-bold text-muted hover:text-ink ${focusRing}`}>
-                    {tx("Cancel")}
-                  </button>
-                  <p className="w-full text-xs text-muted">{fullPhotos ? t("fp.full") : t("fp.small")}</p>
-                  {photoError && <p className="w-full text-sm text-clay">{photoError}</p>}
-                </div>
+                <>
+                  {/* Nothing typed: the day, time and place come from the photo, and one tag files it. */}
+                  <PhotoTagger
+                    tags={["signed-note", "delivery", "training", "visit", "landprep", "planting"]}
+                    quality={fullPhotos ? PHOTO_QUALITY.full : PHOTO_QUALITY.small}
+                    precise={!!user?.pii}
+                    onCancel={() => setAddingPhoto(false)}
+                    onSave={(shot) => {
+                      update((f) => ({
+                        ...f,
+                        photos: [
+                          ...f.photos,
+                          {
+                            id: `${f.id}-${Date.now()}`,
+                            ...filedAs(shot.tag),
+                            tag: shot.tag,
+                            date: shot.taken?.date ?? TODAY,
+                            caption: `${tagLabels[shot.tag]} · ${f.id}`,
+                            src: shot.src,
+                            ...(shot.taken ? { taken: shot.taken } : {}),
+                            ...(shot.gps ? { gps: shot.gps } : {}),
+                          },
+                        ],
+                      }));
+                      setAddingPhoto(false);
+                    }}
+                  />
+                  <p className="mt-1 text-xs text-muted">{fullPhotos ? t("fp.full") : t("fp.small")}</p>
+                </>
               )}
               <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
                 {[...farmer.photos].reverse().map((p) => (
@@ -391,9 +369,10 @@ export function FarmerProfile({ id }: { id: string }) {
                       )}
                     </div>
                     <div className="px-3 py-2">
-                      <p className="text-sm font-extrabold">{tx(photoLabels[p.activity])}</p>
+                      <p className="text-sm font-extrabold">{tx(p.tag && p.tag in tagLabels ? tagLabels[p.tag as PhotoTag] : p.signedNote ? tagLabels["signed-note"] : photoLabels[p.activity])}</p>
                       <p className="truncate text-xs text-muted">
-                        {p.date} · {maskName(p.caption, farmer, user)}
+                        {p.taken ? `${p.taken.date}${p.taken.time ? ` ${p.taken.time}` : ""}` : p.date}
+                        {p.gps ? ` · ${tx("place recorded")}` : ""} · {maskName(p.caption, farmer, user)}
                       </p>
                     </div>
                   </li>
@@ -520,16 +499,3 @@ export function FarmerProfile({ id }: { id: string }) {
   );
 }
 
-/** The photo resized on the phone (long side at most `maxEdge` pixels) and kept as a JPEG data URL. */
-export async function shrinkPhoto(file: File, q: { maxEdge: number; jpeg: number }): Promise<string> {
-  const bitmap = await createImageBitmap(file);
-  const scale = Math.min(1, q.maxEdge / Math.max(bitmap.width, bitmap.height));
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.round(bitmap.width * scale);
-  canvas.height = Math.round(bitmap.height * scale);
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("No canvas");
-  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  bitmap.close();
-  return canvas.toDataURL("image/jpeg", q.jpeg);
-}

@@ -4,7 +4,9 @@ import { Arrow } from "@/components/app/arrow";
 import { plainError } from "@/lib/plain-error";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { useSession } from "@/components/app/session";
+import { useFeature, useSession } from "@/components/app/session";
+import { PhotoTagger } from "@/components/field/photo-tagger";
+import { PHOTO_QUALITY } from "@/lib/plans";
 import { useT } from "@/components/app/i18n";
 import { primaryBtn, quietBtn } from "@/components/workspace/ui";
 import type { DistView } from "@/server/distribution";
@@ -43,7 +45,11 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState<"" | "approved" | "sent_back" | "resubmit">("");
+  const [done, setDone] = useState<"" | "approved" | "sent_back" | "resubmit" | "checked">("");
+  // The photo of the signed note, added on this page while fixing a record that was sent back.
+  const [addingNote, setAddingNote] = useState(false);
+  const [noteAdded, setNoteAdded] = useState("");
+  const fullPhotos = useFeature("full_photos");
   /** After a decision: the purchases whose lists grew, or who has the task to fix it. */
   const [reached, setReached] = useState<string[]>([]);
   // The target the approval added a result to, when it added one.
@@ -129,12 +135,22 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
     if (!res.ok) return setError(body.error ?? plainError(res.status));
     setD(body.distribution);
     setError("");
+    setDone("checked");
+  }
+
+  /** Files the photo of the signed note on the farmer's record, from this page. Throws with the server's words. */
+  async function addNotePhoto(shot: { src: string; taken: { date: string; time: string | null } | null; gps: { lat: number; lon: number } | null }) {
+    const res = await fetch(`${url}/photo`, { method: "POST", headers, body: JSON.stringify({ src: shot.src, taken: shot.taken, gps: shot.gps }) });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error ?? plainError(res.status));
+    setNoteAdded(typeof body.date === "string" ? body.date : "today");
+    setAddingNote(false);
   }
 
   async function sendAgain() {
     const num = (v: string) => (v.trim() === "" || !Number.isFinite(Number(v)) || Number(v) < 0 ? undefined : Number(v));
     setBusy(true);
-    const res = await fetch(url, { method: "POST", headers, body: JSON.stringify({ decision: "resubmit", note: note.trim(), fix: { qty: Object.fromEntries(Object.entries(fix.qty).flatMap(([k, v]) => (num(v) === undefined ? [] : [[k, num(v)]]))), signed: fix.signed, photo: fix.photo, ...(d?.condition && fix.conditionOk ? { conditionOk: true } : {}) } }) });
+    const res = await fetch(url, { method: "POST", headers, body: JSON.stringify({ decision: "resubmit", note: note.trim(), fix: { qty: Object.fromEntries(Object.entries(fix.qty).flatMap(([k, v]) => (num(v) === undefined ? [] : [[k, num(v)]]))), signed: fix.signed, ...(d?.condition && fix.conditionOk ? { conditionOk: true } : {}) } }) });
     const body = await res.json().catch(() => ({}));
     setBusy(false);
     if (!res.ok) return setError(body.error ?? plainError(res.status));
@@ -344,9 +360,27 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
                 {tx("This record came from a phone in the field. {name} checks KoboCollect data on this project. Once that is done, the project manager can approve it.", { name: d.koboCheck.by })}
               </p>
               {canCheckKobo && (
-                <button type="button" className={`${primaryBtn} mt-3`} disabled={busy} onClick={checkKobo}>
-                  {tx("I have checked this record")}
-                </button>
+                <>
+                  <p className="mt-3 font-semibold">{tx("Three things to look at, all on this page:")}</p>
+                  <ol className="mt-1 list-decimal space-y-0.5 ps-5">
+                    <li>{tx("The photo shows this farmer’s signature or thumbprint on the goods received note.")}</li>
+                    <li>{tx("The amounts on the note match the amounts handed out above.")}</li>
+                    <li>{tx("The place and the day make sense for this farmer.")}</li>
+                  </ol>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button type="button" className={primaryBtn} disabled={busy} onClick={checkKobo}>
+                      {tx("I have checked this record")}
+                    </button>
+                  </div>
+                  <p className="mt-2 text-xs">{tx("Next: {names} is emailed at once and approves it. Nothing counts until then.", { names: d.approverNames })}</p>
+                  <label className="mt-4 block font-medium" htmlFor="check-note">
+                    {tx("Something is wrong? Say what, and send it back to the person who collected it")}
+                  </label>
+                  <textarea id="check-note" value={note} onChange={(e) => setNote(e.target.value)} rows={2} className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm" placeholder={tx("For example: the photo is of another farmer’s note")} />
+                  <button type="button" className={`${quietBtn} mt-2`} disabled={busy || !note.trim()} onClick={() => decide("sent_back")}>
+                    {tx("Send back")}
+                  </button>
+                </>
               )}
             </section>
           )}
@@ -385,14 +419,21 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
                 <input type="checkbox" className="mt-0.5 h-4 w-4" checked={fix.signed} onChange={(e) => setFix((f) => ({ ...f, signed: e.target.checked }))} />
                 {tx("The recipient signed or thumbprinted the goods received note: received in acceptable condition and responsible from now on")}
               </label>
-              {d.source === "kobo" ? (
-                <label className="mt-2 flex items-start gap-2 text-sm">
-                  <input type="checkbox" className="mt-0.5 h-4 w-4" checked={fix.photo} onChange={(e) => setFix((f) => ({ ...f, photo: e.target.checked }))} />
-                  {tx("A photo of the signed note is on the farmer’s record")}
-                </label>
-              ) : (
-                !d.photo && <p className="mt-2 text-sm">{tx("Add the photo of the signed note on the farmer’s record in Field activities first. It is picked up when you send this again.")}</p>
-              )}
+              <div className="mt-3 text-sm">
+                <p className="font-medium">{tx("Photo of the signed goods received note")}</p>
+                {noteAdded ? (
+                  <p className="mt-1">✓ {tx("Photo added. It goes to the project manager with the record when you send this again.")}</p>
+                ) : (
+                  <p className="mt-1 text-muted">{d.photo ? tx("One is on file. Add a new one only if what needs fixing is the photo.") : tx("None is on file, and the record cannot be approved without it. Take or choose it here.")}</p>
+                )}
+                {addingNote ? (
+                  <PhotoTagger tags={[]} preset="signed-note" quality={fullPhotos ? PHOTO_QUALITY.full : PHOTO_QUALITY.small} precise={!!user?.pii} saveLabel={tx("Add this photo")} onCancel={() => setAddingNote(false)} onSave={addNotePhoto} />
+                ) : (
+                  <button type="button" className={`${quietBtn} mt-2`} onClick={() => setAddingNote(true)}>
+                    {noteAdded || d.photo ? tx("Add a new photo") : tx("Add the photo")}
+                  </button>
+                )}
+              </div>
               {d.condition && (
                 <label className="mt-2 flex items-start gap-2 text-sm">
                   <input type="checkbox" className="mt-0.5 h-4 w-4" checked={fix.conditionOk} onChange={(e) => setFix((f) => ({ ...f, conditionOk: e.target.checked }))} />
@@ -410,11 +451,12 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
             </section>
           )}
           {sentBack && !canFix && !done && <p className="mt-6 text-sm text-muted">{tx("The person who recorded it has a task to fix it and send it again.")}</p>}
-          {pending && !canDecide && !done && <p className="mt-6 text-sm text-muted">{tx("Only the project manager approves distributions.")}</p>}
+          {pending && !canDecide && !done && !(canCheckKobo && d.koboCheck?.needed) && <p className="mt-6 text-sm text-muted">{tx("Only the project manager approves distributions.")}</p>}
 
           {done && (
             <section className="mt-6 rounded-xl bg-mist px-4 py-3 text-sm" aria-live="polite">
-              <p className="font-semibold">{done === "approved" ? tx("Approved.") : done === "sent_back" ? tx("Sent back.") : tx("Sent again.")}</p>
+              <p className="font-semibold">{done === "approved" ? tx("Approved.") : done === "sent_back" ? tx("Sent back.") : done === "checked" ? tx("Checked.") : tx("Sent again.")}</p>
+              {done === "checked" && <p className="mt-1">{d.notified?.emailed ? tx("{names} has been emailed and sees it on Home. Nothing counts until it is approved.", { names: d.approverNames }) : tx("{names} sees it on Home now. Nothing counts until it is approved.", { names: d.approverNames })}</p>}
               {done === "approved" && (
                 <ul className="mt-1 list-disc space-y-0.5 ps-5">
                   <li>{counted ? tx("Results: one farmer added to the target \"{target}\". It counts once MEL accepts it.", { target: counted }) : tx("Results: not added to a target. Nobody has chosen the target that counts distributions (Field activities, Input package).")}</li>
@@ -427,7 +469,7 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
               {done === "resubmit" && <p className="mt-1">{tx("The project manager has been told and will check it again. Your task is closed.")}</p>}
               {user && (
                 <div className="mt-3 flex flex-wrap items-center gap-3">
-                  {waiting.length > 0 && (done === "approved" || done === "sent_back") && (
+                  {waiting.length > 0 && (done === "approved" || done === "sent_back" || done === "checked") && (
                     <Link href={`/approve/${encodeURIComponent(code)}/${waiting[0].id}`} className={primaryBtn}>
                       {tx("Next: farmer {id} ({n} left)", { id: waiting[0].farmerId, n: waiting.length })} <Arrow />
                     </Link>

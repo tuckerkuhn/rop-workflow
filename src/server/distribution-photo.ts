@@ -81,10 +81,12 @@ export async function distributionFacts(code: string, id: string, precise: boole
   let facts: ReturnType<typeof photoFacts> | null = null;
   const formDay = typeof payload.distribution_date === "string" ? payload.distribution_date.slice(0, 10) : typeof payload.date === "string" ? payload.date.slice(0, 10) : null;
 
+  let fromKobo = false;
   if (row.source === "kobo") {
     place = koboPlace(payload);
     const original = koboOriginalUrl(payload, QUESTION.note);
     if (original) {
+      fromKobo = true;
       try {
         const c = await credentials(code);
         const got = await attachmentBytes(c.server, c.token, original, 12_000_000);
@@ -94,13 +96,15 @@ export async function distributionFacts(code: string, id: string, precise: boole
         missing.push("The photo could not be read from KoboToolbox just now, so its own date and place are not shown.");
       }
     }
-  } else if (row.farmerCode) {
-    // Recorded in the app: the photo on the farmer's record carries what was read from it when it was added.
+  }
+  if (!fromKobo && row.farmerCode) {
+    // The photo is in the app (recorded here, or added to a KoboCollect record that came without
+    // one): it carries what was read from it when it was added.
     const [item] = await db.select({ data: s.fieldItems.data }).from(s.fieldItems).where(and(eq(s.fieldItems.projectId, project.id), eq(s.fieldItems.itemKey, row.farmerCode))).limit(1);
-    const note = [...(((item?.data as Farmer | undefined)?.photos ?? []) as (Farmer["photos"][number] & { taken?: { date?: string | null; time?: string | null }; gps?: Point | null })[])].reverse().find((p) => p.activity === "distribution" && p.signedNote && p.src);
+    const note = [...((item?.data as Farmer | undefined)?.photos ?? [])].reverse().find((p) => p.activity === "distribution" && p.signedNote && p.src);
     if (note) {
       facts = { date: note.taken?.date ?? null, time: note.taken?.time ?? null, gps: note.gps ?? null };
-      if (note.gps) place = { ...note.gps, from: "photo" };
+      if (!place && note.gps) place = { ...note.gps, from: "photo" };
     }
   }
 

@@ -51,8 +51,6 @@ const gpsOf = (p: Record<string, unknown>) => {
   const at = koboPlace(p);
   return at ? { lat: at.lat, lon: at.lon } : undefined;
 };
-  return undefined;
-};
 
 /**
  * When the work happened: the form's own date question (install_date, training_date, date...) when

@@ -43,6 +43,12 @@ export type Photo = {
   src?: string;
   /** The photo is of the goods received note the recipient signed or thumbprinted (lib/distribution closeBlock). */
   signedNote?: boolean;
+  /** The one tag picked when it was added (lib/kobo-photo PHOTO_TAGS): it decides where the photo is filed and what it sets going. */
+  tag?: string;
+  /** When the photo itself says it was taken (its EXIF data, read before it was shrunk). `date` above is that day when known. */
+  taken?: { date: string; time: string | null };
+  /** Where the photo itself says it was taken. Shown only to people who may see participant names. */
+  gps?: { lat: number; lon: number };
 };
 /** Whether the farmer's record holds a photo of the signed goods received note. */
 export const hasSignedNotePhoto = (f: { photos?: Photo[] } | null | undefined) => !!f?.photos?.some((p) => p.activity === "distribution" && p.signedNote && !!p.src);
