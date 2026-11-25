@@ -178,6 +178,19 @@ describe("after a release", { timeout: 60_000 }, () => {
     else expect(next === null || next.title === null).toBe(true);
   });
 
+  it("tells a donor how many documents are kept and of what kind, never what they are called", async () => {
+    const r = (await donorReport(code, quarter, elena))!;
+    const kept = (await loadResults(code)).filter((x) => x.status === "accepted" && x.quarter === quarter);
+    const names = kept.flatMap((x) => [...x.files.map((f) => f.name), ...(x.links ?? []).map((l) => l.title)]);
+    expect(names.length).toBeGreaterThan(0);
+    const told = r.report.rows.flatMap((x) => x.records.flatMap((y) => y.documents));
+    expect(told).toContain("1 PDF document");
+    // A file's name is typed by staff and can hold a participant's name: none of it reaches the donor.
+    const sent = JSON.stringify(r.report);
+    for (const name of names) expect(sent).not.toContain(name);
+    expect(sent).not.toContain(".pdf");
+  });
+
   it("opens only photos that are in the released report", async () => {
     const r = (await donorReport(code, quarter, elena))!;
     const inReport = [...r.report.photos.map((p) => p.hash), ...r.report.rows.flatMap((x) => x.records.flatMap((y) => y.photos.map((p) => p.hash)))];

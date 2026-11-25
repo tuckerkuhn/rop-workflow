@@ -156,3 +156,21 @@ export const isPhotoFile = (f: { type: string }) =>
 
 /** How a person appears to a donor: their role, never their name. */
 export const ROLE_FOR = { recorded: "Field team", accepted: "MEL" } as const;
+
+/**
+ * What a donor is told about the documents kept behind a record: how many and of what kind, never
+ * what they are called. A file's name and a link's title are typed by staff and can hold a
+ * participant's name ("Attendance Ahmad Karimi.pdf"), so neither leaves Roots of Peace.
+ */
+export function onFileKinds(files: { type: string }[], links = 0): string[] {
+  const kind = (t: string) => (t === "application/pdf" ? "pdf" : t.startsWith("image/") ? "photo" : /sheet|excel|csv/.test(t) ? "sheet" : "other");
+  const count = (k: string) => files.filter((f) => kind(f.type) === k).length;
+  const say = (n: number, one: string, many: string) => (n === 0 ? [] : [n === 1 ? `1 ${one}` : `${n} ${many}`]);
+  return [
+    ...say(count("pdf"), "PDF document", "PDF documents"),
+    ...say(count("photo"), "photo", "photos"),
+    ...say(count("sheet"), "spreadsheet", "spreadsheets"),
+    ...say(count("other"), "other document", "other documents"),
+    ...say(links, "linked document", "linked documents"),
+  ];
+}
