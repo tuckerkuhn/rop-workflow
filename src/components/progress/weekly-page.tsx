@@ -13,7 +13,8 @@ import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { openReceipt, shrink } from "@/components/people/expense-page";
 import { OriginalText } from "@/components/progress/original-text";
-import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
+import { TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
+import { Empty, LedgerRow, PageHead, SectionHead, Sheet, StatusBlock } from "@/components/workspace/ledger";
 import type { Receipt } from "@/lib/expense";
 import type { ResultAction, UpdateInput } from "@/lib/results";
 import { exifDate, longDate, periodLabel, weekOf, type WeeklyPatch } from "@/lib/weekly";
@@ -37,7 +38,11 @@ async function call<T>(url: string, user: string | undefined, init?: RequestInit
   return body as T;
 }
 
-const input = "mt-1 block w-full rounded-xl border border-line bg-paper px-3 py-2 text-base";
+const input = "mt-1 block min-h-12 w-full border border-line bg-paper px-3 py-2.5 text-base";
+/** Buttons on a phone: at least 48px to tap. */
+const primary = `${primaryBtn} min-h-12`;
+const quiet = `${quietBtn} min-h-12`;
+const textBtn = "inline-flex min-h-12 items-center text-sm";
 const addDays = (iso: string, n: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * 864e5).toISOString().slice(0, 10);
 type Item = WeeklyView["items"][number];
 
@@ -64,15 +69,15 @@ function Thumb({ hash, user, alt, blob }: { hash: string; user: string; alt: str
   }, [hash, user, blob]);
   return src ? (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={src} alt={alt} className="h-28 w-40 rounded-lg object-cover" />
+    <img src={src} alt={alt} className="h-28 w-40 object-cover" />
   ) : (
-    <div className="h-28 w-40 rounded-lg bg-sunken" />
+    <div className="h-28 w-40 bg-sunken" />
   );
 }
 
 /** Adds or changes one item: activity, title, date, what happened, and photos with caption and date taken. */
 type Local = Record<string, { blob: Blob; name: string; type: string }>;
-function ItemForm({ v, start, onSave, onQueue, onClose }: { v: WeeklyView; start?: Item; onSave: (u: UpdateInput) => Promise<void>; onQueue?: (u: UpdateInput, local: Local) => Promise<void>; onClose: () => void }) {
+function ItemForm({ v, start, onSave, onQueue, onClose, className = "mt-3" }: { v: WeeklyView; start?: Item; className?: string; onSave: (u: UpdateInput) => Promise<void>; onQueue?: (u: UpdateInput, local: Local) => Promise<void>; onClose: () => void }) {
   const { user } = useSession();
   const lastDay = v.week.to < v.today ? v.week.to : v.today;
   const [f, setF] = useState({ activity: start?.activity ?? v.activities[0]?.code ?? "", title: start?.title ?? "", date: start?.date ?? lastDay, note: start?.note ?? "" });
@@ -140,9 +145,9 @@ function ItemForm({ v, start, onSave, onQueue, onClose }: { v: WeeklyView; start
     }
   };
   return (
-    <div className="mt-3 rounded-xl bg-sunken p-4">
+    <Sheet className={className}>
       <div className="grid gap-3 sm:grid-cols-3">
-        <label className="text-sm sm:col-span-2">
+        <label className="text-sm font-medium sm:col-span-2">
           Activity
           <select className={input} value={f.activity} onChange={(e) => setF({ ...f, activity: e.target.value })}>
             {v.activities.map((a) => (
@@ -152,16 +157,16 @@ function ItemForm({ v, start, onSave, onQueue, onClose }: { v: WeeklyView; start
             ))}
           </select>
         </label>
-        <label className="text-sm">
+        <label className="text-sm font-medium">
           Date
-          <input type="date" className={input} value={f.date} min={v.week.from} max={lastDay} onChange={(e) => setF({ ...f, date: e.target.value })} />
+          <input type="date" className={`${input} font-mono`} value={f.date} min={v.week.from} max={lastDay} onChange={(e) => setF({ ...f, date: e.target.value })} />
         </label>
       </div>
-      <label className="mt-3 block text-sm">
+      <label className="mt-3 block text-sm font-medium">
         Heading (optional)
         <input className={input} value={f.title} maxLength={120} onChange={(e) => setF({ ...f, title: e.target.value })} placeholder="Trellis installation" />
       </label>
-      <label className="mt-3 block text-sm">
+      <label className="mt-3 block text-sm font-medium">
         What happened
         <FieldHelp field="weekly.note" />
         <textarea
@@ -174,25 +179,32 @@ function ItemForm({ v, start, onSave, onQueue, onClose }: { v: WeeklyView; start
         <NamesWarning text={f.note} />
       </label>
       <div className="mt-3 text-sm">
-        Photos
+        <span className="font-medium">Photos</span>
         <FieldHelp field="weekly.photos" />
-        <input type="file" multiple accept="image/jpeg,image/png,image/webp" className="mt-1 block text-sm" onChange={(e) => void upload(e.target.files)} />
+        <input
+          type="file"
+          multiple
+          accept="image/jpeg,image/png,image/webp"
+          className="mt-1 block w-full text-sm file:me-3 file:min-h-12 file:cursor-pointer file:border file:border-line-strong file:bg-paper file:px-4 file:font-semibold"
+          onChange={(e) => void upload(e.target.files)}
+        />
         {files.length > 0 && (
-          <ul className="mt-2 space-y-2">
+          <ul className="mt-3 border-t border-ink [&>li:last-child]:border-ink">
             {files.map((x) => (
-              <li key={x.hash} className="rounded-lg border border-line bg-paper p-2 text-xs">
-                <div className="flex gap-3">
+              <li key={x.hash} className="border-b border-line py-3 text-sm">
+                {/* On a phone: the photo and its remove button on one line, caption and date under it. */}
+                <div className="flex flex-wrap items-start gap-3">
                   {user && <Thumb hash={x.hash} user={user.id} alt={captions[x.hash] ?? x.name} blob={local[x.hash]?.blob} />}
-                  <div className="min-w-0 flex-1 space-y-2">
-                    <input className={input} placeholder="Caption: what, where (village, district)" value={captions[x.hash] ?? ""} onChange={(e) => setCaptions({ ...captions, [x.hash]: e.target.value })} aria-label="Caption" />
-                    <label className="flex items-center gap-2">
-                      Taken on
-                      <input type="date" className="rounded-lg border border-line bg-paper px-2 py-1" value={taken[x.hash] ?? ""} max={v.today} onChange={(e) => setTaken({ ...taken, [x.hash]: e.target.value })} />
-                    </label>
-                  </div>
-                  <button type="button" aria-label={`Remove ${x.name}`} className="self-start text-muted hover:text-clay" onClick={() => setFiles(files.filter((y) => y.hash !== x.hash))}>
+                  <button type="button" aria-label={`Remove ${x.name}`} className="ms-auto inline-flex min-h-12 min-w-12 items-center justify-center text-xl text-muted hover:text-clay sm:order-last" onClick={() => setFiles(files.filter((y) => y.hash !== x.hash))}>
                     ×
                   </button>
+                  <div className="w-full min-w-0 space-y-2 sm:w-auto sm:flex-1">
+                    <input className={input} placeholder="Caption: what, where (village, district)" value={captions[x.hash] ?? ""} onChange={(e) => setCaptions({ ...captions, [x.hash]: e.target.value })} aria-label="Caption" />
+                    <label className="block font-medium">
+                      Taken on
+                      <input type="date" className={`${input} font-mono`} value={taken[x.hash] ?? ""} max={v.today} onChange={(e) => setTaken({ ...taken, [x.hash]: e.target.value })} />
+                    </label>
+                  </div>
                 </div>
               </li>
             ))}
@@ -204,57 +216,68 @@ function ItemForm({ v, start, onSave, onQueue, onClose }: { v: WeeklyView; start
           {err}
         </p>
       )}
-      <div className="mt-4 flex gap-2">
-        <button type="button" disabled={busy} className={primaryBtn} onClick={() => void submit()}>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button type="button" disabled={busy} className={primary} onClick={() => void submit()}>
           {start ? "Save" : "Add to this week"}
         </button>
-        <button type="button" className={quietBtn} onClick={onClose}>
+        <button type="button" className={quiet} onClick={onClose}>
           Cancel
         </button>
       </div>
-    </div>
+    </Sheet>
   );
 }
 
-function ItemCard({ it, v, user, act }: { it: Item; v: WeeklyView; user: string; act: (a: ResultAction, msg: string) => Promise<void> }) {
+/** One item of the week: a numbered ruled row, the photos under the text, the date and author in mono beneath. */
+function ItemCard({ it, n, v, user, act }: { it: Item; n: number; v: WeeklyView; user: string; act: (a: ResultAction, msg: string) => Promise<void> }) {
   const [editing, setEditing] = useState(false);
   const activity = v.activities.find((a) => a.code === it.activity);
   const photos = it.files.filter((f) => f.type.startsWith("image/"));
-  if (editing) return <ItemForm v={v} start={it} onClose={() => setEditing(false)} onSave={(u) => act({ action: "update-edit", id: it.id, update: u }, "Saved.").then(() => setEditing(false))} />;
+  if (editing)
+    return (
+      <LedgerRow n={n} cols="minmax(0,1fr)">
+        <ItemForm v={v} start={it} className="mt-0" onClose={() => setEditing(false)} onSave={(u) => act({ action: "update-edit", id: it.id, update: u }, "Saved.").then(() => setEditing(false))} />
+      </LedgerRow>
+    );
   return (
-    <li className="rounded-xl border border-line bg-paper p-3">
-      <p className="text-xs text-muted">
-        {it.activity}
-        {activity ? `: ${activity.name}` : ""} · {it.date} · {userById(it.by)?.name ?? it.by}
-      </p>
-      <p className="mt-1 text-sm">
-        {it.title && <span className="font-semibold">{it.title}: </span>}
-        {it.note}
-      </p>
-      <OriginalText original={it.original} />
-      {photos.length > 0 && (
-        <ul className="mt-2 flex flex-wrap gap-3">
-          {photos.map((f) => (
-            <li key={f.hash} className="w-40 text-xs">
-              <button type="button" onClick={() => void openReceipt(f.hash, user)} className="block">
-                <Thumb hash={f.hash} user={user} alt={it.captions?.[f.hash] ?? f.name} />
-              </button>
-              <span className="mt-1 block text-muted">{captionWithDate(it.captions?.[f.hash] ?? "", it.taken?.[f.hash])}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-      {it.mayEdit && (
-        <div className="mt-2 flex gap-3 text-xs">
-          <button type="button" className="font-semibold text-forest hover:underline" onClick={() => setEditing(true)}>
-            Edit
-          </button>
-          <button type="button" className="text-muted hover:text-clay" onClick={() => void askConfirm({ message: "Remove this item from the week?", confirm: "Remove", danger: true }).then((ok) => (ok ? act({ action: "update-remove", id: it.id }, "Removed.").catch(() => undefined) : undefined))}>
-            Remove
-          </button>
-        </div>
-      )}
-    </li>
+    <LedgerRow n={n} cols="minmax(0,1fr)" className="text-sm">
+      <div className="min-w-0">
+        <p className="text-xs text-muted">
+          <span className="font-mono text-ink">{it.activity}</span>
+          {activity ? `: ${activity.name}` : ""}
+        </p>
+        <p className="mt-1 text-sm">
+          {it.title && <span className="font-bold">{it.title}: </span>}
+          {it.note}
+        </p>
+        <OriginalText original={it.original} />
+        {photos.length > 0 && (
+          <ul className="mt-3 flex flex-wrap gap-3">
+            {photos.map((f) => (
+              <li key={f.hash} className="w-40 text-xs">
+                <button type="button" onClick={() => void openReceipt(f.hash, user)} className="block">
+                  <Thumb hash={f.hash} user={user} alt={it.captions?.[f.hash] ?? f.name} />
+                </button>
+                <span className="mt-1 block text-muted">{captionWithDate(it.captions?.[f.hash] ?? "", it.taken?.[f.hash])}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="mt-2 font-mono text-xs text-muted tabular-nums">
+          {it.date} · {userById(it.by)?.name ?? it.by}
+        </p>
+        {it.mayEdit && (
+          <div className="mt-1 flex gap-5">
+            <button type="button" className={`${textBtn} font-semibold text-forest hover:underline`} onClick={() => setEditing(true)}>
+              Edit
+            </button>
+            <button type="button" className={`${textBtn} text-muted hover:text-clay`} onClick={() => void askConfirm({ message: "Remove this item from the week?", confirm: "Remove", danger: true }).then((ok) => (ok ? act({ action: "update-remove", id: it.id }, "Removed.").catch(() => undefined) : undefined))}>
+              Remove
+            </button>
+          </div>
+        )}
+      </div>
+    </LedgerRow>
   );
 }
 
@@ -268,43 +291,43 @@ function WeekBox({ v, save }: { v: WeeklyView; save: (a: WeeklyPatch, msg: strin
   }, [v.week.n, v.week.from, v.week.to, v.week.saved]);
   if (!v.may.write || (!open && v.week.saved))
     return v.may.write ? (
-      <button type="button" className="text-xs text-muted hover:text-ink" onClick={() => setOpen(true)}>
+      <button type="button" className={`${textBtn} mt-1 text-muted hover:text-ink`} onClick={() => setOpen(true)}>
         Change the number or dates
       </button>
     ) : null;
   return (
-    <div className="mt-3 rounded-xl bg-sunken p-4">
+    <Sheet className="mt-3">
       <p className="text-sm">{v.week.saved ? "Change this update's number or dates." : "Start this week's update. The week runs Sunday to Thursday; change the dates if this one is different."}</p>
       <div className="mt-2 grid gap-3 sm:grid-cols-3">
-        <label className="text-sm">
+        <label className="text-sm font-medium">
           Number
-          <input inputMode="numeric" className={input} value={f.n} onChange={(e) => setF({ ...f, n: e.target.value.replace(/\D/g, "") })} />
+          <input inputMode="numeric" className={`${input} font-mono`} value={f.n} onChange={(e) => setF({ ...f, n: e.target.value.replace(/\D/g, "") })} />
         </label>
-        <label className="text-sm">
+        <label className="text-sm font-medium">
           From
-          <input type="date" className={input} value={f.from} onChange={(e) => setF({ ...f, from: e.target.value })} />
+          <input type="date" className={`${input} font-mono`} value={f.from} onChange={(e) => setF({ ...f, from: e.target.value })} />
         </label>
-        <label className="text-sm">
+        <label className="text-sm font-medium">
           To
-          <input type="date" className={input} value={f.to} min={f.from} onChange={(e) => setF({ ...f, to: e.target.value })} />
+          <input type="date" className={`${input} font-mono`} value={f.to} min={f.from} onChange={(e) => setF({ ...f, to: e.target.value })} />
         </label>
       </div>
-      <div className="mt-3 flex gap-2">
+      <div className="mt-3 flex flex-wrap gap-2">
         <button
           type="button"
-          className={primaryBtn}
+          className={primary}
           disabled={!f.n || !f.from || !f.to}
           onClick={() => void save({ action: "week", n: Number(f.n), from: f.from, to: f.to, ...(v.week.saved ? { was: v.week.from } : {}) }, v.week.saved ? "Saved." : `Update #${f.n} started.`).catch(() => undefined)}
         >
           {v.week.saved ? "Save" : `Start update #${f.n || "?"}`}
         </button>
         {v.week.saved && (
-          <button type="button" className={quietBtn} onClick={() => setOpen(false)}>
+          <button type="button" className={quiet} onClick={() => setOpen(false)}>
             Cancel
           </button>
         )}
       </div>
-    </div>
+    </Sheet>
   );
 }
 
@@ -313,12 +336,12 @@ function Region({ v, save }: { v: WeeklyView; save: (a: WeeklyPatch, msg: string
   useEffect(() => setR(v.region), [v.region]);
   if (!v.may.write) return null;
   return (
-    <label className="mt-4 block text-sm">
+    <label className="mt-3 block text-sm font-medium">
       The line under &ldquo;Roots of Peace:&rdquo; (same every week)
-      <div className="flex gap-2">
+      <div className="flex items-start gap-2">
         <input className={input} value={r} onChange={(e) => setR(e.target.value)} placeholder="Southern region (Kandahar and Helmand)" />
         {r !== v.region && (
-          <button type="button" className={`${quietBtn} mt-1`} onClick={() => void save({ action: "region", region: r }, "Saved.").catch(() => undefined)}>
+          <button type="button" className={`${quiet} mt-1 shrink-0`} onClick={() => void save({ action: "region", region: r }, "Saved.").catch(() => undefined)}>
             Save
           </button>
         )}
@@ -451,72 +474,83 @@ export function WeeklyPage() {
     <div className="min-h-screen">
       <TopBar />
       <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
-        <Link href="/progress" className="text-sm text-muted hover:text-ink">
-          ← Progress
-        </Link>
-        <div className="mt-2 flex flex-wrap items-end gap-3">
-          <h1 className="min-w-0 flex-1 font-display text-4xl tracking-tight">Weekly update{w?.saved ? ` #${w.n}` : ""}</h1>
-          {w && <Pill tone={w.sent ? "forest" : w.saved ? "ochre" : "muted"}>{w.sent ? "Sent" : w.saved ? "Open" : "Not started"}</Pill>}
-        </div>
-        <p className="mt-1 text-sm text-muted">What happened this week, activity by activity, with dated photos. Download it for Word and send it as now; the quarterly report uses the same items and photos.</p>
+        <PageHead
+          back={{ href: "/progress", label: "Progress" }}
+          kicker={project.name}
+          title={`Weekly update${w?.saved ? ` #${w.n}` : ""}`}
+          actions={w && <StatusBlock tone={w.sent ? "forest" : w.saved ? "ochre" : "muted"}>{w.sent ? "Sent" : w.saved ? "Open" : "Not started"}</StatusBlock>}
+        >
+          What happened this week, activity by activity, with dated photos. Download it for Word and send it as now; the quarterly report uses the same items and photos.
+        </PageHead>
         <Why>A week written down the week it happened is evidence. The same week remembered three months later, when the report is due, is a guess.</Why>
-        {!project.saved && <p className="mt-6 text-sm text-muted">Choose a project first.</p>}
-        {offline && <p className="mt-4 rounded-xl bg-ochre-soft px-4 py-3 text-sm">No connection. You can add items to this week; they wait on this phone and are sent when the connection is back. The week&rsquo;s other items show once you are online.</p>}
-        {error && <p className="mt-4 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">{error}</p>}
-        {notice && <p className="mt-4 rounded-xl bg-mist px-4 py-3 text-sm text-forest">{notice}</p>}
+        {!project.saved && <Empty className="mt-6">Choose a project first.</Empty>}
+        {offline && <p className="mt-4 bg-ochre-soft px-4 py-3 text-sm">No connection. You can add items to this week; they wait on this phone and are sent when the connection is back. The week&rsquo;s other items show once you are online.</p>}
+        {error && <p className="mt-4 bg-clay-soft px-4 py-3 text-sm text-clay">{error}</p>}
+        {notice && <p className="mt-4 bg-mist px-4 py-3 text-sm text-forest">{notice}</p>}
         {!v && !error && project.saved && <p className="mt-6 text-sm text-muted">Loading…</p>}
         {v && w && (
           <>
-            <section className="mt-5 rounded-2xl border border-line bg-surface p-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <button type="button" className={quietBtn} onClick={() => go(weekOf(addDays(w.from, -2)).from)} aria-label="Previous week">
+            {/* The week switcher: the week's name, its dates in mono, earlier weeks by number. */}
+            <section className="mt-6 font-ledger">
+              <div className="flex items-center gap-2 border-b border-ink pb-3">
+                <button type="button" className={`${quiet} min-w-12`} onClick={() => go(weekOf(addDays(w.from, -2)).from)} aria-label="Previous week">
                   ←
                 </button>
-                <p className="min-w-0 flex-1 text-center font-semibold">{periodLabel(w.from, w.to)}</p>
-                <button type="button" className={quietBtn} onClick={() => go(weekOf(addDays(w.to, 3)).from)} aria-label="Next week" disabled={addDays(w.to, 1) > v.today}>
+                <div className="min-w-0 flex-1 text-center">
+                  <p className="text-lg font-bold leading-tight">{periodLabel(w.from, w.to)}</p>
+                  <p className="mt-0.5 font-mono text-xs text-muted tabular-nums">
+                    {w.from} – {w.to}
+                  </p>
+                </div>
+                <button type="button" className={`${quiet} min-w-12`} onClick={() => go(weekOf(addDays(w.to, 3)).from)} aria-label="Next week" disabled={addDays(w.to, 1) > v.today}>
                   →
                 </button>
               </div>
               {v.weeks.length > 0 && (
-                <p className="mt-2 text-center text-xs text-muted">
-                  {v.weeks.slice(0, 8).map((x, k) => (
-                    <span key={x.from}>
-                      {k > 0 && " · "}
-                      <Link href={`/progress/weekly?from=${x.from}`} className={`hover:text-ink ${x.from === w.from ? "font-semibold text-ink" : ""}`}>
-                        #{x.n}
-                        {x.sent ? " ✓" : ""}
-                      </Link>
-                    </span>
+                <p className="mt-1 flex flex-wrap justify-center gap-x-1 font-mono text-xs text-muted">
+                  {v.weeks.slice(0, 8).map((x) => (
+                    <Link
+                      key={x.from}
+                      href={`/progress/weekly?from=${x.from}`}
+                      aria-current={x.from === w.from ? "page" : undefined}
+                      className={`inline-flex min-h-12 min-w-12 items-center justify-center px-2 hover:text-ink ${x.from === w.from ? "border-b-2 border-ink font-bold text-ink" : ""}`}
+                    >
+                      #{x.n}
+                      {x.sent ? " ✓" : ""}
+                    </Link>
                   ))}
                 </p>
               )}
               <WeekBox v={v} save={save} />
               {w.sent && (
-                <p className="mt-3 rounded-lg bg-mist px-3 py-2 text-sm text-forest">
+                <p className="mt-3 bg-mist px-4 py-3 text-sm text-forest">
                   Sent by {userById(w.sent.by)?.name ?? w.sent.by} on {longDate(w.sent.at.slice(0, 10))}. It can no longer be changed.
                 </p>
               )}
             </section>
 
             {(w.saved || v.items.length > 0 || !v.may.write) && (
-              <section className="mt-5 rounded-2xl border border-line bg-surface p-4">
-                <SectionLabel>This week</SectionLabel>
+              <section>
+                <SectionHead>This week</SectionHead>
                 {w.saved && <Region v={v} save={save} />}
-                {v.items.length === 0 && !adding && <p className="mt-3 text-sm text-muted">{w.saved ? "Nothing added yet." : "No weekly update for this week. Field staff and MEL write it."}</p>}
-                <ul className="mt-3 space-y-3">
-                  {v.items.map((it) => (
-                    <ItemCard key={it.id} it={it} v={v} user={user.id} act={act} />
-                  ))}
-                </ul>
+                {v.items.length === 0 && !adding && <Empty>{w.saved ? "Nothing added yet." : "No weekly update for this week. Field staff and MEL write it."}</Empty>}
+                {v.items.length > 0 && (
+                  <div role="table" aria-label="This week" className="mt-3 border-t border-ink font-ledger [&>*:last-child]:border-ink">
+                    {v.items.map((it, k) => (
+                      <ItemCard key={it.id} it={it} n={k + 1} v={v} user={user.id} act={act} />
+                    ))}
+                  </div>
+                )}
                 {v.may.write && v.activities.length === 0 && <p className="mt-3 text-sm text-muted">{t("pw.noActivityNumbers")}</p>}
                 {v.may.add && !adding && (
-                  <button type="button" className={`${primaryBtn} mt-3`} onClick={() => setAdding(true)}>
+                  <button type="button" className={`${primary} mt-4 w-full sm:w-auto`} onClick={() => setAdding(true)}>
                     + Add an item
                   </button>
                 )}
                 {adding && v.may.add && (
                   <ItemForm
                     v={v}
+                    className="mt-4"
                     onClose={() => setAdding(false)}
                     onSave={(u) => act({ action: "update", update: u }, "Added.").then(() => setAdding(false))}
                     onQueue={async (u, local) => {
@@ -538,17 +572,17 @@ export function WeeklyPage() {
             )}
 
             {w.saved && v.items.length > 0 && (
-              <section className="mt-5 flex flex-wrap items-center gap-3">
-                <button type="button" className={primaryBtn} disabled={busy} onClick={() => void download()}>
+              <section className="mt-8 flex flex-wrap items-center gap-3 border-t-2 border-ink pt-4 font-ledger">
+                <button type="button" className={primary} disabled={busy} onClick={() => void download()}>
                   {busy ? "Making the Word file…" : "Download for Word"}
                 </button>
-                <span className="text-sm text-muted">
+                <span className="font-mono text-xs text-muted tabular-nums">
                   {v.items.length} {v.items.length === 1 ? "item" : "items"} · {photoCount} {photoCount === 1 ? "photo" : "photos"}
                 </span>
                 {v.may.send && (
                   <button
                     type="button"
-                    className={`${primaryBtn} ms-auto`}
+                    className={`${primary} ms-auto`}
                     onClick={() => void askConfirm({ message: `Mark update #${w.n} as sent? It is locked after that: nothing dated ${w.from} to ${w.to} can be added or changed.`, confirm: "Mark as sent" }).then((ok) => (ok ? save({ action: "send", from: w.from }, `Update #${w.n} marked sent.`).catch(() => undefined) : undefined))}
                   >
                     Mark as sent

@@ -12,11 +12,18 @@ import { DonorFundingSection } from "@/components/settings/donor-funding";
 import { PasswordSection } from "@/components/settings/password-section";
 import { NotifySection } from "@/components/settings/notify-section";
 import { TwoStepSettings } from "@/components/app/two-step";
-import { SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn } from "@/components/workspace/ui";
+import { TopBar, dangerBtn, primaryBtn, quietBtn } from "@/components/workspace/ui";
+import { Empty, LedgerRow, LedgerTable, PageHead, SectionHead } from "@/components/workspace/ledger";
 import { canEditProject } from "@/lib/demo";
 import type { DonorInfo, DonorInput, IndicatorProgress } from "@/lib/progress";
 import { FORMATS, formatById } from "@/lib/report-formats";
 import { today } from "@/lib/clock";
+
+// Ruled rows: a donor (name, what it tracks, the next deadline) and its reporting format.
+const DONOR = "minmax(0,2fr) minmax(0,1fr)";
+// A group of links as ruled rows, the last ruled in ink.
+const links = "border-t border-ink font-ledger [&>*:last-child]:border-ink";
+const linkRow = "flex min-h-12 items-center justify-between gap-3 border-b border-line px-3 py-2.5 text-sm font-semibold text-forest hover:bg-ochre-soft";
 
 /** Settings: you (password, notifications), then this project (donors and report dates), then the organization. */
 export function SettingsPage() {
@@ -48,12 +55,12 @@ export function SettingsPage() {
     <div className="min-h-screen">
       <TopBar />
       <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-        <h1 className="font-display text-4xl tracking-tight">Settings</h1>
+        <PageHead kicker={project.name} title="Settings" />
 
         {/* You: how you sign in and what reaches you. */}
-        <h2 id="you" className="mt-8 scroll-mt-24 border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">
+        <SectionHead id="you" className="mt-8 [&>h2]:scroll-mt-24">
           You: password and notifications
-        </h2>
+        </SectionHead>
         <PasswordSection />
         <NotifySection />
         {mode === "live" && (
@@ -63,84 +70,77 @@ export function SettingsPage() {
         )}
 
         {/* This project: its donors and the rules it follows. */}
-        <h2 id="donors" className="mt-10 scroll-mt-24 border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">
+        <SectionHead id="donors" className="mt-10 [&>h2]:scroll-mt-24">
           {project.name}: donors and report dates
-        </h2>
-        <p className="mt-2 text-sm">
-          <Link href="/settings/policy" className="font-semibold text-forest hover:underline">
+        </SectionHead>
+        <div className={`mt-3 ${links}`}>
+          <Link href="/settings/policy" className={linkRow}>
             Rules this project follows: organization and donor policy
+            <span aria-hidden>→</span>
           </Link>
-        </p>
+        </div>
         <section className="mt-8" aria-labelledby="donors-heading">
-          <div className="flex items-center justify-between gap-3">
-            <span id="donors-heading">
-              <SectionLabel>{t("settings.donors")}</SectionLabel>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <span id="donors-heading" className="font-mono text-xs uppercase tracking-[0.12em] text-muted">
+              {t("settings.donors")}
             </span>
             {canEdit && (
-              <button type="button" onClick={() => setEditing("new")} className={`${primaryBtn} px-5 py-2.5`}>
+              <button type="button" onClick={() => setEditing("new")} className={primaryBtn}>
                 + {t("settings.addDonor")}
               </button>
             )}
           </div>
-          {data && !data.saved && <p className="mt-4 rounded-xl bg-sunken px-4 py-3 text-sm text-muted">{t("settings.notSaved")}</p>}
+          {data && !data.saved && <p className="mt-4 bg-sunken px-4 py-3 text-sm text-muted">{t("settings.notSaved")}</p>}
           {data?.saved && !canEditProject(user) && <p className="mt-3 text-sm text-muted">{t("settings.readOnly")}</p>}
           {progress.error && (
-            <p role="alert" className="mt-4 text-sm text-clay">
+            <p role="alert" className="mt-4 bg-clay-soft px-4 py-3 text-sm text-clay">
               {progress.error}
             </p>
           )}
-          {data?.saved && data.donors.length === 0 && <p className="mt-4 text-sm text-muted">{t("settings.none")}</p>}
-          <ul className="mt-3 space-y-3">
-            {data?.donors.map((d) => {
-              const next = d.deadlines.find((x) => x.date >= today());
-              const body = (
-                <>
-                  <p className="text-xl font-semibold">{d.name}</p>
-                  <p className="mt-1 text-sm text-muted">
-                    {t(formatById(d.reportFormat).label)} · {t("settings.tracks", { n: Object.keys(d.indicatorRefs).length || data.indicators.length })} ·{" "}
-                    {t("settings.deadlineCount", { n: d.deadlines.length })}
-                  </p>
-                  {next && <p className="mt-1 text-sm">{t("settings.next", { title: next.title, date: date(next.date) })}</p>}
-                </>
-              );
-              return (
-                <li key={d.id}>
-                  {canEdit ? (
-                    <button type="button" onClick={() => setEditing(d)} className="w-full rounded-2xl border border-line bg-surface p-5 text-start hover:border-forest">
-                      {body}
-                    </button>
-                  ) : (
-                    <div className="rounded-2xl border border-line bg-surface p-5">{body}</div>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+          {data?.saved && data.donors.length === 0 && <Empty>{t("settings.none")}</Empty>}
+          {!!data?.donors.length && (
+            <LedgerTable cols={DONOR} head={[t("settings.name"), t("settings.format")]} label={t("settings.donors")}>
+              {data.donors.map((d) => {
+                const next = d.deadlines.find((x) => x.date >= today());
+                return (
+                  <LedgerRow key={d.id} cols={DONOR} onClick={canEdit ? () => setEditing(d) : undefined} className="text-sm">
+                    <span className="min-w-0">
+                      <span className="block text-lg font-bold">{d.name}</span>
+                      <span className="mt-0.5 block text-muted">
+                        {t("settings.tracks", { n: Object.keys(d.indicatorRefs).length || data.indicators.length })} · {t("settings.deadlineCount", { n: d.deadlines.length })}
+                      </span>
+                      {next && <span className="mt-0.5 block">{t("settings.next", { title: next.title, date: date(next.date) })}</span>}
+                    </span>
+                    <span className="min-w-0">{t(formatById(d.reportFormat).label)}</span>
+                  </LedgerRow>
+                );
+              })}
+            </LedgerTable>
+          )}
         </section>
         {data?.saved && user.kind === "employee" && <ProjectModulesSection code={project.id} canEdit={canEdit} />}
         {data?.saved && user.kind === "employee" && <DonorFundingSection code={project.id} canEdit={canEdit} donorsKey={data.donors.map((d) => d.id).join(",")} />}
 
         {/* The organization: administrators' tools. */}
-        <h2 className="mt-10 border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">Roots of Peace</h2>
-        <p className="mt-2 text-sm">
-          <Link href="/settings/organization" className="font-semibold text-forest hover:underline">
+        <SectionHead className="mt-10">Roots of Peace</SectionHead>
+        <div className={`mt-3 ${links}`}>
+          <Link href="/settings/organization" className={linkRow}>
             Organization settings: the rules by department, and presets
+            <span aria-hidden>→</span>
           </Link>
-        </p>
-        {user.admin && (
-          <>
-            <p className="mt-2 text-sm">
-              <Link href="/settings/people" className="font-semibold text-forest hover:underline">
+          {user.admin && (
+            <>
+              <Link href="/settings/people" className={linkRow}>
                 People and roles: who can sign in and what they may do
+                <span aria-hidden>→</span>
               </Link>
-            </p>
-            <p className="mt-2 text-sm">
-              <Link href="/settings/health" className="font-semibold text-forest hover:underline">
+              <Link href="/settings/health" className={linkRow}>
                 System health and backups: errors, AI use, email and a copy of the records
+                <span aria-hidden>→</span>
               </Link>
-            </p>
-          </>
-        )}
+            </>
+          )}
+        </div>
       </main>
       {editing && data && (
         <DonorSheet
@@ -155,7 +155,7 @@ export function SettingsPage() {
   );
 }
 
-const field = "mt-1 w-full rounded-xl border border-line bg-surface px-3 py-3 text-base";
+const field = "mt-1 min-h-12 w-full border border-line bg-paper px-3 py-3 text-base focus:border-forest focus:outline-none";
 const label = "block text-sm font-medium";
 type DraftDeadline = { key: string; id?: string; title: string; date: string };
 
@@ -221,11 +221,11 @@ function DonorSheet({
         aria-labelledby="donor-title"
         onSubmit={submit}
         onClick={(e) => e.stopPropagation()}
-        className="flex max-h-full w-full flex-col overflow-y-auto bg-paper p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:max-w-lg sm:rounded-2xl sm:border sm:border-line"
+        className="flex max-h-full w-full flex-col overflow-y-auto border-t-2 border-ink bg-paper p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:max-w-lg"
       >
-        <h2 id="donor-title" className="border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">
+        <SectionHead id="donor-title" className="">
           {t(donor ? "settings.editDonor" : "settings.addDonor")}
-        </h2>
+        </SectionHead>
 
         <div className="mt-5 space-y-5">
           <label className={label}>
@@ -254,15 +254,15 @@ function DonorSheet({
                     {t("settings.deadlineTitle")}
                     <input value={d.title} onChange={(e) => setDeadline(d.key, { title: e.target.value })} maxLength={200} required className={field} />
                   </label>
-                  <label className="w-40 shrink-0 text-xs text-muted">
+                  <label className="w-40 shrink-0 font-mono text-xs text-muted">
                     {t("settings.deadlineDate")}
-                    <input type="date" value={d.date} onChange={(e) => setDeadline(d.key, { date: e.target.value })} required className={field} />
+                    <input type="date" value={d.date} onChange={(e) => setDeadline(d.key, { date: e.target.value })} required className={`${field} font-mono`} />
                   </label>
                   <button
                     type="button"
                     onClick={() => setDeadlines((all) => all.filter((x) => x.key !== d.key))}
                     aria-label={t("settings.removeDeadline", { title: d.title || t("settings.deadlineTitle") })}
-                    className="mb-1 grid h-11 w-11 shrink-0 place-items-center rounded-full text-muted hover:bg-clay-soft hover:text-clay"
+                    className="mb-0.5 grid h-11 w-11 shrink-0 place-items-center text-muted hover:bg-clay-soft hover:text-clay"
                   >
                     ×
                   </button>
@@ -272,7 +272,7 @@ function DonorSheet({
             <button
               type="button"
               onClick={() => setDeadlines((all) => [...all, { key: crypto.randomUUID(), title: "", date: "" }])}
-              className="mt-2 text-sm font-semibold text-forest hover:underline"
+              className="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-forest hover:underline"
             >
               + {t("settings.addDeadline")}
             </button>
@@ -286,7 +286,7 @@ function DonorSheet({
                 {indicators.map((i) => (
                   <li key={i.code}>
                     <label className="block text-xs text-muted">
-                      {i.code} · {i.name}
+                      <span className="font-mono">{i.code}</span> · {i.name}
                       <input value={refs[i.code] ?? ""} onChange={(e) => setRefs({ ...refs, [i.code]: e.target.value })} maxLength={200} className={field} />
                     </label>
                   </li>
@@ -297,7 +297,7 @@ function DonorSheet({
         </div>
 
         {error && (
-          <p role="alert" className="mt-4 text-sm text-clay">
+          <p role="alert" className="mt-4 bg-clay-soft px-4 py-3 text-sm text-clay">
             {error}
           </p>
         )}
@@ -311,7 +311,7 @@ function DonorSheet({
           </button>
           {onDelete &&
             (confirming ? (
-              <div role="alert" className="w-full rounded-xl bg-clay-soft p-3 text-sm">
+              <div role="alert" className="w-full bg-clay-soft p-3 text-sm">
                 <p>{t("settings.confirmDelete", { name: donor!.name, n: donor!.deadlines.length })}</p>
                 <div className="mt-2 flex gap-2">
                   <button type="button" disabled={busy} onClick={() => void run(onDelete)} className={dangerBtn}>
@@ -323,7 +323,7 @@ function DonorSheet({
                 </div>
               </div>
             ) : (
-              <button type="button" disabled={busy} onClick={() => setConfirming(true)} className="w-full py-2 text-sm font-semibold text-clay hover:underline">
+              <button type="button" disabled={busy} onClick={() => setConfirming(true)} className="min-h-11 w-full py-2 text-sm font-semibold text-clay hover:underline">
                 {t("settings.delete")}
               </button>
             ))}

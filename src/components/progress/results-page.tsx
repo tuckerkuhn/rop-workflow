@@ -15,7 +15,8 @@ import { useRequireUser, useSession } from "@/components/app/session";
 import { useT } from "@/components/app/i18n";
 import { openReceipt, shrink } from "@/components/people/expense-page";
 import { OriginalText } from "@/components/progress/original-text";
-import { SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn, StatusPill } from "@/components/workspace/ui";
+import { TopBar, dangerBtn, primaryBtn, quietBtn } from "@/components/workspace/ui";
+import { Empty, Fig, Figures, LedgerRow, LedgerTable, PageHead, SectionHead, Sheet, StatusBlock } from "@/components/workspace/ledger";
 import type { Receipt } from "@/lib/expense";
 import { readWorkbook } from "@/lib/read-sheet";
 import { TEMPLATE_CSV, parseCsv, readResults, type ImportRow } from "@/lib/results-import";
@@ -45,7 +46,7 @@ async function call<T>(url: string, user: string | undefined, init?: RequestInit
   return body as T;
 }
 
-const input = "mt-1 block w-full rounded-xl border border-line bg-paper px-3 py-2.5 text-base";
+const input = "mt-1 block min-h-11 w-full border border-line bg-paper px-3 py-2.5 text-base";
 const num = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 2 });
 const STATUS = { pending: { tone: "ochre", text: "Waiting for MEL" }, accepted: { tone: "forest", text: "Accepted" }, queried: { tone: "clay", text: "Sent back with a question" } } as const;
 
@@ -141,29 +142,20 @@ export function ResultsPage() {
     <div className="min-h-screen">
       <TopBar />
       <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-warn">{project.name}</p>
-        <h1 className="mt-1 font-display text-3xl tracking-tight">Results and their proof</h1>
-        <p className="mt-1 max-w-2xl text-sm text-muted">
+        <PageHead back={{ href: "/progress", label: "Progress and report" }} kicker={project.name} title="Results and their proof">
           Record each result with the attendance sheet, photos or verification report that proves it. MEL (the monitoring, evaluation and learning team) checks it; once accepted it counts in Progress and in the donor report, and every figure there
           opens these records.
-        </p>
+        </PageHead>
         <Why>A donor pays for results it can check. A figure with no attendance sheet, photo or report behind it is the first thing an auditor questions, and a questioned figure can mean money paid back.</Why>
-        <p className="mt-2 flex gap-4 text-sm">
-          <Link href="/progress" className="font-semibold text-forest hover:underline">
-            Progress and report
-          </Link>
-        </p>
-        {!project.saved && <p className="mt-6 rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">Choose a project saved in the database (for example ACRP).</p>}
+        {!project.saved && <Empty className="mt-6">Choose a project saved in the database (for example ACRP).</Empty>}
         {error && <ErrorNote>{error}</ErrorNote>}
         {project.saved && !v && !error && <p className="mt-10 text-center text-sm text-muted">{t("load.wait")}</p>}
         {notice && (
-          <p role="status" className="mt-4 rounded-xl bg-mist px-4 py-3 text-sm text-leaf">
+          <p role="status" className="mt-4 bg-mist px-4 py-3 text-sm text-leaf">
             {notice}
           </p>
         )}
-        {v && !v.indicators.length && (
-          <p className="mt-6 rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">{t("pw.noTargets")}</p>
-        )}
+        {v && !v.indicators.length && <Empty className="mt-6">{t("pw.noTargets")}</Empty>}
 
         {v && reviewing && <ReviewQueue ids={reviewing} v={v} act={act} onClose={() => setReviewing(null)} />}
 
@@ -194,9 +186,11 @@ export function ResultsPage() {
         )}
 
         {range && (
-          <p className="mt-6 flex flex-wrap items-center gap-2 rounded-xl bg-sunken px-4 py-3 text-sm">
-            Showing {quarter ? `${quarter} (${range.from} to ${range.to})` : rangeLabel} only.
-            <Link href={`/progress/results${open ? `?indicator=${open}` : ""}`} className="font-semibold text-forest hover:underline">
+          <p className="mt-6 flex flex-wrap items-center gap-x-3 bg-sunken px-4 py-1 text-sm">
+            <span>
+              Showing <span className="font-mono">{quarter ? `${quarter} (${range.from} to ${range.to})` : rangeLabel}</span> only.
+            </span>
+            <Link href={`/progress/results${open ? `?indicator=${open}` : ""}`} className="inline-flex min-h-11 items-center font-semibold text-forest hover:underline">
               Show all
             </Link>
           </p>
@@ -205,20 +199,18 @@ export function ResultsPage() {
         {/* With a period chosen, "To check" is not shown above: the results waiting in it are listed here, as before. */}
         {v && range && waiting.length > 0 && !reviewing && (
           <section className="mt-6">
-            <SectionLabel>To check ({waiting.length})</SectionLabel>
-            <div className="mt-3 space-y-3">
-              {waiting.map((r) => (
-                <ResultCard key={r.id} r={r} ind={v.indicators.find((i) => i.code === r.indicator)} act={act} mayAddProof={v.mayAddProof} me={v.me} />
-              ))}
-            </div>
+            <SectionHead className="" aside={<Fig strong>{waiting.length}</Fig>}>
+              To check
+            </SectionHead>
+            <ResultRows list={waiting} v={v} act={act} label="To check" oldestFirst />
           </section>
         )}
 
         {v &&
           groups.map(([output, list]) => (
             <section key={output} className="mt-8">
-              <SectionLabel>{output || t("pw.targets")}</SectionLabel>
-              <ul className="mt-3 space-y-3">
+              <SectionHead className="">{output || t("pw.targets")}</SectionHead>
+              <ul className="mt-3 border-t border-ink font-ledger [&>li:last-child]:border-ink">
                 {list.map((i) => {
                   const mine = v.results.filter((r) => r.indicator === i.code && (!range || (r.date >= range.from && r.date <= range.to)));
                   const all = totalsOf(v.results.filter((r) => r.indicator === i.code));
@@ -226,29 +218,38 @@ export function ResultsPage() {
                   const pending = mine.filter((r) => r.status === "pending").length;
                   const isOpen = open === i.code;
                   return (
-                    <li key={i.code} id={`ind-${i.code}`} className="scroll-mt-20 rounded-2xl border border-line bg-surface p-4">
-                      <button type="button" className="flex w-full items-start gap-3 text-start" onClick={() => setOpen(isOpen ? null : i.code)} aria-expanded={isOpen}>
-                        <span className="shrink-0 font-mono text-xs text-muted">{i.donorCode ?? i.code}</span>
-                        <span className="flex-1 font-medium leading-snug">{i.name}</span>
+                    <li key={i.code} id={`ind-${i.code}`} className={`scroll-mt-20 border-b ${isOpen ? "border-ink" : "border-line"}`}>
+                      <button
+                        type="button"
+                        className={`flex min-h-12 w-full items-start gap-3 px-3 pt-2.5 text-start hover:bg-ochre-soft focus-visible:outline focus-visible:outline-4 focus-visible:-outline-offset-4 focus-visible:outline-forest`}
+                        onClick={() => setOpen(isOpen ? null : i.code)}
+                        aria-expanded={isOpen}
+                      >
+                        <span className="w-16 shrink-0 pt-0.5 font-mono text-xs text-muted">{i.donorCode ?? i.code}</span>
+                        <span className="min-w-0 flex-1 font-semibold leading-snug">{i.name}</span>
                         <span className="shrink-0 text-end">
-                          <span className="font-display text-2xl tabular-nums">{num(range ? shown.value : all.value)}</span>
+                          <span className="font-mono text-xl font-bold tabular-nums">{num(range ? shown.value : all.value)}</span>
                           <span className="block text-xs text-muted">{range ? `in ${rangeLabel}` : `of ${num(i.target)} ${i.unit}`}</span>
                         </span>
                       </button>
-                      <p className="mt-2 flex flex-wrap gap-x-3 text-xs text-muted">
+                      <p className="flex flex-wrap gap-x-3 px-3 pb-2.5 ps-[5.5rem] text-xs text-muted">
                         <span>
-                          {shown.records} accepted record{shown.records === 1 ? "" : "s"} · {shown.files} file{shown.files === 1 ? "" : "s"}
+                          <span className="font-mono">{shown.records}</span> accepted record{shown.records === 1 ? "" : "s"} · <span className="font-mono">{shown.files}</span> file{shown.files === 1 ? "" : "s"}
                         </span>
                         {shown.female + shown.male > 0 && (
                           <span>
-                            {num(shown.female)} women · {num(shown.male)} men
+                            <span className="font-mono">{num(shown.female)}</span> women · <span className="font-mono">{num(shown.male)}</span> men
                           </span>
                         )}
-                        {pending > 0 && <span className="text-warn">{pending} waiting for MEL</span>}
+                        {pending > 0 && (
+                          <span className="text-warn">
+                            <span className="font-mono">{pending}</span> waiting for MEL
+                          </span>
+                        )}
                         {i.verification && <span>Proof: {i.verification}</span>}
                       </p>
                       {isOpen && (
-                        <div className="mt-4 space-y-3 border-t border-line pt-4">
+                        <div className="space-y-3 px-3 pb-4">
                           {i.fromKobo ? (
                             <p className="text-sm text-muted">{t("pw.fromKobo")}</p>
                           ) : adding === i.code ? (
@@ -260,10 +261,8 @@ export function ResultsPage() {
                               </button>
                             )
                           )}
-                          {!mine.length && <p className="text-sm text-muted">Nothing recorded{range ? ` in ${rangeLabel}` : ""} yet.</p>}
-                          {mine.map((r) => (
-                            <ResultCard key={r.id} r={r} ind={i} act={act} mayAddProof={v.mayAddProof} me={v.me} />
-                          ))}
+                          {!mine.length && <Empty className="mt-3">Nothing recorded{range ? ` in ${rangeLabel}` : ""} yet.</Empty>}
+                          {mine.length > 0 && <ResultRows list={mine} v={v} ind={i} act={act} label={`${i.donorCode ?? i.code}: ${i.name}`} />}
                         </div>
                       )}
                     </li>
@@ -275,8 +274,8 @@ export function ResultsPage() {
 
         {v?.mayRecord && v.indicators.some((i) => !i.fromKobo) && <ImportResults indicators={v.indicators.filter((i) => !i.fromKobo)} act={act} />}
         {v && v.activities.length > 0 && (
-          <section id="activity-updates" className="mt-10 scroll-mt-24 border-t border-line pt-6">
-            <h2 className="border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">Activity updates</h2>
+          <section id="activity-updates" className="mt-10 scroll-mt-24">
+            <SectionHead className="">Activity updates</SectionHead>
             <p className="mt-1 max-w-2xl text-sm text-muted">
               Progress that is not a count on an indicator: reservoirs built, grant agreements signed, sales at an exhibition, an analysis finished. Add photos with a caption to put them in the donor
               report. Updates go into the report&rsquo;s narrative; they never change a figure.
@@ -293,15 +292,15 @@ export function ResultsPage() {
               const list = v.updates.filter((u) => u.activity === a.code && (!range || (u.date >= range.from && u.date <= range.to)));
               if (!list.length) return null;
               return (
-                <div key={a.code} className="mt-5">
-                  <SectionLabel>
-                    Activity {a.code}: {a.name}
-                  </SectionLabel>
-                  <div className="mt-2 space-y-2">
+                <div key={a.code} className="mt-6">
+                  <h3 className="font-ledger text-base font-bold leading-tight text-ink">
+                    Activity <span className="font-mono">{a.code}</span>: {a.name}
+                  </h3>
+                  <div className="mt-2 border-t border-ink font-ledger [&>article:last-child]:border-ink">
                     {list.map((u) => (
-                      <article key={u.id} className="rounded-xl border border-line bg-paper p-3 text-sm">
+                      <article key={u.id} className="border-b border-line px-3 py-3 text-sm">
                         <p className="text-xs text-muted">
-                          {u.date} · {u.quarter} · by {u.by}
+                          <span className="font-mono">{u.date}</span> · <span className="font-mono">{u.quarter}</span> · by {u.by}
                         </p>
                         <p className="mt-1 whitespace-pre-line">{u.note}</p>
                         <div className="mt-2 flex flex-wrap gap-2">
@@ -310,7 +309,7 @@ export function ResultsPage() {
                               key={f.hash}
                               type="button"
                               onClick={() => void openReceipt(f.hash, user.id)}
-                              className="rounded-lg border border-line px-2 py-1 text-start text-xs font-semibold text-forest hover:bg-sunken"
+                              className="min-h-11 border border-line px-2 py-1 text-start text-xs font-semibold text-forest hover:bg-ochre-soft"
                             >
                               {f.name}
                               {u.captions?.[f.hash] && <span className="block font-normal text-muted">Photo in the report: {u.captions[f.hash]}</span>}
@@ -377,14 +376,14 @@ function ProofPicker({
   };
   return (
     <>
-      <input type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf" className="mt-1 block text-sm" onChange={(e) => void upload(e.target.files)} />
+      <input type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf" className="mt-1 block min-h-11 text-sm" onChange={(e) => void upload(e.target.files)} />
       {files.length > 0 && (
-        <ul className="mt-2 space-y-2">
+        <ul className="mt-2 border-t border-line">
           {files.map((x) => (
-            <li key={x.hash} className="rounded-lg border border-line bg-paper px-3 py-2 text-xs">
+            <li key={x.hash} className="border-b border-line py-2 text-xs">
               <span className="flex items-center gap-2">
-                <span className="flex-1">{x.name}</span>
-                <button type="button" aria-label={`Remove ${x.name}`} className="text-muted hover:text-clay" onClick={() => setFiles(files.filter((y) => y.hash !== x.hash))}>
+                <span className="min-w-0 flex-1 break-words">{x.name}</span>
+                <button type="button" aria-label={`Remove ${x.name}`} className="min-h-11 min-w-11 text-base text-muted hover:text-clay" onClick={() => setFiles(files.filter((y) => y.hash !== x.hash))}>
                   ×
                 </button>
               </span>
@@ -423,7 +422,7 @@ function UpdateForm({ activities, start, add, onClose }: { activities: { code: s
     }
   };
   return (
-    <div className="mt-3 rounded-xl bg-sunken p-4">
+    <Sheet className="mt-4">
       <div className="grid gap-3 sm:grid-cols-3">
         <label className="text-sm sm:col-span-2">
           Activity
@@ -460,7 +459,7 @@ function UpdateForm({ activities, start, add, onClose }: { activities: { code: s
           {err}
         </p>
       )}
-      <div className="mt-4 flex gap-2">
+      <div className="mt-4 flex flex-wrap gap-2">
         <button type="button" disabled={busy} className={primaryBtn} onClick={() => void submit()}>
           Add update
         </button>
@@ -468,7 +467,7 @@ function UpdateForm({ activities, start, add, onClose }: { activities: { code: s
           Cancel
         </button>
       </div>
-    </div>
+    </Sheet>
   );
 }
 
@@ -492,19 +491,19 @@ function LinkPicker({ links, setLinks }: { links: ProofLink[]; setLinks: (l: Pro
       <div className="mt-1 grid gap-2 sm:grid-cols-[1fr_2fr_auto]">
         <input className={input} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What it is: attendance sheet, 27–30 Jul" aria-label="Document title" />
         <input className={input} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" aria-label="Document link" inputMode="url" />
-        <button type="button" className={`${quietBtn} mt-1`} onClick={add}>
+        <button type="button" className={`${quietBtn} mt-1 min-h-11`} onClick={add}>
           Add link
         </button>
       </div>
       {err && <p className="mt-1 text-xs text-clay">{err}</p>}
       {links.length > 0 && (
-        <ul className="mt-2 space-y-1">
+        <ul className="mt-2 border-t border-line">
           {links.map((l) => (
-            <li key={l.url} className="flex items-center gap-2 rounded-lg border border-line bg-paper px-3 py-2 text-xs">
+            <li key={l.url} className="flex items-center gap-2 border-b border-line py-1 text-xs">
               <span className="min-w-0 flex-1 truncate">
                 {l.title} <span className="text-muted">· {l.url}</span>
               </span>
-              <button type="button" aria-label={`Remove ${l.title}`} className="text-muted hover:text-clay" onClick={() => setLinks(links.filter((x) => x.url !== l.url))}>
+              <button type="button" aria-label={`Remove ${l.title}`} className="min-h-11 min-w-11 text-base text-muted hover:text-clay" onClick={() => setLinks(links.filter((x) => x.url !== l.url))}>
                 ×
               </button>
             </li>
@@ -534,12 +533,12 @@ function AddProof({ r, act, onClose }: { r: Res; act: (a: ResultAction, msg: str
     }
   };
   return (
-    <div className="mt-3 rounded-lg border border-line bg-surface p-3 text-sm">
-      <span className="font-semibold">Add proof</span>
+    <Sheet className="mt-3 text-sm">
+      <span className="font-ledger font-bold">Add proof</span>
       <ProofPicker files={files} setFiles={setFiles} captions={captions} setCaptions={setCaptions} setErr={setErr} setBusy={setBusy} />
       <LinkPicker links={links} setLinks={setLinks} />
       {err && <p className="mt-2 text-xs text-clay">{err}</p>}
-      <div className="mt-3 flex gap-2">
+      <div className="mt-3 flex flex-wrap gap-2">
         <button type="button" disabled={busy || files.length + links.length === 0} className={primaryBtn} onClick={() => void save()}>
           Save proof
         </button>
@@ -547,7 +546,7 @@ function AddProof({ r, act, onClose }: { r: Res; act: (a: ResultAction, msg: str
           Cancel
         </button>
       </div>
-    </div>
+    </Sheet>
   );
 }
 
@@ -597,10 +596,10 @@ function CorrectForm({ r, act, onClose }: { r: Res; act: (a: ResultAction, msg: 
       setBusy(false);
     }
   };
-  const box = "mt-1 w-full rounded-lg border border-line bg-paper px-2 py-1.5 text-sm";
+  const box = "mt-1 min-h-11 w-full border border-line bg-paper px-2 py-1.5 text-sm";
   return (
-    <div className="mt-3 rounded-lg border border-line bg-surface p-3 text-sm">
-      <span className="font-semibold">Correct and resubmit</span>
+    <Sheet className="mt-3 text-sm">
+      <span className="font-ledger font-bold">Correct and resubmit</span>
       <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
         <label className="text-xs text-muted">
           Date
@@ -656,7 +655,7 @@ function CorrectForm({ r, act, onClose }: { r: Res; act: (a: ResultAction, msg: 
         Your answer to MEL: what you changed and why
         <input className={box} value={reply} onChange={(e) => setReply(e.target.value)} placeholder="Corrected to 274 men and 50 women; the attendance sheet counted staff twice." />
       </label>
-      <div className="mt-3 flex gap-2">
+      <div className="mt-3 flex flex-wrap gap-2">
         <button type="button" className={primaryBtn} disabled={busy || reply.trim().length < 5} onClick={() => void save()}>
           Send back to MEL
         </button>
@@ -664,11 +663,11 @@ function CorrectForm({ r, act, onClose }: { r: Res; act: (a: ResultAction, msg: 
           Cancel
         </button>
       </div>
-    </div>
+    </Sheet>
   );
 }
 
-function ResultCard({ r, ind, act, mayAddProof, me }: { r: Res; ind?: Ind; act: (a: ResultAction, msg: string) => Promise<void>; mayAddProof: boolean; me: string }) {
+function ResultCard({ r, ind, act, mayAddProof, me, first }: { r: Res; ind?: Ind; act: (a: ResultAction, msg: string) => Promise<void>; mayAddProof: boolean; me: string; first?: boolean }) {
   const { project } = useCurrentProject();
   const { t } = useT();
   const [selfing, setSelfing] = useState(false);
@@ -690,191 +689,223 @@ function ResultCard({ r, ind, act, mayAddProof, me }: { r: Res; ind?: Ind; act: 
   };
   const place = [r.district, r.province].filter(Boolean).join(", ");
   return (
-    <article className="rounded-xl border border-line bg-paper p-3">
-      <div className="flex flex-wrap items-center gap-2 text-sm">
-        <StatusPill tone={STATUS[r.status].tone}>{STATUS[r.status].text}</StatusPill>
-        <span className="font-semibold tabular-nums">
-          {num(r.value)} {ind?.unit ? unitOf(r.value, ind.unit) : ""}
-        </span>
-        <span className="text-muted">
-          {r.date} · {quarterOf(r.date)}
-          {place && ` · ${place}`}
-          {r.crop && ` · ${r.crop}`}
-        </span>
-      </div>
-      {ind && !r.canReview
-        ? null
-        : ind && (
-            <p className="mt-1 text-xs text-muted">
-              {ind.donorCode ?? ind.code}: {ind.name}
-            </p>
-          )}
-      <p className="mt-2 whitespace-pre-line text-sm">{r.note}</p>
-      <OriginalText original={r.original} />
-      {(r.female !== undefined || r.male !== undefined || r.womenLed !== undefined || r.menLed !== undefined) && (
-        <p className="mt-1 text-xs text-muted">
-          {r.female !== undefined && `${r.female} ${r.female === 1 ? "woman" : "women"}`}
-          {r.male !== undefined && ` · ${r.male} ${r.male === 1 ? "man" : "men"}`}
-          {r.womenLed !== undefined && ` · ${r.womenLed} women-led`}
-          {r.menLed !== undefined && ` · ${r.menLed} men-led`}
-        </p>
-      )}
-      <div className="mt-2 flex flex-wrap gap-2">
-        {r.files.map((f) => (
-          <button
-            key={f.hash}
-            type="button"
-            onClick={() => void openReceipt(f.hash, user?.id)}
-            className="rounded-lg border border-line px-2 py-1 text-start text-xs font-semibold text-forest hover:bg-sunken"
-          >
-            {f.name}
-            {r.captions?.[f.hash] && <span className="block font-normal text-muted">Photo in the report: {r.captions[f.hash]}</span>}
-          </button>
-        ))}
-        {(r.links ?? []).map((l) => (
-          <a key={l.url} href={l.url} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-line px-2 py-1 text-xs font-semibold text-forest hover:bg-sunken">
-            {l.title} <span aria-hidden>↗</span>
-          </a>
-        ))}
-        {r.distribution && (
-          <a href={`/approve/${encodeURIComponent(project.id)}/${r.distribution}`} className="rounded-lg border border-line px-2 py-1 text-xs font-semibold text-forest hover:bg-sunken">
-            Distribution record: signed note and approval <span aria-hidden>→</span>
-          </a>
+    <LedgerRow cols="minmax(0,1fr)" first={first}>
+      <article className="min-w-0">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+          <StatusBlock tone={STATUS[r.status].tone}>{STATUS[r.status].text}</StatusBlock>
+          <span>
+            <Fig strong>{num(r.value)}</Fig> {ind?.unit ? unitOf(r.value, ind.unit) : ""}
+          </span>
+          <span className="text-muted">
+            <span className="font-mono">{r.date}</span> · <span className="font-mono">{quarterOf(r.date)}</span>
+            {place && ` · ${place}`}
+            {r.crop && ` · ${r.crop}`}
+          </span>
+        </div>
+        {ind && !r.canReview
+          ? null
+          : ind && (
+              <p className="mt-1 text-xs text-muted">
+                <span className="font-mono">{ind.donorCode ?? ind.code}</span>: {ind.name}
+              </p>
+            )}
+        <p className="mt-2 whitespace-pre-line text-sm">{r.note}</p>
+        <OriginalText original={r.original} />
+        {(r.female !== undefined || r.male !== undefined || r.womenLed !== undefined || r.menLed !== undefined) && (
+          <p className="mt-1 text-xs text-muted">
+            {r.female !== undefined && `${r.female} ${r.female === 1 ? "woman" : "women"}`}
+            {r.male !== undefined && ` · ${r.male} ${r.male === 1 ? "man" : "men"}`}
+            {r.womenLed !== undefined && ` · ${r.womenLed} women-led`}
+            {r.menLed !== undefined && ` · ${r.menLed} men-led`}
+          </p>
         )}
-        {r.planting && (
-          <a href={`/field/farmers/${encodeURIComponent(r.planting)}`} className="rounded-lg border border-line px-2 py-1 text-xs font-semibold text-forest hover:bg-sunken">
-            Planting record: farmer {r.planting} <span aria-hidden>→</span>
-          </a>
-        )}
-        {!proofCount(r) && r.noFile && <span className="text-xs text-clay">No file: {r.noFile}</span>}
-        {mayAddProof && !adding && (
-          <button type="button" className="rounded-lg px-2 py-1 text-xs font-semibold text-forest hover:bg-sunken" onClick={() => setAdding(true)}>
-            + Add proof
-          </button>
-        )}
-      </div>
-      {adding && <AddProof r={r} act={act} onClose={() => setAdding(false)} />}
-      <p className="mt-2 text-xs text-muted">
-        {r.kobo ? `From KoboToolbox${r.kobo.id ? `, submission ${r.kobo.id}` : ""}` : `Recorded by ${r.byName ?? r.by}`}
-        {r.reviewedBy && ` · ${r.status === "accepted" ? "accepted" : "queried"} by ${r.reviewedByName ?? r.reviewedBy}`}
-        {r.koboChanged && <span className="font-semibold text-clay"> · Changed in KoboToolbox since it was accepted: reopen it to check the new figure</span>}
-        {/* A field's exact location is personal data: only for people who see participants' names. */}
-        {r.gps && user?.pii && (
-          <>
-            {" · "}
-            <a href={`https://www.openstreetmap.org/?mlat=${r.gps.lat}&mlon=${r.gps.lon}#map=15/${r.gps.lat}/${r.gps.lon}`} target="_blank" rel="noopener noreferrer" className="text-forest hover:underline">
-              where it was recorded ↗
-            </a>
-          </>
-        )}
-      </p>
-      {r.query && <p className="mt-1 rounded-lg bg-clay-soft px-3 py-2 text-sm text-clay">MEL asked: {r.query}</p>}
-      {r.status === "queried" && r.by === me && !correcting && (
-        <button type="button" className={`${primaryBtn} mt-2`} onClick={() => setCorrecting(true)}>
-          Correct and resubmit
-        </button>
-      )}
-      {correcting && <CorrectForm r={r} act={act} onClose={() => setCorrecting(false)} />}
-      {(r.history ?? []).length > 0 && (
-        <details className="mt-2 text-xs text-muted">
-          <summary className="cursor-pointer">
-            Corrected {r.history!.length} {r.history!.length === 1 ? "time" : "times"}
-          </summary>
-          <ul className="mt-1 space-y-1">
-            {r.history!.map((h) => (
-              <li key={h.at}>
-                {h.at.slice(0, 10)}: was {String(h.previous.value)} on {String(h.previous.date)}. MEL asked: {h.query ?? "—"}. Reply: {h.reply}
-              </li>
-            ))}
-          </ul>
-        </details>
-      )}
-      {(r.status === "pending" || r.canReopen) && r.checks.length > 0 && (
-        <ul className="mt-2 space-y-1 rounded-lg bg-ochre-soft px-3 py-2 text-xs">
-          {r.checks.map((c) => (
-            <li key={c}>Check: {c}</li>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {r.files.map((f) => (
+            <button
+              key={f.hash}
+              type="button"
+              onClick={() => void openReceipt(f.hash, user?.id)}
+              className="min-h-11 border border-line px-2 py-1 text-start text-xs font-semibold text-forest hover:bg-ochre-soft"
+            >
+              {f.name}
+              {r.captions?.[f.hash] && <span className="block font-normal text-muted">Photo in the report: {r.captions[f.hash]}</span>}
+            </button>
           ))}
-          <li>
-            <LookedAt what="dataChecks" />
-          </li>
-        </ul>
-      )}
-      {r.canSelfAccept && (
-        <div className="mt-3">
-          <p className="text-xs text-muted">{t("so.yours")}</p>
-          <button type="button" disabled={busy} className={`${primaryBtn} mt-2 min-h-12`} onClick={() => setSelfing(true)}>
-            {t("rq.acceptOne")}
-          </button>
-          {selfing && (
-            <SelfConfirmSheet
-              what={`${num(r.value)} ${ind?.unit ?? ""} · ${r.date}`}
-              onCancel={() => setSelfing(false)}
-              onConfirm={(self) => run(() => act({ action: "accept", id: r.id, self }, "Accepted, marked self-approved: it now counts.")).finally(() => setSelfing(false))}
-            />
+          {(r.links ?? []).map((l) => (
+            <a key={l.url} href={l.url} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-1 border border-line px-2 py-1 text-xs font-semibold text-forest hover:bg-ochre-soft">
+              {l.title} <span aria-hidden>↗</span>
+            </a>
+          ))}
+          {r.distribution && (
+            <a href={`/approve/${encodeURIComponent(project.id)}/${r.distribution}`} className="inline-flex min-h-11 items-center gap-1 border border-line px-2 py-1 text-xs font-semibold text-forest hover:bg-ochre-soft">
+              Distribution record: signed note and approval <span aria-hidden>→</span>
+            </a>
+          )}
+          {r.planting && (
+            <a href={`/field/farmers/${encodeURIComponent(r.planting)}`} className="inline-flex min-h-11 items-center gap-1 border border-line px-2 py-1 text-xs font-semibold text-forest hover:bg-ochre-soft">
+              Planting record: farmer <span className="font-mono">{r.planting}</span> <span aria-hidden>→</span>
+            </a>
+          )}
+          {!proofCount(r) && r.noFile && <span className="self-center text-xs text-clay">No file: {r.noFile}</span>}
+          {mayAddProof && !adding && (
+            <button type="button" className="min-h-11 px-2 py-1 text-xs font-semibold text-forest hover:bg-ochre-soft" onClick={() => setAdding(true)}>
+              + Add proof
+            </button>
           )}
         </div>
-      )}
-      {r.canReview && (
-        <div className="mt-3">
-          {query === null ? (
-            <div className="flex flex-wrap gap-2">
-              <button type="button" disabled={busy} className={primaryBtn} onClick={() => run(() => act({ action: "accept", id: r.id }, "Accepted: it now counts."))}>
-                Accept
-              </button>
-              <button type="button" disabled={busy} className={quietBtn} onClick={() => setQuery("")}>
-                Send back with a question
-              </button>
-            </div>
+        {adding && <AddProof r={r} act={act} onClose={() => setAdding(false)} />}
+        <p className="mt-2 text-xs text-muted">
+          {r.kobo ? (
+            <>
+              From KoboToolbox
+              {r.kobo.id && (
+                <>
+                  , submission <span className="font-mono">{r.kobo.id}</span>
+                </>
+              )}
+            </>
           ) : (
-            <div>
-              <label className="text-sm">
-                What needs fixing?
-                <textarea className={input} rows={2} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="The attendance sheet shows 38 names, not 45." />
-              </label>
-              <div className="mt-2 flex gap-2">
-                <button
-                  type="button"
-                  disabled={busy || query.trim().length < 3}
-                  className={dangerBtn}
-                  onClick={() => run(() => act({ action: "query", id: r.id, note: query }, "Sent back with a question: it goes to the person who recorded it."))}
-                >
+            `Recorded by ${r.byName ?? r.by}`
+          )}
+          {r.reviewedBy && ` · ${r.status === "accepted" ? "accepted" : "queried"} by ${r.reviewedByName ?? r.reviewedBy}`}
+          {r.koboChanged && <span className="font-semibold text-clay"> · Changed in KoboToolbox since it was accepted: reopen it to check the new figure</span>}
+          {/* A field's exact location is personal data: only for people who see participants' names. */}
+          {r.gps && user?.pii && (
+            <>
+              {" · "}
+              <a href={`https://www.openstreetmap.org/?mlat=${r.gps.lat}&mlon=${r.gps.lon}#map=15/${r.gps.lat}/${r.gps.lon}`} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center text-forest hover:underline">
+                where it was recorded ↗
+              </a>
+            </>
+          )}
+        </p>
+        {r.query && <p className="mt-1 bg-clay-soft px-3 py-2 text-sm text-clay">MEL asked: {r.query}</p>}
+        {r.status === "queried" && r.by === me && !correcting && (
+          <button type="button" className={`${primaryBtn} mt-2`} onClick={() => setCorrecting(true)}>
+            Correct and resubmit
+          </button>
+        )}
+        {correcting && <CorrectForm r={r} act={act} onClose={() => setCorrecting(false)} />}
+        {(r.history ?? []).length > 0 && (
+          <details className="mt-2 text-xs text-muted">
+            <summary className="flex min-h-11 cursor-pointer items-center">
+              Corrected {r.history!.length} {r.history!.length === 1 ? "time" : "times"}
+            </summary>
+            <ul className="mt-1 space-y-1">
+              {r.history!.map((h) => (
+                <li key={h.at}>
+                  <span className="font-mono">{h.at.slice(0, 10)}</span>: was <span className="font-mono">{String(h.previous.value)}</span> on <span className="font-mono">{String(h.previous.date)}</span>. MEL asked: {h.query ?? "—"}. Reply: {h.reply}
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+        {(r.status === "pending" || r.canReopen) && r.checks.length > 0 && (
+          <ul className="mt-2 space-y-1 bg-ochre-soft px-3 py-2 text-xs">
+            {r.checks.map((c) => (
+              <li key={c}>Check: {c}</li>
+            ))}
+            <li>
+              <LookedAt what="dataChecks" />
+            </li>
+          </ul>
+        )}
+        {r.canSelfAccept && (
+          <div className="mt-3">
+            <p className="text-xs text-muted">{t("so.yours")}</p>
+            <button type="button" disabled={busy} className={`${primaryBtn} mt-2 min-h-12`} onClick={() => setSelfing(true)}>
+              {t("rq.acceptOne")}
+            </button>
+            {selfing && (
+              <SelfConfirmSheet
+                what={`${num(r.value)} ${ind?.unit ?? ""} · ${r.date}`}
+                onCancel={() => setSelfing(false)}
+                onConfirm={(self) => run(() => act({ action: "accept", id: r.id, self }, "Accepted, marked self-approved: it now counts.")).finally(() => setSelfing(false))}
+              />
+            )}
+          </div>
+        )}
+        {r.canReview && (
+          <div className="mt-3">
+            {query === null ? (
+              <div className="flex flex-wrap gap-2">
+                <button type="button" disabled={busy} className={`${primaryBtn} min-h-11`} onClick={() => run(() => act({ action: "accept", id: r.id }, "Accepted: it now counts."))}>
+                  Accept
+                </button>
+                <button type="button" disabled={busy} className={quietBtn} onClick={() => setQuery("")}>
                   Send back with a question
                 </button>
-                <button type="button" className={quietBtn} onClick={() => setQuery(null)}>
+              </div>
+            ) : (
+              <div>
+                <label className="text-sm">
+                  What needs fixing?
+                  <textarea className={input} rows={2} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="The attendance sheet shows 38 names, not 45." />
+                </label>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={busy || query.trim().length < 3}
+                    className={dangerBtn}
+                    onClick={() => run(() => act({ action: "query", id: r.id, note: query }, "Sent back with a question: it goes to the person who recorded it."))}
+                  >
+                    Send back with a question
+                  </button>
+                  <button type="button" className={quietBtn} onClick={() => setQuery(null)}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+        {r.canReopen &&
+          (reopen === null ? (
+            <button type="button" className="mt-2 min-h-11 text-xs text-muted hover:text-ink" onClick={() => setReopen("")}>
+              Reopen: something is wrong with this result
+            </button>
+          ) : (
+            <div className="mt-3">
+              <label className="text-sm">
+                What is wrong? It goes back to {r.by} and stops counting until you accept it again.
+                <textarea className={input} rows={2} value={reopen} onChange={(e) => setReopen(e.target.value)} placeholder="The weekly update shows this installed on 7 October, not in Q3." />
+              </label>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={busy || reopen.trim().length < 10}
+                  className={dangerBtn}
+                  onClick={() => run(() => act({ action: "reopen", id: r.id, note: reopen }, "Reopened: it goes back to the person who recorded it.").then(() => setReopen(null)))}
+                >
+                  Reopen
+                </button>
+                <button type="button" className={quietBtn} onClick={() => setReopen(null)}>
                   Cancel
                 </button>
               </div>
             </div>
-          )}
-        </div>
-      )}
-      {r.canReopen &&
-        (reopen === null ? (
-          <button type="button" className="mt-2 text-xs text-muted hover:text-ink" onClick={() => setReopen("")}>
-            Reopen: something is wrong with this result
-          </button>
-        ) : (
-          <div className="mt-3">
-            <label className="text-sm">
-              What is wrong? It goes back to {r.by} and stops counting until you accept it again.
-              <textarea className={input} rows={2} value={reopen} onChange={(e) => setReopen(e.target.value)} placeholder="The weekly update shows this installed on 7 October, not in Q3." />
-            </label>
-            <div className="mt-2 flex gap-2">
-              <button
-                type="button"
-                disabled={busy || reopen.trim().length < 10}
-                className={dangerBtn}
-                onClick={() => run(() => act({ action: "reopen", id: r.id, note: reopen }, "Reopened: it goes back to the person who recorded it.").then(() => setReopen(null)))}
-              >
-                Reopen
-              </button>
-              <button type="button" className={quietBtn} onClick={() => setReopen(null)}>
-                Cancel
-              </button>
-            </div>
-          </div>
+          ))}
+      </article>
+    </LedgerRow>
+  );
+}
+
+/**
+ * Results in ruled rows. With `oldestFirst`, the result waiting longest (by when it was recorded)
+ * gets the one gold row, and a quiet line under the table says why.
+ */
+function ResultRows({ list, v, ind, act, label, oldestFirst }: { list: Res[]; v: ResultsView; ind?: Ind; act: (a: ResultAction, msg: string) => Promise<void>; label: string; oldestFirst?: boolean }) {
+  const { tx } = useT();
+  const oldest = oldestFirst && list.length > 1 ? list.reduce((a, b) => (b.at < a.at ? b : a)) : null;
+  return (
+    <>
+      <LedgerTable cols="minmax(0,1fr)" head={[tx("Result and proof")]} label={label}>
+        {list.map((r) => (
+          <ResultCard key={r.id} r={r} ind={ind ?? v.indicators.find((i) => i.code === r.indicator)} act={act} mayAddProof={v.mayAddProof} me={v.me} first={oldest?.id === r.id} />
         ))}
-    </article>
+      </LedgerTable>
+      {oldest && <p className="mt-2 text-xs text-muted">{tx("Shaded: the result waiting longest, recorded {date}.", { date: oldest.at.slice(0, 10) })}</p>}
+    </>
   );
 }
 
@@ -945,7 +976,7 @@ function RecordForm({ ind, add, onClose, prefill }: { ind: Ind; add: (r: ResultI
   };
 
   return (
-    <div className="rounded-xl bg-sunken p-4">
+    <Sheet className="mt-1">
       {prefill && <p className="mb-3 text-sm text-warn">Filled in from {prefill.from}. Check that this is the right target and every figure before you send it: MEL checks it like any other result.</p>}
       <div className="grid gap-3 sm:grid-cols-3">
         <label className="text-sm">
@@ -1036,7 +1067,7 @@ function RecordForm({ ind, add, onClose, prefill }: { ind: Ind; add: (r: ResultI
           {err}
         </p>
       )}
-      <div className="mt-4 flex gap-2">
+      <div className="mt-4 flex flex-wrap gap-2">
         <button type="button" disabled={busy} className={primaryBtn} onClick={() => void submit()}>
           Record
         </button>
@@ -1044,7 +1075,7 @@ function RecordForm({ ind, add, onClose, prefill }: { ind: Ind; add: (r: ResultI
           Cancel
         </button>
       </div>
-    </div>
+    </Sheet>
   );
 }
 
@@ -1075,73 +1106,75 @@ function ImportResults({ indicators, act }: { indicators: { code: string; donorC
   if (!open)
     return (
       <p className="mt-6 text-sm">
-        <button type="button" className="font-semibold text-forest hover:underline" onClick={() => setOpen(true)}>
+        <button type="button" className="min-h-11 font-semibold text-forest hover:underline" onClick={() => setOpen(true)}>
           Import many results from a spreadsheet
         </button>{" "}
         <span className="text-muted">for a backlog of past quarters</span>
       </p>
     );
   return (
-    <section className="mt-6 rounded-2xl border border-line bg-surface p-4">
-      <h2 className="border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">Import results</h2>
-      <p className="mt-1 text-sm text-muted">
-        One row per result. The target may be the app&rsquo;s code (IND-7) or the donor&rsquo;s (1.2.1.4). Each row is checked as if typed in, and nothing is saved until every row passes. Imported
-        results wait for MEL like any other.{" "}
-        <a href={template} download="results-template.csv" className="font-semibold text-forest hover:underline">
-          Download the template
-        </a>
-      </p>
-      <input type="file" accept=".xlsx,.csv" className="mt-3 block text-sm" onChange={(e) => e.target.files?.[0] && void read(e.target.files[0])} aria-label="Spreadsheet of results" />
-      {err && <p className="mt-2 text-sm text-clay">{err}</p>}
-      {rows && (
-        <>
-          <p className="mt-3 text-sm">
-            {good.length} of {rows.length} rows ready{bad.length ? `; fix ${bad.length} in the sheet and choose it again` : ""}.
-          </p>
-          {bad.length > 0 && (
-            <ul className="mt-2 max-h-48 space-y-0.5 overflow-auto text-xs text-clay">
-              {bad.map((r) => (
-                <li key={r.row}>
-                  Row {r.row}: {r.errors.join("; ")}
-                </li>
-              ))}
-            </ul>
-          )}
-          {good.length > 0 && !bad.length && (
-            <ul className="mt-2 max-h-48 space-y-0.5 overflow-auto text-xs">
-              {good.map((r) => (
-                <li key={r.row}>
-                  Row {r.row}: {r.result!.indicator} · {r.result!.date} · {r.result!.value.toLocaleString("en-US")}
-                  {r.result!.district ? ` · ${r.result!.district}` : ""}
-                  {proofCount(r.result!) ? "" : " · proof to link"}
-                </li>
-              ))}
-            </ul>
-          )}
-        </>
-      )}
-      <div className="mt-3 flex gap-2">
-        <button
-          type="button"
-          className={primaryBtn}
-          disabled={busy || !good.length || bad.length > 0}
-          onClick={() => {
-            setBusy(true);
-            void act({ action: "import", results: good.map((r) => r.result!), file }, `${good.length} results imported. MEL will check them.`)
-              .then(() => {
-                setOpen(false);
-                setRows(null);
-              })
-              .catch(() => undefined)
-              .finally(() => setBusy(false));
-          }}
-        >
-          Import {good.length || ""} results
-        </button>
-        <button type="button" className={quietBtn} onClick={() => setOpen(false)}>
-          Cancel
-        </button>
-      </div>
+    <section className="mt-8">
+      <SectionHead className="">Import results</SectionHead>
+      <Sheet className="mt-3">
+        <p className="text-sm text-muted">
+          One row per result. The target may be the app&rsquo;s code (IND-7) or the donor&rsquo;s (1.2.1.4). Each row is checked as if typed in, and nothing is saved until every row passes. Imported
+          results wait for MEL like any other.{" "}
+          <a href={template} download="results-template.csv" className="font-semibold text-forest hover:underline">
+            Download the template
+          </a>
+        </p>
+        <input type="file" accept=".xlsx,.csv" className="mt-3 block min-h-11 text-sm" onChange={(e) => e.target.files?.[0] && void read(e.target.files[0])} aria-label="Spreadsheet of results" />
+        {err && <p className="mt-2 text-sm text-clay">{err}</p>}
+        {rows && (
+          <>
+            <p className="mt-3 text-sm">
+              <span className="font-mono">{good.length}</span> of <span className="font-mono">{rows.length}</span> rows ready{bad.length ? `; fix ${bad.length} in the sheet and choose it again` : ""}.
+            </p>
+            {bad.length > 0 && (
+              <ul className="mt-2 max-h-48 space-y-0.5 overflow-auto border-y border-line py-2 text-xs text-clay">
+                {bad.map((r) => (
+                  <li key={r.row}>
+                    Row <span className="font-mono">{r.row}</span>: {r.errors.join("; ")}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {good.length > 0 && !bad.length && (
+              <ul className="mt-2 max-h-48 space-y-0.5 overflow-auto border-y border-line py-2 font-mono text-xs">
+                {good.map((r) => (
+                  <li key={r.row}>
+                    Row {r.row}: {r.result!.indicator} · {r.result!.date} · {r.result!.value.toLocaleString("en-US")}
+                    {r.result!.district ? ` · ${r.result!.district}` : ""}
+                    {proofCount(r.result!) ? "" : " · proof to link"}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        )}
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            type="button"
+            className={primaryBtn}
+            disabled={busy || !good.length || bad.length > 0}
+            onClick={() => {
+              setBusy(true);
+              void act({ action: "import", results: good.map((r) => r.result!), file }, `${good.length} results imported. MEL will check them.`)
+                .then(() => {
+                  setOpen(false);
+                  setRows(null);
+                })
+                .catch(() => undefined)
+                .finally(() => setBusy(false));
+            }}
+          >
+            Import {good.length || ""} results
+          </button>
+          <button type="button" className={quietBtn} onClick={() => setOpen(false)}>
+            Cancel
+          </button>
+        </div>
+      </Sheet>
     </section>
   );
 }
@@ -1171,20 +1204,35 @@ function ToCheck({ v, waiting, f, act, onReview }: { v: ResultsView | null; wait
   const others = (v?.results.filter((r) => r.status === "pending" && !r.canReview && !r.canSelfAccept).length ?? 0) + (f.show ? f.pending.length - f.forMe : 0);
   const bulk = clean.length > 0 || flagged.length > 0 || (f.show && f.clean.length > 1);
   return (
-    <section id="to-check" className="mt-5 scroll-mt-24 rounded-2xl border border-line bg-surface p-4 sm:p-5">
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h2 className="border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">To check</h2>
-        <p className={`text-sm ${mine ? "font-semibold text-warn" : "text-muted"}`}>
-          {mine ? `${mine} waiting for you` : "Nothing waiting for you"}
-          {others > 0 && <span className="font-normal text-muted"> · {others} waiting on someone else</span>}
-        </p>
-      </div>
+    <section id="to-check" className="mt-8 scroll-mt-24">
+      <SectionHead
+        className=""
+        aside={
+          <p className={`text-sm ${mine ? "font-semibold text-warn" : "text-muted"}`}>
+            {mine ? (
+              <>
+                <span className="font-mono">{mine}</span> waiting for you
+              </>
+            ) : (
+              "Nothing waiting for you"
+            )}
+            {others > 0 && (
+              <span className="font-normal text-muted">
+                {" "}
+                · <span className="font-mono">{others}</span> waiting on someone else
+              </span>
+            )}
+          </p>
+        }
+      >
+        To check
+      </SectionHead>
 
       {bulk && (
-        <div className="mt-3 space-y-2">
+        <div className="mt-3 border-y border-ink">
           {/* Typed-in results: accept what the data checker found nothing in, review the rest one at a time. */}
           {clean.length + flagged.length > 0 && (
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl bg-paper px-3 py-2 text-sm">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 bg-paper px-3 py-2 text-sm">
               <span className="font-semibold">Typed-in results: {t("rq.line", { clean: clean.length, flagged: flagged.length })}</span>
               <span className="flex flex-wrap gap-2 sm:ms-auto">
                 {clean.length > 0 && (
@@ -1205,7 +1253,7 @@ function ToCheck({ v, waiting, f, act, onReview }: { v: ResultsView | null; wait
             </div>
           )}
           {f.show && f.clean.length > 1 && (
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl bg-mist px-3 py-2 text-sm">
+            <div className={`flex flex-wrap items-center gap-x-3 gap-y-2 bg-mist px-3 py-2 text-sm ${clean.length + flagged.length > 0 ? "border-t border-line" : ""}`}>
               <span className="font-semibold">Field forms: {f.clean.length} have no problems flagged.</span>
               <button type="button" disabled={!!f.busy} onClick={() => void f.decide(f.clean, "accepted")} className={`${primaryBtn} min-h-12 sm:ms-auto`}>
                 Accept all {f.clean.length}
@@ -1216,24 +1264,24 @@ function ToCheck({ v, waiting, f, act, onReview }: { v: ResultsView | null; wait
       )}
 
       {/* Part 1: results typed into the app (or imported from a sheet), each with its proof. */}
-      <div className="mt-4">
+      <div className="mt-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <h3 className="font-semibold">Typed-in results · {waiting.length} for you</h3>
+            <h3 className="font-ledger text-base font-bold">
+              Typed-in results · <span className="font-mono">{waiting.length}</span> for you
+            </h3>
             <p className="mt-1 max-w-2xl text-sm text-muted">Results recorded in the app with their proof. Once accepted they count in Progress and in the donor report.</p>
           </div>
           {waiting.length > 0 && (
-            <button type="button" aria-expanded={openTyped} aria-controls="to-check-typed" onClick={() => setOpenTyped(!openTyped)} className={`${quietBtn} py-1.5`}>
+            <button type="button" aria-expanded={openTyped} aria-controls="to-check-typed" onClick={() => setOpenTyped(!openTyped)} className={`${quietBtn} min-h-11`}>
               {openTyped ? "Hide" : `Review ${waiting.length}`}
             </button>
           )}
         </div>
         {!v && <p className="mt-2 text-sm text-muted">{t("load.wait")}</p>}
         {v && openTyped && waiting.length > 0 && (
-          <div id="to-check-typed" className="mt-3 space-y-3">
-            {waiting.map((r) => (
-              <ResultCard key={r.id} r={r} ind={v.indicators.find((i) => i.code === r.indicator)} act={act} mayAddProof={v.mayAddProof} me={v.me} />
-            ))}
+          <div id="to-check-typed">
+            <ResultRows list={waiting} v={v} act={act} label="Typed-in results" oldestFirst />
           </div>
         )}
       </div>
@@ -1252,7 +1300,7 @@ function WhatNeedsDoing({ v, me, onRecord }: { v: ResultsView; me: string; onRec
   const year = new Date().toISOString().slice(0, 4);
   const noProof = v.results.filter((r) => r.status === "accepted" && r.date >= `${year}-01-01` && !proofCount(r)).length;
   return (
-    <section className="mt-5 rounded-2xl border border-line bg-surface p-4">
+    <section className="mt-6">
       {v.mayRecord && v.indicators.some((i) => !i.fromKobo) && (
         <form
           className="flex flex-wrap items-center gap-2"
@@ -1261,7 +1309,7 @@ function WhatNeedsDoing({ v, me, onRecord }: { v: ResultsView; me: string; onRec
             if (pick) onRecord(pick);
           }}
         >
-          <select id="record-pick" value={pick} onChange={(e) => setPick(e.target.value)} className="min-w-0 flex-1 rounded-xl border border-line bg-paper px-3 py-2.5 text-sm" aria-label={t("pw.whichTarget")}>
+          <select id="record-pick" value={pick} onChange={(e) => setPick(e.target.value)} className="min-h-11 min-w-0 flex-1 border border-line bg-paper px-3 py-2.5 text-sm" aria-label={t("pw.whichTarget")}>
             <option value="">{t("pw.whichTarget")}</option>
             {v.indicators.filter((i) => !i.fromKobo).map((i) => (
               <option key={i.code} value={i.code}>
@@ -1274,19 +1322,14 @@ function WhatNeedsDoing({ v, me, onRecord }: { v: ResultsView; me: string; onRec
           </button>
         </form>
       )}
-      <ul className={`${v.mayRecord ? "mt-3" : ""} flex flex-wrap gap-x-5 gap-y-1 text-sm`}>
-        <li>
-          <span className={`font-semibold tabular-nums ${pending ? "text-warn" : ""}`}>{pending}</span> waiting for MEL
-        </li>
-        {queriedMine > 0 && (
-          <li>
-            <span className="font-semibold tabular-nums text-clay">{queriedMine}</span> of yours queried: answer them below
-          </li>
-        )}
-        <li>
-          <span className={`font-semibold tabular-nums ${noProof ? "text-clay" : ""}`}>{noProof}</span> accepted this year with no proof attached
-        </li>
-      </ul>
+      <Figures
+        className={v.mayRecord ? "mt-4" : ""}
+        items={[
+          { label: "Waiting for MEL", value: pending, tone: pending ? "warn" : undefined },
+          ...(queriedMine > 0 ? [{ label: "Of yours queried: answer them below", value: queriedMine, tone: "clay" as const }] : []),
+          { label: "Accepted this year with no proof attached", value: noProof, tone: noProof ? "clay" : undefined },
+        ]}
+      />
     </section>
   );
 }
@@ -1316,83 +1359,91 @@ function ReviewQueue({ ids, v, act, onClose }: { ids: string[]; v: ResultsView; 
     }
   };
   return (
-    <section className="mt-5 rounded-2xl border border-ochre bg-surface p-4" aria-live="polite">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-warn">{r ? t("rq.of", { k, n: ids.length }) : ""}</p>
-        <button type="button" className="min-h-11 text-sm font-semibold text-forest hover:underline" onClick={onClose}>
-          {t("rq.back")}
-        </button>
-      </div>
-      {!r ? (
-        <p className="mt-2 text-sm text-leaf">{t("rq.done")}</p>
-      ) : (
-        <>
-          <p className="mt-2 text-xs text-muted">
-            {ind ? `${ind.donorCode ?? ind.code}: ${ind.name}` : r.indicator}
-          </p>
-          <p className="mt-1 text-lg">
-            <span className="font-semibold tabular-nums">{num(r.value)}</span> {ind?.unit} · {r.date}
-            {r.district || r.province ? ` · ${[r.district, r.province].filter(Boolean).join(", ")}` : ""}
-          </p>
-          <p className="mt-1 line-clamp-3 text-sm">{r.note}</p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {r.files.map((f) => (
-              <button key={f.hash} type="button" onClick={() => void openReceipt(f.hash, user?.id)} className="min-h-9 rounded-lg border border-line px-2 py-1 text-xs font-semibold text-forest hover:bg-sunken">
-                {f.name}
-              </button>
-            ))}
-            {(r.links ?? []).map((l) => (
-              <a key={l.url} href={l.url} target="_blank" rel="noopener noreferrer" className="min-h-9 rounded-lg border border-line px-2 py-1 text-xs font-semibold text-forest hover:bg-sunken">
-                {l.title} <span aria-hidden>↗</span>
-              </a>
-            ))}
-          </div>
-          <div className="mt-3 rounded-lg bg-ochre-soft px-3 py-2 text-sm">
-            <p>
-              <span aria-hidden>⚠ </span>
-              {r.checks[0]}
-              {r.checks.length > 1 && !more && (
-                <button type="button" className="ms-2 font-semibold text-forest hover:underline" onClick={() => setMore(true)}>
-                  {t("rq.more", { n: r.checks.length - 1 })}
-                </button>
+    <section className="mt-6" aria-live="polite">
+      <Sheet className="">
+        <div className="flex items-center justify-between gap-3">
+          <p className="font-mono text-xs uppercase tracking-[0.12em] text-warn">{r ? t("rq.of", { k, n: ids.length }) : ""}</p>
+          <button type="button" className="min-h-11 text-sm font-semibold text-forest hover:underline" onClick={onClose}>
+            {t("rq.back")}
+          </button>
+        </div>
+        {!r ? (
+          <p className="mt-2 text-sm text-leaf">{t("rq.done")}</p>
+        ) : (
+          <>
+            <p className="mt-2 text-xs text-muted">
+              {ind ? (
+                <>
+                  <span className="font-mono">{ind.donorCode ?? ind.code}</span>: {ind.name}
+                </>
+              ) : (
+                <span className="font-mono">{r.indicator}</span>
               )}
             </p>
-            {more && (
-              <ul className="mt-1 list-disc ps-5">
-                {r.checks.slice(1).map((c) => (
-                  <li key={c}>{c}</li>
-                ))}
-              </ul>
-            )}
-            <LookedAt what="dataChecks" className="mt-2" />
-          </div>
-          {query === null ? (
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <button type="button" disabled={busy} className={`${primaryBtn} min-h-14 text-base`} onClick={() => void decide({ action: "accept", id: r.id }, "Accepted: it now counts.")}>
-                {t("rq.acceptOne")}
-              </button>
-              <button type="button" disabled={busy} className={`${quietBtn} min-h-14 text-base`} onClick={() => setQuery("")}>
-                {t("rq.query")}
-              </button>
-            </div>
-          ) : (
-            <div className="mt-4">
-              <label className="text-sm">
-                {t("rq.what")}
-                <textarea className={input} rows={2} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="The attendance sheet shows 38 names, not 45." autoFocus />
-              </label>
-              <div className="mt-2 grid grid-cols-2 gap-3">
-                <button type="button" disabled={busy || query.trim().length < 3} className={`${dangerBtn} min-h-12`} onClick={() => void decide({ action: "query", id: r.id, note: query }, "Sent back with a question: it goes to the person who recorded it.")}>
-                  {t("rq.send")}
+            <p className="mt-1 font-ledger text-lg">
+              <span className="font-mono font-bold tabular-nums">{num(r.value)}</span> {ind?.unit} · <span className="font-mono text-base">{r.date}</span>
+              {r.district || r.province ? ` · ${[r.district, r.province].filter(Boolean).join(", ")}` : ""}
+            </p>
+            <p className="mt-1 line-clamp-3 text-sm">{r.note}</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {r.files.map((f) => (
+                <button key={f.hash} type="button" onClick={() => void openReceipt(f.hash, user?.id)} className="min-h-11 border border-line px-2 py-1 text-xs font-semibold text-forest hover:bg-ochre-soft">
+                  {f.name}
                 </button>
-                <button type="button" className={`${quietBtn} min-h-12`} onClick={() => setQuery(null)}>
-                  {t("rq.cancel")}
+              ))}
+              {(r.links ?? []).map((l) => (
+                <a key={l.url} href={l.url} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-1 border border-line px-2 py-1 text-xs font-semibold text-forest hover:bg-ochre-soft">
+                  {l.title} <span aria-hidden>↗</span>
+                </a>
+              ))}
+            </div>
+            <div className="mt-3 bg-ochre-soft px-3 py-2 text-sm">
+              <p>
+                <span aria-hidden>⚠ </span>
+                {r.checks[0]}
+                {r.checks.length > 1 && !more && (
+                  <button type="button" className="ms-2 min-h-11 font-semibold text-forest hover:underline" onClick={() => setMore(true)}>
+                    {t("rq.more", { n: r.checks.length - 1 })}
+                  </button>
+                )}
+              </p>
+              {more && (
+                <ul className="mt-1 list-disc ps-5">
+                  {r.checks.slice(1).map((c) => (
+                    <li key={c}>{c}</li>
+                  ))}
+                </ul>
+              )}
+              <LookedAt what="dataChecks" className="mt-2" />
+            </div>
+            {query === null ? (
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <button type="button" disabled={busy} className={`${primaryBtn} min-h-14 text-base`} onClick={() => void decide({ action: "accept", id: r.id }, "Accepted: it now counts.")}>
+                  {t("rq.acceptOne")}
+                </button>
+                <button type="button" disabled={busy} className={`${quietBtn} min-h-14 text-base`} onClick={() => setQuery("")}>
+                  {t("rq.query")}
                 </button>
               </div>
-            </div>
-          )}
-        </>
-      )}
+            ) : (
+              <div className="mt-4">
+                <label className="text-sm">
+                  {t("rq.what")}
+                  <textarea className={input} rows={2} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="The attendance sheet shows 38 names, not 45." autoFocus />
+                </label>
+                <div className="mt-2 grid grid-cols-2 gap-3">
+                  <button type="button" disabled={busy || query.trim().length < 3} className={`${dangerBtn} min-h-12`} onClick={() => void decide({ action: "query", id: r.id, note: query }, "Sent back with a question: it goes to the person who recorded it.")}>
+                    {t("rq.send")}
+                  </button>
+                  <button type="button" className={`${quietBtn} min-h-12`} onClick={() => setQuery(null)}>
+                    {t("rq.cancel")}
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </Sheet>
     </section>
   );
 }
