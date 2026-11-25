@@ -23,7 +23,8 @@ import { db, schema as s } from "@/db";
 import { fieldItemRows, listDistributions, stockFor } from "@/server/distribution";
 import { canEditProject, type AppUser } from "@/lib/demo";
 import { quartersLabel } from "@/lib/monthly-review";
-import { STATUS_LABEL, mayWriteReport, type Status } from "@/lib/qpr";
+import { STATUS_LABEL, type Status } from "@/lib/qpr";
+import { mayExplainOverspend } from "@/lib/overspend";
 import { countTargetWords } from "@/lib/target-status";
 import { procRolesFor } from "@/lib/procurement";
 import { farmerNames, projectByCode, setupFor } from "@/server/field-store";
@@ -528,9 +529,9 @@ async function homeActions(c: ActionsInput): Promise<{ actions: HomeAction[]; le
     const wanted = prevMonth(month);
     if (!budget.importedTo || budget.importedTo < wanted) actions.push({ key: "import", for: "finance", bucket: "due", urgent: true, text: `Import Finance's workbook for ${monthName(wanted)} (imported to ${budget.importedTo ? monthName(budget.importedTo) : "nothing yet"})`, msg: budget.importedTo ? { key: "ha.import", vars: { month: wanted, to: budget.importedTo } } : { key: "ha.importNone", vars: { month: wanted } }, href: "/progress/report" });
   }
-  // Overspent lines are explained by the people who write the report (the MEL owner or a lead,
-  // lib/qpr mayWriteReport), as the Budget page and its API require; Finance reports the spend.
-  if (full && mayWriteReport(u)) {
+  // Overspent lines are explained by the people who write the report (the MEL owner or a lead)
+  // and by Finance (lib/overspend mayExplainOverspend), as the Budget page and its API require.
+  if (full && mayExplainOverspend(u)) {
     // Only the lines nobody has explained yet: an explained line stays overspent, but there is nothing left to ask for.
     const reasons = budget.overspent.length ? await loadLineReasons(project.id) : {};
     const toExplain = budget.overspent.filter((l) => !reasons[l.code]);

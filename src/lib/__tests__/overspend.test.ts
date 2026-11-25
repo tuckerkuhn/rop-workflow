@@ -58,3 +58,13 @@ describe("UNDP's budget flexibility for ACRP", () => {
     expect(effective(ROP, null).values.budgetRevisionPct).toBe(10);
   });
 });
+
+describe("who gives the reason a line is over (decision 8, 25 Nov 2026)", () => {
+  it("the report's writers and Finance; not other staff or donors", async () => {
+    const { mayExplainOverspend } = await import("@/lib/overspend");
+    const { userById } = await import("@/lib/demo");
+    for (const id of ["omid", "yusuf"]) expect(mayExplainOverspend(userById(id)!)).toBe(true);
+    expect(mayExplainOverspend(userById("zahra")!)).toBe(false);
+    expect(mayExplainOverspend(userById("elena")!)).toBe(false);
+  });
+});
