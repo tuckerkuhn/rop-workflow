@@ -118,25 +118,39 @@ Expense receipts: the expense date is filled in from the receipt photo when the 
 | Collector, fixing | Amounts, 2 ticks, 1 typed | Amounts, 1 tick, 1 photo, 1 typed |
 | Office staff, adding a photo | 1 pick, 1 typed, 1 file | 1 file, 1 tag |
 
-## 11. Findings not fixed, ranked by retyping or risk
+## 11. Second pass, the same night: six people on a phone
 
-1. **The KoboCollect path is still unproven against a real account.** Everything above was run against a
-   stand-in server on a laptop. Three things need a real phone and the sandbox account: that KoboToolbox
-   names attachments the way the app expects, that the phone's KoboCollect version captures the GPS at
-   form start, and whether a photo's own date and place survive (older versions drop them when a photo is
-   resized, newer ones keep them, and some phones never write a place).
-2. **The storekeeper's note from the field reaches nobody.** Show it to the checker (it may hold a name,
-   so signed-in staff only), or cut the question.
-3. **Training attendance retypes the register reference for every farmer in a session.** One record per
-   farmer per session, each with the same typed book and page. This is the most retyping left in the next
-   chain. Fix: one record per session with the farmers ticked, or remember the last answer on the phone.
-4. **Readiness, training and visit photos still stay in KoboToolbox.** The reader built tonight is general
-   (`lib/kobo-photo`), but only distributions show their photos in the app.
-5. **The purchase's distribution list is dated the day of approval, not the day of the handout.** Changing it
-   regroups lists already written, so it needs its own careful pass.
-6. **Some dates show the next day in the evening in Guatemala** ("Earlier rounds", older records): they are
-   cut from a UTC timestamp.
-7. **Dari and Pashto labels** keep the old wording. The one new hint is English in all three languages.
-   Waits for translation, as agreed.
-8. **A deployed form does not change until it is redeployed.** The files in `kobo/` are rebuilt, ACRP's
+Walked as the storekeeper, the Director of MEL, the project manager, finance, an auditor tracing a
+number to its proof and a small organization setting up for the first time.
+
+| Who | Where they stopped, guessed or retyped | Now |
+|---|---|---|
+| Small organization | **There was no form unless a developer wrote one.** Each project's distribution form was built by hand with a script | Field setup makes the form from the saved package and gives the four steps to put it on phones *run* |
+| Storekeeper | Typed each amount, even when it was the planned one (project forms) | One tap per item for "the planned amount". An amount is typed only when it differed *test* |
+| Storekeeper | The note they wrote reached nobody | Shown to whoever checks the record, signed-in staff only |
+| Extension agent | Typed the same session and register reference for every farmer at a training | The phone offers the last answer. Typed once per session |
+| MEL, review queue | Readiness, training and visit photos stayed in KoboToolbox. The queue said "photo: yes" | "See the photo and where it was recorded" on each KoboCollect form *run, test* |
+| MEL, project manager | "collected by farida.kobo": an account name, not a person | The person's name when the account is matched. When it is not, the page says so and links to the place to match it |
+| Project manager | Stock check failed with what was needed, but no way to get there | Links to the purchases that unblock it |
+| Project manager | After approving: "Finance: told when the purchase has a payment to release" | Says who has the task to pay which supplier for which purchase, or that nothing is waiting |
+| Checker | After sending back: "the person who recorded it" | Names the person who has the task |
+| Everyone | Dates as 2026-11-24, and some showing tomorrow in the evening | 24 November 2026, in the reader's own day, on the approval page and the queue |
+| Auditor | Number to result to distribution worked, but the distribution page had no photo for KoboCollect records | The signed note is there, with where and when |
+
+## 12. Findings not fixed, ranked by retyping or risk
+
+1. **The KoboCollect path is still unproven against a real account.** Run against a stand-in server on a
+   laptop. A real phone and the sandbox account are needed to prove: KoboToolbox's attachment names, GPS at
+   form start on the installed KoboCollect version, whether a photo's own date and place survive, that the
+   phone offers the last answer on the training form, and that the form the app makes deploys cleanly.
+2. **The field form list sends every employee the GPS point**, though the screen shows it only to people who
+   may see participant names. The rule is kept on screen, not in what the server sends. Not changed: the
+   list's own checks ("No GPS point recorded") read it.
+3. **Training is still one record per farmer per session.** The phone now remembers the session and
+   register, so nothing is retyped, but one record per session with farmers ticked would be the right shape.
+4. **The purchase's distribution list is dated the day of approval, not the day of the handout.**
+5. **Only the distribution form is made by the app.** Readiness, training and visit forms are still the
+   hand-built files in `kobo/`. The same approach works for them once their questions are settled.
+6. **The form the app makes is English only**, like the rest of the app until translation.
+7. **A deployed form does not change until it is redeployed.** The files in `kobo/` are rebuilt, ACRP's
    included. ACRP's live form is untouched.
