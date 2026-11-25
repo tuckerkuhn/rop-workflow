@@ -20,6 +20,9 @@ import { oncePerRequest, requestWrote } from "@/server/request-memo";
 import { loadProjectStateRaw } from "@/server/project-state";
 import { ledgerSpent } from "@/server/ledger-spent";
 
+/** Why a review with no summary is not signed off. */
+export const NO_SUMMARY = "Not signed off: the summary is not written. Write where the project stands this month, then sign off.";
+
 /** Whether a quarter ("2026-Q4") has ended as of today. */
 const quarterEnded = (q: string) => {
   const y = Number(q.slice(0, 4));
@@ -386,6 +389,8 @@ export async function actOnReview(code: string, month: string, a: ReviewAction, 
   if (a.action === "signoff") {
     if (!mayDecideReview(u)) return "Only the monthly reviewers and plan approvers can sign off the review.";
     if (review.changes.some((c) => c.status === "proposed")) return "Decide or withdraw every proposed change first.";
+    // An empty summary blocks the sign-off (decision AE, 25 Nov 2026), as an empty Executive Summary blocks a report's release.
+    if (!review.summary?.text.trim()) return NO_SUMMARY;
     let figures: ReviewFigures;
     try {
       figures = figuresOf(await readReview(code, month, u));
