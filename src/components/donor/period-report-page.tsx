@@ -21,6 +21,8 @@ import { TopBar } from "@/components/workspace/ui";
 const n = (v: number | null) => (v === null ? "–" : v.toLocaleString("en-US", { maximumFractionDigits: 1 }));
 const VERDICT = { met: { tone: "forest", text: "Met" }, partly: { tone: "ochre", text: "Partly" }, not_met: { tone: "clay", text: "Not met" }, no_target: { tone: "muted", text: "No target" } } as const;
 const LESSON_COLS = "minmax(6rem,1fr) 7rem minmax(0,3fr)";
+/** The small label over each figure when an indicator is shown as a stacked block on a phone. */
+const FIGURE_LABEL = "font-mono text-xs text-muted";
 
 export function DonorPeriodReportPage({ slug }: { slug: string }) {
   const { user } = useRequireUser();
@@ -60,7 +62,41 @@ export function DonorPeriodReportPage({ slug }: { slug: string }) {
             </p>
             <p className="mt-2 text-sm text-muted">{tx("Released by Roots of Peace on {date}. This is the report as it was released.", { date: longDay(r.releasedAt) })}</p>
 
-            <div className="mt-6 overflow-x-auto">
+            {/* Below a medium screen: one block per indicator, each figure under its name, as on the staff page. The table's headings do not show on a phone, and it scrolled sideways. */}
+            <ul aria-label={tx("Indicators")} className="mt-6 divide-y divide-line border-y border-ink md:hidden print:hidden">
+              {r.rows.map((row) => (
+                <li key={row.code} className="py-3">
+                  <div className="flex items-start gap-2">
+                    <h3 className="min-w-0 flex-1 font-ledger text-sm">
+                      <span className="font-mono text-xs text-muted">{row.donorCode}</span> {row.name} <span className="text-xs text-muted">({row.unit})</span>
+                    </h3>
+                    <StatusBlock tone={VERDICT[row.verdict].tone}>{tx(VERDICT[row.verdict].text)}</StatusBlock>
+                  </div>
+                  <dl className="mt-2 grid grid-cols-3 gap-2 font-mono text-sm tabular-nums">
+                    <div>
+                      <dt className={FIGURE_LABEL}>{tx("Baseline")}</dt>
+                      <dd>{n(row.baseline)}</dd>
+                    </div>
+                    <div>
+                      <dt className={FIGURE_LABEL}>{tx("Target")}</dt>
+                      <dd>{n(row.target)}</dd>
+                    </div>
+                    <div>
+                      <dt className={FIGURE_LABEL}>{tx("Achieved")}</dt>
+                      <dd className="font-semibold">{row.note?.achieved ? <span className="font-sans text-xs text-clay">{tx(row.note.achieved)}</span> : n(row.achieved)}</dd>
+                      {row.pct !== null && <dd className="text-xs text-muted">{row.pct}%</dd>}
+                    </div>
+                    {row.parts.map((x) => (
+                      <div key={x.label}>
+                        <dt className={FIGURE_LABEL}>{x.label}</dt>
+                        <dd className="text-muted">{n(x.value)}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-6 hidden overflow-x-auto md:block print:block print:overflow-visible">
               <LedgerTable
                 cols={cols}
                 label={tx("Indicators")}
