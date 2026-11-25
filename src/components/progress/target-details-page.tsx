@@ -9,7 +9,8 @@ import { ErrorNote } from "@/components/app/error-note";
 import { useT } from "@/components/app/i18n";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { TopBar, primaryBtn } from "@/components/workspace/ui";
-import { BREAKDOWNS, type Breakdown, type TargetDetailsPatch } from "@/lib/target-details";
+import { BREAKDOWNS, type Breakdown, type ConfirmLinks, type TargetDetailsPatch } from "@/lib/target-details";
+import { LinkSuggestions } from "@/components/progress/link-suggestions";
 import { MEASURES, MEASURE_TEXT, isPercentUnit } from "@/lib/measure";
 import type { TargetDetailsView } from "@/server/target-details";
 
@@ -60,6 +61,13 @@ export function TargetDetailsPage() {
     setGot({ url, view: body as TargetDetailsView });
     setSaved(a.indicator);
   };
+  // Suggested links a person confirmed: only empty links are filled, with the same audit row as a save.
+  const applyLinks = async (links: ConfirmLinks["links"]) => {
+    const res = await fetch(`${url}/links`, { method: "POST", headers: { "Content-Type": "application/json", "x-demo-user": user.id }, body: JSON.stringify({ links }) });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((body as { error?: string }).error ?? `Not saved (${res.status})`);
+    setGot({ url, view: body as TargetDetailsView });
+  };
 
   return (
     <div className="min-h-screen">
@@ -84,6 +92,7 @@ export function TargetDetailsPage() {
         {project.saved && !v && !error && <p className="mt-10 text-center text-sm text-muted">{t("load.wait")}</p>}
         {v && !v.can.edit && <p className="mt-4 rounded-xl bg-sunken px-4 py-3 text-sm">{t("td.readOnly")}</p>}
         {v && v.targets.length === 0 && <p className="mt-6 text-sm text-muted">{t("td.empty")}</p>}
+        {v && <LinkSuggestions key={url} view={v} apply={applyLinks} className="mt-6" />}
         {v && (
           <div className="mt-4 space-y-4">
             {v.targets.map((x) => (

@@ -11,6 +11,7 @@ import { loadBudget, loadWorkplan } from "@/server/plan-store";
 import { loadPlan } from "@/server/procurement-plan-store";
 import { loadProcurements } from "@/server/procurement-store";
 import { loadUpdates } from "@/server/results-store";
+import { fieldRecordsByActivity } from "@/server/kobo-activities";
 
 const NONE: ActivityLinks = { procurements: [], grants: [], updates: [], budget: { lines: [], total: 0, spent: 0 } };
 
@@ -30,6 +31,8 @@ async function links(code: string, u: AppUser) {
 /** The activities, each with its indicator's result this year, so the page can say "target met". */
 async function withResults(code: string, u: AppUser) {
   const [v, review, l] = await Promise.all([loadActivities(code, u), loadReview(code, new Date().toISOString().slice(0, 7), u).catch(() => null), links(code, u)]);
+  // KoboCollect submissions of the forms that record each activity: counts only (server/kobo-activities).
+  const field = await fieldRecordsByActivity(code, v.rows, v.today).catch(() => ({}) as Awaited<ReturnType<typeof fieldRecordsByActivity>>);
   return {
     ...v,
     unlinked: { procurements: l.unlinked.procurements.length, grants: l.unlinked.grants.length },
@@ -42,6 +45,7 @@ async function withResults(code: string, u: AppUser) {
         ...r,
         result: i ? { achieved: i.year, target: i.yearTarget, unit: i.unit } : null,
         links: l.by[r.code] ?? NONE,
+        field: field[r.code] ?? [],
         results: linked.map((x) => ({ indicator: x.code, code: x.donorCode, name: x.name, achieved: x.year, target: x.yearTarget, unit: x.unit })),
         allMet: linked.length > 0 && linked.every((x) => x.year >= x.yearTarget),
       };

@@ -59,3 +59,39 @@ export type OriginChoice = z.infer<typeof originChoice>;
 
 /** Whether a proposal offers "Set up the project from this proposal": won and not set up yet, for a person who may set up projects. */
 export const offersSetUp = (p: { outcome: string; projectCode?: string }, maySetUp: boolean) => p.outcome === "won" && !p.projectCode && maySetUp;
+
+// ---------- The budget against the award ceiling ----------
+
+/** The budget's total against the award ceiling confirmed at setup. `over` is null when the two are in different currencies. */
+export type CeilingCheck = { currency: string; ceiling: number; total: number; budgetCurrency: string; over: number | null };
+
+export function againstCeiling(total: number, budgetCurrency: string, award: Pick<ProjectOrigin, "currency" | "ceiling"> | null): CeilingCheck | null {
+  if (!award || award.ceiling === null) return null;
+  return { currency: award.currency, ceiling: award.ceiling, total, budgetCurrency, over: budgetCurrency === award.currency ? Math.round((total - award.ceiling) * 100) / 100 : null };
+}
+
+const amount = (currency: string, n: number) => `${currency} ${Math.round(n).toLocaleString("en-US")}`;
+
+/**
+ * What the budget shows beside its total: the ceiling, and a plain warning when the total is above
+ * it. A warning, never a block: the agreement may differ from the proposal.
+ */
+export function ceilingWords(c: CeilingCheck): { ceiling: string; warning: string | null; line: string } {
+  const ceiling = `Award ceiling: ${amount(c.currency, c.ceiling)}`;
+  if (c.over === null) {
+    const note = `The budget is in ${c.budgetCurrency} and the award ceiling in ${c.currency}, so the two are not compared.`;
+    return { ceiling, warning: null, line: `${ceiling}. ${note}` };
+  }
+  const warning = c.over >= 1 ? `The budget total is ${amount(c.currency, c.over)} above the award ceiling. Check it against the signed agreement, which may differ from the proposal.` : null;
+  const diff = c.over >= 1 ? `${amount(c.currency, c.over)} above it` : c.over <= -1 ? `${amount(c.currency, -c.over)} under it` : "the same";
+  return { ceiling, warning, line: `${ceiling}. Budget total ${amount(c.currency, c.total)}: ${diff}.` };
+}
+
+/**
+ * The currency of a budget read from a sheet: the one the sheet names, else the award's. The
+ * sheet reader (lib/budget parseBudget) falls back to USD when the sheet names none.
+ */
+export function sheetCurrency(read: string, sheetText: string, award: string | null): string {
+  if (!award || read === award) return read;
+  return new RegExp(`\\b${read}\\b`, "i").test(sheetText) ? read : award;
+}

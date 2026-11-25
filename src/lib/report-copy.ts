@@ -1,3 +1,4 @@
+import type { QprPeriod } from "@/lib/obligations";
 import { SECTIONS, STATUS_LABEL, type Breakdown, type GrmLog, type Photo, type Qpr, type QprCheck, type Row, type Spend } from "@/lib/qpr";
 
 /**
@@ -9,6 +10,8 @@ import { SECTIONS, STATUS_LABEL, type Breakdown, type GrmLog, type Photo, type Q
 export type CopyData = {
   project: { code: string; name: string; goal: string | null; donor: string | null; start: string | null; end: string | null };
   quarter: string;
+  /** The agreement's own period, when it is not the calendar quarter (lib/obligations qprPeriod): the days the copy counted. */
+  period?: QprPeriod;
   saved: Qpr;
   rows: Row[];
   photos: Photo[];

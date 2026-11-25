@@ -4,7 +4,7 @@ import { checkHref, checkPlace, openClaims, overspentLines, PREFLIGHT_ITEM_FOR, 
 import type { Frequency } from "@/lib/agreement";
 import { daysFrom, periodHolding, type SavedObligation } from "@/lib/obligations";
 import { addDays, deadlineFor, type Deadline, type Preflight, type PreflightItem, type ReadyItem, type ReportRef, milestoneFits } from "@/lib/preflight";
-import { proofCount, quarterOf, quarterRange, type ResultRecord } from "@/lib/results";
+import { proofCount, quarterRange, type ResultRecord } from "@/lib/results";
 import { MEASURE_NOTE } from "@/lib/measure";
 import { weekOf } from "@/lib/weekly";
 import { loadBudgetView } from "@/server/budget-view-store";
@@ -12,7 +12,7 @@ import { faceView } from "@/server/face-store";
 import { projectByCode } from "@/server/field-store";
 import { periodReport } from "@/server/period-report-store";
 import { projectRules } from "@/server/policy-store";
-import { qprData } from "@/server/qpr-store";
+import { qprData, qprPeriodFor } from "@/server/qpr-store";
 import { loadResults } from "@/server/results-store";
 import { loadWeekly } from "@/server/weekly-store";
 import { loadObligations } from "@/server/obligations-store";
@@ -138,14 +138,17 @@ function baselineNeeded(c: Ctx, rows: { code: string; donorCode: string; name: s
 
 async function qpr(c: Ctx, quarter: string): Promise<Omit<Preflight, "items" | "ready">> {
   // Every read below that does not depend on another starts now, with the report's own figures; each is awaited where it is used.
-  const range = quarterRange(quarter);
-  const current = quarterOf(new Date().toISOString().slice(0, 10)) === quarter;
+  // The days the report counts: the calendar quarter, or the agreement's own period (lib/obligations qprPeriod).
+  const period = await qprPeriodFor(c.code, quarter);
+  const range = { from: period.from, to: period.to };
+  const today = new Date().toISOString().slice(0, 10);
+  const current = range.from <= today && today <= range.to;
   c.pre = { solo: early(selfApprovedIn(c.code, range.from, range.to)), budget: early(loadBudgetView(c.code)) };
   const weeklyLater = current ? early(loadWeekly(c.code)) : null;
   const feedbackLater = early(projectByCode(c.code).then((p) => loadProjectState<FeedbackLog>(p.id, "feedback", EMPTY_FEEDBACK)));
   const deadlineLater = early(reportDeadline(c.code, range.to, 60, "quarterlyReportDays"));
   const d = await qprData(c.code, quarter);
-  const { from, to } = quarterRange(quarter);
+  const { from, to } = range;
   const q = `q=${quarter}`;
   const inQ = d.results.filter((r) => r.date >= from && r.date <= to);
   const pending = inQ.filter((r) => r.status === "pending").length;
@@ -205,9 +208,8 @@ async function qpr(c: Ctx, quarter: string): Promise<Omit<Preflight, "items" | "
 
   await signOff(c);
 
-  // Weekly updates feed the narrative: only for the quarter under way.
-  const today = new Date().toISOString().slice(0, 10);
-  if (quarterOf(today) === quarter) {
+  // Weekly updates feed the narrative: only for the period under way.
+  if (current) {
     const weekly = await (weeklyLater ?? loadWeekly(c.code));
     const thisWeek = weekOf(today);
     const lastWeek = weekOf(addDays(thisWeek.from, -2));
@@ -224,7 +226,7 @@ async function qpr(c: Ctx, quarter: string): Promise<Omit<Preflight, "items" | "
 
   return {
     report: { kind: "qpr", quarter },
-    label: `Quarterly report ${quarter.replace("-", " ")}`,
+    label: `Quarterly report ${period.calendar ? quarter.replace("-", " ") : period.label}`,
     released: !!d.saved.released,
     deadline: await deadlineLater,
     href: `/progress/report?${q}`,

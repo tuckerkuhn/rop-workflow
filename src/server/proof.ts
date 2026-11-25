@@ -154,13 +154,13 @@ export async function packIndex(
   let from: string;
   let to: string;
   if (report.kind === "qpr") {
-    ({ from, to } = quarterRange(report.quarter));
     const release = (await loadCopies(code, report.quarter)).find(
       (c) => c.kind === "release",
     );
-    const rows = release
-      ? release.data.rows
-      : (await qprData(code, report.quarter)).rows;
+    // The days the report counted: the agreement's own period when it is not a calendar quarter.
+    const live = release ? null : await qprData(code, report.quarter);
+    ({ from, to } = release ? (release.data.period ?? quarterRange(report.quarter)) : live!.period);
+    const rows = release ? release.data.rows : live!.rows;
     asOf = release?.at;
     figures = qprFigures(rows, report.quarter, from, to);
     label = `Quarterly report ${report.quarter.replace("-", " ")}`;

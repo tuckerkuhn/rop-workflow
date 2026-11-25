@@ -1,9 +1,9 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { canEditProject, type AppUser } from "@/lib/demo";
 import { OUTCOME_LABEL, type FundingProposal } from "@/lib/funding-proposals";
 import type { Opportunity } from "@/lib/opportunities";
-import { ORIGIN_KEY, type OriginChoice, type ProjectOrigin, type SetupDefaults } from "@/lib/project-origin";
+import { againstCeiling, ORIGIN_KEY, type CeilingCheck, type OriginChoice, type ProjectOrigin, type SetupDefaults } from "@/lib/project-origin";
 import { COUNTRIES } from "@/lib/project-setup";
 import { logAudit } from "@/server/audit";
 import { projectByCode } from "@/server/field-store";
@@ -150,6 +150,25 @@ export async function linkOrigin(orgId: string, code: string, choice: OriginChoi
 export async function loadOrigin(code: string): Promise<ProjectOrigin | null> {
   const project = await projectByCode(code);
   return ((await loadProjectStateRaw(project.id, ORIGIN_KEY)) as ProjectOrigin | null) ?? null;
+}
+
+/** The award as confirmed at setup (currency and ceiling), for the budget; null when the project has no origin. */
+export async function loadAward(code: string): Promise<Pick<ProjectOrigin, "currency" | "ceiling"> | null> {
+  const o = await loadOrigin(code).catch(() => null);
+  return o ? { currency: o.currency, ceiling: o.ceiling } : null;
+}
+
+/** The saved budget's total against the award ceiling (lib/project-origin againstCeiling); null without a ceiling or a budget. */
+export async function budgetCeiling(code: string): Promise<CeilingCheck | null> {
+  const award = await loadAward(code);
+  if (award?.ceiling == null) return null;
+  const project = await projectByCode(code);
+  const [row] = await db
+    .select({ total: sql<string | null>`sum(${s.budgetLines.amount})`, currency: sql<string | null>`min(${s.budgetLines.currency})` })
+    .from(s.budgetLines)
+    .where(eq(s.budgetLines.projectId, project.id));
+  if (!row?.currency) return null;
+  return againstCeiling(Number(row.total ?? 0), row.currency, award);
 }
 
 /**

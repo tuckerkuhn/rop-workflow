@@ -1,10 +1,9 @@
 import { addDays, blockers, daysBetween, type Owner } from "@/lib/preflight";
 import { early } from "@/server/early";
 import { prevQuarterOf } from "@/lib/qpr";
-import { quarterOf, quarterRange } from "@/lib/results";
 import { projectByCode } from "@/server/field-store";
 import { preflight, reportDeadline } from "@/server/preflight";
-import { rawQpr } from "@/server/qpr-store";
+import { qprKeyFor, qprPeriodFor, rawQpr } from "@/server/qpr-store";
 
 /**
  * Home's "Next report": the pre-flight of the quarter under way (server/preflight), grouped by who
@@ -22,9 +21,10 @@ export type LoopItem = { owner: LoopOwner; text: string; key?: string; vars?: Re
  * January that is still Q4, not a Q1 nobody reports on yet.
  */
 export async function reportQuarter(code: string, today = new Date().toISOString().slice(0, 10)) {
-  const now = quarterOf(today);
+  // Agreement quarters that are not calendar quarters are kept under the quarter their last day is in (lib/obligations qprPeriod).
+  const now = await qprKeyFor(code, today);
   const prev = prevQuarterOf(now);
-  const end = quarterRange(prev).to;
+  const end = (await qprPeriodFor(code, prev)).to;
   const project = await projectByCode(code);
   if (project.startDate && project.startDate > end) return now;
   // Both read together: one after the other each is a round trip to the database.

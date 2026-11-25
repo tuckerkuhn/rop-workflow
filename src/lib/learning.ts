@@ -59,8 +59,8 @@ export type LearningAction = z.infer<typeof learningAction>;
 export type ReportLesson = Pick<Lesson, "id" | "date" | "area" | "happened" | "lesson" | "action">;
 
 /** The lessons recorded in a quarter (by their date), oldest first, for that quarter's report. */
-export function lessonsInQuarter(lessons: Lesson[], quarter: string): ReportLesson[] {
-  const { from, to } = quarterRange(quarter);
+export function lessonsInQuarter(lessons: Lesson[], quarter: string, range: { from: string; to: string } = quarterRange(quarter)): ReportLesson[] {
+  const { from, to } = range;
   return lessons
     .filter((l) => l.date >= from && l.date <= to)
     .sort((a, b) => a.date.localeCompare(b.date))

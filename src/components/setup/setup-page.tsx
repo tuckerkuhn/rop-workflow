@@ -20,6 +20,7 @@ import { canEditProject } from "@/lib/demo";
 import { localeOf, type MessageKey } from "@/lib/i18n";
 import { SignedOffBanner, changeReasonHeader } from "@/components/setup/change-reason";
 import { FromDocuments } from "@/components/setup/from-documents";
+import { SetupLinkSuggestions } from "@/components/progress/link-suggestions";
 import { IndicatorDetails, TooManyIndicators } from "@/components/setup/indicator-details";
 import { MAX_INDICATORS } from "@/lib/setup-design";
 import { FromProposalPanel, useFromProposal, type FromRecord } from "@/components/setup/from-proposal";
@@ -285,7 +286,7 @@ function Wizard({ code: initialCode, first, from }: { code: string | null; first
         )}
         {step === "indicators" && <IndicatorsQuestion list={draft.indicators} years={projectYears(draft.startDate, draft.endDate)} onChange={(indicators) => set({ indicators })} />}
         {step === "donors" && <DonorsQuestion list={draft.donors ?? []} onChange={(donors) => set({ donors })} />}
-        {step === "review" && <Review draft={draft} editing={!!code} onEdit={go} />}
+        {step === "review" && <Review draft={draft} code={code} onEdit={go} />}
         {step === "budget" && code && <BudgetStep code={code} onDone={next} />}
         {step === "coding" && code && <VoucherCodingStep code={code} onDone={next} />}
         {step === "deadlines" && code && <DeadlinesStep code={code} start={draft.startDate} end={draft.endDate} onDone={next} />}
@@ -543,7 +544,8 @@ function DonorsQuestion({ list, onChange }: { list: string[]; onChange: (l: stri
   );
 }
 
-function Review({ draft, editing, onEdit }: { draft: ProjectDesign; editing: boolean; onEdit: (s: Step) => void }) {
+function Review({ draft, code, onEdit }: { draft: ProjectDesign; code: string | null; onEdit: (s: Step) => void }) {
+  const editing = !!code;
   const { t, lang, date } = useT();
   // Market windows are offered only to a project that uses them (Settings, "What this project uses").
   const modules = useProjectModules();
@@ -587,6 +589,8 @@ function Review({ draft, editing, onEdit }: { draft: ProjectDesign; editing: boo
           </Link>
         </p>
       )}
+      {/* Once targets and the workplan are both saved: their suggested links, to confirm here or on Target details. */}
+      {code && <SetupLinkSuggestions code={code} />}
     </Question>
   );
 }

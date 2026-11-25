@@ -9,6 +9,7 @@ import type { FieldItem, Stock } from "@/lib/field";
 import type { FieldSetup } from "@/lib/package";
 import type { Shown } from "@/lib/selection";
 import type { AutoSyncSecret, FormPurpose, KoboFormInfo, KoboMapping, KoboQuestion, KoboState, SyncCounts } from "@/lib/kobo-setup";
+import type { ActivityLinkInput } from "@/lib/kobo-activities";
 import type { Procurement } from "@/lib/procurement";
 import type { Closeouts } from "@/lib/closeout";
 import type { AskInput, PlanAction, PlanItem } from "@/lib/procurement-plan";
@@ -614,6 +615,7 @@ export function useKobo(code: string) {
         await reload();
       },
       saveMappings: async (mappings: KoboMapping[]) => setState(await send<KoboState>("/mappings", "PUT", { mappings })),
+      saveActivities: async (links: ActivityLinkInput[]) => setState(await send<KoboState>("/activities", "PUT", { links })),
       sync: async () => {
         const r = await send<SyncCounts>("/sync", "POST");
         await reload();

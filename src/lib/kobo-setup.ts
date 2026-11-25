@@ -66,7 +66,8 @@ export const hasBreakdown = (b: KoboBreakdown | null | undefined): b is KoboBrea
 
 export type KoboMapping = { indicatorCode: string; assetUid: string; question: string; method: MappingMethod; value: string | null; origin?: MappingOrigin; breakdown?: KoboBreakdown | null };
 
-export type KoboState = { connection: KoboConnectionInfo | null; forms: KoboFormInfo[]; mappings: KoboMapping[] };
+/** activities: the workplan activities each form records, by form uid (lib/kobo-activities). */
+export type KoboState = { connection: KoboConnectionInfo | null; forms: KoboFormInfo[]; mappings: KoboMapping[]; activities?: Record<string, string[]> };
 
 export const connectSchema = z.object({
   serverUrl: z.string().trim().min(1).max(300),

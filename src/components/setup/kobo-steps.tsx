@@ -12,6 +12,8 @@ import { Question, field } from "@/components/setup/question";
 import { primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { FORM_PURPOSES, MAPPING_METHODS, YOUTH_AGES, guessPurpose, type FormPurpose, type KoboBreakdown, type KoboFormInfo, type KoboMapping, type KoboQuestion, type MappingMethod, type AutoSyncSecret, type SyncCounts } from "@/lib/kobo-setup";
 import type { MessageKey } from "@/lib/i18n";
+import { suggestActivities, type ActivityLinkOrigin, type KoboActivityLinks } from "@/lib/kobo-activities";
+import { activityOf } from "@/lib/qpr";
 
 /**
  * Setup steps for KoboToolbox: connect the account, choose the project's forms, and say which
@@ -288,6 +290,71 @@ function PeopleQuestions({ m, qs, onChange }: { m: KoboMapping; qs: KoboQuestion
   );
 }
 
+type Linking = { acts: KoboActivityLinks; origin: Record<string, ActivityLinkOrigin> };
+
+/**
+ * Which workplan activities each form records, so its submissions show on them as field evidence.
+ * The suggestion is the activity of each target the form counts toward; the person confirms it.
+ */
+function FormActivities({ forms, indicators, mappings, value, onChange }: { forms: KoboFormInfo[]; indicators: { code: string; donorCode: string | null; name: string }[]; mappings: KoboMapping[]; value: Linking; onChange: (v: Linking) => void }) {
+  const suggested = suggestActivities(mappings, indicators);
+  // Every activity of the project's targets, with the targets under it as its label.
+  const options = new Map<string, string[]>();
+  for (const i of indicators) {
+    const a = activityOf(i.donorCode, i.code);
+    options.set(a, [...(options.get(a) ?? []), i.name]);
+  }
+  for (const a of Object.values(value.acts).flat()) if (!options.has(a)) options.set(a, []);
+  const codes = [...options.keys()].sort((x, y) => x.localeCompare(y, undefined, { numeric: true }));
+  const same = (x: string[] = [], y: string[] = []) => x.join(" ") === y.join(" ");
+  const set = (uid: string, list: string[], origin: ActivityLinkOrigin) => onChange({ acts: { ...value.acts, [uid]: list }, origin: { ...value.origin, [uid]: origin } });
+  return (
+    <section className="mt-6 rounded-2xl border border-line bg-surface p-4">
+      <h3 className="font-semibold">Workplan activities each form records</h3>
+      <p className="mt-1 text-sm text-muted">Each form&apos;s submissions then show on these activities in the workplan as a count, with no names.</p>
+      {codes.length === 0 && <p className="mt-3 text-sm text-muted">No activities yet. Give the targets their donor codes in Setup first.</p>}
+      {codes.length > 0 && (
+        <ul className="mt-3 space-y-4">
+          {forms.map((f) => {
+            const mine = value.acts[f.uid] ?? [];
+            const hint = suggested[f.uid] ?? [];
+            return (
+              <li key={f.uid}>
+                <p className="text-sm font-medium">{f.name}</p>
+                {hint.length > 0 && !same(hint, [...mine].sort()) && (
+                  <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted">
+                    <span>Suggested from the targets it counts toward: {hint.join(", ")}</span>
+                    <button type="button" className={`${quietBtn} min-h-11`} onClick={() => set(f.uid, hint, "suggested")}>
+                      Use this
+                    </button>
+                  </p>
+                )}
+                <fieldset className="mt-2 space-y-1 text-sm">
+                  <legend className="sr-only">Activities {f.name} records</legend>
+                  {codes.map((a) => (
+                    <label key={a} className="flex items-start gap-2">
+                      <input
+                        type="checkbox"
+                        checked={mine.includes(a)}
+                        onChange={() => set(f.uid, mine.includes(a) ? mine.filter((x) => x !== a) : [...mine, a].sort(), "manual")}
+                        className="mt-1 accent-[var(--forest)]"
+                      />
+                      <span>
+                        <span className="font-mono text-xs">{a}</span>
+                        {options.get(a)?.length ? <span className="text-muted"> · {options.get(a)!.join("; ")}</span> : null}
+                      </span>
+                    </label>
+                  ))}
+                </fieldset>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 export function KoboMap({ code, onDone }: { code: string; onDone: () => void }) {
   const { t } = useT();
   const { user } = useSession();
@@ -300,10 +367,12 @@ export function KoboMap({ code, onDone }: { code: string; onDone: () => void }) 
   const forms = kobo.state?.forms ?? [];
   const indicators = progress.data?.indicators ?? [];
   const { questions: loadQuestions } = kobo;
+  const [linking, setLinking] = useState<Linking | null>(null);
 
   useEffect(() => {
     if (draft || !kobo.state) return;
     setDraft(Object.fromEntries(kobo.state.mappings.map((m) => [m.indicatorCode, m])));
+    setLinking({ acts: kobo.state.activities ?? {}, origin: {} });
   }, [draft, kobo.state]);
 
   // Load each form's questions once, when a mapping needs them.
@@ -379,6 +448,9 @@ export function KoboMap({ code, onDone }: { code: string; onDone: () => void }) 
     setError("");
     try {
       await kobo.saveMappings(Object.values(draft ?? {}).filter((m): m is KoboMapping => !!m && !!m.question));
+      // Which activities each form records: only what was changed here is saved and put on the record.
+      if (linking && Object.keys(linking.origin).length)
+        await kobo.saveActivities(forms.map((f) => ({ form: f.uid, activities: linking.acts[f.uid] ?? [], origin: linking.origin[f.uid] ?? "manual" })));
       onDone();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -557,6 +629,7 @@ export function KoboMap({ code, onDone }: { code: string; onDone: () => void }) 
         })}
       </ul>
       {indicators.length === 0 && <p className="text-sm text-muted">{t("progress.empty")}</p>}
+      {linking && <FormActivities forms={forms} indicators={indicators} mappings={Object.values(draft ?? {}).filter((m): m is KoboMapping => !!m && !!m.assetUid)} value={linking} onChange={setLinking} />}
       <Alert text={error} />
       <Actions busy={busy} label={t("kobo.saveMappings")} disabled={!ready} onClick={() => void submit()} />
     </Question>

@@ -204,3 +204,24 @@ classes only: no behaviour changed. The loading line everywhere is a ruled line,
   Procurement. Gold rows: the activity expected furthest over budget, the first voucher holding a
   month open, the bill waiting longest, the oldest draft payment, the first unmatched statement
   line, the purchase furthest past its start date, the next check to do on a purchase.
+
+## 25 Nov 2026: proposal to report, one chain
+
+Goal (owner): information flows from the proposal to the workplan to the donor's reports and on to
+communication, so donors are satisfied and impact is documented, without typing anything twice.
+
+| Hand-off | Now |
+|---|---|
+| Opportunity → proposal | The call documents and notes stay on the opportunity; the proposal links to it |
+| Won proposal → project | "Set up the project from this proposal" pre-fills setup; project_state `origin` links both ways; win themes are context for drafts |
+| Agreement → indicators | Setup keeps baseline, breakdowns, means of verification, frequency and result wording; indicators without a number target are kept |
+| Agreement → reporting | project_state `obligations` per donor: periods from the agreement's start month, deadlines, the format asked for |
+| Indicators → workplan and budget | Suggested links on Target details (activity number, then wording), confirmed by a person |
+| KoboCollect → activities | project_state `kobo-activities`: each activity shows its field records this quarter |
+| KoboCollect → results | Counts, plus women, men and youth from the form or the farmer record (youth is 35 and younger) |
+| Results → impact | Each target is measured as a sum, the latest survey, or the change against its baseline (`lib/measure`) |
+| Results → reports | Quarterly on the donor's own periods; lessons flow in; annual and final reports are released to the donor as frozen copies |
+| Reports → communication | Posts, stories and the track record use only accepted figures, never add people across indicators, and name the donor |
+
+Left: workplan "planned" quarters and some donor-view labels still use calendar quarters; new screen
+text is English only until translation (translation is last, by the owner's order).

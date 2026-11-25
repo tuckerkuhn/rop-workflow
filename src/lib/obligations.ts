@@ -150,3 +150,102 @@ export function mergeObligations(kept: SavedObligation[], added: SavedObligation
 
 /** What donors and pages see: no one's name or the time of confirming. */
 export const publicObligation = (o: SavedObligation): ObligationInput => obligationInputSchema.parse(o);
+
+// ---------- The quarterly report's period (server/qpr-store) ----------
+
+/**
+ * A quarterly report's period. The report is stored, released, shared and linked under a quarter
+ * key ("2026-Q2"): the calendar quarter the period's last day falls in. Agreement quarters are three
+ * months apart, so each falls in its own calendar quarter and the keys still run one after another.
+ * `from` and `to` are the days the report counts: the calendar quarter when the agreement's quarters
+ * are the calendar's (or nothing is saved), else the agreement's own months.
+ */
+export type QprPeriod = {
+  quarter: string;
+  from: string;
+  to: string;
+  /** "Q2 2026", or the agreement's months: "Feb to Apr 2026", "Nov 2026 to Jan 2027". */
+  label: string;
+  /** The report as the agreement names it; null with no obligations saved. */
+  name: string | null;
+  /** Which of the agreement's periods it is, from the project's start; null when not known. */
+  number: number | null;
+  /** True when it is a calendar quarter (no obligations, or agreement quarters on the calendar's months). */
+  calendar: boolean;
+};
+
+const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const keyOfDay = (d: string) => `${d.slice(0, 4)}-Q${Math.floor((Number(d.slice(5, 7)) - 1) / 3) + 1}`;
+const calendarRange = (q: string) => {
+  const [y, n] = [Number(q.slice(0, 4)), Number(q.slice(6))];
+  return { from: `${y}-${String((n - 1) * 3 + 1).padStart(2, "0")}-01`, to: monthEnd(y, n * 3) };
+};
+
+/** The quarter key a period is kept under: the calendar quarter its last day falls in. */
+export const qprKeyOf = (p: { to: string }) => keyOfDay(p.to);
+
+/** The obligation the quarterly report follows: a narrative quarterly report before a financial one. */
+export function quarterlyObligation<T extends Schedule & Pick<ObligationInput, "report">>(list: T[]): T | null {
+  const all = list.filter((o) => o.frequency === "quarterly" && o.periodEnds.length);
+  return all.find((o) => o.report !== "financial") ?? all[0] ?? null;
+}
+
+/** True when an obligation's quarters end in March, June, September and December. */
+export const onCalendarQuarters = (o: Pick<Schedule, "periodEnds">) => [...new Set(o.periodEnds)].sort((a, b) => a - b).join() === "3,6,9,12";
+
+function monthsLabel(from: string, to: string) {
+  const [fy, ty] = [from.slice(0, 4), to.slice(0, 4)];
+  const [fm, tm] = [MON[Number(from.slice(5, 7)) - 1], MON[Number(to.slice(5, 7)) - 1]];
+  return fy === ty ? `${fm} to ${tm} ${ty}` : `${fm} ${fy} to ${tm} ${ty}`;
+}
+
+/** An obligation's quarters that touch `lo` to `hi`, whole (not cut to the project's dates), oldest first. */
+function wholeQuarters(o: Pick<Schedule, "periodEnds">, lo: string, hi: string): { from: string; to: string }[] {
+  const months = [...new Set(o.periodEnds)].sort((a, b) => a - b);
+  const ends: string[] = [];
+  for (let yr = Number(lo.slice(0, 4)) - 1; yr <= Number(hi.slice(0, 4)) + 1; yr++) for (const m of months) ends.push(monthEnd(yr, m));
+  return ends.slice(1).map((to, k) => ({ from: addDays(ends[k], 1), to })).filter((p) => p.to >= lo && p.from <= hi);
+}
+
+const follows = (o: (Schedule & Pick<ObligationInput, "name">) | null): o is Schedule & Pick<ObligationInput, "name"> => !!o && o.frequency === "quarterly" && o.periodEnds.length > 0;
+
+/**
+ * The period a quarter key stands for, under the obligation the quarterly report follows (or
+ * none): the one place the key and the agreement's period are mapped to each other. A period is
+ * cut to the project's dates, but keeps the key of its whole months.
+ */
+export function qprPeriod(quarter: string, o: (Schedule & Pick<ObligationInput, "name">) | null, start: string | null, end: string | null): QprPeriod {
+  const cal = calendarRange(quarter);
+  const plain = { quarter, ...cal, label: `Q${quarter.slice(6)} ${quarter.slice(0, 4)}`, name: null, number: null, calendar: true };
+  if (!follows(o)) return plain;
+  const whole = wholeQuarters(o, cal.from, cal.to).find((p) => qprKeyOf(p) === quarter);
+  if (!whole) return { ...plain, name: o.name };
+  // Which of the project's periods it is: counted from the one holding the project's start.
+  const number = start && whole.to >= start && (!end || whole.from <= end) ? wholeQuarters(o, start, whole.to).length : null;
+  if (onCalendarQuarters(o)) return { ...plain, name: o.name, number };
+  const from = start && start > whole.from && start <= whole.to ? start : whole.from;
+  const to = end && end < whole.to && end >= whole.from ? end : whole.to;
+  return { quarter, from, to, label: monthsLabel(whole.from, whole.to), name: o.name, number, calendar: false };
+}
+
+/**
+ * The quarterly report's periods from the project's start to the one holding `today`, newest
+ * first. Null when they are calendar quarters, so the report page lists quarters as before.
+ */
+export function qprPeriodList(o: (Schedule & Pick<ObligationInput, "name">) | null, start: string | null, end: string | null, today: string): QprPeriod[] | null {
+  if (!follows(o) || onCalendarQuarters(o)) return null;
+  // Without project dates, from the year before today's.
+  const lo = start ?? `${Number(today.slice(0, 4)) - 1}-01-01`;
+  const hi = end && end < today ? end : today;
+  if (hi < lo) return [];
+  return wholeQuarters(o, lo, hi)
+    .map((p) => qprPeriod(qprKeyOf(p), o, start, end))
+    .reverse();
+}
+
+/** The quarter key of the period holding a day: the calendar quarter, or the agreement's period it falls in. */
+export function qprKeyHolding(o: (Schedule & Pick<ObligationInput, "name">) | null, day: string): string {
+  if (!follows(o) || onCalendarQuarters(o)) return keyOfDay(day);
+  const p = wholeQuarters(o, day, day)[0];
+  return p ? qprKeyOf(p) : keyOfDay(day);
+}

@@ -4,6 +4,8 @@ import { db, schema as s } from "@/db";
 import { protectSubmission } from "@/server/kobo-protect";
 import { isReviewed, REVIEWED_PURPOSES } from "@/lib/kobo-setup";
 import { breakdownSchema, hasBreakdown } from "@/lib/kobo-setup";
+import { activityOf } from "@/lib/qpr";
+import type { ActivityLinkInput, KoboActivityLinks } from "@/lib/kobo-activities";
 import type { AutoSyncSecret, FormPurpose, KoboBreakdown, KoboMapping, KoboState, MappingMethod, MappingOrigin, SyncCounts } from "@/lib/kobo-setup";
 import { logAudit } from "@/server/audit";
 import { projectByCode } from "@/server/field-store";
@@ -71,6 +73,67 @@ export async function koboBreakdowns(projectId: string): Promise<BreakdownDoc> {
   return out;
 }
 
+/**
+ * Which workplan activities each form records (lib/kobo-activities), by form uid. Kept in
+ * project_state like the breakdowns; links to forms no longer chosen are not read.
+ */
+export const ACTIVITIES_KEY = "kobo-activities";
+
+export async function koboActivityLinks(projectId: string): Promise<KoboActivityLinks> {
+  const [[row], forms] = await Promise.all([
+    db
+      .select({ data: s.projectState.data })
+      .from(s.projectState)
+      .where(and(eq(s.projectState.projectId, projectId), eq(s.projectState.key, ACTIVITIES_KEY)))
+      .limit(1),
+    db.select({ uid: s.koboForms.assetUid }).from(s.koboForms).where(eq(s.koboForms.projectId, projectId)),
+  ]);
+  const chosen = new Set(forms.map((f) => f.uid));
+  const out: KoboActivityLinks = {};
+  for (const [uid, codes] of Object.entries((row?.data ?? {}) as Record<string, unknown>)) {
+    const list = Array.isArray(codes) ? codes.filter((c): c is string => typeof c === "string" && c.length > 0) : [];
+    if (chosen.has(uid) && list.length) out[uid] = list;
+  }
+  return out;
+}
+
+/**
+ * Replaces which activities each form records. The codes must be activities of the project's
+ * targets or workplan; a form left out, or given no activities, records none.
+ */
+export async function saveActivityLinks(code: string, links: ActivityLinkInput[], by: string) {
+  const project = await projectRow(code);
+  const [forms, inds, plan] = await Promise.all([
+    db.select({ uid: s.koboForms.assetUid }).from(s.koboForms).where(eq(s.koboForms.projectId, project.id)),
+    db.select({ code: s.indicators.code, donorCode: s.indicators.donorCode }).from(s.indicators).where(eq(s.indicators.projectId, project.id)),
+    db.select({ code: s.workplanItems.code, activityCode: s.workplanItems.activityCode }).from(s.workplanItems).where(eq(s.workplanItems.projectId, project.id)),
+  ]);
+  const before = await koboActivityLinks(project.id);
+  const chosen = new Set(forms.map((f) => f.uid));
+  const known = new Set([...inds.map((i) => activityOf(i.donorCode, i.code)), ...plan.flatMap((w) => [w.code, w.activityCode ?? ""])].filter(Boolean));
+  const doc: KoboActivityLinks = {};
+  for (const l of links) {
+    if (!chosen.has(l.form)) throw new KoboError("An activity link uses a form that is not chosen for this project.");
+    const unknown = l.activities.find((a) => !known.has(a));
+    if (unknown) throw new KoboError(`No activity ${unknown} in this project's targets or workplan.`);
+    if (l.activities.length) doc[l.form] = [...new Set(l.activities)].sort();
+  }
+  // Only what changed is written down; saving the same links again changes nothing.
+  const same = (x: string[] | undefined, y: string[] | undefined) => (x ?? []).join(" ") === (y ?? []).join(" ");
+  const changed = [...new Set([...Object.keys(before), ...Object.keys(doc)])].filter((uid) => !same(before[uid], doc[uid]));
+  if (!changed.length) return;
+  const originOf = (uid: string) => links.find((l) => l.form === uid)?.origin ?? "manual";
+  await db.transaction(async (tx) => {
+    await tx
+      .insert(s.projectState)
+      .values({ projectId: project.id, key: ACTIVITIES_KEY, data: doc })
+      .onConflictDoUpdate({ target: [s.projectState.projectId, s.projectState.key], set: { data: doc, updatedAt: new Date() } });
+    // Which form records which activities and whether a person chose them or used the suggestion.
+    await logAudit(tx, project.id, { entity: "project", entityId: project.id, action: "kobo_activities_saved", by, detail: { links: changed.map((uid) => ({ form: uid, activities: doc[uid] ?? [], origin: doc[uid] ? originOf(uid) : "manual" })) } });
+  });
+  requestWrote();
+}
+
 /** The breakdown for an indicator's mapping, when one was chosen on the mapping's form. */
 export const breakdownFor = (doc: BreakdownDoc, code: string, assetUid: string) => (doc[code]?.assetUid === assetUid ? doc[code].breakdown : null);
 
@@ -81,7 +144,7 @@ export async function koboState(code: string): Promise<KoboState> {
     throw e;
   });
   if (!project) return { connection: null, forms: [], mappings: [] };
-  const [c, forms, mappings, breakdowns] = await Promise.all([
+  const [c, forms, mappings, breakdowns, activities] = await Promise.all([
     connectionOf(project.id),
     db.select().from(s.koboForms).where(eq(s.koboForms.projectId, project.id)),
     db
@@ -90,11 +153,13 @@ export async function koboState(code: string): Promise<KoboState> {
       .innerJoin(s.indicators, eq(s.indicators.id, s.koboMappings.indicatorId))
       .where(eq(s.indicators.projectId, project.id)),
     koboBreakdowns(project.id),
+    koboActivityLinks(project.id),
   ]);
   return {
     connection: c && { serverUrl: c.serverUrl, tokenHint: c.tokenHint, countOnly: c.countOnly === "approved" ? "approved" : "all", lastSyncedAt: c.lastSyncedAt?.toISOString() ?? null, autoSyncSince: c.hookSecretHash ? (c.hookEnabledAt?.toISOString() ?? null) : null },
     forms: forms.map((f) => ({ uid: f.assetUid, name: f.name, purpose: purposeOf(f.purpose) })),
     mappings: mappings.map(({ code, m }) => ({ indicatorCode: code, assetUid: m.assetUid, question: m.question, method: m.method as MappingMethod, value: m.value, origin: (m.origin ?? "manual") as MappingOrigin, breakdown: breakdownFor(breakdowns, code, m.assetUid) })),
+    activities,
   };
 }
 
@@ -111,12 +176,12 @@ export async function connect(code: string, input: { serverUrl: string; token?: 
   else await db.insert(s.koboConnections).values({ ...values, projectId: project.id });
 }
 
-/** Forgets the account, the chosen forms and the mappings. Submissions already synced stay as records. */
+/** Forgets the account, the chosen forms, the mappings and the activity links. Submissions already synced stay as records. */
 export async function disconnect(code: string) {
   const project = await projectRow(code);
   const ids = (await db.select({ id: s.indicators.id }).from(s.indicators).where(eq(s.indicators.projectId, project.id))).map((r) => r.id);
   if (ids.length) await db.delete(s.koboMappings).where(inArray(s.koboMappings.indicatorId, ids));
-  await db.delete(s.projectState).where(and(eq(s.projectState.projectId, project.id), eq(s.projectState.key, BREAKDOWN_KEY)));
+  await db.delete(s.projectState).where(and(eq(s.projectState.projectId, project.id), inArray(s.projectState.key, [BREAKDOWN_KEY, ACTIVITIES_KEY])));
   await db.delete(s.koboForms).where(eq(s.koboForms.projectId, project.id));
   await db.delete(s.koboConnections).where(eq(s.koboConnections.projectId, project.id));
 }
@@ -198,6 +263,12 @@ export async function saveForms(code: string, forms: { uid: string; name: string
     if (ids.length) {
       const inProject = inArray(s.koboMappings.indicatorId, ids);
       await tx.delete(s.koboMappings).where(uids.length ? and(inProject, notInArray(s.koboMappings.assetUid, uids)) : inProject);
+    }
+    // Activity links of forms no longer chosen go too, so choosing the form again starts afresh.
+    const [links] = await tx.select({ data: s.projectState.data }).from(s.projectState).where(and(eq(s.projectState.projectId, project.id), eq(s.projectState.key, ACTIVITIES_KEY))).limit(1);
+    if (links) {
+      const kept = Object.fromEntries(Object.entries(links.data as KoboActivityLinks).filter(([uid]) => uids.includes(uid)));
+      await tx.update(s.projectState).set({ data: kept, updatedAt: new Date() }).where(and(eq(s.projectState.projectId, project.id), eq(s.projectState.key, ACTIVITIES_KEY)));
     }
   });
 }

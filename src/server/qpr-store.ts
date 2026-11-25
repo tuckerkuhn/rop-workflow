@@ -20,8 +20,38 @@ import { early } from "@/server/early";
 import { RESULT_SOURCES } from "@/lib/measure";
 import { measuresFor } from "@/server/measures";
 import { oncePerRequest, requestWrote } from "@/server/request-memo";
+import { qprKeyHolding, qprPeriod, qprPeriodList, quarterlyObligation, type QprPeriod } from "@/lib/obligations";
+import { loadObligations } from "@/server/obligations-store";
 
 /** One saved quarterly report per project and quarter, as project_state "qpr:2026-Q3". */
+
+/**
+ * The quarterly report's schedule: the obligation it follows (lib/obligations quarterlyObligation)
+ * and the project's dates. With no obligations saved, the report keeps to calendar quarters.
+ */
+async function qprSchedule(code: string) {
+  return oncePerRequest(`qpr-schedule:${code}`, async () => {
+    const project = await projectByCode(code);
+    return { o: quarterlyObligation(await loadObligations(project.id)), start: project.startDate ?? null, end: project.endDate ?? null };
+  });
+}
+
+/** The days a quarter key's report counts, with its name and label (lib/obligations qprPeriod). */
+export async function qprPeriodFor(code: string, quarter: string): Promise<QprPeriod> {
+  const { o, start, end } = await qprSchedule(code);
+  return qprPeriod(quarter, o, start, end);
+}
+
+/** The report's periods to choose from, newest first; null when they are calendar quarters. */
+export async function qprPeriodsFor(code: string, today = new Date().toISOString().slice(0, 10)): Promise<QprPeriod[] | null> {
+  const { o, start, end } = await qprSchedule(code);
+  return qprPeriodList(o, start, end, today);
+}
+
+/** The quarter key of the report period holding a day. */
+export async function qprKeyFor(code: string, day: string): Promise<string> {
+  return qprKeyHolding((await qprSchedule(code)).o, day);
+}
 
 export async function rawQpr(projectId: string, quarter: string) {
   // Kept once per read-only request with every other project_state read (server/project-state).
@@ -70,9 +100,9 @@ type LineRow = { code: string; amount: string | null; spent: string | null; curr
  * end and in the quarter) comes from the ledger instead (server/ledger-spent); the import still gives
  * the approved budget, its phases, the months still missing and any overhead on top of the lines.
  */
-export async function spendFor(code: string, quarter: string, lines: LineRow[]): Promise<Spend> {
+export async function spendFor(code: string, quarter: string, lines: LineRow[], range: { from: string; to: string } = quarterRange(quarter)): Promise<Spend> {
   const [{ imports }, ledger] = await Promise.all([loadActuals(code), projectByCode(code).then((p) => ledgerSpent(p.id))]);
-  const { from, to } = quarterRange(quarter);
+  const { from, to } = range;
   const [fm, tm] = [from.slice(0, 7), to.slice(0, 7)];
   if (!imports.length) {
     if (ledger) return fromLedger(ledger, lines, fm, tm, { budget: Math.round(lines.reduce((t, l) => t + Number(l.amount ?? 0), 0)), overheadToEnd: 0, overheadInQuarter: 0, budgets: {} });
@@ -106,7 +136,7 @@ export async function spendFor(code: string, quarter: string, lines: LineRow[]):
   const covered = new Set(imports.flatMap((i) => i.months));
   const last = [...covered].sort().at(-1) ?? "";
   // A combined column (Jan-Feb) is filed under its last month, so a quarter counts as covered by its last month.
-  const qMonths = [0, 1, 2].map((k) => `${quarter.slice(0, 4)}-${String(Number(fm.slice(5)) + k).padStart(2, "0")}`);
+  const qMonths = monthsFrom(fm, tm);
   // Only a month that is over can be in Finance's workbook: the current and later months are not missing yet.
   const thisMonth = new Date().toISOString().slice(0, 7);
   const missing = qMonths.filter((m) => m > last && m < thisMonth).map(label);
@@ -144,6 +174,13 @@ export async function spendFor(code: string, quarter: string, lines: LineRow[]):
   };
 }
 
+/** Every month from one to another, as "2026-11", across a year's end. */
+function monthsFrom(a: string, b: string) {
+  const out: string[] = [];
+  for (let y = Number(a.slice(0, 4)), m = Number(a.slice(5, 7)); `${y}-${String(m).padStart(2, "0")}` <= b && out.length < 24; m === 12 ? (y++, (m = 1)) : m++) out.push(`${y}-${String(m).padStart(2, "0")}`);
+  return out;
+}
+
 /**
  * The quarter's spending from the ledger: per budget line, spent to the end of the quarter and in
  * it, in the line's currency; the totals are the lines plus any overhead the import counts on top.
@@ -179,6 +216,9 @@ export function qprData(code: string, quarter: string) {
 
 async function readQprData(code: string, quarter: string) {
   const project = await projectByCode(code);
+  // The days the report counts: the calendar quarter, or the agreement's own period (lib/obligations qprPeriod).
+  const period = await qprPeriodFor(code, quarter);
+  const range = { from: period.from, to: period.to, ...(period.calendar ? {} : { label: period.label }) };
   // Started together and awaited below where each is used: none depends on another.
   const resultsLater = early(loadResults(code));
   const updatesLater = early(loadUpdates(code));
@@ -225,9 +265,9 @@ async function readQprData(code: string, quarter: string) {
   const ours = ourWork(plan);
   const plans: Record<string, string[]> = {};
   for (const w of ours) plans[w.code] = [...new Set([...(plans[w.code] ?? []), ...((w.active as string[]) ?? [])])];
-  const table = buildRows(indicators, results, quarter, saved, plans);
+  const table = buildRows(indicators, results, quarter, saved, plans, range);
   const lines = await linesLater;
-  const spend = await spendFor(code, quarter, lines);
+  const spend = await spendFor(code, quarter, lines, range);
   const names = new Map<string, string>();
   for (const l of lines) if (l.activityCode && l.activity && !names.has(l.activityCode)) names.set(l.activityCode, l.activity);
   const wp = await wpLater;
@@ -236,30 +276,31 @@ async function readQprData(code: string, quarter: string) {
   const activities = activityCodes.map((a) => ({ code: a, name: names.get(a) ?? `Activity ${a}` }));
   // Photos go to the donor only as far as the photo library's consent rule allows (server/photo-consent).
   const photoOk = await photoRuleLater;
-  const captioned = photosFor(table, results, updates, quarter);
+  const captioned = photosFor(table, results, updates, quarter, range);
   const photos = captioned.filter((ph) => photoOk(ph.hash).ok);
   // The feedback log's count for this quarter: the report's complaints figures unless someone typed others.
   // A quarter before the log was started gets none, so the check keeps asking for typed figures.
   const log = await feedbackLater;
-  const { from: qFrom, to: qTo } = quarterRange(quarter);
+  const { from: qFrom, to: qTo } = range;
   const grmLog = grmLogFor(log.entries, qFrom, qTo, clockToday());
   return {
     project: { code, name: project.name, goal: await goalOf(project), donor: await donorNameOf(project), start: project.startDate, end: project.endDate },
     quarter,
+    period,
     saved,
     rows: table,
     results,
-    updates: updates.filter((u) => u.date >= quarterRange(quarter).from && u.date <= quarterRange(quarter).to),
+    updates: updates.filter((u) => u.date >= qFrom && u.date <= qTo),
     photos,
     /** Captioned photos held back until they are checked for people who can be recognised, or consent covers them. */
     photosHeld: captioned.length - photos.length,
-    breakdowns: breakdownsFor(table, results, quarter),
+    breakdowns: breakdownsFor(table, results, quarter, range),
     spend,
     activities,
     grmLog,
     /** Lessons recorded in the quarter, from the lessons record. */
-    lessons: lessonsInQuarter((await learningLater).lessons, quarter),
-    checks: checksFor(table, results, quarter, saved, spend, activityCodes, grmLog),
+    lessons: lessonsInQuarter((await learningLater).lessons, quarter, range),
+    checks: checksFor(table, results, quarter, saved, spend, activityCodes, grmLog, range),
   };
 }
 export type QprData = Awaited<ReturnType<typeof qprData>>;
@@ -268,11 +309,14 @@ export type QprData = Awaited<ReturnType<typeof qprData>>;
 
 /** The report as it stands, reduced to what a frozen copy keeps. */
 export function copyOf(d: QprData): CopyData {
-  const { to } = quarterRange(d.quarter);
-  const yearStart = `${d.quarter.slice(0, 4)}-01-01`;
+  const { from, to } = d.period;
+  // This year to the period's end; a period that starts in the year before counts from its own start.
+  const yearStart = [`${d.quarter.slice(0, 4)}-01-01`, from].sort()[0];
   return {
     project: d.project,
     quarter: d.quarter,
+    // Only an agreement period that is not a calendar quarter is kept with the copy: the dates it counted.
+    ...(d.period.calendar ? {} : { period: d.period }),
     saved: d.saved,
     rows: d.rows,
     photos: d.photos,
@@ -307,6 +351,6 @@ export async function addCopy(code: string, quarter: string, copy: ReportCopy) {
 /** Time spent writing the report, from the times of its edits in the audit trail. */
 export async function reportWork(code: string, quarter: string, until?: string): Promise<WorkTime> {
   const today = new Date().toISOString().slice(0, 10);
-  const rows = await auditTrail(code, quarterRange(quarter).from, today);
+  const rows = await auditTrail(code, (await qprPeriodFor(code, quarter)).from, today);
   return workTime(rows.filter((r) => r.entity === "qpr" && r.detail.quarter === quarter && r.action !== "qpr_practice" && (!until || r.at <= until)).map((r) => r.at));
 }

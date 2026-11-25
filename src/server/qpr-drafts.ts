@@ -1,8 +1,9 @@
 import { z } from "zod";
-import { STATUS_LABEL } from "@/lib/qpr";
 import { quarterRange } from "@/lib/results";
+import { STATUS_LABEL } from "@/lib/qpr";
 import { askAi, scrubbed } from "@/server/ai";
 import { winThemesContext } from "@/server/project-origin";
+import { koboFieldFacts } from "@/server/kobo-activities";
 import type { QprData } from "@/server/qpr-store";
 import { ROP_VOICE } from "@/lib/voice";
 import { withoutNames } from "@/lib/personal-text";
@@ -30,7 +31,7 @@ Rules:
 
 What each key means:
 - "summary": the Executive Summary: one short paragraph per output (1.1, 1.2, 2.1) with the quarter's headline results and the year's progress against target. About 250 to 350 words in all.
-- "act.X.Y.Z": the narrative for activity X.Y.Z: what was done this quarter under each of its indicators, where, for how many women and men or women-led and men-led businesses, and what is next; from the result notes and that activity's updates. If nothing was achieved, say so in one or two sentences and what is planned, with a placeholder for the reason.
+- "act.X.Y.Z": the narrative for activity X.Y.Z: what was done this quarter under each of its indicators, where, for how many women and men or women-led and men-led businesses, and what is next; from the result notes and that activity's updates. kobo_field_records_this_quarter, when given, says how many records a KoboCollect form that records the activity holds this quarter (e.g. farm visits); use them as field evidence for the work, not as an indicator result. If nothing was achieved, say so in one or two sentences and what is planned, with a placeholder for the reason.
 - "gender": 3.1 Gender Equality: women reached and women-led businesses this quarter, indicator by indicator, with figures; what the notes say about how women were included. Never add women across indicators into one total: the same person can be counted under more than one indicator.
 - "lessons": VI. Lessons Learned: one short paragraph per lesson in lessons_this_quarter: what happened, what the team learned and what it will do differently. Use only those lessons; add none. If there are none, write one sentence with a placeholder, [lessons learned this quarter], and ask for them in questions.
 - "next": VII. Way Forward: priorities for next quarter, led by the indicators that are delayed or not implemented, and the remaining annual targets; include what the lessons say the team will do differently.
@@ -39,7 +40,8 @@ ${ROP_VOICE}`;
 
 /** The facts a draft is written from. Free text is scrubbed again at the door (draftQpr). */
 export function qprFacts(d: QprData) {
-  const { from, to } = quarterRange(d.quarter);
+  // A report built before periods were kept has none: its calendar quarter.
+  const { from, to } = d.period ?? quarterRange(d.quarter);
   return {
     project: d.project.name,
     donor: d.project.donor,
@@ -74,7 +76,8 @@ export function qprFacts(d: QprData) {
 
 export async function draftQpr(d: QprData, keys: string[], by: string): Promise<{ sections: { key: string; text: string }[]; questions: string[] }> {
   // The won proposal's win themes, as context only (server/project-origin).
-  const facts = { ...qprFacts(d), ...(await winThemesContext(d.project.code)) };
+  // Field evidence: KoboCollect submission counts of the forms linked to each activity (server/kobo-activities).
+  const facts = { ...qprFacts(d), ...(await winThemesContext(d.project.code)), ...(await koboFieldFacts(d.project.code, d.period, d.activities.map((a) => a.code))) };
   // Notes and lessons are scrubbed above as before; the door also replaces names in update titles and row comments.
   const { out } = await askAi({
     job: "qprDraft",

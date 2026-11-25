@@ -70,7 +70,8 @@ export function qprFigures(
   from: string,
   to: string,
 ): Figure[] {
-  const yearFrom = `${quarter.slice(0, 4)}-01-01`;
+  // As the report counts it (lib/qpr buildRows): a period that starts in the year before counts from its own start.
+  const yearFrom = [`${quarter.slice(0, 4)}-01-01`, from].sort()[0];
   let k = 0;
   return rows.flatMap((r) => [
     {

@@ -449,7 +449,7 @@ function overlap(a: string, b: string) {
 }
 
 /** The workplan item a budget line most likely pays for: same activity number, closest wording. */
-export function workplanFor(line: Pick<BudgetLine, "activityCode" | "description">, items: WorkplanItem[]): WorkplanItem | null {
+export function workplanFor<T extends Pick<WorkplanItem, "code" | "activityCode" | "title">>(line: Pick<BudgetLine, "activityCode" | "description">, items: T[]): T | null {
   const same = items.filter((i) => line.activityCode && (i.activityCode === line.activityCode || i.code.startsWith(`${line.activityCode}.`)));
   const best = same.map((i) => ({ i, s: overlap(line.description, i.title) })).sort((a, b) => b.s - a.s)[0];
   return best && best.s >= 0.3 ? best.i : null;

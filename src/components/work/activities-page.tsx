@@ -10,6 +10,7 @@ import { useRequireUser, useSession } from "@/components/app/session";
 import { Pill, TopBar, primaryBtn, StatusPill } from "@/components/workspace/ui";
 import { ACTIVITY_STATUSES, type ActivityAction, type ActivityStatus, type Timing } from "@/lib/activities";
 import { clip, resultHref } from "@/lib/connections";
+import { fieldRecordsText } from "@/lib/kobo-activities";
 import type { MessageKey } from "@/lib/i18n";
 import type { ActKey } from "@/lib/i18n/activities";
 import type { ActivitiesPageView as ActivitiesView } from "@/app/api/projects/[code]/activities/route";
@@ -56,6 +57,13 @@ function Linked({ r, v, project }: { r: Row; v: ActivitiesView; project: string 
   return (
     <div className="mt-2 space-y-1 rounded-xl bg-paper px-3 py-2 text-xs">
       {l.budget.lines.length > 0 && <p className="tabular-nums text-muted">{t("cn.act.spent", { spent: money(l.budget.spent), total: money(l.budget.total), n: l.budget.lines.length })}</p>}
+      {/* Field evidence: submissions of the KoboCollect forms that record this activity, counted only. */}
+      {r.field.map((f) => (
+        <p key={f.form} className="tabular-nums text-muted">
+          {fieldRecordsText(f)} <span className="text-ink">({f.name})</span>
+          {f.total > f.quarter ? `, ${f.total.toLocaleString()} in all` : ""}
+        </p>
+      ))}
       {procs.shown.length > 0 && (
         <p className={row}>
           <span className={head}>{t("cn.act.procurements")}:</span>

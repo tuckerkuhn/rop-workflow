@@ -15,6 +15,7 @@ import { OverspendReasonPicker } from "@/components/progress/overspend-reason";
 import { SpendImport } from "@/components/progress/spend-import";
 import { LedgerBudget } from "@/components/ledger/ledger-budget";
 import type { OverspendReason } from "@/lib/overspend";
+import { ceilingWords, type CeilingCheck } from "@/lib/project-origin";
 
 /**
  * Budget against actual by activity, for the current phase: approved (Finance's workbook),
@@ -22,7 +23,7 @@ import type { OverspendReason } from "@/lib/overspend";
  * results beside the lines that pay for them, and the lines to explain.
  */
 
-type View = Awaited<ReturnType<typeof loadBudgetView>> & { mayImport?: boolean };
+type View = Awaited<ReturnType<typeof loadBudgetView>> & { mayImport?: boolean; ceiling?: CeilingCheck | null };
 
 const money = (n: number | null) => (n === null ? "—" : Math.round(n).toLocaleString("en-US"));
 const pctText = (p: number | null) => (p === null ? "—" : `${p}%`);
@@ -68,7 +69,9 @@ export function BudgetPage() {
     <div className="min-h-screen">
       <TopBar />
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
-        <PageHead kicker={project.name} title={t("nav.budget")} meta={v?.period ? `${monthLabel(v.period.from)} to ${monthLabel(v.period.to)}` : undefined} />
+        <PageHead kicker={project.name} title={t("nav.budget")} meta={v?.period ? `${monthLabel(v.period.from)} to ${monthLabel(v.period.to)}` : undefined}>
+          {v?.ceiling && <span className={`font-mono text-xs ${v.ceiling.over !== null && v.ceiling.over >= 1 ? "text-warn" : "text-muted"}`}>{ceilingWords(v.ceiling).line}</span>}
+        </PageHead>
         <Why>The budget in the agreement is a promise, line by line. Spending well over a line without the donor&rsquo;s written agreement can be refused at audit, even when the project as a whole is under budget.</Why>
         {/* The same spending import as on the quarterly report, where a newcomer looks for it first. */}
         {project.saved && v?.mayImport && (

@@ -70,3 +70,21 @@ export function linkProblem(a: Pick<TargetDetailsPatch, "budgetRef" | "workplanC
   if (a.workplanCode && !workplanCodes.includes(a.workplanCode)) return `Workplan step ${a.workplanCode} is not in this project's workplan.`;
   return null;
 }
+
+/**
+ * Links a person confirmed from the suggestions (lib/link-suggest): a workplan item, a budget line
+ * or both per target. Only an empty link is filled; one already set is left as it is.
+ */
+export const confirmLinksSchema = z.object({
+  links: z
+    .array(
+      z.object({
+        indicator: z.string().regex(/^IND-\d+$/, "Choose a target."),
+        workplanCode: z.string().trim().max(40).optional(),
+        budgetRef: z.string().trim().max(60).optional(),
+      }),
+    )
+    .min(1, "Choose a suggestion to use.")
+    .max(500),
+});
+export type ConfirmLinks = z.infer<typeof confirmLinksSchema>;

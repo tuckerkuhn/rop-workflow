@@ -66,6 +66,9 @@ function quartersFor(start: string | null) {
 }
 const lastEnded = () => lastEndedQuarter();
 
+/** The quarter's short name: "Q4" on the calendar's months, else the agreement's months ("Feb to Apr 2026"). */
+const shortOf = (v: QprView) => (v.period.calendar ? v.quarter.slice(5) : v.period.label);
+
 export function QprPage() {
   const { user } = useRequireUser();
   const { ready } = useSession();
@@ -197,11 +200,15 @@ export function QprPage() {
   const mayMarkFinal = pfFresh && blockN === 0;
   const fixN = pf ? worthFixing : (v?.checks.length ?? 0) - stops;
   const cannot = v ? cannotOnReport({ edit: v.mayEdit, accept: user.project.includes("mel-owner"), import: v.mayImport, release: v.mayRelease }) : [];
-  const { from, to } = quarterRange(quarter);
+  // The days the report counts: the calendar quarter, or the agreement's own period (lib/obligations qprPeriod).
+  const period = v && v.quarter === quarter ? v.period : null;
+  const { from, to } = period ?? quarterRange(quarter);
   // Home's "Next report" (the quarter just ended while its report is still due, else the one under way).
   const nowQ = nextQ ?? quarterOf(new Date().toISOString().slice(0, 10));
-  const underWay = quarter === quarterOf(new Date().toISOString().slice(0, 10));
-  const qLabel = (q: string) => q.replace("-", " ");
+  const realToday = new Date().toISOString().slice(0, 10);
+  const underWay = period ? from <= realToday && realToday <= to : quarter === quarterOf(realToday);
+  // A quarter key reads as "2026 Q4"; an agreement period that is not a calendar quarter by its months.
+  const qLabel = (q: string) => v?.periods?.find((p) => p.quarter === q)?.label ?? (period && q === quarter && !period.calendar ? period.label : q.replace("-", " "));
 
   return (
     <div className="min-h-screen">
@@ -216,14 +223,19 @@ export function QprPage() {
               <label className="text-sm">
                 <span className="font-mono text-xs text-muted">Quarter</span>
                 <select className={`${input} font-mono`} value={quarter} onChange={(e) => router.replace(`/progress/report?q=${e.target.value}`)}>
-                  {quartersFor(v?.project.start ?? null).map((q) => (
-                    <option key={q}>{q}</option>
-                  ))}
+                  {v?.periods
+                    ? v.periods.map((p) => (
+                        <option key={p.quarter} value={p.quarter}>
+                          {p.label}
+                        </option>
+                      ))
+                    : quartersFor(v?.project.start ?? null).map((q) => <option key={q}>{q}</option>)}
                 </select>
               </label>
             }
           >
             <span className="font-mono text-xs text-ink">
+              {period?.name && `${period.name}${period.number ? `, agreement period ${period.number}` : ""}: `}
               {from} to {to}.
             </span>{" "}
             Figures come from results that monitoring, evaluation and learning (MEL) has accepted, and each one opens the records and proof behind it. Write or draft the text, fix what the checks list, then download it for Word.
@@ -482,7 +494,7 @@ type Act = (a: QprPatch, msg: string) => Promise<void>;
 function InfoBox({ v, act, onImported }: { v: QprView; act: Act; onImported: () => void }) {
   const { user } = useRequireUser();
   const { project } = useCurrentProject();
-  const to = quarterRange(v.quarter).to;
+  const to = v.period.to;
   const [f, setF] = useState(v.saved.info);
   const [spend, setSpend] = useState(v.saved.quarterSpend === null ? "" : String(v.saved.quarterSpend));
   useEffect(() => {
@@ -722,7 +734,7 @@ const IND_COLS = "minmax(0,2fr) 7rem 7rem 7rem minmax(0,1.6fr)";
 function IndicatorTable({ v, act }: { v: QprView; act: Act }) {
   const outputs = [...new Set(v.rows.map((r) => r.output))];
   const year = v.quarter.slice(0, 4);
-  const qn = v.quarter.slice(5);
+  const qn = shortOf(v);
   const { t } = useT();
   return (
     <>
@@ -775,8 +787,9 @@ function IndicatorRow({ r, v, act, card }: { r: Row; v: QprView; act: Act; card?
     setStatus(r.status);
     setComment(r.comment);
   }, [r.status, r.comment]);
-  const { from, to } = quarterRange(v.quarter);
-  const yearFrom = `${v.quarter.slice(0, 4)}-01-01`;
+  const { from, to } = v.period;
+  // As the report counts it (lib/qpr buildRows): a period that starts in the year before counts from its own start.
+  const yearFrom = [`${v.quarter.slice(0, 4)}-01-01`, from].sort()[0];
   const { user } = useRequireUser();
   const { project } = useCurrentProject();
   // One tap opens the accepted results behind the figure and their proof (lib/evidence).
@@ -876,7 +889,7 @@ function IndicatorRow({ r, v, act, card }: { r: Row; v: QprView; act: Act; card?
             <dd className={fig}>{num(r.yearTarget)}</dd>
           </div>
           <div>
-            <dt className={head}>{t("rp.col.quarter", { q: v.quarter.slice(5) })}</dt>
+            <dt className={head}>{t("rp.col.quarter", { q: shortOf(v) })}</dt>
             <dd className={fig}>{evidence(from, r.quarter, r.records.quarter, r.records.files, r.note?.quarter)}</dd>
           </div>
           <div>

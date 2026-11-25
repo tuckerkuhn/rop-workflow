@@ -25,6 +25,9 @@ import {
 import type { MessageKey } from "@/lib/i18n";
 import { clearPending, getPending } from "@/components/setup/pending";
 import { readWorkbook } from "@/lib/read-sheet";
+import { againstCeiling, ceilingWords, sheetCurrency, type ProjectOrigin } from "@/lib/project-origin";
+
+type Award = Pick<ProjectOrigin, "currency" | "ceiling">;
 
 /**
  * Setup steps after the project exists: the budget and the workplan, uploaded from the donor's
@@ -121,10 +124,13 @@ export function BudgetStep({ code, onDone }: { code: string; onDone: () => void 
   const [proposedFrom, setProposedFrom] = useState("");
   const [proposedQuestions, setProposedQuestions] = useState<string[]>([]);
   const money = useMoney(budget?.currency ?? "USD");
+  // The award confirmed when the project was set up from a won proposal (lib/project-origin): its currency and ceiling.
+  const [award, setAward] = useState<Award | null>(null);
 
   useEffect(() => {
-    api<Budget>(`/api/projects/${code}/budget`, user?.id)
-      .then((b) => {
+    api<Budget & { award?: Award | null }>(`/api/projects/${code}/budget`, user?.id)
+      .then(({ award: a = null, ...b }) => {
+        setAward(a);
         setSaved(b.lines.length);
         // Read from the documents at the start of setup: proposed here, saved only when the person saves it.
         const p = getPending().budget;
@@ -134,17 +140,20 @@ export function BudgetStep({ code, onDone }: { code: string; onDone: () => void 
           setProposedFrom(p.file);
           setProposedQuestions(p.questions);
           setDirty(true);
-        } else setBudget(b);
+        } else setBudget(!b.lines.length && a ? { ...b, currency: a.currency } : b);
       })
       .catch((e) => setError(String(e instanceof Error ? e.message : e)));
   }, [code, user?.id]);
 
+  // A sheet that names no currency is in the award's, not the reader's USD (lib/project-origin sheetCurrency).
+  const inAwardCurrency = (p: BudgetParse, grid: Grid): BudgetParse => ({ ...p, currency: sheetCurrency(p.currency, grid.slice(0, p.headerRow + 3).flat().join(" "), award?.currency ?? null) });
   const read = (sheets: { name: string; grid: Grid }[], file: string) => {
     // The sheet that reads as the most budget lines.
     const tries = sheets.map((s) => parseBudget(s.grid));
     const best = tries.reduce((b, p, i) => ((p?.lines.length ?? 0) > (tries[b]?.lines.length ?? 0) ? i : b), 0);
-    const parse = tries[best];
-    if (!parse || !parse.lines.length) return setError(t("budget.noLines"));
+    const got = tries[best];
+    if (!got || !got.lines.length) return setError(t("budget.noLines"));
+    const parse = inAwardCurrency(got, sheets[best].grid);
     setError("");
     setSource({ file, sheets, sheet: best, parse });
     setBudget({ currency: parse.currency, lines: parse.lines });
@@ -155,8 +164,9 @@ export function BudgetStep({ code, onDone }: { code: string; onDone: () => void 
   const reparse = (patch: { sheet?: number; columns?: BudgetColumns; currency?: string }) => {
     if (!source) return;
     const sheet = patch.sheet ?? source.sheet;
-    const parse = parseBudget(source.sheets[sheet].grid, patch.sheet !== undefined ? undefined : { row: source.parse.headerRow, columns: patch.columns ?? source.parse.columns, currency: patch.currency ?? source.parse.currency });
-    if (!parse) return setError(t("budget.noLines"));
+    const got = parseBudget(source.sheets[sheet].grid, patch.sheet !== undefined ? undefined : { row: source.parse.headerRow, columns: patch.columns ?? source.parse.columns, currency: patch.currency ?? source.parse.currency });
+    if (!got) return setError(t("budget.noLines"));
+    const parse = patch.sheet !== undefined ? inAwardCurrency(got, source.sheets[sheet].grid) : got;
     setSource({ ...source, sheet, parse });
     setBudget({ currency: parse.currency, lines: parse.lines });
     setSources(parse.rows.map((r) => `${source.file}, sheet "${source.sheets[sheet].name}", row ${r}`));
@@ -170,6 +180,8 @@ export function BudgetStep({ code, onDone }: { code: string; onDone: () => void 
   };
   const shown = lines.map((l, i) => ({ l, i })).filter(({ l }) => filter === "all" || (filter === "procure" ? l.procure : l.kind === filter));
   const total = lines.reduce((s, l) => s + l.total, 0);
+  const ceiling = budget ? againstCeiling(total, budget.currency, award) : null;
+  const words = ceiling ? ceilingWords(ceiling) : null;
   const procured = lines.filter((l) => l.procure);
   const quarters = [...new Set(lines.flatMap((l) => Object.keys(l.schedule)))].sort();
 
@@ -283,6 +295,7 @@ export function BudgetStep({ code, onDone }: { code: string; onDone: () => void 
             <div className="rounded-2xl bg-sunken p-3">
               <dt className="text-xs text-muted">{t("budget.total")}</dt>
               <dd className="text-xl tabular-nums font-semibold">{money(total)}</dd>
+              {words && <dd className="mt-1 font-mono text-xs text-muted">{words.ceiling}</dd>}
             </div>
             <div className="rounded-2xl bg-sunken p-3">
               <dt className="text-xs text-muted">{t("budget.toProcure")}</dt>
@@ -295,6 +308,13 @@ export function BudgetStep({ code, onDone }: { code: string; onDone: () => void 
               <dd className="text-xl tabular-nums font-semibold">{money(lines.reduce((s, l) => s + (l.spent ?? 0), 0))}</dd>
             </div>
           </dl>
+
+          {words?.warning && (
+            <p role="status" className="mt-3 bg-sunken px-4 py-3 text-sm font-semibold text-warn">
+              {words.warning}
+            </p>
+          )}
+          {ceiling && ceiling.over === null && words && <p className="mt-3 text-sm text-muted">{words.line}</p>}
 
           <div role="tablist" className="mt-5 flex flex-wrap gap-1 text-sm">
             {(["all", "procure", ...BUDGET_KINDS] as const).map((f) => (

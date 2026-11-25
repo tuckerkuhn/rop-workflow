@@ -91,7 +91,8 @@ export async function periodReport(code: string, p: Period) {
     if (!r!.released) continue;
     const copy = releaseCopy.get(q);
     if (!copy) continue;
-    const range = quarterRange(q);
+    // The days the copy counted: the agreement's own period when it is not a calendar quarter.
+    const range = copy.data.period ?? quarterRange(q);
     for (const row of copy.data.rows) {
       const ind = indicators.find((i) => i.code === row.code);
       if (!ind) continue;

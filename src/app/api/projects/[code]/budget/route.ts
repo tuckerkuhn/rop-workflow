@@ -10,16 +10,18 @@ import { projectByCode } from "@/server/field-store";
 import { db } from "@/db";
 import { z } from "zod";
 import { loadBudget, saveBudget } from "@/server/plan-store";
+import { loadAward } from "@/server/project-origin";
 
 type Ctx = { params: Promise<{ code: string }> };
 
-/** The project budget. Staff only. */
+/** The project budget, with the award from the won proposal (currency and ceiling) when it came from one. Staff only. */
 export async function GET(req: Request, { params }: Ctx) {
   const { code } = await params;
   return handle(async () => {
     const v = await requireViewer(req, { allow: isEmployee });
     if (v instanceof NextResponse) return v;
-    return NextResponse.json(await loadBudget(code));
+    const [budget, award] = await Promise.all([loadBudget(code), loadAward(code)]);
+    return NextResponse.json({ ...budget, award });
   });
 }
 

@@ -89,7 +89,7 @@ export async function donorSafeReport(code: string, projectId: string, quarter: 
   // Photos follow the consent rule as it stands now (server/photo-consent), also in copies made before it existed.
   const photoOk = await donorPhotoRule(projectId);
   const counted = new Set(d.counted.map((c) => c.id));
-  const { from, to } = quarterRange(quarter);
+  const { from, to } = d.period ?? quarterRange(quarter);
   const results = (await loadResults(code)).filter((r) => counted.has(r.id) && r.date >= from && r.date <= to);
   const sections = [
     ...SECTIONS.map((x) => ({ heading: x.heading as string, text: d.saved.sections[x.key]?.text ?? "" })),

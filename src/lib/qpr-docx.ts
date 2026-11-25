@@ -19,6 +19,7 @@ import {
 } from "docx";
 import { SECTIONS, STATUS_LABEL, grmOf, overspentLines, quarterSpendOf, type Breakdown, type GrmLog, type Photo, type Qpr, type Row, type Spend, durationOf } from "@/lib/qpr";
 import { quarterRange } from "@/lib/results";
+import type { QprPeriod } from "@/lib/obligations";
 
 /**
  * The quarterly report as a Word document (.docx), in the order ROP sends it to UNDP: cover,
@@ -30,6 +31,8 @@ import { quarterRange } from "@/lib/results";
 export type DocxInput = {
   project: { code: string; name: string; start: string | null; end: string | null };
   quarter: string;
+  /** The days the report counts, when they are the agreement's own months (lib/obligations qprPeriod). */
+  period?: Pick<QprPeriod, "from" | "to" | "label" | "calendar">;
   saved: Qpr;
   rows: Row[];
   spend: Spend;
@@ -90,8 +93,8 @@ const table = (columns: string[], rows: (string | number)[][], widths?: number[]
   });
 
 export async function qprDocx(d: DocxInput, images: Images): Promise<Blob> {
-  const { from, to } = quarterRange(d.quarter);
-  const qn = d.quarter.slice(5);
+  const { from, to } = d.period ?? quarterRange(d.quarter);
+  const qn = d.period && !d.period.calendar ? d.period.label : d.quarter.slice(5);
   const year = d.quarter.slice(0, 4);
   const sec = (key: string) => d.saved.sections[key]?.text;
   const heading = (key: string) => SECTIONS.find((s) => s.key === key)!.heading;

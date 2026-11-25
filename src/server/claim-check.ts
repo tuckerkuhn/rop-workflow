@@ -41,7 +41,8 @@ const SYSTEM = `You check a donor progress report's text against the project's o
 List the claims as asked, quoting sentences exactly. Then list contradictions: only where a result's photo dates or a weekly update clearly place the work outside the quarter, or call it unfinished when the text says it was done. Cite the evidence ids. When unsure, leave it out: a false alarm costs the team time.`;
 
 export async function checkClaims(d: QprData, updates: UpdateRecord[], by: string): Promise<ClaimCheck> {
-  const { from, to } = quarterRange(d.quarter);
+  // A report built before periods were kept has none: its calendar quarter.
+  const { from, to } = d.period ?? quarterRange(d.quarter);
   const keys = [...SECTIONS.map((s) => s.key as string), ...d.activities.map((a) => `act.${a.code}`)];
   const sections = Object.fromEntries(keys.map((k) => [k, d.saved.sections[k]?.text?.trim() ?? ""]).filter(([, t]) => t));
   if (!Object.keys(sections).length) return { at: new Date().toISOString(), by, model: "", checked: 0, issues: [], sections: {} };

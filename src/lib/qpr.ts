@@ -381,17 +381,24 @@ export function yearShare(i: Pick<IndicatorInfo, "target" | "yearTargets" | "mea
   return yearPart(i, y);
 }
 
+/**
+ * The days a report counts: the calendar quarter of its key, or the agreement's own period
+ * (lib/obligations qprPeriod) with its `label` ("Feb to Apr 2026").
+ */
+export type ReportRange = { from: string; to: string; label?: string };
+
 /** The indicator table for a quarter, from accepted results. */
 /**
  * `plans`: for each workplan activity code, the first days of the quarters with work planned
  * (workplan_items.active, e.g. ["2026-07-01"]), for the partner whose report this is.
  */
-export function buildRows(indicators: IndicatorInfo[], results: ResultRecord[], quarter: string, saved: Qpr, plans: Record<string, string[]> = {}): Row[] {
-  const { from, to } = quarterRange(quarter);
+export function buildRows(indicators: IndicatorInfo[], results: ResultRecord[], quarter: string, saved: Qpr, plans: Record<string, string[]> = {}, range: ReportRange = quarterRange(quarter)): Row[] {
+  const { from, to } = range;
   const y = quarter.slice(0, 4);
-  const yearFrom = `${y}-01-01`;
+  // This year to the period's end; an agreement period that starts in the year before counts from its own start.
+  const yearFrom = [`${y}-01-01`, from].sort()[0];
   const quarterNo = Number(quarter.slice(6));
-  const label = `Q${quarterNo} ${y}`;
+  const label = range.label ?? `Q${quarterNo} ${y}`;
   return indicators.map((i) => {
     const mine = results.filter((r) => r.indicator === i.code);
     // The same figure Progress and the annual report give (lib/measure): a sum unless the target is measured by a survey.
@@ -437,8 +444,8 @@ export type QprCheckKey = keyof typeof qcEn;
 export type QprCheck = { level: "stop" | "check"; text: string; key?: QprCheckKey; vars?: Record<string, string | number>; /** What it is about: an indicator code, a section key or a budget line. */ ref?: string };
 
 /** Things to fix before the report goes out. Each one names the target or section. */
-export function checksFor(rows: Row[], results: ResultRecord[], quarter: string, saved: Qpr, spend: Spend, activities: string[], grmLog: GrmLog | null = null) {
-  const { from, to } = quarterRange(quarter);
+export function checksFor(rows: Row[], results: ResultRecord[], quarter: string, saved: Qpr, spend: Spend, activities: string[], grmLog: GrmLog | null = null, range: ReportRange = quarterRange(quarter)) {
+  const { from, to } = range;
   // Only the indicators in this report's table: others (annual-report-only) are checked elsewhere.
   const inTable = new Set(rows.map((r) => r.code));
   const inQ = results.filter((r) => r.date >= from && r.date <= to && inTable.has(r.indicator));
@@ -564,8 +571,8 @@ export const DEFAULT_ACRONYMS: [string, string][] = [
 /** A captioned photo from an accepted result or an activity update in the quarter, for the report. */
 export type Photo = { hash: string; name: string; type: string; caption: string; activity: string; date: string };
 
-export function photosFor(rows: Row[], results: ResultRecord[], updates: UpdateRecord[], quarter: string): Photo[] {
-  const { from, to } = quarterRange(quarter);
+export function photosFor(rows: Row[], results: ResultRecord[], updates: UpdateRecord[], quarter: string, range: ReportRange = quarterRange(quarter)): Photo[] {
+  const { from, to } = range;
   const out: Photo[] = [];
   for (const r of results.filter((x) => x.status === "accepted" && x.date >= from && x.date <= to)) {
     const activity = rows.find((x) => x.code === r.indicator)?.activity ?? "";
@@ -584,8 +591,8 @@ export function photosFor(rows: Row[], results: ResultRecord[], updates: UpdateR
  */
 export type Breakdown = { indicator: string; title: string; columns: string[]; rows: (string | number)[][] };
 
-export function breakdownsFor(rows: Row[], results: ResultRecord[], quarter: string): Breakdown[] {
-  const { from, to } = quarterRange(quarter);
+export function breakdownsFor(rows: Row[], results: ResultRecord[], quarter: string, range: ReportRange = quarterRange(quarter)): Breakdown[] {
+  const { from, to } = range;
   const out: Breakdown[] = [];
   for (const row of rows) {
     // Every accepted result of the quarter, so the table's total is the indicator's; a result with no place gets its own row.
@@ -609,7 +616,7 @@ export function breakdownsFor(rows: Row[], results: ResultRecord[], quarter: str
     const total = sorted.reduce((t, p) => ({ value: t.value + p.value, a: t.a + p.a, b: t.b + p.b }), { value: 0, a: 0, b: 0 });
     out.push({
       indicator: row.code,
-      title: `${row.donorCode}: ${row.name}, by province and district${people ? " and sex" : lead ? " and who leads the business" : ""} (${quarter.replace("-", " ")})`,
+      title: `${row.donorCode}: ${row.name}, by province and district${people ? " and sex" : lead ? " and who leads the business" : ""} (${range.label ?? quarter.replace("-", " ")})`,
       columns: ["Province", "District", `Quantity (${row.unit})`, ...extra],
       rows: [...sorted.map((p) => [p.province || "—", p.district || "—", ...cells(p)]), ["Total", "", ...cells(total)]],
     });

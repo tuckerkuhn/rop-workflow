@@ -11,7 +11,7 @@ import { preflight } from "@/server/preflight";
 import { aiAllowed } from "@/server/limits";
 import { holdsRole } from "@/server/hr-store";
 import { draftQpr } from "@/server/qpr-drafts";
-import { addCopy, copyOf, loadCopies, qprData, reportWork, saveQpr } from "@/server/qpr-store";
+import { addCopy, copyOf, loadCopies, qprData, qprPeriodsFor, reportWork, saveQpr } from "@/server/qpr-store";
 import { differences } from "@/lib/report-copy";
 import { checkClaims } from "@/server/claim-check";
 import { loadUpdates } from "@/server/results-store";
@@ -64,6 +64,8 @@ async function view(code: string, quarter: string, u: AppUser, copyAt: string | 
     changes: shown ? differences(shown.data, live) : [],
     copies: copies.map((c) => ({ kind: c.kind, by: c.by, at: c.at, minutes: c.work.minutes })),
     work: shown ? shown.work : await reportWork(code, quarter),
+    /** The agreement's periods to choose from, newest first; null when they are calendar quarters. */
+    periods: await qprPeriodsFor(code),
   };
 }
 export type QprView = Awaited<ReturnType<typeof view>>;
