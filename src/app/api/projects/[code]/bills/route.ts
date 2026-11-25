@@ -3,15 +3,15 @@ import { loadBudget } from "@/server/plan-store";
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db, schema as s } from "@/db";
-import { billLineProblem, BILL_CATEGORIES, billActionSchema, billFlags, type Bill } from "@/lib/bills";
+import { billLineProblem, BILL_CATEGORIES, billActionSchema, billFlags, redoneAs, type Bill } from "@/lib/bills";
 import { AFN_PER_USD } from "@/lib/demo";
 import { isSharePointUrl } from "@/lib/procurement";
 import { NON_CONTRACT } from "@/lib/timesheet";
 import type { AppUser } from "@/lib/demo";
 import { requireViewer } from "@/server/auth";
-import { loadBills, saveBills } from "@/server/bills-store";
+import { billRoles, loadBills, saveBills } from "@/server/bills-store";
 import { handle } from "@/server/guard";
-import { hrBook, loadHr } from "@/server/hr-store";
+import { hrBook } from "@/server/hr-store";
 import { projectRules } from "@/server/policy-store";
 import { logAudit } from "@/server/audit";
 import { projectByCode } from "@/server/field-store";
@@ -25,16 +25,7 @@ type Ctx = { params: Promise<{ code: string }> };
  * voucher. Who holds which role comes from the authority table.
  */
 
-async function rolesOf(u: AppUser) {
-  const holders = (await loadHr()).state.rules?.holders;
-  const has = (t: "management" | "ceo" | "finance" | "bills") => !!holders?.[t]?.includes(u.id);
-  return {
-    // Recording bills is given, not assumed: Finance, and the people named for bill entry.
-    record: has("finance") || has("bills") || u.procurement.includes("finance"),
-    approve: has("management") || has("ceo") || u.procurement.includes("approver"),
-    voucher: has("finance") || u.procurement.includes("finance"),
-  };
-}
+const rolesOf = billRoles;
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -67,7 +58,8 @@ async function view(code: string, u: AppUser) {
     lines: await linesBySource(projects.map((p) => p.code).filter((c): c is string => !!c)),
     ...roles,
     sources: [{ id: NON_CONTRACT, label: "General and admin (non-contract)" }, ...projects.filter((p) => p.code).map((p) => ({ id: p.code!, label: p.name }))],
-    items: [...book.items].reverse().map((b) => ({ ...b, flags: billFlags(b, book.items, micro), canApprove: roles.approve && b.status === "waiting" && b.raised.by !== u.id, canSelfApprove: roles.approve && b.status === "waiting" && b.raised.by === u.id && mayApproveOwn(solo, b, rules), canVoucher: roles.voucher && b.status === "approved" })),
+    // A bill sent back: who may correct it and record it again, and the bill that replaced it once they have.
+    items: [...book.items].reverse().map((b) => ({ ...b, flags: billFlags(b, book.items, micro), redoneAs: redoneAs(b, book.items), canRedo: roles.record && b.status === "returned" && !redoneAs(b, book.items), canApprove: roles.approve && b.status === "waiting" && b.raised.by !== u.id, canSelfApprove: roles.approve && b.status === "waiting" && b.raised.by === u.id && mayApproveOwn(solo, b, rules), canVoucher: roles.voucher && b.status === "approved" })),
   };
 }
 export type BillsView = Awaited<ReturnType<typeof view>>;

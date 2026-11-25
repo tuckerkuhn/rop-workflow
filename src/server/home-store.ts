@@ -11,6 +11,8 @@ import { collectorOf, mayApproveKobo, mayDecideRecord, maySendBack } from "@/lib
 import { koboApprovalFor } from "@/server/kobo-approval";
 import { koboState } from "@/server/kobo-link";
 import { loadProcurements } from "@/server/procurement-store";
+import { billRoles, loadBills } from "@/server/bills-store";
+import { toCorrect } from "@/lib/bills";
 import type { FieldItem } from "@/lib/field";
 import { koboMismatches } from "@/server/results-store";
 import { db, schema as s } from "@/db";
@@ -372,6 +374,20 @@ async function homeActions(c: ActionsInput): Promise<{ actions: HomeAction[]; le
     const toStart = allPlan.filter((i) => i.status === "approved" && i.techLead === u.id && days(today, i.startBy) <= 14);
     for (const i of toStart)
       actions.push({ key: `plan-start:${i.key}`, for: lenses.includes("procurement") ? "procurement" : lenses[0], bucket: "due", urgent: i.startBy < today, text: `Make the request for ${i.title}: ${i.startBy < today ? `it was due to start ${i.startBy}` : `start by ${i.startBy}`}`, href: "/work/plan" });
+  }
+
+  // Bills paid directly: a bill waiting for approval is told to the people who approve bills, and a
+  // bill sent back to the people who record them. Without these rows a bill waits on someone who
+  // was never told. The person who recorded a bill does not approve it, so it is not theirs to approve.
+  if (u.kind === "employee") {
+    const book = await loadBills(code).catch(() => null);
+    const waiting = (book?.items ?? []).filter((b) => b.status === "waiting" && b.raised.by !== u.id);
+    const back = toCorrect(book?.items ?? []);
+    const roles = waiting.length || back.length ? await billRoles(u).catch(() => null) : null;
+    if (roles?.approve && waiting.length)
+      actions.push({ key: "bills-approve", for: lenses.includes("lead") ? "lead" : lenses[0], bucket: "approve", urgent: true, text: waiting.length === 1 ? `Approve the bill from ${waiting[0].payee}` : `Approve ${waiting.length} bills paid directly`, href: "/work/bills", since: oldest(waiting.map((b) => b.raised.at)) });
+    if (roles?.record && back.length)
+      actions.push({ key: "bills-correct", for: lenses.includes("finance") ? "finance" : lenses[0], bucket: "fix", urgent: true, text: back.length === 1 ? `Correct the bill from ${back[0].payee} that was sent back and record it again` : `Correct ${back.length} bills that were sent back and record them again`, href: "/work/bills", since: oldest(back.map((b) => b.returned?.at)) });
   }
 
   // Who approves KoboCollect data on this project (lib/kobo-approval): results made from a form

@@ -87,12 +87,31 @@ export function billFlags(b: Bill, all: Bill[], microMaxUsd: number): string[] {
   const out: string[] = [];
   if (!b.contractRef && b.usd > microMaxUsd) out.push(`Over $${microMaxUsd.toLocaleString("en-US")} with no lease, contract or agreement named: a purchase this size may need to go through procurement.`);
   const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
-  const dup = all.find((x) => x.id !== b.id && x.status !== "returned" && norm(x.payee) === norm(b.payee) && norm(x.invoiceNumber) === norm(b.invoiceNumber));
+  // A bill sent back is not paid, so it is not a second payment of anything.
+  const dup = b.status === "returned" ? undefined : all.find((x) => x.id !== b.id && x.status !== "returned" && norm(x.payee) === norm(b.payee) && norm(x.invoiceNumber) === norm(b.invoiceNumber));
   if (dup) out.push(`The same payee and invoice number as ${dup.id}: possibly paid twice.`);
-  const sameFile = all.find((x) => x.id !== b.id && x.file.hash === b.file.hash);
+  // A bill sent back was not paid: the same document recorded again, corrected, is not a second payment.
+  const sameFile = all.find((x) => x.id !== b.id && x.status !== "returned" && b.status !== "returned" && x.file.hash === b.file.hash);
   if (sameFile) out.push(`The same document as ${sameFile.id}.`);
   return out;
 }
+
+/**
+ * The bill that took the place of one sent back, or null when it still waits to be corrected.
+ * A bill sent back is never changed: the person who records bills corrects it and records it
+ * again, from the same document. The later bill for that document, or for that payee and
+ * invoice number, is the one that replaced it.
+ */
+export function redoneAs(b: Bill, all: Bill[]): string | null {
+  if (b.status !== "returned") return null;
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const at = all.findIndex((x) => x.id === b.id);
+  const later = all.find((x, i) => i > at && x.id !== b.id && x.status !== "returned" && (x.file.hash === b.file.hash || (norm(x.payee) === norm(b.payee) && norm(x.invoiceNumber) === norm(b.invoiceNumber))));
+  return later?.id ?? null;
+}
+
+/** Bills sent back that the people who record bills still have to correct and record again. */
+export const toCorrect = (all: Bill[]) => all.filter((b) => b.status === "returned" && !redoneAs(b, all));
 
 /**
  * Why a bill cannot be saved with this budget line, or null when it can. A bill charged to a
