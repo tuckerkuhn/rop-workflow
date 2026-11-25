@@ -166,24 +166,18 @@ is used next. Then walk it as each role on a phone. The distribution chain is do
 ## Queue
 
 Big, open:
-1. **The place of a farmer's photo goes to staff who may not see participant names** (`marcus`,
-   `karim`, `rahima`, `yusuf`). Read in the code in round 5 and seen by the request: `loadField` in
-   `src/server/field-store.ts` hides the farmer's name and sends every photo as stored, with its
-   `gps`. Round 5 closed this for a donor's account only. Staff can be given the right to save a
-   farmer, and a save from a page that never held the place would wipe it. The fix has two halves:
-   leave `gps` out in `loadField` for them and put it back by photo id in `keepHidden`, with a test
-   like `field-names-hidden.db.test.ts`. The farmer page says "place recorded" beside a photo by
-   reading `p.gps` (`src/components/field/profile.tsx`), so it needs another way to know. The demo's
-   photos hold no place. To get one, add a photo that holds a place on a farmer's page as `farida`
-   (`make-photos.py` makes them). A KoboCollect record's note does not go onto the farmer.
 2. **A signed-off monthly review keeps no copy of its figures.** Found in round 5. The review for
    October, opened on 25 November, shows 11 farmers trained: the year's figure as it stands today,
    under "to the end of 2026 Q4". One training was held by 31 October. Signing off stores the name
    and the time only (`readReview` in `src/server/monthly-review-store.ts`), so the signed October
    review will show December's figures in January. Keeping the figures at sign-off is the fix. It
    changes what sign-off means: Needs Tucker AA. Not built.
-3. **Finish chain 1.** Not walked: the donor's reports list and a released report in her account
-   (`elena`), the annual report past its heading, the monthly review's "Changes to the plan".
+3. **The annual report for a project's first year can never be released.** Found in round 6 as
+   `nadia`. A-2027 began on 1 October 2026. Its annual report for 2026 lists "The 2026 Q1 quarterly
+   report is not released" and the same for Q2 and Q3 under "Blocks the report", and the server
+   refuses the release while anything blocks. Those quarters ended before the project began, so no
+   report for them will ever exist. `annual` in `src/server/preflight.ts` means to leave them out and
+   compares with the first day of the calendar year, not of the project.
 
 Medium, open:
 1. Dates still show as 2026-11-24 in some places. Use `longDate` or `periodLabel` from
@@ -226,6 +220,17 @@ Medium, open:
     times (403). Nothing shows on the page. It is wasted work on a slow line.
 11. The monthly review opens on last month and its heading says "to the end of 2026 Q4". A person
     reads this month's figures under last month's name. Goes with big item 2.
+12. The annual report says "Quarters without a saved report: none missing" on the line above "No
+    quarterly report text saved for the period" (`src/components/progress/period-report-page.tsx`).
+13. "Approve and apply" on a change to the plan changes the year's target in one tap, with no
+    question. Found in round 6 as `marcus`: 20 became 16. The released report kept 20, as it should.
+14. More dates not in words, seen in round 6: "Proposed by Omar Sadiq on 2026-11-25" on a change to
+    the plan, "Quarterly progress report, 2026 Q4" and "as the 2026 Q4 report gave it" for a donor,
+    "Mark the 2026 Q4 report final" in the release question. Part of medium 1.
+15. A donor reads, for the income target, "No survey yet this quarter · No survey yet · target 25
+    this year · Behind · not done". One "no survey yet" would do.
+16. The annual report for 2026 gives its period as "1 January 2026 to 31 December 2026" and shows
+    Q1 to Q3 as 0 for a project that began on 1 October 2026.
 
 Done: see `11-handoffs-review.md` and `10-field-ledger.md`. Round 1: training attendance is one record
 per session with its farmers ticked (was big item 1). Round 2: the app makes the readiness, training
