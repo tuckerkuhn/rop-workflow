@@ -3,7 +3,9 @@ is told, in order, and prints every request that changed something or failed.
   python3 act.py <user> <path> 'click:Words on the button' 'click:Same words#1' 'wait:2000' 'dump:name' 'shot:name' 'links:' 'goto:/path'
 click:Text presses the first thing with those words, click:Text#1 the second (the page's own
 "are you sure" box repeats the button's words). dump:name prints the page's words and saves
-name.txt. shot:name saves name.png. links: lists the links and buttons. A user who does not
+name.txt. shot:name saves name.png. btn:Words presses a button by its name (btnx: the exact name).
+fields: lists the form's fields. 'label:Label words|value' types into a field, 'sel:#id|value' picks from
+a list, 'file:main input[type=file]|/path/photo.jpg' attaches a file. links: lists the links and buttons. A user who does not
 exist ("nobody") opens a page with no sign-in, as a donor opens a share link."""
 import sys, json, asyncio
 from playwright.async_api import async_playwright
@@ -41,6 +43,27 @@ async def main():
                 elif k == "css":
                     await page.locator(v).first.click(timeout=8000)
                     await page.wait_for_timeout(2500)
+                elif k == "btn":
+                    n = 0
+                    if "#" in v and v.rsplit("#",1)[1].isdigit():
+                        v, n = v.rsplit("#",1); n = int(n)
+                    await page.get_by_role("button", name=v).nth(n).click(timeout=8000)
+                    await page.wait_for_timeout(2500)
+                elif k == "btnx":
+                    await page.get_by_role("button", name=v, exact=True).first.click(timeout=8000)
+                    await page.wait_for_timeout(3000)
+                elif k == "sel":
+                    sel, val = v.split("|")
+                    await page.locator(sel).first.select_option(val); await page.wait_for_timeout(800)
+                elif k == "label":
+                    lab, val = v.split("|")
+                    await page.get_by_label(lab, exact=False).first.fill(val)
+                elif k == "file":
+                    sel, val = v.split("|")
+                    await page.locator(sel).first.set_input_files(val); await page.wait_for_timeout(3000)
+                elif k == "fields":
+                    fs = await page.eval_on_selector_all("main input, main textarea, main select", "els => els.map(e => e.tagName + ' type=' + (e.type||'') + ' id=' + (e.id||'') + ' aria=' + (e.getAttribute('aria-label')||'') + ' label=' + (e.labels && e.labels[0] ? e.labels[0].innerText.replace(/\\n/g,' ').slice(0,60) : '') + ' val=' + String(e.value).slice(0,30))")
+                    print("\n".join(fs))
                 elif k == "fill":
                     sel, val = v.split("|")
                     await page.locator(sel).first.fill(val)

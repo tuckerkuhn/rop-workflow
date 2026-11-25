@@ -122,6 +122,20 @@ worth more than a half-built large one.
   (`src/app/(app)/progress/preflight/route.ts`).
 - What a donor is told about a kept document comes from `onFileKinds` in `src/lib/evidence.ts`: how
   many and of what kind. A file's name or a link's title never goes to a donor.
+- The donor's own account is `elena`. Her Home links to Progress, the released reports and each
+  farmer's page.
+- Every proof file in the demo is a PDF. To see a photo in the evidence pack, add one to a result
+  (`POST /api/files` as `omar`, then the results action `proof` with a caption), and mark it checked
+  on the local database: the row in `project_state` with key `photos` holds
+  `{"photos": {"<hash>": {"coach": {"isPhoto": true, "people": "none"}}}, "posts": []}`.
+  `tools/pack.py` downloads a pack in the browser and prints what is in it.
+- `act.py` can fill in a form since round 5: `fields:`, `label:`, `sel:`, `file:`, `btn:`, `btnx:`.
+  To record a result: `'sel:#record-pick|IND-4' 'btn:Record a result' 'label:How many|3'
+  'fill:main textarea|What was done' 'file:main input[type=file]|note.jpg' 'btnx:Record'`.
+- The app starts itself again when memory runs short, and the first page after that is slow. A
+  script that times out reading a page has met this: run it again.
+- What a donor's account is sent of a farmer is cut in `forOutside` (`src/server/field-store.ts`).
+  The donor evidence pack's proof is shaped in `donorPackProof` (`src/lib/evidence.ts`).
 
 ## Chains to walk, in order
 
@@ -131,12 +145,13 @@ is used next. Then walk it as each role on a phone. The distribution chain is do
 1. **Results to report.** Field forms accepted, results accepted by MEL, Progress, monthly review,
    quarterly report, the donor's view. As `omar`, `nadia`, `marcus`, a donor. Can an auditor get from
    any number in the report to the record and the photo that prove it?
-   *Round 4 walked it in part and it is not clear.* Walked: accepting typed-in results and field
-   forms as `omar`, Progress and the records behind a figure as `nadia`, the quarterly report and
-   its release as `marcus`, a share link as a donor with no account. Not walked: the donor's own
-   account (`elena`), signing off the monthly review, the Word file, the evidence pack and the
-   audit pack, a result sent back with a question, the annual report past its heading. The next
-   round takes the queue's big item first, then these.
+   *Rounds 4 and 5 walked it and it is not clear.* Walked: accepting typed-in results and field
+   forms as `omar`, a result sent back with a question and corrected, Progress and the records
+   behind a figure as `nadia`, the monthly review and its sign-off, the quarterly report and its
+   release as `marcus`, the Word file, the evidence pack and the audit pack, a share link as a
+   donor with no account, the donor's own Home and a farmer's page as `elena`. Not walked: the
+   donor's reports list and a released report in her account, the annual report past its heading,
+   the monthly review's "Changes to the plan". Three big items are open in the queue.
 2. **Purchase to payment.** Procurement calendar, purchase request, quotations, approval, goods
    received note, bill, payment, budget line. As the requester, `zahra`, `karim`, `yusuf`.
 3. **Just won to ready.** Project `GT-2027`: from the won proposal to a project that can record its
@@ -151,25 +166,24 @@ is used next. Then walk it as each role on a phone. The distribution chain is do
 ## Queue
 
 Big, open:
-1. **A donor's account is sent the photo of the signed goods received note and where each farmer
-   photo was taken.** Found in round 5 as `elena`. Her Home lists "Recent field photos" and opens a
-   farmer's page. The server (`loadField` in `src/server/field-store.ts`) hides the farmer's name and
-   sends every photo as stored: the signed note, which has the farmer's name and signature on it,
-   and each photo's place (`gps`). The distribution page gives the note to staff only.
-2. **The place of a farmer's photo also goes to staff who may not see participant names**
-   (`marcus`, `karim`, `rahima`, `yusuf`). Same cause as item 1. Read in the code in round 5, not
-   fixed: these people can be given the right to save a farmer, and a save from a page that never
-   held the place would wipe it. The fix has two halves: leave `gps` out in `loadField` for them and
-   put it back by photo id in `keepHidden`, with a test like `field-names-hidden.db.test.ts`.
-3. **A signed-off monthly review keeps no copy of its figures.** Found in round 5. The review for
+1. **The place of a farmer's photo goes to staff who may not see participant names** (`marcus`,
+   `karim`, `rahima`, `yusuf`). Read in the code in round 5 and seen by the request: `loadField` in
+   `src/server/field-store.ts` hides the farmer's name and sends every photo as stored, with its
+   `gps`. Round 5 closed this for a donor's account only. Staff can be given the right to save a
+   farmer, and a save from a page that never held the place would wipe it. The fix has two halves:
+   leave `gps` out in `loadField` for them and put it back by photo id in `keepHidden`, with a test
+   like `field-names-hidden.db.test.ts`. The farmer page says "place recorded" beside a photo by
+   reading `p.gps` (`src/components/field/profile.tsx`), so it needs another way to know. The demo's
+   photos hold no place. To get one, add a photo that holds a place on a farmer's page as `farida`
+   (`make-photos.py` makes them). A KoboCollect record's note does not go onto the farmer.
+2. **A signed-off monthly review keeps no copy of its figures.** Found in round 5. The review for
    October, opened on 25 November, shows 11 farmers trained: the year's figure as it stands today,
    under "to the end of 2026 Q4". One training was held by 31 October. Signing off stores the name
    and the time only (`readReview` in `src/server/monthly-review-store.ts`), so the signed October
    review will show December's figures in January. Keeping the figures at sign-off is the fix. It
-   changes what sign-off means: Needs Tucker AA.
-4. **Finish chain 1.** Still not walked: the donor's own account past Home and one farmer page
-   (her reports list and a released report), the annual report past its heading, and the monthly
-   review's "Changes to the plan".
+   changes what sign-off means: Needs Tucker AA. Not built.
+3. **Finish chain 1.** Not walked: the donor's reports list and a released report in her account
+   (`elena`), the annual report past its heading, the monthly review's "Changes to the plan".
 
 Medium, open:
 1. Dates still show as 2026-11-24 in some places. Use `longDate` or `periodLabel` from
@@ -179,7 +193,9 @@ Medium, open:
    "Last week's weekly update (2026-11-15 to 2026-11-19) is not marked sent" (`src/server/preflight.ts`;
    its words are in four languages in `src/lib/i18n/preflight*.ts`, so the dates go in as the words
    `{from}` and `{to}`), the monthly review ("to 2026-10") and the rows of the review queue on
-   Results ("2026-11-25 · 2026-Q4 · Village B").
+   Results ("2026-11-25 · 2026-Q4 · Village B"). Round 5 did the monthly review: "Signed off by
+   Marcus Bell on 25 November 2026", "to the end of October 2026", "Sign off the review for
+   November 2026". Its Month box is the browser's own.
 2. Some days are cut from a UTC timestamp and show tomorrow's date in the evening in Guatemala.
    Seen in round 3 on the weekly page: "today" is the server's UTC day (`weeklyView` in
    `src/server/weekly-store.ts`), so after six in the evening in Guatemala an item can be dated
@@ -202,23 +218,14 @@ Medium, open:
    whole project and one is this year. Neither says so.
 7. The report's narrative has headings "Activity 1.a: Activity 1.a" and "Activity IND: Activity
    IND" for targets that sit under no activity.
-8. A result sent back with a question is hard to find. Home's row "Fix 1 result MEL sent back with
-   a question" opens Results, which says "Nothing waiting for you" at the top. Lower down it says
-   "Of yours queried: answer them below 1" above five closed target cards. None is marked.
-9. The answer to MEL's question is hidden. When the recorder corrects a result, it comes back to
-   the MEL officer with a closed line "Corrected 1 time". The answer and the old figure are inside.
-10. The monthly review is signed off in one tap, with no question, even with the summary and
-    "Needs attention" empty. It cannot be changed after.
-11. The monthly review tells a person who can only read it nothing about who writes it or who
-    signs it off (`nadia`, the project manager, in the demo).
-12. The monthly review's dates: "Sign off the 2026-10 review", "Signed off by Marcus Bell on
-    2026-11-25", "to 2026-10". Part of medium 1.
-13. Home for the extension agent says "IND-5 (Change in net farm income) has a target but no result
-    recorded in the period". IND-5 is the app's own code. The donor's code or the name alone would do.
-14. The result form lists Afghan provinces (Kandahar, Helmand) for every project. The demo's
-    Village B has none to pick.
-15. A donor's Home asks the server for KoboToolbox settings and field forms and is refused three
+8. Home for the extension agent says "IND-5 (Change in net farm income) has a target but no result
+   recorded in the period". IND-5 is the app's own code. The donor's code or the name alone would do.
+9. The result form lists Afghan provinces (Kandahar, Helmand) for every project. The demo's
+   Village B has none to pick.
+10. A donor's Home asks the server for KoboToolbox settings and field forms and is refused three
     times (403). Nothing shows on the page. It is wasted work on a slow line.
+11. The monthly review opens on last month and its heading says "to the end of 2026 Q4". A person
+    reads this month's figures under last month's name. Goes with big item 2.
 
 Done: see `11-handoffs-review.md` and `10-field-ledger.md`. Round 1: training attendance is one record
 per session with its farmers ticked (was big item 1). Round 2: the app makes the readiness, training
@@ -228,6 +235,9 @@ place for people who may see participant names (was big item 1), Home is read ag
 comes back to it (was medium 3), Setup offers the distribution form beside the other three (was medium 4).
 Round 4: the donor's view counts kept documents and never names them (big, found in the walk), the two
 old addresses work, the quarterly report gives one blocking count and warns before an early release.
+Round 5: the donor evidence pack counts held proof and never names it (was big item 1), a donor's account
+is not sent the signed note's picture or a photo's place (big, found in the walk), a result sent back is
+pointed to and its answer shows for MEL, the monthly review asks before it locks.
 
 ## Needs Tucker
 
@@ -295,6 +305,25 @@ Decisions A to N are in `11-handoffs-review.md`. Rounds add theirs here, lettere
   by staff can hold a farmer's name, so the donor now reads "1 PDF document". This holds for links
   already sent. If a donor must be able to ask for one document by a reference, that reference
   would be a new thing. Say if you want it.
+
+- **AA. What a signed monthly review shows.** Today it shows the year's figures as they stand on
+  the day it is opened, whatever month it is for, and signing keeps no copy. The other choice:
+  signing keeps the figures of that day, and the page shows them for good, with the date. It is
+  not built, because it changes what your signature on a review means. Say which you want.
+- **AB. What a donor's account sees of a farmer.** A donor's account can open each farmer's page:
+  number, village, plot size, sex, age band, household size, satisfaction comments, staff names and
+  every photo. From round 5 it is not sent the signed goods received note's picture or where a
+  photo was taken. The other photos still go, with no check of the consent rule that a report's
+  photos must pass. Say if a donor's account should see farmer photos at all, or only those cleared
+  for donors.
+- **AC. A donor's Home shows results before any report is released.** With no report released,
+  `elena` reads "Farmers trained in land preparation 11 of 250". The reports page gives a donor
+  released figures only. Say if Home should do the same.
+- **AD. The donor evidence pack's "What was done" column.** It gives each result's note with names
+  taken out by a rule that reads English only and misses some names. The pack now gives no file
+  name and no link title. Say if the note should go to a donor at all.
+- **AE. An empty monthly review can be signed off.** The question now says what is not written.
+  It does not refuse. Say if an empty summary should block the sign-off (as Y asks for reports).
 
 ## Log
 
@@ -541,5 +570,75 @@ found and left, tests passing.
   "Approved by Nadia Rahimi" and the farmer's record moved to planting. Not done this round: the
   request sent straight to the server before the check, which rounds 1 and 3 saw refused.
   `10-field-ledger.md` not changed: no field was added, cut or prefilled.
-- **Round 5. 25 Nov 04:17. IN PROGRESS.** Queue, big item 1 (the donor evidence pack), then the
-  parts of chain 1 not walked.
+- **Round 5. 25 Nov 04:17 to 04:53. DONE.** Queue, big item 1 (the donor evidence pack), then more
+  of chain 1. Two big items fixed, three written into the queue, four medium items fixed. The chain
+  is not clear.
+  Walked on a phone-sized screen with fictional data: `omar` accepted the results. `farida`
+  recorded a result, `omar` sent it back with a question, `farida` corrected it and `omar` accepted
+  it. `nadia` read the monthly review and `marcus` signed it off. `marcus` downloaded the evidence
+  pack, the audit pack and the Word file. `elena`, the donor's own account, opened Home and a
+  farmer's page. The findings were written into the queue before the fixes that followed them.
+  Decisions made alone, to check: a donor's account is sent no picture of the signed goods
+  received note and no photo's place (Needs Tucker AB). An account outside Roots of Peace cannot
+  save field records, whatever its settings say. In the donor pack a photo is called "Photo 1.jpg"
+  and a held file is a count. The reason no file is attached has names taken out, as the note has (typecheck only: no
+  result in the demo has one).
+  The monthly sign-off asks first and does not refuse an empty review (Needs Tucker AE).
+  Fixed:
+  - *The donor evidence pack counts the proof that is held and never names it* (was big item 1).
+    Opened as `marcus`: index.csv gave each held document by the name staff typed, "Attendance
+    sheet: F-0001, 2026-10-31 (sample).pdf", and each link by its title. The server now sends the
+    donor pack "1 PDF document", "1 photo", "1 linked document" with the reason each is held. A
+    photo that may go to a donor goes in as "Photo 1.jpg" with its caption. A link's address and a
+    held photo's caption are no longer sent for the donor pack. The audit pack is as before.
+    Tests: `src/lib/__tests__/on-file.test.ts`, 4 tests added (`donorPackProof`).
+    `src/server/__tests__/evidence-pack.db.test.ts`, 2 tests: nothing in the donor pack's index
+    holds a kept file's name, a link's title or address, and the audit pack holds them all.
+    Run in the browser as `marcus` after adding two fictional photos and a link to one result:
+    the donor zip held one file, "proof/2026-11-15 ecadb333 Photo 1.jpg", and its index read "1 PDF
+    document", "1 photo", "1 linked document" with no name. The audit zip held all 23 proof files by name.
+  - *The Word file* was looked at the same way and needed no change. Downloaded as `marcus` and
+    searched inside: one cleared photo under its caption, no file name, no link title, no address.
+  - *A donor's account is not sent the signed note's picture or where a photo was taken* (big,
+    found in the walk). `elena` opened a farmer's page from her Home. The server hid the farmer's
+    name and sent every photo as stored, the signed goods received note among them. The note is
+    now listed with no picture and no photo carries its place, for any account outside Roots of
+    Peace. Test: `src/server/__tests__/donor-field.db.test.ts`, 2 tests. Seen by the request: for
+    `elena` 2 notes and 0 pictures, for `marcus` and `nadia` 2 pictures. A save sent as `elena` is
+    refused (403). In the browser her farmer page lists the note with a drawn placeholder.
+  - *A result sent back is pointed to* (medium). Home's row opened Results, which said "Nothing
+    waiting for you". It now says first "MEL sent 1 of your results back with a question. It does
+    not count until you answer." with a button, "Open 1.1.2.1 Farm visits completed", that opens the
+    card and goes to the result. Run in the browser as `farida`. No test: one note on one screen.
+  - *The answer to MEL's question shows* (medium). A corrected result came back to `omar` with a
+    closed line "Corrected 1 time". He now reads "MEL asked: Which two farmers were visited?
+    Answer: F-0003 and F-0004. The second sheet is added to the photo." and "The figure and the
+    date were not changed". Run in the browser as `omar`. When the figure was changed the line
+    gives the old one and the new one: that wording was not seen in the browser. No test.
+  - *The monthly review asks before it locks* (medium). One tap signed off an empty review for
+    good. The question now says "Sign off the review for November 2026? It cannot be changed after.
+    Nothing is written in the summary and the needs-attention note." Run in the browser as `marcus`.
+    Its dates are in words (part of medium 1), read in the browser. A person who can only read the
+    review is told who writes it and who signs it. That line was not seen in the browser: both
+    months in the local data were signed by then. It passed the typecheck only.
+  - *A donor's account is not offered "Add photo"* on a farmer's page. The server refused it
+    already. Not seen in the browser after the change: typecheck only.
+  Found and left:
+  - The place of a farmer's photo goes to staff who may not see participant names: big 1 in the
+    queue. Started to read, not built: it needs the save path changed too and did not fit.
+  - A signed monthly review keeps no copy of its figures: big 2, Needs Tucker AA.
+  - The rest of chain 1: big 3.
+  - Medium 8 to 11 in the queue. Needs Tucker AA to AE.
+  - Small, not queued: the result form's own date and the rows under a target still read
+    "2026-11-25 · 2026-Q4" (medium 1 lists them).
+  Checks: 1,181 tests pass (1,173 before), typecheck clean, lint clean, on the final code (only
+  this page and the tools changed after). The app started itself again at least once during the walk.
+  Distribution chain walked on the final code after the tests: a fictional KoboCollect record for
+  F-0007. For nadia the page said "Step 1 of 2: check the KoboCollect record" and neither Approve
+  nor Send back could be pressed. The request sent straight to the server was refused: "Not
+  approved yet: this record came from KoboCollect, and Rahima Stanikzai or Omar Sadiq checks
+  KoboCollect data on this project before it is approved." rahima pressed "I have checked this
+  record" and the page said "Checked." nadia approved, the page said "Approved by Nadia Rahimi"
+  and the farmer's record moved to planting.
+  Tools: `act.py` can fill in a form and `pack.py` reads a pack (see the notes above).
+  `10-field-ledger.md` not changed: no field was added, cut or prefilled.
