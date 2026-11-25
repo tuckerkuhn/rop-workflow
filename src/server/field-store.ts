@@ -241,16 +241,19 @@ function unmasked(sent: unknown, was: unknown, name: string, id: string): unknow
 
 /**
  * What a save by someone who may not see names must keep: the name in text they saw masked and
- * did not change, and the story links left out of their page (they could not remove what they
- * never saw).
+ * did not change, the story links left out of their page (they could not remove what they
+ * never saw) and where each photo was taken, which their page was never sent (withoutPlaces).
  */
 export async function keepHidden(code: string, user: AppUser, items: FieldItem[], stored: Map<string, FieldItem>): Promise<FieldItem[]> {
   if (canSeePII(user)) return items;
   const names = await namesOf((await projectByCode(code)).id);
-  return items.map((i) => {
-    const was = stored.get(i.id);
+  return items.map((sent) => {
+    if (sent.kind !== "farmer") return sent;
+    const was = stored.get(sent.id);
+    // The place of each photo comes from the record as stored, never from their page (withPlaces).
+    const i = withPlaces(sent, was?.kind === "farmer" ? was : undefined);
     const name = names.get(i.id);
-    if (i.kind !== "farmer" || was?.kind !== "farmer" || !name) return i;
+    if (was?.kind !== "farmer" || !name) return i;
     const back = unmasked(i, was, name, i.id) as Farmer;
     return {
       ...back,
@@ -264,6 +267,34 @@ export async function keepHidden(code: string, user: AppUser, items: FieldItem[]
 }
 
 /**
+ * A farmer's photos for someone who may not see participant names: where a photo was taken is
+ * left out, since a plot's place shows where a named person lives. `hasPlace` says one is kept.
+ */
+function withoutPlaces(f: Farmer): Farmer {
+  return { ...f, photos: (f.photos ?? []).map(({ gps, ...rest }) => (gps ? { ...rest, hasPlace: true } : rest)) };
+}
+
+/**
+ * The photos sent back by someone whose page never held a photo's place (withoutPlaces), with
+ * each place put back from the record as stored. A photo they took off is gone and one they
+ * added keeps the place it came with. A place sent for a photo already stored is not taken:
+ * they were never shown it, so they cannot have corrected it.
+ */
+function withPlaces(sent: Farmer, was: Farmer | undefined): Farmer {
+  const kept = new Map((was?.photos ?? []).map((p) => [p.id, p]));
+  return {
+    ...sent,
+    photos: (sent.photos ?? []).map((p) => {
+      const old = kept.get(p.id);
+      if (!old) return p;
+      const { gps: _gps, ...rest } = p;
+      void _gps;
+      return old.gps ? { ...rest, gps: old.gps } : rest;
+    }),
+  };
+}
+
+/**
  * A farmer's record for someone outside Roots of Peace (a donor's account). The signed goods
  * received note has the farmer's name and signature on it, so its picture is not sent: the entry
  * stays, to show that a note is on file. No photo carries where it was taken. An account like
@@ -273,8 +304,9 @@ function forOutside(f: Farmer): Farmer {
   return {
     ...f,
     photos: f.photos.map((p) => {
-      const { gps: _gps, src, ...rest } = p;
+      const { gps: _gps, hasPlace: _hasPlace, src, ...rest } = p;
       void _gps;
+      void _hasPlace;
       return p.signedNote || src === undefined ? rest : { ...rest, src };
     }),
   };
@@ -282,8 +314,9 @@ function forOutside(f: Farmer): Farmer {
 
 /**
  * The project's field records. With `user`, names are added only for people allowed to see them,
- * and for anyone else the name is hidden in free text and in story links (withoutName). Without `user`,
- * the records as stored (no names), for the server's own use.
+ * and for anyone else the name is hidden in free text and in story links (withoutName) and no photo
+ * carries where it was taken (withoutPlaces). Without `user`, the records as stored (no names), for
+ * the server's own use.
  */
 export async function loadField(code: string, user?: AppUser) {
   const project = await projectByCode(code);
@@ -299,16 +332,25 @@ export async function loadField(code: string, user?: AppUser) {
   const outside = !!user && user.kind !== "employee";
   const items = rows
     .map((r) => ({ ...(r.data as FieldItem), rev: r.updatedAt.toISOString() }) as FieldItem)
-    .map((i): FieldItem => (i.kind === "farmer" ? (hiddenFrom ? withoutName({ ...i, name: "" }, hiddenFrom.get(i.id) ?? "") : { ...i, name: names.get(i.id) ?? "" }) : i))
+    .map((i): FieldItem => (i.kind === "farmer" ? (hiddenFrom ? withoutPlaces(withoutName({ ...i, name: "" }, hiddenFrom.get(i.id) ?? "")) : { ...i, name: names.get(i.id) ?? "" }) : i))
     .map((i): FieldItem => (outside && i.kind === "farmer" ? forOutside(i) : i))
     .sort((a, b) => a.id.localeCompare(b.id));
   return { items, stock: (stock as Stock | null) ?? null, setup };
 }
 
-/** What is stored for an item: no name (farmer_pii holds it) and no version stamp. */
+/** What is stored for an item: no name (farmer_pii holds it), no version stamp and no `hasPlace` mark, which is made for a reader (withoutPlaces). */
 const storable = (raw: FieldItem): FieldItem => {
   const { rev: _rev, ...item } = stripPII(raw);
   void _rev;
+  if (item.kind === "farmer" && item.photos?.some((p) => "hasPlace" in p))
+    return {
+      ...item,
+      photos: item.photos.map((p) => {
+        const { hasPlace: _mark, ...rest } = p;
+        void _mark;
+        return rest;
+      }),
+    } as FieldItem;
   return item as FieldItem;
 };
 

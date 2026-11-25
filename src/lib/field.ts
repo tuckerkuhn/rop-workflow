@@ -49,6 +49,8 @@ export type Photo = {
   taken?: { date: string; time: string | null };
   /** Where the photo itself says it was taken. Shown only to people who may see participant names. */
   gps?: { lat: number; lon: number };
+  /** Set by the server in place of `gps` for someone who may not see participant names: a place is kept and they are not sent it. Never stored. */
+  hasPlace?: boolean;
   /** Who added it (person id and name), when it was added through the app. */
   by?: string;
   byName?: string;
