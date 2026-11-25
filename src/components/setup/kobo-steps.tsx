@@ -127,29 +127,39 @@ export function KoboConnect({ code, onDone, onSkip }: { code: string; onDone: ()
   );
 }
 
-const FORM_BUTTON: Record<FieldFormKind, string> = { readiness: "Readiness check form", training: "Training attendance form", visit: "Farm visit form" };
+/** Every form the app makes for a project. The distribution form is made from the input package saved in Field activities. */
+type MadeForm = FieldFormKind | "distribution";
+const MADE_FORMS: MadeForm[] = [...FIELD_FORM_KINDS, "distribution"];
+const FORM_BUTTON: Record<MadeForm, string> = { readiness: "Readiness check form", training: "Training attendance form", visit: "Farm visit form", distribution: "Input distribution form" };
 
 /**
  * A project with no form in KoboToolbox for a step is stuck here: there is nothing to tick. The app
- * makes the readiness, training and farm visit forms for the project (lib/field-forms); the person
- * uploads the file in KoboToolbox and comes back.
+ * makes the readiness, training, farm visit and input distribution forms for the project
+ * (lib/field-forms, lib/distribution-form); the person uploads the file in KoboToolbox and comes
+ * back. All four are here, so a person setting up has one place to go.
  */
 function FormDownloads({ code, onReload }: { code: string; onReload: () => Promise<void> }) {
   const { tx } = useT();
   const { user } = useSession();
-  const [busy, setBusy] = useState<FieldFormKind | null>(null);
-  const [got, setGot] = useState<FieldFormKind | null>(null);
+  const [busy, setBusy] = useState<MadeForm | null>(null);
+  const [got, setGot] = useState<MadeForm | null>(null);
   const [error, setError] = useState("");
+  // The distribution form could not be made: the input package it is made from is not ready.
+  const [needsPackage, setNeedsPackage] = useState(false);
   const [reloading, setReloading] = useState(false);
-  const download = (kind: FieldFormKind) => {
+  const download = (kind: MadeForm) => {
     setBusy(kind);
     setError("");
+    setNeedsPackage(false);
     void fetch(`/api/projects/${encodeURIComponent(code)}/field/form?kind=${kind}`, { headers: { "x-demo-user": user?.id ?? "" } })
       .then(async (res) => {
-        if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? plainError(res.status));
+        if (!res.ok) {
+          if (kind === "distribution" && res.status === 409) setNeedsPackage(true);
+          throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? plainError(res.status));
+        }
         const a = document.createElement("a");
         a.href = URL.createObjectURL(await res.blob());
-        a.download = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "")?.[1] ?? `${code}-${FIELD_FORM_NAME[kind].file}-form.xlsx`;
+        a.download = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "")?.[1] ?? `${code}-${kind === "distribution" ? "input-distribution" : FIELD_FORM_NAME[kind].file}-form.xlsx`;
         a.click();
         URL.revokeObjectURL(a.href);
         setGot(kind);
@@ -162,13 +172,22 @@ function FormDownloads({ code, onReload }: { code: string; onReload: () => Promi
       <h3 className="font-semibold">{tx("No form yet for a step?")}</h3>
       <p className="mt-1 text-sm text-muted">{tx("Download the form made for this project and upload it in KoboToolbox. Each one asks only what the app reads. The place and the date come from the phone.")}</p>
       <div className="mt-3 flex flex-wrap gap-2">
-        {FIELD_FORM_KINDS.map((kind) => (
+        {MADE_FORMS.map((kind) => (
           <button key={kind} type="button" className={quietBtn} disabled={!!busy} onClick={() => download(kind)}>
             {busy === kind ? tx("Making the form…") : tx(FORM_BUTTON[kind])}
           </button>
         ))}
       </div>
       <Alert text={error} />
+      {needsPackage && (
+        <p className="mt-2 text-sm">
+          <Link href="/work?source=field" className="font-semibold text-forest underline">
+            {tx("Open Field activities")}
+          </Link>
+          {". "}
+          {tx("Press Input package there, save what each farmer receives, then come back and press this button again.")}
+        </p>
+      )}
       {got && (
         <div role="status" className="mt-3 text-sm">
           <p className="font-medium">{tx("The file is in your downloads. What to do next:")}</p>
@@ -193,7 +212,7 @@ function FormDownloads({ code, onReload }: { code: string; onReload: () => Promi
           </button>
         </div>
       )}
-      <p className="mt-3 text-sm text-muted">{tx("The input distribution form is made from the input package. Download it in Field activities, under Input package, once the package is saved.")}</p>
+      <p className="mt-3 text-sm text-muted">{tx("The input distribution form is made from the input package saved in Field activities. Change the package and the form changes: download it again and replace it in KoboToolbox.")}</p>
     </div>
   );
 }
