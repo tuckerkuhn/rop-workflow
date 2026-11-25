@@ -6,12 +6,13 @@ import { useCloseouts, usePlan, useProcurements } from "@/components/app/use-pro
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { stageOf } from "@/components/field/workspace";
-import { useFieldData, useProgress, useSubmissions } from "@/components/app/use-project-data";
+import { useFieldData, useSubmissions } from "@/components/app/use-project-data";
 import { useProjectStage } from "@/components/app/project-stage";
 import { PROJECT_KEY } from "@/lib/project";
 import { useCurrentProject } from "@/components/app/current-project";
 import { DonorReportsCard } from "@/components/donor/home-card";
 import { useT } from "@/components/app/i18n";
+import { quarterLabel, useDonorReport, useDonorView } from "@/components/donor/use-donor-view";
 import { Initials, useRequireUser, useSession } from "@/components/app/session";
 import { HomePanels } from "@/components/home/panels";
 import { RoleHome } from "@/components/home/role-home";
@@ -186,41 +187,54 @@ function EmployeeHome({ u, data, viewer, readOnly, onView }: { u: AppUser; data:
 }
 
 /**
- * For a donor on a database project: the project's own targets, counted the way every other
- * screen counts them (accepted results only), before anything about the season. The first four,
- * impact first; the rest are a tap away on Progress. Figures only: whether a target is on track is
- * judged from the workplan on staff screens, and a second judgment here could contradict it.
+ * For a donor on a database project: the project's own targets, as the latest released report
+ * gave them (decision AC, 25 Nov 2026). A donor's Home shows released figures only, as the
+ * reports page does: before any report is released it shows none and says so. The first four
+ * rows of the report; the report itself is a tap away. Figures only: whether a target is on
+ * track is judged from the workplan on staff screens, and a second judgment here could
+ * contradict it.
  */
 function DonorTargets({ code }: { code: string }) {
-  const { t } = useT();
-  const { data } = useProgress(code);
-  const list = [...(data?.indicators ?? [])].sort((a, b) => Number(a.level === "output") - Number(b.level === "output")).slice(0, 4);
-  if (!data?.saved || !list.length) return null;
+  const { tx, date } = useT();
+  const { data: view } = useDonorView(code);
+  const latest = view?.reports[0];
+  const { data: rep } = useDonorReport(latest ? code : null, latest?.quarter ?? "");
+  if (!view) return null;
+  const rows = (rep?.report.rows ?? []).slice(0, 4);
   return (
     <section className="rounded-2xl border border-line bg-surface p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <SectionLabel>Results against targets</SectionLabel>
-        <Link href="/progress" className="btn-link">
-          Every target and its proof →
-        </Link>
+        {latest && (
+          <Link href={`/progress/released/${latest.quarter}`} className="btn-link">
+            {tx("Every figure and its proof")} →
+          </Link>
+        )}
       </div>
-      <ul className="mt-3 grid gap-x-6 gap-y-4 sm:grid-cols-2">
-        {list.map((i) => {
-          const pct = i.total === null || !i.target ? 0 : Math.min(100, Math.round((i.total / i.target) * 100));
-          return (
-            <li key={i.code}>
-              <p className="text-sm font-medium leading-snug">{i.name}</p>
-              <p className="mt-1 flex items-baseline gap-2">
-                <span className="font-display text-3xl tabular-nums">{i.total ?? "—"}</span>
-                <span className="text-sm text-muted">{t("progress.ofTarget", { target: i.target, unit: i.unit })}</span>
-              </p>
-              <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-sunken" role="img" aria-label={`${pct}% of the target`}>
-                <div className={`h-full rounded-full ${pct >= 100 ? "bg-leaf" : "bg-forest"}`} style={{ width: `${pct}%` }} />
-              </div>
-            </li>
-          );
-        })}
-      </ul>
+      {!latest ? (
+        <p className="mt-3 text-sm text-muted">{tx("No report is released yet, so there are no figures to show. They appear here once Roots of Peace releases a report, as that report gives them.")}</p>
+      ) : (
+        <>
+          <p className="mt-1 text-sm text-muted">{tx("As the {quarter} report gave them, released {date}. Results recorded since then are in the next report.", { quarter: quarterLabel(latest.quarter), date: date(latest.releasedAt.slice(0, 10), { day: "numeric", month: "long", year: "numeric" }) })}</p>
+          <ul className="mt-3 grid gap-x-6 gap-y-4 sm:grid-cols-2">
+            {rows.map((r) => {
+              const pct = r.note?.year || !r.yearTarget ? 0 : Math.min(100, Math.round((r.year / r.yearTarget) * 100));
+              return (
+                <li key={r.code}>
+                  <p className="text-sm font-medium leading-snug">{r.name}</p>
+                  <p className="mt-1 flex items-baseline gap-2">
+                    <span className="font-display text-3xl tabular-nums">{r.note?.year ? "—" : r.year}</span>
+                    <span className="text-sm text-muted">{r.note?.year ? r.note.year : tx("of {target} {unit} this year", { target: r.yearTarget, unit: r.unit })}</span>
+                  </p>
+                  <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-sunken" role="img" aria-label={`${pct}% of the year's target`}>
+                    <div className={`h-full rounded-full ${pct >= 100 ? "bg-leaf" : "bg-forest"}`} style={{ width: `${pct}%` }} />
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
     </section>
   );
 }
