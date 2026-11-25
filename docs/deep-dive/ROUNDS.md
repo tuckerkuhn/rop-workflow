@@ -30,9 +30,7 @@ Not walked yet: most of chain 2 and all of chains 3 to 6. More big items may be 
 **Decisions.** Recommended choice first. Letters match "Needs Tucker" below.
 - AA. Decided by Tucker 25 Nov: keeps that day's figures. Built.
 - AI. Decided by Tucker 25 Nov: Finance posts a filled-in entry with one click. Bills first. Not built yet.
-- X. Refuse a report's release before its period ends. Or keep the warning.
-- AB. A donor's account sees only photos cleared for donors. Or all, as now.
-- 20 smaller ones, O to AL, are under "Needs Tucker".
+- X, AB and O to AL. Decided 25 Nov: see "Decided". To build: X (Draft watermark), P, U, V, Y, AB, AC, AD, AE, AF, AH.
 
 **Tests.** 1,215 pass, up from 1,138. Typecheck and lint are clean.
 
@@ -495,6 +493,38 @@ Decisions A to N are in `11-handoffs-review.md`. Rounds add theirs here, lettere
   signed review. Say if you want it.
 
 ### Decided
+
+Decided 25 Nov. X by Tucker; AB by the privacy rule (names and anything that can identify a farmer
+only to people who need them, none to donors); the rest on the recommendation, which Tucker accepted.
+"Build" means a round builds it; "keep" means nothing changes.
+
+- **X. Build.** A report may still be released before its period ends, after the warning. Until its
+  period has ended it carries a "Draft" watermark (page, Word file and donor link), so nobody takes
+  it for the final report. Nothing is refused.
+- **AB. Build.** A donor's account sees only the farmer photos cleared for donors by the same consent
+  rule a report's photos pass. Other photos are not sent.
+- **O. Keep.** English only until a native speaker words Dari and Pashto (translation is last).
+- **P. Build.** Record everyone else on the session; the held farmer stays open on the record for MEL
+  with the same message, to select or leave out. One farmer no longer holds up the others.
+- **Q. Keep.** Tucker replaces the training form in KoboToolbox if a real project uses the old one.
+- **R. Keep.** Projects needing Dari or Pashto on the phone use the `kobo/` files until the wording is reviewed.
+- **S. Keep.** The plot photo stays required on the readiness form.
+- **T. Keep.** The same three training sessions for v1.0. A setting only when a project needs others.
+- **U. Build.** The weekly page offers the same one button as the farmer page: use the place of the device in hand.
+- **V. Build.** The Director of MEL sees where a weekly photo was taken: she vouches for field data.
+- **W. Keep.** Nothing can bring back places for photos added before round 3.
+- **Y. Build.** An empty Executive Summary blocks a report's release. Other empty sections still only warn.
+- **Z. Keep.** A donor reads "1 PDF document". A reference only if a donor asks for one.
+- **AC. Build.** A donor's Home shows released figures only, as the reports page does.
+- **AD. Build.** The donor evidence pack gives no free-text note. Counts and dates only.
+- **AE. Build.** An empty summary blocks a monthly review's sign-off, as Y does for reports.
+- **AF. Build.** A donor's annual report gives the lines their grant pays (USD 193,200 in the demo),
+  with the whole agreement (USD 346,200, cost share and overhead) as one line of context under it.
+- **AG. Keep.** A report under way says what Progress says; a report released early keeps that day's words.
+- **AH. Build.** Staff who may not see names are told nothing about a photo's place either.
+- **AJ. Keep.** A bill recorded on a project's page starts as that project, with its budget line.
+- **AK. Keep.** A bill sent back keeps its number; the corrected bill gets a new one.
+- **AL. Keep.** A review signed before 25 November shows today's figures with the note; no second signature.
 
 - **AI. A paid purchase or a filed bill and the books.** Decided by Tucker 25 Nov, all six points:
   1. Finance gets an entry filled in from the bill or purchase and posts it with one click after
