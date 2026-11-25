@@ -283,10 +283,13 @@ function BillRow({ b, v, act, n, first, onRedo }: { b: Item; v: BillsView; act: 
 function AddBill({ v, from, onClose, add }: { v: BillsView; from?: Item; onClose: () => void; add: (a: BillAction) => Promise<void> }) {
   const { user } = useSession();
   const { tx } = useT();
+  // A bill recorded on a project's page starts as that project's: its budget line is then asked for.
+  // A general and admin bill is one choice away.
+  const { project } = useCurrentProject();
   const [f, setF] = useState(
     from
       ? { payee: from.payee, invoiceNumber: from.invoiceNumber, invoiceDate: from.invoiceDate, description: from.description, category: from.category, amount: String(from.amount), currency: from.currency, source: from.source, budgetLine: from.budgetLine ?? "", contractRef: from.contractRef ?? "" }
-      : { payee: "", invoiceNumber: "", invoiceDate: new Date().toISOString().slice(0, 10), description: "", category: "rent" as BillCategory, amount: "", currency: "AFN" as "USD" | "AFN", source: v.sources[0]?.id ?? "non-contract", budgetLine: "", contractRef: "" },
+      : { payee: "", invoiceNumber: "", invoiceDate: new Date().toISOString().slice(0, 10), description: "", category: "rent" as BillCategory, amount: "", currency: "AFN" as "USD" | "AFN", source: v.sources.find((x) => x.id === project.id)?.id ?? v.sources[0]?.id ?? "non-contract", budgetLine: "", contractRef: "" },
   );
   const [file, setFile] = useState<Receipt | null>(from?.file ?? null);
   // The button that opens this form sits in the list below it: bring the form to the person.
@@ -297,7 +300,10 @@ function AddBill({ v, from, onClose, add }: { v: BillsView; from?: Item; onClose
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const set = (patch: Partial<typeof f>) => setF((x) => ({ ...x, ...patch }));
-  const ok = file && f.payee.trim().length >= 2 && f.invoiceNumber.trim() && f.description.trim().length >= 3 && Number(f.amount) > 0;
+  const needsLine = (v.lines[f.source] ?? []).length > 0 && !f.budgetLine;
+  // What still stops Record, said under the button so nobody has to guess.
+  const missing = [!file && "the bill's photo or PDF", f.payee.trim().length < 2 && "who it is paid to", !f.invoiceNumber.trim() && "the invoice number", f.description.trim().length < 3 && "what it is for", !(Number(f.amount) > 0) && "the amount", needsLine && "the budget line"].filter((x): x is string => !!x);
+  const ok = !missing.length;
   return (
     <section ref={top} className="scroll-mt-32">
       <SectionHead>{from ? tx("Correct {id} and record it again", { id: from.id }) : "Record a bill"}</SectionHead>
@@ -422,6 +428,7 @@ function AddBill({ v, from, onClose, add }: { v: BillsView; from?: Item; onClose
             Cancel
           </button>
         </div>
+        {missing.length > 0 && <p className="mt-2 text-sm text-muted">{tx("Still needed: {list}.", { list: missing.join(", ") })}</p>}
       </Sheet>
     </section>
   );
