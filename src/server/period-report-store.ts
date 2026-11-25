@@ -108,6 +108,8 @@ export async function periodReport(code: string, p: Period) {
     rows: table,
     narrative,
     quarters: reports.map(([q, r]) => ({ quarter: q, released: !!r!.released })),
+    // Quarters of the period the project ran in that have started and have no saved report: their text is not in the narrative.
+    missing: quarters.filter((q) => !saved[`qpr:${q}`] && (!project.startDate || quarterRange(q).to >= project.startDate) && (!project.endDate || quarterRange(q).from <= project.endDate)),
     lessons,
     spend,
     photos,

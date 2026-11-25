@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { longDate } from "@/lib/weekly";
+import { quarterRange } from "@/lib/results";
 import { askConfirm } from "@/components/app/dialogs";
 import { useT } from "@/components/app/i18n";
 import { askForChecks, beforeDownload, PreflightButton, usePreflightState } from "@/components/progress/preflight-page";
@@ -285,7 +286,9 @@ export function PeriodReportPage() {
             <section className="mt-10">
               <SectionHead className="mt-0">Narrative from the quarters</SectionHead>
               <p className="mt-1 text-sm text-muted">
-                What each quarterly report said, by section, to condense into the {annual ? "annual" : "final"} story. Quarters without a saved report: {v.quarters.length ? "none missing" : "all"}.
+                What each quarterly report said, by section, to condense into the {annual ? "annual" : "final"} story.
+                {/* Only quarters the project ran in can lack a report. A copy released before this was counted has no list. */}
+                {(v.missing ?? []).length > 0 && ` No quarterly report is saved yet for ${(v.missing ?? []).map(quarterWords).join("; ")}.`}
               </p>
               {v.narrative.length === 0 && <Empty>No quarterly report text saved for the period.</Empty>}
               {v.narrative.length > 0 && (
@@ -396,6 +399,13 @@ function indicatorCells(r: Row, v: PeriodReportView, project: string, user: stri
     verdict: <StatusBlock tone={VERDICT[r.verdict].tone}>{VERDICT[r.verdict].text}</StatusBlock>,
   };
 }
+
+/** "2026-Q4" as "October to December 2026". */
+const quarterWords = (q: string) => {
+  const month = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-GB", { month: "long", timeZone: "UTC" });
+  const r = quarterRange(q);
+  return `${month(r.from)} to ${month(r.to)} ${q.slice(0, 4)}`;
+};
 
 /** The small mono label over each figure when a row is shown as a stacked block on a phone. */
 const label = "font-mono text-xs text-muted";
