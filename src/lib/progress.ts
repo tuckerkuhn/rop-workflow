@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { mainObligation, nextPeriod, type ObligationInput } from "@/lib/obligations";
 import { addDays } from "@/lib/work-items";
 
 /**
@@ -106,6 +107,8 @@ export type DonorInfo = {
   reportFormat: string;
   indicatorRefs: Record<string, string>;
   deadlines: Deadline[];
+  /** Its reporting obligations from the agreement (lib/obligations); left out when none are saved. */
+  obligations?: ObligationInput[];
 };
 
 /** Values for one report: the period it covers (see `reportPeriod`) and each indicator's count in it. */
@@ -146,10 +149,19 @@ export const missingData = (i: IndicatorProgress) => i.frequency !== "end_of_sea
 export const BUILT_IN_SOURCES = ["training", "readiness", "distribution", "visit", "survey"];
 
 /**
- * The period a donor report covers: from the day after the donor's last deadline (or the
- * project start) to its next deadline. Without deadlines, the calendar quarter under way.
+ * The period a donor report covers. With the donor's obligations from the agreement: the period of
+ * its main report due next, on the agreement's own months (a project whose agreement runs October
+ * to September reports October to December, then January to March), due that many days after.
+ * Otherwise from the day after the donor's last deadline (or the project start) to its next
+ * deadline; without deadlines, the calendar quarter under way.
  */
-export function reportPeriod(donor: DonorInfo | null, today: string, projectStart: string | null): Period & { deadline: Deadline | null } {
+export function reportPeriod(donor: DonorInfo | null, today: string, projectStart: string | null, projectEnd: string | null = null): Period & { deadline: Deadline | null } {
+  const main = mainObligation(donor?.obligations ?? []);
+  const p = main ? nextPeriod(main, today, projectStart, projectEnd) : null;
+  if (main && p) {
+    const deadline = p.due ? (donor!.deadlines.find((d) => d.date === p.due) ?? { id: "", title: `${main.name} (period to ${p.to})`, date: p.due }) : null;
+    return { from: p.from, to: p.to, deadline };
+  }
   const dates = [...(donor?.deadlines ?? [])].sort((a, b) => a.date.localeCompare(b.date));
   const next = dates.find((d) => d.date >= today) ?? null;
   const last = [...dates].reverse().find((d) => d.date < today);

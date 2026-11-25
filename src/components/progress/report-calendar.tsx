@@ -40,7 +40,27 @@ export function useReportCalendar() {
   return rows;
 }
 
-const reportName = (r: CalendarRow) => (r.kind === "qpr" ? `Quarterly report, ${r.period.replace("-Q", " Q")}` : `Annual report, ${r.period}`);
+const short = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+/** A report from the agreement's obligations is named as the agreement names it, with its own period and its donor. */
+const reportName = (r: CalendarRow) =>
+  r.name && r.from ? `${r.name}${r.donor ? ` (${r.donor})` : ""}, ${short(r.from)} to ${short(r.end)}` : r.kind === "qpr" ? `Quarterly report, ${r.period.replace("-Q", " Q")}` : `Annual report, ${r.period}`;
+
+/** The format the donor asks for, with the template's link when there is one. */
+export function FormatLine({ format, className = "" }: { format: { text: string; href: string | null }; className?: string }) {
+  return (
+    <p className={`font-ledger text-sm ${className}`}>
+      <span className="text-muted">{format.text}</span>
+      {format.href && (
+        <>
+          {" "}
+          <a href={format.href} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center font-semibold text-forest underline">
+            Open the template
+          </a>
+        </>
+      )}
+    </p>
+  );
+}
 
 /** One line under the Progress headline: the report owed soonest, its date, and the way to it. */
 export function NextReportLine({ rows }: { rows: CalendarRow[] | null }) {
@@ -74,7 +94,7 @@ export function ReportCalendar({ rows }: { rows: CalendarRow[] | null }) {
       </p>
       <ol className="mt-2 border-t-2 border-ink">
         {rows.map((r, k) => (
-          <li key={`${r.kind}-${r.period}`} className={`border-b border-line ${k === 0 && !r.released ? "bg-ochre-soft" : ""}`}>
+          <li key={`${r.kind}-${r.period}-${r.name ?? ""}-${r.donor ?? ""}-${r.end}`} className={`border-b border-line ${k === 0 && !r.released ? "bg-ochre-soft" : ""}`}>
             <Link href={r.href} className="group flex min-h-12 flex-wrap items-center gap-x-4 gap-y-1 px-2 py-2 hover:bg-ochre-soft focus-visible:bg-ochre-soft">
               <span aria-hidden className="w-6 shrink-0 font-mono text-xs text-muted">
                 {String(k + 1).padStart(2, "0")}
@@ -86,6 +106,7 @@ export function ReportCalendar({ rows }: { rows: CalendarRow[] | null }) {
                 →
               </span>
             </Link>
+            {r.format && <FormatLine format={r.format} className="pb-2 pe-2 ps-12" />}
           </li>
         ))}
       </ol>

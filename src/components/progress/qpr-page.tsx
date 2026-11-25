@@ -22,6 +22,7 @@ import { ReportDownloads } from "@/components/progress/downloads";
 import { SpendImport } from "@/components/progress/spend-import";
 import { askForChecks, beforeDownload, itemText, OPEN_CHECKS, PreflightButton, usePreflightState } from "@/components/progress/preflight-page";
 import { ReportChecks, ReportKinds } from "@/components/progress/report-checks";
+import { FormatAskedFor } from "@/components/progress/format-asked-for";
 import { MoneySourceLink, ProofNumber } from "@/components/progress/proof-panel";
 import { useT } from "@/components/app/i18n";
 import { personName } from "@/lib/project";
@@ -236,6 +237,7 @@ export function QprPage() {
             </span>
           </PageHead>
         </div>
+        <FormatAskedFor frequencies={["quarterly"]} />
         <ReportChecks p={pf} />
         {pfFailed && v && !v.frozen && !v.saved.released && <OwnChecks checks={v.checks} quarter={quarter} />}
         <p className="mt-3 bg-sunken px-4 py-3 text-sm font-semibold">

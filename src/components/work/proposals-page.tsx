@@ -32,6 +32,8 @@ import {
   type Status,
 } from "@/lib/funding-proposals";
 import { ROLE_LABEL } from "@/lib/hr";
+import { SectionHead, Sheet } from "@/components/workspace/ledger";
+import { offersSetUp } from "@/lib/project-origin";
 import type { ProposalsView } from "@/server/funding-proposals-store";
 
 /**
@@ -820,6 +822,28 @@ function Detail({ p, v, me, act, busy }: { p: P; v: ProposalsView; me: string; a
           )}
           {p.confirmation && <p className="mt-2 text-sm">Confirmation of receipt: {p.confirmation}</p>}
         </section>
+      )}
+
+      {/* Won: the proposal becomes the project, so nothing is typed twice (server/project-origin). */}
+      {p.outcome === "won" && (p.projectCode || offersSetUp(p, v.can.setUp)) && (
+        <Sheet className="text-sm">
+          <SectionHead className="mt-0">The project</SectionHead>
+          {p.projectCode ? (
+            <p className="mt-2">
+              Set up as{" "}
+              <Link href={`/settings?project=${encodeURIComponent(p.projectCode)}`} className="font-mono font-semibold text-forest hover:underline">
+                {p.projectCode}
+              </Link>
+            </p>
+          ) : (
+            <>
+              <p className="mt-2 text-muted">Setup opens with the name, donor, currency, ceiling and start date from this proposal. You check each step; nothing is created until you save it.</p>
+              <Link href={`/setup?new=1&proposal=${encodeURIComponent(p.id)}`} className={`${primaryBtn} mt-3 inline-block`}>
+                Set up the project from this proposal
+              </Link>
+            </>
+          )}
+        </Sheet>
       )}
 
       <details className="rounded-2xl border border-line bg-surface">

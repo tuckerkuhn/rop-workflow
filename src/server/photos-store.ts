@@ -17,6 +17,7 @@ import { donorNameOf, projectByCode } from "@/server/field-store";
 import { aiAllowed } from "@/server/limits";
 import { coachPhoto, isDocumentName } from "@/server/photo-coach";
 import { loadProjectState, updateProjectState } from "@/server/project-state";
+import { winThemesContext } from "@/server/project-origin";
 import { loadResults, loadUpdates } from "@/server/results-store";
 
 /** Photos and posts, in project_state ("photos"); see lib/photos. Every sharing decision is in the audit trail. */
@@ -222,6 +223,8 @@ export async function postFacts(code: string, st: PhotosState, audience: Audienc
       return story && story.status === "approved" && story.consent?.uses.includes(use) ? { story: story.text.slice(0, 1500), firstName: story.firstName ?? null, province: story.province } : { story: "(consent does not cover this use: do not use the story or a name)" };
     }),
     ...(ask ? { request: ask } : {}),
+    // The won proposal's win themes: context for emphasis, never a claim of results (server/project-origin).
+    ...(await winThemesContext(code)),
   };
 }
 
@@ -233,6 +236,7 @@ export async function draftPost(code: string, st: PhotosState, audience: Audienc
     "People: present farmers and agribusinesses as economic actors who invest and decide, never as recipients. Use a first name only where the facts give one with a story; otherwise 'a farmer', 'growers' and so on. Places: name the province only, never a village or district.",
     "Credit the donor by name only for the Donor audience and where the facts name one. Write for the channel as described.",
     "Project totals are results accepted by MEL to date, each against its life-of-project target. Never add totals of different indicators together: the same person can be counted under more than one.",
+    "win_themes_context, when given, is what the proposal told the donor: use it only to choose emphasis, never as a claim of what the project has achieved.",
     ROP_VOICE,
   ].join(" ");
   const { out, model } = await draftStructured({ job: "postDraft", by, projectId: p.id, system, task: `Draft one ${AUDIENCE_TEXT[audience]} piece. ${CHANNEL[audience]}`, facts: scrubbed(facts, ["caption", "note", "request", "result", "update"], { firstNames: true }), schema: postSchema, effort: "low", maxTokens: 6000 });

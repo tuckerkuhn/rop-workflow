@@ -4,6 +4,10 @@ import { db, schema as s } from "@/db";
 import { THEMES, type ImpactTheme } from "@/lib/indicator-library";
 import type { IndicatorInput, ProjectDesign, ProjectKind, ProjectSummary } from "@/lib/project-setup";
 import { CROP_PLAN_KEY, type CropPlan } from "@/lib/crops";
+import { EMPTY_FRAMEWORK, FRAMEWORK_KEY, type Framework } from "@/lib/framework";
+import { isMeasure, MEASURES_KEY, type MeasuresDoc } from "@/lib/measure";
+import { frameworkFromIndicators, INDICATOR_DOCS_KEY, type IndicatorDocs } from "@/lib/setup-design";
+import { loadMeasures } from "@/server/measures";
 import { loadProjectState, saveProjectState } from "@/server/project-state";
 
 /** Projects and their design (goal, dates, indicators) in Postgres, written by project setup. */
@@ -39,10 +43,35 @@ export async function projectDesign(code: string) {
   if (!p) return null;
   const inds = await db.select().from(s.indicators).where(eq(s.indicators.projectId, p.id)).orderBy(asc(s.indicators.position));
   const cropPlan = await loadProjectState<CropPlan | null>(p.id, CROP_PLAN_KEY, null);
+  const [measures, docs] = await Promise.all([loadMeasures(p.id), loadProjectState<IndicatorDocs>(p.id, INDICATOR_DOCS_KEY, {})]);
   return {
     ...summary(p),
     ...(cropPlan ? { cropPlan } : {}),
-    indicators: inds.map((i) => ({ code: i.code, ...(i.donorCode ? { donorCode: i.donorCode } : {}), name: i.name, unit: i.unit, target: Number(i.target), level: i.level, frequency: i.frequency, forecast: i.forecast, theme: (THEMES as readonly string[]).includes(i.theme ?? "") ? (i.theme as ImpactTheme) : null })),
+    indicators: inds.map((i) => {
+      const doc = docs[i.code] ?? {};
+      const m = measures[i.code];
+      return {
+        code: i.code,
+        ...(i.donorCode ? { donorCode: i.donorCode } : {}),
+        name: i.name,
+        unit: i.unit,
+        target: Number(i.target),
+        level: i.level,
+        frequency: i.frequency,
+        forecast: i.forecast,
+        theme: (THEMES as readonly string[]).includes(i.theme ?? "") ? (i.theme as ImpactTheme) : null,
+        // What the documents said, so setup shows it again and a person can correct it.
+        baseline: i.baseline === null ? null : Number(i.baseline),
+        baselineYear: doc.baselineYear ?? null,
+        disaggregation: i.disaggregation ?? [],
+        verification: i.verification,
+        result: i.result,
+        frequencyAsWritten: doc.frequencyAsWritten ?? null,
+        docSource: doc.source ?? null,
+        // Only a measure that was saved: a default stays a default.
+        ...(isMeasure(m) ? { measure: m } : {}),
+      };
+    }),
   };
 }
 
@@ -60,21 +89,84 @@ async function newCode(name: string, start: string) {
   for (let n = 2; ; n++) if (!taken.has(`${stem}-${n}`)) return `${stem}-${n}`;
 }
 
-/** Inserts new indicators and updates existing ones by code. Ones left out are removed, with their mappings. */
-async function syncIndicators(tx: Parameters<Parameters<typeof db.transaction>[0]>[0], projectId: string, list: IndicatorInput[]) {
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/** One project_state document inside the transaction: read, changed, written back when it changed. */
+async function changeState<T extends object>(tx: Tx, projectId: string, key: string, change: (doc: T) => T | null) {
+  const where = and(eq(s.projectState.projectId, projectId), eq(s.projectState.key, key));
+  const [row] = await tx.select({ data: s.projectState.data }).from(s.projectState).where(where).for("update");
+  const next = change(((row?.data as T | undefined) ?? {}) as T);
+  if (!next) return;
+  if (row) await tx.update(s.projectState).set({ data: next, updatedAt: new Date() }).where(where);
+  else await tx.insert(s.projectState).values({ projectId, key, data: next }).onConflictDoUpdate({ target: [s.projectState.projectId, s.projectState.key], set: { data: next, updatedAt: new Date() } });
+}
+
+/**
+ * Inserts new indicators and updates existing ones by code. Ones left out are removed, with their
+ * mappings. What the documents said about each (lib/setup-design) lands in its columns (baseline,
+ * disaggregation, verification, result), in project_state where no column holds it (baseline year,
+ * frequency as written, source: "indicator_documents"; measure: "measures"); its result
+ * statement goes to the results framework where that has no wording yet. A field left out keeps what is stored.
+ */
+async function syncIndicators(tx: Tx, projectId: string, list: IndicatorInput[]) {
   const existing = await tx.select().from(s.indicators).where(eq(s.indicators.projectId, projectId));
   const keep = list.filter((i) => i.code && existing.some((e) => e.code === i.code)).map((i) => i.code!);
   const mine = eq(s.indicators.projectId, projectId);
   await tx.delete(s.indicators).where(keep.length ? and(mine, notInArray(s.indicators.code, keep)) : mine);
   let next = Math.max(0, ...existing.map((e) => Number(e.code.replace(/^IND-/, "")) || 0)) + 1;
+  /** Each indicator's code, in the list's order, once saved. */
+  const codes: string[] = [];
   for (const [position, i] of list.entries()) {
     // A theme left out (older clients) keeps what is stored; null clears it.
-    const fields = { name: i.name, unit: i.unit, target: String(i.target), forecast: i.forecast ?? {}, level: i.level, frequency: i.frequency, position, updatedAt: new Date(), ...(i.theme !== undefined ? { theme: i.theme } : {}), ...(i.donorCode !== undefined ? { donorCode: i.donorCode || null } : {}) };
-    if (i.code && keep.includes(i.code)) await tx.update(s.indicators).set(fields).where(and(mine, eq(s.indicators.code, i.code)));
+    const fields = {
+      name: i.name,
+      unit: i.unit,
+      target: String(i.target),
+      forecast: i.forecast ?? {},
+      level: i.level,
+      frequency: i.frequency,
+      position,
+      updatedAt: new Date(),
+      ...(i.theme !== undefined ? { theme: i.theme } : {}),
+      ...(i.donorCode !== undefined ? { donorCode: i.donorCode || null } : {}),
+      ...(i.baseline !== undefined ? { baseline: i.baseline === null ? null : String(Math.round(i.baseline * 100) / 100) } : {}),
+      ...(i.disaggregation !== undefined ? { disaggregation: i.disaggregation.length ? i.disaggregation : null } : {}),
+      ...(i.verification !== undefined ? { verification: i.verification || null } : {}),
+      ...(i.result !== undefined ? { result: i.result || null } : {}),
+    };
+    let code = i.code;
+    if (code && keep.includes(code)) await tx.update(s.indicators).set(fields).where(and(mine, eq(s.indicators.code, code)));
     // New indicators take results with proof, checked by MEL; a KoboToolbox question mapped to one
     // turns its submissions into those results (server/kobo-results.ts).
-    else await tx.insert(s.indicators).values({ ...fields, projectId, code: `IND-${next++}`, source: "results" });
+    else await tx.insert(s.indicators).values({ ...fields, projectId, code: (code = `IND-${next++}`), source: "results" });
+    codes.push(code);
   }
+  const touched = (k: keyof IndicatorInput) => list.some((i) => i[k] !== undefined);
+  if (touched("baselineYear") || touched("frequencyAsWritten") || touched("docSource"))
+    await changeState<IndicatorDocs>(tx, projectId, INDICATOR_DOCS_KEY, (doc) => {
+      const next: IndicatorDocs = Object.fromEntries(Object.entries(doc).filter(([c]) => codes.includes(c)));
+      list.forEach((i, n) => {
+        const was = next[codes[n]] ?? {};
+        const now = {
+          baselineYear: i.baselineYear !== undefined ? i.baselineYear : (was.baselineYear ?? null),
+          frequencyAsWritten: i.frequencyAsWritten !== undefined ? i.frequencyAsWritten || null : (was.frequencyAsWritten ?? null),
+          source: i.docSource !== undefined ? i.docSource || null : (was.source ?? null),
+        };
+        if (now.baselineYear !== null || now.frequencyAsWritten || now.source) next[codes[n]] = now;
+        else delete next[codes[n]];
+      });
+      return next;
+    });
+  if (touched("measure"))
+    await changeState<MeasuresDoc>(tx, projectId, MEASURES_KEY, (doc) => {
+      const next = { ...doc };
+      list.forEach((i, n) => {
+        if (i.measure) next[codes[n]] = i.measure;
+      });
+      return next;
+    });
+  if (touched("result"))
+    await changeState<Framework>(tx, projectId, FRAMEWORK_KEY, (doc) => frameworkFromIndicators({ ...EMPTY_FRAMEWORK, ...doc }, list, new Date().toISOString().slice(0, 10)));
 }
 
 export async function createProject(design: ProjectDesign) {

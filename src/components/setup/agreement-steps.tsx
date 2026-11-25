@@ -1,18 +1,21 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useT } from "@/components/app/i18n";
 import { useSession } from "@/components/app/session";
 import { FromDocuments } from "@/components/setup/from-documents";
 import { clearPending, getPending } from "@/components/setup/pending";
 import { primaryBtn, quietBtn } from "@/components/workspace/ui";
-import { deadlinesFrom, reportDaysRule, ruleValue, type Obligation } from "@/lib/agreement";
+import { reportDaysRule, ruleValue, type Obligation } from "@/lib/agreement";
+import { periodEndMonths, proposedDeadlines, reportKind, sameAsCalendar, splitFormat, type ObligationInput } from "@/lib/obligations";
 import { paramByKey, show, type Value } from "@/lib/policy";
 
 /**
  * Setup's Deadlines and Rules steps (lib/agreement): what the agreement says, proposed with the
  * clause it came from, each item kept or left out, saved only when the person confirms. With
- * nothing read yet (a running project, or a reload), the step asks for the agreement first.
+ * nothing read yet (a running project, or a reload), the step asks for the agreement first. Each
+ * reporting obligation is kept for its donor (lib/obligations): the person picks the donor when the
+ * project has several, then whether its periods follow the agreement's own months or the calendar.
  */
 
 async function post(code: string, user: string, body: unknown) {
@@ -37,6 +40,8 @@ function Questions({ list }: { list: string[] }) {
   );
 }
 
+const field = "min-h-11 border border-line bg-paper px-3 font-mono text-sm";
+
 const Check = ({ on, set, label }: { on: boolean; set: (v: boolean) => void; label: string }) => <input type="checkbox" checked={on} onChange={(e) => set(e.target.checked)} aria-label={label} className="mt-0.5 h-5 w-5 shrink-0 accent-forest" />;
 
 export function DeadlinesStep({ code, start, end, onDone }: { code: string; start: string; end: string; onDone: () => void }) {
@@ -48,19 +53,56 @@ export function DeadlinesStep({ code, start, end, onDone }: { code: string; star
     () => (terms?.obligations ?? []).map((o) => ({ ...o, report: o.report.slice(0, 160), daysAfterPeriod: o.daysAfterPeriod === null ? null : Math.max(0, Math.round(o.daysAfterPeriod)), dueDates: o.dueDates.filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)) })),
     [terms],
   );
-  const proposed = useMemo(() => obligations.map((o) => deadlinesFrom(o, start, end)), [obligations, start, end]);
+  // The project's donors, to say which one each report goes to. The first is the one setup read from the documents.
+  const [donors, setDonors] = useState<{ id: string; name: string }[]>([]);
+  useEffect(() => {
+    if (!user) return;
+    let live = true;
+    fetch(`/api/projects/${code}/donors`, { cache: "no-store", headers: { "x-demo-user": user.id } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { donors?: { id: string; name: string }[] } | null) => live && setDonors((d?.donors ?? []).map((x) => ({ id: x.id, name: x.name }))))
+      .catch(() => live && setDonors([]));
+    return () => {
+      live = false;
+    };
+  }, [code, user]);
+  const [donorPick, setDonorPick] = useState<Record<number, string>>({});
+  const [calendar, setCalendar] = useState<Record<number, boolean>>({});
+  const [links, setLinks] = useState<Record<number, string>>({});
+  const startMonth = /^\d{4}-\d{2}/.test(start) ? Number(start.slice(5, 7)) : null;
+  // The donor the agreement's words name, else the first donor.
+  const donorFor = (o: Obligation, k: number) => donorPick[k] ?? donors.find((d) => `${o.report} ${o.format} ${o.source}`.toLowerCase().includes(d.name.toLowerCase()))?.id ?? donors[0]?.id ?? null;
+  const inputs: ObligationInput[] = obligations.map((o, k) => {
+    const f = splitFormat(o.format);
+    const link = (links[k] ?? f.formatFile ?? "").trim();
+    return {
+      donorId: donorFor(o, k),
+      report: reportKind(o),
+      name: o.report.length >= 2 ? o.report : "Report",
+      frequency: o.frequency,
+      periodEnds: periodEndMonths(o.frequency, calendar[k] ? null : startMonth),
+      daysAfter: o.daysAfterPeriod,
+      dueDates: o.dueDates,
+      format: f.format,
+      formatFile: /^https?:\/\/\S+$/.test(link) ? link.slice(0, 500) : null,
+      source: o.source,
+    };
+  });
+  const proposed = inputs.map((o) => proposedDeadlines(o, start, end));
   const [off, setOff] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState<number | null>(null);
-  const kept = proposed.flatMap((list) => list.filter((d) => !off.has(`${d.title}|${d.date}`)));
+  const kept = proposed.flatMap((list, k) => list.filter((d) => !off.has(`${d.title}|${d.date}`)).map((d) => ({ ...d, donorId: inputs[k].donorId })));
+  // An obligation is kept unless every deadline it gave was left out.
+  const keptObligations = inputs.filter((_, k) => !proposed[k].length || proposed[k].some((d) => !off.has(`${d.title}|${d.date}`)));
   const rules = obligations.map((o) => ({ o, r: reportDaysRule(o) })).filter((x) => x.r && !off.has(`rule:${x.o.report}`));
   const save = async () => {
     if (!user) return;
     setBusy(true);
     setError("");
     try {
-      const d = await post(code, user.id, { action: "deadlines", items: kept, rules: rules.map((x) => ({ key: x.r!.key, value: x.r!.value, source: x.o.source })), file: getPending().termsFile });
+      const d = await post(code, user.id, { action: "deadlines", items: kept, obligations: keptObligations, rules: rules.map((x) => ({ key: x.r!.key, value: x.r!.value, source: x.o.source })), file: getPending().termsFile });
       setSaved(d.added);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -89,6 +131,37 @@ export function DeadlinesStep({ code, start, end, onDone }: { code: string; star
               {o.format ? `${t("ag.deadlines.format", { format: o.format })} · ` : ""}
               {t("ag.source", { source: o.source })}
             </p>
+            {saved === null && (donors.length > 1 || !sameAsCalendar(o.frequency, startMonth) || !!o.format) && (
+              <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 border-t border-line pt-3 font-ledger">
+                {donors.length > 1 && (
+                  <label className="text-sm">
+                    <span className="block font-mono text-xs text-muted">{t("ag.deadlines.donor")}</span>
+                    <select className={field} value={inputs[k].donorId ?? ""} onChange={(e) => setDonorPick((m) => ({ ...m, [k]: e.target.value }))}>
+                      {donors.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                {!sameAsCalendar(o.frequency, startMonth) && (
+                  <label className="text-sm">
+                    <span className="block font-mono text-xs text-muted">{t("ag.deadlines.periods")}</span>
+                    <select className={field} value={calendar[k] ? "calendar" : "own"} onChange={(e) => setCalendar((m) => ({ ...m, [k]: e.target.value === "calendar" }))}>
+                      <option value="own">{t("ag.deadlines.periodsOwn", { month: date(start, { month: "long" }) })}</option>
+                      <option value="calendar">{t("ag.deadlines.periodsCalendar")}</option>
+                    </select>
+                  </label>
+                )}
+                {!!o.format && (
+                  <label className="min-w-0 flex-1 text-sm">
+                    <span className="block font-mono text-xs text-muted">{t("ag.deadlines.link")}</span>
+                    <input type="url" className={`${field} w-full`} value={links[k] ?? splitFormat(o.format).formatFile ?? ""} placeholder="https://" onChange={(e) => setLinks((m) => ({ ...m, [k]: e.target.value }))} />
+                  </label>
+                )}
+              </div>
+            )}
             <ul className="mt-2 space-y-1">
               {proposed[k].map((d) => {
                 const key = `${d.title}|${d.date}`;
@@ -111,7 +184,7 @@ export function DeadlinesStep({ code, start, end, onDone }: { code: string; star
       {error && <p className="mt-3 text-sm text-clay">{error}</p>}
       {saved !== null && <p className="mt-3 text-sm text-leaf">{t("ag.deadlines.saved", { n: saved })}</p>}
       <div className="mt-6 flex flex-wrap gap-3">
-        {kept.length > 0 && saved === null && (
+        {(kept.length > 0 || keptObligations.length > 0) && saved === null && (
           <button type="button" className={primaryBtn} disabled={busy} onClick={() => void save()}>
             {t("ag.deadlines.save", { n: kept.length })}
           </button>

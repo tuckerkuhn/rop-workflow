@@ -157,6 +157,10 @@ export type FundingProposal = {
   /** Where the donor's confirmation of receipt is saved. */
   confirmation: string;
   history: { at: string; by: string; byName: string; what: string }[];
+  /** The day it was recorded as won. Older records have none: their history says. */
+  decidedAt?: string;
+  /** The project set up from it once won (lib/project-origin). */
+  projectCode?: string;
 };
 
 /* ---------------- Actions ---------------- */

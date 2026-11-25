@@ -20,7 +20,25 @@ export type CalendarRow = {
   released: boolean;
   state: CalendarState;
   href: string;
+  /**
+   * Only for a report from the agreement's obligations (lib/obligations): the report's name, its
+   * donor, the first day of its period (the agreement's own months) and the format it asks for.
+   */
+  name?: string;
+  donor?: string | null;
+  from?: string;
+  format?: { text: string; href: string | null } | null;
 };
+
+/**
+ * Which of an obligation's periods to list: for quarterly reports the last two, the one under way
+ * and the two after it; for annual reports last year's and the one under way. As calendarPeriods does for calendar periods.
+ */
+export function aroundNow<T extends { from: string; to: string }>(periods: T[], kind: "qpr" | "annual", today: string): T[] {
+  let at = periods.findIndex((p) => p.to >= today);
+  if (at < 0) at = periods.length;
+  return kind === "qpr" ? periods.slice(Math.max(0, at - 2), at + 3) : periods.slice(Math.max(0, at - 1), at + 1);
+}
 
 
 /**
@@ -55,8 +73,9 @@ export function calendarState(kind: "qpr" | "annual", due: string | null, aim: s
   return daysBetween(today, from) <= 21 ? "soon" : "later";
 }
 
-export function calendarRow(kind: "qpr" | "annual", period: string, end: string, d: Deadline, released: boolean, today: string): CalendarRow {
+export function calendarRow(kind: "qpr" | "annual", period: string, end: string, d: Deadline, released: boolean, today: string, from?: Pick<CalendarRow, "name" | "donor" | "from" | "format">): CalendarRow {
   return {
+    ...(from ?? {}),
     kind,
     period,
     end,

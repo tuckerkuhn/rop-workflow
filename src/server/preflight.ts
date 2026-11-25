@@ -1,6 +1,8 @@
 import { loadProjectState } from "@/server/project-state";
 import { ANSWER_DAYS, EMPTY_FEEDBACK, overdue, type FeedbackLog } from "@/lib/feedback";
 import { checkHref, checkPlace, openClaims, overspentLines, PREFLIGHT_ITEM_FOR, SECTIONS } from "@/lib/qpr";
+import type { Frequency } from "@/lib/agreement";
+import { daysFrom, periodHolding, type SavedObligation } from "@/lib/obligations";
 import { addDays, deadlineFor, type Deadline, type Preflight, type PreflightItem, type ReadyItem, type ReportRef, milestoneFits } from "@/lib/preflight";
 import { proofCount, quarterOf, quarterRange, type ResultRecord } from "@/lib/results";
 import { MEASURE_NOTE } from "@/lib/measure";
@@ -13,6 +15,7 @@ import { projectRules } from "@/server/policy-store";
 import { qprData } from "@/server/qpr-store";
 import { loadResults } from "@/server/results-store";
 import { loadWeekly } from "@/server/weekly-store";
+import { loadObligations } from "@/server/obligations-store";
 import { early } from "@/server/early";
 import { oncePerRequest } from "@/server/request-memo";
 import { selfApprovedIn } from "@/server/solo";
@@ -58,9 +61,37 @@ async function unmatchedSpend(c: Ctx) {
 export async function deadlineInputs(code: string) {
   // Once per read-only request (server/request-memo): Home, its next report and the week ahead each work out several deadlines.
   return oncePerRequest(`deadline-inputs:${code}`, async () => {
-    const [rules, { items }] = await Promise.all([projectRules(code), listWorkItems(code)]);
-    return { rules, items };
+    // A project kept only in the browser has no obligations: its deadlines work out as before.
+    const project = await projectByCode(code).catch(() => null);
+    const [rules, { items }, obligations] = await Promise.all([projectRules(code), listWorkItems(code), project ? loadObligations(project.id) : []]);
+    return { rules, items, obligations, start: project?.startDate ?? null, end: project?.endDate ?? null };
   });
+}
+type Inputs = Awaited<ReturnType<typeof deadlineInputs>>;
+type Rule = "quarterlyReportDays" | "annualReportDays";
+const RULE_FREQUENCY: Record<Rule, Frequency> = { quarterlyReportDays: "quarterly", annualReportDays: "annual" };
+
+/**
+ * The deadline one obligation gives for the report on the period holding `end` (lib/obligations):
+ * the period on the agreement's own months, a "Report deadline" milestone for its donor after it,
+ * else its days after the period. Null when the project's dates do not reach `end`.
+ */
+export function obligationDeadline(o: SavedObligation, end: string, window: number, rule: Rule | null, inputs: Inputs): (Deadline & { periodEnd: string; periodStart: string }) | null {
+  const p = periodHolding(o, end, inputs.start, inputs.end);
+  if (!p) return null;
+  const reviewDays = Number(inputs.rules.values.reviewDays ?? 0) || 0;
+  const ms = inputs.items
+    .filter((i) => i.type === "milestone" && i.milestoneKind === "report_deadline" && milestoneFits(i.title, rule) && (!i.donorId || !o.donorId || i.donorId === o.donorId))
+    .map((i) => ({ title: i.title, date: i.date ?? "", done: !!i.doneAt }));
+  return { ...deadlineFor(p.to, window, ms, p.due ? daysFrom(p.to, p.due) : null, o.source, reviewDays), periodEnd: p.to, periodStart: p.from };
+}
+
+/** The obligations a rule's reports follow: a narrative report before a financial one. */
+export function obligationsFor(list: SavedObligation[], rule: Rule | null): SavedObligation[] {
+  if (!rule) return [];
+  const all = list.filter((o) => o.frequency === RULE_FREQUENCY[rule]);
+  const narrative = all.filter((o) => o.report !== "financial");
+  return narrative.length ? narrative : all;
 }
 
 /**
@@ -69,8 +100,16 @@ export async function deadlineInputs(code: string) {
  * Home's deadline tile all call it.
  */
 
-export async function reportDeadline(code: string, end: string, window: number, rule: "quarterlyReportDays" | "annualReportDays" | null, inputs?: Awaited<ReturnType<typeof deadlineInputs>>): Promise<Deadline> {
-  const { rules, items } = inputs ?? (await deadlineInputs(code));
+export async function reportDeadline(code: string, end: string, window: number, rule: Rule | null, inputs?: Inputs): Promise<Deadline> {
+  const all = inputs ?? (await deadlineInputs(code));
+  const { rules, items } = all;
+  // The agreement's obligations come first: the period on its own months, its days after. With
+  // several donors, the soonest date. With none saved, the milestone or the rule as before.
+  const fromObligations = obligationsFor(all.obligations, rule)
+    .map((o) => obligationDeadline(o, end, window, rule, all))
+    .filter((d): d is NonNullable<typeof d> => !!d?.due)
+    .sort((a, b) => a.due!.localeCompare(b.due!))[0];
+  if (fromObligations) return { due: fromObligations.due, aim: fromObligations.aim, reviewDays: fromObligations.reviewDays, source: fromObligations.source };
   const line = (k: string) => rules.lines.find((l) => l.key === k);
   const reviewDays = Number(rules.values.reviewDays ?? 0) || 0;
   const days = rule && rules.values[rule] != null ? Number(rules.values[rule]) : null;

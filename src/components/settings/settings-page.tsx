@@ -9,6 +9,7 @@ import { useT } from "@/components/app/i18n";
 import { useRequireUser } from "@/components/app/session";
 import { useProgress } from "@/components/app/use-project-data";
 import { DonorFundingSection } from "@/components/settings/donor-funding";
+import { ProjectOriginRow } from "@/components/settings/project-origin";
 import { PasswordSection } from "@/components/settings/password-section";
 import { NotifySection } from "@/components/settings/notify-section";
 import { TwoStepSettings } from "@/components/app/two-step";
@@ -78,6 +79,7 @@ export function SettingsPage() {
             Rules this project follows: organization and donor policy
             <span aria-hidden>→</span>
           </Link>
+          {data?.saved && <ProjectOriginRow code={project.id} className={linkRow} />}
         </div>
         <section className="mt-8" aria-labelledby="donors-heading">
           <div className="flex flex-wrap items-center justify-between gap-3">

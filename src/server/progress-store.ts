@@ -13,6 +13,8 @@ import { FORMATS } from "@/lib/report-formats";
 import { listSubmissions } from "@/server/kobo";
 import { mappedInputs, mappedValue } from "@/server/kobo-link";
 import { today } from "@/lib/clock";
+import { publicObligation } from "@/lib/obligations";
+import { loadObligations } from "@/server/obligations-store";
 
 /** Indicators with their values, and donors with their report deadlines, in Postgres. */
 
@@ -134,13 +136,19 @@ async function donorsOf(projectId: string): Promise<DonorInfo[]> {
     .from(s.workItems)
     .where(and(inArray(s.workItems.donorId, rows.map((d) => d.id)), eq(s.workItems.milestoneKind, "report_deadline")))
     .orderBy(asc(s.workItems.date));
-  return rows.map((d) => ({
-    id: d.id,
-    name: d.name,
-    reportFormat: d.reportFormat,
-    indicatorRefs: d.indicatorRefs,
-    deadlines: deadlines.filter((w) => w.donorId === d.id).map((w) => ({ id: w.id, title: w.title, date: w.date! })),
-  }));
+  const obligations = await loadObligations(projectId);
+  return rows.map((d) => {
+    const mine = obligations.filter((o) => o.donorId === d.id).map(publicObligation);
+    return {
+      id: d.id,
+      name: d.name,
+      reportFormat: d.reportFormat,
+      indicatorRefs: d.indicatorRefs,
+      deadlines: deadlines.filter((w) => w.donorId === d.id).map((w) => ({ id: w.id, title: w.title, date: w.date! })),
+      // The agreement's obligations set the donor's report periods (lib/progress reportPeriod).
+      ...(mine.length ? { obligations: mine } : {}),
+    };
+  });
 }
 
 /** A donor's own staff see only their organization's donor entry. */
@@ -163,7 +171,7 @@ export async function loadProgress(code: string, user: AppUser): Promise<Progres
   const measureOf = await measuresFor(project.id);
   // Each donor's report covers the time since its last deadline, so its counts differ from the cards'.
   const reports: ReportValues[] = [null, ...donors].map((d) => {
-    const { from, to } = reportPeriod(d, today(), project.startDate);
+    const { from, to } = reportPeriod(d, today(), project.startDate, project.endDate);
     const within = subs.filter((x) => x.date >= from && x.date <= to);
     const value = (r: IndicatorRow) => {
       const m = mapped.get(r.code);

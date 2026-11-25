@@ -3,49 +3,27 @@ import { FREQUENCIES, RULE_KEYS } from "@/lib/agreement";
 import { COUNTRIES } from "@/lib/project-setup";
 import type { AiJobName } from "@/lib/ai-jobs";
 import { asIs, askAi } from "@/server/ai";
+import { setupDesignSchema, type SetupProposal } from "@/lib/setup-design";
 
 /**
  * Project setup from the documents: the agreement (PDF or Word), the logframe or results framework
  * (Excel, Word or PDF) and the budget. Three readers: the design (name, donor, dates, goal, every
- * indicator with its donor code, unit and targets); the agreement's terms (reporting obligations
+ * indicator with its donor code, unit, targets, baseline, breakdowns, means of verification,
+ * frequency and result statement, lib/setup-design); the agreement's terms (reporting obligations
  * and checkable donor rules, lib/agreement); and a budget in Word or PDF. Every value says where it
  * came from. Proposals only: the person confirms each section in setup before anything is saved.
  */
 
 export type SetupFile = { name: string; kind: "pdf"; data: string } | { name: string; kind: "text"; text: string };
 
-const schema = z.object({
-  name: z.string().describe("The project's full title as the agreement gives it, with its acronym in brackets if it has one."),
-  donor: z.string().describe("The donor or funding agency, e.g. UNDP. Empty if not stated."),
-  country: z.string().describe("ISO 3166-1 alpha-2 code of the main country, e.g. AF."),
-  crop: z.string().describe("The main crop or value chain, if the project has one. Empty if none."),
-  startDate: z.string().describe("YYYY-MM-DD; empty if not stated."),
-  endDate: z.string().describe("YYYY-MM-DD; empty if not stated."),
-  goal: z.string().describe("The project's goal or overall objective, one or two sentences, as written."),
-  indicators: z
-    .array(
-      z.object({
-        donorCode: z.string().describe("The donor's number for the indicator, e.g. 1.1.1.3 or 2.1.2.1-a. Empty if none."),
-        name: z.string(),
-        unit: z.string().describe("What is counted: farmers, ha, jerib, greenhouses, persons, events…"),
-        target: z.number().describe("The life-of-project target."),
-        level: z.enum(["goal", "outcome", "output"]),
-        yearTargets: z.array(z.object({ year: z.number(), target: z.number().describe("The target for that calendar year alone, not a running total.") })).describe("Per calendar year, when the framework gives them. Empty if not."),
-        source: z.string().describe("Where in the documents this came from, e.g. 'Logframe, row 14'."),
-      }),
-    )
-    .describe("Every indicator the project reports on, outputs included, in the documents' order."),
-  sources: z
-    .object({ name: z.string(), donor: z.string(), dates: z.string(), goal: z.string() })
-    .describe("Where each of these came from, e.g. 'Agreement, cover page' or 'Agreement, clause 2.1'. Empty when not found."),
-  questions: z.array(z.string()).describe("What the documents leave unclear or contradictory, for the person to settle. Empty if nothing."),
-});
-export type SetupProposal = z.infer<typeof schema>;
+const schema = setupDesignSchema;
+export type { SetupProposal };
 
 const SYSTEM = [
   "You read a donor agreement and a project's logframe or results framework and extract the project's design for a project management app.",
   "Take every value from the documents; never invent. When a value is missing, leave it empty and say so in questions. When the documents disagree, use the logframe for indicators and the agreement for dates, and say which you used in questions.",
-  "Indicators: include every measurable indicator with a target, at goal, outcome and output level. Keep the donor's numbering and wording.",
+  "Indicators: include every indicator at goal, outcome and output level, also one with no number target (leave its target null and say so in questions). Keep the donor's numbering and wording.",
+  "For each indicator take, where the documents give them, its baseline and baseline year, the breakdowns required (sex, age, place), the means of verification, how often it is reported and the wording of the outcome or output it measures. Leave a value empty or null when the documents do not give it; never fill it from a donor's usual practice.",
 ].join(" ");
 
 /** Reads the documents with one structured call. Any of the three readers below uses it. */

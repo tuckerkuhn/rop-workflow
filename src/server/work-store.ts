@@ -37,7 +37,8 @@ export async function listWorkItems(code: string) {
   return { saved: true, items: rows.map(toWorkItem) };
 }
 
-export async function createWorkItem(code: string, item: NewWorkItem, by: string) {
+/** `donorId`: a report deadline that belongs to one donor (from the agreement's obligations, server/obligations-store). */
+export async function createWorkItem(code: string, item: NewWorkItem, by: string, donorId: string | null = null) {
   const project = await projectByCode(code);
   const [row] = await db
     .insert(s.workItems)
@@ -50,6 +51,7 @@ export async function createWorkItem(code: string, item: NewWorkItem, by: string
       endDate: item.type === "milestone" ? item.endDate : null,
       milestoneKind: item.type === "milestone" ? item.milestoneKind : null,
       assignee: item.type === "task" ? item.assignee : null,
+      donorId: item.type === "milestone" ? donorId : null,
       createdBy: by,
     })
     .returning();

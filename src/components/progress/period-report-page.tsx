@@ -5,6 +5,7 @@ import { askConfirm } from "@/components/app/dialogs";
 import { useT } from "@/components/app/i18n";
 import { askForChecks, beforeDownload, PreflightButton, usePreflightState } from "@/components/progress/preflight-page";
 import { ReportChecks, ReportKinds } from "@/components/progress/report-checks";
+import { FormatAskedFor } from "@/components/progress/format-asked-for";
 import { ProofNumber } from "@/components/progress/proof-panel";
 import { useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
@@ -173,6 +174,7 @@ export function PeriodReportPage() {
             Figures are from results MEL accepted; each achieved figure opens the records behind it.
           </PageHead>
         </div>
+        <FormatAskedFor frequencies={period.kind === "final" ? ["final"] : ["annual"]} />
         {v && (
           <div className="mt-4 flex flex-wrap items-center gap-2 font-ledger">
             {v.released ? (

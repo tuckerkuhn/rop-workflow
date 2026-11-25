@@ -2,6 +2,7 @@ import { z } from "zod";
 import { STATUS_LABEL } from "@/lib/qpr";
 import { quarterRange } from "@/lib/results";
 import { askAi, scrubbed } from "@/server/ai";
+import { winThemesContext } from "@/server/project-origin";
 import type { QprData } from "@/server/qpr-store";
 import { ROP_VOICE } from "@/lib/voice";
 import { withoutNames } from "@/lib/personal-text";
@@ -22,6 +23,7 @@ const SYSTEM = `You draft sections of the quarterly progress report that Roots o
 Rules:
 - Use only the facts given: figures, places, dates, the notes field staff wrote with each result, the activity updates (progress that is not an indicator count, such as reservoirs built, grants signed or sales at an exhibition) and the lessons the team recorded this quarter. Never invent a number, place, partner, quote or outcome. If something a reader would expect is missing (for example why an indicator is behind), leave a marked placeholder in square brackets, e.g. [reason for delay], and list it in questions.
 - Every figure you use must match the facts exactly, with its unit.
+- win_themes_context, when given, is what the proposal told the donor about why to choose ROP. Use it only to choose what to put first. Never state a theme as a result or as something achieved.
 - Plain, factual report English, in short paragraphs. Past tense for what happened in the quarter. No marketing language, no bullet lists unless asked.
 - Refer to indicators by their UNDP code in brackets after the result, e.g. "(1.1.1.4)".
 - Do not name individual farmers or business owners: names belong in consented success stories, not the report.
@@ -71,7 +73,8 @@ export function qprFacts(d: QprData) {
 }
 
 export async function draftQpr(d: QprData, keys: string[], by: string): Promise<{ sections: { key: string; text: string }[]; questions: string[] }> {
-  const facts = qprFacts(d);
+  // The won proposal's win themes, as context only (server/project-origin).
+  const facts = { ...qprFacts(d), ...(await winThemesContext(d.project.code)) };
   // Notes and lessons are scrubbed above as before; the door also replaces names in update titles and row comments.
   const { out } = await askAi({
     job: "qprDraft",

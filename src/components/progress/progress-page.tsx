@@ -303,7 +303,7 @@ function reportMilestones(items: WorkItem[], donor: DonorInfo | null, from: stri
 }
 
 function buildReport(data: ProgressData, donor: DonorInfo | null, tracked: IndicatorProgress[], items: WorkItem[], t: ReturnType<typeof useT>["t"], date: (iso: string) => string): ReportDoc {
-  const period = reportPeriod(donor, data.today, data.project.startDate);
+  const period = reportPeriod(donor, data.today, data.project.startDate, data.project.endDate);
   const values = data.reports.find((r) => r.donorId === (donor?.id ?? null))?.values ?? {};
   return formatById(donor?.reportFormat).build({
     project: data.project,

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { db, schema as s } from "@/db";
-import type { AppUser } from "@/lib/demo";
+import { canEditProject, type AppUser } from "@/lib/demo";
 import {
   assessSchema,
   coreReason,
@@ -132,7 +132,8 @@ export async function loadProposals(orgId: string, u: AppUser) {
   }
   return {
     items: [...items].sort((a, c) => order[a.outcome] - order[c.outcome] || (a.deadline?.at ?? "9999").localeCompare(c.deadline?.at ?? "9999")).map((p) => ({ ...p, outside: p.outside ?? [], readiness: readiness(p) })),
-    can: { run: core, setCore: sets, ai: !!process.env.ANTHROPIC_API_KEY },
+    // Setting up a project from a won proposal follows setup's own rule (lib/project-origin).
+    can: { run: core, setCore: sets, ai: !!process.env.ANTHROPIC_API_KEY, setUp: canEditProject(u) },
     // The core, with why each person is in it, and everyone else on staff who could be added to a proposal.
     core: core || sets ? { roles: r.core.roles, people: r.core.people, members: inIt } : null,
     others: core || sets ? others : [],
@@ -212,7 +213,7 @@ export async function actOnProposal(orgId: string, a: ProposalAction, u: AppUser
       if (!a.confirmation) return "Say where the donor's confirmation of receipt is saved.";
     }
     await log(orgId, "proposal_outcome", u.id, { proposal: p.id, outcome: a.outcome });
-    return put({ ...p, outcome: a.outcome, confirmation: a.confirmation || p.confirmation, history: [...p.history, ev(`${OUTCOME_LABEL[a.outcome]}${a.note ? `: ${a.note}` : ""}`)] });
+    return put({ ...p, outcome: a.outcome, confirmation: a.confirmation || p.confirmation, ...(a.outcome === "won" ? { decidedAt: today() } : {}), history: [...p.history, ev(`${OUTCOME_LABEL[a.outcome]}${a.note ? `: ${a.note}` : ""}`)] });
   }
   if (!open) return "This proposal is closed. A lead can reopen it by setting it back to in preparation.";
 

@@ -552,14 +552,15 @@ function Card({ o, v, act }: { o: Opportunity; v: OpportunitiesView; act: (a: Op
                 )}
               </>
             )}
-            {/* After a match the next step is the proposal; the project is set up once the award comes. */}
+            {/* After a match the next step is the proposal; the project is set up once the award comes,
+                from the won proposal when there is one (server/project-origin): the same entry as on the proposal. */}
             {o.status === "match" && opensProposals(user) && (
               <Link href={`/work/proposals?opportunity=${encodeURIComponent(o.id)}`} className={primaryBtn}>
                 Start the proposal
               </Link>
             )}
             {o.status === "match" && (
-              <Link href={`/setup?new=1&name=${encodeURIComponent(o.title)}`} className={opensProposals(user) ? quietBtn : primaryBtn}>
+              <Link href={`/setup?new=1&opportunity=${encodeURIComponent(o.id)}`} className={opensProposals(user) ? quietBtn : primaryBtn}>
                 Set up the project (after award)
               </Link>
             )}

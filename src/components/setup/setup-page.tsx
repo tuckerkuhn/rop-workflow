@@ -20,6 +20,10 @@ import { canEditProject } from "@/lib/demo";
 import { localeOf, type MessageKey } from "@/lib/i18n";
 import { SignedOffBanner, changeReasonHeader } from "@/components/setup/change-reason";
 import { FromDocuments } from "@/components/setup/from-documents";
+import { IndicatorDetails, TooManyIndicators } from "@/components/setup/indicator-details";
+import { MAX_INDICATORS } from "@/lib/setup-design";
+import { FromProposalPanel, useFromProposal, type FromRecord } from "@/components/setup/from-proposal";
+import { askConfirm } from "@/components/app/dialogs";
 import { LIBRARY, THEMES, THEME_LABEL } from "@/lib/indicator-library";
 import { COUNTRIES, projectDesignSchema, type IndicatorInput, type ProjectDesign } from "@/lib/project-setup";
 import { projectYears } from "@/lib/progress";
@@ -63,7 +67,9 @@ export function SetupPage() {
         </p>
       </Frame>
     );
-  return <Wizard key={creating ? "new" : project.id} code={creating ? null : project.id} first={(q.get("step") as Step | null) ?? (creating ? "name" : "review")} />;
+  // A new project from a won proposal (or a matched opportunity) opens with its details filled in.
+  const from: FromRecord | null = creating ? { proposal: q.get("proposal"), opportunity: q.get("opportunity"), name: q.get("name") } : null;
+  return <Wizard key={creating ? "new" : project.id} code={creating ? null : project.id} first={(q.get("step") as Step | null) ?? (creating ? "name" : "review")} from={from} />;
 }
 
 function Frame({ children, wide = false }: { children: React.ReactNode; wide?: boolean }) {
@@ -75,7 +81,7 @@ function Frame({ children, wide = false }: { children: React.ReactNode; wide?: b
   );
 }
 
-function Wizard({ code: initialCode, first }: { code: string | null; first: Step }) {
+function Wizard({ code: initialCode, first, from }: { code: string | null; first: Step; from: FromRecord | null }) {
   const { t } = useT();
   const { user } = useSession();
   const router = useRouter();
@@ -83,7 +89,8 @@ function Wizard({ code: initialCode, first }: { code: string | null; first: Step
   const code = initialCode;
   const stage = projects.find((p) => p.id === code)?.stage ?? "Design";
   const signedOff = !!code && stage !== "Design" && stage !== "Develop";
-  const [draft, setDraft] = useState<ProjectDesign>(empty);
+  const [draft, setDraft] = useState<ProjectDesign>(from?.name ? { ...empty, name: from.name } : empty);
+  const origin = useFromProposal(from ?? { proposal: null, opportunity: null, name: null }, user?.id, setDraft);
   const [loaded, setLoaded] = useState(!initialCode);
   const [step, setStep] = useState<Step>(first);
   const [busy, setBusy] = useState(false);
@@ -135,10 +142,12 @@ function Wizard({ code: initialCode, first }: { code: string | null; first: Step
       const res = await fetch(code ? `/api/projects/${code}` : "/api/projects", {
         method: code ? "PUT" : "POST",
         headers: { "Content-Type": "application/json", "x-demo-user": user?.id ?? "", ...(code ? changeReasonHeader(`/api/projects/${code}`) : {}) },
-        body: JSON.stringify(parsed.data),
+        // From a won proposal: which one and the award as confirmed here (the server links both ways).
+        body: JSON.stringify(!code && origin.choice ? { ...parsed.data, origin: origin.choice } : parsed.data),
       });
-      const body = (await res.json().catch(() => ({}))) as { code?: string; error?: string };
+      const body = (await res.json().catch(() => ({}))) as { code?: string; error?: string; warning?: string };
       if (!res.ok) throw new Error(body.error ?? t("setup.saveFailed"));
+      if (body.warning) await askConfirm({ message: body.warning, confirm: "OK" });
       await reloadProjects();
       if (!code && body.code) {
         // Now an existing project: reopen setup on it, at the budget.
@@ -165,7 +174,8 @@ function Wizard({ code: initialCode, first }: { code: string | null; first: Step
   const valid: Partial<Record<Step, boolean>> = {
     name: !!draft.name.trim(),
     dates: !!draft.startDate && !!draft.endDate && draft.endDate >= draft.startDate,
-    indicators: draft.indicators.every((i) => i.name.trim() && i.unit.trim() && i.target > 0),
+    // A target of 0 is "no number target yet" (often an outcome measured by survey): kept, not blocked.
+    indicators: draft.indicators.length <= MAX_INDICATORS && draft.indicators.every((i) => i.name.trim() && i.unit.trim() && Number.isFinite(i.target) && i.target >= 0),
   };
 
   return (
@@ -178,6 +188,7 @@ function Wizard({ code: initialCode, first }: { code: string | null; first: Step
       <p className="mt-2 text-xs text-muted">{t("setup.stepOf", { n: index + 1, total: steps.length })}</p>
 
       <div className="mt-6">
+        {!code && (step === "name" || step === "review") && <FromProposalPanel defaults={origin.defaults} choice={origin.choice} onChange={origin.setChoice} error={origin.error} />}
         {step === "name" && !code && user && (
           <FromDocuments
             user={user.id}
@@ -409,6 +420,7 @@ function IndicatorsQuestion({ list, years, onChange }: { list: IndicatorInput[];
           </div>
         </div>
       )}
+      <TooManyIndicators n={list.length} />
       <ul className="mt-4 space-y-3">
         {list.map((i, k) => (
           <li key={i.code ?? `new-${k}`} className="rounded-2xl border border-line bg-surface p-4">
@@ -467,6 +479,7 @@ function IndicatorsQuestion({ list, years, onChange }: { list: IndicatorInput[];
                 </select>
               </label>
             </div>
+            <IndicatorDetails i={i} onChange={(patch) => update(k, patch)} />
             {years.length > 1 && (
               <fieldset className="mt-3">
                 <legend className="text-xs text-muted">{t("setup.forecast")}</legend>

@@ -7,13 +7,15 @@ import { primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { parseBudget, type BudgetLine } from "@/lib/budget";
 import { COUNTRIES, type ProjectDesign } from "@/lib/project-setup";
 import { readWorkbook } from "@/lib/read-sheet";
+import { indicatorsFromDocuments } from "@/lib/setup-design";
 import type { BudgetProposal, SetupProposal, TermsProposal } from "@/server/setup-extract";
 
 /**
  * Setup's head start from three documents (lib/agreement): the agreement, the logframe and the
  * budget. Claude reads them side by side: the design (agreement and logframe), the agreement's
  * terms (report deadlines and donor rules) and a Word or PDF budget; an Excel budget is read
- * without AI. Every value carries its source. The design fills the setup questions; the budget,
+ * without AI. Every value carries its source. The design fills the setup questions, every indicator
+ * with what the documents say about it (lib/setup-design); the budget,
  * deadlines and rules wait (components/setup/pending) for their steps. Nothing is saved until a
  * person confirms each section. On a running project, only the agreement's terms and a budget.
  */
@@ -53,12 +55,6 @@ async function readFile(f: File): Promise<Sent> {
     return { name: f.name, kind: "text", text: text.slice(0, 380_000) };
   }
   throw new Error(`${f.name}: upload a PDF, a Word file (.docx) or an Excel file (.xlsx).`);
-}
-
-/** Per-year targets as the running totals the app keeps (expected total by 31 December). */
-function runningTotals(years: { year: number; target: number }[]) {
-  let t = 0;
-  return Object.fromEntries([...years].sort((a, b) => a.year - b.year).map((y) => [String(y.year), (t += y.target)]));
 }
 
 type Slot = "agreement" | "logframe" | "budget";
@@ -118,6 +114,7 @@ export function FromDocuments({ user, project, onProposal, onRead }: { user: str
       setPending({ terms: terms?.out, termsFile: files.agreement?.name, budget: budget ?? undefined });
       if (design && onProposal) {
         const o = design.out;
+        const found = indicatorsFromDocuments(o.indicators);
         const iso = (x: string) => (/^\d{4}-\d{2}-\d{2}$/.test(x) ? x : undefined);
         const sources = [
           o.sources.name && `${t("setup.q.name")}: ${o.sources.name}`,
@@ -135,13 +132,12 @@ export function FromDocuments({ user, project, onProposal, onRead }: { user: str
             ...(iso(o.endDate) ? { endDate: o.endDate } : {}),
             ...(o.goal ? { goal: o.goal.slice(0, 500) } : {}),
             ...(o.donor ? { donors: [o.donor.slice(0, 200)] } : {}),
-            indicators: o.indicators
-              .filter((i) => i.name && i.target > 0)
-              .slice(0, 40)
-              .map((i) => ({ ...(i.donorCode ? { donorCode: i.donorCode.slice(0, 30) } : {}), name: i.name.slice(0, 200), unit: (i.unit || "count").slice(0, 50), target: i.target, level: i.level, frequency: "quarterly" as const, ...(i.yearTargets.length ? { forecast: runningTotals(i.yearTargets) } : {}) })),
+            // Every indicator, with its baseline, breakdowns, means of verification, frequency and
+            // result statement; none dropped (lib/setup-design). The person checks them at the indicators step.
+            indicators: found.indicators,
           },
           // The agreement's and the budget's questions are shown at their own steps.
-          o.questions,
+          [...o.questions, ...found.notes],
           sources,
         );
       }
