@@ -6,7 +6,7 @@ How ROP Workflow protects the people whose data it holds. The full review, with 
 
 - **Database:** Supabase, AWS region us-east-1 (Northern Virginia, United States), daily backups kept 7 days.
 - **App servers:** Vercel, in the project's default region.
-- **AI:** drafting, checking and translation call Anthropic's API (Claude). Notes are sent with people's names and villages replaced (see below); farmers' names, phones, GPS and files are never sent.
+- **AI:** drafting, checking and translation call Anthropic's API (Claude), and only while the server has an AI key (it has none today, so none of this runs). Notes are sent with people's names and villages replaced (see below); farmers' names, phones and GPS are never sent. Two exceptions, for the AI key's day: the photo check sends the photo itself, and translation sends Dari and Pashto text as written, because name replacement reads English only. Without the AI, a person checks photos by hand in the photo library.
 
 ## What protects people
 
@@ -40,7 +40,7 @@ The same words as the "?" beside each of these fields in the app. They come from
 | Interview notes | The AI drafts the story from these notes; a person checks it and approves it before it is used. | Before the notes go to the AI, last names and villages written in English are removed, and first names are kept only when consent is recorded. Names written in Dari or Pashto are not caught. | — |
 | What happened | Weekly items feed the report's narrative and photos. They never change a reported figure. | Write no person's name and no village. The form warns when it sees one. Before a note goes to the AI, names and villages written in English are removed; post drafts keep first names. Names written in Dari or Pashto are not caught, so leave them out. | — |
 | Photos | Dated photos show the work. A captioned photo can go into the donor report. | Files are seen by project staff. A photo goes into a donor report only with a caption, and only once it has been checked for people who can be recognised. | — |
-| Farmer photo | A photo of the farmer's plot or activity shows the work was done. | Kept in the app and seen only by staff with access to Field. On the free plan photos are saved small (800 pixels on the long side); full phone quality is part of the paid plan. | — |
+| Farmer photo | A photo of the farmer's plot or activity shows the work was done. | Kept in the app and seen by staff with access to Field. It goes to a donor only once someone has checked it in the photo library, and where a person can be recognised only with their recorded consent; its place never goes. On the free plan photos are saved small (800 pixels on the long side); full phone quality is part of the paid plan. | — |
 <!-- field-help:end -->
 
 ## Who has full access
