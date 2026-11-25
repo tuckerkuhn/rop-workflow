@@ -154,7 +154,7 @@ function ItemForm({ v, start, onSave, onQueue, onClose, className = "mt-3" }: { 
     if (f.note.trim().length < 10) return setErr("Say what happened: where, with whom, what changed.");
     if (f.date < v.week.from || f.date > v.week.to) return setErr(`Date it within this week: ${periodLabel(v.week.from, v.week.to)}.`);
     const photos = files.filter((x) => x.type.startsWith("image/"));
-    if (photos.some((x) => !captions[x.hash]?.trim())) return setErr("Give every photo a caption: what, where (village, district).");
+    if (photos.some((x) => !captions[x.hash]?.trim())) return setErr("Give every photo a caption: what it shows, and the district. No names and no village: a donor may read it.");
     if (photos.some((x) => !taken[x.hash])) return setErr("Give every photo the date it was taken.");
     const keep = (m: Record<string, string>) => Object.fromEntries(Object.entries(m).filter(([h, t]) => files.some((x) => x.hash === h) && t.trim()));
     const where: PhotoPlaces = Object.fromEntries(Object.entries(places).filter(([h]) => files.some((x) => x.hash === h)));
@@ -230,7 +230,7 @@ function ItemForm({ v, start, onSave, onQueue, onClose, className = "mt-3" }: { 
                     ×
                   </button>
                   <div className="w-full min-w-0 space-y-2 sm:w-auto sm:flex-1">
-                    <input className={input} placeholder="Caption: what, where (village, district)" value={captions[x.hash] ?? ""} onChange={(e) => setCaptions({ ...captions, [x.hash]: e.target.value })} aria-label="Caption" />
+                    <input className={input} placeholder="Caption: what it shows, and the district" value={captions[x.hash] ?? ""} onChange={(e) => setCaptions({ ...captions, [x.hash]: e.target.value })} aria-label="Caption" />
                     <label className="block font-medium">
                       Taken on
                       <input type="date" className={`${input} font-mono`} value={taken[x.hash] ?? ""} max={v.today} onChange={(e) => setTaken({ ...taken, [x.hash]: e.target.value })} />

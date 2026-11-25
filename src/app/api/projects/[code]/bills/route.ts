@@ -10,7 +10,7 @@ import { isSharePointUrl } from "@/lib/procurement";
 import { NON_CONTRACT } from "@/lib/timesheet";
 import type { AppUser } from "@/lib/demo";
 import { requireViewer } from "@/server/auth";
-import { billRoles, loadBills, saveBills } from "@/server/bills-store";
+import { billRoles, changeBills, loadBills } from "@/server/bills-store";
 import { handle } from "@/server/guard";
 import { hrBook } from "@/server/hr-store";
 import { projectRules } from "@/server/policy-store";
@@ -118,10 +118,10 @@ export async function POST(req: Request, { params }: Ctx) {
         if (!old || old.status !== "returned") return fail("Only a bill that was sent back is recorded again in its place.", 400);
         if (redoneAs(old, book.items)) return fail(`${old.id} was already recorded again.`, 400);
       }
-      const id = `BL-${String(book.next).padStart(3, "0")}`;
+
       const usd = Math.round((a.currency === "AFN" ? a.amount / AFN_PER_USD : a.amount) * 100) / 100;
       const bill: Bill = {
-        id,
+        id: "",
         payee: a.payee,
         invoiceNumber: a.invoiceNumber,
         invoiceDate: a.invoiceDate,
@@ -139,7 +139,17 @@ export async function POST(req: Request, { params }: Ctx) {
         status: "waiting",
         timeline: [{ date: sign.at, who: u.name, what: `Recorded (${BILL_CATEGORIES[a.category].label}, GL ${BILL_CATEGORIES[a.category].gl})` }],
       };
-      await saveBills(code, { items: [...book.items, bill], next: book.next + 1 });
+      // The number and the "recorded again" check are taken with the book locked: two bills recorded
+      // at once get two numbers, and a sent-back bill is recorded again once.
+      const refused = await changeBills(code, (cur) => {
+        if (a.replaces && redoneAs(cur.items.find((x) => x.id === a.replaces)!, cur.items)) return `${a.replaces} was already recorded again.`;
+
+        bill.id = `BL-${String(cur.next).padStart(3, "0")}`;
+        cur.items.push(bill);
+        cur.next += 1;
+        return null;
+      });
+      if (refused) return fail(refused, 409);
       await logAudit(db, (await projectByCode(code)).id, { entity: "bill", entityId: bill.id, action: "bill_recorded", by: u.id, detail: { bill: bill.id, usd: bill.usd, amount: bill.amount, currency: bill.currency, category: bill.category, budgetLine: bill.budgetLine, file: bill.file.hash } });
       return NextResponse.json(await view(code, u));
     }
@@ -173,17 +183,23 @@ export async function POST(req: Request, { params }: Ctx) {
         earlier,
       });
       // Read again before saving: the bill may have changed while the entry was written.
-      const fresh = await loadBills(code);
-      const mine = fresh.items.find((x) => x.id === b.id);
-      if (mine && !(mine.postings ?? []).some((p) => p.entryId === posting.entryId)) {
+      let added = false;
+      await changeBills(code, (fresh) => {
+        const mine = fresh.items.find((x) => x.id === b.id);
+        if (!mine || (mine.postings ?? []).some((p) => p.entryId === posting.entryId)) return "already kept";
         mine.postings = [...(mine.postings ?? []), posting];
         mine.timeline = [...mine.timeline, { date: sign.at, who: u.name, what: `${posting.n > 1 ? "Corrected entry posted" : "Posted"} to the books (${posting.budgetLine ? `line ${posting.budgetLine}` : "general and admin"}, ${posting.date})` }];
-        await saveBills(code, fresh);
+        added = true;
+        return null;
+      });
+      if (added) {
         if (!replayed) await logAudit(db, (await projectByCode(code)).id, { entity: "bill", entityId: b.id, action: "bill_posted_to_books", by: u.id, detail: { bill: b.id, entry: posting.entryId, budgetLine: posting.budgetLine, amount: Number(posting.amount), currency: posting.currency, date: posting.date, paidFrom: posting.paidFrom, recordedBy: b.raised.by, posting: posting.n } });
       }
       return NextResponse.json(await view(code, u));
     }
     const roles = await rolesOf(u);
+    // The status the checks below were made on: the save refuses if it changed meanwhile.
+    const before = b.status;
     let voucherFiled: boolean | null = null;
     if (a.action === "approve" || a.action === "return") {
       if (!roles.approve) return fail("Programme management approves bills.");
@@ -213,7 +229,14 @@ export async function POST(req: Request, { params }: Ctx) {
         timeline: [...b.timeline, { date: sign.at, who: u.name, what: complete ? `Voucher ${a.number} filed in ${storeNames()} and posted in ${acct()} (${a.netsuiteRef})` : `Voucher ${a.number} started` }],
       });
     }
-    await saveBills(code, book);
+    // Saved with the book locked, on the bill as it is now: a change made meanwhile by someone else stays.
+    const raced = await changeBills(code, (cur) => {
+      const now = cur.items.find((x) => x.id === b.id);
+      if (!now || now.status !== before) return "This bill was changed by someone else meanwhile. Reload and look again.";
+      Object.assign(now, b);
+      return null;
+    });
+    if (raced) return fail(raced, 409);
     if (a.action === "approve" || a.action === "return") {
       const project = await projectByCode(code);
       await logAudit(db, project.id, { entity: "bill", entityId: b.id, action: a.action === "approve" ? "bill_approved" : "bill_returned", by: u.id, detail: { bill: b.id, usd: b.usd, recordedBy: b.raised.by, ...(a.action === "approve" && b.approval?.selfApproved ? { selfApproved: true, ...(b.approval.soloNote ? { soloNote: b.approval.soloNote } : {}) } : {}) } });
