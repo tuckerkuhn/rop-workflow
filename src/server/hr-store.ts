@@ -274,6 +274,17 @@ export async function seedSample(write: typeof append = append, file: typeof sto
     ["farid", { name: "Farid Sultani", title: "Horticulture Specialist", office: "Afghanistan", employment: "National staff", supervisor: "karim", startDate: "2024-01-15", contractEnd: "2027-12-31", ...afn(77000), bankAccount: "AIB 0000-4107 (sample)", dangerPay: 35 }],
     ["javed", { name: "Javed Mansoor", title: "Sr. Civil Engineer", office: "Afghanistan", employment: "National staff", supervisor: "karim", startDate: "2023-08-01", contractEnd: "2027-12-31", ...afn(91000), bankAccount: "AIB 0000-4108 (sample)", dangerPay: 35 }],
     ["bilal", { name: "Bilal Haidari", title: "Storekeeper", office: "Afghanistan", employment: "National staff", supervisor: "nadia", startDate: "2024-06-01", ...afn(35000), bankAccount: "AIB 0000-4109 (sample)" }],
+    // The rest of the demo's staff, so Timesheets, Leave and Expenses work for every demo person
+    // (07-five-lens-review, "left alone"). Fictional pay, dates and accounts, like those above.
+    ["marcus", { name: "Marcus Bell", title: "Vice President, Programs", office: "Home Office", employment: "Employee", supervisor: "tucker", startDate: "2021-02-01", ...usd(10500), retirementPct: 4, adpId: "ROP-1005" }],
+    ["sarah", { name: "Sarah Lee", title: "Compliance reviewer, Home Office", office: "Home Office", employment: "Employee", supervisor: "daniel", startDate: "2023-04-03", ...usd(6000), retirementPct: 3, adpId: "ROP-1006" }],
+    ["rahima", { name: "Rahima Stanikzai", title: "Director of MEL", office: "Afghanistan", employment: "National staff", supervisor: "daniel", startDate: "2022-05-01", ...afn(120000), bankAccount: "AIB 0000-4110 (sample)" }],
+    ["alejandro", { name: "Alejandro Cali", title: "Senior Agronomist", office: "Home Office", employment: "Employee", supervisor: "daniel", startDate: "2024-02-01", ...usd(5500), retirementPct: 3, adpId: "ROP-1007" }],
+    ["laila", { name: "Laila Haidari", title: "Agribusiness Technical Specialist", office: "Afghanistan", employment: "National staff", supervisor: "karim", startDate: "2023-09-01", contractEnd: "2027-12-31", ...afn(77000), bankAccount: "AIB 0000-4111 (sample)" }],
+    ["shabnam", { name: "Shabnam Qaderi", title: "Logistics Officer", office: "Afghanistan", employment: "National staff", supervisor: "karim", startDate: "2024-04-15", ...afn(60000), bankAccount: "AIB 0000-4112 (sample)" }],
+    ["omar", { name: "Omar Sadiq", title: "MEL officer", office: "Afghanistan", employment: "National staff", supervisor: "nadia", startDate: "2024-01-08", ...afn(65000), bankAccount: "AIB 0000-4113 (sample)" }],
+    ["farida", { name: "Farida Noori", title: "Extension agent", office: "Afghanistan", employment: "National staff", supervisor: "nadia", startDate: "2024-07-01", ...afn(42000), dangerPay: 35, bankAccount: "AIB 0000-4114 (sample)" }],
+    ["zarlasht", { name: "Zarlasht Noori", title: "M&E Assistant", office: "Afghanistan", employment: "National staff", supervisor: "nadia", startDate: "2025-03-01", ...afn(40000), bankAccount: "AIB 0000-4115 (sample)" }],
   ];
   const propose = (by: string, p: ProposalInput) => write(by, "propose", p.subject, p);
   const approve = (by: string, proposal: number, step: number, as: string, subject: string | null) => write(by, "approve", subject, { proposal, step, as });

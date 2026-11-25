@@ -30,8 +30,6 @@ Not walked yet: most of chain 2 and chains 3 to 6 (`ROUNDS.md`).
 - **No read-only auditor account** (M to L).
 - **Nobody can approve:** the record says "nobody yet" and nobody is told; no fallback (S to M,
   `kobo-approval.ts`, `distribution.ts`).
-- **No "?" help on the photo consent form or the HR forms** (S, `field-help.ts`). Needs wording in four languages.
-- **Demo field staff have no HR record**, so Timesheets, Leave and Expenses dead-end in the demo (S).
 - **Workplan "planned" quarters use calendar quarters** (M).
 - **No indirect-cost rate per donor** (M).
 - **Finance's out-of-scope list** (`09-finance.md`): functional currency screen, staff advances,
@@ -43,7 +41,8 @@ Not walked yet: most of chain 2 and chains 3 to 6 (`ROUNDS.md`).
 Fixed on 25 Nov (branch `build/open-items-2026-11-25`): the weekly caption no longer asks for the
 village; the bill book is locked while saved; a payroll download writes an audit row; Home tells MEL
 about farmers left open on a training record; a result reopened after a signed review stays in its
-records; the data protection note says what the AI would send.
+records; the data protection note says what the AI would send; "?" help on the photo consent and HR forms
+(Dari and Pashto wording for a native reader); HR records for every demo person.
 
 Fixed on 25 Nov while building AR: a photo could be checked only by the AI, so with no AI key no
 photo could ever reach a donor. Photos can now be checked by hand in the photo library.

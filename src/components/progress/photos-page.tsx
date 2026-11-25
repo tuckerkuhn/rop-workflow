@@ -9,6 +9,7 @@ import { Pill, TopBar, primaryBtn, quietBtn, Loading, StatusPill } from "@/compo
 import { AUDIENCES, AUDIENCE_TEXT, LABEL_TEXT, PUBLIC_AUDIENCES, SHARE, SHARE_TEXT, needs, rank, type Audience, type PhotoAction, type PhotoLabel, type Share } from "@/lib/photos";
 import { CONSENT_HOW, CONSENT_USES, HOW_LABEL, USE_LABEL } from "@/lib/stories";
 import type { photosView } from "@/server/photos-store";
+import { FieldHelp } from "@/components/app/field-help";
 
 /**
  * Photos and posts: coaching for everyone who takes photos (their best photo and one thing to try),
@@ -122,7 +123,10 @@ function Consent({ hash, act, onDone }: { hash: string; act: (a: PhotoAction, ms
   const [c, setC] = useState({ how: CONSENT_HOW[0] as (typeof CONSENT_HOW)[number], uses: ["comms"] as (typeof CONSENT_USES)[number][], date: today(), takenBy: "" });
   return (
     <div className="mt-2 rounded-xl bg-paper p-3 text-sm">
-      <p className="font-semibold">Consent of the people in this photo</p>
+      <p className="font-semibold">
+        Consent of the people in this photo
+        <FieldHelp field="photo.consent" />
+      </p>
       <label className="mt-2 block">
         How it was given
         <select className={input} value={c.how} onChange={(e) => setC({ ...c, how: e.target.value as (typeof CONSENT_HOW)[number] })}>

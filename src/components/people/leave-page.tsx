@@ -1,5 +1,7 @@
 "use client";
 
+import { FieldHelp } from "@/components/app/field-help";
+
 import { plainError } from "@/lib/plain-error";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
@@ -272,6 +274,7 @@ function RequestForm({ v, act }: { v: LeaveView; act: (a: LvAction, msg: string)
           {kind === "sick" && (
             <div className="text-sm sm:col-span-2">
               <span className="font-medium">{t("lv.certificate")}</span>
+              <FieldHelp field="hr.certificate" />
               <label className={`${quietBtn} mt-1 block w-fit cursor-pointer`}>
                 {certificate ? `📎 ${certificate.name}` : t("lv.photoOrPdf")}
                 <input

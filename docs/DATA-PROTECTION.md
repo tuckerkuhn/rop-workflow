@@ -41,6 +41,11 @@ The same words as the "?" beside each of these fields in the app. They come from
 | What happened | Weekly items feed the report's narrative and photos. They never change a reported figure. | Write no person's name and no village. The form warns when it sees one. Before a note goes to the AI, names and villages written in English are removed; post drafts keep first names. Names written in Dari or Pashto are not caught, so leave them out. | — |
 | Photos | Dated photos show the work. A captioned photo can go into the donor report. | Files are seen by project staff. A photo goes into a donor report only with a caption, and only once it has been checked for people who can be recognised. | — |
 | Farmer photo | A photo of the farmer's plot or activity shows the work was done. | Kept in the app and seen by staff with access to Field. It goes to a donor only once someone has checked it in the photo library, and where a person can be recognised only with their recorded consent; its place never goes. On the free plan photos are saved small (800 pixels on the long side); full phone quality is part of the paid plan. | — |
+| Consent for this photo | A photo in which someone can be recognised goes beyond the project's records only with their consent, and only for the uses they agreed to. | Recorded with how and when it was given and who took it. A woman or girl who can be recognised never goes on public social media without consent for it. | — |
+| Your phone | So your supervisor and HR can reach you about your work and your pay. | Kept in your HR record; every change is recorded and cannot be rewritten. | — |
+| Emergency contact | The person we call if something happens to you at work or in the field. | Kept in your HR record, for when it is needed. | — |
+| Bank account for your salary | Your salary is paid into it. | Seen only by you and HR. Changing it later needs the CFO and the CEO, so nobody can redirect your salary. | — |
+| Medical certificate | It supports your sick leave. | Kept with your leave request in the HR record. The people who approve your leave and HR can open it. | — |
 <!-- field-help:end -->
 
 ## Who has full access

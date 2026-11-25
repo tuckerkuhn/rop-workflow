@@ -26,6 +26,11 @@ export const FIELD_HELP = {
   "weekly.note": { field: "fh.weekly.note", why: "fh.weekly.note.why", protect: "fh.result.note.protect" },
   "weekly.photos": { field: "fh.weekly.photos", why: "fh.weekly.photos.why", protect: "fh.result.proof.protect" },
   "farmer.photo": { field: "fh.farmer.photo", why: "fh.farmer.photo.why", protect: "fh.farmer.photo.protect" },
+  "photo.consent": { field: "fh.photo.consent", why: "fh.photo.consent.why", protect: "fh.photo.consent.protect" },
+  "hr.phone": { field: "fh.hr.phone", why: "fh.hr.phone.why", protect: "fh.hr.phone.protect" },
+  "hr.emergency": { field: "fh.hr.emergency", why: "fh.hr.emergency.why", protect: "fh.hr.emergency.protect" },
+  "hr.bank": { field: "fh.hr.bank", why: "fh.hr.bank.why", protect: "fh.hr.bank.protect" },
+  "hr.certificate": { field: "fh.hr.certificate", why: "fh.hr.certificate.why", protect: "fh.hr.certificate.protect" },
 } as const satisfies Record<string, FieldHelpEntry>;
 export type FieldHelpKey = keyof typeof FIELD_HELP;
 
