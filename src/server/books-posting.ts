@@ -199,7 +199,7 @@ export async function postToBooks(p: ToPost): Promise<{ posting: Posting; replay
     const credit = e.lines.find((l) => Number(l.credit) > 0);
     const from = paying.find((m) => m.ledgerAccountId === credit?.accountId) ?? account;
     const debit = e.lines.find((l) => Number(l.debit) > 0);
-    const posting: Posting = { n, entryId: e.entry.id, expenditureId: r.expenditureId, date: e.entry.entryDate, paidFrom: from.code, paidFromName: from.name, budgetLine: line.code, amount: debit ? Number(debit.debit).toFixed(2) : amount, currency: debit?.currency ?? currency, by: e.entry.postedBy ?? p.postedBy.id, name: e.entry.postedBy && e.entry.postedBy !== p.postedBy.id ? e.entry.postedBy : p.postedBy.name, at: today };
+    const posting: Posting = { n, entryId: e.entry.id, expenditureId: r.expenditureId, date: e.entry.entryDate, paidFrom: from.code, paidFromName: from.name, budgetLine: line.code, amount: debit ? Number(debit.debit).toFixed(2) : amount, currency: debit?.currency ?? currency, by: e.entry.postedBy ?? p.postedBy.id, name: e.entry.postedBy && e.entry.postedBy !== p.postedBy.id ? ((await people()).find((x) => x.id === e.entry.postedBy)?.name ?? e.entry.postedBy) : p.postedBy.name, at: today };
     return { posting, replayed: e.replayed };
   } catch (e) {
     if (e instanceof LedgerError && e.code === "needs_second_person")
