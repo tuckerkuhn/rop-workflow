@@ -95,6 +95,17 @@ worth more than a half-built large one.
 - A made form is checked with the standard converter: `pip install pyxform --break-system-packages`,
   then `python3 -m pyxform.xls2xform form.xlsx form.xml`.
 - The three checks can run in the background while a walk is under way. They take about five minutes.
+  Round 3: the full test run and a browser walk at the same moment ran the sandbox out of memory and
+  the app was stopped (`dmesg | grep -i "killed process"` shows it). If a page will not open, look
+  there, start the app again and walk after the tests have finished.
+- A weekly item keeps where its photos were taken in `places`, by file hash, in its payload.
+  `loadUpdates` never returns it. `updatePlaces(code, viewer)` in `src/server/results-store.ts` gives
+  it, and only to a viewer who may see participant names. Read weekly places nowhere else.
+- No demo person both writes the weekly update and is kept from participant names. A test that needs
+  one makes one: `{ ...omar, id: "writer-no-names", pii: false }`.
+- `useShownAgain` (`src/components/app/use-shown-again.ts`) counts each time a page left open is
+  looked at again. A screen that lists what waits for a person puts the count among what its read
+  depends on. In a browser script, set `document.visibilityState` and send `visibilitychange`.
 
 ## Chains to walk, in order
 
@@ -117,42 +128,29 @@ is used next. Then walk it as each role on a phone. The distribution chain is do
 
 ## Queue
 
-Big, open:
-1. Weekly update photos keep their date but not their place. The place must stay with people who
-   may see participant names on every screen that reads weekly items, and survive an edit.
-   It needs a whole round. What round 2 read, to start from:
-   - Every reader goes through `loadUpdates` in `src/server/results-store.ts` (about ten callers:
-     results, weekly, photos, stories, the quarterly report, the period report, claim check, first
-     run, activities). Keep the place out of what `loadUpdates` returns, so no caller can pass it on
-     by accident. Give it only through a second function that takes the viewer and checks `canSeePII`.
-   - A weekly item's photos are keyed by file hash (`captions`, `taken` in `updateSchema`,
-     `src/lib/results.ts`). The place fits beside them the same way. No migration: it is in the payload.
-   - The photo's place is read where its date is read now, before the photo is made smaller:
-     `upload` in `src/components/progress/weekly-page.tsx` (`photoFacts` in `src/lib/exif.ts` gives both).
-   - `editUpdate` replaces the whole payload with what the screen sent. A person who may not see the
-     place never has it on their screen, so their edit would drop it. Keep the stored place for
-     every photo still on the item, on the server.
-   - The copy kept when a week is sent (`WeekSent`) and the file for the donor must never hold it.
-   - Photos saved on the phone with no connection get a temporary hash (`src/lib/outbox.ts`). The
-     place must follow the photo to its real hash when it is sent.
+Big, open: none. The next round walks chain 1, "Results to report", and writes what it finds here.
 
 Medium, open:
-1. Dates still show as 2026-11-24 on most screens outside the approval page and the review queue.
-   Use `longDate` from `src/lib/weekly.ts` where a person reads a date in a sentence.
+1. Dates still show as 2026-11-24 on most screens outside the approval page, the review queue and
+   the weekly page's messages. Use `longDate` or `periodLabel` from `src/lib/weekly.ts` where a
+   person reads a date in a sentence. Known places: Home's row "Last week's weekly update
+   (2026-11-15 to 2026-11-19) is not marked sent" (`src/server/preflight.ts`; its words are in four
+   languages in `src/lib/i18n/preflight*.ts`, so the dates go in as the words `{from}` and `{to}`),
+   the Results page ("Showing 2026-Q4 (2026-10-01 to 2026-12-31) only") and the period report's heading.
 2. Some days are cut from a UTC timestamp and show tomorrow's date in the evening in Guatemala.
-3. Home does not load again when a person comes back to it. Checked in round 2: a distribution sent
-   back by the checker is on the storekeeper's Home the next time Home loads ("Fix the distribution
-   record for F-0009"), with its link. A Home left open on a phone does not show it until then.
-   Load Home's rows again when the page is shown again (the hooks behind `useTaskRows`,
-   `src/components/tasks/use-rows.ts`).
-4. The Setup step that lists the project's forms offers the readiness, training and farm visit
-   forms. The distribution form is still downloaded in Field activities, under Input package. One
-   line on the step says so. A person setting up for the first time has two places to go.
+   Seen in round 3 on the weekly page: "today" is the server's UTC day (`weeklyView` in
+   `src/server/weekly-store.ts`), so after six in the evening in Guatemala an item can be dated
+   tomorrow, and "Sent by Omar Sadiq on 25 November 2026" is the UTC day it was sent.
+3. A weekly photo added before round 3, or one whose phone removed the place, has no place and the
+   weekly page says nothing about it. The farmer page offers "use this device's location" for such
+   a photo. The weekly page does not (Needs Tucker U).
 
 Done: see `11-handoffs-review.md` and `10-field-ledger.md`. Round 1: training attendance is one record
 per session with its farmers ticked (was big item 1). Round 2: the app makes the readiness, training
 and farm visit forms (was big item 1), Accept stays put while a photo loads (was medium 5), the
-counts in `11-handoffs-review.md` are dated (was medium 4).
+counts in `11-handoffs-review.md` are dated (was medium 4). Round 3: weekly update photos keep their
+place for people who may see participant names (was big item 1), Home is read again when a person
+comes back to it (was medium 3), Setup offers the distribution form beside the other three (was medium 4).
 
 ## Needs Tucker
 
@@ -189,6 +187,22 @@ Decisions A to N are in `11-handoffs-review.md`. Rounds add theirs here, lettere
 - **T. The training sessions are the same three for every project**: land preparation and planting,
   crop care and irrigation, harvest and storage. A project with other sessions would need them as a
   project setting. That is a new setting, so it is not built. Say if you want it.
+
+- **U. A weekly photo with no place of its own.** Many phones and messaging apps remove the place
+  from a photo. The weekly page then keeps no place for it and asks nothing. On the farmer page a
+  person can press one button to use the place of the device in their hand. Say if the weekly page
+  should offer the same. It is a new button, so it is not built.
+- **V. Who sees where a weekly photo was taken.** The rule followed is yours: only people who may
+  see participant names. In the demo that means the storekeeper, the extension agent, the MEL
+  officer and the project manager see it. The Director of MEL, the country director and the vice
+  president do not. Say if the Director of MEL should, since she vouches for field data.
+- **W. Photos already on weekly items have no place.** The place is read on the phone when the
+  photo is added, before it is made smaller. The stored copy does not hold it. Nothing can bring
+  it back for photos added before round 3.
+- **The real phone test, added in round 3.** Add a photo to a weekly item from a real phone, taken
+  with the camera's location on. The form should say "Place found in the photo" under it. Then
+  open the item as the project manager and press "Show on a map": the map should show the plot.
+  No round can see the map. This sandbox cannot reach OpenStreetMap.
 
 ## Log
 
@@ -301,4 +315,69 @@ found and left, tests passing.
   have checked this record". nadia approved. The farmer moved to planting.
   `10-field-ledger.md` updated: the farm visit form asks one of two questions, the readiness photo
   is required, and finding 5 is closed.
-- **Round 3. 25 Nov 02:16. IN PROGRESS.** Queue, big item 1 (the place on weekly update photos).
+- **Round 3. 25 Nov 02:16 to 02:39. DONE.** Queue, big item 1 (the place on weekly update photos),
+  then medium 3, medium 4 and one part of medium 1. No chain was walked: the queue had a big item.
+  All big items in the queue are now done, so the next round walks chain 1.
+  Decisions made alone, to check: the place is shown on the weekly page only, to the people who
+  may see participant names, and on no other screen (Needs Tucker V). A photo with no place is
+  added with no question (Needs Tucker U). A place already stored for a photo is never replaced
+  by an edit. The map opens only when asked for, with the same line about OpenStreetMap as the
+  approval page.
+  Fixed:
+  - *Weekly update photos keep their place* (was big item 1). The phone that adds a photo reads
+    the place from it where it reads the date, before the photo is made smaller, and the form says
+    "Place found in the photo. Only people who may see participant names are shown it." The item
+    stores it by file (`places` in `updateSchema`, no migration). `loadUpdates` leaves it behind, and
+    the type it returns has no such field, so none of its readers can pass it on. Only
+    `updatePlaces(code, viewer)` gives it, and only to a viewer who may see participant names.
+    The weekly page shows those people "Show on a map" under the photo. An edit keeps the stored
+    place of every photo still on the item, whoever edits, drops it with a photo taken off and
+    takes it for a photo added. The copy kept when a week is sent and the Word file do not hold it.
+    A photo saved with no connection takes its place with it when it is sent.
+    Test: `src/server/__tests__/weekly-photo-place.db.test.ts`, 8 tests: the shape accepted, nothing
+    on what readers get, who is given it and who is not (a writer kept from names included), the
+    weekly page's answer for each, an edit by someone whose screen never held it, a photo taken
+    off and one added, places only for files on the item, and the copy kept when a week is sent
+    (through the weekly route).
+    Run in the browser on a phone-sized screen with fictional photos. As omar: two photos added,
+    one with a place and one without, the form said so for the first only. "Show on a map" showed
+    34.56230, 69.21010 and the map frame for that point. After an edit of the text the place was
+    still there. With the connection off, an item with a photo was saved on the phone, and once
+    the connection was back it was sent with its place under the photo's real file hash. As
+    nadia: both buttons. As rahima, marcus and karim: the photos, no button, and no point anywhere
+    in what the server sent them. The week was then marked sent: the copy kept holds no point.
+    The Word file downloaded as nadia holds no point and its pictures hold no photo data.
+    Not seen: the map itself. This sandbox cannot reach OpenStreetMap.
+  - *Home is read again when a person comes back to it* (was medium 3). Home and the Tasks list
+    read their rows again when a page left open is looked at again, not more often than every 20
+    seconds. Run in the browser as bilal on a phone-sized screen: Home open, rahima sent a
+    fictional record for F-0007 back, the row was not there, the page was looked at again and "Fix
+    the distribution record for F-0007" showed with its link, with one new read and no reload.
+    Looked at again 6 seconds after loading: no read. Looked at again with the connection off:
+    the rows stayed and no error showed. No test: it is the browser's own event.
+  - *Setup offers the input distribution form beside the other three* (was medium 4). The step
+    "Which forms belong to this project?" has a fourth button. Run in the browser as nadia on a
+    phone-sized screen: the file came down for A-2027 and the next steps showed. For a project
+    with no input package the server answers "Save the input package first: the form is made from
+    it" (seen by the request on GT-2027), and the step then shows a link, "Open Field activities",
+    and says to press Input package there and come back (seen in the browser with that answer
+    played back to the page). No test: one button on one screen.
+  - *The weekly page's messages give the week as "22–26 November 2026"* (part of medium 1): the
+    date outside the week, "Mark as sent", a week that overlaps another and an item dated in a
+    week already sent. All four read in the browser or by the request.
+  Found and left:
+  - Dates and the UTC day: what is known is listed under medium 1 and 2 in the queue.
+  - A weekly photo with no place gets none and the page is silent (medium 3, Needs Tucker U).
+  - Needs Tucker U, V, W and the real phone test of a weekly photo.
+  Checks: 1,166 tests pass (1,158 before), typecheck clean, lint clean, on the final code.
+  The app was stopped by the sandbox for lack of memory while the tests and a walk ran together.
+  It was started again and the walk finished. Distribution chain walked in the browser on the
+  final code, on the local database made new at the start of this round, and this time through
+  the send-back: a fictional KoboCollect record for F-0007, sent back by rahima with a reason,
+  fixed and sent again by bilal, checked by rahima ("KoboCollect record checked by Rahima
+  Stanikzai"), approved by nadia. The farmer moved to planting. The audit log shows each step in
+  order, and that after bilal sent it again it waited for the check before going to nadia. The
+  refusal before the check was seen on a second fictional record, for F-0008: for nadia the page
+  said "Step 1 of 2: check the KoboCollect record", Approve could not be pressed, and the request
+  itself was refused.
+  `10-field-ledger.md` updated: the place on a weekly photo is read from the photo.

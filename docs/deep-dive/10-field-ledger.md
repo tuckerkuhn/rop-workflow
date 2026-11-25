@@ -108,6 +108,10 @@ Nothing typed to approve, before or after.
 
 Expense receipts: the expense date is filled in from the receipt photo when the person has not set one.
 
+Weekly update photos (round 3, 25 Nov): the place is read from the photo when it is added, as the date
+already was. Nothing is typed. It is shown on the weekly page only to people who may see participant
+names. A photo with no place in it is added as before, with no question asked *run, test*.
+
 ## 10. Fields asked per role, before and after
 
 | Role | Before | After |
