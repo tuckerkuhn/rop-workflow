@@ -128,7 +128,8 @@ number to its proof and a small organization setting up for the first time.
 | Small organization | **There was no form unless a developer wrote one.** Each project's distribution form was built by hand with a script | Field setup makes the form from the saved package and gives the four steps to put it on phones *run* |
 | Storekeeper | Typed each amount, even when it was the planned one (project forms) | One tap per item for "the planned amount". An amount is typed only when it differed *test* |
 | Storekeeper | The note they wrote reached nobody | Shown to whoever checks the record, signed-in staff only |
-| Extension agent | Typed the same session and register reference for every farmer at a training | The phone offers the last answer. Typed once per session |
+| Extension agent | Typed the same session and register reference for every farmer at a training | One record per session (round 1, 25 Nov). Session, date, register and photo are given once and each farmer who attended is ticked. The "did the farmer attend" question is cut: a farmer who is not ticked did not attend *run, test* |
+| MEL, review queue | One training record to accept for every farmer at a session | One record per session. One accept records every ticked farmer and says who moved, who stays at Train and why *run, test* |
 | MEL, review queue | Readiness, training and visit photos stayed in KoboToolbox. The queue said "photo: yes" | "See the photo and where it was recorded" on each KoboCollect form *run, test* |
 | MEL, project manager | "collected by farida.kobo": an account name, not a person | The person's name when the account is matched. When it is not, the page says so and links to the place to match it |
 | Project manager | Stock check failed with what was needed, but no way to get there | Links to the purchases that unblock it |
@@ -142,10 +143,10 @@ number to its proof and a small organization setting up for the first time.
 1. **The KoboCollect path is still unproven against a real account.** Run against a stand-in server on a
    laptop. A real phone and the sandbox account are needed to prove: KoboToolbox's attachment names, GPS at
    form start on the installed KoboCollect version, whether a photo's own date and place survive, that the
-   phone offers the last answer on the training form, and that the form the app makes deploys cleanly.
+   training form's tick list of farmers can be searched on the phone when the list is long, and that the form the app makes deploys cleanly.
 2. *(Closed 25 Nov: the GPS point now goes only to people who may see participant names.)*
-3. **Training is still one record per farmer per session.** The phone now remembers the session and
-   register, so nothing is retyped, but one record per session with farmers ticked would be the right shape.
+3. *(Closed 25 Nov, round 1: training is one record per session with its farmers ticked. Records from the
+   earlier form still read, accept and count.)*
 4. *(Closed 25 Nov: the list is dated the day of the handout.)*
 5. **Only the distribution form is made by the app.** Readiness, training and visit forms are still the
    hand-built files in `kobo/`. The same approach works for them once their questions are settled.

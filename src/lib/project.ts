@@ -135,7 +135,13 @@ export type Submission = {
   source?: "kobo" | "sample" | "app";
   orgId: string;
   form: SubmissionForm;
+  /** The farmer the record is about. Empty on a training session record, which names its farmers in `farmers`. */
   farmerId: string;
+  /**
+   * Training attendance as one record per session (kobo/build_field_forms.py): every farmer ticked
+   * as attending. Absent on a record about one farmer.
+   */
+  farmers?: string[];
   date: string;
   enumerator: string;
   /** Missing when the form was submitted without a GPS point. */
@@ -171,18 +177,41 @@ export const gpsCheck = (gps: [number, number] | null | undefined): "missing" | 
 /** Farmer roster the data checker compares against: farmer code to current Field activities step. */
 export type Roster = Record<string, string>;
 
+/** Who a record is about, as a person reads it: "Farmer F-0004", or "12 farmers" on a training session record. */
+export const whoOf = (s: Pick<Submission, "farmerId" | "farmers">) => (s.farmers ? `${s.farmers.length} ${s.farmers.length === 1 ? "farmer" : "farmers"}` : `Farmer ${s.farmerId}`);
+
+/** A short list of farmer numbers for a sentence: the first six, then how many more. */
+const some = (ids: string[]) => `${ids.slice(0, 6).join(", ")}${ids.length > 6 ? ` and ${ids.length - 6} more` : ""}`;
+
+/**
+ * Records as one per farmer, for counting people: a training session record becomes one entry for
+ * each farmer ticked, each with the session's date, answers and decision. Other records pass through.
+ */
+export const perFarmer = (subs: Submission[]): Submission[] => subs.flatMap((s) => (s.farmers ? s.farmers.map((id) => ({ ...s, farmerId: id, farmers: undefined, fields: { ...s.fields, attended: "Yes" } })) : [s]));
+
 export function dataFlags(s: Submission, all: Submission[], roster?: Roster): string[] {
   const f: string[] = [];
-  const dup = all.find(
-    (o) => o.id !== s.id && o.form === s.form && o.farmerId === s.farmerId && o.status !== "queried" && (o.date < s.date || (o.date === s.date && o.id < s.id)) && s.form !== "visit",
-  );
-  if (dup) f.push(`Possible duplicate of ${dup.id} (same farmer, same form)`);
+  const earlier = (o: Submission) => o.id !== s.id && o.form === s.form && o.status !== "queried" && (o.date < s.date || (o.date === s.date && o.id < s.id));
+  if (s.farmers) {
+    // A session record: the same session on the same day sent twice.
+    const again = all.find((o) => earlier(o) && !!o.farmers && o.date === s.date && o.fields.session === s.fields.session);
+    if (again) f.push(`Possible duplicate of ${again.id} (same session, same day)`);
+    if (!s.farmers.length) f.push("No farmer is ticked: accepting it records nobody");
+  } else {
+    const dup = all.find((o) => earlier(o) && !o.farmers && o.farmerId === s.farmerId && s.form !== "visit");
+    if (dup) f.push(`Possible duplicate of ${dup.id} (same farmer, same form)`);
+  }
   // The same two checks whether or not this viewer was sent the point itself (gpsCheck).
   const where = s.gpsCheck ?? gpsCheck(s.gps);
   if (where === "missing") f.push("No GPS point recorded");
   else if (where === "outside") f.push(s.gps ? `GPS ${s.gps[0].toFixed(3)}, ${s.gps[1].toFixed(3)} is outside the project area` : "The GPS point is outside the project area");
   // Intake checks apply to real Kobo submissions; the sample records are past history.
-  if (roster && s.source === "kobo") {
+  if (roster && s.source === "kobo" && s.farmers) {
+    const unknown = s.farmers.filter((id) => roster[id] === undefined);
+    const past = s.farmers.filter((id) => roster[id] !== undefined && roster[id] !== "train");
+    if (unknown.length) f.push(`Not on the project roster: ${some(unknown)}. Their attendance stays on this record only`);
+    if (past.length) f.push(`Past training: ${some(past)}. Attendance will be recorded but their step will not move`);
+  } else if (roster && s.source === "kobo") {
     const step = roster[s.farmerId];
     if (step === undefined) f.push(`Farmer ${s.farmerId || "(blank)"} is not on the project roster`);
     else if (s.form === "readiness" && !["verify", "correct"].includes(step)) f.push(`Farmer ${s.farmerId} is not at a readiness step (now: ${step}); the result will be recorded but the step will not move`);
@@ -248,8 +277,10 @@ export function seedSubmissions(field: FieldItem[] = seedField()): Submission[] 
 /** Draft Actual: distinct farmers (or visits) from accepted submissions. */
 export function actualFor(ind: Indicator, subs: Submission[]) {
   if (ind.source === "survey") return { value: null as number | null, evidence: [] as Submission[], pending: 0, byGender: { Female: 0, Male: 0 } };
-  const rel = subs.filter((s) => s.form === ind.source && (!ind.match || ind.match(s)));
-  const accepted = rel.filter((s) => s.status === "accepted");
+  // A training record that says the farmer did not attend is kept as a record of the absence: it is not a farmer trained.
+  const rel = subs.filter((s) => s.form === ind.source && (!ind.match || ind.match(s)) && !(s.form === "training" && s.fields.attended === "No"));
+  // A training session record counts each farmer ticked, once, like the one-farmer records beside it.
+  const accepted = perFarmer(rel.filter((s) => s.status === "accepted"));
   const evidence = ind.unit === "visits" ? accepted : Object.values(Object.fromEntries(accepted.map((s) => [s.farmerId, s])));
   const byGender = { Female: 0, Male: 0 };
   evidence.forEach((s) => {

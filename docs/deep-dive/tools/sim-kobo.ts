@@ -3,7 +3,7 @@
 // KoboToolbox account. Refuses to run against anything but localhost. Never part of the app.
 //
 //   cp docs/deep-dive/tools/sim-kobo.ts ./.sim.ts && npx tsx --env-file=.env.local ./.sim.ts <kind> [nophoto]; rm ./.sim.ts
-//   kind: distribution | readiness
+//   kind: distribution | readiness | training (one record for a session, three farmers ticked)
 import { and, eq } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { encryptSecret } from "@/server/secrets";
@@ -23,15 +23,19 @@ async function main() {
   const base = `http://localhost:4010/api/v2/assets/aSim/data/${n}/attachments`;
   const att = (name: string, question: string, i: number) => ({ download_url: `${base}/${i}/${name}`, download_medium_url: `${base}/${i}/${name}`, mimetype: "image/jpeg", filename: `rop/attachments/aSim/sim/${name}`, question_xpath: question, media_file_basename: name });
   const photo = flag !== "nophoto";
+  // A training session: the farmers still at Train first, then others, so the summary shows both.
+  const ticked = [...farmers.filter((x) => x.step === "train"), ...farmers.filter((x) => x.step !== "train")].slice(0, 3).map((x) => x.id);
   const payload: Record<string, unknown> =
-    kind === "distribution"
+    kind === "training"
+      ? { _id: n, farmers: ticked.join(" "), training_date: new Date().toISOString().slice(0, 10), session: "land_prep", register_ref: "Book 2 page 14, kept at the field office", start_geopoint: "34.562 69.21 1790 6", _submitted_by: "farida.kobo", ...(photo ? { photo: "note.jpg", _attachments: [att("note.jpg", "photo", 1)] } : { _attachments: [] }) }
+      : kind === "distribution"
       ? { _id: n, farmer: f.id, distribution_date: new Date().toISOString().slice(0, 10), seed_kg: "10", npk_kg: "50", condition: "good", signed: "yes", start_geopoint: "34.562 69.21 1790 6", notes: "Handed over at the store", _submitted_by: "bilal.kobo", ...(photo ? { list_photo: "note.jpg", handover_photo: "handover.jpg", _attachments: [att("note.jpg", "list_photo", 1), att("handover.jpg", "handover_photo", 2)] } : { _attachments: [] }) }
       : { _id: n, farmer: f.id, visit_date: new Date().toISOString().slice(0, 10), visit_type: "first", both_present: "yes", ready: "yes", location: "34.5621 69.2103 1790 5", start_geopoint: "34.562 69.21 1790 6", _submitted_by: "farida.kobo", ...(photo ? { photo: "note.jpg", _attachments: [att("note.jpg", "photo", 1)] } : { _attachments: [] }) };
   await db.delete(s.evidence).where(and(eq(s.evidence.projectId, project.id), eq(s.evidence.koboSubmissionUuid, uuid)));
   const [row] = await db
     .insert(s.evidence)
-    .values({ organizationId: project.organizationId, projectId: project.id, source: "kobo", form: kind === "distribution" ? "distribution" : "readiness", farmerCode: f.id, reviewStatus: "pending", completedBy: String(payload._submitted_by), completedAt: new Date(), koboAssetUid: "aSim", koboSubmissionUuid: uuid, koboSubmissionId: n, payload })
+    .values({ organizationId: project.organizationId, projectId: project.id, source: "kobo", form: kind === "distribution" ? "distribution" : kind === "training" ? "training" : "readiness", farmerCode: kind === "training" ? null : f.id, reviewStatus: "pending", completedBy: String(payload._submitted_by), completedAt: new Date(), koboAssetUid: "aSim", koboSubmissionUuid: uuid, koboSubmissionId: n, payload })
     .returning({ id: s.evidence.id });
-  console.log(JSON.stringify({ kind, id: row.id, farmer: f.id, approve: kind === "distribution" ? `/approve/A-2027/${row.id}` : "/progress/results" }));
+  console.log(JSON.stringify({ kind, id: row.id, farmer: kind === "training" ? ticked.join(" ") : f.id, approve: kind === "distribution" ? `/approve/A-2027/${row.id}` : "/progress/results" }));
 }
 main().then(() => process.exit(0), (e) => { console.error(e); process.exit(1); });

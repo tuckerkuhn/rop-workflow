@@ -1,7 +1,7 @@
 import { isYouth } from "@/lib/field";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
-import { YOUTH_AGES, type KoboBreakdown, type MappingMethod } from "@/lib/kobo-setup";
+import { YOUTH_AGES, farmerQuestion, sessionFarmers, type KoboBreakdown, type MappingMethod } from "@/lib/kobo-setup";
 import type { Correction, ResultInput, ResultRecord } from "@/lib/results";
 import { logAudit } from "@/server/audit";
 import { attachmentBytes } from "@/server/kobo-client";
@@ -134,6 +134,17 @@ const farmerIdOf = (code: string | null, p: Record<string, unknown>) => {
   return v.startsWith("pseudonym:") ? "" : v.slice(0, 80);
 };
 
+/**
+ * Women, men and young people across the farmers one training session record counts, from their
+ * own records. A figure is given only when every one of those farmers' records gives it: a part
+ * count would read as the whole.
+ */
+function sumPeople(each: People[]): People {
+  const out: People = {};
+  for (const k of ["female", "male", "youth"] as const) if (each.length && each.every((p) => p[k] !== undefined)) out[k] = each.reduce((t, p) => t + p[k]!, 0);
+  return out;
+}
+
 const samePeople = (r: People, b: People) => r.female === b.female && r.male === b.male && r.youth === b.youth;
 const peopleOf = (r: People): People => ({ ...(r.female !== undefined ? { female: r.female } : {}), ...(r.male !== undefined ? { male: r.male } : {}), ...(r.youth !== undefined ? { youth: r.youth } : {}) });
 
@@ -206,7 +217,10 @@ export async function koboToResults(code: string): Promise<KoboResultCounts> {
     const breakdown = breakdownFor(breakdowns, ind.code, m.assetUid);
     // One submission is one farmer only on a target counted in people (not hectares or kilograms):
     // there the farmer record gives the sex and age no mapped question gives.
-    const farmers = countsPeople(ind.unit) ? await farmersOf(project.id, subs.map((x) => x.farmer)) : new Map<string, FarmerFacts>();
+    const farmers = countsPeople(ind.unit) ? await farmersOf(project.id, subs.flatMap((x) => sessionFarmers(x.payload) ?? [x.farmer])) : new Map<string, FarmerFacts>();
+    // A question that names farmers on a training form, counted as different answers: each farmer once,
+    // whether ticked on a session record or named on a record from the earlier form (lib/kobo-setup).
+    const fq = m.method === "count_unique" ? farmerQuestion(m.question) : null;
     // Results matched to a submission on this form; any other result from this form and target is left over.
     const matched = new Set<string>();
     for (const sub of subs) {
@@ -221,7 +235,14 @@ export async function koboToResults(code: string): Promise<KoboResultCounts> {
       }
       // Counted the same way as before: readiness submissions once accepted, and only approved ones when the project says so.
       const counts = !sub.removed && (sub.form === null || sub.review === "accepted") && (!approvedOnly || text((sub.payload._validation_status as { uid?: string } | undefined)?.uid) === "validation_status_approved");
-      const value = counts ? addsUp(m.method as MappingMethod, m.value, answer(sub.payload, m.question), seen) : 0;
+      // Farmers this record counts for the first time. A session record: those ticked, whichever of
+      // the two questions the link names. A record from the earlier form linked through the tick
+      // list: its one farmer, unless it says the farmer did not attend. Otherwise the usual rule.
+      const session = fq ? sessionFarmers(sub.payload) : null;
+      const ticked = session ?? (fq?.linked === "farmers" && sub.farmer && text(sub.payload.attended) !== "no" ? [sub.farmer] : null);
+      const fresh = ticked && counts ? ticked.filter((id) => !seen.has(id)) : [];
+      fresh.forEach((id) => seen.add(id));
+      const value = ticked ? fresh.length : counts ? addsUp(m.method as MappingMethod, m.value, answer(sub.payload, m.question), seen) : 0;
       const date = dateOf(sub.payload, (sub.at?.toISOString() ?? text(sub.payload._submission_time) ?? "").slice(0, 10));
       const where = and(eq(s.evidence.projectId, project.id), eq(s.evidence.form, "result"));
 
@@ -244,7 +265,7 @@ export async function koboToResults(code: string): Promise<KoboResultCounts> {
       const district = placeOf(sub.payload, "district");
       const gps = gpsOf(sub.payload);
       const formName = forms.get(m.assetUid) ?? "KoboToolbox form";
-      const people = breakdownOf(breakdown, sub.payload, farmers.get(sub.farmer));
+      const people = session ? sumPeople(fresh.map((id) => breakdownOf(null, {}, farmers.get(id)))) : breakdownOf(breakdown, sub.payload, farmers.get(sub.farmer));
       const note = `From KoboToolbox: "${formName}", submission ${sub.num ?? sub.uuid.slice(0, 8)}${district || province ? `, ${[district, province].filter(Boolean).join(", ")}` : ""}.`;
 
       if (mine) {

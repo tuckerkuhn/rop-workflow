@@ -27,7 +27,7 @@ day of the handout. A paper list entered a week late landed in the wrong reporti
 |---|---|---|
 | Storekeeper | 11 questions, 2 typed, 1 GPS tap | 9 questions, 0 typed unless a note. GPS captured when the form opens |
 | Storekeeper | The note they wrote reached nobody | The checker reads it |
-| Extension agent | Typed session and register for every farmer at a training | The phone offers the last answer |
+| Extension agent | Typed session and register for every farmer at a training | One record per session, farmers ticked (round 1, 25 Nov) |
 | Director of MEL | One button, proof in another system, could not send back | Photo, place, day, three things to look at, send back with a reason |
 | Project manager | "Finance: told when the purchase has a payment to release" | Who has the task to pay which supplier, or that nothing is waiting |
 | Project manager | A failed stock check with no way forward | Links to the purchases that unblock it |
@@ -104,8 +104,9 @@ The first option is what I built. Answer with the letter and number to change on
    made-up records.
 3. **The form the app makes, on KoboToolbox.** It converts cleanly with the standard XLSForm
    converter. It has not been uploaded or filled in on a phone.
-4. **The phone remembering the last answer** on the training form. Standard in KoboCollect. Not
-   seen on a device, and the web form may not do it.
+4. **The tick list of farmers on the training form** (one record per session since round 1). It
+   converts cleanly with the standard XLSForm converter. Not seen on a device: whether the search box
+   shows above a long tick list on the installed KoboCollect, and on the web form.
 5. **Device location in the photo picker.** A headless browser has no location to give.
 6. **A production build and email.** Not run here. CI builds on a pull request.
 
@@ -141,8 +142,8 @@ in as Rahima Stanikzai and open it from Home.
 1. **The sandbox KoboToolbox account** (open since 17 Nov). 20 minutes of yours. It unlocks Part 5
    and items 1 to 4 of what I could not verify. Nothing I can build replaces it.
 2. Your answers to A to N.
-3. Then: the app makes the readiness, training and visit forms too, and training becomes one record
-   per session (ledger, findings 3 and 5).
+3. Then: the app makes the readiness, training and visit forms too (ledger, finding 5). Training
+   became one record per session in round 1 (`ROUNDS.md`).
 
 Checks on the finished branch: **1,138 tests pass** (1,095 before tonight), typecheck clean, lint
 clean. Six commits. Time: about 25 minutes for each pass. The 3-hour and 8-hour

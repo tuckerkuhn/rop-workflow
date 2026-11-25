@@ -6,7 +6,7 @@ Field staff use KoboCollect (offline, Android) or Enketo web forms.
 | Form | Workflow step | Status |
 |---|---|---|
 | `readiness_check.xlsx` | Verify readiness / recheck | **Built.** Accepted results move the farmer in Field activities. |
-| `training_attendance.xlsx` | Train farmers | **Draft for review.** One record per farmer per session, from the signed register. Accepted "attended" moves the farmer from Train to Prepare the plot. |
+| `training_attendance.xlsx` | Train farmers | **Draft for review.** One record per session, from the signed register, with every farmer who attended ticked. Accepting it moves each ticked farmer from Train to Prepare the plot. |
 | `distribution_form.xlsx` | Distribute inputs (demo maize package, A-2027) | **Draft for review.** Checked against the goods received note; the project manager approves each one (email link or Home). |
 | `acrp_distribution_form.xlsx` | Distribute inputs (ACRP-2026) | **Draft for review.** Built from `acrp_distribution.json` by `build_package_form.py`: cuttings, trellising, drip irrigation; each item "given?" then amount. |
 | `field_visit.xlsx` | Plant and follow up | **Draft for review.** Accepted "planted at the trained spacing" records planting; otherwise the follow-up goes on the farmer's record. |
@@ -65,9 +65,14 @@ Set them up like the readiness check below, and in Setup mark them **Training at
 **Farm visit**. **Push farmer list to Kobo** updates `farmers.csv` on them too.
 
 Each submission waits on Check › Results and proof, under Field forms to check, and is counted on Home. When MEL accepts it:
-- Training, attended: the Train checks are ticked and the farmer moves to Prepare the plot, but only
-  if already enrolled with the contribution paid; otherwise they stay at Train with the attendance
-  recorded. Not attended: noted on the record only.
+- Training: one record per session. For each farmer ticked, the Train checks are ticked and the
+  farmer moves to Prepare the plot, but only if already enrolled with the contribution paid;
+  otherwise they stay at Train with the attendance recorded. The message after accepting says how
+  many moved, who stays and why. A farmer who is not ticked did not attend. To count farmers trained
+  toward a target, link the question `farmers` in Setup and count "Different answers": each farmer
+  counts once, however many sessions they attend. Records from the earlier form (one per farmer,
+  with "attended" yes or no) still read, accept and count, and a link already made on that form's
+  `farmer` question counts the new session records too.
 - Farm visit at Plant: planted at the trained spacing records planting (the date planted, and the area
   planted, or for a crop counted one by one the number planted, which the app turns into hectares from
   the spacing) and completes the season path. When the project's target counts at planting, the

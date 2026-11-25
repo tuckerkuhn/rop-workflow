@@ -4,7 +4,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { farmerTable, recordTable, toCsv, type FieldRecord } from "@/lib/field-data";
 import { collectorOf } from "@/lib/kobo-approval";
-import { formLabel, type SubmissionForm } from "@/lib/project";
+import { formLabel, perFarmer, type SubmissionForm } from "@/lib/project";
 import { onProject, people } from "@/server/auth";
 import { projectByCode } from "@/server/field-store";
 import { toSubmission } from "@/server/kobo";
@@ -45,8 +45,8 @@ async function recordsFile(code: string, by: string) {
   const rows = await db.select().from(s.evidence).where(and(eq(s.evidence.projectId, project.id), inArray(s.evidence.form, FORMS)));
   const rule = await koboApprovalFor(code);
   const team = (await people()).filter((u) => onProject(u, code));
-  const records: FieldRecord[] = rows.map((r) => {
-    const sub = toSubmission(r);
+  // A training session record gives one row for each farmer ticked, so the table still joins to the farmer table by farmer number.
+  const records: FieldRecord[] = rows.flatMap((r) => perFarmer([toSubmission(r)]).map((sub) => ({ r, sub }))).map(({ r, sub }) => {
     const fromKobo = r.source === "kobo";
     return {
       id: sub.id || r.id,

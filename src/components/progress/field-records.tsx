@@ -5,7 +5,7 @@ import { useSession } from "@/components/app/session";
 import { useSubmissions } from "@/components/app/use-project-data";
 import { RecordProof } from "@/components/field/record-proof";
 import { Pill, dangerBtn, primaryBtn, quietBtn } from "@/components/workspace/ui";
-import { dataFlags, formLabel, personName, type Submission } from "@/lib/project";
+import { dataFlags, formLabel, personName, whoOf, type Submission } from "@/lib/project";
 import type { SyncCounts } from "@/lib/kobo-setup";
 import { longDate } from "@/lib/weekly";
 
@@ -121,7 +121,7 @@ export function FieldRecords({ f, open, onToggle }: { f: FieldForms; open: boole
               <div className="flex flex-wrap items-start gap-3">
                 <div className="min-w-0 flex-1">
                   <p className="text-sm">
-                    <span className="font-medium">{formLabel[s.form]}</span> · Farmer {s.farmerId}{" "}
+                    <span className="font-medium">{formLabel[s.form]}</span> · {whoOf(s)}{" "}
                     <Pill tone={s.source === "kobo" ? "sky" : "muted"}>{s.source === "kobo" ? "KoboCollect" : "Sample"}</Pill>
                   </p>
                   <p className="mt-0.5 text-xs text-muted">
@@ -235,7 +235,7 @@ export function FieldRecords({ f, open, onToggle }: { f: FieldForms; open: boole
       </ul>
       {queried.length > 0 && (
         <p className="mt-3 text-xs text-muted">
-          {queried.length} queried and back with whoever collected {queried.length === 1 ? "it" : "them"}: {queried.map((s) => `${s.id} (farmer ${s.farmerId})`).join(", ")}.
+          {queried.length} queried and back with whoever collected {queried.length === 1 ? "it" : "them"}: {queried.map((s) => `${s.id} (${whoOf(s).toLowerCase()})`).join(", ")}.
         </p>
       )}
     </div>
