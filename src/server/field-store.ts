@@ -270,10 +270,20 @@ export async function keepHidden(code: string, user: AppUser, items: FieldItem[]
 
 /**
  * A farmer's photos for someone who may not see participant names: where a photo was taken is
- * left out, since a plot's place shows where a named person lives. `hasPlace` says one is kept.
+ * left out, since a plot's place shows where a named person lives. They are told nothing about
+ * it either: not that a place is kept (decision AH, 25 Nov 2026). Their save still gets each
+ * place back from the stored record (withPlaces), by the photo, with no mark from their page.
  */
 function withoutPlaces(f: Farmer): Farmer {
-  return { ...f, photos: (f.photos ?? []).map(({ gps, ...rest }) => (gps ? { ...rest, hasPlace: true } : rest)) };
+  return {
+    ...f,
+    photos: (f.photos ?? []).map((p) => {
+      const { gps: _gps, hasPlace: _hasPlace, ...rest } = p;
+      void _gps;
+      void _hasPlace;
+      return rest;
+    }),
+  };
 }
 
 /**
@@ -362,7 +372,7 @@ export async function loadField(code: string, user?: AppUser) {
   return { items, stock: (stock as Stock | null) ?? null, setup };
 }
 
-/** What is stored for an item: no name (farmer_pii holds it), no version stamp and no `hasPlace` mark, which is made for a reader (withoutPlaces). */
+/** What is stored for an item: no name (farmer_pii holds it), no version stamp and no `hasPlace` mark, which a page loaded before 25 Nov 2026 may still send back. */
 const storable = (raw: FieldItem): FieldItem => {
   const { rev: _rev, ...item } = stripPII(raw);
   void _rev;

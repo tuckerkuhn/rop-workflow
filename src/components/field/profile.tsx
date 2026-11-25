@@ -387,7 +387,7 @@ export function FarmerProfile({ id }: { id: string }) {
                       <p className="text-sm font-extrabold">{tx(p.tag && p.tag in tagLabels ? tagLabels[p.tag as PhotoTag] : p.signedNote ? tagLabels["signed-note"] : photoLabels[p.activity])}</p>
                       <p className="truncate text-xs text-muted">
                         {p.taken ? `${p.taken.date}${p.taken.time ? ` ${p.taken.time}` : ""}` : p.date}
-                        {p.gps || p.hasPlace ? ` · ${tx("place recorded")}` : ""} · {maskName(p.caption, farmer, user)}
+                        {p.gps ? ` · ${tx("place recorded")}` : ""} · {maskName(p.caption, farmer, user)}
                       </p>
                       {p.byName && <p className="truncate text-xs text-muted">{p.visitor ? tx("Added by {name}, visiting", { name: p.byName }) : tx("Added by {name}", { name: p.byName })}</p>}
                     </div>
