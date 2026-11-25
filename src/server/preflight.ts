@@ -4,7 +4,8 @@ import { checkHref, checkPlace, openClaims, overspentLines, PREFLIGHT_ITEM_FOR, 
 import type { Frequency } from "@/lib/agreement";
 import { daysFrom, periodHolding, type SavedObligation } from "@/lib/obligations";
 import { addDays, deadlineFor, type Deadline, type Preflight, type PreflightItem, type ReadyItem, type ReportRef, milestoneFits } from "@/lib/preflight";
-import { proofCount, quarterRange, type ResultRecord } from "@/lib/results";
+import { quartersDue } from "@/lib/period-report";
+import { proofCount, type ResultRecord } from "@/lib/results";
 import { MEASURE_NOTE } from "@/lib/measure";
 import { weekOf } from "@/lib/weekly";
 import { loadBudgetView } from "@/server/budget-view-store";
@@ -241,9 +242,10 @@ async function annual(c: Ctx, year: number): Promise<Omit<Preflight, "items" | "
   const v = await periodReport(c.code, { kind: "annual", year });
   const { from, to } = v.range;
   const today = new Date().toISOString().slice(0, 10);
-  // Quarters that ended within the report's range: a quarter before the project started (or after it
-  // ended) has no quarterly report to release, and must not hold the annual report back.
-  const ended = [1, 2, 3, 4].map((k) => `${year}-Q${k}`).filter((q) => quarterRange(q).to < today && quarterRange(q).to >= from && quarterRange(q).from <= to);
+  // Quarters of the year that ended within the project's own dates (lib/period-report quartersDue):
+  // a quarter before the project started (or after it ended) has no quarterly report to release,
+  // and must not hold the annual report back. The report's range is the calendar year, so it cannot say.
+  const ended = quartersDue(year, v.project.start, v.project.end, today);
   const released = new Set(v.quarters.filter((q) => q.released).map((q) => q.quarter));
   const open = ended.filter((q) => !released.has(q));
   for (const q of open) add(c, { group: "blocks", owner: "writers", text: `The ${q.replace("-", " ")} quarterly report is not released, so its text and figures are not final`, key: "pf.c.quarterOpen", vars: { q: q.replace("-", " ") }, href: `/progress/report?q=${q}` });

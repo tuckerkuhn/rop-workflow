@@ -67,9 +67,11 @@ export function PeriodReportPage() {
   const blockN = pf ? pf.items.filter((i) => i.group === "blocks").length : 0;
   // Mark final only when the check was read after the latest change and nothing blocks. The final report has no check.
   const mayMarkFinal = period.kind === "final" || (pfFresh && blockN === 0);
+  // An annual report asked for before its year has ended: the question says so, as the quarterly report's does.
+  const underWay = period.kind === "annual" && !!v && new Date().toISOString().slice(0, 10) <= v.range.to;
   const release = async () => {
     const ok = await askConfirm({
-      message: `Mark the ${periodLabel(period).toLowerCase()} final and release it to the donor? It is locked for good: this copy is what the donor receives. It appears in the donor's Reports tab. No email is sent: tell the donor yourself.`,
+      message: `Mark the ${periodLabel(period).toLowerCase()} final and release it to the donor? ${underWay && v ? `This period has not ended: it ends on ${longDate(v.range.to)}. A result accepted after today will not be in the report the donor receives. ` : ""}It is locked for good: this copy is what the donor receives. It appears in the donor's Reports tab. No email is sent: tell the donor yourself.`,
       confirm: "Mark final and release",
     });
     if (!ok) return;
