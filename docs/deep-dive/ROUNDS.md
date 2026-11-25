@@ -82,6 +82,19 @@ worth more than a half-built large one.
 - The demo store holds 100 kg of NPK, enough for two distributions. A third is correctly blocked.
 - Email is not set up locally. Never write "has been emailed" unless the record says it was.
 - Screens use `tx("English sentence")` for text. Keep new text in that form.
+- Before writing a new file, check its name is free: `git ls-files | grep <name>`. Round 2 wrote over
+  an existing test file by its name and had to restore it.
+- Home is `/home`. The review queue on `/progress/results` is closed until "Review N" is pressed.
+- The first call to a page or request takes about five seconds here while it is built. A browser
+  script that closes the page before the reply comes can leave the record unsaved: wait for the
+  message on the screen.
+- `FAKE_FORMS=<file> node fake-kobo.mjs` also answers the list of forms in the account, from a JSON
+  list of `{ "uid", "name" }` in that file (none when the file is missing). The Setup step that
+  lists forms can be walked that way: `/setup?step=kobo-forms`, after `sim-kobo.ts` has made the
+  local connection.
+- A made form is checked with the standard converter: `pip install pyxform --break-system-packages`,
+  then `python3 -m pyxform.xls2xform form.xlsx form.xml`.
+- The three checks can run in the background while a walk is under way. They take about five minutes.
 
 ## Chains to walk, in order
 
@@ -105,25 +118,41 @@ is used next. Then walk it as each role on a phone. The distribution chain is do
 ## Queue
 
 Big, open:
-1. The app makes only the distribution form. Readiness, training and visit forms are hand-built
-   files a small organization cannot get. Same approach as `src/lib/distribution-form.ts`. The
-   training form's questions are settled since round 1 (`kobo/build_field_forms.py`). (Chain 4.)
-2. Weekly update photos keep their date but not their place. The place must stay with people who
+1. Weekly update photos keep their date but not their place. The place must stay with people who
    may see participant names on every screen that reads weekly items, and survive an edit.
+   It needs a whole round. What round 2 read, to start from:
+   - Every reader goes through `loadUpdates` in `src/server/results-store.ts` (about ten callers:
+     results, weekly, photos, stories, the quarterly report, the period report, claim check, first
+     run, activities). Keep the place out of what `loadUpdates` returns, so no caller can pass it on
+     by accident. Give it only through a second function that takes the viewer and checks `canSeePII`.
+   - A weekly item's photos are keyed by file hash (`captions`, `taken` in `updateSchema`,
+     `src/lib/results.ts`). The place fits beside them the same way. No migration: it is in the payload.
+   - The photo's place is read where its date is read now, before the photo is made smaller:
+     `upload` in `src/components/progress/weekly-page.tsx` (`photoFacts` in `src/lib/exif.ts` gives both).
+   - `editUpdate` replaces the whole payload with what the screen sent. A person who may not see the
+     place never has it on their screen, so their edit would drop it. Keep the stored place for
+     every photo still on the item, on the server.
+   - The copy kept when a week is sent (`WeekSent`) and the file for the donor must never hold it.
+   - Photos saved on the phone with no connection get a temporary hash (`src/lib/outbox.ts`). The
+     place must follow the photo to its real hash when it is sent.
 
 Medium, open:
 1. Dates still show as 2026-11-24 on most screens outside the approval page and the review queue.
    Use `longDate` from `src/lib/weekly.ts` where a person reads a date in a sentence.
 2. Some days are cut from a UTC timestamp and show tomorrow's date in the evening in Guatemala.
-3. The storekeeper's Home has no row for a distribution sent back by the checker until the list reloads: check.
-4. `Six commits` and other counts in `11-handoffs-review.md` drift. Keep that page's facts true.
-5. In the review queue on a phone, Accept pressed just after "See the photo and where it was
-   recorded" can do nothing: no request is sent and no message shows. Seen twice in round 1, each
-   time on the first open of a new record's photo, and it worked on the next try. The likely cause is
-   the row growing while the photo loads. Hold the photo's space before it loads, then check.
+3. Home does not load again when a person comes back to it. Checked in round 2: a distribution sent
+   back by the checker is on the storekeeper's Home the next time Home loads ("Fix the distribution
+   record for F-0009"), with its link. A Home left open on a phone does not show it until then.
+   Load Home's rows again when the page is shown again (the hooks behind `useTaskRows`,
+   `src/components/tasks/use-rows.ts`).
+4. The Setup step that lists the project's forms offers the readiness, training and farm visit
+   forms. The distribution form is still downloaded in Field activities, under Input package. One
+   line on the step says so. A person setting up for the first time has two places to go.
 
 Done: see `11-handoffs-review.md` and `10-field-ledger.md`. Round 1: training attendance is one record
-per session with its farmers ticked (was big item 1).
+per session with its farmers ticked (was big item 1). Round 2: the app makes the readiness, training
+and farm visit forms (was big item 1), Accept stays put while a photo loads (was medium 5), the
+counts in `11-handoffs-review.md` are dated (was medium 4).
 
 ## Needs Tucker
 
@@ -145,6 +174,21 @@ Decisions A to N are in `11-handoffs-review.md`. Rounds add theirs here, lettere
 - **Q. A project already collecting with the earlier training form.** I cannot see your KoboToolbox
   account. If a real project uses the earlier form, replace its file there with the new one. Nothing
   else is needed: its old records and its link to a target keep counting.
+
+- **The real phone test, added in round 2.** Download the three made forms from Setup (the step
+  "Which forms belong to this project?"), upload each to the sandbox account and fill one in on a
+  real phone. Look for three things. A planting date after the visit date is refused with a
+  message. An area above the farmer's plot is refused. The farmer's plot size shows under "Area planted".
+- **R. Which forms a project in Afghanistan uses.** The forms the app makes are English only. The
+  files in `kobo/` have Dari and Pashto drafts but are made by a script. Until a native speaker has
+  worded them, a project that needs Dari or Pashto on the phone still needs the `kobo/` files. Say
+  when the wording is reviewed and the app's forms can carry all three languages.
+- **S. The plot photo is required on the readiness form the app makes.** It was optional on the
+  earlier file. A record without it was flagged for the checker and left the farmer's photo check
+  open, so the form now asks for it. Say if a readiness visit may be sent without a photo.
+- **T. The training sessions are the same three for every project**: land preparation and planting,
+  crop care and irrigation, harvest and storage. A project with other sessions would need them as a
+  project setting. That is a new setting, so it is not built. Say if you want it.
 
 ## Log
 
@@ -204,5 +248,56 @@ found and left, tests passing.
   rahima, approved by nadia, farmer moved to planting. The refusal for nadia before the check was seen
   on the final code too, on a record for F-0008 that the store then rightly blocked (no NPK left).
   `10-field-ledger.md` updated: the per-farmer attendance question is cut.
-- **Round 2. 25 Nov 01:16. IN PROGRESS.** Queue, big item 1 (the app makes the readiness, training
-  and visit forms).
+- **Round 2. 25 Nov 01:16 to 01:40. DONE.** Queue, big item 1 (the app makes the readiness, training
+  and farm visit forms), then two medium items that fitted. Big item 2 (the place on weekly photos)
+  was read and not started. It touches about ten readers and a private point. It did not fit in
+  what was left. What was read is in the queue under it.
+  Decisions made alone, to check: the made readiness form requires the plot photo (Needs Tucker S).
+  The made forms are English only, like the distribution form the app makes (Needs Tucker R). The
+  training sessions stay the same three for every project (Needs Tucker T). The buttons are on the
+  Setup step where the project's forms are chosen, because that is where a person with no form stops.
+  Fixed:
+  - *The app makes the readiness, training and farm visit forms.* `src/lib/field-forms.ts`, same
+    approach and same question names as before, so everything already read, flagged, accepted and
+    counted still is. On the Setup step "Which forms belong to this project?" there are three
+    buttons, the steps to put the file on phones and "I have uploaded it. Load the list again",
+    which keeps what is already ticked. Before, the step said "This account has no survey forms yet"
+    and stopped.
+    Three things are tighter than the hand-built files. The farm visit form asks for the number
+    planted or for the area planted, never both, by the crop plan saved in Set up (the number only
+    when the plan has a spacing, so the app can always turn it into hectares). A date in the future,
+    a planting date after the visit and an area above the farmer's plot are refused on the phone.
+    The readiness form requires the plot photo.
+    Run in the browser on a phone-sized screen as nadia: the empty step, the three downloads, the
+    list loaded again with three forms and each one's purpose guessed from its title. All three
+    files, and a farm visit form for a crop counted by the vine, convert cleanly with the standard
+    XLSForm converter and its checker. Tests: `src/lib/__tests__/field-forms.test.ts`, 7 tests (the
+    questions, the choice lists, what is refused on the phone, the visit form by area and by count).
+    `src/server/__tests__/made-forms.db.test.ts`, 5 tests: each file opens as a workbook, the visit
+    form follows the saved crop plan, and an answer to every question on each made form is read
+    back by the app.
+  - *Accept stays put while a photo loads* (was medium 5). Measured on a phone-sized screen as
+    rahima: after "See the photo and where it was recorded" the Accept button moved 570 pixels down
+    the screen in two jumps within a second, as the facts and then the photo arrived. A tap aimed at
+    Accept landed on the photo. The box now opens at its final size and the button does not move
+    (measured: one position for four seconds, on a readiness and a training record). Then run: the
+    tap aimed before the photo arrived and made after it landed on Accept, the request was sent,
+    "Field activities updated: Readiness: Yes. Moved to distribution." showed and the record was
+    saved. No test: it is layout. I cannot prove this was the cause of what round 1 saw, only that
+    the cause it named was real and is gone.
+  - *The counts in `11-handoffs-review.md` are dated* (was medium 4), and point here for the current ones.
+  Checked, not changed:
+  - Medium 3. A distribution sent back by the checker (rahima, F-0009) is on bilal's Home the next
+    time it loads, by the request and in the browser. A Home left open does not show it. Reworded in the queue.
+  Found and left:
+  - Home does not load again when a person comes back to it (medium 3).
+  - The distribution form is downloaded in another place than the other three (medium 4).
+  - Needs Tucker R, S, T and the real phone test of the three made forms.
+  Checks: 1,158 tests pass (1,146 before), typecheck clean, lint clean, on the final code (only
+  these pages changed after). Distribution chain walked in the browser after that, on the local
+  database made new at the start of this round: a fictional
+  KoboCollect record for F-0007. For nadia, Approve could not be pressed before the check and the
+  page said "Step 1 of 2: check the KoboCollect record". rahima saw the signed note and pressed "I
+  have checked this record". nadia approved. The farmer moved to planting.
+  `10-field-ledger.md` updated: the farm visit form asks one of two questions, the readiness photo
+  is required, and finding 5 is closed.
