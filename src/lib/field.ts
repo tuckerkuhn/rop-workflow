@@ -49,6 +49,11 @@ export type Photo = {
   taken?: { date: string; time: string | null };
   /** Where the photo itself says it was taken. Shown only to people who may see participant names. */
   gps?: { lat: number; lon: number };
+  /** Who added it (person id and name), when it was added through the app. */
+  by?: string;
+  byName?: string;
+  /** Added by someone visiting (management, communications): a picture of the work, never a field record or proof. */
+  visitor?: boolean;
 };
 /** Whether the farmer's record holds a photo of the signed goods received note. */
 export const hasSignedNotePhoto = (f: { photos?: Photo[] } | null | undefined) => !!f?.photos?.some((p) => p.activity === "distribution" && p.signedNote && !!p.src);

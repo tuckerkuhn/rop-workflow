@@ -37,6 +37,25 @@ day of the handout. A paper list entered a week late landed in the wrong reporti
 | Everyone | 2026-11-24, sometimes tomorrow's date in the evening | 24 November 2026, in the reader's own day |
 
 
+## Added at your request, 23:40: photos from anyone who visits farmers
+
+Before, only people with a field role could add a photo to a farmer. Management and communications
+could open the farmer and add nothing.
+
+- **Anyone on the project who can open Field activities can add a photo**: choose, one tag, save.
+  Tags: handover, training, farm visit, land preparation, planting.
+- **A visitor's photo is a picture, not proof.** It carries their name ("Added by Marcus Bell,
+  visiting"), counts toward nothing and starts no approval.
+- **The signed goods received note is now kept to the storekeeper and the extension agent.** While
+  building this I found the project manager could add that photo and then approve the same
+  distribution. That is closed on the farmer page, on the fix page and on the server.
+- **Not built: the place on weekly update photos.** Comms already add dated photos there. Adding
+  the place needs its own pass, because weekly items are read by many screens and the point must
+  stay with people who may see participant names. Someone with no access to Field activities still
+  uses the weekly update, not the farmer page.
+- **One gap left.** The farmer page's own save does not check the signed note tag on the server.
+  The screen no longer offers it to a manager, but a crafted request could still set it.
+
 ## Decisions I made for you
 
 The first option is what I built. Answer with the letter and number to change one.
@@ -64,6 +83,8 @@ The first option is what I built. Answer with the letter and number to change on
 - **L. The storekeeper's note.** L1: shown to whoever checks the record. L2: cut the question.
 - **M. Who can download the form.** M1: anyone who records field activities on the project.
   M2: the project manager and plan approvers only.
+- **N. Who can add the signed note's photo.** N1: the storekeeper and the extension agent only.
+  N2: also the project manager, accepting that she could then approve it.
 
 ## What I could not verify
 
@@ -113,10 +134,10 @@ in as Rahima Stanikzai and open it from Home.
 
 1. **The sandbox KoboToolbox account** (open since 17 Nov). 20 minutes of yours. It unlocks Part 5
    and items 1 to 4 of what I could not verify. Nothing I can build replaces it.
-2. Your answers to A to M.
+2. Your answers to A to N.
 3. Then: the app makes the readiness, training and visit forms too, and training becomes one record
    per session (ledger, findings 3 and 5).
 
-Checks on the finished branch: **1,129 tests pass** (1,095 before tonight), typecheck clean, lint
+Checks on the finished branch: **1,134 tests pass** (1,095 before tonight), typecheck clean, lint
 clean. Six commits. Time: about 25 minutes for each pass. The 3-hour and 8-hour
 figures were ceilings, and the work that is left is not the kind more hours of mine would finish.

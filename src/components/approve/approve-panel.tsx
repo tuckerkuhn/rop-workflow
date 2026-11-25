@@ -411,7 +411,9 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
                 ) : (
                   <p className="mt-1 text-muted">{d.photo ? tx("One is on file. Add a new one only if what needs fixing is the photo.") : tx("None is on file, and the record cannot be approved without it. Take or choose it here.")}</p>
                 )}
-                {addingNote ? (
+                {!(user && (user.field.includes("store") || user.field.includes("extension"))) ? (
+                  <p className="mt-1 text-muted">{tx("The storekeeper or the extension agent adds the photo: whoever checks or approves a distribution does not supply its proof.")}</p>
+                ) : addingNote ? (
                   <PhotoTagger tags={[]} preset="signed-note" quality={fullPhotos ? PHOTO_QUALITY.full : PHOTO_QUALITY.small} precise={!!user?.pii} saveLabel={tx("Add this photo")} onCancel={() => setAddingNote(false)} onSave={addNotePhoto} />
                 ) : (
                   <button type="button" className={`${quietBtn} mt-2`} onClick={() => setAddingNote(true)}>

@@ -4,6 +4,7 @@ import { PHOTO_MAX_CHARS } from "@/lib/plans";
 import { requireViewer } from "@/server/auth";
 import { addSignedNote, listDistributions, mayApprove, mayFix } from "@/server/distribution";
 import { distributionFacts, koboPhoto, type PhotoWhich } from "@/server/distribution-photo";
+import { maySupplyProof } from "@/server/farmer-photo";
 import { handle, HttpError, readBody } from "@/server/guard";
 
 /**
@@ -50,7 +51,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
   const { code: raw, id } = await params;
   const code = decodeURIComponent(raw);
   return handle(async () => {
-    const v = await requireViewer(req, { write: true, allow: (u) => mayFix(u, code), why: "Only people who record field activities on this project can add the photo of the signed note." });
+    // Proof is supplied by the people who hand goods out, never by whoever checks or approves the record.
+    const v = await requireViewer(req, { write: true, allow: (u) => mayFix(u, code) && maySupplyProof(u), why: "The photo of the signed note is added by the storekeeper or the extension agent, so that nobody who checks or approves a distribution also supplies its proof." });
     if (v instanceof NextResponse) return v;
     const b = await readBody(req, added);
     return NextResponse.json(await addSignedNote(code, id, { id: v.user.id, name: v.user.name }, b));
