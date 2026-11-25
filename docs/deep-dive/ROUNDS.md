@@ -140,4 +140,23 @@ found and left, tests passing.
   photo, the app makes the distribution form, visitors can add photos, three holes closed.
   1,138 tests pass. Detail in `11-handoffs-review.md`.
 - **Round 1. Started 25 Nov 00:17. IN PROGRESS.** Queue, big item 1 (training attendance, one record
-  per session). Design goes here first.
+  per session).
+  Design, written before building. It needs no migration and the old records keep working, so it is built.
+  - *The form.* One record per training session. The trainer picks the session and the date once, ticks
+    every farmer who attended (question `farmers`, a tick list from `farmers.csv`), gives the register
+    reference once and takes one photo of the signed page. The per-farmer "did the farmer attend" is cut:
+    a farmer who is not ticked did not attend.
+  - *Stored.* One row in `evidence` per session, as now. `farmer_code` stays empty. The ticked farmer
+    numbers stay in the stored answers (`farmers`: "F-0004 F-0005"). No new table or column.
+  - *Checked.* The review queue shows one row, "Training attendance, 12 farmers", with the farmer numbers
+    and the register photo. The MEL officer accepts once. Accepting does for each ticked farmer what it
+    did for one before (`applyTraining` in `src/server/review.ts`), in one transaction.
+  - *Rules kept.* A farmer on the waiting list or left out in Farmer selection still blocks the accept,
+    and the message names them. Nobody accepts a record they sent. The data checker flags a ticked farmer
+    who is not on the list or is past Train, and a second record for the same session and day.
+  - *Counted.* Each ticked farmer counts once toward a people target, on all three paths: a target
+    counted straight from training forms (`actualFor`), a question linked in Setup counted as "each
+    different answer once" (`mappedValue`), and the result record made for MEL (`koboToResults`), where
+    women, men and young people are added up from the farmers' own records.
+  - *Old records.* A record with one `farmer` and `attended` yes or no reads, flags, accepts and counts
+    exactly as before. Both shapes can sit in the same queue.
