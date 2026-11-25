@@ -136,6 +136,18 @@ worth more than a half-built large one.
   script that times out reading a page has met this: run it again.
 - What a donor's account is sent of a farmer is cut in `forOutside` (`src/server/field-store.ts`).
   The donor evidence pack's proof is shaped in `donorPackProof` (`src/lib/evidence.ts`).
+- Where a farmer's photo was taken is left out for a reader who may not see participant names
+  (`withoutPlaces` in `src/server/field-store.ts`), who gets `hasPlace: true` in its place. Their
+  save gets each place back from the stored record (`withPlaces`, called in `keepHidden`).
+  `hasPlace` is never stored. `POST /api/projects/A-2027/field/photos` as `farida` with a `gps`
+  adds a photo that holds a place.
+- To make the local database new in the middle of a round, stop the app first
+  (`pkill -f "next dev"`), run the setup script and start the app again. A released report's page
+  shows the copy kept at release, so a change to a report is seen only on a database made new.
+- The annual report waits only for the quarters the project ran in (`quartersDue` in
+  `src/lib/period-report.ts`). Its own range is still the calendar year.
+- A report's rows are judged as "period over" unless told otherwise (`buildRows` in
+  `src/lib/qpr.ts`, last argument). `src/server/qpr-store.ts` tells it from today's date.
 
 ## Chains to walk, in order
 
@@ -145,13 +157,10 @@ is used next. Then walk it as each role on a phone. The distribution chain is do
 1. **Results to report.** Field forms accepted, results accepted by MEL, Progress, monthly review,
    quarterly report, the donor's view. As `omar`, `nadia`, `marcus`, a donor. Can an auditor get from
    any number in the report to the record and the photo that prove it?
-   *Rounds 4 and 5 walked it and it is not clear.* Walked: accepting typed-in results and field
-   forms as `omar`, a result sent back with a question and corrected, Progress and the records
-   behind a figure as `nadia`, the monthly review and its sign-off, the quarterly report and its
-   release as `marcus`, the Word file, the evidence pack and the audit pack, a share link as a
-   donor with no account, the donor's own Home and a farmer's page as `elena`. Not walked: the
-   donor's reports list and a released report in her account, the annual report past its heading,
-   the monthly review's "Changes to the plan". Three big items are open in the queue.
+   *Rounds 4, 5 and 6 walked all of it.* One big item is left and it waits for Tucker (Needs
+   Tucker AA, big item 1 in the queue). No round can build it. The next round walks chain 2.
+   Not walked, all small paths: "Move budget" and "Re-plan an activity" as changes to the plan, the
+   final report for the whole project, the donor's annual report by a share link.
 2. **Purchase to payment.** Procurement calendar, purchase request, quotations, approval, goods
    received note, bill, payment, budget line. As the requester, `zahra`, `karim`, `yusuf`.
 3. **Just won to ready.** Project `GT-2027`: from the won proposal to a project that can record its
@@ -166,18 +175,13 @@ is used next. Then walk it as each role on a phone. The distribution chain is do
 ## Queue
 
 Big, open:
-2. **A signed-off monthly review keeps no copy of its figures.** Found in round 5. The review for
-   October, opened on 25 November, shows 11 farmers trained: the year's figure as it stands today,
-   under "to the end of 2026 Q4". One training was held by 31 October. Signing off stores the name
-   and the time only (`readReview` in `src/server/monthly-review-store.ts`), so the signed October
-   review will show December's figures in January. Keeping the figures at sign-off is the fix. It
-   changes what sign-off means: Needs Tucker AA. Not built.
-3. **The annual report for a project's first year can never be released.** Found in round 6 as
-   `nadia`. A-2027 began on 1 October 2026. Its annual report for 2026 lists "The 2026 Q1 quarterly
-   report is not released" and the same for Q2 and Q3 under "Blocks the report", and the server
-   refuses the release while anything blocks. Those quarters ended before the project began, so no
-   report for them will ever exist. `annual` in `src/server/preflight.ts` means to leave them out and
-   compares with the first day of the calendar year, not of the project.
+1. **A signed-off monthly review keeps no copy of its figures.** *Waits for Tucker (Needs Tucker
+   AA). Do not build it until he answers: walk the next chain instead.* Found in round 5. The
+   review for October, opened on 25 November, shows 11 farmers trained: the year's figure as it
+   stands today, under "to the end of 2026 Q4". One training was held by 31 October. Signing off
+   stores the name and the time only (`readReview` in `src/server/monthly-review-store.ts`), so the
+   signed October review will show December's figures in January. Keeping the figures at sign-off
+   is the fix. It changes what sign-off means.
 
 Medium, open:
 1. Dates still show as 2026-11-24 in some places. Use `longDate` or `periodLabel` from
@@ -198,11 +202,7 @@ Medium, open:
 3. A weekly photo added before round 3, or one whose phone removed the place, has no place and the
    weekly page says nothing about it. The farmer page offers "use this device's location" for such
    a photo. The weekly page does not (Needs Tucker U).
-4. The report and Progress disagree about the same figure. On 25 November, with 11 of 20 farmers
-   trained and the work planned for Q4, Progress and the monthly review say "On track". The
-   quarterly report and the donor's view say "Behind · delayed", for every target. Find which is
-   right while the quarter is under way (`targetStatus` in `src/lib/target-status.ts` and what
-   Progress uses) and make them agree.
+4. Done in round 6 (the report and Progress gave different words for the same target).
 5. The demo counts one farmer twice. F-0005's training on 20 and on 24 November are two typed-in
    results, both listed as clean. The field forms queue flags the second as "Possible duplicate of
    KB-101". After "Accept 10" the demo says 11 farmers trained. A typed-in result holds a count
@@ -220,17 +220,22 @@ Medium, open:
     times (403). Nothing shows on the page. It is wasted work on a slow line.
 11. The monthly review opens on last month and its heading says "to the end of 2026 Q4". A person
     reads this month's figures under last month's name. Goes with big item 2.
-12. The annual report says "Quarters without a saved report: none missing" on the line above "No
-    quarterly report text saved for the period" (`src/components/progress/period-report-page.tsx`).
-13. "Approve and apply" on a change to the plan changes the year's target in one tap, with no
-    question. Found in round 6 as `marcus`: 20 became 16. The released report kept 20, as it should.
-14. More dates not in words, seen in round 6: "Proposed by Omar Sadiq on 2026-11-25" on a change to
-    the plan, "Quarterly progress report, 2026 Q4" and "as the 2026 Q4 report gave it" for a donor,
-    "Mark the 2026 Q4 report final" in the release question. Part of medium 1.
+12. Done in round 6 (the annual report's line about quarters with no saved report).
+13. Done in round 6 ("Approve and apply" asks first).
+14. More dates not in words, seen in round 6: "Quarterly progress report, 2026 Q4" and "as the 2026
+    Q4 report gave it" for a donor, "Mark the 2026 Q4 report final" in the release question,
+    "to the end of 2026 Q4" on the monthly review. Part of medium 1.
 15. A donor reads, for the income target, "No survey yet this quarter · No survey yet · target 25
     this year · Behind · not done". One "no survey yet" would do.
 16. The annual report for 2026 gives its period as "1 January 2026 to 31 December 2026" and shows
     Q1 to Q3 as 0 for a project that began on 1 October 2026.
+17. A donor reads two budgets for one grant. Her quarterly report says "USD 10,750 spent of USD
+    193,200 approved" and that indirect costs are not shown. Her annual report, released the same
+    day, says "Budget USD 346,200, Spent USD 17,950, Overhead included": the whole agreement with
+    the cost share. Neither says which it is. Needs Tucker AF.
+18. On the donor's reports list on 25 November, with the October to December report released, the
+    line reads "Next report: Monthly report: January, due 8 February 2027". Not looked into. It
+    may be right, if the quarterly report stands for the monthly reports of its months.
 
 Done: see `11-handoffs-review.md` and `10-field-ledger.md`. Round 1: training attendance is one record
 per session with its farmers ticked (was big item 1). Round 2: the app makes the readiness, training
@@ -243,6 +248,11 @@ old addresses work, the quarterly report gives one blocking count and warns befo
 Round 5: the donor evidence pack counts held proof and never names it (was big item 1), a donor's account
 is not sent the signed note's picture or a photo's place (big, found in the walk), a result sent back is
 pointed to and its answer shows for MEL, the monthly review asks before it locks.
+Round 6: the place of a farmer's photo is not sent to staff who may not see participant names
+(was big item 1), the annual report of a project's first year can be released (big, found in the
+walk), a report under way and Progress give the same word for a target (was medium 4), a donor's
+annual report names its figures on a phone, the annual report names quarters with no saved report
+(medium 12), a change to the plan asks before it is applied (medium 13).
 
 ## Needs Tucker
 
@@ -302,6 +312,8 @@ Decisions A to N are in `11-handoffs-review.md`. Rounds add theirs here, lettere
   after today will not be in the report the donor receives." The other choice is to refuse the
   release until the period has ended. It is not built: it changes who may do what and when. Say
   if you want it.
+  From round 6 the annual report asks the same question when its year has not ended. On 25
+  November the annual report for 2026 can be released once MEL has accepted the waiting results.
 - **Y. A report can be released with nothing written.** In the local test the report went out with
   all 15 sections "Not written yet". Empty sections are listed as worth fixing and do not block.
   Say if an empty Executive Summary should block the release.
@@ -329,6 +341,19 @@ Decisions A to N are in `11-handoffs-review.md`. Rounds add theirs here, lettere
   name and no link title. Say if the note should go to a donor at all.
 - **AE. An empty monthly review can be signed off.** The question now says what is not written.
   It does not refuse. Say if an empty summary should block the sign-off (as Y asks for reports).
+
+- **AF. Which budget a donor's annual report gives.** The donor's quarterly report gives the lines
+  her grant pays: USD 193,200 approved, with no indirect costs. Her annual report gives the whole
+  agreement, with the cost share and overhead: USD 346,200. Say which a donor should read on the
+  annual report. Nothing was changed.
+- **AG. The words for a target in a report that is opened before its period ends.** Until round 6
+  the quarterly report said "Behind · delayed" for work planned for the quarter under way, on the
+  page, in the Word file and on a donor's link, while Progress and the monthly review said "On
+  track". It now says what they say until the period has ended, and judges as before after that.
+  A report released early is kept with the words of that day. Say if you want it otherwise.
+- **AH. Staff who may not see participant names are told that a photo's place is kept.** The
+  farmer's page still says "place recorded" beside the photo for them. They are never sent the
+  place. A donor's account is told nothing, as before. Say if staff should be told nothing either.
 
 ## Log
 
@@ -647,5 +672,76 @@ found and left, tests passing.
   and the farmer's record moved to planting.
   Tools: `act.py` can fill in a form and `pack.py` reads a pack (see the notes above).
   `10-field-ledger.md` not changed: no field was added, cut or prefilled.
-- **Round 6. 25 Nov 05:17. IN PROGRESS.** Queue, big item 1 (the place of a farmer's photo and
-  staff who may not see participant names).
+- **Round 6. 25 Nov 05:17 to 05:52. DONE.** Queue, big item 1 (the place of a farmer's photo), then
+  big item 3, the rest of chain 1. Two big items fixed, four medium items fixed. Chain 1 is walked
+  in full. Its one big item left waits for Tucker (AA), so the next round walks chain 2.
+  Walked on a phone-sized screen with fictional data: `omar` accepted the results and `marcus`
+  released the October to December report. `elena`, the donor's own account, opened her reports
+  list, the released quarterly report and the records behind a figure. `nadia` read the annual
+  report to its end and the monthly review. `omar` proposed a change to a target and `marcus`
+  approved it. `marcus` released the annual report and `elena` opened it. The findings were
+  written into the queue before the fixes that followed them, except the donor's annual table on
+  a phone, which was seen and fixed after.
+  Decisions made alone, to check: staff who may not see names are told a place is kept and never
+  what it is (Needs Tucker AH). A place such a person sends for a photo already stored is not
+  taken. The annual report waits only for quarters the project ran in, and an early release is
+  asked about, not refused (Needs Tucker X). A report under way uses the monthly review's rule
+  for a target's word (Needs Tucker AG). A change to the plan asks before it is applied.
+  Fixed:
+  - *Where a farmer's photo was taken is not sent to staff who may not see participant names*
+    (was big item 1). `rahima`, `marcus`, `karim` and `yusuf` were sent every photo's place. They
+    are now sent the photo with a mark that a place is kept, and the farmer's page still says
+    "place recorded". A save from a page that never held the place keeps it as stored: a photo
+    taken off is gone, a photo added keeps the place it came with and a place sent for a stored
+    photo is not taken. Test: `src/server/__tests__/farmer-photo-place-hidden.db.test.ts`, 6
+    tests: what the four are sent, what the field request answers, what people who may see names
+    get, an unchanged save, a save that adds and removes photos and a save by someone who may see
+    names. Four of the six fail on the code as it was. Seen by the request after `farida` added a
+    fictional photo with a place: `farida` and `nadia` got the point, the four got none and the
+    mark, `elena` got neither. Run in the browser as `rahima`, `nadia` and `elena` on the
+    farmer's page: "place recorded" for the first two, nothing for the donor. Not run in the
+    browser: the save, because nobody in the demo both saves a farmer and is kept from names.
+  - *The annual report of a project's first year can be released* (big, found in the walk). The
+    three quarters of 2026 before the project began blocked it for good. It now waits only for
+    quarters the project ran in. Tests: `src/lib/__tests__/quarters-due.test.ts`, 4 tests.
+    `src/server/__tests__/annual-first-year.db.test.ts`, 3 tests: nothing blocks on 20 November
+    2026, the October to December report blocks on 1 February 2027 and no quarter from before the
+    project is listed as lacking a report. Run in the browser as `marcus`: "Blocks the report 0",
+    the question said "This period has not ended: it ends on 31 December 2026", the report was
+    released and `elena` saw it in her list and opened it.
+  - *A report under way and Progress give the same word for a target* (was medium 4). The
+    quarterly report judged every target as if its quarter had ended. Test: one added in
+    `src/lib/__tests__/qpr.test.ts`. Run in the browser as `nadia` on a database made new: the
+    report says "On track" three times, "No data" and "Not started", the same as Progress.
+  - *A donor's annual report names each figure on a phone* (medium, found in the walk). `elena`
+    saw a target's name and "410" with no heading, and the rest off the side of the screen. Each
+    figure now sits under its name, as on the staff page. Seen in a picture of the page. No test.
+  - *The annual report names the quarters with no saved report* (medium 12). It said "none
+    missing" above "No quarterly report text saved". It now says "No quarterly report is saved
+    yet for October to December 2026", and only for quarters the project ran in. Read in the
+    browser as `nadia`. Test: in `annual-first-year.db.test.ts`.
+  - *A change to the plan asks before it is applied* (medium 13), and gives its dates in words
+    (part of medium 14). Run in the browser: `omar` proposed 20 to 16, `marcus` read "Approve this
+    change? ... The plan changes at once, for Progress and for every report not yet released. A
+    report already released keeps what it said." and approved. Before the fix, the same change
+    left the released report at 20, seen by the request as `elena`. No test: one question.
+  Seen for the first time in the browser, no change needed: the donor's reports list and her
+  released quarterly report ("1 PDF document", no file name), the annual report's release line,
+  the donor's annual report line, and the line that tells a person who can only read the monthly
+  review who writes it. Round 4 and 5 had passed these by the typecheck only.
+  Found and left:
+  - A signed monthly review keeps no copy of its figures: big 1, Needs Tucker AA.
+  - Medium 14 to 18 in the queue. Needs Tucker AF, AG, AH.
+  - Not walked in chain 1: listed under chain 1. Not seen: the evidence pack's line about a release.
+  - Small, not queued: a budget line over its amount shows "LEFT -150" to a donor with no word.
+  Checks: 1,195 tests pass (1,181 before), typecheck clean, lint clean, on the final code (only
+  this page changed after). The app was stopped once on purpose, to make the database new. It
+  was not seen to stop by itself. Distribution chain walked on the final code after
+  the tests, on a local database made new during this round: a fictional KoboCollect record for
+  F-0007. For nadia the page said "Step 1 of 2: check the KoboCollect record" and neither Approve
+  nor Send back could be pressed. The request sent straight to the server was refused: "Not
+  approved yet: this record came from KoboCollect, and Rahima Stanikzai or Omar Sadiq checks
+  KoboCollect data on this project before it is approved." rahima saw the signed note and no
+  point, pressed "I have checked this record" and the page said "Checked." nadia approved, the
+  page said "Approved by Nadia Rahimi" and the farmer's record moved to planting.
+  `10-field-ledger.md` not changed: no field was added, cut or prefilled.
