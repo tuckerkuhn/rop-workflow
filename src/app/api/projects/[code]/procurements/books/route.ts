@@ -24,11 +24,15 @@ type Ctx = { params: Promise<{ code: string }> };
 
 const PAID = "Paid; invoice marked paid";
 
-/** Who recorded payment `n` as paid: the person on that line of the purchase's history, when it names one. */
-function recorderOf(p: Procurement, n: number, all: AppUser[]): string | null {
+/**
+ * Who recorded payment `n` as paid: the person on that line of the purchase's history. When the
+ * history does not name them (older purchases name only the role), the person posting is taken as
+ * the one who may have recorded it, so the ledger's second-person rule over the limit still holds.
+ */
+function recorderOf(p: Procurement, n: number, all: AppUser[], poster: string): string {
   const done = p.timeline.filter((t) => t.what.startsWith(PAID));
   const by = done[n - 1]?.by;
-  return by ? (all.find((x) => x.id === by || x.name === by)?.id ?? null) : null;
+  return (by ? all.find((x) => x.id === by || x.name === by)?.id : undefined) ?? poster;
 }
 
 async function view(code: string, u: AppUser, only?: string) {
@@ -42,7 +46,7 @@ async function view(code: string, u: AppUser, only?: string) {
       const line = purchaseLine(p);
       const known = lines.some((l) => l.code === line);
       const problem = paymentBooksProblem(p, r) ?? (lines.length && !known ? `Line ${line} is not in this project's budget, so there is nothing to charge it to.` : null);
-      payments.push({ purchase: p.id, title: p.title, n: r.n, key, ...(await booksView({ code, entry: paymentEntry(p, r, code, lines.find((l) => l.code === line)?.description ?? ""), postings: book.postings[key], problem, recordedBy: recorderOf(p, r.n, all), me: u.id, post })) });
+      payments.push({ purchase: p.id, title: p.title, n: r.n, key, ...(await booksView({ code, entry: paymentEntry(p, r, code, lines.find((l) => l.code === line)?.description ?? ""), postings: book.postings[key], problem, recordedBy: recorderOf(p, r.n, all, u.id), me: u.id, post })) });
     }
   }
   return { me: u.id, post, lines, accounts: payments.length ? await payingAccounts(code).catch(() => []) : [], payments };
@@ -87,7 +91,7 @@ export async function POST(req: Request, { params }: Ctx) {
       usd: e.usd,
       date: a.date,
       paidFrom: a.paidFrom,
-      recordedBy: recorderOf(p, r.n, await people()) ?? `purchase:${p.id}`,
+      recordedBy: recorderOf(p, r.n, await people(), u.id),
       postedBy: u,
       source: { type: PURCHASE_SOURCE, id: `${code}:${key}`, key: `purchase:${project.id}:${key}` },
       earlier,

@@ -92,6 +92,17 @@ describe("a purchase recorded as paid and the books", () => {
     expect((await loadHome(code, zahra)).actions.find((a) => a.key === "purchases-post")).toBeUndefined();
   });
 
+  it("when the history names only the role, the person posting is taken as the one who recorded it", async () => {
+    const named = await loadProcurements(code);
+    const roleOnly = named.map((p) => (p.id === ID ? { ...p, timeline: p.timeline.map((t) => (t.what.startsWith("Paid; invoice marked paid") ? { ...t, by: undefined } : t)) } : p));
+    await saveProcurements(code, roleOnly);
+    expect((await view(omid)).payments[0]).toMatchObject({ canPost: false, second: { limit: "USD 500.00" } });
+    const refused = await post(omid, { purchase: ID, n: 1, date: today, paidFrom: "1010" });
+    expect(refused.status).toBe(409);
+    expect(await entriesOf(1)).toHaveLength(0);
+    await saveProcurements(code, named);
+  });
+
   it("over the limit, the person who recorded the payment does not post it", async () => {
     const mine = (await view(yusuf)).payments[0];
     expect(mine).toMatchObject({ canPost: false, second: { limit: "USD 500.00" } });
