@@ -182,6 +182,18 @@ Big, open:
    stores the name and the time only (`readReview` in `src/server/monthly-review-store.ts`), so the
    signed October review will show December's figures in January. Keeping the figures at sign-off
    is the fix. It changes what sign-off means.
+2. **A bill sent back cannot be put right.** Found in round 7, chain 2. `yusuf` recorded a
+   fictional internet bill and `karim` sent it back with a reason. `yusuf` then reads "Sent back"
+   and the reason at the end of a line of small print. There is nothing to press. His Home says
+   nothing. To go on he must type the whole bill again and attach the document again.
+3. **A bill waiting for approval is on nobody's Home.** Found in round 7. With the bill waiting,
+   `karim`'s Home said "3 approvals are waiting on you" and listed three other things. Only a
+   person who opens "Bills paid directly" by himself sees it. Approved bills do reach Finance's Home.
+4. **A paid purchase or a filed bill does not reach the books.** *Waits for Tucker (Needs Tucker
+   AI). It is a new feature.* Found in round 7. Procurement and Bills keep their own records.
+   The books behind the budget's "spent" are written only by "Record a payment", where Finance
+   types the supplier, what it was for, the line and the amount again and attaches the receipt
+   again. `09-finance.md` lists it as not built.
 
 Medium, open:
 1. Dates still show as 2026-11-24 in some places. Use `longDate` or `periodLabel` from
@@ -236,6 +248,22 @@ Medium, open:
 18. On the donor's reports list on 25 November, with the October to December report released, the
     line reads "Next report: Monthly report: January, due 8 February 2027". Not looked into. It
     may be right, if the quarterly report stands for the monthly reports of its months.
+19. "Record a bill" opened on a project starts with the funding source "General and admin
+    (non-contract)". A bill recorded without changing it is charged to no project and no budget line.
+20. Home asks the country director to "Release the 2026 Q3 report in the app". The project began on
+    1 October 2026. Round 6 fixed the same thing on the annual report (`quartersDue`).
+21. The demo's books and the demo's purchases disagree. The books hold "Seed, first lot: Kabul
+    Seed Company, USD 4,850.00". The purchase PR-2027-006, "Certified maize seed (OPV), first
+    lot", is $3,100. Sample data (`src/server/demo-ledger.ts`, `seedProcurements`).
+22. A purchase names one person for a step that several people may do. After `karim` approved a
+    request it said "Waiting on Hamid Wardak (Procurement officer)". Hamid is the procurement
+    manager, and `zahra`, the officer, had it on her list and did it. `zahra` was also told a
+    request was "with Farid Sultani" while it sat on `nadia`'s list.
+23. Dates in the procurement pages are not in words: "Needed by 2026-12-16", "~11-26" under
+    "Coming to you", "2026-11-21 · Farid Sultani" in the history. A bill reads "Invoice KN-1101,
+    2026-11-25". Part of medium 1.
+24. Small things seen on a purchase: "1 documents", and the demo's requisition gives its funding
+    source as "Award A-2027 (fictional) · body rules apply".
 
 Done: see `11-handoffs-review.md` and `10-field-ledger.md`. Round 1: training attendance is one record
 per session with its farmers ticked (was big item 1). Round 2: the app makes the readiness, training
