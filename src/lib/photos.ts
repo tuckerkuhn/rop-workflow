@@ -100,6 +100,11 @@ const hash = z.string().regex(/^[0-9a-f]{64}$/);
 export const photoActionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("coach"), hashes: z.array(hash).max(6).optional() }),
   z.object({ action: z.literal("share"), hash, level: z.enum(SHARE) }),
+  /**
+   * A person checks a photo by hand, as the AI would (decision AR, 25 Nov 2026: with no AI key a
+   * photo is otherwise never checked, so none could reach a donor).
+   */
+  z.object({ action: z.literal("check"), hash, isPhoto: z.boolean(), people: z.enum(PEOPLE), womenIdentifiable: z.boolean(), shows: z.string().trim().min(3).max(160) }),
   z.object({ action: z.literal("consent"), hash, consent: consentSchema }),
   z.object({ action: z.literal("public-posts"), on: z.boolean(), note: z.string().trim().min(5).max(400) }),
   z.object({ action: z.literal("draft-post"), audience: z.enum(AUDIENCES), photos: z.array(hash).min(1).max(4), ask: z.string().trim().max(400).optional() }),

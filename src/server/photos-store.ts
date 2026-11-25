@@ -13,7 +13,8 @@ import { ROP_VOICE } from "@/lib/voice";
 import { draftStructured } from "@/server/ai-structured";
 import { scrubbed } from "@/server/ai";
 import { logAudit } from "@/server/audit";
-import { donorNameOf, projectByCode } from "@/server/field-store";
+import { donorNameOf, loadField, photoFingerprint, projectByCode } from "@/server/field-store";
+import type { FieldItem } from "@/lib/field";
 import { aiAllowed } from "@/server/limits";
 import { coachPhoto, isDocumentName } from "@/server/photo-coach";
 import { loadProjectState, updateProjectState } from "@/server/project-state";
@@ -56,14 +57,21 @@ export type PhotoItem = {
   province: string;
   district: string;
   activity: string;
-  source: { kind: "result" | "update" | "story"; id: string; title: string; status: string };
+  source: { kind: "result" | "update" | "story" | "farmer"; id: string; title: string; status: string };
   storyUses: string[] | null;
+  /** A farmer's photo is kept in the farmer's record, not as a file: its picture, for the screen. */
+  src?: string;
 };
 
-/** Every image on the project's results, weekly items and stories. */
+/**
+ * Every image on the project's results, weekly items and stories, and the farmers' photos (decision
+ * AR, 25 Nov 2026), so they are checked like any other and the ones cleared reach a donor. A
+ * farmer's photo is listed by farmer ID with no caption (staff type captions and may name the
+ * person) and never the signed goods received note, which carries the farmer's name.
+ */
 async function allPhotos(code: string): Promise<{ items: PhotoItem[]; stories: Story[] }> {
   const p = await projectByCode(code);
-  const [results, updates, st] = await Promise.all([loadResults(code), loadUpdates(code), loadProjectState<{ stories: Story[] }>(p.id, "stories", { stories: [] })]);
+  const [results, updates, st, field] = await Promise.all([loadResults(code), loadUpdates(code), loadProjectState<{ stories: Story[] }>(p.id, "stories", { stories: [] }), loadField(code).catch(() => ({ items: [] as FieldItem[] }))]);
   const inds = new Map((await db.select({ code: s.indicators.code, name: s.indicators.name }).from(s.indicators).where(eq(s.indicators.projectId, p.id))).map((r) => [r.code, r.name]));
   const out = new Map<string, PhotoItem>();
   const add = (i: PhotoItem) => {
@@ -82,6 +90,13 @@ async function allPhotos(code: string): Promise<{ items: PhotoItem[]; stories: S
     for (const f of story.photos)
       if (IMAGE.test(f.type))
         add({ hash: f.hash, name: f.name, by: story.by, date: story.at.slice(0, 10), caption: f.caption, province: story.province ?? "", district: story.district ?? "", activity: story.activity ?? "", source: { kind: "story", id: story.id, title: story.title, status: story.status }, storyUses: story.status === "approved" ? [...(story.consent?.uses ?? [])] : [] });
+  for (const f of field.items)
+    if (f.kind === "farmer")
+      for (const ph of f.photos ?? []) {
+        if (ph.signedNote || !ph.src || !/^data:image\/(jpeg|png|webp);base64,/.test(ph.src)) continue;
+        const h = photoFingerprint(ph.src);
+        if (h) add({ hash: h, name: `${f.id}.jpg`, by: ph.by ?? "", date: ph.date, caption: "", province: "", district: "", activity: ph.activity, source: { kind: "farmer", id: f.id, title: `Farmer ${f.id}`, status: "recorded" }, storyUses: null, src: ph.src });
+      }
   return { items: [...out.values()].sort((a, b) => b.date.localeCompare(a.date)), stories: st.stories ?? [] };
 }
 
@@ -158,6 +173,8 @@ export async function photosView(code: string, u: AppUser) {
     team,
     library: comms ? withMeta.filter((i) => inLibrary(i, st.photos[i.hash])) : [],
     waiting: withMeta.filter((i) => !i.coach && !i.skipped).length,
+    /** Photos nobody has checked yet, for a person to check by hand (decision AR): newest first. */
+    toCheck: comms ? withMeta.filter((i) => !i.coach && !i.skipped && (i.source.kind !== "result" || i.source.status === "accepted")).slice(0, 24) : [],
     posts: comms ? [...st.posts].sort((a, b) => b.at.localeCompare(a.at)) : [],
     publicPosts: st.publicPosts ?? null,
     may: { comms, decidePublic: mayDecidePublic(u), ai: !!process.env.ANTHROPIC_API_KEY },
@@ -256,6 +273,15 @@ export async function photoAction(code: string, u: AppUser, a: PhotoAction): Pro
   const item = (h: string) => items.find((i) => i.hash === h);
   const log = (action: string, detail: Record<string, unknown>) => logAudit(db, p.id, { entity: "photo", entityId: p.id, action, by: u.id, detail });
 
+  if (a.action === "check") {
+    if (!item(a.hash)) return { error: "No such photo on this project." };
+    await changeState(p.id, (cur) => {
+      const was = cur.photos[a.hash]?.coach;
+      cur.photos[a.hash] = { ...cur.photos[a.hash], coach: { isPhoto: a.isPhoto, label: was?.label ?? "records", tips: was?.tips ?? [], shows: a.shows, people: a.isPhoto ? a.people : "none", womenIdentifiable: a.isPhoto && a.people === "identifiable" && a.womenIdentifiable, model: `checked by hand by ${u.name}`, at: now } };
+    });
+    await log("photo_checked_by_hand", { hash: a.hash, isPhoto: a.isPhoto, people: a.people, womenIdentifiable: a.womenIdentifiable });
+    return {};
+  }
   if (a.action === "share") {
     const i = item(a.hash);
     if (!i || !inLibrary(i, st.photos[a.hash])) return { error: "Only coached photos of the work, from accepted results, weekly updates or stories, can be shared." };

@@ -8,6 +8,7 @@ import type { Farmer } from "@/lib/field";
 import { seedDatabase } from "@/server/demo-seed";
 import { loadField, photoFingerprint, projectByCode, saveItems } from "@/server/field-store";
 import { saveProjectState } from "@/server/project-state";
+import { photoAction, photosView } from "@/server/photos-store";
 import { ready } from "@/server/__tests__/test-db";
 
 /**
@@ -19,6 +20,8 @@ import { ready } from "@/server/__tests__/test-db";
 const code = "A-2027";
 const elena = userById("elena")!;
 const nadia = userById("nadia")!;
+const tucker = userById("tucker")!;
+const plotHash = createHash("sha256").update(Buffer.from("UExPVA==", "base64")).digest("hex");
 const NOTE = "data:image/png;base64,Tk9URQ==";
 const PLOT = "data:image/png;base64,UExPVA==";
 // A picture with nobody in it, checked in the photo library: the only kind a donor's account is sent.
@@ -79,6 +82,23 @@ describe("a farmer's photos, for a donor's account", { timeout: 60_000 }, () => 
     expect(sent).not.toContain(FACE);
     expect(sent).not.toContain("Gul Ahmad");
     expect(sent).not.toContain("The plot after ridging");
+  });
+
+  it("a farmer's photo is checked by hand in the photo library, and once cleared it reaches the donor (AR)", async () => {
+    const v = await photosView(code, tucker);
+    const plot = v.toCheck.find((i) => i.hash === plotHash)!;
+    // Listed by farmer ID, with no caption (staff type captions) and never the signed note.
+    expect(plot).toMatchObject({ source: { kind: "farmer", id: "F-0007", title: "Farmer F-0007" }, caption: "", src: PLOT });
+    expect(JSON.stringify(v.toCheck)).not.toContain(NOTE);
+    // A donor cannot check photos.
+    expect((await photoAction(code, elena, { action: "check", hash: plotHash, isPhoto: true, people: "none", womenIdentifiable: false, shows: "A ridged plot" })).error).toBeTruthy();
+    expect(await photoAction(code, tucker, { action: "check", hash: plotHash, isPhoto: true, people: "none", womenIdentifiable: false, shows: "A ridged plot" })).toEqual({});
+    const after = await photosView(code, tucker);
+    expect(after.toCheck.some((i) => i.hash === plotHash)).toBe(false);
+    expect(after.library.find((i) => i.hash === plotHash)).toMatchObject({ coach: { people: "none", shows: "A ridged plot" } });
+    expect((await farmer(elena)).photos.find((p) => p.id === "F-0007-plot-t")).toMatchObject({ src: PLOT });
+    // Someone who can be recognised still needs consent: the face photo stays back.
+    expect((await farmer(elena)).photos.find((p) => p.id === "F-0007-face-t")).toBeUndefined();
   });
 
   it("is as stored for staff who may see participant names, and for the server itself", async () => {
