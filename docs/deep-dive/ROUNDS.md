@@ -204,3 +204,5 @@ found and left, tests passing.
   rahima, approved by nadia, farmer moved to planting. The refusal for nadia before the check was seen
   on the final code too, on a record for F-0008 that the store then rightly blocked (no NPK left).
   `10-field-ledger.md` updated: the per-farmer attendance question is cut.
+- **Round 2. 25 Nov 01:16. IN PROGRESS.** Queue, big item 1 (the app makes the readiness, training
+  and visit forms).
