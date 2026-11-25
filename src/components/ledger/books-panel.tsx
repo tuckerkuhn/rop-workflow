@@ -55,7 +55,9 @@ export function BooksPanel({ kind, name, books, accounts, lines, shown, onPost, 
       {now ? (
         <div className="mt-1 border-s-[6px] border-forest bg-mist px-3 py-2 text-sm">
           <p>
-            {tx("In the books: {amount} on line {line}, dated {date}, paid from {account}. Posted by {name}.", { amount: money(Number(now.amount), now.currency), line: now.budgetLine, date: longDate(now.date), account: now.paidFromName, name: now.name })}
+            {now.budgetLine
+              ? tx("In the books: {amount} on line {line}, dated {date}, paid from {account}. Posted by {name}.", { amount: money(Number(now.amount), now.currency), line: now.budgetLine, date: longDate(now.date), account: now.paidFromName, name: now.name })
+              : tx("In the books as general and admin: {amount}, dated {date}, paid from {account}. Posted by {name}.", { amount: money(Number(now.amount), now.currency), date: longDate(now.date), account: now.paidFromName, name: now.name })}
             {now.reversal && !now.reversal.posted ? ` ${tx("A reversal waits for a second person in Finance to post it, under Record a payment.")}` : ""}
           </p>
           <button type="button" aria-expanded={open} className="inline-flex min-h-11 items-center text-sm font-semibold text-forest hover:underline" onClick={() => setOpen(!open)}>
@@ -66,15 +68,15 @@ export function BooksPanel({ kind, name, books, accounts, lines, shown, onPost, 
       ) : books.canPost ? (
         <Sheet className="mt-1">
           <p className="font-ledger text-sm font-bold">{corrected ? tx("Post the corrected entry to the books") : tx("Post to the books")}</p>
-          <p className="mt-1 text-sm text-muted">{tx("This is filled in from {doc}. Nothing is typed again. Check it, then post it: it then counts as spent on the budget line.", { doc })}</p>
+          <p className="mt-1 text-sm text-muted">{e.budgetLine ? tx("This is filled in from {doc}. Nothing is typed again. Check it, then post it: it then counts as spent on the budget line.", { doc }) : tx("This is filled in from {doc}. Nothing is typed again. Check it, then post it: it then counts as a general and admin cost, on no project.", { doc })}</p>
           <dl className="mt-2 grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[9rem_minmax(0,1fr)]">
             <dt className="text-muted">{tx("Paid to")}</dt>
             <dd>{e.payee}</dd>
             <dt className="text-muted">{tx("What for")}</dt>
             <dd>{e.what}</dd>
-            <dt className="text-muted">{tx("Budget line")}</dt>
+            <dt className="text-muted">{e.budgetLine ? tx("Budget line") : tx("Charged to")}</dt>
             <dd>
-              {corrected ? (
+              {corrected && e.budgetLine ? (
                 <select value={line} onChange={(x) => setLine(x.target.value)} className={input} aria-label={tx("Budget line")}>
                   {lines.map((l) => (
                     <option key={l.code} value={l.code}>

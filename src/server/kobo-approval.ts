@@ -14,13 +14,13 @@ export async function saveKoboApproval(code: string, rule: KoboApproval) {
 }
 
 /**
- * Whether this person is the one the project names to approve KoboCollect data: for example the
- * Director of MEL. That person vouches for field data, so they are shown where a weekly photo was
- * taken (decision V, 25 Nov 2026). The stand-in and a role group are not: the place of a photo
- * can be where a farmer lives, so it goes to one named person and no further.
+ * Whether this person is the one the project names to approve KoboCollect data (for example the
+ * Director of MEL) or their stand-in. They vouch for field data, so they are shown where a weekly
+ * photo was taken (decisions V and AT, 25 Nov 2026). A role group is not: the place of a photo can
+ * be where a farmer lives, so it goes to the named people and no further.
  */
 export async function vouchesForFieldData(code: string, u: { id: string } | null | undefined): Promise<boolean> {
   if (!u) return false;
   const rule = await koboApprovalFor(code);
-  return rule.who === "named" && !!rule.person && rule.person === u.id;
+  return rule.who === "named" && ((!!rule.person && rule.person === u.id) || (!!rule.standIn && rule.standIn === u.id));
 }

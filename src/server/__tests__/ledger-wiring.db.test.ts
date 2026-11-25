@@ -313,8 +313,8 @@ describe("the nightly check", { timeout: 60_000 }, () => {
   });
 });
 
-describe("a payment on a project whose books are not kept in the app", { timeout: 240_000 }, () => {
-  it("shows in the books but leaves the pages on the spending import until the project switches", async () => {
+describe("a payment on a project whose spending came from the workbook", { timeout: 240_000 }, () => {
+  it("switches the pages to the books with the first posting (decision AQ)", async () => {
     const [{ id: org }] = await db.insert(s.organizations).values({ name: "Workbook Org" }).returning();
     const [{ id: project }] = await db.insert(s.projects).values({ organizationId: org, code: "WB-1", name: "Workbook project", country: "AF", kind: "sandbox", startDate: "2026-07-01", endDate: "2027-12-31" }).returning();
     const [line] = await db.insert(s.budgetLines).values({ projectId: project, code: "A", description: "Seed", amount: "5000", currency: "USD", kind: "program", spent: "2400.00", sort: 1 }).returning();
@@ -330,8 +330,8 @@ describe("a payment on a project whose books are not kept in the app", { timeout
     );
     // The books have it (Budget vs actual from the books shows it)...
     expect(JSON.stringify((await budgetVsActual(project)).total)).toContain("120.00");
-    // ...but the pages still read the workbook's 2,400, not 120.
-    expect(await ledgerSpent(project)).toBeNull();
-    expect(await loadBudget("WB-1")).toEqual(before);
+    // ...and the pages read the books from now on: 120, not the workbook's 2,400.
+    expect(before.lines.find((l) => l.code === "A")?.spent).toBe(2400);
+    expect((await ledgerSpent(project))?.byCode).toEqual({ A: 120 });
   });
 });

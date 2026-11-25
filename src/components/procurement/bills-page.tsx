@@ -291,7 +291,7 @@ function BillRow({ b, v, act, reload, n, first, onRedo }: { b: Item; v: BillsVie
             accounts={v.accounts[b.source] ?? []}
             lines={v.lines[b.source] ?? []}
             shown={b.status === "filed"}
-            onPost={(f) => act({ action: "post", id: b.id, ...f }, tx("{id} is in the books. It now counts as spent on its budget line.", { id: b.id }))}
+            onPost={(f) => act({ action: "post", id: b.id, ...f }, b.source === NON_CONTRACT ? tx("{id} is in the books as a general and admin cost.", { id: b.id }) : tx("{id} is in the books. It now counts as spent on its budget line.", { id: b.id }))}
             onReload={reload}
           />
         )}

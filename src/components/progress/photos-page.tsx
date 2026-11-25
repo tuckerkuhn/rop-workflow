@@ -37,9 +37,62 @@ function useBlob(hash: string, user: string) {
   return src;
 }
 
-function Photo({ hash, user, alt, className }: { hash: string; user: string; alt: string; className: string }) {
-  const src = useBlob(hash, user);
+function Photo({ hash, user, alt, className, inline }: { hash: string; user: string; alt: string; className: string; /** A farmer's photo, kept in the farmer's record rather than as a file. */ inline?: string }) {
+  const blob = useBlob(inline ? "" : hash, user);
+  const src = inline ?? blob;
   return src ? <img src={src} alt={alt} className={`${className} object-cover`} /> : <div className={`${className} bg-sunken`} />;
+}
+
+type ToCheck = View["toCheck"][number];
+const PEOPLE_TEXT = { none: "No people in it", "not-identifiable": "People, but nobody can be recognised", identifiable: "Someone can be recognised" } as const;
+
+/**
+ * A person checks a photo by hand, as the AI would (decision AR): is it a photo of the work, and
+ * can anyone be recognised. Where someone can be, the photo then needs their recorded consent
+ * before it goes to a donor, as before.
+ */
+function HandCheck({ i, user, busy, act }: { i: ToCheck; user: string; busy: boolean; act: (a: PhotoAction, msg: string) => Promise<boolean> }) {
+  const [isPhoto, setIsPhoto] = useState(true);
+  const [people, setPeople] = useState<keyof typeof PEOPLE_TEXT>("none");
+  const [women, setWomen] = useState(false);
+  const [shows, setShows] = useState("");
+  return (
+    <li className="rounded-2xl border border-line bg-surface p-3">
+      <Photo hash={i.hash} user={user} inline={i.src} alt={i.caption || i.source.title} className="h-44 w-full rounded-xl" />
+      <p className="mt-2 text-xs text-muted">
+        {i.source.title} · {i.date}
+      </p>
+      <label className="mt-2 flex min-h-11 items-center gap-2 text-sm">
+        <input type="checkbox" checked={!isPhoto} onChange={(e) => setIsPhoto(!e.target.checked)} />
+        It is a document (a form, a list, a receipt), not a photo of the work
+      </label>
+      {isPhoto && (
+        <>
+          <fieldset className="mt-1 text-sm">
+            <legend className="text-muted">People in it</legend>
+            {(Object.keys(PEOPLE_TEXT) as (keyof typeof PEOPLE_TEXT)[]).map((k) => (
+              <label key={k} className="flex min-h-11 items-center gap-2">
+                <input type="radio" name={`people-${i.hash}`} checked={people === k} onChange={() => setPeople(k)} />
+                {PEOPLE_TEXT[k]}
+              </label>
+            ))}
+          </fieldset>
+          {people === "identifiable" && (
+            <label className="flex min-h-11 items-center gap-2 text-sm">
+              <input type="checkbox" checked={women} onChange={(e) => setWomen(e.target.checked)} />A woman or girl can be recognised
+            </label>
+          )}
+        </>
+      )}
+      <label className="mt-1 block text-sm">
+        <span className="text-muted">What it shows, in a few words</span>
+        <input className={input} value={shows} maxLength={160} onChange={(e) => setShows(e.target.value)} placeholder="Maize plot after the second weeding" />
+      </label>
+      <button type="button" className={`${quietBtn} mt-2 min-h-11`} disabled={busy || shows.trim().length < 3} onClick={() => void act({ action: "check", hash: i.hash, isPhoto, people, womenIdentifiable: women, shows: shows.trim() }, people === "identifiable" && isPhoto ? "Checked. Someone can be recognised: record their consent in the library before it goes to a donor." : "Checked.")}>
+        Save the check
+      </button>
+    </li>
+  );
 }
 
 function Tips({ c }: { c: NonNullable<Item["coach"]> }) {
@@ -110,7 +163,7 @@ function LibraryCard({ i, user, picked, onPick, act }: { i: Item; user: string; 
   const [consent, setConsent] = useState(false);
   return (
     <li className={`rounded-2xl border bg-surface p-3 ${picked ? "border-forest" : "border-line"}`}>
-      <Photo hash={i.hash} user={user} alt={i.coach?.shows ?? i.caption} className="h-44 w-full rounded-xl" />
+      <Photo hash={i.hash} user={user} inline={i.src} alt={i.coach?.shows ?? i.caption} className="h-44 w-full rounded-xl" />
       <div className="mt-2 flex flex-wrap items-center gap-2">
         {i.coach && <Pill tone={LABEL_TONE[i.coach.label]}>{LABEL_TEXT[i.coach.label]}</Pill>}
         {i.coach?.people === "identifiable" && <Pill tone="ochre">People can be recognised</Pill>}
@@ -257,7 +310,7 @@ export function PhotosPage() {
   }, [ready, user, project.saved, load]);
   // Photos being looked at: check again shortly.
   useEffect(() => {
-    if (!v?.waiting) return;
+    if (!v?.waiting || !v.may.ai) return;
     const t = setTimeout(() => void load(), 20000);
     return () => clearTimeout(t);
   }, [v, load]);
@@ -431,6 +484,20 @@ export function PhotosPage() {
               </p>
             )}
 
+            {v.toCheck.length > 0 && (
+              <section className="mt-6">
+                <h2 className="border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">Photos to check</h2>
+                <p className="mt-1 text-xs text-muted">
+                  {v.may.ai ? "The AI checks new photos; any it has not looked at yet can be checked here by hand." : "Nobody has checked these yet. A checked photo of the work joins the library below; one where nobody can be recognised can go to a donor at once, one where someone can be needs their recorded consent first."} Farmer photos are listed by farmer ID.
+                </p>
+                <ul className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {v.toCheck.map((i) => (
+                    <HandCheck key={i.hash} i={i} user={user.id} busy={busy} act={act} />
+                  ))}
+                </ul>
+              </section>
+            )}
+
             <section className="mt-6">
               <div className="flex flex-wrap items-end gap-3">
                 <h2 className="min-w-0 flex-1 border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">Photo library</h2>
@@ -449,9 +516,9 @@ export function PhotosPage() {
                   ))}
                 </select>
               </div>
-              <p className="mt-1 text-xs text-muted">Photos of the work from accepted results, weekly updates and stories. Where people can be recognised, a photo goes only as far as their recorded consent; women who can be recognised never go on public social media without consent for it.</p>
+              <p className="mt-1 text-xs text-muted">Photos of the work from accepted results, weekly updates, stories and farmers&apos; records. Where people can be recognised, a photo goes only as far as their recorded consent; women who can be recognised never go on public social media without consent for it.</p>
               {library.length === 0 ? (
-                <p className="mt-3 rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">{v.waiting ? (v.may.ai ? "Photos are being looked at; they appear here in a minute." : "Photos appear here once the AI is set up on this server (ANTHROPIC_API_KEY).") : "No photos match."}</p>
+                <p className="mt-3 rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">{v.waiting ? (v.may.ai ? "Photos are being looked at; they appear here in a minute." : "Photos appear here once they are checked, under Photos to check above.") : "No photos match."}</p>
               ) : (
                 <ul className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {library.map((i) => (

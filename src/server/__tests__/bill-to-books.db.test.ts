@@ -263,10 +263,26 @@ describe("bills the books do not take as they are", () => {
     expect(e.memo).toContain("AFN 4,200 at the rate recorded");
   });
 
-  it("a general and admin bill has no budget line and does not go to a project's books", async () => {
+  it("a general and admin bill goes to the organization's general and admin account, on no project (AN)", async () => {
     const id = await filed({ source: "non-contract", budgetLine: null, amount: 40 });
+    const before = await spentOn("5.2");
     const b = await bill(omid, id);
-    expect(b.books).toMatchObject({ goes: false, canPost: false, whyNot: "This bill is charged to no project budget line, so it does not go to a project's books." });
-    expect((await post(omid, { action: "post", id, date: today, paidFrom: "1010" })).status).toBe(409);
+    expect(b.books).toMatchObject({ goes: true, canPost: true, entry: { budgetLine: "", project: code, amount: 40 } });
+    expect(b.books!.entry.budgetLineName).toContain("7000");
+    const r = await post(omid, { action: "post", id, date: today, paidFrom: "1010" });
+    expect(r.status).toBe(200);
+    expect((await bill(omid, id)).books!.standing).toMatchObject({ budgetLine: "", amount: "40.00", currency: "USD", by: "omid" });
+    const [e] = await entriesOf(id);
+    expect(e).toMatchObject({ status: "posted", sourceType: "bill", projectId: null, recordedBy: "yusuf", postedBy: "omid" });
+    const lines = await db.select().from(s.journalLines).where(eq(s.journalLines.entryId, e.id));
+    const debit = lines.find((l) => Number(l.debit) > 0)!;
+    const [acct] = await db.select().from(s.ledgerAccounts).where(eq(s.ledgerAccounts.id, debit.accountId));
+    expect(acct.code).toBe("7000");
+    expect(debit.budgetLineId).toBeNull();
+    // No project's budget line is charged.
+    expect(await spentOn("5.2")).toBe(before);
+    // Pressing again posts nothing new.
+    expect((await post(omid, { action: "post", id, date: today, paidFrom: "1010" })).status).toBe(200);
+    expect(await entriesOf(id)).toHaveLength(1);
   });
 });

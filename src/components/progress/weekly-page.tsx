@@ -235,7 +235,7 @@ function ItemForm({ v, start, onSave, onQueue, onClose, className = "mt-3" }: { 
                       Taken on
                       <input type="date" className={`${input} font-mono`} value={taken[x.hash] ?? ""} max={v.today} onChange={(e) => setTaken({ ...taken, [x.hash]: e.target.value })} />
                     </label>
-                    {places[x.hash] && <p className="text-xs text-muted">✓ {fromDevice.includes(x.hash) ? tx("Place taken from this device.") : tx("Place found in the photo.")} {tx("It is shown only to people who may see participant names and to the person named to approve KoboCollect data.")}</p>}
+                    {places[x.hash] && <p className="text-xs text-muted">✓ {fromDevice.includes(x.hash) ? tx("Place taken from this device.") : tx("Place found in the photo.")} {tx("It is shown only to people who may see participant names and to the person named to approve KoboCollect data or their stand-in.")}</p>}
                     {!places[x.hash] && added.includes(x.hash) && (
                       <div className="text-xs text-muted">
                         <p>{tx("No place in this photo. Many phones and apps remove it.")}</p>
@@ -313,7 +313,7 @@ function ItemCard({ it, n, v, user, act }: { it: Item; n: number; v: WeeklyView;
             ))}
           </ul>
         )}
-        {photos.some((f) => it.places[f.hash]) && !mapOf && <p className="text-xs text-muted">{tx("The place was read from the photo or given by the device. It is shown only to people who may see participant names and to the person named to approve KoboCollect data.")} {tx("The map comes from OpenStreetMap. Opening it sends this point to their map service.")}</p>}
+        {photos.some((f) => it.places[f.hash]) && !mapOf && <p className="text-xs text-muted">{tx("The place was read from the photo or given by the device. It is shown only to people who may see participant names and to the person named to approve KoboCollect data or their stand-in.")} {tx("The map comes from OpenStreetMap. Opening it sends this point to their map service.")}</p>}
         {mapOf && it.places[mapOf] && (
           <div className="mt-2">
             <p className="text-xs text-muted">

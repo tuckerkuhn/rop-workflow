@@ -66,11 +66,13 @@ describe("the place a weekly photo was taken", { timeout: 90_000 }, () => {
     for (const who of [marcus, writerNoNames, null, undefined]) expect((await updatePlaces(CODE, who)).size).toBe(0);
   });
 
-  it("is hers only while the project names her: not by her title, and not for a role group", async () => {
+  it("is hers while the project names her, as approver or stand-in (AT): not by her title, and not for a role group", async () => {
     const rule = await koboApprovalFor(CODE);
     await saveKoboApproval(CODE, { who: "mel" });
     expect((await updatePlaces(CODE, rahima)).size).toBe(0);
     await saveKoboApproval(CODE, { ...rule, person: "omar", standIn: "rahima" });
+    expect((await updatePlaces(CODE, rahima)).size).toBeGreaterThan(0);
+    await saveKoboApproval(CODE, { ...rule, person: "omar", standIn: undefined });
     expect((await updatePlaces(CODE, rahima)).size).toBe(0);
     await saveKoboApproval(CODE, rule);
     expect((await updatePlaces(CODE, rahima)).size).toBeGreaterThan(0);

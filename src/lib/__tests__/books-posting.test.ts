@@ -35,10 +35,11 @@ describe("a bill's entry", () => {
   it("is dated the day its voucher was filed and keeps the dollars recorded on the bill", () => {
     expect(billEntry(bill, "Office and communications")).toEqual({ payee: "Kabul Net (fictional)", what: "Office internet (invoice KN-9)", project: "A-2027", budgetLine: "5.2", budgetLineName: "Office and communications", date: "2026-11-21", amount: 4200, currency: "AFN", usd: 60 });
   });
-  it("goes to the books only once filed and on a project's line", () => {
+  it("goes to the books only once filed, on a project's line or as general and admin (AN)", () => {
     expect(billBooksProblem(bill, "non-contract")).toBeNull();
     expect(billBooksProblem({ ...bill, status: "approved" }, "non-contract")).toMatch(/once its voucher is filed/);
-    expect(billBooksProblem({ ...bill, source: "non-contract", budgetLine: null }, "non-contract")).toMatch(/no project budget line/);
+    expect(billBooksProblem({ ...bill, source: "non-contract", budgetLine: null }, "non-contract")).toBeNull();
+    expect(billBooksProblem({ ...bill, budgetLine: null }, "non-contract")).toMatch(/charged to no budget line/);
   });
 });
 

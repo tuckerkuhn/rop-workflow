@@ -6,7 +6,7 @@ import { people } from "@/server/auth";
 import { recordExpenditure } from "@/server/expenditure-store";
 import { projectByCode } from "@/server/field-store";
 import { HttpError } from "@/server/guard";
-import { ledgerSettings, LedgerError } from "@/server/ledger";
+import { ledgerSettings, LedgerError, postPayment } from "@/server/ledger";
 import { ensureChart, moneyAccounts, type MoneyAccount } from "@/server/ledger-setup";
 import { asHttp, ledgerMay, ledgerProject, whoCanPost } from "@/server/ledger-view";
 import { loadProjectState, saveProjectState } from "@/server/project-state";
@@ -145,7 +145,50 @@ export type ToPost = {
   source: { type: string; id: string; key: string };
   /** Earlier postings of the same bill or payment, with their state. */
   earlier: PostingState[];
+  /**
+   * A general and admin bill: charged to no project. `project` is then only the page it was
+   * posted from (its organization and bank accounts); `budgetLine` is ignored.
+   */
+  general?: boolean;
 };
+
+/** The organization-wide account a general and admin bill is charged to (decision AN). */
+export const GENERAL_ADMIN_CODE = "7000";
+export const GENERAL_ADMIN_NAME = "General and admin (account 7000, Office and operations)";
+
+async function postGeneral(p: ToPost, n: number, today: string, organizationId: string): Promise<{ posting: Posting; replayed: boolean }> {
+  const paying = await payingAccounts(p.project);
+  const account = paying.find((m) => m.code === p.paidFrom);
+  if (!account) throw new HttpError(400, "Choose the bank or cash account the money was paid from.");
+  await ensureChart(organizationId);
+  const [expense] = await db
+    .select()
+    .from(s.ledgerAccounts)
+    .where(and(eq(s.ledgerAccounts.organizationId, organizationId), eq(s.ledgerAccounts.code, GENERAL_ADMIN_CODE)))
+    .limit(1);
+  if (!expense) throw new HttpError(400, `The books have no account ${GENERAL_ADMIN_CODE} for general and admin costs. Add it to the chart of accounts first.`);
+  const { functionalCurrency } = await ledgerSettings(organizationId);
+  const own = account.currency === p.currency;
+  const inFunctional = !own && account.currency === functionalCurrency && functionalCurrency === "USD";
+  const amount = inFunctional ? p.usd.toFixed(2) : p.amount.toFixed(2);
+  const currency = inFunctional ? functionalCurrency : p.currency;
+  const what = inFunctional ? `${p.what} (${p.currency} ${Math.round(p.amount).toLocaleString("en-US")} at the rate recorded)` : p.what;
+  try {
+    const e = await postPayment(
+      { organizationId, recordedBy: p.recordedBy, postedBy: p.postedBy.id, idempotencyKey: `${p.source.key}:${n}`, sourceType: p.source.type, sourceId: p.source.id },
+      { date: p.date, memo: `${p.payee}: ${what}`, paidFrom: account.ledgerAccountId, currency, fxRate: currency === functionalCurrency ? "1" : recordedRate(p.amount, p.usd), projectId: null, expenses: [{ accountId: expense.id, amount, projectId: null, budgetLineId: null, memo: what }] },
+    );
+    const credit = e.lines.find((l) => Number(l.credit) > 0);
+    const from = paying.find((m) => m.ledgerAccountId === credit?.accountId) ?? account;
+    const debit = e.lines.find((l) => Number(l.debit) > 0);
+    const posting: Posting = { n, entryId: e.entry.id, expenditureId: "", date: e.entry.entryDate, paidFrom: from.code, paidFromName: from.name, budgetLine: "", amount: debit ? Number(debit.debit).toFixed(2) : amount, currency: debit?.currency ?? currency, by: e.entry.postedBy ?? p.postedBy.id, name: e.entry.postedBy && e.entry.postedBy !== p.postedBy.id ? ((await people()).find((x) => x.id === e.entry.postedBy)?.name ?? e.entry.postedBy) : p.postedBy.name, at: today };
+    return { posting, replayed: e.replayed };
+  } catch (e) {
+    if (e instanceof LedgerError && e.code === "needs_second_person")
+      throw new HttpError(409, `${e.message.split(", so ")[0]}, so someone in Finance other than the person who recorded it posts it to the books.`);
+    throw asHttp(e);
+  }
+}
 
 /**
  * Posts one bill or one purchase payment to the books and gives back the record to keep on it.
@@ -161,6 +204,9 @@ export async function postToBooks(p: ToPost): Promise<{ posting: Posting; replay
   const today = new Date().toISOString().slice(0, 10);
   if (p.date > today) throw new HttpError(400, "The date paid cannot be after today.");
   const project = await projectByCode(p.project);
+  // A general and admin bill (decision AN): no project budget line; it goes to the organization's
+  // general and admin expense account, with no project on the entry.
+  if (p.general) return postGeneral(p, n, today, project.organizationId);
   const [line] = await db
     .select()
     .from(s.budgetLines)

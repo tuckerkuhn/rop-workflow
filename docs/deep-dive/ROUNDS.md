@@ -31,11 +31,12 @@ Not walked yet: most of chain 2 and all of chains 3 to 6. More big items may be 
 - AA. Decided by Tucker 25 Nov: keeps that day's figures. Built.
 - AI. Decided by Tucker 25 Nov: Finance posts a filled-in entry with one click. Bills first. Built, bills and purchases.
 - X, AB and O to AL. Decided 25 Nov: see "Decided". Built: X (Draft watermark), AB, P, U, V, Y, AC, AD, AE, AF, AH.
-- AM to AU. Decided by Tucker 25 Nov: see "Decided". To build: AN, AO, AQ, AR, AS, AT.
+- AM to AU. Decided by Tucker 25 Nov: see "Decided". Built on branch `build/am-au-2026-11-25`: AN, AQ, AR, AS, AT. AO is a Settings change, no code.
+- Everything else still open in every notes file: `OPEN-ITEMS.md` (25 Nov).
 
 **Tests.** 1,294 pass on main after the merge of `build/decided-2026-11-25`. Typecheck and lint are clean.
 
-**Next action.** A round builds the AM to AU items marked "Build" under "Decided", one commit each, then goes on with chain 2.
+**Next action.** Tucker merges `build/am-au-2026-11-25`. Rounds then go on with chain 2.
 
 Tucker's instruction, 25 Nov 2026, 00:02: "Keep making rounds until we don't need any big changes
 left and then start clearing out the medium changes. It must be very tight to be useful and to be
@@ -491,24 +492,29 @@ Decisions A to N are in `11-handoffs-review.md`. Rounds add theirs here, lettere
 Decided by Tucker 25 Nov, after the build. Tucker's words in quotes.
 
 - **AM. Keep.** A purchase goes to the books as the full invoice on the day paid. Ask the accountant before real use.
-- **AN. Build.** A general and admin bill (charged to no project) goes to the books too, to an
+- **AN. Built (`f558bbe`).** A general and admin bill (charged to no project) goes to the books too, to an
   organization-wide general and admin expense account, with Finance's one press as for any bill.
-- **AO. Build.** The approval counts as the second person. "Small orgs need to have some overlap.
+- **AO. No build: Settings.** First asked as "the approval counts as the second person". "Small orgs need to have some overlap.
   Who else would do it? You are basically asking for two approvals." Over the limit, the person who
-  recorded a bill or a payment may post it once someone else approved it. A bill they recorded and
-  approved themselves still needs a second person.
+  The database itself refuses a posting by the person who recorded it over the limit; changing
+  that needs a migration. Decided instead (Tucker, 25 Nov: option 2, "we should just be able to
+  explore how small offices/operations work with required approvals"): a small office raises the
+  limit in Settings, Finance, "A person may post a payment they recorded themselves up to"
+  (USD 500 now). No code.
 - **AP. Keep.** A filed bill with a wrong amount: reverse its entry and record a new bill.
-- **AQ. Build.** A project's "spent" reads the books as soon as anything is posted on it, with no
+- **AQ. Built (`ffa4795`).** A project's "spent" reads the books as soon as anything is posted on it, with no
   separate switch. Note for real projects: until their spending to date is loaded into the books,
   "spent" then shows only what was posted in the app (`09-finance.md`, question 18). Test data only
   until v1.0, so nothing is lost.
-- **AR. Build.** Farmer photos go into the photo library, where they are checked like every other
+- **AR. Built (`5b06bdd`).** Farmer photos go into the photo library, where they are checked like every other
   photo; a photo cleared for donors then reaches a donor's account. "Why on earth would you not
   allow a donor to see a pic of a project farmer." The consent check stays: a recognisable person
-  needs recorded consent or a check that clears it.
-- **AS. Build.** The rest of a donor's Home (the four figures at the head, the season's steps, the
+  needs recorded consent or a check that clears it. Found while building: only the AI could check
+  a photo, so with no AI key no photo could ever reach a donor. A person can now check any photo
+  by hand under "Photos to check" in the photo library.
+- **AS. Built (`224a20b`).** The rest of a donor's Home (the four figures at the head, the season's steps, the
   stories) shows released figures only, as "Results against targets" does.
-- **AT. Build.** The stand-in for the KoboCollect approver also sees where a weekly photo was taken.
+- **AT. Built (`66b11c9`).** The stand-in for the KoboCollect approver also sees where a weekly photo was taken.
 - **AU. Keep.** The Draft watermark goes the day after the period ends.
 
 - **AI. A paid purchase or a filed bill and the books.** Procurement and Bills each keep their own
