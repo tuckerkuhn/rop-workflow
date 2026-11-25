@@ -19,22 +19,24 @@ All pushed to `deep-dive/handoffs-2026-11-24`. Nothing touched main or Supabase.
 - A bill sent back can be corrected and recorded again.
 - Home tells the approver and Finance that a bill waits.
 
-**Big items still open (2).**
-- A signed monthly review keeps no copy of its figures (AA).
+**Big item fixed on the morning of 25 Nov (1).**
+- A signed monthly review keeps that day's figures and shows them for good (AA, decided by Tucker).
+
+**Big items still open (1).**
 - A paid purchase or bill does not reach the books. Finance types it twice (AI).
 
 Not walked yet: most of chain 2 and all of chains 3 to 6. More big items may be there.
 
 **Decisions.** Recommended choice first. Letters match "Needs Tucker" below.
-- AA. Signing a monthly review keeps that day's figures. Or it shows today's.
+- AA. Decided by Tucker 25 Nov: keeps that day's figures. Built.
 - AI. A paid purchase or bill posts to the books by itself. Or Finance keeps typing it.
 - X. Refuse a report's release before its period ends. Or keep the warning.
 - AB. A donor's account sees only photos cleared for donors. Or all, as now.
-- 19 smaller ones, O to AK, are under "Needs Tucker".
+- 20 smaller ones, O to AL, are under "Needs Tucker".
 
-**Tests.** 1,204 pass, up from 1,138. Typecheck and lint are clean.
+**Tests.** 1,215 pass, up from 1,138. Typecheck and lint are clean.
 
-**Next action.** Answer AA and AI. Each unblocks a big item.
+**Next action.** Answer AI. It unblocks the one big item left.
 
 Tucker's instruction, 25 Nov 2026, 00:02: "Keep making rounds until we don't need any big changes
 left and then start clearing out the medium changes. It must be very tight to be useful and to be
@@ -206,6 +208,15 @@ worth more than a half-built large one.
   and then `"click:It’s correct"` (with the curled apostrophe).
 - The app also started itself again twice in round 7, each time just after a file it uses was
   changed. The next page then fails once: wait six seconds and run the script again.
+- A signed monthly review keeps its figures in its own record: `signedOff.figures` in the
+  `project_state` row `review:<month>`. `loadReview` (`src/server/monthly-review-store.ts`) always
+  gives today's figures, because Home, Progress and All projects read today's standing from it.
+  Only the review's own request gives the kept ones (`shownReview` in `src/lib/monthly-review.ts`).
+  Read a signed review's figures nowhere else. The records behind a kept figure are asked for
+  with `asOf`, the moment of signing (`proofFor` in `src/server/proof.ts`).
+- To see a review signed before figures were kept, put one in the local database:
+  `{"month":"2026-08","changes":[],"signedOff":{"by":"marcus","at":"2026-09-03T10:00:00.000Z"}}`
+  as the row `review:2026-08`.
 
 ## Chains to walk, in order
 
@@ -215,8 +226,8 @@ is used next. Then walk it as each role on a phone. The distribution chain is do
 1. **Results to report.** Field forms accepted, results accepted by MEL, Progress, monthly review,
    quarterly report, the donor's view. As `omar`, `nadia`, `marcus`, a donor. Can an auditor get from
    any number in the report to the record and the photo that prove it?
-   *Rounds 4, 5 and 6 walked all of it.* One big item is left and it waits for Tucker (Needs
-   Tucker AA, big item 1 in the queue). No round can build it. The next round walks chain 2.
+   *Rounds 4, 5 and 6 walked all of it.* Its last big item (AA, big item 1 in the queue) was
+   decided by Tucker and built on 25 November. No big item is known in this chain now.
    Not walked, all small paths: "Move budget" and "Re-plan an activity" as changes to the plan, the
    final report for the whole project, the donor's annual report by a share link.
 2. **Purchase to payment.** Procurement calendar, purchase request, quotations, approval, goods
@@ -241,8 +252,7 @@ is used next. Then walk it as each role on a phone. The distribution chain is do
 ## Queue
 
 Big, open:
-1. **A signed-off monthly review keeps no copy of its figures.** *Waits for Tucker (Needs Tucker
-   AA). Do not build it until he answers: walk the next chain instead.* Found in round 5. The
+1. *Done on 25 Nov (item AA, decided by Tucker).* **A signed-off monthly review keeps no copy of its figures.** Found in round 5. The
    review for October, opened on 25 November, shows 11 farmers trained: the year's figure as it
    stands today, under "to the end of 2026 Q4". One training was held by 31 October. Signing off
    stores the name and the time only (`readReview` in `src/server/monthly-review-store.ts`), so the
@@ -297,7 +307,8 @@ Medium, open:
 10. A donor's Home asks the server for KoboToolbox settings and field forms and is refused three
     times (403). Nothing shows on the page. It is wasted work on a slow line.
 11. The monthly review opens on last month and its heading says "to the end of 2026 Q4". A person
-    reads this month's figures under last month's name. Goes with big item 2.
+    reads this month's figures under last month's name. Since item AA the page says under the
+    heading "These are today's figures" until the review is signed. The heading is as it was.
 12. Done in round 6 (the annual report's line about quarters with no saved report).
 13. Done in round 6 ("Approve and apply" asks first).
 14. More dates not in words, seen in round 6: "Quarterly progress report, 2026 Q4" and "as the 2026
@@ -361,6 +372,8 @@ item 2), Home tells the approver a bill waits and tells Finance a bill came back
 a bill recorded on a project's page starts as that project's and the form says what is still
 needed (medium 19), Home asks for a report's release only for a quarter the project ran in
 (medium 20), the demo's payment check has its invoice (medium 25).
+Item AA, 25 Nov: signing a monthly review keeps that day's figures and a signed review shows
+them (was big item 1).
 
 ## Needs Tucker
 
@@ -431,10 +444,6 @@ Decisions A to N are in `11-handoffs-review.md`. Rounds add theirs here, lettere
   already sent. If a donor must be able to ask for one document by a reference, that reference
   would be a new thing. Say if you want it.
 
-- **AA. What a signed monthly review shows.** Today it shows the year's figures as they stand on
-  the day it is opened, whatever month it is for, and signing keeps no copy. The other choice:
-  signing keeps the figures of that day, and the page shows them for good, with the date. It is
-  not built, because it changes what your signature on a review means. Say which you want.
 - **AB. What a donor's account sees of a farmer.** A donor's account can open each farmer's page:
   number, village, plot size, sex, age band, household size, satisfaction comments, staff names and
   every photo. From round 5 it is not sent the signed goods received note's picture or where a
@@ -477,6 +486,19 @@ Decisions A to N are in `11-handoffs-review.md`. Rounds add theirs here, lettere
   on the list as "Sent back" with the reason and the line "It was corrected and recorded again
   as BL-002". The other choice: the same bill is changed and sent again under its own number. It
   is not built, because it changes a bill after an approver has ruled on it.
+
+- **AL. A monthly review signed before 25 November.** It has no kept figures and nothing can
+  bring them back. Its page says so: "This review was signed on 3 September 2026, before the app
+  kept the figures with a signature. The figures below are today's, not the ones that were
+  signed." I cannot see whether the live app holds such a review. The other choice: a reviewer
+  may sign it once more, to keep the figures of the day they do. It is not built: it changes a
+  signed review. Say if you want it.
+
+### Decided
+
+- **AA. What a signed monthly review shows.** Decided by Tucker 25 Nov: keeps that day's figures. Built.
+  Before, it showed the year's figures as they stood on the day it was opened, whatever month it
+  was for. Signing kept no copy.
 
 ## Log
 
@@ -932,6 +954,79 @@ found and left, tests passing.
   record moved to planting.
   `10-field-ledger.md` not changed: it lists the fields of the distribution chain and a bill is
   not in it. A bill's fields are now filled in for the person in two places, both said above.
-- **Item AA. 25 Nov 09:00. IN PROGRESS.** One decided item, not the queue. Tucker's decision, 25
+- **Item AA. 25 Nov 09:00 to 09:30. DONE.** One decided item, not the queue. Tucker's decision, 25
   Nov 08:53: signing a monthly review keeps that day's figures. A signed review shows what was
-  signed, not today's numbers. No migration: the figures go in storage the app already has.
+  signed, not today's numbers. Built with no migration.
+  Decisions made alone, to check:
+  - *What is kept.* Everything the page works out: each target's figure, target, status and
+    workplan quarters, the money line, the count of budget lines to look at and the open items.
+    The summary, the needs-attention note and the changes were already locked.
+  - *Where.* In the review's own record, the `project_state` row `review:<month>`, beside the
+    name and the time (`signedOff.figures`, about 2,000 characters for the demo's five targets).
+    No table and no column.
+  - *Who is shown them.* Everyone who opens the signed review. Home, Progress and All projects
+    read today's standing from the same place as before and still get today's, also for a month
+    that is signed.
+  - *The records behind a signed figure* are the ones accepted by the moment of signing. The
+    sheet says so.
+  - *A sign-off is refused when the figures changed after the signer's page was opened* (a
+    result accepted or the plan changed in between). The page shows the new figures and the
+    reason. The person then signs again. What is kept is what the signer read.
+  - *A review signed before today* has no figures to show. It shows today's and says so (Needs
+    Tucker AL).
+  - *Words.* A signed review says "9 results were waiting" and "1 budget line needed a look".
+  Fixed:
+  - *Signing a monthly review keeps that day's figures* (was big item 1, Needs Tucker AA).
+    `actOnReview` reads the figures at the sign-off and stores them with it. The review's
+    request answers a signed review with them (`shownReview`, `src/lib/monthly-review.ts`). The
+    page says "These are the figures as they stood when Marcus Bell signed on 25 November 2026.
+    They do not change. Today's figures are on Progress." An unsigned review says "These are
+    today's figures. Signing off keeps them with the review as they stand that day." The question
+    before signing and the line under the button say the same. The audit line reads "Signed off
+    the 2026-10 monthly review (0 change(s) applied, the figures of that day kept)".
+    Test: `src/server/__tests__/signed-review-figures.db.test.ts`, 11 tests, through the review's
+    request: an unsigned review gives today's figures, the refusal when the figures changed and
+    nothing signed, the figures kept in the one row the review always had, the audit line, the
+    signed figures for the signer and for two readers after more results were accepted, one
+    waited and the year's target was changed, the unsigned month beside it, today's standing
+    for Home, the records accepted by then, no second signature and no edit, a review signed
+    before figures were kept and who may sign.
+    Run in the browser on a phone-sized screen with fictional data. As `nadia`: the unsigned
+    October review, 8 of 20 farmers trained and 10 results waiting. As `marcus`: the same page
+    open, `omar` accepted one result meanwhile, "Sign off" pressed and the question read. The
+    page said "Not signed off: the figures changed after you opened this page. They are shown
+    again below. Read them, then sign off." and showed 9 of 20 and 9 waiting. Pressed again:
+    signed, with the line about that day's figures. Then the numbers were moved: `omar` accepted
+    the other 9 results on Results and a change of the year's target from 20 to 16 was proposed
+    and approved in November's review (by the request). As `nadia` after that: October still
+    says 9 of 20, 2 of 8, 0 of 10 visits and "9 results were waiting". The figure 9 opens 9
+    records, the last accepted on 25 November, under "Only the records accepted by 25 November
+    2026, when this figure was signed. A record accepted later is not here." November, not
+    signed, says 11 of 16, 5 of 8 and 4 of 10 visits. As `marcus` the signed October page is the
+    same as for `nadia`. A review for August put in the local database with a signature and no
+    figures shows the line about today's figures. Seen in a picture of the phone screen: the
+    signed page, clear of the top bar.
+  - *A refused sign-off brings its reason into view.* The button is at the foot of the page
+    and the reason shows at its head. The first build left the signer at the foot with nothing
+    new in sight (measured: the reason 1,494 pixels above the screen). The page now moves to
+    it (measured: in view). Run in the browser as `marcus` on September's review.
+  Found and left:
+  - A result accepted before a signature and opened again after it is no longer among the
+    records behind the signed figure. The figure stays. The sheet would then list fewer records
+    than the figure. Not seen: read in the code only (`reopenResult`, `counted` in `src/server/proof.ts`).
+  - The day of a signature is the UTC day (medium 2): signed after six in the evening in
+    Guatemala, it reads as tomorrow's date.
+  - The links "Budget vs actual" and "Results and proof" on a signed review open today's pages.
+  - The sign-off question's new words are English only, like the rest of this page.
+  - Medium 11 is still open: the heading says "to the end of 2026 Q4" for October.
+  - The signed review does not say at what time of day it was signed. The record holds it.
+  Checks: 1,215 tests pass (1,204 before), typecheck clean, lint clean, on the final code (only
+  this page changed after). The app was not seen to stop. Distribution chain walked on the final
+  code after the tests, on the local database made new at the start: a fictional KoboCollect
+  record for F-0007. For nadia the page said "Step 1 of 2: check the KoboCollect record" and
+  neither Approve nor Send back could be pressed. The request sent straight to the server was
+  refused: "Not approved yet: this record came from KoboCollect, and Rahima Stanikzai or Omar
+  Sadiq checks KoboCollect data on this project before it is approved." rahima saw the signed
+  note, pressed "I have checked this record" and the page said "Checked." nadia approved, the
+  page said "Approved by Nadia Rahimi" and the farmer's record moved to planting.
+  `10-field-ledger.md` not changed: no field a person fills in was added, cut or prefilled.
