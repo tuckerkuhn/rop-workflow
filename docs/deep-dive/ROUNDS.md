@@ -1073,3 +1073,7 @@ found and left, tests passing.
   note, pressed "I have checked this record" and the page said "Checked." nadia approved, the
   page said "Approved by Nadia Rahimi" and the farmer's record moved to planting.
   `10-field-ledger.md` not changed: no field a person fills in was added, cut or prefilled.
+- **Decided items. 25 Nov 10:46. IN PROGRESS.** Not the queue. Tucker's instruction, 25 Nov 10:38:
+  "Start from main. Build item AI first, bills first, then the items marked Build under Decided."
+  Branch `build/decided-2026-11-25`, made from main at `2fc5fcc`. Nothing is pushed to main.
+
