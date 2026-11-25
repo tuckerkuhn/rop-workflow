@@ -6,12 +6,12 @@ describe("parseFarmers: a farmer list saved from Excel", () => {
   it("reads the template", () => {
     const r = parseFarmers(FARMER_TEMPLATE);
     expect(r.problems).toEqual([]);
-    expect(r.rows).toEqual([{ id: "F-1001", village: "Example village", gender: "Female", hectares: 0.5, ageBand: "30–49", householdSize: 6, contributionPaid: true, step: "train" }]);
+    expect(r.rows).toEqual([{ id: "F-1001", village: "Example village", gender: "Female", hectares: 0.5, ageBand: "36–49", householdSize: 6, contributionPaid: true, step: "train" }]);
     expect(r.hasNames).toBe(false);
   });
   it("accepts other column names, quotes, semicolons and ages as numbers", () => {
     const r = parseFarmers('code;community;gender;ha;full name;age\nX-1;"Kot, upper";m;1,5;Test Person;24\n');
-    expect(r.rows[0]).toMatchObject({ id: "X-1", village: "Kot, upper", gender: "Male", hectares: 1.5, name: "Test Person", ageBand: "18–29 (youth)" });
+    expect(r.rows[0]).toMatchObject({ id: "X-1", village: "Kot, upper", gender: "Male", hectares: 1.5, name: "Test Person", ageBand: "18–35 (youth)" });
     expect(r.hasNames).toBe(true);
   });
   it("leaves out bad rows and says why, by Excel row number", () => {
@@ -43,5 +43,19 @@ describe("setupProblem: a package a manager can save", () => {
   it("makes short ids from item names", () => {
     expect(keyFrom("Drip irrigation kit")).toBe("drip_irrigation_kit");
     expect(keyFrom("2 m trellis posts")).toBe("i2_m_trellis_posts");
+  });
+});
+
+describe("young people are 35 and younger", () => {
+  it("bands ages at 35 and reads older records safely", async () => {
+    const { isYouth } = await import("@/lib/field");
+    const band = (age: number) => parseFarmers(`id,village,sex,hectares,age\nA-1,V,f,1,${age}\n`).rows[0].ageBand;
+    expect(band(35)).toBe("18–35 (youth)");
+    expect(band(36)).toBe("36–49");
+    expect(band(50)).toBe("50+");
+    expect(isYouth("18–35 (youth)")).toBe(true);
+    expect(isYouth("18–29 (youth)")).toBe(true);
+    expect(isYouth("36–49")).toBe(false);
+    expect(isYouth("30–49")).toBeNull();
   });
 });

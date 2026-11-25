@@ -226,8 +226,8 @@ export function seedSubmissions(field: FieldItem[] = seedField()): Submission[] 
   }
   // Fresh arrivals from today's Kobo pull, some with quality problems for the data checker.
   const byId = (id: string) => farmers.find((x) => x.id === id)!;
-  add("training", byId("F-0004"), addDays(TODAY, -1), { session: "Land preparation", gender: "Male", age_band: "18–29 (youth)", hh_size: "4" });
-  add("training", byId("F-0005"), addDays(TODAY, -1), { session: "Land preparation", gender: "Male", age_band: "18–29 (youth)", hh_size: "" });
+  add("training", byId("F-0004"), addDays(TODAY, -1), { session: "Land preparation", gender: "Male", age_band: "18–35 (youth)", hh_size: "4" });
+  add("training", byId("F-0005"), addDays(TODAY, -1), { session: "Land preparation", gender: "Male", age_band: "18–35 (youth)", hh_size: "" });
   add("visit", byId("F-0007"), addDays(TODAY, -1), { purpose: "Pre-planting check", gender: "Female" }, { gps: [35.21, 69.18] });
   add("readiness", byId("F-0009"), TODAY, { result: "Yes", gender: "Female" }, { photo: false });
   add("visit", byId("F-0002"), TODAY, { purpose: "Germination check", gender: "Male" });

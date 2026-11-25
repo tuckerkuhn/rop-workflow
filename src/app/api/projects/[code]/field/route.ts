@@ -1,3 +1,4 @@
+import { AGE_BANDS } from "@/lib/field";
 import { NextResponse } from "next/server";
 import { stampHistory } from "@/lib/history";
 import { PHOTO_MAX_CHARS } from "@/lib/plans";
@@ -43,7 +44,7 @@ const farmer = z.looseObject({
   orgId: short,
   name: z.string().max(200),
   gender: z.enum(["Female", "Male"]),
-  ageBand: z.enum(["18–29 (youth)", "30–49", "50+"]),
+  ageBand: z.enum(AGE_BANDS),
   householdSize: z.number().int().min(0).max(100),
   community: short,
   hectares: z.number().min(0).max(100000),

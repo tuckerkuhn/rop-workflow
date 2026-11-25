@@ -1,3 +1,4 @@
+import { isYouth } from "@/lib/field";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { YOUTH_AGES, type KoboBreakdown, type MappingMethod } from "@/lib/kobo-setup";
@@ -119,8 +120,7 @@ function breakdownOf(b: KoboBreakdown | null | undefined, p: Record<string, unkn
       const a = answer(p, b.age);
       if (a && b.young) out.youth = a.split(/\s+/).includes(b.young) ? 1 : 0;
       else if (a && Number.isFinite(Number(a)) && Number(a) > 0) out.youth = Number(a) >= YOUTH_AGES.from && Number(a) <= YOUTH_AGES.to ? 1 : 0;
-    } else if (farmer?.ageBand?.startsWith("18")) out.youth = 1;
-    else if (farmer?.ageBand?.startsWith("50")) out.youth = 0;
+    } else if (isYouth(farmer?.ageBand) !== null) out.youth = isYouth(farmer?.ageBand) ? 1 : 0;
   }
   // More young people than people is not a figure a result can hold (lib/results): leave it out.
   if (out.youth !== undefined && (out.female !== undefined || out.male !== undefined) && out.youth > (out.female ?? 0) + (out.male ?? 0)) delete out.youth;

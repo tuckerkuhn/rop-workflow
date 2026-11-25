@@ -1,3 +1,4 @@
+import { AGE_BANDS } from "@/lib/field";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { canEditProject, canSeePII } from "@/lib/demo";
@@ -12,7 +13,7 @@ const row = z.object({
   gender: z.enum(["Female", "Male"]),
   hectares: z.number().min(0).max(10000),
   name: z.string().trim().min(1).max(200).optional(),
-  ageBand: z.enum(["18–29 (youth)", "30–49", "50+"]).optional(),
+  ageBand: z.enum(AGE_BANDS).optional(),
   householdSize: z.number().int().min(0).max(100).optional(),
   contributionPaid: z.boolean().optional(),
   step: z.enum(START_STEPS).optional(),

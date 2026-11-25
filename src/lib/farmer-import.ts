@@ -79,12 +79,12 @@ const gender = (v: string): Gender | null => {
 const ageBand = (v: string): AgeBand | null => {
   const x = v.trim();
   if (!x) return null;
-  if (/^18/.test(x) || /youth/i.test(x)) return "18–29 (youth)";
-  if (/^30/.test(x)) return "30–49";
+  if (/^18/.test(x) || /youth/i.test(x)) return "18–35 (youth)";
+  if (/^36/.test(x)) return "36–49";
   if (/^50/.test(x)) return "50+";
   const n = Number(x);
   if (!Number.isFinite(n) || n < 10 || n > 120) return null;
-  return n < 30 ? "18–29 (youth)" : n < 50 ? "30–49" : "50+";
+  return n <= 35 ? "18–35 (youth)" : n < 50 ? "36–49" : "50+";
 };
 const yes = (v: string) => ["yes", "y", "true", "1", "paid"].includes(v.trim().toLowerCase());
 
@@ -141,4 +141,4 @@ export function parseFarmers(text: string): { rows: FarmerRow[]; problems: strin
 }
 
 /** A blank list to fill in, with the columns in the order the reader expects. */
-export const FARMER_TEMPLATE = "Farmer ID,Village,Sex,Hectares,Name,Age band,Household size,Contribution paid,Step\nF-1001,Example village,F,0.5,,30–49,6,yes,train\n";
+export const FARMER_TEMPLATE = "Farmer ID,Village,Sex,Hectares,Name,Age band,Household size,Contribution paid,Step\nF-1001,Example village,F,0.5,,36–49,6,yes,train\n";

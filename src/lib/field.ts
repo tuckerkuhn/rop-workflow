@@ -110,7 +110,18 @@ export function plantingProblem(f: Pick<Farmer, "planting" | "hectares" | "photo
 export type Story = { id: string; status: "note" | "completed"; title: string; text: string; date: string; by: string; docs?: DocLink[] };
 
 export type Gender = "Female" | "Male";
-export type AgeBand = "18–29 (youth)" | "30–49" | "50+";
+/** Age bands. Young people are 35 and younger (owner's decision, 24 Nov 2026). */
+export const AGE_BANDS = ["18–35 (youth)", "36–49", "50+"] as const;
+export type AgeBand = (typeof AGE_BANDS)[number];
+/** Bands saved before 24 Nov 2026 (youth was 18 to 29), still read from older records. */
+export type StoredAgeBand = AgeBand | "18–29 (youth)" | "30–49";
+/** Whether a farmer in this band is young (35 or younger); null when the band cannot tell (the old 30 to 49). */
+export function isYouth(band: string | null | undefined): boolean | null {
+  if (!band) return null;
+  if (band.startsWith("18")) return true;
+  if (band.startsWith("36") || band.startsWith("50")) return false;
+  return null;
+}
 
 export type Farmer = {
   kind: "farmer";
@@ -119,7 +130,7 @@ export type Farmer = {
   /** Personal data. Shown only to people with participant-data access; AI agents never see it. */
   name: string;
   gender: Gender;
-  ageBand: AgeBand;
+  ageBand: StoredAgeBand;
   householdSize: number;
   community: string;
   hectares: number;
@@ -657,16 +668,16 @@ export const maskName = (text: string, f: { id: string; name: string }, u: AppUs
 
 const DEMOGRAPHICS: Record<string, [Gender, AgeBand, number]> = {
   "F-0001": ["Male", "50+", 9],
-  "F-0002": ["Male", "30–49", 7],
-  "F-0003": ["Female", "30–49", 6],
-  "F-0004": ["Male", "18–29 (youth)", 4],
-  "F-0005": ["Male", "18–29 (youth)", 5],
-  "F-0007": ["Female", "30–49", 8],
-  "F-0008": ["Female", "18–29 (youth)", 5],
-  "F-0009": ["Female", "30–49", 7],
+  "F-0002": ["Male", "36–49", 7],
+  "F-0003": ["Female", "36–49", 6],
+  "F-0004": ["Male", "18–35 (youth)", 4],
+  "F-0005": ["Male", "18–35 (youth)", 5],
+  "F-0007": ["Female", "36–49", 8],
+  "F-0008": ["Female", "18–35 (youth)", 5],
+  "F-0009": ["Female", "36–49", 7],
   "F-0011": ["Male", "50+", 10],
   "F-0012": ["Female", "50+", 6],
-  "F-0014": ["Male", "30–49", 7],
+  "F-0014": ["Male", "36–49", 7],
 };
 
 const farmerPath = ["train", "prepare", "verify", "distribute", "plant"];
@@ -708,7 +719,7 @@ function farmer(
     comment: (score >= 4 ? happy : unsure)[(id.charCodeAt(5) + k) % 3],
     by: "mel",
   }));
-  const demo = DEMOGRAPHICS[id] ?? ["Male", "30–49", 6];
+  const demo = DEMOGRAPHICS[id] ?? ["Male", "36–49", 6];
   return {
     kind: "farmer",
     orgId: ORG_ID,

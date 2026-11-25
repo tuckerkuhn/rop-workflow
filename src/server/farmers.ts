@@ -83,7 +83,7 @@ export async function importFarmers(code: string, rows: FarmerRow[], by: { id: s
         id: r.id,
         name: "",
         gender: r.gender,
-        ageBand: r.ageBand ?? "30–49",
+        ageBand: r.ageBand ?? "36–49",
         householdSize: r.householdSize ?? 0,
         community: r.village,
         hectares: r.hectares,
