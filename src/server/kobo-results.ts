@@ -5,6 +5,7 @@ import { YOUTH_AGES, type KoboBreakdown, type MappingMethod } from "@/lib/kobo-s
 import type { Correction, ResultInput, ResultRecord } from "@/lib/results";
 import { logAudit } from "@/server/audit";
 import { attachmentBytes } from "@/server/kobo-client";
+import { koboPlace } from "@/lib/kobo-photo";
 import { breakdownFor, credentials, koboBreakdowns } from "@/server/kobo-link";
 import { farmersOf } from "@/server/distribution";
 import { countsPeople } from "@/lib/data-checks";
@@ -45,9 +46,11 @@ const placeOf = (p: Record<string, unknown>, name: "province" | "district") => {
   const v = k ? text(p[k]) : "";
   return v ? v.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()).slice(0, 80) : undefined;
 };
+// The phone's own fix when the form was opened, else the GPS question, else KoboToolbox's reading (lib/kobo-photo).
 const gpsOf = (p: Record<string, unknown>) => {
-  const g = p._geolocation;
-  if (Array.isArray(g) && g.length >= 2 && Number.isFinite(Number(g[0])) && Number.isFinite(Number(g[1])) && (Number(g[0]) !== 0 || Number(g[1]) !== 0)) return { lat: Number(g[0]), lon: Number(g[1]) };
+  const at = koboPlace(p);
+  return at ? { lat: at.lat, lon: at.lon } : undefined;
+};
   return undefined;
 };
 

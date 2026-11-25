@@ -13,6 +13,9 @@ How the app uses it (src/server/distribution.ts, src/server/kobo.ts):
 - seed_kg and npk_kg are compared with the planned package; above plan is flagged.
 - signed = no, or no list_photo, is flagged.
 - The farmer is picked from farmers.csv (ID, village, initials). No names on devices.
+- Nothing is typed that the phone or the app already knows: the place is the phone's GPS when the
+  form opens (start_geopoint), the date defaults to today, the amounts default to the package, and
+  each photo is tagged by the question it is taken on (list_photo is the signed note).
 
 Labels in English, Dari and Pashto. The Dari and Pashto are drafts: have a native speaker review them.
 """
@@ -25,6 +28,9 @@ import build_readiness_form as base  # noqa: E402
 
 base.SURVEY = [
     ("calculate", "project_code", None, None, "", "", "", "'A-2027'", ""),
+    # Where it happened comes from the phone when the form opens (start-geopoint: nothing to tap).
+    # The GPS question below is asked only when the phone found no place by itself.
+    ("start-geopoint", "start_geopoint", None, None, "", "", "", "", ""),
     (
         "select_one_from_file farmers.csv",
         "farmer",
@@ -33,7 +39,6 @@ base.SURVEY = [
         "yes", "", "autocomplete", "", "",
     ),
     ("date", "distribution_date", ("Distribution date", "تاریخ توزیع", "د وېش نېټه"), None, "yes", "", "", "", "today()"),
-    ("text", "distribution_point", ("Distribution point", "محل توزیع", "د وېش ځای"), ("Village or store where the package was handed over", "قریه یا گدامی که بسته در آن تحویل داده شد", "هغه کلی یا ګدام چې کڅوړه پکې وسپارل شوه"), "yes", "", "", "", ""),
     ("decimal", "seed_kg", ("Certified maize seed given (kg)", "تخم اصلاح‌شده جواری داده‌شده (کیلوگرام)", "د جوارو اصلاح شوی تخم ورکړل شو (کیلوګرامه)"), ("The package plans 10 kg", "بسته ۱۰ کیلوگرام را پیش‌بینی می‌کند", "کڅوړه ۱۰ کیلوګرامه وړاندوینه کوي"), "yes", "", "", "", "10"),
     ("decimal", "npk_kg", ("NPK 17-17-17 given (kg)", "کود NPK 17-17-17 داده‌شده (کیلوگرام)", "د NPK 17-17-17 سره ورکړل شوه (کیلوګرامه)"), ("The package plans 50 kg", "بسته ۵۰ کیلوگرام را پیش‌بینی می‌کند", "کڅوړه ۵۰ کیلوګرامه وړاندوینه کوي"), "yes", "", "", "", "50"),
     ("select_one condition", "condition", ("Condition of the inputs at handover", "وضعیت مواد هنگام تحویل", "د سپارلو پر وخت د توکو حالت"), None, "yes", "", "", "", ""),
@@ -45,7 +50,7 @@ base.SURVEY = [
     ),
     ("image", "list_photo", ("Photo of the signed goods received note", "عکس صفحه امضا‌شده لیست توزیع", "د وېش د لاسلیک شوي لیست د پاڼې انځور"), ("The page with this farmer's signature or thumbprint", "صفحه‌ای که امضا یا نشان انگشت این دهقان را دارد", "هغه پاڼه چې د دې بزګر لاسلیک یا ګوته پرې ده"), "yes", "", "", "", ""),
     ("image", "handover_photo", ("Photo of the handover (optional)", "عکس تحویل (اختیاری)", "د سپارلو انځور (اختیاري)"), None, "", "", "", "", ""),
-    ("geopoint", "location", ("Location (GPS)", "موقعیت (GPS)", "ځای (GPS)"), None, "", "", "", "", ""),
+    ("geopoint", "location", ("Location (GPS)", "موقعیت (GPS)", "ځای (GPS)"), ("The phone did not find its place by itself. Record it here.",) * 3, "", "string-length(${start_geopoint}) = 0", "", "", ""),
     ("text", "notes", ("Anything else to note", "نکات دیگر", "نور یادښتونه"), None, "", "", "multiline", "", ""),
 ]
 

@@ -75,7 +75,8 @@ export async function listForms(server: string, token: string): Promise<KoboForm
 type SurveyRow = { type: string; name?: string; $xpath?: string; label?: string[] | string; select_from_list_name?: string };
 type Choice = { list_name: string; name: string; label?: string[] | string };
 
-const SKIP = new Set(["begin_group", "end_group", "begin_repeat", "end_repeat", "note", "start", "end", "today", "deviceid", "username", "calculate", "hidden"]);
+// "start-geopoint": the phone's own GPS fix when the form opens. Captured without a question, so it is not one to map.
+const SKIP = new Set(["begin_group", "end_group", "begin_repeat", "end_repeat", "note", "start", "end", "today", "deviceid", "username", "calculate", "hidden", "start-geopoint", "background-geopoint", "audit"]);
 const firstLabel = (l: string[] | string | undefined, fallback: string) => (Array.isArray(l) ? l.find(Boolean) : l) || fallback;
 
 /** The questions on a form, with choices for select questions. Groups, notes and metadata are left out. */

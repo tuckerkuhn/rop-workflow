@@ -13,6 +13,7 @@ import { insertResult } from "@/server/results-store";
 import { addGiven, applyFix, approvalRefusal, approverNamesOf, badCondition, approversOf, closeBlock, drawnFrom, fixOwner, flagsFor, gate, inProcUnit, lineOf, paymentDue, resultFor, resultForPlanting, storeStock, type DistItem, type Fix, type Flag, type Gate, type Given } from "@/lib/distribution";
 import { countsAtPlanting, itemsFor, qtyItem, type FieldSetup } from "@/lib/package";
 import { hasSignedNotePhoto, type Farmer } from "@/lib/field";
+import { koboAttachment, koboPlace } from "@/lib/kobo-photo";
 import type { Procurement } from "@/lib/procurement";
 import type { Submission } from "@/lib/project";
 import { demoMode, onProject, people, toAppUser } from "@/server/auth";
@@ -434,6 +435,13 @@ export type DistView = {
   approverNames: string;
   /** Why it cannot close yet apart from the goods received checks (the recipient's signed note); null when it may. */
   closeBlock: string | null;
+  /**
+   * From KoboCollect: which of its photos can be opened in the app (fetched from the project's
+   * KoboToolbox account when asked for), so the checker and the approver see the proof itself.
+   */
+  koboPhotos: ("note" | "handover")[];
+  /** Whether the record came with a place (the phone's GPS or the form's GPS question). Coordinates are never in this list. */
+  hasPlace: boolean;
 };
 
 const photoOf = (r: { source: string; payload: unknown }) => {
@@ -503,6 +511,8 @@ export async function listDistributions(code: string): Promise<DistView[]> {
         approvers: approversOf(team, recorderOf(r, m, rule, team)).map((p) => p.id),
         approverNames: approverNamesOf(team, recorderOf(r, m, rule, team)),
         closeBlock: closeBlock({ signed: m.signed ?? signedOf(r), photo: photoNow(r, m), source: sourceOf(r), condition: m.conditionOk ? null : conditionOf(r) }),
+        koboPhotos: r.source === "kobo" ? (["note", "handover"] as const).filter((w) => !!koboAttachment(r.payload as Record<string, unknown>, w === "note" ? "list_photo" : "handover_photo", "distribution")) : [],
+        hasPlace: r.source === "kobo" && !!koboPlace(r.payload as Record<string, unknown>),
       };
     })
     .sort((a, b) => (a.status === b.status ? b.date.localeCompare(a.date) : a.status === "pending" ? -1 : 1));

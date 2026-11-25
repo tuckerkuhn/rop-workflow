@@ -34,6 +34,7 @@ YES_NO = [("yes_no", "yes", ("Yes", "بلی", "هو")), ("yes_no", "no", ("No", 
 def training(code):
     survey = [
         ("calculate", "project_code", None, None, "", "", "", f"'{code}'", ""),
+        ("start-geopoint", "start_geopoint", None, None, "", "", "", "", ""),
         ("select_one_from_file farmers.csv", "farmer", ("Farmer", "دهقان", "بزګر"), FARMER_HINT, "yes", "", "autocomplete", "", ""),
         ("date", "training_date", ("Training date", "تاریخ آموزش", "د روزنې نېټه"), None, "yes", "", "", "", "today()"),
         ("select_one session", "session", ("Training session", "جلسه آموزشی", "د روزنې ناسته"), None, "yes", "", "", "", ""),
@@ -51,7 +52,7 @@ def training(code):
             "yes", "", "", "", "",
         ),
         ("image", "photo", ("Photo of the signed register page", "عکس صفحه امضا‌شده لیست حاضری", "د حاضرۍ د لاسلیک شوي لیست د پاڼې انځور"), None, "yes", "", "", "", ""),
-        ("geopoint", "location", ("Training location (GPS)", "موقعیت آموزش (GPS)", "د روزنې ځای (GPS)"), None, "", "", "", "", ""),
+        ("geopoint", "location", ("Training location (GPS)", "موقعیت آموزش (GPS)", "د روزنې ځای (GPS)"), ("The phone did not find its place by itself. Record it here.",) * 3, "", "string-length(${start_geopoint}) = 0", "", "", ""),
         ("text", "notes", ("Anything else to note", "نکات دیگر", "نور یادښتونه"), None, "", "", "multiline", "", ""),
     ]
     choices = [
@@ -67,6 +68,7 @@ def visit(code):
     followup = "${planted} = 'no' or ${spacing_ok} = 'no'"
     survey = [
         ("calculate", "project_code", None, None, "", "", "", f"'{code}'", ""),
+        ("start-geopoint", "start_geopoint", None, None, "", "", "", "", ""),
         ("select_one_from_file farmers.csv", "farmer", ("Farmer", "دهقان", "بزګر"), FARMER_HINT, "yes", "", "autocomplete", "", ""),
         # The farmer's plot size from farmers.csv, shown with the area planted.
         ("calculate", "farmer_ha", None, None, "", "", "", "pulldata('farmers', 'hectares', 'name', ${farmer})", ""),

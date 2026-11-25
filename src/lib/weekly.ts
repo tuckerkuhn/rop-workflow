@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { photoFacts } from "@/lib/exif";
 
 /**
  * The weekly update the field team sends the donor: what happened this week, activity by
@@ -60,54 +61,7 @@ export const longDate = (iso: string) => `${Number(iso.slice(8, 10))} ${MONTHS[N
 
 /**
  * The date a photo was taken, from its EXIF data (DateTimeOriginal, else DateTime), or null.
- * Read before the photo is shrunk for upload, which drops the EXIF data.
+ * Read before the photo is shrunk for upload, which drops the EXIF data. One reader for every
+ * screen: lib/exif also gives the time and the place.
  */
-export function exifDate(buf: ArrayBuffer): string | null {
-  const v = new DataView(buf);
-  if (v.byteLength < 4 || v.getUint16(0) !== 0xffd8) return null;
-  let o = 2;
-  while (o + 4 <= v.byteLength) {
-    const marker = v.getUint16(o);
-    const size = v.getUint16(o + 2);
-    if (marker === 0xffe1 && o + 10 <= v.byteLength && v.getUint32(o + 4) === 0x45786966) return tiffDate(v, o + 10);
-    if ((marker & 0xff00) !== 0xff00 || size < 2) return null;
-    o += 2 + size;
-  }
-  return null;
-}
-
-function tiffDate(v: DataView, start: number): string | null {
-  if (start + 8 > v.byteLength) return null;
-  const le = v.getUint16(start) === 0x4949;
-  const u16 = (p: number) => v.getUint16(p, le);
-  const u32 = (p: number) => v.getUint32(p, le);
-  const read = (ifd: number, want: number[]): Record<number, number> => {
-    const out: Record<number, number> = {};
-    if (ifd + 2 > v.byteLength) return out;
-    const n = u16(ifd);
-    for (let i = 0; i < n; i++) {
-      const e = ifd + 2 + i * 12;
-      if (e + 12 > v.byteLength) break;
-      const tag = u16(e);
-      if (want.includes(tag)) out[tag] = u32(e + 8);
-    }
-    return out;
-  };
-  const text = (off: number) => {
-    const p = start + off;
-    if (p + 19 > v.byteLength) return null;
-    let s = "";
-    for (let i = 0; i < 19; i++) s += String.fromCharCode(v.getUint8(p + i));
-    const m = s.match(/^(\d{4}):(\d{2}):(\d{2})/);
-    return m && m[1] !== "0000" ? `${m[1]}-${m[2]}-${m[3]}` : null;
-  };
-  const ifd0 = read(start + u32(start + 4), [0x0132, 0x8769]);
-  if (ifd0[0x8769]) {
-    const exif = read(start + ifd0[0x8769], [0x9003]);
-    if (exif[0x9003]) {
-      const d = text(exif[0x9003]);
-      if (d) return d;
-    }
-  }
-  return ifd0[0x0132] ? text(ifd0[0x0132]) : null;
-}
+export const exifDate = (buf: ArrayBuffer): string | null => photoFacts(buf).date;

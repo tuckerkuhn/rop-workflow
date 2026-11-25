@@ -8,6 +8,8 @@ import { useSession } from "@/components/app/session";
 import { useT } from "@/components/app/i18n";
 import { primaryBtn, quietBtn } from "@/components/workspace/ui";
 import type { DistView } from "@/server/distribution";
+import type { DistFacts } from "@/server/distribution-photo";
+import { mapEmbed } from "@/lib/exif";
 import { qtyItem } from "@/lib/package";
 
 /**
@@ -29,6 +31,11 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
   const [notePhoto, setNotePhoto] = useState<{ src: string; date: string } | null>(null);
   // From the email link without signing in, the photo is held back: it can show farmers' names.
   const [photoNeedsSignIn, setPhotoNeedsSignIn] = useState(false);
+  // A KoboCollect record's photos, fetched from the project's KoboToolbox account for signed-in staff.
+  const [koboShots, setKoboShots] = useState<{ note?: string; handover?: string; failed?: string }>({});
+  // Where and when it happened, from the phone and the photo (never typed).
+  const [facts, setFacts] = useState<DistFacts | null>(null);
+  const [showMap, setShowMap] = useState(false);
   const [canDecide, setCanDecide] = useState(false);
   const [canFix, setCanFix] = useState(false);
   const [canCheckKobo, setCanCheckKobo] = useState(false);
@@ -70,6 +77,36 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
   useEffect(() => {
     if (ready) void load();
   }, [ready, load]);
+
+  // The proof itself, once the record is known and the viewer is signed in: the KoboCollect photos
+  // and what the phone and the photo say about where and when. Never fetched from the email link alone.
+  const signedIn = !!user;
+  const shots = d?.koboPhotos?.join(",") ?? "";
+  const recordId = d?.id ?? "";
+  const proofUserId = user?.id ?? "";
+  useEffect(() => {
+    if (!recordId || !signedIn) return;
+    let gone = false;
+    const made: string[] = [];
+    const h = { "x-demo-user": proofUserId };
+    void fetch(`${url}/photo?facts=1`, { cache: "no-store", headers: h })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((b) => !gone && setFacts((b?.facts as DistFacts | undefined) ?? null))
+      .catch(() => undefined);
+    for (const which of shots ? (shots.split(",") as ("note" | "handover")[]) : [])
+      void fetch(`${url}/photo?which=${which}`, { headers: h })
+        .then(async (r) => {
+          if (!r.ok) throw new Error(((await r.json().catch(() => ({}))) as { error?: string }).error ?? plainError(r.status));
+          const src = URL.createObjectURL(await r.blob());
+          made.push(src);
+          if (!gone) setKoboShots((k) => ({ ...k, [which]: src }));
+        })
+        .catch((e: unknown) => !gone && which === "note" && setKoboShots((k) => ({ ...k, failed: e instanceof Error ? e.message : String(e) })));
+    return () => {
+      gone = true;
+      made.forEach((m) => URL.revokeObjectURL(m));
+    };
+  }, [url, recordId, shots, signedIn, proofUserId]);
 
   async function decide(decision: "approved" | "sent_back") {
     setBusy(true);
@@ -155,7 +192,19 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
             </ul>
             <p className="mt-2 text-sm text-muted">
               {tx("Recipient: {gender}", { gender: d.gender ?? tx("sex not recorded") })} · {d.signed ? tx("Signature or thumbprint: confirmed") : tx("Signature or thumbprint: not confirmed")} · {tx("Photo of the signed goods received note:")}{" "}
-              {d.source === "kobo" ? (d.photo ? tx("attached in KoboToolbox") : tx("missing")) : notePhoto ? tx("below") : photoNeedsSignIn ? tx("sign in to see it") : <span className="text-clay">{d.photo ? tx("ticked as taken, but none is attached") : tx("missing")}</span>}
+              {d.source === "kobo" ? (
+                !d.photo ? (
+                  <span className="text-clay">{tx("missing")}</span>
+                ) : koboShots.note ? (
+                  tx("below")
+                ) : !user && d.koboPhotos?.includes("note") ? (
+                  tx("sign in to see it")
+                ) : d.koboPhotos?.includes("note") ? (
+                  koboShots.failed ? tx("in KoboToolbox (it could not be opened here)") : tx("loading…")
+                ) : (
+                  tx("named on the form; KoboToolbox has not received the file yet")
+                )
+              ) : notePhoto ? tx("below") : photoNeedsSignIn ? tx("sign in to see it") : <span className="text-clay">{d.photo ? tx("ticked as taken, but none is attached") : tx("missing")}</span>}
             </p>
             {photoNeedsSignIn && (
               <p className="mt-2 text-sm">
@@ -164,6 +213,33 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
                   {tx("Sign in to see the photo")}
                 </Link>
               </p>
+            )}
+            {!user && d.source === "kobo" && (d.koboPhotos?.length ?? 0) > 0 && (
+              <p className="mt-2 text-sm">
+                {tx("The photo can show farmers’ names, so it opens only when you are signed in.")}{" "}
+                <Link href={`/approve/${encodeURIComponent(code)}/${id}`} className="font-medium text-forest underline">
+                  {tx("Sign in to see the photo")}
+                </Link>
+              </p>
+            )}
+            {koboShots.failed && !koboShots.note && <p className="mt-2 text-sm text-clay">{koboShots.failed}</p>}
+            {koboShots.note && (
+              <figure className="mt-3">
+                {/* eslint-disable-next-line @next/next/no-img-element -- fetched from the project's KoboToolbox account, shown from memory */}
+                <img src={koboShots.note} alt={tx("Signed goods received note for {id}", { id: d.farmerId })} className="max-h-96 w-full rounded-lg border border-line bg-mist object-contain" />
+                <figcaption className="mt-1 text-xs text-muted">
+                  {facts?.photo?.date
+                    ? tx("Signed goods received note, photographed {date}. Check the signature or thumbprint and the quantities before approving.", { date: `${facts.photo.date}${facts.photo.time ? ` ${facts.photo.time}` : ""}` })
+                    : tx("Signed goods received note, from KoboCollect. Check the signature or thumbprint and the quantities before approving.")}
+                </figcaption>
+              </figure>
+            )}
+            {koboShots.handover && (
+              <figure className="mt-3">
+                {/* eslint-disable-next-line @next/next/no-img-element -- fetched from the project's KoboToolbox account, shown from memory */}
+                <img src={koboShots.handover} alt={tx("Handover of the goods to {id}", { id: d.farmerId })} className="max-h-72 w-full rounded-lg border border-line bg-mist object-contain" />
+                <figcaption className="mt-1 text-xs text-muted">{tx("Handover of the goods, from KoboCollect.")}</figcaption>
+              </figure>
             )}
             {notePhoto && (
               <figure className="mt-3">
@@ -175,6 +251,57 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
               </figure>
             )}
           </section>
+
+          {facts && (facts.place || facts.photo || facts.missing.length > 0) && (
+            <section className="mt-4 rounded-xl border border-line bg-surface px-4 py-3">
+              <h2 className="font-medium">{tx("Where and when")}</h2>
+              <p className="mt-0.5 text-xs text-muted">{tx("Read from the phone and the photo. Nobody typed this.")}</p>
+              <ul className="mt-2 space-y-1 text-sm">
+                {facts.place && (
+                  <li>
+                    ✓ {tx("Place captured from {source}.", { source: tx(facts.place.fromText) })}
+                    {facts.place.lat !== undefined && facts.place.lon !== undefined && (
+                      <>
+                        {" "}
+                        <span className="font-mono text-xs text-muted">
+                          {facts.place.lat.toFixed(5)}, {facts.place.lon.toFixed(5)}
+                        </span>
+                      </>
+                    )}
+                  </li>
+                )}
+                {facts.photo?.date && <li>✓ {tx("Photo taken {when}.", { when: `${facts.photo.date}${facts.photo.time ? ` ${facts.photo.time}` : ""}` })}</li>}
+                {facts.apart && (
+                  <li className={facts.apart.far ? "text-clay" : ""}>
+                    {facts.apart.far ? "!" : "✓"} {tx("The photo was taken {distance} from where the form was filled in.", { distance: facts.apart.text })}
+                    {facts.apart.far ? ` ${tx("Ask why before approving.")}` : ""}
+                  </li>
+                )}
+                {facts.dayDiffers && (
+                  <li className="text-clay">
+                    ! {tx("The form says {form}; the photo was taken {photo}.", { form: facts.dayDiffers.form, photo: facts.dayDiffers.photo })}
+                  </li>
+                )}
+                {facts.missing.map((m) => (
+                  <li key={m} className="text-muted">
+                    {tx(m)}
+                  </li>
+                ))}
+              </ul>
+              {facts.place?.lat !== undefined && facts.place.lon !== undefined && (
+                <div className="mt-3">
+                  {showMap ? (
+                    <iframe title={tx("Map of where it was recorded")} src={mapEmbed({ lat: facts.place.lat, lon: facts.place.lon })} className="h-56 w-full rounded-lg border border-line" loading="lazy" referrerPolicy="no-referrer" />
+                  ) : (
+                    <button type="button" className={quietBtn} onClick={() => setShowMap(true)}>
+                      {tx("Show on a map")}
+                    </button>
+                  )}
+                  {!showMap && <p className="mt-1 text-xs text-muted">{tx("The map comes from OpenStreetMap. Opening it sends this point to their map service.")}</p>}
+                </div>
+              )}
+            </section>
+          )}
 
           <section className="mt-4 rounded-xl border border-line bg-surface px-4 py-3">
             <h2 className="font-medium">{tx("Goods received and quantities")}</h2>

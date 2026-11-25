@@ -20,6 +20,7 @@ LANGS = ["English (en)", "Dari (prs)", "Pashto (ps)"]
 # type, name, (en, prs, ps) label, (en, prs, ps) hint, required, relevance, appearance, calculation, default
 SURVEY = [
     ("calculate", "project_code", None, None, "", "", "", "'A-2027'", ""),
+    ("start-geopoint", "start_geopoint", None, None, "", "", "", "", ""),
     (
         "select_one_from_file farmers.csv",
         "farmer",

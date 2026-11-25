@@ -41,6 +41,8 @@ def plan_calc(key):
 def survey(spec):
     rows = [
         ("calculate", "project_code", None, None, "", "", "", f"'{spec['project_code']}'", ""),
+        # Where it happened: the phone's own GPS when the form opens. Nothing to tap.
+        ("start-geopoint", "start_geopoint", None, None, "", "", "", "", ""),
         (
             "select_one_from_file farmers.csv",
             "farmer",
@@ -50,7 +52,6 @@ def survey(spec):
         ),
         ("calculate", "farmer_ha", None, None, "", "", "", "pulldata('farmers', 'hectares', 'name', ${farmer})", ""),
         ("date", "distribution_date", ("Distribution date", "تاریخ توزیع", "د وېش نېټه"), None, "yes", "", "", "", "today()"),
-        ("text", "distribution_point", ("Distribution point", "محل توزیع", "د وېش ځای"), ("Village or store where the inputs were handed over", "قریه یا گدامی که مواد در آن تحویل داده شد", "هغه کلی یا ګدام چې توکي پکې وسپارل شول"), "yes", "", "", "", ""),
     ]
     for it in spec["items"]:
         k = it["key"]
@@ -78,7 +79,7 @@ def survey(spec):
         ),
         ("image", "list_photo", ("Photo of the signed goods received note", "عکس صفحه امضا‌شده لیست توزیع", "د وېش د لاسلیک شوي لیست د پاڼې انځور"), ("The page with this farmer's signature or thumbprint", "صفحه‌ای که امضا یا نشان انگشت این دهقان را دارد", "هغه پاڼه چې د دې بزګر لاسلیک یا ګوته پرې ده"), "yes", "", "", "", ""),
         ("image", "handover_photo", ("Photo of the handover (optional)", "عکس تحویل (اختیاری)", "د سپارلو انځور (اختیاري)"), None, "", "", "", "", ""),
-        ("geopoint", "location", ("Location (GPS)", "موقعیت (GPS)", "ځای (GPS)"), None, "", "", "", "", ""),
+        ("geopoint", "location", ("Location (GPS)", "موقعیت (GPS)", "ځای (GPS)"), ("The phone did not find its place by itself. Record it here.",) * 3, "", "string-length(${start_geopoint}) = 0", "", "", ""),
         ("text", "notes", ("Anything else to note", "نکات دیگر", "نور یادښتونه"), None, "", "", "multiline", "", ""),
     ]
     return rows
