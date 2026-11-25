@@ -33,6 +33,8 @@ export async function GET(req: Request) {
         : file === "bank" && run.group === "Afghanistan"
           ? [bankFile(lines, run.month), `bank-transfers-${tag}.csv`]
           : [registerFile(lines, label), `payroll-register-${tag}.csv`];
+    // Who took which payroll file, and when: it holds everyone's pay and bank details.
+    if (org) await db.insert(s.auditLog).values({ projectId: null, entity: "payroll", entityId: org, action: "payroll_file_downloaded", detail: { by: v.user.id, run: run.id, month: run.month, group: run.group, file: name } });
     return new NextResponse(body, { headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="${name}"`, "Cache-Control": "no-store" } });
   });
 }
