@@ -315,20 +315,24 @@ function ChangeItem({ n, first, c, me, mayDecide, solo, busy, label, act }: { n:
         </span>
         <span className="mt-1 block">{c.reason}</span>
         <span className="mt-1 block text-xs text-muted">
-          Proposed by {who(c.proposedBy)} on <span className={mono}>{day(c.proposedAt)}</span>
-          {c.decidedBy && (
-            <>
-              {` · ${c.status} by ${who(c.decidedBy)} on `}
-              <span className={mono}>{day(c.decidedAt)}</span>
-            </>
-          )}
+          Proposed by {who(c.proposedBy)} on {c.proposedAt ? longDate(day(c.proposedAt)) : ""}
+          {c.decidedBy && ` · ${c.status} by ${who(c.decidedBy)} on ${c.decidedAt ? longDate(day(c.decidedAt)) : ""}`}
           {c.note && ` · “${c.note}”`}
         </span>
       </span>
       {c.status === "proposed" && mayDecide && c.proposedBy !== me && (
         <div className="col-start-2 flex flex-wrap items-center gap-2">
           <input className="min-h-11 min-w-0 flex-1 border border-line bg-paper px-3 py-1.5 text-sm focus:border-forest focus:outline-none" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note (optional)" aria-label="Decision note" />
-          <button type="button" className={primaryBtn} disabled={busy} onClick={() => void act({ action: "decide", id: c.id, decision: "approve", note: note.trim() || undefined })}>
+          <button
+            type="button"
+            className={primaryBtn}
+            disabled={busy}
+            onClick={async () => {
+              // One tap changed the plan: ask first, and say what it does.
+              const message = `Approve this change? ${label}. The plan changes at once, for Progress and for every report not yet released. A report already released keeps what it said.`;
+              if (await askConfirm({ message, confirm: "Approve and apply" })) void act({ action: "decide", id: c.id, decision: "approve", note: note.trim() || undefined });
+            }}
+          >
             Approve and apply
           </button>
           <button type="button" className={quietBtn} disabled={busy} onClick={() => void act({ action: "decide", id: c.id, decision: "reject", note: note.trim() || undefined })}>
