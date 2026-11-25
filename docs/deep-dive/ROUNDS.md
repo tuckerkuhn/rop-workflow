@@ -642,3 +642,5 @@ found and left, tests passing.
   and the farmer's record moved to planting.
   Tools: `act.py` can fill in a form and `pack.py` reads a pack (see the notes above).
   `10-field-ledger.md` not changed: no field was added, cut or prefilled.
+- **Round 6. 25 Nov 05:17. IN PROGRESS.** Queue, big item 1 (the place of a farmer's photo and
+  staff who may not see participant names).
