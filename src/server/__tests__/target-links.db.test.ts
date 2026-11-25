@@ -101,3 +101,21 @@ describe("suggested links on Target details", { timeout: 60_000 }, () => {
     expect((await loadTargetDetails(code, marcus)).suggestions).toEqual([]);
   });
 });
+
+describe("target details on a signed-off plan (decision 7, 25 Nov 2026)", { timeout: 60_000 }, () => {
+  const call = async (as: string, reason?: string) => {
+    const { POST } = await import("@/app/api/projects/[code]/targets/route");
+    const body = { indicator: "IND-4", baseline: 12, breakdown: [], verification: "", budgetRef: "", workplanCode: "", inQuarterlyReport: true };
+    const headers: Record<string, string> = { "x-demo-user": as, "content-type": "application/json", ...(reason ? { "x-change-reason": encodeURIComponent(reason) } : {}) };
+    return POST(new Request(`http://test/api/projects/${code}/targets`, { method: "POST", headers, body: JSON.stringify(body) }), { params: Promise.resolve({ code }) });
+  };
+  it("needs a written reason from a plan approver, and logs it", async () => {
+    process.env.DEMO_SIGN_IN = "1";
+    const no = await call("marcus");
+    expect(no.status).toBe(409);
+    expect(((await no.json()) as { needsReason?: boolean }).needsReason).toBe(true);
+    expect((await call("marcus", "The baseline survey came back after sign-off.")).status).toBe(200);
+    const rows = await db.select().from(s.auditLog).where(and(eq(s.auditLog.projectId, projectId), eq(s.auditLog.action, "plan_changed_after_signoff")));
+    expect(rows.at(-1)?.detail).toMatchObject({ reason: "The baseline survey came back after sign-off.", targetDetails: "IND-4" });
+  });
+});

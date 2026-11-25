@@ -11,6 +11,7 @@ import { useRequireUser, useSession } from "@/components/app/session";
 import { TopBar, primaryBtn } from "@/components/workspace/ui";
 import { BREAKDOWNS, type Breakdown, type ConfirmLinks, type TargetDetailsPatch } from "@/lib/target-details";
 import { LinkSuggestions } from "@/components/progress/link-suggestions";
+import { SignedOffBanner, changeReasonHeader } from "@/components/setup/change-reason";
 import { MEASURES, MEASURE_TEXT, isPercentUnit } from "@/lib/measure";
 import type { TargetDetailsView } from "@/server/target-details";
 
@@ -55,7 +56,7 @@ export function TargetDetailsPage() {
 
   if (!user) return null;
   const save = async (a: TargetDetailsPatch) => {
-    const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json", "x-demo-user": user.id }, body: JSON.stringify(a) });
+    const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json", "x-demo-user": user.id, ...changeReasonHeader(url) }, body: JSON.stringify(a) });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error((body as { error?: string }).error ?? `Not saved (${res.status})`);
     setGot({ url, view: body as TargetDetailsView });
@@ -63,7 +64,7 @@ export function TargetDetailsPage() {
   };
   // Suggested links a person confirmed: only empty links are filled, with the same audit row as a save.
   const applyLinks = async (links: ConfirmLinks["links"]) => {
-    const res = await fetch(`${url}/links`, { method: "POST", headers: { "Content-Type": "application/json", "x-demo-user": user.id }, body: JSON.stringify({ links }) });
+    const res = await fetch(`${url}/links`, { method: "POST", headers: { "Content-Type": "application/json", "x-demo-user": user.id, ...changeReasonHeader(url) }, body: JSON.stringify({ links }) });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error((body as { error?: string }).error ?? `Not saved (${res.status})`);
     setGot({ url, view: body as TargetDetailsView });
@@ -90,6 +91,11 @@ export function TargetDetailsPage() {
         {!project.saved && <p className="mt-6 rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">{t("td.demo")}</p>}
         {error && <ErrorNote>{error}</ErrorNote>}
         {project.saved && !v && !error && <p className="mt-10 text-center text-sm text-muted">{t("load.wait")}</p>}
+        {v && v.can.edit && project.saved && project.stage !== "Design" && project.stage !== "Develop" && (
+          <div className="mt-4">
+            <SignedOffBanner code={project.id} stage={project.stage} />
+          </div>
+        )}
         {v && !v.can.edit && <p className="mt-4 rounded-xl bg-sunken px-4 py-3 text-sm">{t("td.readOnly")}</p>}
         {v && v.targets.length === 0 && <p className="mt-6 text-sm text-muted">{t("td.empty")}</p>}
         {v && <LinkSuggestions key={url} view={v} apply={applyLinks} className="mt-6" />}

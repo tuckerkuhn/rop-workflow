@@ -34,6 +34,12 @@ export async function checkPlanChange(code: string, u: AppUser, req: Request): P
   return null;
 }
 
+/** Whether the project's plan is signed off (past Design). */
+export async function planSignedOff(code: string): Promise<boolean> {
+  const project = await projectByCode(code).catch(() => null);
+  return !!project && !OPEN.includes(project.stage);
+}
+
 /** Records the save in the audit trail, with the reason when the plan was already signed off. */
 export async function logPlanChange(code: string, u: AppUser, req: Request, part: PlanPart, detail: Record<string, unknown>) {
   const project = await projectByCode(code);
