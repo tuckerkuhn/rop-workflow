@@ -151,12 +151,25 @@ is used next. Then walk it as each role on a phone. The distribution chain is do
 ## Queue
 
 Big, open:
-1. **The donor evidence pack may name each kept document.** Read in the code in round 4, not opened.
-   `fileFor` in `src/server/proof.ts` holds a document back from the donor pack but keeps its file
-   name in the pack's list. A file name is typed by staff and can hold a participant's name. Open
-   the pack as `marcus` (the report's "Send and share", "Evidence pack"), look at the list and at
-   link titles. Then say kind and count as `onFileKinds` does. Look at the Word file the same way.
-2. **Finish chain 1.** The parts not walked are listed under chain 1 above.
+1. **A donor's account is sent the photo of the signed goods received note and where each farmer
+   photo was taken.** Found in round 5 as `elena`. Her Home lists "Recent field photos" and opens a
+   farmer's page. The server (`loadField` in `src/server/field-store.ts`) hides the farmer's name and
+   sends every photo as stored: the signed note, which has the farmer's name and signature on it,
+   and each photo's place (`gps`). The distribution page gives the note to staff only.
+2. **The place of a farmer's photo also goes to staff who may not see participant names**
+   (`marcus`, `karim`, `rahima`, `yusuf`). Same cause as item 1. Read in the code in round 5, not
+   fixed: these people can be given the right to save a farmer, and a save from a page that never
+   held the place would wipe it. The fix has two halves: leave `gps` out in `loadField` for them and
+   put it back by photo id in `keepHidden`, with a test like `field-names-hidden.db.test.ts`.
+3. **A signed-off monthly review keeps no copy of its figures.** Found in round 5. The review for
+   October, opened on 25 November, shows 11 farmers trained: the year's figure as it stands today,
+   under "to the end of 2026 Q4". One training was held by 31 October. Signing off stores the name
+   and the time only (`readReview` in `src/server/monthly-review-store.ts`), so the signed October
+   review will show December's figures in January. Keeping the figures at sign-off is the fix. It
+   changes what sign-off means: Needs Tucker AA.
+4. **Finish chain 1.** Still not walked: the donor's own account past Home and one farmer page
+   (her reports list and a released report), the annual report past its heading, and the monthly
+   review's "Changes to the plan".
 
 Medium, open:
 1. Dates still show as 2026-11-24 in some places. Use `longDate` or `periodLabel` from
@@ -189,6 +202,23 @@ Medium, open:
    whole project and one is this year. Neither says so.
 7. The report's narrative has headings "Activity 1.a: Activity 1.a" and "Activity IND: Activity
    IND" for targets that sit under no activity.
+8. A result sent back with a question is hard to find. Home's row "Fix 1 result MEL sent back with
+   a question" opens Results, which says "Nothing waiting for you" at the top. Lower down it says
+   "Of yours queried: answer them below 1" above five closed target cards. None is marked.
+9. The answer to MEL's question is hidden. When the recorder corrects a result, it comes back to
+   the MEL officer with a closed line "Corrected 1 time". The answer and the old figure are inside.
+10. The monthly review is signed off in one tap, with no question, even with the summary and
+    "Needs attention" empty. It cannot be changed after.
+11. The monthly review tells a person who can only read it nothing about who writes it or who
+    signs it off (`nadia`, the project manager, in the demo).
+12. The monthly review's dates: "Sign off the 2026-10 review", "Signed off by Marcus Bell on
+    2026-11-25", "to 2026-10". Part of medium 1.
+13. Home for the extension agent says "IND-5 (Change in net farm income) has a target but no result
+    recorded in the period". IND-5 is the app's own code. The donor's code or the name alone would do.
+14. The result form lists Afghan provinces (Kandahar, Helmand) for every project. The demo's
+    Village B has none to pick.
+15. A donor's Home asks the server for KoboToolbox settings and field forms and is refused three
+    times (403). Nothing shows on the page. It is wasted work on a slow line.
 
 Done: see `11-handoffs-review.md` and `10-field-ledger.md`. Round 1: training attendance is one record
 per session with its farmers ticked (was big item 1). Round 2: the app makes the readiness, training
