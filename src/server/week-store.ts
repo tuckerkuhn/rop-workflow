@@ -7,12 +7,14 @@ import { foldExpenses, nextFor } from "@/lib/expense";
 import { nextSigners, seesAll } from "@/lib/hr";
 import { foldOnboarding } from "@/lib/onboarding";
 import { foldTraining, standing } from "@/lib/training";
+import { reviewDuties } from "@/lib/internal-review";
+import { loadBook } from "@/server/internal-review-store";
 import { DONE, maySign, stepById, type Procurement } from "@/lib/procurement";
 import { EMPTY_SELECTION, type Selection } from "@/lib/selection";
 import { emptyWeekly, weekOf, type WeeklyState } from "@/lib/weekly";
 import { homeForWeekJoining, lensesFor, type HomeForWeek } from "@/server/home-store";
 import { EMPTY_FEEDBACK, overdue, type FeedbackLog } from "@/lib/feedback";
-import { MAX_PRIORITIES, mondayOf, safeHref, weekKindOf, withProject, suggestFor, weekScore, weekSummaryFor, withCarried, withTraining, withTrainingSuggestion, type TrainingWeek, type FinanceWork, type MelWork, type OrgWeek, type Priority, type ProjectWeek, type ProjectWork, type WeekKind, type WeekAction, type WeekPlan } from "@/lib/week";
+import { MAX_PRIORITIES, mondayOf, safeHref, weekKindOf, withProject, suggestFor, weekScore, weekSummaryFor, withCarried, withReview, withReviewSuggestion, withTraining, withTrainingSuggestion, type TrainingWeek, type FinanceWork, type MelWork, type OrgWeek, type Priority, type ProjectWeek, type ProjectWork, type WeekKind, type WeekAction, type WeekPlan } from "@/lib/week";
 import { demoMode, onProject } from "@/server/auth";
 import { early } from "@/server/early";
 import { loadHr } from "@/server/hr-store";
@@ -290,6 +292,8 @@ export async function loadWeek(u: AppUser, today = realToday()) {
   const orgLater = need.finance ? early(readOrg(u)) : null;
   // Training is for everyone: the reader's own, and their team's or the organization's.
   const trainingLater = early(readTraining(u, today).catch(() => null));
+  // The internal review's duties, for the four people it names (lib/internal-review reviewDuties).
+  const reviewLater = early(orgIdForPerson(u.id).then(async (orgId) => (orgId ? reviewDuties(await loadBook(orgId), u.id, today) : null)).catch(() => null));
   // The nightly check of the books, for leadership and Finance (server/ledger-check).
   const booksLater = kind === "lead" || kind === "finance" ? early(orgIdForPerson(u.id).then((orgId) => (orgId ? latestLedgerCheck(orgId) : null)).catch(() => null)) : null;
   // The running projects this person is on, as server/project-store listProjects lists them (real, not parked), with their ids, in one query.
@@ -310,9 +314,9 @@ export async function loadWeek(u: AppUser, today = realToday()) {
     week,
     today,
     kind,
-    summary: withTraining(weekSummaryFor(kind, projects, today, org, (await booksLater) ?? null), await trainingLater),
+    summary: withReview(withTraining(weekSummaryFor(kind, projects, today, org, (await booksLater) ?? null), await trainingLater), await reviewLater),
     /** Proposed from the records; the person's own list once confirmed. */
-    suggestions: withCarried(lastWeek, withTrainingSuggestion(suggestFor(kind, projects, org), await trainingLater)),
+    suggestions: withCarried(lastWeek, withReviewSuggestion(withTrainingSuggestion(suggestFor(kind, projects, org), await trainingLater), await reviewLater)),
     /** How last week's confirmed list ended, for the line under the heading. */
     lastWeek: weekScore(lastWeek),
     plan,

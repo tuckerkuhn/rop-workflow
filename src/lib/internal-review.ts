@@ -198,3 +198,49 @@ export const reviewAction = z.discriminatedUnion("action", [
   z.object({ action: z.literal("close"), finding: z.string().max(40), note: z.string().trim().min(10, "Say how the re-test showed it is fixed.").max(1000) }),
 ]);
 export type ReviewAction = z.infer<typeof reviewAction>;
+
+/* ---------------- What waits on each person (for the week ahead) ---------------- */
+
+export type Duty = { text: string; due: string; late: boolean };
+const HREF = "/organization/internal-review";
+export const REVIEW_HREF = HREF;
+const qWords = (q: string) => {
+  const { months } = quarterRange(q);
+  const m = (x: string) => new Date(`${x}-01T00:00:00Z`).toLocaleDateString("en-GB", { month: "long", timeZone: "UTC" });
+  return `${m(months[0])} to ${m(months[2])}`;
+};
+const many = (n: number, one: string, more: string) => `${n} ${n === 1 ? one : more}`;
+
+/**
+ * What the internal review asks of this person now, soonest first: the lead draws the last
+ * quarter's sample; whoever owns the cycle's next step takes it; the lead and reviewer test their
+ * items; the focal point answers findings; the CEO approves corrective actions; the lead re-tests
+ * findings past their due date.
+ */
+export function reviewDuties(book: ReviewBook, me: string, today: string): Duty[] {
+  const r = book.roles;
+  if (!r) return [];
+  const out: Duty[] = [];
+  const add = (text: string, due: string) => out.push({ text, due, late: due < today });
+  const last = previousQuarter(quarterOf(today));
+  const drawn = book.reviews.some((x) => x.quarter === last);
+  if (r.lead === me && !drawn) add(`draw the sample for ${qWords(last)}`, stepDue(last, 7));
+  const rv = [...book.reviews].sort((a, b) => a.quarter.localeCompare(b.quarter)).pop();
+  if (rv) {
+    const next = STEPS.find((s) => !rv.steps[s.id]);
+    if (next && r[next.by as keyof Roles] === me) add(next.title.charAt(0).toLowerCase() + next.title.slice(1), stepDue(rv.quarter, next.day));
+    if (!rv.steps.finalSigned) {
+      const mine = rv.items.filter((i) => !i.result && ((i.tester === "lead" && r.lead === me) || (i.tester === "reviewer" && r.reviewer === me)));
+      if (mine.length) add(`test ${many(mine.length, "sample item", "sample items")}`, stepDue(rv.quarter, 28));
+    }
+  }
+  const open = book.findings.filter((f) => !f.closed);
+  const earliest = (fs: Finding[]) => fs.map((f) => f.due).sort()[0];
+  const unanswered = open.filter((f) => !f.response);
+  if (r.focal === me && unanswered.length) add(`answer ${many(unanswered.length, "finding", "findings")}`, earliest(unanswered));
+  const toApprove = open.filter((f) => f.response && !f.approved);
+  if (r.ceo === me && toApprove.length) add(`approve ${many(toApprove.length, "corrective action", "corrective actions")}`, earliest(toApprove));
+  const toRetest = open.filter((f) => f.response && f.due < today);
+  if (r.lead === me && toRetest.length) add(`re-test ${many(toRetest.length, "finding", "findings")} past their due date`, earliest(toRetest));
+  return out.sort((a, b) => a.due.localeCompare(b.due));
+}

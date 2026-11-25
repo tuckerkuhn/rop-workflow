@@ -319,6 +319,33 @@ export function withTrainingSuggestion(list: Suggestion[], t: TrainingWeek | und
   return list;
 }
 
+/** The internal review's duties for the reader (lib/internal-review reviewDuties), soonest first. */
+export type ReviewWeek = { text: string; due: string; late: boolean }[] | null;
+const REVIEW = "/organization/internal-review";
+const day = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "long", timeZone: "UTC" });
+
+/** The internal review clause for the "waits on you" sentence: the two soonest duties. */
+export function reviewParts(r: ReviewWeek): Part[] {
+  if (!r?.length) return [];
+  const two = r.slice(0, 2).map((d) => `${d.text}, ${d.late ? `late since ${day(d.due)}` : `due ${day(d.due)}`}`);
+  const more = r.length > 2 ? ` and ${r.length - 2} more` : "";
+  return [{ t: "In the " }, { t: "internal review", href: REVIEW }, { t: `: ${two.join("; ")}${more}.` }];
+}
+
+/** Adds the internal review to the "waits on you" sentence, flagged when a duty is late. */
+export function withReview(out: Sentence[], r: ReviewWeek | undefined): Sentence[] {
+  const parts = reviewParts(r ?? null);
+  if (!parts.length) return out;
+  return out.map((x) => (x.kind === "waiting" ? { ...x, flag: x.flag || !!r?.some((d) => d.late), parts: [...x.parts, { t: " " }, ...parts] } : x));
+}
+
+/** The soonest internal review duty as a priority, when the list has room. */
+export function withReviewSuggestion(list: Suggestion[], r: ReviewWeek | undefined): Suggestion[] {
+  if (!r?.length || list.length >= MAX_PRIORITIES) return list;
+  const d = r[0];
+  return [...list, { id: "internal-review", text: `Internal review: ${d.text}`, href: REVIEW }];
+}
+
 export function weekSummaryFor(kind: WeekKind, projects: ProjectWeek[], today: string, org?: OrgWeek, books?: BooksCheck): Sentence[] {
   if (kind === "finance") return withBooks(financeSummary(projects, today, org), books, today);
   if (kind === "mel") return melSummary(projects, today);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { drawSample, dueFor, previousQuarter, quarterOf, quarterRange, testerFor, type Candidate } from "@/lib/internal-review";
+import { drawSample, dueFor, previousQuarter, quarterOf, quarterRange, reviewDuties, testerFor, type Candidate, type Finding } from "@/lib/internal-review";
 
 const roles = { lead: "daniel", reviewer: "peter" };
 const pay = (i: number, usd: number, by = "yusuf", ok = "karim"): Candidate => ({ area: "payments", ref: `payment:${String(i).padStart(3, "0")}`, what: `Payment ${i}`, date: "2026-10-05", usd, preparedBy: [by], approvedBy: [ok] });
@@ -52,5 +52,33 @@ describe("quarterly internal review sample", () => {
     expect(quarterOf("2026-11-24")).toBe("2026-Q4");
     expect(previousQuarter("2027-Q1")).toBe("2026-Q4");
     expect(quarterRange("2026-Q4")).toMatchObject({ start: "2026-10-01", end: "2026-12-31" });
+  });
+});
+
+describe("what the internal review asks of each person", () => {
+  const roles = { lead: "daniel", reviewer: "peter", focal: "karim", ceo: "tucker" };
+  const today = "2027-01-20";
+  const item = (tester: "lead" | "reviewer", result = false) => ({ area: "payments" as const, ref: `p:${tester}:${result}`, what: "x", date: "2026-11-01", usd: 1, preparedBy: [], approvedBy: [], why: "x", tester, ...(result ? { result: { ok: true, note: "", by: "daniel", at: today } } : {}) });
+  const finding = (over: Partial<Finding>): Finding => ({ id: "F-1", quarter: "2026-Q4", area: "cash", rating: "medium", text: "Not signed.", by: "daniel", at: "2027-01-02", due: "2027-02-01", ...over });
+
+  it("the lead is asked to draw last quarter's sample, late after day 7", () => {
+    const d = reviewDuties({ roles, reviews: [], findings: [] }, "daniel", today);
+    expect(d[0]).toMatchObject({ text: "draw the sample for October to December", due: "2027-01-07", late: true });
+    expect(reviewDuties({ roles, reviews: [], findings: [] }, "karim", today)).toEqual([]);
+    expect(reviewDuties({ roles: null, reviews: [], findings: [] }, "daniel", today)).toEqual([]);
+  });
+
+  it("the next step goes to its owner, and each tester sees their untested items", () => {
+    const book = { roles, reviews: [{ quarter: "2026-Q4", drawnAt: "2027-01-05", drawnBy: "daniel", items: [item("lead"), item("reviewer"), item("reviewer", true)], steps: { sampleSent: { by: "daniel", at: "2027-01-06" } } }], findings: [] };
+    expect(reviewDuties(book, "karim", today).map((d) => d.text)).toEqual(["documents filed in the internal audit folder"]);
+    expect(reviewDuties(book, "peter", today).map((d) => d.text)).toEqual(["test 1 sample item"]);
+    expect(reviewDuties(book, "daniel", today).map((d) => d.text)).toEqual(["test 1 sample item"]);
+  });
+
+  it("findings: the focal point answers, the CEO approves, the lead re-tests what is past due", () => {
+    const book = { roles, reviews: [], findings: [finding({}), finding({ id: "F-2", response: { text: "Will sign.", by: "karim", at: "2027-01-05" }, due: "2027-01-10" })] };
+    expect(reviewDuties(book, "karim", today).map((d) => d.text)).toEqual(["answer 1 finding"]);
+    expect(reviewDuties(book, "tucker", today).map((d) => d.text)).toEqual(["approve 1 corrective action"]);
+    expect(reviewDuties(book, "daniel", today).map((d) => d.text)).toContain("re-test 1 finding past their due date");
   });
 });

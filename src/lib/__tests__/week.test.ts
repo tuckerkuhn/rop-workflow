@@ -202,7 +202,7 @@ describe("a week for Finance and for MEL", () => {
   });
 });
 
-import { booksCheckParts, withTraining, withTrainingSuggestion } from "@/lib/week";
+import { booksCheckParts, withReview, withReviewSuggestion, withTraining, withTrainingSuggestion } from "@/lib/week";
 describe("the nightly check of the books on the week", () => {
   it("names a problem, says when it stopped running, and is silent otherwise", () => {
     const text = (parts: { t: string }[]) => parts.map((p) => p.t).join("");
@@ -244,5 +244,21 @@ describe("training in the week ahead", () => {
   it("tells HR when the policy start date is missing", () => {
     const w = withTraining(sentences, { mine: [], team: null, noStart: true }).find((x) => x.kind === "waiting")!;
     expect(w.parts.map((p) => p.t).join("")).toContain("training log has no start date");
+  });
+});
+
+describe("the internal review in the week ahead", () => {
+  const sentences = [{ kind: "waiting" as const, flag: false, parts: [{ t: "Nothing waits on you." }] }];
+  it("names the two soonest duties with their dates, flagged when late, and proposes the first", () => {
+    const r = [
+      { text: "draw the sample for October to December", due: "2027-01-07", late: true },
+      { text: "answer 1 finding", due: "2027-02-01", late: false },
+      { text: "approve 1 corrective action", due: "2027-02-03", late: false },
+    ];
+    const w = withReview(sentences, r)[0];
+    expect(w.flag).toBe(true);
+    expect(w.parts.map((p) => p.t).join("")).toBe("Nothing waits on you. In the internal review: draw the sample for October to December, late since 7 January; answer 1 finding, due 1 February and 1 more.");
+    expect(withReviewSuggestion([], r)[0]).toMatchObject({ text: "Internal review: draw the sample for October to December", href: "/organization/internal-review" });
+    expect(withReview(sentences, [])).toEqual(sentences);
   });
 });
