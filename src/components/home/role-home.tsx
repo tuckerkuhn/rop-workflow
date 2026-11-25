@@ -9,7 +9,8 @@ import { NextReportPanel } from "@/components/home/next-report";
 import { Families } from "@/components/home/families";
 import { GettingStarted } from "@/components/home/getting-started";
 import { HrHome } from "@/components/home/hr-home";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useShownAgain } from "@/components/app/use-shown-again";
 import { usePersistentState } from "@/components/workspace/ui";
 import { type AppUser, type ProjectInfo } from "@/lib/demo";
 import type { HomeView, Lens } from "@/server/home-store";
@@ -127,15 +128,22 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
     ...(user.project.includes("finance-import") || user.procurement.includes("finance") ? ["finance"] : []),
   ]);
 
+  // A Home left open on a phone is read again when the person comes back to it, so a row that
+  // arrived meanwhile (a record sent back to them, a new approval) is there without a reload.
+  const shownAgain = useShownAgain();
+  const readFor = useRef("");
   useEffect(() => {
     let live = true;
+    // The same person and address as the read before: this one is a fresh look at the same Home.
+    const again = readFor.current === cacheKey;
+    readFor.current = cacheKey;
     // Coming back to Home: the last answer at once, then the fresh one when it arrives. Nothing kept: the loading line, as before.
     const was = cachedHome<HomeAnswer>(cacheKey);
     setV(was ?? null);
     setNr(was?.nextReport ?? null);
     // The week ahead starts reading now, alongside Home, so it can join Home's read of this project
     // instead of reading it again (components/home/week-ahead startWeek).
-    if (weekLikely) startWeek(user.id);
+    if (weekLikely && !again) startWeek(user.id);
     fetch(homeUrl, { cache: "no-store", headers: { "x-demo-user": user.id } })
       .then(async (r) => {
         const d = await r.json();
@@ -144,12 +152,14 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
         keepHome(cacheKey, d);
         setV(d);
         setNr(d.nextReport ?? null);
+        setError("");
       })
-      .catch((e) => live && setError(e instanceof Error ? e.message : String(e)));
+      // A read that fails on coming back (no connection yet) leaves the Home that was showing.
+      .catch((e) => live && !(again && was) && setError(e instanceof Error ? e.message : String(e)));
     return () => {
       live = false;
     };
-  }, [homeUrl, cacheKey, user.id, weekLikely]);
+  }, [homeUrl, cacheKey, user.id, weekLikely, shownAgain]);
 
   if (error) return <p className="rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">{error}</p>;
   if (!v)
