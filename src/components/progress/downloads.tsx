@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { longDate } from "@/lib/weekly";
 import type { ReportRef } from "@/lib/preflight";
 import type { PackIndex, PackKind } from "@/server/proof";
 
@@ -183,7 +184,7 @@ async function buildPack(
       : "",
     "",
     idx.released
-      ? `The report was released on ${idx.released.slice(0, 10)}: this pack holds what was accepted by then.`
+      ? `The report was released on ${longDate(idx.released)}: this pack holds what was accepted by then.`
       : "The report is not released yet: this pack reflects the records as they stand.",
     `Made ${idx.built.slice(0, 10)} from ROP Workflow.`,
   ].filter((x, k, all) => x || all[k - 1]);

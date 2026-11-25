@@ -182,7 +182,7 @@ export function ProofNumber({
                         <span className="font-semibold tabular-nums">
                           {fmt(r.value)}
                         </span>{" "}
-                        {r.unit} ·{" "}
+                        {r.value === 1 ? r.unit.replace(/s$/, "") : r.unit} ·{" "}
                         {date(r.date, { day: "numeric", month: "short" })}
                         {r.district || r.province
                           ? ` · ${[r.district, r.province].filter(Boolean).join(", ")}`
