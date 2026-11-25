@@ -144,7 +144,7 @@ export function FieldRecords({ f, open, onToggle }: { f: FieldForms; open: boole
                       {proofOpen.has(s.id) ? "Hide the photo" : s.photo ? "See the photo and where it was recorded" : "See where it was recorded"}
                     </button>
                   )}
-                  {s.source === "kobo" && s.dbId && proofOpen.has(s.id) && <RecordProof code={code} id={s.dbId} userId={userId} />}
+                  {s.source === "kobo" && s.dbId && proofOpen.has(s.id) && <RecordProof code={code} id={s.dbId} userId={userId} photo={s.photo} />}
                   {flags.length > 0 && (
                     <ul className="mt-2 space-y-1">
                       {flags.map((f) => (
