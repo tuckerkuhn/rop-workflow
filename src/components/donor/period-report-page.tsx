@@ -1,5 +1,7 @@
 "use client";
 
+import { DraftWatermark } from "@/components/share/draft-watermark";
+import { periodNotEnded } from "@/lib/early-draft";
 import Link from "next/link";
 import { longDate } from "@/lib/weekly";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -61,6 +63,8 @@ export function DonorPeriodReportPage({ slug }: { slug: string }) {
               {r.label}, {longDate(r.range.from)} to {longDate(r.range.to)}
             </p>
             <p className="mt-2 text-sm text-muted">{tx("Released by Roots of Peace on {date}. This is the report as it was released.", { date: longDay(r.releasedAt) })}</p>
+            {/* Released before its period ended: marked Draft until it has (lib/early-draft). */}
+            {periodNotEnded(r.range.to) && <DraftWatermark to={r.range.to} />}
 
             {/* Below a medium screen: one block per indicator, each figure under its name, as on the staff page. The table's headings do not show on a phone, and it scrolled sideways. */}
             <ul aria-label={tx("Indicators")} className="mt-6 divide-y divide-line border-y border-ink md:hidden print:hidden">
