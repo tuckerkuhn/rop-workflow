@@ -12,6 +12,8 @@ import { Question, field } from "@/components/setup/question";
 import { primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { FORM_PURPOSES, MAPPING_METHODS, YOUTH_AGES, guessPurpose, type FormPurpose, type KoboBreakdown, type KoboFormInfo, type KoboMapping, type KoboQuestion, type MappingMethod, type AutoSyncSecret, type SyncCounts } from "@/lib/kobo-setup";
 import type { MessageKey } from "@/lib/i18n";
+import { FIELD_FORM_KINDS, FIELD_FORM_NAME, FIELD_FORM_STEPS, type FieldFormKind } from "@/lib/field-forms";
+import { plainError } from "@/lib/plain-error";
 import { suggestActivities, type ActivityLinkOrigin, type KoboActivityLinks } from "@/lib/kobo-activities";
 import { activityOf } from "@/lib/qpr";
 
@@ -125,6 +127,77 @@ export function KoboConnect({ code, onDone, onSkip }: { code: string; onDone: ()
   );
 }
 
+const FORM_BUTTON: Record<FieldFormKind, string> = { readiness: "Readiness check form", training: "Training attendance form", visit: "Farm visit form" };
+
+/**
+ * A project with no form in KoboToolbox for a step is stuck here: there is nothing to tick. The app
+ * makes the readiness, training and farm visit forms for the project (lib/field-forms); the person
+ * uploads the file in KoboToolbox and comes back.
+ */
+function FormDownloads({ code, onReload }: { code: string; onReload: () => Promise<void> }) {
+  const { tx } = useT();
+  const { user } = useSession();
+  const [busy, setBusy] = useState<FieldFormKind | null>(null);
+  const [got, setGot] = useState<FieldFormKind | null>(null);
+  const [error, setError] = useState("");
+  const [reloading, setReloading] = useState(false);
+  const download = (kind: FieldFormKind) => {
+    setBusy(kind);
+    setError("");
+    void fetch(`/api/projects/${encodeURIComponent(code)}/field/form?kind=${kind}`, { headers: { "x-demo-user": user?.id ?? "" } })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? plainError(res.status));
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(await res.blob());
+        a.download = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "")?.[1] ?? `${code}-${FIELD_FORM_NAME[kind].file}-form.xlsx`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+        setGot(kind);
+      })
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
+      .finally(() => setBusy(null));
+  };
+  return (
+    <div className="mt-6 rounded-xl border border-line bg-surface px-4 py-4">
+      <h3 className="font-semibold">{tx("No form yet for a step?")}</h3>
+      <p className="mt-1 text-sm text-muted">{tx("Download the form made for this project and upload it in KoboToolbox. Each one asks only what the app reads. The place and the date come from the phone.")}</p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {FIELD_FORM_KINDS.map((kind) => (
+          <button key={kind} type="button" className={quietBtn} disabled={!!busy} onClick={() => download(kind)}>
+            {busy === kind ? tx("Making the form…") : tx(FORM_BUTTON[kind])}
+          </button>
+        ))}
+      </div>
+      <Alert text={error} />
+      {got && (
+        <div role="status" className="mt-3 text-sm">
+          <p className="font-medium">{tx("The file is in your downloads. What to do next:")}</p>
+          <ol className="mt-1 list-decimal space-y-1 ps-5">
+            {FIELD_FORM_STEPS.map((step) => (
+              <li key={step}>{tx(step)}</li>
+            ))}
+          </ol>
+          <button
+            type="button"
+            className={`${quietBtn} mt-3`}
+            disabled={reloading}
+            onClick={() => {
+              setReloading(true);
+              setError("");
+              void onReload()
+                .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
+                .finally(() => setReloading(false));
+            }}
+          >
+            {reloading ? tx("Loading forms from KoboToolbox…") : tx("I have uploaded it. Load the list again")}
+          </button>
+        </div>
+      )}
+      <p className="mt-3 text-sm text-muted">{tx("The input distribution form is made from the input package. Download it in Field activities, under Input package, once the package is saved.")}</p>
+    </div>
+  );
+}
+
 export function KoboForms({ code, onDone }: { code: string; onDone: () => void }) {
   const { t } = useT();
   const kobo = useKobo(code);
@@ -148,6 +221,12 @@ export function KoboForms({ code, onDone }: { code: string; onDone: () => void }
       .catch((e: Error) => setError(e.message));
   }, [forms, chosen, liveForms]);
 
+  // After a form is uploaded in KoboToolbox: the list again, keeping what is already ticked and chosen here.
+  const reload = async () => {
+    const live = await liveForms();
+    setPurpose((had) => ({ ...Object.fromEntries(live.map((f) => [f.uid, guessPurpose(f.name)])), ...had }));
+    setForms(live);
+  };
   const toggle = (uid: string) => setPicked((p) => (p.has(uid) ? new Set([...p].filter((x) => x !== uid)) : new Set([...p, uid])));
   const submit = async () => {
     setBusy(true);
@@ -194,6 +273,7 @@ export function KoboForms({ code, onDone }: { code: string; onDone: () => void }
       </ul>
       <Alert text={error} />
       {forms && <Actions busy={busy} label={t("setup.next")} disabled={!picked.size} onClick={() => void submit()} />}
+      <FormDownloads code={code} onReload={reload} />
     </Question>
   );
 }

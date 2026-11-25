@@ -130,6 +130,10 @@ number to its proof and a small organization setting up for the first time.
 | Storekeeper | The note they wrote reached nobody | Shown to whoever checks the record, signed-in staff only |
 | Extension agent | Typed the same session and register reference for every farmer at a training | One record per session (round 1, 25 Nov). Session, date, register and photo are given once and each farmer who attended is ticked. The "did the farmer attend" question is cut: a farmer who is not ticked did not attend *run, test* |
 | MEL, review queue | One training record to accept for every farmer at a session | One record per session. One accept records every ticked farmer and says who moved, who stays at Train and why *run, test* |
+| Small organization | **No readiness, training or farm visit form unless a developer ran a script** | Round 2, 25 Nov: Setup makes all three for the project, on the step where the project's forms are chosen, with what to do next and a button to load the list again after the upload *run, test* |
+| Extension agent, farm visit | Asked both "how many were planted" and "area planted", and told to leave one blank | The made form asks one of them, by the crop plan saved in Set up: the number for a crop counted one by one with a spacing, the area for any other *test* |
+| Extension agent | A date in the future, a planting date after the visit or an area above the plot was found days later by MEL, after the visit | The made forms refuse each one on the phone, at the plot *test, converted* |
+| Extension agent, readiness | The plot photo was optional. A record without it was flagged for the checker and the farmer's photo check stayed open | Required on the made form *test* |
 | MEL, review queue | Readiness, training and visit photos stayed in KoboToolbox. The queue said "photo: yes" | "See the photo and where it was recorded" on each KoboCollect form *run, test* |
 | MEL, project manager | "collected by farida.kobo": an account name, not a person | The person's name when the account is matched. When it is not, the page says so and links to the place to match it |
 | Project manager | Stock check failed with what was needed, but no way to get there | Links to the purchases that unblock it |
@@ -148,8 +152,8 @@ number to its proof and a small organization setting up for the first time.
 3. *(Closed 25 Nov, round 1: training is one record per session with its farmers ticked. Records from the
    earlier form still read, accept and count.)*
 4. *(Closed 25 Nov: the list is dated the day of the handout.)*
-5. **Only the distribution form is made by the app.** Readiness, training and visit forms are still the
-   hand-built files in `kobo/`. The same approach works for them once their questions are settled.
+5. *(Closed 25 Nov, round 2: the app makes the readiness, training and farm visit forms too. The files in
+   `kobo/` stay as the three-language drafts.)*
 6. **The form the app makes is English only**, like the rest of the app until translation.
 7. **A deployed form does not change until it is redeployed.** The files in `kobo/` are rebuilt, ACRP's
    included. ACRP's live form is untouched.

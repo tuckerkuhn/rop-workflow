@@ -32,6 +32,23 @@ Conventions:
 - Each submission is stored once, keyed on Kobo's `_uuid`, and waits in the project's review
   queue (Check › Results and proof). Nothing changes in Field activities until the MEL owner accepts it.
 
+## The app makes each project's forms
+
+A project does not need these scripts. In Setup, on the step "Which forms belong to this project?",
+the buttons **Readiness check form**, **Training attendance form** and **Farm visit form** download
+each form for the project, ready to upload in KoboToolbox (`src/lib/field-forms.ts`). The
+distribution form is downloaded in Field activities, under Input package
+(`src/lib/distribution-form.ts`). The made forms use the same question names as the files here and
+are English only. They differ in three ways:
+
+- The farm visit form asks for the number planted or for the area planted, never both, by the crop
+  plan saved in Set up. Change the crop plan and the form must be downloaded and uploaded again.
+- A date in the future, a planting date after the visit and an area above the farmer's plot are
+  refused on the phone.
+- The readiness form requires the photo of the plot.
+
+The files in this folder stay as the three-language drafts for a native speaker to review.
+
 ## Setting up the distribution form
 
 Same steps as the readiness check below, with `python3 kobo/build_distribution_form.py` and

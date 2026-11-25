@@ -18,9 +18,9 @@ import type { FieldSetup } from "@/lib/package";
 
 export type XlsForm = { survey: string[][]; choices: string[][]; settings: string[][] };
 
-const SURVEY_HEAD = ["type", "name", "label", "hint", "required", "relevant", "appearance", "calculation", "default", "parameters"];
-type Row = { type: string; name: string; label?: string; hint?: string; required?: boolean; relevant?: string; appearance?: string; calculation?: string; default?: string; parameters?: string };
-const line = (r: Row) => [r.type, r.name, r.label ?? "", r.hint ?? "", r.required ? "yes" : "", r.relevant ?? "", r.appearance ?? "", r.calculation ?? "", r.default ?? "", r.parameters ?? ""];
+export const SURVEY_HEAD = ["type", "name", "label", "hint", "required", "relevant", "appearance", "calculation", "default", "parameters"];
+export type Row = { type: string; name: string; label?: string; hint?: string; required?: boolean; relevant?: string; appearance?: string; calculation?: string; default?: string; parameters?: string };
+export const line = (r: Row) => [r.type, r.name, r.label ?? "", r.hint ?? "", r.required ? "yes" : "", r.relevant ?? "", r.appearance ?? "", r.calculation ?? "", r.default ?? "", r.parameters ?? ""];
 
 /** A package item's key is already letters, digits and _ (lib/package); anything else cannot name a question. */
 const usable = (key: string) => /^[a-z][a-z0-9_]{0,29}$/.test(key);
