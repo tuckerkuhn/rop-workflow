@@ -272,6 +272,53 @@ function withBooks(out: Sentence[], books: BooksCheck | undefined, today: string
   return out.map((x) => (x.kind === "risk" ? { ...x, flag: true, parts: [...(x.flag ? [...x.parts, { t: " " }] : []), ...parts] } : x));
 }
 
+/**
+ * Training (lib/training, the Staff Training Policy) as the week needs it: the reader's own
+ * induction or refreshers that are overdue or due within 30 days, and, for a supervisor or HR, how
+ * many on their team (or in the organization) are overdue. `noStart`: HR has not set the day the
+ * policy took effect, so nobody can be shown as due yet.
+ */
+export type TrainingWeek = {
+  mine: { what: string; state: "overdue" | "due"; by: string }[];
+  team: { scope: "team" | "all"; overdue: number; people: number } | null;
+  noStart: boolean;
+} | null;
+
+const TRAINING = "/training";
+
+/** The training clause for the "waits on you" sentence, or nothing when all is in order. */
+export function trainingParts(t: TrainingWeek): Part[] {
+  if (!t) return [];
+  const out: Part[] = [];
+  if (t.noStart) out.push({ t: "The " }, { t: "training log", href: TRAINING }, { t: " has no start date yet, so nobody shows as due. " });
+  const overdue = t.mine.filter((m) => m.state === "overdue");
+  const due = t.mine.filter((m) => m.state === "due");
+  if (overdue.length) out.push({ t: `Your ${overdue.map((m) => m.what).join(" and ")} ${overdue.length === 1 ? "is" : "are"} ` }, { t: `overdue since ${overdue[0].by}`, href: TRAINING }, { t: ". " });
+  else if (due.length) out.push({ t: `Your ${due.map((m) => m.what).join(" and ")} ${due.length === 1 ? "is" : "are"} due by ` }, { t: due[0].by, href: TRAINING }, { t: ". " });
+  if (t.team && t.team.overdue) out.push({ t: t.team.scope === "all" ? "Across the organization, " : "On your team, " }, { t: n(t.team.overdue, "person is", "people are"), href: TRAINING }, { t: " overdue for an induction or a yearly refresher. " });
+  // No space left dangling after the last clause.
+  if (out.length) out[out.length - 1] = { ...out[out.length - 1], t: out[out.length - 1].t.trimEnd() };
+  return out;
+}
+
+/** Adds training to the "waits on you" sentence, flagged when something is overdue. */
+export function withTraining(out: Sentence[], t: TrainingWeek | undefined): Sentence[] {
+  const parts = trainingParts(t ?? null);
+  if (!parts.length) return out;
+  const overdue = !!t && (t.mine.some((m) => m.state === "overdue") || !!t.team?.overdue || t.noStart);
+  return out.map((x) => (x.kind === "waiting" ? { ...x, flag: x.flag || overdue, parts: [...x.parts, { t: " " }, ...parts] } : x));
+}
+
+/** A training priority when one is overdue and the list has room: the reader's own first, then their team's. */
+export function withTrainingSuggestion(list: Suggestion[], t: TrainingWeek | undefined): Suggestion[] {
+  if (!t || list.length >= MAX_PRIORITIES) return list;
+  const mine = t.mine.find((m) => m.state === "overdue");
+  if (mine) return [...list, { id: "training-mine", text: `Do your ${mine.what}, overdue since ${mine.by}`, href: TRAINING }];
+  if (t.team?.overdue) return [...list, { id: "training-team", text: `Arrange training for the ${n(t.team.overdue, "person", "people")} overdue`, href: TRAINING }];
+  if (t.noStart) return [...list, { id: "training-start", text: "Set the day the training policy took effect", href: TRAINING }];
+  return list;
+}
+
 export function weekSummaryFor(kind: WeekKind, projects: ProjectWeek[], today: string, org?: OrgWeek, books?: BooksCheck): Sentence[] {
   if (kind === "finance") return withBooks(financeSummary(projects, today, org), books, today);
   if (kind === "mel") return melSummary(projects, today);

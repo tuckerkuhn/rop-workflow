@@ -202,7 +202,7 @@ describe("a week for Finance and for MEL", () => {
   });
 });
 
-import { booksCheckParts } from "@/lib/week";
+import { booksCheckParts, withTraining, withTrainingSuggestion } from "@/lib/week";
 describe("the nightly check of the books on the week", () => {
   it("names a problem, says when it stopped running, and is silent otherwise", () => {
     const text = (parts: { t: string }[]) => parts.map((p) => p.t).join("");
@@ -212,5 +212,37 @@ describe("the nightly check of the books on the week", () => {
       "The nightly check of the books found a problem: The trial balance is off by 10.00 (and 1 more). Finance looks at it before anything else is posted.",
     );
     expect(text(booksCheckParts({ at: "2027-01-05T03:15:00Z", ok: true, problems: [] }, "2027-01-10"))).toBe("The nightly check of the books has not run since 2027-01-05.");
+  });
+});
+
+describe("training in the week ahead", () => {
+  const sentences = [
+    { kind: "due" as const, flag: false, parts: [{ t: "Nothing is due." }] },
+    { kind: "waiting" as const, flag: false, parts: [{ t: "Nothing waits on you." }] },
+  ];
+  it("says nothing when training is in order", () => {
+    expect(withTraining(sentences, { mine: [], team: { scope: "team", overdue: 0, people: 3 }, noStart: false })).toEqual(sentences);
+    expect(withTraining(sentences, null)).toEqual(sentences);
+  });
+  it("adds the reader's own overdue refresher and their team's count to what waits on them, flagged", () => {
+    const out = withTraining(sentences, { mine: [{ what: "anti-fraud refresher", state: "overdue", by: "1 November" }], team: { scope: "team", overdue: 2, people: 4 }, noStart: false });
+    const w = out.find((x) => x.kind === "waiting")!;
+    expect(w.flag).toBe(true);
+    const text = w.parts.map((p) => p.t).join("");
+    expect(text).toContain("Your anti-fraud refresher is overdue since 1 November.");
+    expect(text).toContain("On your team, 2 people are overdue");
+    expect(w.parts.some((p) => p.href === "/training")).toBe(true);
+    expect(text.endsWith(" ")).toBe(false);
+  });
+  it("proposes one training priority when there is room: the reader's own first", () => {
+    const t = { mine: [{ what: "induction", state: "overdue" as const, by: "3 December" }], team: { scope: "all" as const, overdue: 5, people: 15 }, noStart: false };
+    expect(withTrainingSuggestion([], t)[0]).toMatchObject({ id: "training-mine", href: "/training" });
+    expect(withTrainingSuggestion([], { ...t, mine: [] })[0].text).toBe("Arrange training for the 5 people overdue");
+    const full = [1, 2, 3].map((i) => ({ id: `x${i}`, text: "x", href: "/home" }));
+    expect(withTrainingSuggestion(full, t)).toHaveLength(3);
+  });
+  it("tells HR when the policy start date is missing", () => {
+    const w = withTraining(sentences, { mine: [], team: null, noStart: true }).find((x) => x.kind === "waiting")!;
+    expect(w.parts.map((p) => p.t).join("")).toContain("training log has no start date");
   });
 });

@@ -1,6 +1,7 @@
 "use client";
 
 import { Arrow } from "@/components/app/arrow";
+import { plainSources } from "@/components/status-tag";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRequireUser, useSession } from "@/components/app/session";
@@ -24,14 +25,9 @@ import {
   IssueList,
   Pill,
   QueueFooter,
-  QueueHeader,
   QueueItem,
-  StepCard,
   Tracker,
-  dangerBtn,
   primaryBtn,
-  quietBtn,
-  stickyActions,
   StatusPill,
 } from "@/components/workspace/ui";
 import { holderOf, type AppUser } from "@/lib/demo";
@@ -68,10 +64,10 @@ import {
 /** Shown when Field activities cannot reach the database. */
 export function DataBanner({ status, error }: { status: string; error: string }) {
   const { tx } = useT();
-  if (status === "loading") return <p className="mx-3 mt-4 rounded-xl border border-line bg-surface px-3 py-2 text-sm text-muted sm:mx-4">{tx("Loading field records…")}</p>;
+  if (status === "loading") return <p className="mx-3 mt-4 bg-sunken px-3 py-2 font-bands text-sm font-bold text-muted sm:mx-4">{tx("Loading field records…")}</p>;
   if (!error) return null;
   return (
-    <p role="alert" className="mx-3 mt-4 rounded-xl border border-clay/40 bg-clay-soft px-3 py-2 text-sm text-clay sm:mx-4">
+    <p role="alert" className="mx-3 mt-4 bg-[#7a5230] px-3 py-3 font-bands text-sm font-bold text-white sm:mx-4">
       {error}
     </p>
   );
@@ -227,6 +223,116 @@ function NewFinding({ farmers, onCancel, onCreate }: { farmers: Farmer[]; onCanc
   );
 }
 
+/* ---------- Bands pieces ---------- */
+
+// Bands (as on Home's Summary): solid square blocks, heavy type, green for the work, gold for
+// waiting or fixing, walnut for sent back, pale for information.
+const INK = "text-[#1c211b]";
+const focusRing = "focus-visible:outline focus-visible:outline-4 focus-visible:-outline-offset-4 focus-visible:outline-forest";
+const onGreenFocus = "focus-visible:outline focus-visible:outline-4 focus-visible:-outline-offset-4 focus-visible:outline-ochre";
+// The step's action bar: on a phone it stays at the bottom of the screen, above the tab bar, while the checks scroll past.
+const greenActions = "sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-20 space-y-2 bg-deep px-4 py-3 text-deep-ink sm:px-5 lg:static lg:py-4";
+// The main action inside the green block: white and full width, like Home's Start.
+const startBtn = `flex min-h-14 w-full items-center justify-between gap-3 bg-white px-4 text-start text-lg font-extrabold text-[#314d2f] transition enabled:hover:bg-ochre enabled:hover:text-[#1c211b] enabled:active:bg-ochre disabled:cursor-not-allowed disabled:opacity-40 ${onGreenFocus}`;
+const onGreenQuiet = `inline-flex min-h-12 items-center border-2 border-white/70 px-4 text-base font-bold text-white transition enabled:hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40 ${onGreenFocus}`;
+const onGreenDanger = `inline-flex min-h-12 items-center bg-[#7a5230] px-4 text-base font-bold text-white transition enabled:hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 ${onGreenFocus}`;
+const bandLink = `inline-flex min-h-12 items-center gap-1.5 font-bold text-forest underline-offset-4 hover:underline ${focusRing}`;
+
+/**
+ * The step a record is at, as a band: green when it is your turn, gold while it waits on someone
+ * else. The same contents as the shared step card, in the Bands look.
+ */
+function FieldStep({
+  mine,
+  ownerLabel,
+  eyebrow,
+  title,
+  note,
+  onViewAs,
+  switchLabel,
+  children,
+  footer,
+}: {
+  mine: boolean;
+  ownerLabel: string;
+  eyebrow?: string;
+  title: string;
+  note?: string;
+  onViewAs?: () => void;
+  switchLabel?: string;
+  children: React.ReactNode;
+  footer?: React.ReactNode;
+}) {
+  const { tx } = useT();
+  return (
+    <section className="bg-surface font-bands">
+      <div className={`flex flex-wrap items-start justify-between gap-3 px-5 pb-6 pt-5 ${mine ? "bg-deep text-deep-ink" : `bg-ochre ${INK}`}`}>
+        <div className="min-w-0">
+          <p className="text-lg font-extrabold leading-tight">
+            {mine ? tx("Your turn") : tx("Waiting on {who}", { who: ownerLabel })}
+            {eyebrow && <span className="ms-2 font-bold opacity-90">· {tx(eyebrow)}</span>}
+          </p>
+          <h3 className="mt-2 break-words text-4xl font-extrabold leading-[1.05] tracking-tight">{tx(title)}</h3>
+          {note && <p className="mt-2 text-base font-medium">{tx(note)}</p>}
+        </div>
+        {!mine && onViewAs && (
+          <button
+            type="button"
+            onClick={onViewAs}
+            title={tx("Demo only: sign in as this person to try their step")}
+            className={`inline-flex min-h-12 items-center border-2 border-dashed border-current px-4 text-sm font-bold transition hover:bg-white/30 ${focusRing}`}
+          >
+            {switchLabel ?? tx("Switch person")}
+          </button>
+        )}
+      </div>
+      {children}
+      {footer}
+    </section>
+  );
+}
+
+/**
+ * A check KoboCollect fills in: Field activities only shows it, so it is drawn as a state with a
+ * mark and words, never as a box to tick.
+ */
+function KoboCheck({ label, why, tag, ok }: { label: string; why: string; tag?: string; ok: boolean }) {
+  const { tx } = useT();
+  const [open, setOpen] = useState(false);
+  return (
+    <li className="py-3">
+      <div className="flex items-start gap-3">
+        {ok ? (
+          <span aria-hidden className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-deep text-sm font-extrabold text-deep-ink">
+            ✓
+          </span>
+        ) : (
+          <span aria-hidden className="mt-0.5 h-7 w-7 shrink-0 rounded-full border-[3px] border-muted" />
+        )}
+        <div className="min-w-0 flex-1">
+          <p className="font-bold leading-snug">{tx(label)}</p>
+          <p className={`mt-0.5 text-sm font-bold ${ok ? "text-forest" : "text-muted"}`}>{ok ? tx("From KoboCollect") : tx("From KoboCollect: not yet")}</p>
+          {open && (
+            <p className="mt-1.5 text-sm leading-relaxed text-muted">
+              {tx(why)}
+              {tag && <span className="mt-1 block text-xs">{tx("Where this comes from: {source}", { source: plainSources(tag) })}</span>}
+            </p>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => setOpen(!open)}
+          aria-expanded={open}
+          aria-label={tx("Why is this required?")}
+          className={`-me-2 -mt-2 grid h-12 w-12 shrink-0 place-items-center ${focusRing}`}
+        >
+          <span className={`grid h-7 w-7 place-items-center rounded-full border-2 text-sm font-bold transition ${open ? "border-forest bg-forest text-forest-ink" : "border-line-strong text-muted hover:border-forest hover:text-forest"}`}>?</span>
+        </button>
+      </div>
+    </li>
+  );
+}
+
 /* ---------- detail ---------- */
 
 function Detail({
@@ -283,40 +389,40 @@ function Detail({
       <BackLink onClick={onBack} />
 
       {item.kind === "farmer" ? (
-        <div>
+        <div className="font-bands">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-mono text-xs text-muted">{item.id}</span>
             {ctx.setup.season && <Pill tone="muted">{ctx.setup.season}</Pill>}
             {item.step === "correct" && <StatusPill tone="clay">{tx("Correcting")}</StatusPill>}
             {outcome && <Pill tone={outcome === "selected" ? "forest" : "ochre"}>{tx(outcomeLabel[outcome])}</Pill>}
           </div>
-          <div className="mt-2 flex flex-wrap items-baseline justify-between gap-3">
-            <h2 className="font-display text-3xl leading-tight tracking-tight">{farmerName(item, user)}</h2>
-            <Link href={`/field/farmers/${item.id}`} className="btn-link">
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3">
+            <h2 className="break-words text-3xl font-extrabold leading-tight tracking-tight">{farmerName(item, user)}</h2>
+            <Link href={`/field/farmers/${item.id}`} className={bandLink}>
               {tx("Open profile")} <Arrow />
             </Link>
           </div>
-          <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4">
+          <dl className="mt-3 grid grid-cols-2 gap-1 sm:grid-cols-4">
             {[
               { k: "village", label: tx("Village"), v: item.community, warn: false },
               { k: "plot", label: tx("Plot"), v: ctx.setup.crop ? tx("{n} ha {crop}", { n: item.hectares, crop: ctx.setup.crop.toLowerCase() }) : tx("{n} ha", { n: item.hectares }), warn: false },
               { k: "contribution", label: tx("Contribution"), v: item.contributionPaid ? tx("Paid") : tx("Not paid"), warn: !item.contributionPaid },
               { k: "package", label: tx("Input package"), v: packageUsd(ctx.setup, item.hectares) ? money(packageUsd(ctx.setup, item.hectares)) : ctx.setup.items.length === 1 ? tx("1 item") : tx("{n} items", { n: ctx.setup.items.length }), warn: false },
             ].map(({ k, label, v, warn }) => (
-              <div key={k}>
-                <dt className="text-xs font-semibold uppercase tracking-wide text-muted">{label}</dt>
-                <dd className={`mt-0.5 tabular-nums ${warn ? "font-medium text-warn" : ""}`}>{v}</dd>
+              <div key={k} className={`min-w-0 px-3 py-2.5 ${warn ? `bg-ochre ${INK}` : "bg-sunken"}`}>
+                <dt className={`text-sm font-bold ${warn ? "" : "text-muted"}`}>{label}</dt>
+                <dd className="mt-0.5 break-words text-lg font-extrabold leading-tight tabular-nums">{v}</dd>
               </div>
             ))}
           </dl>
         </div>
       ) : (
-        <div>
+        <div className="font-bands">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-mono text-xs text-muted">{item.id}</span>
             <Pill tone="plum">{tx("MEL finding")}</Pill>
           </div>
-          <h2 className="mt-2 font-display text-3xl leading-tight tracking-tight">{item.title}</h2>
+          <h2 className="mt-2 break-words text-3xl font-extrabold leading-tight tracking-tight">{item.title}</h2>
           <p className="mt-3 max-w-2xl leading-relaxed text-muted">{item.summary}</p>
           {item.sources.length > 0 && (
             <div className="mt-3 flex flex-wrap items-center gap-1.5">
@@ -341,7 +447,7 @@ function Detail({
         </div>
       )}
 
-      <div className="rounded-2xl border border-line bg-surface px-4 py-4">
+      <div className="bg-sunken px-4 py-4">
         <Tracker
           labels={item.kind === "farmer" ? farmerStages : findingStages}
           current={stageOf(item)}
@@ -351,12 +457,12 @@ function Detail({
       </div>
 
       {end ? (
-        <div className={`rounded-2xl border p-6 ${end.tone === "forest" ? "border-forest/30 bg-mist" : "border-clay/30 bg-clay-soft"}`}>
-          <p className={`font-display text-2xl ${end.tone === "forest" ? "text-forest" : "text-clay"}`}>{tx(end.title)}</p>
-          <p className="mt-1 text-sm text-muted">{tx(end.body)}</p>
+        <div className={`px-5 pb-6 pt-5 font-bands ${end.tone === "forest" ? "bg-deep text-deep-ink" : "bg-[#7a5230] text-white"}`}>
+          <p className="text-3xl font-extrabold leading-tight">{tx(end.title)}</p>
+          <p className="mt-2 text-base font-medium">{tx(end.body)}</p>
         </div>
       ) : (
-        <StepCard
+        <FieldStep
           mine={mine}
           ownerLabel={person(owner!)}
           eyebrow={item.step === "verify" ? msg("Yes or no decision") : undefined}
@@ -367,22 +473,28 @@ function Detail({
           footer={
             <>
               {awaiting && (
-                <div className={`border-t px-5 py-4 text-sm ${awaiting.status === "pending" ? "border-line bg-mist" : "border-clay/30 bg-clay-soft"}`}>
+                <div className={`px-5 py-4 text-base ${awaiting.status === "pending" ? `bg-ochre ${INK}` : "bg-[#7a5230] text-white"}`}>
                   {awaiting.status === "pending" ? (
                     <p>
-                      <span className="font-semibold">{tx("Distribution recorded.")}</span> {tx("Waiting for {person} to approve it; the farmer moves on to planting once approved.", { person: person("manager") })}
+                      <span className="font-extrabold">{tx("Distribution recorded.")}</span> {tx("Waiting for {person} to approve it; the farmer moves on to planting once approved.", { person: person("manager") })}
                     </p>
                   ) : (
                     <p>
-                      <span className="font-semibold text-clay">{tx("Sent back by the project manager:")}</span> {awaiting.note}
+                      <span className="font-extrabold">{tx("Sent back by the project manager:")}</span> {awaiting.note}
                     </p>
                   )}
                   {awaiting.id ? (
-                    <Link href={`/approve/${encodeURIComponent(projectCode)}/${awaiting.id}`} className="btn-link mt-3">
-                      {awaiting.status === "pending" ? tx("See the distribution record") : tx("Fix it and send it again")} <Arrow />
+                    <Link
+                      href={`/approve/${encodeURIComponent(projectCode)}/${awaiting.id}`}
+                      className={`mt-3 flex min-h-14 w-full items-center justify-between gap-3 bg-white px-4 text-lg font-extrabold text-[#314d2f] hover:bg-sunken ${focusRing}`}
+                    >
+                      {awaiting.status === "pending" ? tx("See the distribution record") : tx("Fix it and send it again")}
+                      <span className="text-2xl leading-none">
+                        <Arrow />
+                      </span>
                     </Link>
                   ) : (
-                    <p className="mt-2 text-xs text-muted">{tx("Saving the record…")}</p>
+                    <p className="mt-2 text-sm font-medium opacity-90">{tx("Saving the record…")}</p>
                   )}
                 </div>
               )}
@@ -390,9 +502,9 @@ function Detail({
               {mine && !awaiting && !fromKobo && (
                 <>
                 <div className="space-y-3 border-t border-line px-5 py-4 empty:hidden">
-                  {blocks.length > 0 && <p className="text-sm font-medium text-clay">{tx("An open issue is holding this step.")}</p>}
+                  {blocks.length > 0 && <p className="text-base font-bold text-clay">{tx("An open issue is holding this step.")}</p>}
                   {item.step === "decide" && checksOk && blocks.length === 0 && (
-                    <div className="rounded-xl border border-line bg-paper p-4">
+                    <div className="bg-sunken p-4">
                       <ActionForm
                         onSave={(a) => {
                           apply((i) => log({ ...(i as Finding), action: a, step: "act" }, `Action assigned to ${fieldPerson(a.owner)}: ${a.text}`));
@@ -401,7 +513,7 @@ function Detail({
                     </div>
                   )}
                 </div>
-                <div className={stickyActions}>
+                <div className={greenActions}>
                   {pending ? (
                     <form
                       className="flex flex-wrap gap-2"
@@ -416,12 +528,12 @@ function Detail({
                         value={note}
                         onChange={(e) => setNote(e.target.value)}
                         placeholder={pending.note ? tx(pending.note) : undefined}
-                        className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm focus:border-forest focus:outline-none"
+                        className="min-h-12 w-full min-w-0 border-2 border-white bg-surface px-3 text-base text-ink focus:border-ochre focus:outline-none"
                       />
-                      <button type="submit" disabled={!note.trim()} className={pending.tone === "danger" ? dangerBtn : primaryBtn}>
+                      <button type="submit" disabled={!note.trim()} className={pending.tone === "danger" ? onGreenDanger : startBtn}>
                         {tx(pending.label)}
                       </button>
-                      <button type="button" onClick={() => setPending(null)} className="px-2 text-sm text-muted">
+                      <button type="button" onClick={() => setPending(null)} className={`min-h-12 px-3 text-base font-bold text-deep-ink/85 hover:text-deep-ink ${onGreenFocus}`}>
                         {tx("Cancel")}
                       </button>
                     </form>
@@ -433,20 +545,20 @@ function Detail({
                           type="button"
                           disabled={!canRun(o)}
                           onClick={() => (o.note ? setPending(o) : run(o, ""))}
-                          className={o.tone === "primary" ? primaryBtn : o.tone === "danger" ? dangerBtn : quietBtn}
+                          className={o.tone === "primary" ? startBtn : o.tone === "danger" ? onGreenDanger : onGreenQuiet}
                         >
                           {tx(o.label)}
-                          {o.tone === "primary" && <> <Arrow /></>}
+                          {o.tone === "primary" && <span className="text-2xl leading-none"><Arrow /></span>}
                         </button>
                       ))}
                       {raising === null && (
-                        <button type="button" onClick={() => setRaising("")} className="rounded-full px-2 py-2 text-sm font-medium text-muted hover:text-ink sm:px-4 sm:py-3">
+                        <button type="button" onClick={() => setRaising("")} className={`min-h-12 px-3 text-base font-bold text-deep-ink/85 hover:text-deep-ink ${onGreenFocus}`}>
                           {tx("+ Raise issue")}
                         </button>
                       )}
                     </div>
                   )}
-                  {!checksOk && blocks.length === 0 && <p className="text-xs text-muted">{tx("Complete every item above to continue.")}</p>}
+                  {!checksOk && blocks.length === 0 && <p className="text-sm font-medium text-deep-ink/85">{tx("Complete every item above to continue.")}</p>}
                 </div>
                 </>
               )}
@@ -471,6 +583,8 @@ function Detail({
           <ul className="divide-y divide-line px-5">
             {step.checks.map((c) => {
               const s = fieldCheck(item, c, ctx);
+              // Filled from KoboCollect and not editable here: shown as a state, never as a box to tick.
+              if (fromKobo && !s.auto && !c.resolveEffect) return <KoboCheck key={c.id} label={c.label} why={c.why} tag={c.tag} ok={s.ok} />;
               return (
                 <CheckRow
                   key={c.id}
@@ -495,7 +609,7 @@ function Detail({
               );
             })}
           </ul>
-        </StepCard>
+        </FieldStep>
       )}
 
       <IssueList
@@ -534,9 +648,9 @@ function KoboPanel({ farmer, ctx, canRaise, onRaise }: { farmer: Farmer; ctx: Ct
   const fromKobo = farmer.timeline.filter((t) => /Kobo/i.test(t.what)).slice(-3).reverse();
   const p = farmer.planting;
   return (
-    <div className="space-y-2 border-t border-line px-5 py-4 text-sm">
+    <div className="space-y-2 bg-sunken px-5 py-4 text-base">
       <p>
-        <span className="font-semibold">{tx("Recorded in KoboCollect.")}</span>
+        <span className="font-extrabold">{tx("Recorded in KoboCollect.")}</span>
         {form && (
           <>
             {" "}
@@ -562,12 +676,12 @@ function KoboPanel({ farmer, ctx, canRaise, onRaise }: { farmer: Farmer; ctx: Ct
       ) : (
         <p className="text-muted">{tx("No KoboCollect form accepted for this farmer yet.")}</p>
       )}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-1">
-        <Link href="/progress/results#field-records" className="btn-link">
+      <div className="flex flex-wrap items-center gap-x-5">
+        <Link href="/progress/results#field-records" className={bandLink}>
           {tx("Forms waiting for MEL")} <Arrow />
         </Link>
         {canRaise && (
-          <button type="button" onClick={onRaise} className="text-sm font-medium text-muted hover:text-ink">
+          <button type="button" onClick={onRaise} className={`min-h-12 font-bold text-muted hover:text-ink ${focusRing}`}>
             {tx("+ Raise issue")}
           </button>
         )}
@@ -605,12 +719,12 @@ function FarmerTableLink({ code, userId }: { code: string; userId: string }) {
     }
   };
   return (
-    <div className="mt-4 rounded-2xl border border-line bg-surface px-4 py-3 text-sm">
-      <button type="button" onClick={() => download("farmers")} disabled={busy} className="font-semibold text-forest hover:underline disabled:opacity-60">
+    <div className="mx-3 mt-4 bg-sunken px-4 py-3 font-bands text-sm sm:mx-4">
+      <button type="button" onClick={() => download("farmers")} disabled={busy} className={`${bandLink} text-start disabled:opacity-60`}>
         {busy ? tx("Making the file…") : tx("Download the farmer table (spreadsheet) ↓")}
       </button>
       <p className="mt-1 text-xs text-muted">{tx("One row per farmer, by number, never by name: each step’s date, how the readiness check went, what they received and the days between steps.")}</p>
-      <button type="button" onClick={() => download("records")} disabled={busy} className="mt-3 font-semibold text-forest hover:underline disabled:opacity-60">
+      <button type="button" onClick={() => download("records")} disabled={busy} className={`mt-2 ${bandLink} text-start disabled:opacity-60`}>
         {busy ? tx("Making the file…") : tx("Download the field records table (spreadsheet) ↓")}
       </button>
       <p className="mt-1 text-xs text-muted">{tx("One row per record: every training attendance, readiness check, farm visit and distribution, with who collected it, the decision and how long it waited. Join it to the farmer table by farmer number.")}</p>
@@ -729,54 +843,57 @@ export function FieldWorkspace() {
       mobileDetail={mobileDetail}
       queue={
         <>
-          <p className="mx-3 mt-4 text-sm sm:mx-4">{tx("Record visits in KoboCollect. This page shows where each farmer stands and what needs approving.")}</p>
+          <p className="mx-3 mt-4 font-bands text-base font-medium sm:mx-4">{tx("Record visits in KoboCollect. This page shows where each farmer stands and what needs approving.")}</p>
           <DataBanner status={status} error={error} />
-          <div className="mx-3 mt-4 rounded-xl border border-line bg-surface px-3 py-3 sm:mx-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
+          {/* Season counts as bands: one big number per stage. Three across in a narrow column, six when there is room; labels may take two lines. */}
+          <section aria-labelledby="season-counts" className="@container mx-3 mt-4 font-bands sm:mx-4">
+            <h2 id="season-counts" className="bg-sunken px-3 pb-1 pt-3 text-base font-extrabold leading-snug">
               {[ctx.setup.season, ctx.setup.village, status === "loading" ? "" : farmers.length === 1 ? tx("1 farmer") : tx("{n} farmers", { n: farmers.length })].filter(Boolean).join(" · ")}
-            </p>
-            <ol className="mt-2 grid grid-cols-3 gap-x-1 gap-y-3 text-center sm:grid-cols-6">
+            </h2>
+            <ol className="grid grid-cols-3 gap-1 bg-sunken p-1 @md:grid-cols-6">
               {pipeline.map((s, k) => (
-                <li key={s.label}>
+                <li key={s.label} className="min-w-0">
                   <button
                     type="button"
                     aria-pressed={stageFilter === k}
                     title={tx("Show only farmers at {stage}", { stage: tx(s.label) })}
                     onClick={() => setStageFilter(stageFilter === k ? null : k)}
-                    className={`w-full rounded-lg px-1 py-1 transition ${stageFilter === k ? "bg-forest text-forest-ink" : "hover:bg-sunken"}`}
+                    className={`flex h-full min-h-24 w-full flex-col items-start justify-between gap-1 px-2.5 pb-2.5 pt-2 text-start transition ${focusRing} ${stageFilter === k ? "bg-deep text-deep-ink" : "bg-surface text-ink hover:bg-ochre-soft"}`}
                   >
-                    <span className="block text-xl tabular-nums font-semibold">{status === "loading" ? "–" : s.n}</span>
-                    <span className={`block text-xs leading-tight ${stageFilter === k ? "" : "text-muted"}`}>{tx(s.label)}</span>
+                    <span className="block text-4xl font-extrabold leading-none tracking-tighter tabular-nums">{status === "loading" ? "–" : s.n}</span>
+                    <span className="block w-full break-words text-sm font-bold leading-tight [hyphens:auto]">{tx(s.label)}</span>
                   </button>
                 </li>
               ))}
             </ol>
-            <p className="mt-1 text-center text-xs text-muted">{tx("Tap a count to see those farmers.")}</p>
-            <p className="mt-2 border-t border-line pt-2 text-xs text-muted">
-              {tx("Store: {items}", { items: status === "loading" ? "…" : ctx.setup.items.map((p) => qtyItem(stock[p.key] ?? 0, p.unit, p.item)).join(" · ") })}
-            </p>
-            {heldBack > 0 && (
-              <p className="mt-2 border-t border-line pt-2 text-xs text-muted">
-                {heldBack === 1 ? tx("1 farmer waitlisted or not qualified is not in this queue.") : tx("{n} farmers waitlisted or not qualified are not in this queue.", { n: heldBack })}
+            <div className="space-y-2 bg-sunken px-3 pb-3 pt-1 text-sm">
+              <p className="font-bold text-muted">{tx("Tap a count to see those farmers.")}</p>
+              <p className="border-t border-line pt-2 font-bold">
+                {tx("Store: {items}", { items: status === "loading" ? "…" : ctx.setup.items.map((p) => qtyItem(stock[p.key] ?? 0, p.unit, p.item)).join(" · ") })}
               </p>
-            )}
-            <div className="mt-2 flex flex-wrap gap-3 border-t border-line pt-2 text-xs font-semibold">
-              {mayManage && (
-                <>
-                  <button type="button" className="text-forest hover:underline" onClick={() => { setPanel("farmers"); setCreating(false); setMobileDetail(true); }}>
-                    {tx("Load farmer list")}
-                  </button>
-                  <button type="button" className="text-forest hover:underline" onClick={() => { setPanel("package"); setCreating(false); setMobileDetail(true); }}>
-                    {tx("Input package")}
-                  </button>
-                </>
+              {heldBack > 0 && (
+                <p className="border-t border-line pt-2 font-medium text-muted">
+                  {heldBack === 1 ? tx("1 farmer waitlisted or not qualified is not in this queue.") : tx("{n} farmers waitlisted or not qualified are not in this queue.", { n: heldBack })}
+                </p>
               )}
-              <Link href="/work/selection" className="text-forest hover:underline">
-                {tx("Farmer selection")}
-              </Link>
+              <div className="flex flex-wrap gap-x-5 border-t border-line">
+                {mayManage && (
+                  <>
+                    <button type="button" className={bandLink} onClick={() => { setPanel("farmers"); setCreating(false); setMobileDetail(true); }}>
+                      {tx("Load farmer list")}
+                    </button>
+                    <button type="button" className={bandLink} onClick={() => { setPanel("package"); setCreating(false); setMobileDetail(true); }}>
+                      {tx("Input package")}
+                    </button>
+                  </>
+                )}
+                <Link href="/work/selection" className={bandLink}>
+                  {tx("Farmer selection")}
+                </Link>
+              </div>
             </div>
-          </div>
-          <div className="mx-3 mt-4 sm:mx-4">
+          </section>
+          <div className="mx-3 mt-4 font-bands sm:mx-4">
             <label className="block">
               <span className="sr-only">{tx("Search farmers")}</span>
               <input
@@ -784,31 +901,35 @@ export function FieldWorkspace() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={user?.pii ? tx("Search by farmer number, name or village") : tx("Search by farmer number or village")}
-                className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm"
+                className="min-h-12 w-full border-2 border-line-strong bg-surface px-3 text-base font-medium placeholder:text-muted focus:border-forest focus:outline-none"
               />
             </label>
           </div>
-          <QueueHeader
-            title={
-              status === "loading"
+          <div className="flex flex-wrap items-center justify-between gap-x-3 px-4 pb-2 pt-5 font-bands sm:px-6">
+            <h1 className="min-w-0 break-words text-2xl font-extrabold leading-tight tracking-tight">
+              {status === "loading"
                 ? tx("Loading…")
                 : filtering
                   ? [stageFilter !== null ? tx(farmerStages[stageFilter]) : "", q ? `“${query.trim()}”` : "", list.length === 1 ? tx("1 match") : tx("{n} matches", { n: list.length })].filter(Boolean).join(" · ")
                   : readOnly ? tx("Everything this season") : showAll ? tx("Everything this season") : mineList.length ? tx("{n} waiting on you", { n: mineList.length }) : tx("Nothing waiting on you")}
-            toggleLabel={filtering ? tx("Everything this season") : readOnly ? "" : showAll ? tx("Mine") : tx("Show all")}
-            onToggle={() => (filtering ? clearFilters() : setShowAll(!showAll))}
-          />
+            </h1>
+            {(filtering || !readOnly) && (
+              <button type="button" onClick={() => (filtering ? clearFilters() : setShowAll(!showAll))} className={`min-h-12 text-base font-bold text-muted hover:text-ink ${focusRing}`}>
+                {filtering ? tx("Everything this season") : showAll ? tx("Mine") : tx("Show all")}
+              </button>
+            )}
+          </div>
           {list.length === 0 && filtering && status !== "loading" ? (
-            <div className="px-4 py-10 text-center sm:px-6">
-              <p className="text-sm text-muted">{tx("No farmer matches.")}</p>
-              <button type="button" onClick={clearFilters} className="mt-2 text-sm font-semibold text-forest hover:underline">
+            <div className="px-4 py-10 text-center font-bands sm:px-6">
+              <p className="text-base font-bold text-muted">{tx("No farmer matches.")}</p>
+              <button type="button" onClick={clearFilters} className={`mt-1 ${bandLink}`}>
                 {tx("Back to everything this season")}
               </button>
             </div>
           ) : list.length === 0 ? (
             <EmptyQueue loading={status === "loading"} onShowAll={() => setShowAll(true)} />
           ) : (
-            <ul className="space-y-1.5 px-2 pb-6 sm:px-3">
+            <ul className="space-y-1.5 px-2 pb-6 font-bands sm:px-3">
               {list.map((i) => {
                 const s = fieldSteps[i.step];
                 const end = ENDS[i.step];
@@ -829,7 +950,7 @@ export function FieldWorkspace() {
                       <span className="font-mono text-xs text-muted">{i.id}</span>
                       <span className="text-xs text-muted">{i.kind === "farmer" ? tx("{n} ha", { n: i.hectares }) : tx("Finding")}</span>
                     </div>
-                    <p className="mt-1 font-medium leading-snug">{i.kind === "farmer" ? farmerName(i, user) : i.title}</p>
+                    <p className="mt-1 text-lg font-bold leading-snug">{i.kind === "farmer" ? farmerName(i, user) : i.title}</p>
                     <div className="mt-2 flex flex-wrap items-center gap-1.5">
                       {end ? (
                         <Pill tone={end.tone}>{tx(end.title)}</Pill>
@@ -905,8 +1026,8 @@ export function FieldWorkspace() {
         ) : (
           <div className="grid h-full place-items-center py-24 text-center">
             <div>
-              <p className="font-display text-2xl">{status === "loading" ? tx("Loading…") : tx("Nothing selected")}</p>
-              {status !== "loading" && <p className="mt-1 text-sm text-muted">{tx("Pick a farmer or finding from the list.")}</p>}
+              <p className="font-bands text-3xl font-extrabold">{status === "loading" ? tx("Loading…") : tx("Nothing selected")}</p>
+              {status !== "loading" && <p className="mt-1 font-bands text-base font-medium text-muted">{tx("Pick a farmer or finding from the list.")}</p>}
             </div>
           </div>
         )

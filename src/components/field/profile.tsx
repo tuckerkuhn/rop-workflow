@@ -11,7 +11,7 @@ import { stageOf } from "@/components/field/workspace";
 import { useFieldData } from "@/components/app/use-project-data";
 import { Initials, useFeature, useRequireUser, useSession } from "@/components/app/session";
 import { PHOTO_QUALITY } from "@/lib/plans";
-import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
+import { Pill, TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { useCurrentProject } from "@/components/app/current-project";
 import { today } from "@/lib/clock";
 import { DEMO_SETUP, packageUsd } from "@/lib/package";
@@ -30,7 +30,15 @@ import {
   type PhotoKind,
 } from "@/lib/field";
 
-const field = "w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm focus:border-forest focus:outline-none";
+const field = "min-h-12 w-full border-2 border-line-strong bg-surface px-3 py-2 text-base focus:border-forest focus:outline-none";
+const focusRing = "focus-visible:outline focus-visible:outline-4 focus-visible:-outline-offset-4 focus-visible:outline-forest";
+// A text action in the Bands look: bold green, a 48px touch target.
+const bandLink = `inline-flex min-h-12 items-center gap-1.5 font-bold text-forest underline-offset-4 hover:underline disabled:opacity-50 ${focusRing}`;
+
+/** A section's name in the Bands look: heavy type, a gold bar for "look here". */
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return <h2 className="border-s-[6px] border-ochre ps-2 text-2xl font-extrabold leading-tight">{children}</h2>;
+}
 
 /** Drawn stand-in for a field photo until real ones are uploaded. */
 function PhotoArt({ kind }: { kind: PhotoKind }) {
@@ -120,7 +128,7 @@ function ToSuccessStory({ project, user, farmer, story }: { project: string; use
       <button
         type="button"
         disabled={busy}
-        className="text-sm font-semibold text-forest hover:underline disabled:opacity-50"
+        className={bandLink}
         onClick={async () => {
           setBusy(true);
           setErr("");
@@ -133,7 +141,7 @@ function ToSuccessStory({ project, user, farmer, story }: { project: string; use
       >
         {tx("Success story")} →
       </button>
-      {err && <span className="mt-1 block text-xs text-clay">{err}</span>}
+      {err && <span className="mt-1 block text-sm font-bold text-clay">{err}</span>}
     </span>
   );
 }
@@ -163,7 +171,7 @@ export function FarmerProfile({ id }: { id: string }) {
     return (
       <div className="min-h-screen">
         <TopBar active="field" />
-        <p className={`px-6 py-24 text-center ${error ? "text-clay" : "text-muted"}`}>{status === "loading" ? tx("Loading…") : error || tx("No farmer with ID {id}.", { id })}</p>
+        <p className={`px-6 py-24 text-center font-bands text-lg font-bold ${error ? "text-clay" : "text-muted"}`}>{status === "loading" ? tx("Loading…") : error || tx("No farmer with ID {id}.", { id })}</p>
       </div>
     );
 
@@ -195,12 +203,12 @@ export function FarmerProfile({ id }: { id: string }) {
     <div className="min-h-screen">
       <TopBar active="field" />
       {error && (
-        <p role="alert" className="mx-auto mt-4 max-w-6xl rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">
+        <p role="alert" className="mx-auto mt-4 max-w-6xl bg-[#7a5230] px-4 py-3 font-bands text-sm font-bold text-white">
           {t("field.saveFailed", { error })}
         </p>
       )}
-      <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6 lg:py-8">
-        <Link href={`/work?source=field&open=${farmer.id}`} className="text-sm text-muted hover:text-ink">
+      <div className="mx-auto max-w-[1400px] px-4 py-6 font-bands sm:px-6 lg:py-8">
+        <Link href={`/work?source=field&open=${farmer.id}`} className={`inline-flex min-h-12 items-center font-bold text-muted hover:text-ink ${focusRing}`}>
           {tx("← Field activities")}
         </Link>
 
@@ -211,7 +219,7 @@ export function FarmerProfile({ id }: { id: string }) {
               {user.pii ? (
                 <Initials name={farmer.name} className="h-16 w-16 text-2xl" />
               ) : (
-                <span className="grid h-16 w-16 shrink-0 place-items-center rounded-full bg-sunken font-mono text-sm text-muted">ID</span>
+                <span className="grid h-16 w-16 shrink-0 place-items-center bg-sunken font-mono text-sm font-bold text-muted">ID</span>
               )}
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
@@ -219,47 +227,50 @@ export function FarmerProfile({ id }: { id: string }) {
                   {setup.season && <Pill tone="muted">{setup.season}</Pill>}
                   {step ? <Pill tone="forest">{tx("Now: {step}", { step: tx(step.title) })}</Pill> : <Pill tone={farmer.step === "removed" ? "clay" : "forest"}>{farmer.step === "removed" ? tx("Removed") : tx("Season record complete")}</Pill>}
                 </div>
-                <h1 className="mt-1 font-display text-4xl leading-tight tracking-tight">{farmerName(farmer, user)}</h1>
-                {!user.pii && <p className="text-xs text-muted">{tx("Name and contact details are restricted participant data. You see the farmer ID only.")}</p>}
-                <p className="mt-1 text-sm text-muted">
+                <h1 className="mt-1 break-words text-4xl font-extrabold leading-tight tracking-tight">{farmerName(farmer, user)}</h1>
+                {!user.pii && <p className="text-sm font-medium text-muted">{tx("Name and contact details are restricted participant data. You see the farmer ID only.")}</p>}
+                <p className="mt-1 text-base font-semibold text-muted">
                   {farmer.community} · {tx("{n} ha", { n: farmer.hectares })}{setup.crop ? ` ${setup.crop.toLowerCase()}` : ""} · {tx("Enrolled {date}", { date: farmer.enrolledOn })} · {farmer.contributionPaid ? tx("Contribution paid") : tx("Contribution not paid")}
                   <br />
                   {farmer.gender} · {farmer.ageBand} · {tx("household of {n}", { n: farmer.householdSize })}
                 </p>
               </div>
-              <Link href={`/work?source=field&open=${farmer.id}`} className={quietBtn}>
+              <Link
+                href={`/work?source=field&open=${farmer.id}`}
+                className={`inline-flex min-h-14 w-full items-center justify-center bg-deep px-5 text-lg font-extrabold text-deep-ink hover:bg-forest-hover sm:w-auto ${focusRing} focus-visible:outline-ochre`}
+              >
                 {tx("Open current step")}
               </Link>
             </section>
 
             {/* Summary */}
             {farmer.planting && (
-              <p className="rounded-xl border border-line bg-mist px-4 py-2 text-sm">
-                <span className="font-semibold">{tx("Planted {date}", { date: farmer.planting.date })}</span> · {tx("{planted} of {total} ha", { planted: farmer.planting.hectares, total: farmer.hectares })}
+              <p className="bg-mist px-4 py-3 text-base">
+                <span className="font-extrabold">{tx("Planted {date}", { date: farmer.planting.date })}</span> · {tx("{planted} of {total} ha", { planted: farmer.planting.hectares, total: farmer.hectares })}
               </p>
             )}
-            <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-4">
+            <dl className="grid grid-cols-2 gap-1 sm:grid-cols-4">
               {[
                 [tx("Engagements"), String(engagements.length)],
                 [tx("Satisfaction"), latest ? tx("{score} / 5", { score: latest.score }) : "—"],
                 [tx("Season progress"), tx("{n} of {total}", { n: Math.min(stageOf(farmer), farmerStages.length), total: farmerStages.length })],
                 [tx("Inputs received"), gotInputs ? (packageUsd(setup, farmer.hectares) ? money(packageUsd(setup, farmer.hectares)) : tx("Yes")) : tx("Not yet")],
               ].map(([k, v]) => (
-                <div key={k} className="bg-surface px-4 py-3">
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-muted">{k}</dt>
-                  <dd className="mt-1 font-display text-2xl tabular-nums">{v}</dd>
+                <div key={k} className="min-w-0 bg-sunken px-4 pb-4 pt-3">
+                  <dt className="break-words text-sm font-bold leading-tight text-muted">{k}</dt>
+                  <dd className="mt-2 break-words text-3xl font-extrabold xl:text-4xl leading-none tracking-tight tabular-nums">{v}</dd>
                 </div>
               ))}
             </dl>
 
             {/* Satisfaction */}
-            <section className="grid gap-6 rounded-2xl border border-line bg-surface p-5 md:grid-cols-[1.2fr_1fr]">
+            <section className="grid gap-6 bg-sunken p-5 md:grid-cols-[1.2fr_1fr]">
               <div>
                 <SectionLabel>{tx("Satisfaction with the project")}</SectionLabel>
                 <div className="mt-3">
                   <SatisfactionChart surveys={farmer.surveys} />
                 </div>
-                {latest && <p className="mt-2 text-sm text-muted">{tx("Latest: “{comment}”", { comment: latest.comment })}</p>}
+                {latest && <p className="mt-2 text-base font-medium text-muted">{tx("Latest: “{comment}”", { comment: latest.comment })}</p>}
               </div>
               {canEdit ? (
                 <form
@@ -275,7 +286,7 @@ export function FarmerProfile({ id }: { id: string }) {
                   }}
                   className="space-y-3 md:border-s md:border-line md:ps-6"
                 >
-                  <p className="text-sm font-medium">{tx("Record today’s satisfaction")}</p>
+                  <p className="text-base font-extrabold">{tx("Record today’s satisfaction")}</p>
                   <div className="flex gap-1.5" role="radiogroup" aria-label={tx("Score out of 5")}>
                     {[1, 2, 3, 4, 5].map((s) => (
                       <button
@@ -284,19 +295,19 @@ export function FarmerProfile({ id }: { id: string }) {
                         role="radio"
                         aria-checked={score === s}
                         onClick={() => setScore(s)}
-                        className={`grid h-10 w-10 place-items-center rounded-full border font-semibold text-lg transition ${score >= s && score ? "border-forest bg-forest text-forest-ink" : "border-line bg-paper hover:border-forest/50"}`}
+                        className={`grid h-12 w-12 place-items-center border-2 text-xl font-extrabold transition ${focusRing} ${score >= s && score ? "border-deep bg-deep text-deep-ink" : "border-line-strong bg-surface hover:border-forest"}`}
                       >
                         {s}
                       </button>
                     ))}
                   </div>
                   <input id="sat-comment" value={comment} onChange={(e) => setComment(e.target.value)} placeholder={tx("What did the farmer say?")} className={field} />
-                  <button type="submit" disabled={!score} className={primaryBtn}>
+                  <button type="submit" disabled={!score} className={`${primaryBtn} min-h-12 text-base font-bold`}>
                     {tx("Save survey")}
                   </button>
                 </form>
               ) : (
-                <p className="text-sm text-muted md:border-s md:border-line md:ps-6">{tx("Surveys are recorded by field staff during visits.")}</p>
+                <p className="text-base font-medium text-muted md:border-s md:border-line md:ps-6">{tx("Surveys are recorded by field staff during visits.")}</p>
               )}
             </section>
 
@@ -308,15 +319,15 @@ export function FarmerProfile({ id }: { id: string }) {
                   <FieldHelp field="farmer.photo" />
                 </div>
                 {canEdit && !addingPhoto && (
-                  <button type="button" onClick={() => setAddingPhoto(true)} className="text-sm font-semibold text-forest hover:underline">
+                  <button type="button" onClick={() => setAddingPhoto(true)} className={bandLink}>
                     {tx("+ Add photo")}
                   </button>
                 )}
               </div>
               {addingPhoto && (
-                <div className="mt-3 flex flex-wrap items-end gap-2 rounded-xl border border-line bg-paper p-4">
+                <div className="mt-3 flex flex-wrap items-end gap-2 bg-sunken p-4">
                   <label className="text-sm">
-                    <span className="block font-medium">{tx("Activity")}</span>
+                    <span className="block font-bold">{tx("Activity")}</span>
                     <select id="photo-kind" value={photoKind} onChange={(e) => setPhotoKind(e.target.value as PhotoKind)} className={`mt-1 ${field}`}>
                       {(Object.keys(photoLabels) as PhotoKind[]).map((k) => (
                         <option key={k} value={k}>
@@ -326,10 +337,10 @@ export function FarmerProfile({ id }: { id: string }) {
                     </select>
                   </label>
                   <label className="min-w-48 flex-1 text-sm">
-                    <span className="block font-medium">{tx("Caption")}</span>
+                    <span className="block font-bold">{tx("Caption")}</span>
                     <input id="photo-caption" value={photoCaption} onChange={(e) => setPhotoCaption(e.target.value)} className={`mt-1 ${field}`} />
                   </label>
-                  <label className={`${primaryBtn} cursor-pointer`}>
+                  <label className={`${primaryBtn} inline-flex min-h-12 cursor-pointer items-center text-base font-bold`}>
                     {tx("Choose image")}
                     <input
                       id="photo-file"
@@ -358,7 +369,7 @@ export function FarmerProfile({ id }: { id: string }) {
                       }}
                     />
                   </label>
-                  <button type="button" onClick={() => setAddingPhoto(false)} className="px-2 py-3 text-sm text-muted">
+                  <button type="button" onClick={() => setAddingPhoto(false)} className={`min-h-12 px-3 text-base font-bold text-muted hover:text-ink ${focusRing}`}>
                     {tx("Cancel")}
                   </button>
                   <p className="w-full text-xs text-muted">{fullPhotos ? t("fp.full") : t("fp.small")}</p>
@@ -367,7 +378,7 @@ export function FarmerProfile({ id }: { id: string }) {
               )}
               <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
                 {[...farmer.photos].reverse().map((p) => (
-                  <li key={p.id} className="overflow-hidden rounded-xl border border-line bg-surface">
+                  <li key={p.id} className="overflow-hidden bg-sunken">
                     <div className="relative aspect-[16/11]">
                       {p.src ? (
                         // eslint-disable-next-line @next/next/no-img-element -- user-uploaded data URL
@@ -375,12 +386,12 @@ export function FarmerProfile({ id }: { id: string }) {
                       ) : (
                         <>
                           <PhotoArt kind={p.activity} />
-                          <span className="absolute start-2 top-2 rounded bg-surface/85 px-1.5 py-0.5 text-xs text-muted">{tx("Placeholder")}</span>
+                          <span className="absolute start-2 top-2 bg-surface/85 px-1.5 py-0.5 text-xs font-bold text-muted">{tx("Placeholder")}</span>
                         </>
                       )}
                     </div>
                     <div className="px-3 py-2">
-                      <p className="text-xs font-semibold">{tx(photoLabels[p.activity])}</p>
+                      <p className="text-sm font-extrabold">{tx(photoLabels[p.activity])}</p>
                       <p className="truncate text-xs text-muted">
                         {p.date} · {maskName(p.caption, farmer, user)}
                       </p>
@@ -395,10 +406,10 @@ export function FarmerProfile({ id }: { id: string }) {
               <SectionLabel>{tx("Success stories")}</SectionLabel>
               <div className="mt-3 grid gap-4 md:grid-cols-2">
                 <div className="space-y-3">
-                  <p className="text-sm font-medium">{tx("Notes in progress · {n}", { n: notes.length })}</p>
+                  <p className="text-base font-extrabold">{tx("Notes in progress · {n}", { n: notes.length })}</p>
                   {notes.map((s) => (
-                    <article key={s.id} className="rounded-xl border border-dashed border-line bg-surface p-4">
-                      <p className="font-medium">{maskName(s.title, farmer, user)}</p>
+                    <article key={s.id} className="bg-sunken p-4">
+                      <p className="text-lg font-extrabold leading-snug">{maskName(s.title, farmer, user)}</p>
                       <p className="mt-1 text-sm leading-relaxed text-muted">{maskName(s.text, farmer, user)}</p>
                       <p className="mt-2 text-xs text-muted">
                         {s.date} · {fieldPerson(s.by)}
@@ -409,7 +420,7 @@ export function FarmerProfile({ id }: { id: string }) {
                         <button
                           type="button"
                           onClick={() => update((f) => ({ ...f, stories: f.stories.map((x) => (x.id === s.id ? { ...x, status: "completed", date: TODAY } : x)) }))}
-                          className="mt-2 text-sm font-semibold text-forest hover:underline"
+                          className={`mt-1 ${bandLink}`}
                         >
                           {tx("Mark as completed story")}
                         </button>
@@ -428,22 +439,22 @@ export function FarmerProfile({ id }: { id: string }) {
                         setNoteTitle("");
                         setNoteText("");
                       }}
-                      className="space-y-2 rounded-xl border border-line bg-paper p-4"
+                      className="space-y-2 bg-sunken p-4"
                     >
                       <input id="story-title" value={noteTitle} onChange={(e) => setNoteTitle(e.target.value)} placeholder={tx("Story title")} className={field} />
                       <textarea id="story-text" rows={2} value={noteText} onChange={(e) => setNoteText(e.target.value)} placeholder={tx("What happened? Who said it?")} className={field} />
-                      <button type="submit" disabled={!noteTitle.trim() || !noteText.trim()} className={quietBtn}>
+                      <button type="submit" disabled={!noteTitle.trim() || !noteText.trim()} className={`${quietBtn} min-h-12 bg-surface text-base font-bold`}>
                         {tx("Add story note")}
                       </button>
                     </form>
                   )}
                 </div>
                 <div className="space-y-3">
-                  <p className="text-sm font-medium">{tx("Completed stories · {n}", { n: done.length })}</p>
-                  {done.length === 0 && <p className="text-sm text-muted">{tx("None yet. Notes become stories once they are written up; link the write-up wherever it lives.")}</p>}
+                  <p className="text-base font-extrabold">{tx("Completed stories · {n}", { n: done.length })}</p>
+                  {done.length === 0 && <p className="text-base font-medium text-muted">{tx("None yet. Notes become stories once they are written up; link the write-up wherever it lives.")}</p>}
                   {done.map((s) => (
-                    <article key={s.id} className="rounded-xl border border-forest/30 bg-mist p-4">
-                      <p className="text-lg leading-snug text-forest font-semibold">{maskName(s.title, farmer, user)}</p>
+                    <article key={s.id} className="border-s-[6px] border-deep bg-mist p-4">
+                      <p className="text-lg font-extrabold leading-snug text-forest">{maskName(s.title, farmer, user)}</p>
                       <p className="mt-1 text-sm leading-relaxed">{maskName(s.text, farmer, user)}</p>
                       <p className="mt-2 text-xs text-muted">
                         {tx("Completed {date}", { date: s.date })} · {fieldPerson(s.by)}
@@ -464,7 +475,7 @@ export function FarmerProfile({ id }: { id: string }) {
                   <li key={k} className="relative text-sm">
                     <span aria-hidden className="absolute -start-[21px] top-1.5 h-2 w-2 rounded-full bg-forest" />
                     <p className="leading-snug">
-                      <span className="me-2 text-xs font-semibold uppercase tracking-wide text-muted">{e.kind}</span>
+                      <span className="me-2 text-sm font-extrabold text-muted">{e.kind}</span>
                       {maskName(e.text, farmer, user)}
                     </p>
                     <p className="text-xs text-muted">
@@ -478,18 +489,18 @@ export function FarmerProfile({ id }: { id: string }) {
 
           {/* Staff sidebar */}
           <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
-            <div className="rounded-2xl border border-line bg-surface p-5">
+            <div className="bg-sunken p-5">
               <SectionLabel>{tx("Staff supporting {name}", { name: user.pii ? farmer.name.split(" ")[0] : farmer.id })}</SectionLabel>
               <ul className="mt-4 space-y-4">
                 {staff.map(({ role, u, last }) => (
                   <li key={role} className="flex gap-3">
                     <Initials name={u.name} />
                     <div className="min-w-0 flex-1">
-                      <p className="font-medium leading-tight">{u.name}</p>
-                      <p className="text-xs text-muted">{tx(fieldRoleLabel(role))}</p>
+                      <p className="font-extrabold leading-tight">{u.name}</p>
+                      <p className="text-sm font-medium text-muted">{tx(fieldRoleLabel(role))}</p>
                       {u.feedback && (
                         <p className="mt-1 flex items-center gap-1.5 text-sm">
-                          <span className="text-lg leading-none text-forest font-semibold">{u.feedback.score.toFixed(1)}</span>
+                          <span className="text-2xl font-extrabold leading-none text-forest">{u.feedback.score.toFixed(1)}</span>
                           <span className="text-xs text-muted">{tx("/ 5 farmer feedback · {n} responses", { n: u.feedback.n })}</span>
                         </p>
                       )}

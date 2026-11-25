@@ -4,13 +4,15 @@ import type { AppUser } from "@/lib/demo";
 import type { Bill } from "@/lib/bills";
 import { blockers, fromBill, fromProcurement, monthsOf, type Closeouts } from "@/lib/closeout";
 import { foldExpenses, nextFor } from "@/lib/expense";
-import { nextSigners } from "@/lib/hr";
+import { nextSigners, seesAll } from "@/lib/hr";
+import { foldOnboarding } from "@/lib/onboarding";
+import { foldTraining, standing } from "@/lib/training";
 import { DONE, maySign, stepById, type Procurement } from "@/lib/procurement";
 import { EMPTY_SELECTION, type Selection } from "@/lib/selection";
 import { emptyWeekly, weekOf, type WeeklyState } from "@/lib/weekly";
 import { homeForWeekJoining, lensesFor, type HomeForWeek } from "@/server/home-store";
 import { EMPTY_FEEDBACK, overdue, type FeedbackLog } from "@/lib/feedback";
-import { MAX_PRIORITIES, mondayOf, safeHref, weekKindOf, withProject, suggestFor, weekScore, weekSummaryFor, withCarried, type FinanceWork, type MelWork, type OrgWeek, type Priority, type ProjectWeek, type ProjectWork, type WeekKind, type WeekAction, type WeekPlan } from "@/lib/week";
+import { MAX_PRIORITIES, mondayOf, safeHref, weekKindOf, withProject, suggestFor, weekScore, weekSummaryFor, withCarried, withTraining, withTrainingSuggestion, type TrainingWeek, type FinanceWork, type MelWork, type OrgWeek, type Priority, type ProjectWeek, type ProjectWork, type WeekKind, type WeekAction, type WeekPlan } from "@/lib/week";
 import { demoMode, onProject } from "@/server/auth";
 import { early } from "@/server/early";
 import { loadHr } from "@/server/hr-store";
@@ -124,6 +126,35 @@ async function readOrg(u: AppUser): Promise<OrgWeek> {
     expenses: { n: expenses.length, since: expenses.map(lastSigned).sort()[0] ?? null },
     payroll: payroll.map((p) => ({ month: String((p as { month?: string }).month ?? ""), since: lastSigned(p) })).filter((p) => /^\d{4}-\d{2}$/.test(p.month)).sort((a, b) => a.month.localeCompare(b.month)),
   };
+}
+
+/**
+ * Training for the week (lib/training): the reader's own due or overdue items, and for HR (everyone)
+ * or a supervisor (their team) how many people are overdue. Read from the HR ledger like the rest.
+ */
+async function readTraining(u: AppUser, today: string): Promise<TrainingWeek> {
+  const book = await loadHr().catch(() => null);
+  if (!book) return null;
+  const { state: hr, entries } = book;
+  const { records, plans, logStart } = foldTraining(entries, hr, foldOnboarding(entries, hr).onboarding);
+  const active = Object.values(hr.people).filter((p) => !p.separated || p.separated.effective > today);
+  const all = seesAll(u.id, hr);
+  const isHr = !!hr.rules?.holders.hr.includes(u.id);
+  const of = (id: string) => standing(id, String(hr.people[id]?.current.startDate ?? ""), records, plans, today, logStart || undefined);
+  const nice = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "long", timeZone: "UTC" });
+  const mine: NonNullable<TrainingWeek>["mine"] = [];
+  if (hr.people[u.id] && logStart) {
+    const s = of(u.id);
+    for (const [what, d] of [
+      ["induction", s.induction],
+      ["anti-fraud refresher", s.antiFraud],
+      ["donor rules refresher", s.donorRules],
+    ] as const)
+      if (d.state === "overdue" || d.state === "due") mine.push({ what, state: d.state, by: nice(d.by) });
+  }
+  const scope = all ? active : active.filter((p) => p.current.supervisor === u.id);
+  const team = (all || scope.length) && logStart ? { scope: all ? ("all" as const) : ("team" as const), overdue: scope.filter((p) => p.id !== u.id && of(p.id).overdue > 0).length, people: scope.length } : null;
+  return { mine, team, noStart: isHr && !logStart };
 }
 
 /** What a manager or technical lead reads beyond leadership: money, checks, the field, selection and the weekly updates. */
@@ -257,6 +288,8 @@ export async function loadWeek(u: AppUser, today = realToday()) {
   // This week's plan, and last week's for what was left undone.
   const planLater = early(orgIdForPerson(u.id).catch(() => null).then((orgId) => plansOf(orgId, u, [week, addDays(week, -7)])));
   const orgLater = need.finance ? early(readOrg(u)) : null;
+  // Training is for everyone: the reader's own, and their team's or the organization's.
+  const trainingLater = early(readTraining(u, today).catch(() => null));
   // The nightly check of the books, for leadership and Finance (server/ledger-check).
   const booksLater = kind === "lead" || kind === "finance" ? early(orgIdForPerson(u.id).then((orgId) => (orgId ? latestLedgerCheck(orgId) : null)).catch(() => null)) : null;
   // The running projects this person is on, as server/project-store listProjects lists them (real, not parked), with their ids, in one query.
@@ -277,9 +310,9 @@ export async function loadWeek(u: AppUser, today = realToday()) {
     week,
     today,
     kind,
-    summary: weekSummaryFor(kind, projects, today, org, (await booksLater) ?? null),
+    summary: withTraining(weekSummaryFor(kind, projects, today, org, (await booksLater) ?? null), await trainingLater),
     /** Proposed from the records; the person's own list once confirmed. */
-    suggestions: withCarried(lastWeek, suggestFor(kind, projects, org)),
+    suggestions: withCarried(lastWeek, withTrainingSuggestion(suggestFor(kind, projects, org), await trainingLater)),
     /** How last week's confirmed list ended, for the line under the heading. */
     lastWeek: weekScore(lastWeek),
     plan,
