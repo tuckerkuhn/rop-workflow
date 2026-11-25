@@ -2,7 +2,9 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/db", () => import("@/server/__tests__/test-db"));
 
+import { userById } from "@/lib/demo";
 import { seedDatabase } from "@/server/demo-seed";
+import { loadHome } from "@/server/home-store";
 import { periodReport } from "@/server/period-report-store";
 import { preflight } from "@/server/preflight";
 import { ready } from "@/server/__tests__/test-db";
@@ -40,5 +42,14 @@ describe("the annual report of a project's first year", { timeout: 60_000 }, () 
   it("waits for the report of the quarter the project began in, once that quarter has ended", async () => {
     vi.setSystemTime(new Date("2027-02-01T12:00:00Z"));
     expect(await waitsFor()).toEqual([{ group: "blocks", q: "2026 Q4" }]);
+  });
+
+  it("is asked for on Home only for a quarter the project ran in", async () => {
+    const release = async () => (await loadHome(code, userById("marcus")!)).actions.find((a) => a.key === "release")?.text;
+    // On 1 February 2027 last quarter is October to December 2026, the project's first.
+    expect(await release()).toBe("Release the 2026 Q4 report in the app");
+    // On 20 November 2026 last quarter ended before the project began: there is no report to release.
+    vi.setSystemTime(new Date("2026-11-20T12:00:00Z"));
+    expect(await release()).toBeUndefined();
   });
 });

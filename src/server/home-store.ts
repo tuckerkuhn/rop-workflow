@@ -1,6 +1,7 @@
 import { hoursLeft } from "@/lib/funding-proposals";
 import { proposalWork } from "@/server/funding-proposals-store";
 import { quarterRange } from "@/lib/results";
+import { quartersDue } from "@/lib/period-report";
 import { reportDeadline } from "@/server/preflight";
 import { ourWork } from "@/lib/budget";
 import { and, asc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
@@ -361,7 +362,8 @@ async function homeActions(c: ActionsInput): Promise<{ actions: HomeAction[]; le
       if (waiting) actions.push({ key: `decide-${r.month}`, for: "lead", bucket: "approve", urgent: true, text: `Decide ${waiting} proposed plan ${waiting === 1 ? "change" : "changes"} in the ${monthName(r.month)} review`, msg: { key: waiting === 1 ? "ha.decide1" : "ha.decide", vars: { n: waiting, month: r.month } }, href: "/progress/review" });
     }
     if (!lastReview.review.signedOff) actions.push({ key: "review-signoff", for: "lead", bucket: "approve", urgent: false, text: `Sign off the ${monthName(lastReview.month)} monthly review`, msg: { key: "ha.reviewSignoff", vars: { month: lastReview.month } }, href: "/progress/review" });
-    if (!c.lastReleased) actions.push({ key: "release", for: "lead", bucket: "approve", urgent: false, text: `Release the ${qLabel(lastQ).replace("-", " ")} report in the app`, msg: { key: "ha.release", vars: { quarter: qLabel(lastQ).replace("-", " ") } }, href: "/progress/report" });
+    // Only a quarter the project ran in has a report to release (lib/period-report quartersDue).
+    if (!c.lastReleased && quartersDue(Number(lastQ.slice(0, 4)), project.startDate, project.endDate, today).includes(qLabel(lastQ))) actions.push({ key: "release", for: "lead", bucket: "approve", urgent: false, text: `Release the ${qLabel(lastQ).replace("-", " ")} report in the app`, msg: { key: "ha.release", vars: { quarter: qLabel(lastQ).replace("-", " ") } }, href: "/progress/report" });
   }
   // The procurement calendar: items waiting for this person's approval (procurement manager or the
   // line's technical lead), and approved items whose request this technical lead has not made yet.
