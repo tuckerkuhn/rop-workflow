@@ -172,7 +172,7 @@ describe("a signed review read after the numbers have moved", { timeout: 60_000 
     expect((await proofFor(code, "IND-1", "2026-01-01", "2026-12-31"))!.total).toBe(20);
     expect((await proofFor(code, "IND-1", "2026-01-01", "2026-12-31", signedAt))!.results.map((r) => r.value)).toEqual([40, 5]);
     // The recorder answers the query with the figure unchanged; accepted again: counted today, and still listed for the signed review.
-    expect(await correctResult(code, forty.id, { date: forty.date, value: 40, province: "Kabul" }, "Checked again: 40 attended, two signed on the back.", "omar")).toBeNull();
+    expect(await correctResult(code, forty.id, { date: forty.date, value: 40, province: "Kabul", note: forty.note ?? "Training session, register kept (fictional)." }, "Checked again: 40 attended, two signed on the back.", "omar")).toBeNull();
     await reviewResult(code, forty.id, "accepted", "nadia", null);
     expect((await proofFor(code, "IND-1", "2026-01-01", "2026-12-31"))!.total).toBe(60);
     expect((await proofFor(code, "IND-1", "2026-01-01", "2026-12-31", signedAt))!.results.map((r) => r.value)).toEqual([40, 5]);
