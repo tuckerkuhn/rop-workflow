@@ -174,3 +174,42 @@ export function onFileKinds(files: { type: string }[], links = 0): string[] {
     ...say(links, "linked document", "linked documents"),
   ];
 }
+
+/** What the donor pack says of proof that stays with Roots of Peace: its kind and count, and why it is held. */
+export type HeldProof = { what: string; why: string };
+
+/**
+ * The proof behind one result as the donor evidence pack carries it. A photo that may go to a
+ * donor goes in under a plain name ("Photo 1.jpg") with its caption. Everything else is counted
+ * by kind with the reason it is held, as `onFileKinds` does for a share link. No file name, no
+ * caption of a held file, no link title and no link address is given: all are typed by staff.
+ */
+export function donorPackProof(
+  files: ProofFile[],
+  links: number,
+  photoOk: (hash: string) => { ok: boolean; why: string },
+): { files: ProofFile[]; held: HeldProof[] } {
+  const sent: ProofFile[] = [];
+  const held = new Map<string, { type: string }[]>();
+  const hold = (why: string, f: { type: string }) => held.set(why, [...(held.get(why) ?? []), f]);
+  for (const f of files) {
+    if (!isPhotoFile(f)) {
+      hold("Held by Roots of Peace, available for verification: attendance sheets and forms can name people.", f);
+      continue;
+    }
+    const ok = photoOk(f.hash);
+    if (!ok.ok) {
+      hold(`Held by Roots of Peace: ${ok.why}`, f);
+      continue;
+    }
+    const ext = f.type === "image/png" ? "png" : f.type === "image/webp" ? "webp" : "jpg";
+    sent.push({ hash: f.hash, type: f.type, caption: f.caption, name: `Photo ${sent.length + 1}.${ext}` });
+  }
+  return {
+    files: sent,
+    held: [
+      ...[...held].flatMap(([why, kept]) => onFileKinds(kept).map((what) => ({ what, why }))),
+      ...onFileKinds([], links).map((what) => ({ what, why: "Held by Roots of Peace, available for verification." })),
+    ],
+  };
+}

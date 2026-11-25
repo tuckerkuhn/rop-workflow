@@ -1,11 +1,12 @@
 import { and, eq, gte, inArray, lte } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import {
-  isPhotoFile,
+  donorPackProof,
   periodFigures,
   qprFigures,
   ROLE_FOR,
   type Figure,
+  type HeldProof,
   type ProofResult,
 } from "@/lib/evidence";
 import { periodRange } from "@/lib/period-report";
@@ -133,8 +134,6 @@ export async function moneySource(code: string) {
 export type MoneySource = Awaited<ReturnType<typeof moneySource>>;
 
 export type PackKind = "donor" | "audit";
-export type PackFile = ProofFile & { include: boolean; why: string };
-type ProofFile = ProofResult["files"][number];
 
 /**
  * The evidence pack's index for a quarterly or annual report: every figure with a reference, the
@@ -181,17 +180,11 @@ export async function packIndex(
     label = `Annual report ${report.year}`;
   }
   const photoOk = await donorPhotoRule(p.id);
-  const fileFor = (f: ProofFile): PackFile => {
-    if (kind === "audit") return { ...f, include: true, why: "" };
-    if (!isPhotoFile(f))
-      return {
-        ...f,
-        include: false,
-        why: "A document (attendance sheets and forms can name people): held by Roots of Peace, available for verification.",
-      };
-    const ok = photoOk(f.hash);
-    return ok.ok ? { ...f, include: true, why: "" } : { ...f, include: false, why: `Held by Roots of Peace: ${ok.why}` };
-  };
+  // What goes with each result. The audit pack: every file and link, as kept. The donor pack
+  // (lib/evidence donorPackProof): photos that may go to a donor under a plain name, and a count
+  // of everything held. A kept file's name, a link's title and its address never leave the server.
+  const packProof = (x: ProofResult): { files: ProofResult["files"]; held: HeldProof[]; links: ProofResult["links"] } =>
+    kind === "audit" ? { files: x.files, held: [], links: x.links } : { ...donorPackProof(x.files, x.links.length, photoOk), links: [] };
   const units = new Map(figures.map((f) => [f.indicator, f.unit]));
   const entries = figures
     .filter((f) => f.ref)
@@ -209,7 +202,9 @@ export async function packIndex(
             kind === "donor"
               ? ROLE_FOR.accepted
               : x.acceptedBy && personName(x.acceptedBy),
-          files: x.files.map(fileFor),
+          // The reason no file is attached is typed by staff, as the note is.
+          noFile: kind === "donor" && x.noFile ? withoutNames(x.noFile) : x.noFile,
+          ...packProof(x),
         };
       }),
     }));
