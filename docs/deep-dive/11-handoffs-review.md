@@ -118,5 +118,5 @@ in as Rahima Stanikzai and open it from Home.
    per session (ledger, findings 3 and 5).
 
 Checks on the finished branch: **1,129 tests pass** (1,095 before tonight), typecheck clean, lint
-clean. Six commits. Time: about 35 minutes for pass 1 and 25 for pass 2. The 3-hour and 8-hour
+clean. Six commits. Time: about 25 minutes for each pass. The 3-hour and 8-hour
 figures were ceilings, and the work that is left is not the kind more hours of mine would finish.
