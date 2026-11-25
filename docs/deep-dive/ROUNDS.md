@@ -932,3 +932,6 @@ found and left, tests passing.
   record moved to planting.
   `10-field-ledger.md` not changed: it lists the fields of the distribution chain and a bill is
   not in it. A bill's fields are now filled in for the person in two places, both said above.
+- **Item AA. 25 Nov 09:00. IN PROGRESS.** One decided item, not the queue. Tucker's decision, 25
+  Nov 08:53: signing a monthly review keeps that day's figures. A signed review shows what was
+  signed, not today's numbers. No migration: the figures go in storage the app already has.
