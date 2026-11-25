@@ -570,7 +570,7 @@ found and left, tests passing.
   "Approved by Nadia Rahimi" and the farmer's record moved to planting. Not done this round: the
   request sent straight to the server before the check, which rounds 1 and 3 saw refused.
   `10-field-ledger.md` not changed: no field was added, cut or prefilled.
-- **Round 5. 25 Nov 04:17 to 04:53. DONE.** Queue, big item 1 (the donor evidence pack), then more
+- **Round 5. 25 Nov 04:17 to 04:51. DONE.** Queue, big item 1 (the donor evidence pack), then more
   of chain 1. Two big items fixed, three written into the queue, four medium items fixed. The chain
   is not clear.
   Walked on a phone-sized screen with fictional data: `omar` accepted the results. `farida`
