@@ -105,13 +105,10 @@ is used next. Then walk it as each role on a phone. The distribution chain is do
 ## Queue
 
 Big, open:
-1. Training attendance is one record per farmer per session. The right shape is one record per
-   session with the farmers ticked. Changes the form (`kobo/build_field_forms.py`) and what happens
-   when MEL accepts it (`src/server/review.ts`). Design it in the log first; build it only if it
-   needs no migration and the old records keep working. (Chain 4.)
-2. The app makes only the distribution form. Readiness, training and visit forms are hand-built
-   files a small organization cannot get. Same approach as `src/lib/distribution-form.ts`. (Chain 4.)
-3. Weekly update photos keep their date but not their place. The place must stay with people who
+1. The app makes only the distribution form. Readiness, training and visit forms are hand-built
+   files a small organization cannot get. Same approach as `src/lib/distribution-form.ts`. The
+   training form's questions are settled since round 1 (`kobo/build_field_forms.py`). (Chain 4.)
+2. Weekly update photos keep their date but not their place. The place must stay with people who
    may see participant names on every screen that reads weekly items, and survive an edit.
 
 Medium, open:
@@ -120,15 +117,34 @@ Medium, open:
 2. Some days are cut from a UTC timestamp and show tomorrow's date in the evening in Guatemala.
 3. The storekeeper's Home has no row for a distribution sent back by the checker until the list reloads: check.
 4. `Six commits` and other counts in `11-handoffs-review.md` drift. Keep that page's facts true.
+5. In the review queue on a phone, Accept pressed just after "See the photo and where it was
+   recorded" can do nothing: no request is sent and no message shows. Seen twice in round 1, each
+   time on the first open of a new record's photo, and it worked on the next try. The likely cause is
+   the row growing while the photo loads. Hold the photo's space before it loads, then check.
 
-Done: see `11-handoffs-review.md` and `10-field-ledger.md`.
+Done: see `11-handoffs-review.md` and `10-field-ledger.md`. Round 1: training attendance is one record
+per session with its farmers ticked (was big item 1).
 
 ## Needs Tucker
 
 Decisions A to N are in `11-handoffs-review.md`. Rounds add theirs here, lettered from O.
 
 - **The real phone test.** No round can do it. The form "SANDBOX ROP Input distribution" is deployed
-  in his KoboToolbox account. The steps are at the end of `11-handoffs-review.md`.
+  in his KoboToolbox account. The steps are at the end of `11-handoffs-review.md`. Since round 1, also
+  upload `kobo/training_attendance.xlsx` and look at the tick list of farmers on a real phone: does a
+  search box show above the list when the list is long?
+- **O. Dari and Pashto for the new training question.** Rounds write English only. The tick list's
+  label reads "Farmers who attended the classroom and field parts of the session" in English and
+  reuses the word "Farmer" in Dari and Pashto. A native speaker should word it. Setup's one line
+  about the training form also changed in English only.
+- **P. One held farmer stops the whole session record.** The rule from before is kept: a farmer on
+  the waiting list or left out in Farmer selection cannot be moved by a field form. With one record
+  per session, the MEL officer now sees "F-0012 is waitlisted in Farmer selection. Select them first,
+  or send this form back" and nobody on that record is recorded until one of the two is done. The
+  other choice is to record everyone else and skip the held farmer. Say which you want.
+- **Q. A project already collecting with the earlier training form.** I cannot see your KoboToolbox
+  account. If a real project uses the earlier form, replace its file there with the new one. Nothing
+  else is needed: its old records and its link to a target keep counting.
 
 ## Log
 
@@ -139,8 +155,9 @@ found and left, tests passing.
   session with Tucker. Proof reaches checker and approver, where and when read from phone and
   photo, the app makes the distribution form, visitors can add photos, three holes closed.
   1,138 tests pass. Detail in `11-handoffs-review.md`.
-- **Round 1. Started 25 Nov 00:17. IN PROGRESS.** Queue, big item 1 (training attendance, one record
-  per session).
+- **Round 1. 25 Nov 00:17 to 00:44. DONE.** Queue, big item 1 (training attendance, one record
+  per session). One item, finished. No second item: a later round may start 50 minutes after this
+  one began, and the checks take about ten of those. Neither big item left fits in what remained.
   Design, written before building. It needs no migration and the old records keep working, so it is built.
   - *The form.* One record per training session. The trainer picks the session and the date once, ticks
     every farmer who attended (question `farmers`, a tick list from `farmers.csv`), gives the register
@@ -160,3 +177,29 @@ found and left, tests passing.
     women, men and young people are added up from the farmers' own records.
   - *Old records.* A record with one `farmer` and `attended` yes or no reads, flags, accepts and counts
     exactly as before. Both shapes can sit in the same queue.
+  Fixed:
+  - *Training attendance is one record per session.* Built as designed above. The form
+    (`kobo/build_field_forms.py`, `kobo/training_attendance.xlsx`) converts cleanly with the standard
+    XLSForm converter. The queue row, the photo and the accept were run in the browser on a phone-sized
+    screen as omar and as rahima with a fictional record (`sim-kobo.ts training`, new). After the accept
+    the page said "Training recorded for 3 farmers. 1 moved to Prepare the plot. 1 stays at Train: F-0003
+    (contribution not yet paid). 1 already past Train, attendance noted: F-0005." Test:
+    `src/server/__tests__/training-session.db.test.ts`, 8 tests: the queue row and its flags, one accept
+    for many farmers, the audit line naming every farmer, the selection hold, all three counting paths,
+    records from the earlier form beside the new ones, and the records table (one row per ticked farmer).
+  - *A link on either farmer question counts both shapes.* A project that linked the earlier form's
+    `farmer` question to a target keeps counting when it changes to the new form, with no change in
+    Setup. Without this the new records would have counted nothing. Test: same file.
+  - *An absence counted as a farmer trained.* Found while reading the counting code. On a target counted
+    straight from training forms, an accepted record from the earlier form that said "did not attend"
+    added one farmer trained. It no longer does. Test: same file.
+  Found and left:
+  - Accept can do nothing just after the photo is opened (medium 5 in the queue).
+  - Dari and Pashto wording, the held farmer and projects on the earlier form: Needs Tucker O, P, Q.
+  - Women, men and young people on a session's result are filled in only when every counted farmer's
+    record gives them. One farmer with no sex recorded leaves the session's women and men empty for MEL
+    to fill in. A part count would have read as the whole.
+  Checks: 1,146 tests pass (1,138 before), typecheck clean, lint clean. Distribution chain walked on
+  the final code after a fresh local database: a fictional KoboCollect record for F-0007, refused for
+  nadia before the check, checked by rahima, approved by nadia, farmer moved to planting. `10-field-ledger.md`
+  updated: the per-farmer attendance question is cut.
