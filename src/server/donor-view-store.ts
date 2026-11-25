@@ -173,9 +173,18 @@ export type DonorReportView = NonNullable<Awaited<ReturnType<typeof donorReport>
  * and the photos the consent rule allows now. Nobody is named. Staff working notes (results still
  * waiting, figures changed since, the close-out) stay out.
  */
-async function donorSafePeriod(projectId: string, copy: PeriodCopy, donor: DonorRow | null) {
+async function donorSafePeriod(projectId: string, copy: PeriodCopy, donor: DonorRow | null, count: number) {
   const d = copy.data;
   const photoOk = await donorPhotoRule(projectId);
+  // The lines this donor's grant pays, from the report's own figures, as the quarterly report gives
+  // them (decision AF, 25 Nov 2026). Null when nobody has said what this donor funds: the page
+  // then gives the whole agreement alone and names it as that.
+  let grant: { approved: number; spent: number; indirectShown: boolean } | null = null;
+  const funding = donor && d.spend ? fundingFor(await loadDonorFunding(projectId), donor.id, count) : null;
+  if (funding && d.spend?.byLine) {
+    const m = donorMoney(d.spend, funding, await budgetLines(projectId));
+    grant = { ...grantTotal(m), indirectShown: !!m.indirect };
+  }
   return {
     project: { name: d.project.name, donor: donor?.name ?? d.project.donor },
     period: d.period,
@@ -185,7 +194,11 @@ async function donorSafePeriod(projectId: string, copy: PeriodCopy, donor: Donor
     rows: inDonorFormat(d.rows, donor),
     narrative: d.narrative.map((sec) => ({ heading: sec.heading, parts: sec.parts.filter((x) => x.released).map((x) => ({ quarter: x.quarter, text: x.text })) })).filter((sec) => sec.parts.length),
     lessons: d.lessons.map((l) => ({ id: l.id, area: l.area, date: l.date, lesson: l.lesson, action: l.action })),
-    spend: d.spend && { currency: d.spend.currency, budget: d.spend.budget, cumulative: d.spend.cumulative, withOverhead: d.spend.withOverhead },
+    /**
+     * `grant`: what this donor's grant pays, the figures a donor reads first. `budget` and
+     * `cumulative` are the whole agreement, with the cost share and overhead: one line of context.
+     */
+    spend: d.spend && { currency: d.spend.currency, budget: d.spend.budget, cumulative: d.spend.cumulative, withOverhead: d.spend.withOverhead, grant },
     photos: d.photos.filter((ph) => photoOk(ph.hash).ok).map((ph) => ({ hash: ph.hash, caption: ph.caption, activity: ph.activity })),
   };
 }
@@ -195,10 +208,10 @@ export async function donorPeriodReport(code: string, slug: string, user: AppUse
   const p = periodOfSlug(slug);
   if (!p) return null;
   const project = await projectByCode(code);
-  const [{ donor, preview }, list] = await Promise.all([donorFor(code, user, opts.asked), periodReleases(project.id)]);
+  const [{ donor, preview, count }, list] = await Promise.all([donorFor(code, user, opts.asked), periodReleases(project.id)]);
   const release = list.find((r) => r.slug === slug);
   if (!release) return null;
-  const report = await donorSafePeriod(project.id, release.copy, donor);
+  const report = await donorSafePeriod(project.id, release.copy, donor, count);
   if (opts.record && user.kind === "donor") await logAudit(db, project.id, { entity: "share", entityId: project.id, action: "donor_report_viewed", by: user.id, detail: { report: release.label, donor: donor?.name ?? user.org } });
   return { project: { code, name: project.name }, donor: donor && { id: donor.id, name: donor.name, reportFormat: donor.reportFormat }, preview, report };
 }
@@ -209,7 +222,7 @@ export async function releasedPhoto(code: string, quarter: string, hash: string)
   const project = await projectByCode(code);
   if (periodOfSlug(quarter)) {
     const period = (await periodReleases(project.id)).find((r) => r.slug === quarter);
-    return !!period && (await donorSafePeriod(project.id, period.copy, null)).photos.some((p) => p.hash === hash);
+    return !!period && (await donorSafePeriod(project.id, period.copy, null, 0)).photos.some((p) => p.hash === hash);
   }
   const release = (await releases(project.id)).find((r) => r.quarter === quarter);
   if (!release) return false;

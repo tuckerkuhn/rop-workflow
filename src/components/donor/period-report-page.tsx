@@ -171,15 +171,37 @@ export function DonorPeriodReportPage({ slug }: { slug: string }) {
             {r.spend && (
               <section className="mt-10">
                 <SectionHead className="mt-0">{tx("Spending")}</SectionHead>
-                <Figures
-                  className="mt-3"
-                  items={[
-                    { label: tx("Budget"), value: `${r.spend.currency} ${n(r.spend.budget)}` },
-                    { label: tx("Spent"), value: `${r.spend.currency} ${n(r.spend.cumulative)}` },
-                    { label: tx("Of the budget"), value: `${r.spend.budget ? Math.round((r.spend.cumulative / r.spend.budget) * 100) : 0}%` },
-                  ]}
-                />
-                {r.spend.withOverhead && <p className="mt-2 text-xs text-muted">{tx("Overhead included.")}</p>}
+                {r.spend.grant ? (
+                  <>
+                    {/* What this donor's grant pays comes first, as on the quarterly report. */}
+                    <Figures
+                      className="mt-3"
+                      items={[
+                        { label: tx("Your grant, approved"), value: `${r.spend.currency} ${n(r.spend.grant.approved)}` },
+                        { label: tx("Spent"), value: `${r.spend.currency} ${n(r.spend.grant.spent)}` },
+                        { label: tx("Of your grant"), value: `${r.spend.grant.approved ? Math.round((r.spend.grant.spent / r.spend.grant.approved) * 100) : 0}%` },
+                      ]}
+                    />
+                    <p className="mt-2 text-xs text-muted">{r.spend.grant.indirectShown ? tx("The budget lines your grant pays, with indirect costs.") : tx("The budget lines your grant pays. Indirect costs are not shown.")}</p>
+                    <p className="mt-2 text-sm text-muted">
+                      {tx("For context, the whole agreement{parts}: budget {budget}, spent {spent}.", { parts: r.spend.withOverhead ? tx(", with the cost share and overhead") : tx(", with the cost share"), budget: `${r.spend.currency} ${n(r.spend.budget)}`, spent: `${r.spend.currency} ${n(r.spend.cumulative)}` })}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <Figures
+                      className="mt-3"
+                      items={[
+                        { label: tx("Budget, whole agreement"), value: `${r.spend.currency} ${n(r.spend.budget)}` },
+                        { label: tx("Spent"), value: `${r.spend.currency} ${n(r.spend.cumulative)}` },
+                        { label: tx("Of the budget"), value: `${r.spend.budget ? Math.round((r.spend.cumulative / r.spend.budget) * 100) : 0}%` },
+                      ]}
+                    />
+                    <p className="mt-2 text-xs text-muted">
+                      {tx("These are the figures of the whole agreement. Which budget lines your grant pays is not set up yet.")} {r.spend.withOverhead ? tx("Overhead included.") : ""}
+                    </p>
+                  </>
+                )}
               </section>
             )}
 

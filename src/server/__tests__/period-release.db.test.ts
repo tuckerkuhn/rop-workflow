@@ -6,6 +6,8 @@ vi.mock("@/server/preflight", async (orig) => ({ ...(await orig<typeof import("@
 
 import { and, eq } from "drizzle-orm";
 import { db, schema as s } from "@/db";
+import { DONOR_FUNDING_KEY } from "@/lib/donor-funding";
+import { loadProjectState, saveProjectState } from "@/server/project-state";
 import { GET, POST } from "@/app/api/projects/[code]/period-report/route";
 import { userById } from "@/lib/demo";
 import { PERIOD_COPIES } from "@/lib/period-report";
@@ -81,6 +83,26 @@ describe("releasing an annual or final report", { timeout: 60_000 }, () => {
     for (const name of names) expect(text).not.toContain(name);
     expect(await releasedPhoto(code, "final", "f".repeat(64))).toBe(false);
     expect(await releasedPhoto(code, "annual-2026", "f".repeat(64))).toBe(false);
+  });
+
+  // Decision AF, 25 Nov 2026: a donor's annual report gives the lines their grant pays, with the whole agreement as context.
+  it("gives a donor the lines their grant pays first, and the whole agreement as one line of context", async () => {
+    const r = (await donorPeriodReport(code, "annual-2026", elena))!.report;
+    expect(r.spend).toMatchObject({ currency: "USD", budget: 346200, withOverhead: true, grant: { approved: 193200, indirectShown: false } });
+    expect(r.spend!.grant!.spent).toBeGreaterThan(0);
+    expect(r.spend!.grant!.spent).toBeLessThan(r.spend!.cumulative);
+    // The same approved figure her quarterly report gives for her grant.
+    const quarterly = (await donorView(code, elena)).money;
+    if (quarterly) expect(quarterly.total.approved).toBe(193200);
+    // Nobody has said what a donor funds: no grant figure is made up. The whole agreement is given alone.
+    const book = await loadProjectState(projectId, DONOR_FUNDING_KEY, {});
+    await saveProjectState(projectId, DONOR_FUNDING_KEY, {});
+    try {
+      const bare = (await donorPeriodReport(code, "annual-2026", elena))!.report;
+      expect(bare.spend).toMatchObject({ budget: 346200, grant: null });
+    } finally {
+      await saveProjectState(projectId, DONOR_FUNDING_KEY, book);
+    }
   });
 
   it("keeps what the donor received when the project changes afterwards", async () => {
