@@ -745,3 +745,4 @@ found and left, tests passing.
   point, pressed "I have checked this record" and the page said "Checked." nadia approved, the
   page said "Approved by Nadia Rahimi" and the farmer's record moved to planting.
   `10-field-ledger.md` not changed: no field was added, cut or prefilled.
+- **Round 7. 25 Nov 06:16. IN PROGRESS.** The last round of the night. Chain 2, purchase to payment.
