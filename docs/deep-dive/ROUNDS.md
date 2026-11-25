@@ -23,7 +23,7 @@ All pushed to `deep-dive/handoffs-2026-11-24`. Nothing touched main or Supabase.
 - A signed monthly review keeps that day's figures and shows them for good (AA, decided by Tucker).
 
 **Big items still open (0).**
-- A paid purchase or bill did not reach the books. Built on 25 Nov on branch `build/decided-2026-11-25` (AI, decided by Tucker). Not merged: Tucker merges.
+- A paid purchase or bill did not reach the books. Built on 25 Nov (AI, decided by Tucker). Merged to main 25 Nov (`5611940`).
 
 Not walked yet: most of chain 2 and all of chains 3 to 6. More big items may be there.
 
@@ -31,11 +31,11 @@ Not walked yet: most of chain 2 and all of chains 3 to 6. More big items may be 
 - AA. Decided by Tucker 25 Nov: keeps that day's figures. Built.
 - AI. Decided by Tucker 25 Nov: Finance posts a filled-in entry with one click. Bills first. Built, bills and purchases.
 - X, AB and O to AL. Decided 25 Nov: see "Decided". Built: X (Draft watermark), AB, P, U, V, Y, AC, AD, AE, AF, AH.
-- New, found while building: AM to AU under "Needs Tucker".
+- AM to AU. Decided by Tucker 25 Nov: see "Decided". To build: AN, AO, AQ, AR, AS, AT.
 
-**Tests.** 1,293 pass on branch `build/decided-2026-11-25`. Main had 1,252 after the morning's merge (1,215 was counted before it). Typecheck and lint are clean.
+**Tests.** 1,294 pass on main after the merge of `build/decided-2026-11-25`. Typecheck and lint are clean.
 
-**Next action.** Tucker reads the log entry "Decided items" at the foot of this page, then merges `build/decided-2026-11-25` or says what to change. Rounds then go on with chain 2.
+**Next action.** A round builds the AM to AU items marked "Build" under "Decided", one commit each, then goes on with chain 2.
 
 Tucker's instruction, 25 Nov 2026, 00:02: "Keep making rounds until we don't need any big changes
 left and then start clearing out the medium changes. It must be very tight to be useful and to be
@@ -487,6 +487,29 @@ Decisions A to N are in `11-handoffs-review.md`. Rounds add theirs here, lettere
 - **AH. Staff who may not see participant names are told that a photo's place is kept.** The
   farmer's page still says "place recorded" beside the photo for them. They are never sent the
   place. A donor's account is told nothing, as before. Say if staff should be told nothing either.
+
+Decided by Tucker 25 Nov, after the build. Tucker's words in quotes.
+
+- **AM. Keep.** A purchase goes to the books as the full invoice on the day paid. Ask the accountant before real use.
+- **AN. Build.** A general and admin bill (charged to no project) goes to the books too, to an
+  organization-wide general and admin expense account, with Finance's one press as for any bill.
+- **AO. Build.** The approval counts as the second person. "Small orgs need to have some overlap.
+  Who else would do it? You are basically asking for two approvals." Over the limit, the person who
+  recorded a bill or a payment may post it once someone else approved it. A bill they recorded and
+  approved themselves still needs a second person.
+- **AP. Keep.** A filed bill with a wrong amount: reverse its entry and record a new bill.
+- **AQ. Build.** A project's "spent" reads the books as soon as anything is posted on it, with no
+  separate switch. Note for real projects: until their spending to date is loaded into the books,
+  "spent" then shows only what was posted in the app (`09-finance.md`, question 18). Test data only
+  until v1.0, so nothing is lost.
+- **AR. Build.** Farmer photos go into the photo library, where they are checked like every other
+  photo; a photo cleared for donors then reaches a donor's account. "Why on earth would you not
+  allow a donor to see a pic of a project farmer." The consent check stays: a recognisable person
+  needs recorded consent or a check that clears it.
+- **AS. Build.** The rest of a donor's Home (the four figures at the head, the season's steps, the
+  stories) shows released figures only, as "Results against targets" does.
+- **AT. Build.** The stand-in for the KoboCollect approver also sees where a weekly photo was taken.
+- **AU. Keep.** The Draft watermark goes the day after the period ends.
 
 - **AI. A paid purchase or a filed bill and the books.** Procurement and Bills each keep their own
   record of a payment. The books behind the budget's "spent" are written only on "Record a
