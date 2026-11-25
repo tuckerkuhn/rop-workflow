@@ -149,11 +149,12 @@ export function billLineProblem(source: string, budgetLine: string | null, lines
  */
 export function billBooksProblem(b: Bill, nonContract: string): string | null {
   if (b.status !== "filed") return "A bill goes to the books once its voucher is filed.";
-  if (b.source === nonContract || !b.budgetLine) return "This bill is charged to no project budget line, so it does not go to a project's books.";
+  // A general and admin bill goes to the organization's general and admin account (decision AN).
+  if (b.source !== nonContract && !b.budgetLine) return "This bill is charged to no budget line. Record it again with the line it is charged to.";
   return null;
 }
 
 /** The entry Finance is shown for a filed bill, every part of it from the bill. The date is the day its voucher was filed. */
-export function billEntry(b: Bill, lineName: string): FilledEntry {
-  return { payee: b.payee, what: `${b.description} (invoice ${b.invoiceNumber})`, project: b.source, budgetLine: b.budgetLine ?? "", budgetLineName: lineName, date: b.voucher?.at ?? b.invoiceDate, amount: b.amount, currency: b.currency, usd: b.usd };
+export function billEntry(b: Bill, lineName: string, general?: { project: string; name: string }): FilledEntry {
+  return { payee: b.payee, what: `${b.description} (invoice ${b.invoiceNumber})`, project: general?.project ?? b.source, budgetLine: general ? "" : (b.budgetLine ?? ""), budgetLineName: general?.name ?? lineName, date: b.voucher?.at ?? b.invoiceDate, amount: b.amount, currency: b.currency, usd: b.usd };
 }

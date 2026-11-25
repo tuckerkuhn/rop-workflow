@@ -4,7 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db, schema as s } from "@/db";
 import { billBooksProblem, billEntry, billLineProblem, BILL_CATEGORIES, billActionSchema, billFlags, redoneAs, type Bill } from "@/lib/bills";
-import { BILL_SOURCE, booksView, mayPostToBooks, payingAccounts, postingStates, postToBooks } from "@/server/books-posting";
+import { BILL_SOURCE, GENERAL_ADMIN_NAME, booksView, mayPostToBooks, payingAccounts, postingStates, postToBooks } from "@/server/books-posting";
 import { AFN_PER_USD } from "@/lib/demo";
 import { isSharePointUrl } from "@/lib/procurement";
 import { NON_CONTRACT } from "@/lib/timesheet";
@@ -61,7 +61,8 @@ async function view(code: string, u: AppUser) {
   const accounts: Record<string, Awaited<ReturnType<typeof payingAccounts>>> = {};
   for (const b of book.items) {
     if (b.status !== "filed" && !b.postings?.length) continue;
-    if (!billBooksProblem(b, NON_CONTRACT)) accounts[b.source] ??= await payingAccounts(b.source).catch(() => []);
+    // A general and admin bill is paid from the accounts of the organization this page's project belongs to.
+    if (!billBooksProblem(b, NON_CONTRACT)) accounts[b.source] ??= await payingAccounts(b.source === NON_CONTRACT ? code : b.source).catch(() => []);
     books[b.id] = await booksOf(code, b, lines, post, u.id);
   }
   return {
@@ -80,7 +81,8 @@ async function view(code: string, u: AppUser) {
 
 /** A bill and the books: the entry filled in from it, the entry that stands and those reversed. */
 function booksOf(code: string, b: Bill, lines: Record<string, { code: string; description: string }[]>, post: boolean, me: string) {
-  return booksView({ code, entry: billEntry(b, lines[b.source]?.find((l) => l.code === b.budgetLine)?.description ?? ""), postings: b.postings, problem: billBooksProblem(b, NON_CONTRACT), recordedBy: b.raised.by, me, post });
+  const general = b.source === NON_CONTRACT ? { project: code, name: GENERAL_ADMIN_NAME } : undefined;
+  return booksView({ code, entry: billEntry(b, lines[b.source]?.find((l) => l.code === b.budgetLine)?.description ?? "", general), postings: b.postings, problem: billBooksProblem(b, NON_CONTRACT), recordedBy: b.raised.by, me, post });
 }
 export type BillsView = Awaited<ReturnType<typeof view>>;
 
@@ -151,10 +153,12 @@ export async function POST(req: Request, { params }: Ctx) {
       if (problem) return fail(problem, 409);
       const earlier = await postingStates(b.postings);
       // Another budget line only for a corrected entry, after the first was reversed.
-      const line = a.budgetLine && earlier.some((p) => p.reversal?.posted) ? a.budgetLine : b.budgetLine!;
+      const general = b.source === NON_CONTRACT;
+      const line = general ? "" : a.budgetLine && earlier.some((p) => p.reversal?.posted) ? a.budgetLine : b.budgetLine!;
       const e = billEntry(b, "");
       const { posting, replayed } = await postToBooks({
-        project: b.source,
+        project: general ? code : b.source,
+        general,
         budgetLine: line,
         payee: e.payee,
         what: e.what,
@@ -173,7 +177,7 @@ export async function POST(req: Request, { params }: Ctx) {
       const mine = fresh.items.find((x) => x.id === b.id);
       if (mine && !(mine.postings ?? []).some((p) => p.entryId === posting.entryId)) {
         mine.postings = [...(mine.postings ?? []), posting];
-        mine.timeline = [...mine.timeline, { date: sign.at, who: u.name, what: posting.n > 1 ? `Corrected entry posted to the books (line ${posting.budgetLine}, ${posting.date})` : `Posted to the books (line ${posting.budgetLine}, ${posting.date})` }];
+        mine.timeline = [...mine.timeline, { date: sign.at, who: u.name, what: `${posting.n > 1 ? "Corrected entry posted" : "Posted"} to the books (${posting.budgetLine ? `line ${posting.budgetLine}` : "general and admin"}, ${posting.date})` }];
         await saveBills(code, fresh);
         if (!replayed) await logAudit(db, (await projectByCode(code)).id, { entity: "bill", entityId: b.id, action: "bill_posted_to_books", by: u.id, detail: { bill: b.id, entry: posting.entryId, budgetLine: posting.budgetLine, amount: Number(posting.amount), currency: posting.currency, date: posting.date, paidFrom: posting.paidFrom, recordedBy: b.raised.by, posting: posting.n } });
       }
