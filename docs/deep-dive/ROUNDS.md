@@ -511,3 +511,5 @@ found and left, tests passing.
   "Approved by Nadia Rahimi" and the farmer's record moved to planting. Not done this round: the
   request sent straight to the server before the check, which rounds 1 and 3 saw refused.
   `10-field-ledger.md` not changed: no field was added, cut or prefilled.
+- **Round 5. 25 Nov 04:17. IN PROGRESS.** Queue, big item 1 (the donor evidence pack), then the
+  parts of chain 1 not walked.
