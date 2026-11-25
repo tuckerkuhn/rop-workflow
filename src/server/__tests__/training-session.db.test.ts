@@ -202,6 +202,10 @@ describe("one training record per session", { timeout: 90_000 }, () => {
     const [log] = await db.select({ detail: s.auditLog.detail }).from(s.auditLog).where(and(eq(s.auditLog.entityId, id), eq(s.auditLog.action, "accepted")));
     expect(log.detail).toMatchObject({ farmers: [free.id], held: [held.id, left.id] });
 
+    // Home tells the person who may accept the record that two farmers are left open on it.
+    const { loadHome } = await import("@/server/home-store");
+    expect((await loadHome(code, omar)).actions.find((a) => a.key === "held-farmers")?.text).toBe("2 farmers are left open on training records: record each once selected, or leave them out");
+
     // Still held: recording them is refused with the same message.
     expect(await refusal(() => settleHeld(code, id, held.id, "record", omar))).toBe(`${held.id} is waitlisted in Farmer selection. Select them first, or leave them out.`);
     expect((await farmer(held.id)).step).toBe("train");
@@ -222,6 +226,7 @@ describe("one training record per session", { timeout: 90_000 }, () => {
     expect(out.applied).toBe(`${left.id} is left out of this record. Nothing was recorded for them.`);
     expect((await farmer(left.id)).step).toBe("train");
     expect((await queue(id)).held).toBeUndefined();
+    expect((await loadHome(code, omar)).actions.find((a) => a.key === "held-farmers")).toBeUndefined();
     expect((await queue(id)).farmers).toEqual([free.id, held.id]);
     expect(await counted()).toBe(before + 2);
     expect((await db.select().from(s.auditLog).where(and(eq(s.auditLog.entityId, id), eq(s.auditLog.action, "held_farmer_left_out")))).length).toBe(1);
