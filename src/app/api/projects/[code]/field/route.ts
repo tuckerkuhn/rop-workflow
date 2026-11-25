@@ -82,7 +82,7 @@ const bodySchema = z.object({
 export async function PUT(req: Request, { params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
   return handle(async () => {
-    const v = await requireViewer(req, { write: true, allow: (u) => u.fieldAccess === "edit", why: "You can view Field activities but not change them." });
+    const v = await requireViewer(req, { write: true, allow: (u) => u.kind === "employee" && u.fieldAccess === "edit", why: "You can view Field activities but not change them." });
     if (v instanceof NextResponse) return v;
     const body = await readBody(req, bodySchema, "That record is not complete, so it was not saved. Reload the page and try again.");
     const sent: FieldItem[] = body.items ?? [];

@@ -264,6 +264,23 @@ export async function keepHidden(code: string, user: AppUser, items: FieldItem[]
 }
 
 /**
+ * A farmer's record for someone outside Roots of Peace (a donor's account). The signed goods
+ * received note has the farmer's name and signature on it, so its picture is not sent: the entry
+ * stays, to show that a note is on file. No photo carries where it was taken. An account like
+ * this cannot save a farmer, so nothing left out here can be lost by a save.
+ */
+function forOutside(f: Farmer): Farmer {
+  return {
+    ...f,
+    photos: f.photos.map((p) => {
+      const { gps: _gps, src, ...rest } = p;
+      void _gps;
+      return p.signedNote || src === undefined ? rest : { ...rest, src };
+    }),
+  };
+}
+
+/**
  * The project's field records. With `user`, names are added only for people allowed to see them,
  * and for anyone else the name is hidden in free text and in story links (withoutName). Without `user`,
  * the records as stored (no names), for the server's own use.
@@ -279,9 +296,11 @@ export async function loadField(code: string, user?: AppUser) {
     setupOf(project),
   ]);
 
+  const outside = !!user && user.kind !== "employee";
   const items = rows
     .map((r) => ({ ...(r.data as FieldItem), rev: r.updatedAt.toISOString() }) as FieldItem)
     .map((i): FieldItem => (i.kind === "farmer" ? (hiddenFrom ? withoutName({ ...i, name: "" }, hiddenFrom.get(i.id) ?? "") : { ...i, name: names.get(i.id) ?? "" }) : i))
+    .map((i): FieldItem => (outside && i.kind === "farmer" ? forOutside(i) : i))
     .sort((a, b) => a.id.localeCompare(b.id));
   return { items, stock: (stock as Stock | null) ?? null, setup };
 }
