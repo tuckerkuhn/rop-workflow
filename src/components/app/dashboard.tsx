@@ -402,33 +402,31 @@ function PeopleCard() {
   const lv = sum?.leave;
   if (!ts?.hasRecord) return null;
   const tsText: Record<string, string> = { missing: "not submitted yet", pending: "waiting for approval", approved: "approved", returned: "sent back: open it to see why" };
-  const card = (on: boolean) => `flex flex-wrap items-center gap-x-4 gap-y-1 rounded-2xl border px-5 py-3 text-sm transition hover:border-forest ${on ? "border-forest/40 bg-mist/60" : "border-line bg-surface"}`;
+  // Ruled rows (the Ledger template), not cards: what needs doing reads in warm text, the rest muted.
+  const row = "group flex min-h-12 items-center gap-x-4 gap-y-1 border-b border-line px-1 py-2.5 text-sm hover:bg-ochre-soft";
+  const status = (on: boolean) => (on ? "font-semibold text-warn" : "text-muted");
+  const items: { href: string; label: string; text: string; on: boolean }[] = [
+    { href: "/timesheets", label: "Timesheet", text: `${date(`${ts.month}-01`, { month: "long" })}: ${tsText[ts.status] ?? ts.status}`, on: ts.status === "returned" || ts.status === "missing" },
+    ...(lv?.hasRecord ? [{ href: "/leave", label: "Leave", text: [lv.annualDays != null ? `${lv.annualDays} days of annual leave` : "", lv.returned ? `${lv.returned} sent back` : ""].filter(Boolean).join(" · ") || "Ask for leave", on: !!lv.returned }] : []),
+    ...(ex?.hasRecord ? [{ href: "/expenses", label: "Expenses", text: ex.returned ? `${ex.returned} sent back to you` : "Claim expenses with receipts", on: !!ex.returned }] : []),
+    { href: "/people/me", label: t("home.myDetails"), text: t("home.myDetailsHint"), on: false },
+  ];
   // Unfinished first steps are shown at the top of Home (FirstSteps), not here.
   return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-      <Link href="/timesheets" className={card(ts.status === "returned" || ts.status === "missing")}>
-        <span className="font-semibold">Timesheet</span>
-        <span className="text-muted">
-          {date(`${ts.month}-01`, { month: "long" })}: {tsText[ts.status] ?? ts.status}
-        </span>
-      </Link>
-      {lv?.hasRecord && (
-        <Link href="/leave" className={card(!!lv.returned)}>
-          <span className="font-semibold">Leave</span>
-          <span className="text-muted">{[lv.annualDays != null ? `${lv.annualDays} days of annual leave` : "", lv.returned ? `${lv.returned} sent back` : ""].filter(Boolean).join(" · ") || "Ask for leave"}</span>
-        </Link>
-      )}
-      {ex?.hasRecord && (
-        <Link href="/expenses" className={card(!!ex.returned)}>
-          <span className="font-semibold">Expenses</span>
-          <span className="text-muted">{ex.returned ? `${ex.returned} sent back to you` : "Claim expenses with receipts"}</span>
-        </Link>
-      )}
-      <Link href="/people/me" className={card(false)}>
-        <span className="font-semibold">{t("home.myDetails")}</span>
-        <span className="text-muted">{t("home.myDetailsHint")}</span>
-      </Link>
-    </div>
+    <section aria-labelledby="my-own" className="font-ledger">
+      <h2 id="my-own" className="border-s-[6px] border-ochre ps-2.5 text-xl font-bold leading-tight text-ink">
+        Your own
+      </h2>
+      <div className="mt-2 grid border-t border-ink sm:grid-cols-2 sm:gap-x-8">
+        {items.map((x) => (
+          <Link key={x.href} href={x.href} className={row}>
+            <span className="w-28 shrink-0 font-semibold text-ink">{x.label}</span>
+            <span className={`min-w-0 flex-1 ${status(x.on)}`}>{x.text}</span>
+            <span aria-hidden className="text-muted group-hover:text-forest">→</span>
+          </Link>
+        ))}
+      </div>
+    </section>
   );
 }
 
