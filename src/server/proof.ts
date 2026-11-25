@@ -10,7 +10,6 @@ import {
   type ProofResult,
 } from "@/lib/evidence";
 import { periodRange } from "@/lib/period-report";
-import { withoutNames } from "@/lib/personal-text";
 import { personName } from "@/lib/project";
 import { quarterRange, type ResultRecord } from "@/lib/results";
 import { measured } from "@/lib/measure";
@@ -23,6 +22,9 @@ import { projectRules } from "@/server/policy-store";
 import { loadCopies, qprData } from "@/server/qpr-store";
 import { loadResults } from "@/server/results-store";
 import { selfAcceptedResults, selfApprovedIn } from "@/server/solo";
+
+/** What a donor reads in the pack for a result with no file, in place of the reason staff typed. */
+export const DONOR_NO_FILE = "the reason is kept by Roots of Peace";
 
 /**
  * The proof behind reported figures (lib/evidence): the accepted results behind a figure, the
@@ -201,15 +203,17 @@ export async function packIndex(
         return {
           ...x,
           selfApproved: false,
-          note: kind === "donor" ? withoutNames(x.note) : x.note,
+          // The donor pack gives no free-text note (decision AD, 25 Nov 2026): counts and dates
+          // only. A rule that takes names out of typed words reads English only and misses some.
+          note: kind === "donor" ? "" : x.note,
           recordedBy:
             kind === "donor" ? ROLE_FOR.recorded : personName(x.recordedBy),
           acceptedBy:
             kind === "donor"
               ? ROLE_FOR.accepted
               : x.acceptedBy && personName(x.acceptedBy),
-          // The reason no file is attached is typed by staff, as the note is.
-          noFile: kind === "donor" && x.noFile ? withoutNames(x.noFile) : x.noFile,
+          // The reason no file is attached is typed by staff, as the note is: a donor is told that a reason is kept, not its words.
+          noFile: kind === "donor" && x.noFile ? DONOR_NO_FILE : x.noFile,
           ...packProof(x),
         };
       }),

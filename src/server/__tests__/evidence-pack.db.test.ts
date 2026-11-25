@@ -64,6 +64,15 @@ describe("the evidence pack's index", { timeout: 60_000 }, () => {
       expect(r.held.find((h) => h.what === "1 photo")!.why).toMatch(/^Held by Roots of Peace: /);
       for (const h of r.held) expect(h.why).toMatch(/^Held by Roots of Peace/);
     }
+    // Decision AD, 25 Nov 2026: the donor pack gives no free-text note. Counts and dates only.
+    const all = idx.entries.flatMap((e) => e.results);
+    expect(all.length).toBeGreaterThan(0);
+    for (const r of all) {
+      expect(r.note).toBe("");
+      expect(r.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(typeof r.value).toBe("number");
+      if (r.noFile) expect(r.noFile).toBe("the reason is kept by Roots of Peace");
+    }
     expect(names.length).toBeGreaterThan(4);
     const sent = JSON.stringify(idx);
     for (const name of names) expect(sent).not.toContain(name);
@@ -77,6 +86,8 @@ describe("the evidence pack's index", { timeout: 60_000 }, () => {
     const idx = await packIndex(code, { kind: "qpr", quarter }, "audit");
     const mine = idx.entries.flatMap((e) => e.results).find((r) => r.id === id)!;
     expect(mine.held).toEqual([]);
+    // An auditor still reads what was done, as staff wrote it.
+    expect(idx.entries.flatMap((e) => e.results).some((r) => r.note.length > 0)).toBe(true);
     expect(mine.files.map((f) => f.name)).toEqual(expect.arrayContaining(["Ahmad Karimi at his plot.jpg", "Gul Bibi signing.jpg", "Attendance Ahmad Karimi.xlsx"]));
     expect(mine.links).toEqual([link]);
   });
