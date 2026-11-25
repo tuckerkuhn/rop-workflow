@@ -381,3 +381,4 @@ found and left, tests passing.
   said "Step 1 of 2: check the KoboCollect record", Approve could not be pressed, and the request
   itself was refused.
   `10-field-ledger.md` updated: the place on a weekly photo is read from the photo.
+- **Round 4. 25 Nov 03:17. IN PROGRESS.** No big item in the queue, so chain 1 is walked: results to report.
