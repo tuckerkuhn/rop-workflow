@@ -1,5 +1,7 @@
 "use client";
 
+import { DraftWatermark } from "@/components/share/draft-watermark";
+import { periodNotEnded } from "@/lib/early-draft";
 import { plainError } from "@/lib/plain-error";
 import { longDate } from "@/lib/weekly";
 import { askConfirm } from "@/components/app/dialogs";
@@ -329,7 +331,7 @@ export function QprPage() {
                   title={!blockN && !pfFresh ? (pfFailed ? t("pf.notLoaded") : t("pf.rechecking")) : undefined}
                   onClick={() =>
                     void askConfirm({
-                      message: `Mark the ${qLabel(quarter)} report final and release it to the donor? ${underWay ? `This period has not ended: it ends on ${longDate(to)}. A result accepted after today will not be in the report the donor receives. ` : ""}It is locked for good: this copy is what the donor receives. It appears in the donor's Reports tab, and every share link for this quarter opens it from now on. No email is sent: tell the donor yourself. To see what would go out first, use "Save a preview copy" instead.`,
+                      message: `Mark the ${qLabel(quarter)} report final and release it to the donor? ${underWay ? `This period has not ended: it ends on ${longDate(to)}. A result accepted after today will not be in the report the donor receives. Until that day the report carries a Draft watermark on its page, in its Word file and on a donor's link. ` : ""}It is locked for good: this copy is what the donor receives. It appears in the donor's Reports tab, and every share link for this quarter opens it from now on. No email is sent: tell the donor yourself. To see what would go out first, use "Save a preview copy" instead.`,
                       confirm: "Mark final and release",
                     }).then((ok) => (ok ? quiet(act({ action: "release" }, "Released: the report is final, it is in the donor's Reports tab, and it can no longer be changed.")) : undefined))
                   }
@@ -360,6 +362,8 @@ export function QprPage() {
                 <p className="mt-1 text-muted">{t("rp.cannot.ask")}</p>
               </div>
             )}
+            {/* Released, or a copy of what would go out, before the period has ended: marked Draft until it has. */}
+            {(v.frozen || v.saved.released) && periodNotEnded(to, realToday) && <DraftWatermark to={to} />}
             {v.frozen && (
               <section className="mt-4 border-y border-ink px-3 py-3 text-sm">
                 <p className="font-semibold">

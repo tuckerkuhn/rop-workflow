@@ -1,5 +1,7 @@
 "use client";
 
+import { DraftWatermark } from "@/components/share/draft-watermark";
+import { periodNotEnded } from "@/lib/early-draft";
 import Link from "next/link";
 import { longDate } from "@/lib/weekly";
 import { quarterRange } from "@/lib/results";
@@ -72,7 +74,7 @@ export function PeriodReportPage() {
   const underWay = period.kind === "annual" && !!v && new Date().toISOString().slice(0, 10) <= v.range.to;
   const release = async () => {
     const ok = await askConfirm({
-      message: `Mark the ${periodLabel(period).toLowerCase()} final and release it to the donor? ${underWay && v ? `This period has not ended: it ends on ${longDate(v.range.to)}. A result accepted after today will not be in the report the donor receives. ` : ""}It is locked for good: this copy is what the donor receives. It appears in the donor's Reports tab. No email is sent: tell the donor yourself.`,
+      message: `Mark the ${periodLabel(period).toLowerCase()} final and release it to the donor? ${underWay && v ? `This period has not ended: it ends on ${longDate(v.range.to)}. A result accepted after today will not be in the report the donor receives. Until that day the report carries a Draft watermark on its page, in its Word file and on a donor's link. ` : ""}It is locked for good: this copy is what the donor receives. It appears in the donor's Reports tab. No email is sent: tell the donor yourself.`,
       confirm: "Mark final and release",
     });
     if (!ok) return;
@@ -190,6 +192,8 @@ export function PeriodReportPage() {
             )}
           </div>
         )}
+        {/* Released before its period has ended: marked Draft until it has. */}
+        {v?.released && periodNotEnded(v.range.to) && <DraftWatermark to={v.range.to} />}
         {v?.released && (
           <p className="mt-3 border-y border-ink px-3 py-3 text-sm font-semibold">This is the report as released on {longDate(v.released.at)}: what the donor received. It stays as it was.</p>
         )}

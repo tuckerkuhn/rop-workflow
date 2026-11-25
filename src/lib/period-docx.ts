@@ -1,6 +1,7 @@
-import { AlignmentType, BorderStyle, Document, ExternalHyperlink, HeadingLevel, Packer, PageBreak, Paragraph, ShadingType, Table, TableCell, TableRow, TextRun, WidthType } from "docx";
+import { AlignmentType, BorderStyle, Document, ExternalHyperlink, HeadingLevel, Packer, PageBreak, Paragraph, ShadingType, Table, TableCell, TableRow, TextRun, WidthType, Header } from "docx";
 import { periodFigures, refOf, withRef } from "@/lib/evidence";
 import { draftMark } from "@/lib/preflight";
+import { EARLY_DRAFT_WORD, earlyDraftLine, periodNotEnded } from "@/lib/early-draft";
 import { periodLabel } from "@/lib/period-report";
 import { YOUTH } from "@/lib/results";
 import type { PeriodReportView } from "@/server/period-report-store";
@@ -26,7 +27,9 @@ const cell = (text: string, o: { bold?: boolean; fill?: string; link?: string } 
     children: [new Paragraph({ children: [o.link ? new ExternalHyperlink({ link: o.link, children: [new TextRun({ text, style: "Hyperlink", font: FONT, size: 18 })] }) : new TextRun({ text, bold: o.bold, font: FONT, size: 18 })] })],
   });
 
-export async function periodDocx(v: PeriodReportView, origin: string, draft = 0): Promise<Blob> {
+export async function periodDocx(v: PeriodReportView, origin: string, draft = 0, today?: string): Promise<Blob> {
+  // The period has not ended: "Draft" at the head of every page and the reason on the cover (lib/early-draft).
+  const early = periodNotEnded(v.range.to, today);
   const annual = v.period.kind === "annual";
   const title = periodLabel(v.period).toUpperCase();
   // Each figure carries its reference in the evidence pack (lib/evidence); a figure has one when accepted results stand behind it.
@@ -71,6 +74,7 @@ export async function periodDocx(v: PeriodReportView, origin: string, draft = 0)
     : null;
   const met = v.rows.filter((r) => r.verdict === "met").length;
   const children = [
+    ...(early ? [p(earlyDraftLine(v.range.to), { bold: true, size: 24, color: "AA3333" })] : []),
     ...(draft ? [p(draftMark(draft), { bold: true, size: 24, color: "AA3333" })] : []),
     p(v.project.name, { size: 28, color: GREEN }),
     p(title, { bold: true, size: 44 }),
@@ -86,6 +90,6 @@ export async function periodDocx(v: PeriodReportView, origin: string, draft = 0)
     ...(v.lessons.length ? v.lessons.flatMap((l) => [p(`${l.area}, ${l.date}`, { bold: true }), p(`What happened: ${l.happened}`), p(`Lesson: ${l.lesson}`), p(`What we do differently: ${l.action}${l.applied ? ` (applied ${l.applied.on}: ${l.applied.how})` : ""}`)]) : [p("No lessons recorded for the period.", { italics: true })]),
     ...(v.spend ? [h("Spending"), p(`Budget ${v.spend.currency} ${n(v.spend.budget)}; spent to ${v.range.to < new Date().toISOString().slice(0, 10) ? v.range.to : "date"} ${v.spend.currency} ${n(v.spend.cumulative)} (${v.spend.budget ? Math.round((v.spend.cumulative / v.spend.budget) * 100) : 0}%)${v.spend.withOverhead ? ", overhead included" : ""}.`)] : []),
   ];
-  const doc = new Document({ styles: { default: { document: { run: { font: FONT, size: 20 } } } }, sections: [{ children }] });
+  const doc = new Document({ styles: { default: { document: { run: { font: FONT, size: 20 } } } }, sections: [{ ...(early ? { headers: { default: new Header({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: EARLY_DRAFT_WORD.toUpperCase(), bold: true, size: 72, color: "D9B3B3", font: FONT })] })] }) } } : {}), children }] });
   return Packer.toBlob(doc);
 }

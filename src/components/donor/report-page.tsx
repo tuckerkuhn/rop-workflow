@@ -1,6 +1,8 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element */
+import { DraftWatermark } from "@/components/share/draft-watermark";
+import { periodNotEnded } from "@/lib/early-draft";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -97,6 +99,7 @@ export function DonorReportPage({ quarter }: { quarter: string }) {
                 </a>
               </p>
             )}
+            {periodNotEnded(data.report.period.to) && <DraftWatermark to={data.report.period.to} />}
             <ReportBody v={data.report} photo={photo} />
             <MoneySection money={data.money} note={data.moneyNote} preview={data.preview} />
             <p className="mt-12 border-t border-line pt-4 text-xs text-muted">

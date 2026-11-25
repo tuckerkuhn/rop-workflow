@@ -1,6 +1,8 @@
 /* eslint-disable @next/next/no-img-element */
 import type { Metadata } from "next";
 import { ReportBody, longDay, type PhotoSlot } from "@/components/share/report-body";
+import { DraftWatermark } from "@/components/share/draft-watermark";
+import { periodNotEnded } from "@/lib/early-draft";
 import { sharedReport } from "@/server/share-store";
 
 /**
@@ -45,6 +47,9 @@ export default async function Page({ params }: { params: Promise<{ code: string;
       <p className="mt-2 text-sm text-muted">
         {v.status === "released" ? `Released by Roots of Peace on ${day(v.asOf)}.` : `A draft shared for review, as it stood on ${day(v.asOf)}.`} Each figure opens the records behind it. This link works until {day(v.expires)}.
       </p>
+
+      {/* Sent before its period ended: nobody should take it for the final report. */}
+      {periodNotEnded(v.period.to) && <DraftWatermark to={v.period.to} />}
 
       <ReportBody v={v} photo={draw} />
       <p className="mt-12 border-t border-line pt-4 text-xs text-muted">Shared by Roots of Peace. Records show district and province only; attendance sheets and other documents with personal details are not opened from this page.</p>
