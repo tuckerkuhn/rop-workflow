@@ -148,6 +148,28 @@ worth more than a half-built large one.
   `src/lib/period-report.ts`). Its own range is still the calendar year.
 - A report's rows are judged as "period over" unless told otherwise (`buildRows` in
   `src/lib/qpr.ts`, last argument). `src/server/qpr-store.ts` tells it from today's date.
+- Chain 2. The purchases are at `/work?source=procurement`. One purchase opens with
+  `/work?source=procurement&open=PR-2027-009&project=A-2027`. `/work/procurements` is only the
+  board of large purchases. More demo people: `hamid` procurement manager, `farid` and `laila`
+  budget holders, `sarah` Home Office compliance, `omid` a second Finance person.
+- The demo holds a purchase at most steps (`seedProcurements` in `src/lib/procurement.ts`). Its
+  dates are written for March 2027 and moved to today when the database is made. A change to it
+  shows only on a database made new, or after "Reset sample data" on the purchases page.
+- A step's checks, who owns it and whether it can be sent back are in `steps` in
+  `src/lib/procurement.ts`. What the server refuses is in `src/server/procurement-guard.ts`.
+- Bills: the rules are in `src/lib/bills.ts`. A bill sent back is never changed. The corrected
+  bill is a new one and `redoneAs` finds it by the same document or the same payee and invoice
+  number. Who may record, approve and prepare the voucher is `billRoles` in
+  `src/server/bills-store.ts`. Home's two rows for bills are in `homeActions`
+  (`src/server/home-store.ts`).
+- A paid purchase and a filed bill do not post to the books (`09-finance.md`, "What posts
+  automatically"). Do not build it: Needs Tucker AI.
+- In a test `karim` has no leadership view of Home: the people who hold roles come from a table
+  the test database does not fill. Use `marcus` for a row only leadership sees.
+- `act.py`: `'btn:Open'` presses "Open AI assistant". On a purchase press `'btn:Review document'`
+  and then `"click:It’s correct"` (with the curled apostrophe).
+- The app also started itself again twice in round 7, each time just after a file it uses was
+  changed. The next page then fails once: wait six seconds and run the script again.
 
 ## Chains to walk, in order
 
@@ -163,6 +185,14 @@ is used next. Then walk it as each role on a phone. The distribution chain is do
    final report for the whole project, the donor's annual report by a share link.
 2. **Purchase to payment.** Procurement calendar, purchase request, quotations, approval, goods
    received note, bill, payment, budget line. As the requester, `zahra`, `karim`, `yusuf`.
+   *Round 7 walked part of it.* Walked: a request from "Submit the requisition" to "Choose how to
+   buy", the pages for "Receive and inspect" and "Check the payment", a bill from recording to
+   approval with a send-back, "Record a payment" and the procurement calendar. Not walked: the
+   request for quotation, quotations, screening, the contract, signing the received note, the
+   payment form, the second Finance check, approving the payment, the three voucher steps,
+   "Record the payment", close out, a bill's voucher, month close, approving the calendar, "Ask
+   for something not on the calendar", the supplier register and the procurement register.
+   The chain is not clear. One big item waits for Tucker (Needs Tucker AI).
 3. **Just won to ready.** Project `GT-2027`: from the won proposal to a project that can record its
    first distribution. As `nadia` and as someone who has never run a grant. Count every field asked.
 4. **Readiness, training and farm visits.** From the phone to the farmer's record and the target.
@@ -182,11 +212,11 @@ Big, open:
    stores the name and the time only (`readReview` in `src/server/monthly-review-store.ts`), so the
    signed October review will show December's figures in January. Keeping the figures at sign-off
    is the fix. It changes what sign-off means.
-2. **A bill sent back cannot be put right.** Found in round 7, chain 2. `yusuf` recorded a
+2. *Done in round 7.* **A bill sent back cannot be put right.** Found in round 7, chain 2. `yusuf` recorded a
    fictional internet bill and `karim` sent it back with a reason. `yusuf` then reads "Sent back"
    and the reason at the end of a line of small print. There is nothing to press. His Home says
    nothing. To go on he must type the whole bill again and attach the document again.
-3. **A bill waiting for approval is on nobody's Home.** Found in round 7. With the bill waiting,
+3. *Done in round 7.* **A bill waiting for approval is on nobody's Home.** Found in round 7. With the bill waiting,
    `karim`'s Home said "3 approvals are waiting on you" and listed three other things. Only a
    person who opens "Bills paid directly" by himself sees it. Approved bills do reach Finance's Home.
 4. **A paid purchase or a filed bill does not reach the books.** *Waits for Tucker (Needs Tucker
@@ -248,22 +278,31 @@ Medium, open:
 18. On the donor's reports list on 25 November, with the October to December report released, the
     line reads "Next report: Monthly report: January, due 8 February 2027". Not looked into. It
     may be right, if the quarterly report stands for the monthly reports of its months.
-19. "Record a bill" opened on a project starts with the funding source "General and admin
+19. Done in round 7. "Record a bill" opened on a project starts with the funding source "General and admin
     (non-contract)". A bill recorded without changing it is charged to no project and no budget line.
-20. Home asks the country director to "Release the 2026 Q3 report in the app". The project began on
+20. Done in round 7. Home asks the country director to "Release the 2026 Q3 report in the app". The project began on
     1 October 2026. Round 6 fixed the same thing on the annual report (`quartersDue`).
 21. The demo's books and the demo's purchases disagree. The books hold "Seed, first lot: Kabul
     Seed Company, USD 4,850.00". The purchase PR-2027-006, "Certified maize seed (OPV), first
     lot", is $3,100. Sample data (`src/server/demo-ledger.ts`, `seedProcurements`).
 22. A purchase names one person for a step that several people may do. After `karim` approved a
     request it said "Waiting on Hamid Wardak (Procurement officer)". Hamid is the procurement
-    manager, and `zahra`, the officer, had it on her list and did it. `zahra` was also told a
+    manager and `zahra`, the officer, had it on her list and did it. `zahra` was also told a
     request was "with Farid Sultani" while it sat on `nadia`'s list.
 23. Dates in the procurement pages are not in words: "Needed by 2026-12-16", "~11-26" under
     "Coming to you", "2026-11-21 · Farid Sultani" in the history. A bill reads "Invoice KN-1101,
     2026-11-25". Part of medium 1.
-24. Small things seen on a purchase: "1 documents", and the demo's requisition gives its funding
+24. Small things seen on a purchase: "1 documents" and the demo's requisition gives its funding
     source as "Award A-2027 (fictional) · body rules apply".
+25. Done in round 7. The demo's purchase at "Check the payment" (PR-2027-009) had an invoice with
+    no number and no date. Finance read "Enter the invoice as received" and cannot enter one at
+    that step: procurement enters it at the step before and a real record cannot pass that step
+    without it. The only thing to press was "Record corrected invoice or credit note".
+26. The demo's two closed purchases (PR-2027-006 and PR-2027-007) hold the same kind of invoice,
+    with no number and no date. Not seen on a screen. Sample data.
+27. At "Check the payment" the button "Record corrected invoice or credit note" ticks the check
+    and asks for nothing. Read in the code only (`resolve` on the check `match` in
+    `src/lib/procurement.ts`). Walk it before changing it.
 
 Done: see `11-handoffs-review.md` and `10-field-ledger.md`. Round 1: training attendance is one record
 per session with its farmers ticked (was big item 1). Round 2: the app makes the readiness, training
@@ -281,6 +320,11 @@ Round 6: the place of a farmer's photo is not sent to staff who may not see part
 walk), a report under way and Progress give the same word for a target (was medium 4), a donor's
 annual report names its figures on a phone, the annual report names quarters with no saved report
 (medium 12), a change to the plan asks before it is applied (medium 13).
+Round 7: a bill sent back can be corrected and recorded again with nothing typed twice (was big
+item 2), Home tells the approver a bill waits and tells Finance a bill came back (was big item 3),
+a bill recorded on a project's page starts as that project's and the form says what is still
+needed (medium 19), Home asks for a report's release only for a quarter the project ran in
+(medium 20), the demo's payment check has its invoice (medium 25).
 
 ## Needs Tucker
 
@@ -382,6 +426,21 @@ Decisions A to N are in `11-handoffs-review.md`. Rounds add theirs here, lettere
 - **AH. Staff who may not see participant names are told that a photo's place is kept.** The
   farmer's page still says "place recorded" beside the photo for them. They are never sent the
   place. A donor's account is told nothing, as before. Say if staff should be told nothing either.
+
+- **AI. A paid purchase or a filed bill and the books.** Procurement and Bills each keep their own
+  record of a payment. The books behind the budget's "spent" are written only on "Record a
+  payment", so Finance types the same payment a second time and attaches the receipt a second
+  time. The other choice: recording a purchase as paid, or filing a bill's voucher, writes the
+  payment to the books by itself. It is not built. It is a new feature and it decides which
+  record the budget trusts. `09-finance.md` asks the same thing as its question 20. Say if you want it.
+- **AJ. Where a new bill starts.** On a project's page "Record a bill" started as "General and
+  admin (non-contract)", with no project and no budget line. From round 7 it starts as the project
+  on the screen and asks for a budget line. General and admin is one choice away. Say if most
+  bills are general and admin and should start there.
+- **AK. A bill sent back keeps its number and the corrected bill gets a new one.** BL-001 stays
+  on the list as "Sent back" with the reason and the line "It was corrected and recorded again
+  as BL-002". The other choice: the same bill is changed and sent again under its own number. It
+  is not built, because it changes a bill after an approver has ruled on it.
 
 ## Log
 
@@ -773,4 +832,67 @@ found and left, tests passing.
   point, pressed "I have checked this record" and the page said "Checked." nadia approved, the
   page said "Approved by Nadia Rahimi" and the farmer's record moved to planting.
   `10-field-ledger.md` not changed: no field was added, cut or prefilled.
-- **Round 7. 25 Nov 06:16. IN PROGRESS.** The last round of the night. Chain 2, purchase to payment.
+- **Round 7. 25 Nov 06:16 to 06:58. DONE.** The last round of the night. Chain 2, purchase to
+  payment, walked in part. Two big items found and fixed, a third written for Tucker (AI), three
+  medium items fixed. The chain is not clear: what was not walked is listed under chain 2.
+  Walked on a phone-sized screen with fictional data: `nadia` filled in and submitted the request
+  for soil test kits (PR-2027-016), `karim` approved it and `zahra` chose the request for
+  quotation. `nadia` opened "Receive and inspect" and `yusuf` opened "Check the payment". `yusuf`
+  recorded a bill, `karim` sent it back, `yusuf` recorded it again and `karim` approved it.
+  `zahra` opened the procurement calendar and `yusuf` opened "Record a payment". The server's
+  rules for a purchase (`procurement-guard.ts`) and for a bill were read in full: nobody approves
+  their own request or their own bill and no way round either was found. The findings were
+  written into the queue before the fixes, except the demo's invoice (medium 25), seen and fixed after.
+  Decisions made alone, to check: a bill sent back is never changed and the corrected bill is a
+  new one with a new number (Needs Tucker AK). A new bill starts as the project on the screen
+  (Needs Tucker AJ). The approver's Home row for bills is marked "Now", as a purchase approval is.
+  A paid purchase does not post to the books and no round builds it (Needs Tucker AI).
+  Fixed:
+  - *A bill sent back can be corrected and recorded again* (big, found in the walk). The person
+    who records bills read "Sent back" and nothing else and had to type the bill again. The bill
+    now says "Karim Ahmadi sent this bill back on 25 November 2026: ..." and what happens next,
+    with a button, "Correct it and record it again". The form opens with everything that was
+    recorded and the same document. Recording it makes a new bill and the first one says "It was
+    corrected and recorded again as BL-002". The new bill carries no warning of a second payment.
+    A bill that was not sent back and is recorded twice still does. People who cannot record
+    bills read "Finance corrects it and records it again."
+    Run in the browser as `yusuf` and `karim`: sent back, corrected (kind, project and budget
+    line changed), recorded again, approved. The form's heading and the reason were seen on the
+    phone screen, clear of the top bar.
+  - *Home tells the people a bill waits on* (big, found in the walk). The approver's Home now has
+    "Approve the bill from Kabul Net (fictional)" and Finance's has "Correct the bill from Kabul
+    Net (fictional) that was sent back and record it again". Each opens Bills. The person who
+    recorded a bill is not asked to approve it. Run in the browser as `karim` and `yusuf`: both
+    rows seen and pressed.
+    Test for both: `src/server/__tests__/bill-sent-back.db.test.ts`, 8 tests, through the bills
+    request and Home: the approver's row, the row for a bill sent back, who may record again,
+    the new bill with no warning and the first one closed, the warning kept for a true second
+    recording and the rule that finds the bill that replaced one sent back.
+  - *A bill recorded on a project's page starts as that project's* (medium 19) and under Record
+    the form says "Still needed: ..." until it can be pressed. Record waits for the budget line
+    where the project has lines. Run in the browser as `yusuf`: the form opened on A-2027, said
+    "Still needed: the budget line" and the bill was saved on line 5.2. No test: one form.
+  - *Home asks for a report's release only for a quarter the project ran in* (medium 20). Test:
+    one added in `src/server/__tests__/annual-first-year.db.test.ts`. It fails on the code as it
+    was. Seen in the browser as `karim` on a database made new: the row is gone.
+  - *The demo's payment check has its invoice* (medium 25). Seen in the browser as `yusuf` on a
+    database made new: "Invoice FT-0118 (fictional) of 2026-11-18" and the match is ticked by the
+    app. The out-of-date screening and the open issue still hold the step, as the demo means them to.
+  Found and left:
+  - A paid purchase or a filed bill does not reach the books: big 4, Needs Tucker AI.
+  - Medium 21 to 24, 26 and 27 in the queue. Needs Tucker AI, AJ, AK.
+  - Most of chain 2 is not walked: the list is under chain 2. Chains 3 to 6 are not started.
+  - Not seen in the browser: the line for people who cannot record bills and the Home rows for
+    more than one bill. Typecheck and the test only.
+  Checks: 1,204 tests pass (1,195 before), typecheck clean, lint clean, on the final code (only
+  this page changed after). The app started itself again twice during the walk. Distribution
+  chain walked on the final code after the tests, on a local database made new for it: a
+  fictional KoboCollect record for F-0007. For nadia the page said "Step 1 of 2: check the
+  KoboCollect record" and neither Approve nor Send back could be pressed. The request sent
+  straight to the server was refused: "Not approved yet: this record came from KoboCollect, and
+  Rahima Stanikzai or Omar Sadiq checks KoboCollect data on this project before it is approved."
+  rahima saw the signed note and no point, pressed "I have checked this record" and the page
+  said "Checked." nadia approved, the page said "Approved by Nadia Rahimi" and the farmer's
+  record moved to planting.
+  `10-field-ledger.md` not changed: it lists the fields of the distribution chain and a bill is
+  not in it. A bill's fields are now filled in for the person in two places, both said above.
