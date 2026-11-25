@@ -5,7 +5,9 @@ import { projectRules } from "@/server/policy-store";
 import type { OverspendReason } from "@/lib/overspend";
 import { overspentLines, withLineReasons } from "@/lib/qpr";
 import { loadLineReasons } from "@/server/overspend-store";
-import { quarterOf, totalsOf } from "@/lib/results";
+import { quarterOf } from "@/lib/results";
+import { measured, RESULT_SOURCES } from "@/lib/measure";
+import { measuresFor } from "@/server/measures";
 import { loadActuals } from "@/server/actuals-store";
 import { ledgerSpent } from "@/server/ledger-spent";
 import { projectByCode } from "@/server/field-store";
@@ -30,6 +32,7 @@ async function readBudgetView(code: string, mayWrite: boolean): Promise<BudgetVi
   const resultsLater = early(loadResults(code));
   const rulesLater = early(projectRules(code));
   const ledgerLater = early(ledgerSpent(project.id));
+  const measureLater = early(measuresFor(project.id));
   const lines = await db.select().from(s.budgetLines).where(eq(s.budgetLines.projectId, project.id)).orderBy(asc(s.budgetLines.sort));
   const actuals = await actualsLater;
   const startMonth = (project.startDate ?? "0000-00").slice(0, 7);
@@ -37,6 +40,7 @@ async function readBudgetView(code: string, mayWrite: boolean): Promise<BudgetVi
   const current = [...actuals.imports].reverse().find((i) => (i.months.at(-1) ?? "") >= startMonth) ?? null;
   const indicators = await indicatorsLater;
   const results = await resultsLater;
+  const measureOf = await measureLater;
   const to = current?.months.at(-1) ? `${current.months.at(-1)}-31` : new Date().toISOString().slice(0, 10);
   const from = project.startDate ?? "0000-01-01";
   const priorYear = String(Number(from.slice(0, 4)) - 1);
@@ -54,14 +58,15 @@ async function readBudgetView(code: string, mayWrite: boolean): Promise<BudgetVi
     start: project.startDate,
     end: project.endDate,
     results: indicators
-      .filter((i) => i.source === "results" && i.budgetRef)
+      .filter((i) => RESULT_SOURCES.includes(i.source) && i.budgetRef)
       .map((i) => ({
         indicator: i.code,
         donorCode: i.donorCode ?? i.code,
         name: i.name,
         unit: i.unit,
         budgetRef: i.budgetRef,
-        achieved: totalsOf(results.filter((r) => r.indicator === i.code), from, to).value,
+        // The same figure as the reports (lib/measure): a sum, or a survey's figure.
+        achieved: measured({ baseline: i.baseline === null ? null : Number(i.baseline), unit: i.unit }, results.filter((r) => r.indicator === i.code), measureOf(i), from, to).value,
         // This phase's target: the whole agreement's less what was due before the phase began.
         target: Number(i.target) - Number((i.forecast as Record<string, number>)?.[priorYear] ?? 0),
       })),

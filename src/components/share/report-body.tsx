@@ -29,7 +29,7 @@ export function ReportBody({ v, photo }: { v: Pick<DonorSafeReport, "rows" | "se
                     {r.name} <span className="text-muted">({r.unit})</span>
                   </p>
                   <p className="text-sm tabular-nums sm:text-end">
-                    <span className="font-semibold">{num(r.quarter)}</span> this quarter · {num(r.year)} of {num(r.yearTarget)} this year · {r.status}
+                    <span className="font-semibold">{r.note?.quarter ?? num(r.quarter)}</span> this quarter · {r.note?.year ? `${r.note.year} · target ${num(r.yearTarget)}` : `${num(r.year)} of ${num(r.yearTarget)}`} this year · {r.status}
                   </p>
                 </div>
                 <p className="mt-1 text-xs font-semibold text-forest">{r.records.length ? `${r.records.length} ${r.records.length === 1 ? "record" : "records"} behind this figure ▾` : "No records this quarter"}</p>

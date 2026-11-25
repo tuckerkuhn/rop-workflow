@@ -101,7 +101,7 @@ function Node({ node, canEdit, save, year }: { node: TreeNode; canEdit: boolean;
                   {i.name}
                 </Link>
                 <span className="tabular-nums text-xs">
-                  {n(i.year)} of {n(i.yearTarget)} {i.unit} in {year}
+                  {i.note ? <span className="text-clay">{i.note}</span> : n(i.year)} of {n(i.yearTarget)} {i.unit} in {year}
                 </span>
                 <Pill tone={st.tone}>{st.text}</Pill>
               </li>

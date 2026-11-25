@@ -368,16 +368,23 @@ function indicatorCells(r: Row, v: PeriodReportView, project: string, user: stri
         <span className="font-mono text-xs text-muted">{r.donorCode}</span> {r.name} <span className="text-xs text-muted">({r.unit})</span>
       </>
     ),
-    achieved: (
+    // A survey target with no figure to give (lib/measure) says why in its place.
+    achieved: r.note?.achieved ? (
+      <span className="font-sans text-xs font-semibold text-clay">{r.note.achieved}</span>
+    ) : (
       <ProofNumber project={project} user={user} indicator={r.code} from={v.range.from} to={v.range.to} value={r.achieved} records={r.records} className="font-semibold tabular-nums">
         {n(r.achieved)}
       </ProofNumber>
     ),
     cumulative: (
       <>
-        <ProofNumber project={project} user={user} indicator={r.code} from={null} to={v.range.to} value={r.cumulative} records={r.cumulative ? 1 : 0} className="tabular-nums">
-          {n(r.cumulative)}
-        </ProofNumber>{" "}
+        {r.note?.cumulative ? (
+          <span className="font-sans text-xs font-semibold text-clay">{r.note.cumulative}</span>
+        ) : (
+          <ProofNumber project={project} user={user} indicator={r.code} from={null} to={v.range.to} value={r.cumulative} records={r.cumulative ? 1 : 0} className="tabular-nums">
+            {n(r.cumulative)}
+          </ProofNumber>
+        )}{" "}
         / {n(r.lifeTarget)}
       </>
     ),

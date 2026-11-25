@@ -3,6 +3,7 @@ import { ANSWER_DAYS, EMPTY_FEEDBACK, overdue, type FeedbackLog } from "@/lib/fe
 import { checkHref, checkPlace, openClaims, overspentLines, PREFLIGHT_ITEM_FOR, SECTIONS } from "@/lib/qpr";
 import { addDays, deadlineFor, type Deadline, type Preflight, type PreflightItem, type ReadyItem, type ReportRef, milestoneFits } from "@/lib/preflight";
 import { proofCount, quarterOf, quarterRange, type ResultRecord } from "@/lib/results";
+import { MEASURE_NOTE } from "@/lib/measure";
 import { weekOf } from "@/lib/weekly";
 import { loadBudgetView } from "@/server/budget-view-store";
 import { faceView } from "@/server/face-store";
@@ -87,6 +88,15 @@ function noResult(c: Ctx, rows: { code: string; donorCode: string; name: string 
   if (!empty.length && rows.length) ok(c, "pf.ok.noResult");
 }
 
+/**
+ * A target measured as a change from its baseline (lib/measure) with no baseline: the report can only
+ * say "Baseline needed" in its place, so it is listed to fix on Target details.
+ */
+function baselineNeeded(c: Ctx, rows: { code: string; donorCode: string; name: string; needs: boolean }[]) {
+  for (const r of rows.filter((x) => x.needs))
+    add(c, { group: "fix", owner: "lead", text: `${r.donorCode} (${r.name}) is measured as a change from its baseline, but has no baseline: record it on Target details`, key: "pf.c.baselineNeeded", vars: { code: r.donorCode, name: r.name }, href: `/progress/targets#target-${r.code}` });
+}
+
 async function qpr(c: Ctx, quarter: string): Promise<Omit<Preflight, "items" | "ready">> {
   // Every read below that does not depend on another starts now, with the report's own figures; each is awaited where it is used.
   const range = quarterRange(quarter);
@@ -112,6 +122,7 @@ async function qpr(c: Ctx, quarter: string): Promise<Omit<Preflight, "items" | "
   const qn = Number(quarter.slice(-1));
   const due = d.rows.filter((r) => (r.planned ? r.planned.includes(qn) : r.yearTarget > 0 && r.year === 0 && r.records.open === 0));
   noResult(c, due, d.results, from, to, quarter);
+  baselineNeeded(c, d.rows.map((r) => ({ ...r, needs: r.note?.year === MEASURE_NOTE.baseline_needed })));
   await soloCount(c, from, to);
 
   // Each row lands on the place in the report where it is fixed (the page scrolls to the #part once loaded).
@@ -209,6 +220,7 @@ async function annual(c: Ctx, year: number): Promise<Omit<Preflight, "items" | "
   if (noProof) add(c, { group: "fix", owner: "mel", text: `${n(noProof, "accepted result", "accepted results")} this year with no proof attached`, key: "pf.c.noProofYear", vars: { n: noProof }, href: "/progress/results" });
   else if (inY.length) ok(c, "pf.ok.proof");
   noResult(c, v.rows.filter((r) => r.target > 0), results, from, to, null);
+  baselineNeeded(c, v.rows.map((r) => ({ ...r, needs: r.note?.achieved === MEASURE_NOTE.baseline_needed })));
   await soloCount(c, from, to);
   await unmatchedSpend(c);
   await signOff(c);

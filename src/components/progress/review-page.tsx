@@ -497,9 +497,13 @@ function targetCells(i: ReviewView["indicators"][number], v: ReviewView, project
     ),
     year: (
       <>
-        <ProofNumber project={project} user={user} indicator={i.code} from={`${v.year}-01-01`} to={quarterRange(v.quarter).to} value={i.year} records={i.year ? 1 : 0} className="tabular-nums">
-          {i.year.toLocaleString("en-US")}
-        </ProofNumber>{" "}
+        {i.note ? (
+          <span className="text-clay">{i.note}</span>
+        ) : (
+          <ProofNumber project={project} user={user} indicator={i.code} from={`${v.year}-01-01`} to={quarterRange(v.quarter).to} value={i.year} records={i.year ? 1 : 0} className="tabular-nums">
+            {i.year.toLocaleString("en-US")}
+          </ProofNumber>
+        )}{" "}
         / {i.yearTarget.toLocaleString("en-US")} {i.unit}
       </>
     ),

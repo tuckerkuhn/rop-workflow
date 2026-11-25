@@ -158,8 +158,9 @@ export async function qprDocx(d: DocxInput, images: Images): Promise<Blob> {
               ...(k === 0 ? [cell(`Activity ${a}: ${name}`, { rowSpan: list.length, width: 16 })] : []),
               cell(`${r.donorCode} ${r.name} (${r.unit})`, { width: 28 }),
               cell(n(r.yearTarget), { width: 8 }),
-              cell(withRef(n(r.quarter), refOf(figs, r.code, "q"), r.quarter), { width: 8 }),
-              cell(withRef(n(r.year), refOf(figs, r.code, "y"), r.year), { width: 10 }),
+              // A survey target with no figure to give (lib/measure) says why: "Baseline needed" or "No survey yet".
+              cell(r.note?.quarter ?? withRef(n(r.quarter), refOf(figs, r.code, "q"), r.quarter), { width: 8 }),
+              cell(r.note?.year ?? withRef(n(r.year), refOf(figs, r.code, "y"), r.year), { width: 10 }),
               cell(r.comment, { width: 30 }),
             ],
           }),

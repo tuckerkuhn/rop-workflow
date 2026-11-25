@@ -223,7 +223,11 @@ function IndicatorCard({ i, donorCode, canMap, staff, judged }: { i: IndicatorPr
       </div>
         {i.theme && (THEMES as readonly string[]).includes(i.theme) && <span className="mt-1 inline-block rounded-full bg-mist px-2 py-0.5 text-xs font-semibold text-forest">{t(THEME_LABEL[i.theme as ImpactTheme])}</span>}
       <p className="mt-3 flex items-baseline gap-2">
-        <span className="font-display text-4xl tabular-nums">{i.total ?? "—"}</span>
+        {i.total === null && i.measureState ? (
+          <span className="font-display text-2xl text-clay">{t(`measure.${i.measureState}`)}</span>
+        ) : (
+          <span className="font-display text-4xl tabular-nums">{i.total ?? "—"}</span>
+        )}
         <span className="text-sm text-muted">{t("progress.ofTarget", { target: i.target, unit: i.unit })}</span>
       </p>
       <div className="relative mt-2 h-1.5 overflow-hidden rounded-full bg-sunken" aria-hidden>

@@ -1,6 +1,6 @@
 import { collectorOf, mayApproveKobo, mayDecideRecord, refusalFor } from "@/lib/kobo-approval";
 import { koboApprovalFor } from "@/server/kobo-approval";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { after, NextResponse } from "next/server";
 import { db, schema as s } from "@/db";
 import type { AppUser } from "@/lib/demo";
@@ -20,6 +20,8 @@ import { loadWeekly } from "@/server/weekly-store";
 import { toEnglish } from "@/server/translate";
 import { dataChecks } from "@/lib/data-checks";
 import { coachNew } from "@/server/photos-store";
+import { RESULT_SOURCES } from "@/lib/measure";
+import { measuresFor } from "@/server/measures";
 
 type Ctx = { params: Promise<{ code: string }> };
 
@@ -34,10 +36,12 @@ async function view(code: string, u: AppUser) {
   const project = await projectByCode(code);
   const kobo = await koboFedCodes(project.id);
   const indicators = await db
-    .select({ code: s.indicators.code, donorCode: s.indicators.donorCode, name: s.indicators.name, unit: s.indicators.unit, target: s.indicators.target, result: s.indicators.result, disaggregation: s.indicators.disaggregation, verification: s.indicators.verification, source: s.indicators.source })
+    .select({ code: s.indicators.code, donorCode: s.indicators.donorCode, name: s.indicators.name, unit: s.indicators.unit, target: s.indicators.target, result: s.indicators.result, disaggregation: s.indicators.disaggregation, verification: s.indicators.verification, source: s.indicators.source, baseline: s.indicators.baseline })
     .from(s.indicators)
-    .where(and(eq(s.indicators.projectId, project.id), eq(s.indicators.source, "results")))
+    // A survey target's figure is recorded here too, with the survey file as proof.
+    .where(and(eq(s.indicators.projectId, project.id), inArray(s.indicators.source, RESULT_SOURCES)))
     .orderBy(asc(s.indicators.position));
+  const measureOf = await measuresFor(project.id);
   const results = await loadResults(code);
   const mismatched = await koboMismatches(project.id);
   const updates = await loadUpdates(code);
@@ -57,7 +61,8 @@ async function view(code: string, u: AppUser) {
     me: u.id,
     mayRecord: mayRecord(u),
     mayReview: mel || kobo_,
-    indicators: indicators.map((i) => ({ ...i, target: Number(i.target), fromKobo: kobo.has(i.code) })),
+    // How each figure is worked out from its results (lib/measure), so this page shows the same figure as the report.
+    indicators: indicators.map((i) => ({ ...i, target: Number(i.target), baseline: i.baseline === null ? null : Number(i.baseline), measure: measureOf(i), fromKobo: kobo.has(i.code) })),
     // The data checker's flags, for MEL before accepting (and for the recorder to fix first).
     results: results.map((r) => ({ ...r, /** Its KoboToolbox submission was changed or deleted after it was accepted. */ koboChanged: mismatched.has(r.id), canReview: r.status === "pending" && checks(r), canSelfAccept: mel && solo.on && !solo.blocked && r.status === "pending" && r.by === u.id, canReopen: mel && r.status === "accepted" && r.by !== u.id, checks: dataChecks(r, results, indicators.find((i) => i.code === r.indicator)) })),
     activities,
@@ -168,7 +173,7 @@ export async function POST(req: Request, { params }: Ctx) {
     if (a.action === "import") {
       if (!mayRecord(u)) return NextResponse.json({ error: "Only staff who record field activities can import results." }, { status: 403 });
       const project = await projectByCode(code);
-      const allowed = new Set((await db.select({ code: s.indicators.code }).from(s.indicators).where(and(eq(s.indicators.projectId, project.id), eq(s.indicators.source, "results")))).map((r) => r.code));
+      const allowed = new Set((await db.select({ code: s.indicators.code }).from(s.indicators).where(and(eq(s.indicators.projectId, project.id), inArray(s.indicators.source, RESULT_SOURCES)))).map((r) => r.code));
       const today = new Date().toISOString().slice(0, 10);
       const existing = await loadResults(code);
       const fromKobo = await koboFedCodes(project.id);
@@ -190,7 +195,7 @@ export async function POST(req: Request, { params }: Ctx) {
     if (a.action === "record") {
       if (!mayRecord(u)) return NextResponse.json({ error: "Only staff who record field activities can record results." }, { status: 403 });
       const project = await projectByCode(code);
-      const [ind] = await db.select({ code: s.indicators.code }).from(s.indicators).where(and(eq(s.indicators.projectId, project.id), eq(s.indicators.code, a.result.indicator), eq(s.indicators.source, "results")));
+      const [ind] = await db.select({ code: s.indicators.code }).from(s.indicators).where(and(eq(s.indicators.projectId, project.id), eq(s.indicators.code, a.result.indicator), inArray(s.indicators.source, RESULT_SOURCES)));
       if (!ind) return NextResponse.json({ error: "That indicator is not one this project records results for." }, { status: 400 });
       if ((await koboFedCodes(project.id)).has(a.result.indicator)) return NextResponse.json({ error: `${FROM_KOBO}: its results are counted from the form, not recorded here.` }, { status: 400 });
       if (a.result.date > new Date().toISOString().slice(0, 10)) return NextResponse.json({ error: "The date is in the future." }, { status: 400 });

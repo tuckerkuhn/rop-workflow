@@ -4,7 +4,8 @@ import { z } from "zod";
 import { feedbackSummary, type FeedbackEntry } from "@/lib/feedback";
 import { qcEn } from "@/lib/i18n/qpr-checks";
 import { longDate } from "@/lib/weekly";
-import { proofCount, quarterRange, totalsOf, type ResultRecord, type UpdateRecord } from "@/lib/results";
+import { proofCount, quarterRange, type ResultRecord, type UpdateRecord } from "@/lib/results";
+import { MEASURE_NOTE, measured, yearPart, type Measure } from "@/lib/measure";
 
 /**
  * The UNDP quarterly progress report (QPR), in the layout ROP sends for ACRP (Q3 2026): project
@@ -247,7 +248,7 @@ export function grmOf(saved: Qpr, log: GrmLog | null | undefined): { received: n
   return { received: null, resolved: null, open: null, thanks: 0, from: null };
 }
 
-export type IndicatorInfo = { code: string; donorCode: string | null; name: string; unit: string; target: number; yearTargets: Record<string, number>; result: string | null; disaggregation: string[] | null; budgetRef: string | null; workplanCode?: string | null };
+export type IndicatorInfo = { code: string; donorCode: string | null; name: string; unit: string; target: number; yearTargets: Record<string, number>; result: string | null; disaggregation: string[] | null; budgetRef: string | null; workplanCode?: string | null; /** How its results become its figure (lib/measure); "sum" when left out. */ measure?: Measure; baseline?: number | null };
 
 export type Row = {
   code: string;
@@ -281,6 +282,11 @@ export type Row = {
   status: Status;
   comment: string;
   edited: boolean;
+  /** Only for a target that does not add up (lib/measure): how it is measured, its baseline, the date of the survey used plus what to show instead of a figure that cannot be given. */
+  measure?: Measure;
+  baseline?: number | null;
+  latestDate?: string | null;
+  note?: { quarter: string | null; year: string | null };
 };
 
 const n = (v: number) => v.toLocaleString("en-US", { maximumFractionDigits: 2 });
@@ -343,6 +349,7 @@ export function plannedLabel(planned: number[], year: string) {
 const units = (v: number, unit: string) => (v === 1 && /[^s]s$/.test(unit) ? unit.slice(0, -1) : unit);
 
 export function suggestComment(r: Omit<Row, "suggested" | "status" | "comment" | "edited">, status: Status, quarterLabel: string) {
+  if (r.measure && r.measure !== "sum") return measureComment(r, status);
   const where = r.provinces.length ? ` in ${r.provinces.join(" and ")}` : "";
   const people = r.women + r.men > 0 ? ` (${n(r.women)} women, ${n(r.men)} men)` : r.womenLed + r.menLed > 0 ? ` (${n(r.womenLed)} women-led, ${n(r.menLed)} men-led)` : "";
   const pct = r.yearTarget ? ` (${Math.round((r.year / r.yearTarget) * 100)}% of the annual target)` : "";
@@ -355,15 +362,23 @@ export function suggestComment(r: Omit<Row, "suggested" | "status" | "comment" |
   return `${STATUS_LABEL[status]}: ${done} ${n(r.year)} of ${n(r.yearTarget)} ${r.unit} so far this year${pct}.${plan}`;
 }
 
+/** The comment for a target measured by a survey: the latest figure and what it is compared with, or what is missing. */
+function measureComment(r: Omit<Row, "suggested" | "status" | "comment" | "edited">, status: Status) {
+  const label = STATUS_LABEL[status];
+  if (r.note?.year === MEASURE_NOTE.baseline_needed) return `${label}: the change cannot be shown until the baseline is recorded on Target details.`;
+  if (r.note?.year) return `${label}: no survey result has been accepted yet this year.`;
+  const when = r.latestDate ? ` (${longDate(r.latestDate)})` : "";
+  const against = r.measure === "change" ? ` against the baseline of ${n(r.baseline ?? 0)}` : "";
+  return `${label}: the latest survey${when} gives ${n(r.year)} ${r.unit}${against}; the target for this year is ${n(r.yearTarget)} ${r.unit}.`;
+}
+
 /**
  * This year's part of the target. Year targets are stored as running totals from the project's
  * start (expected total by 31 December), but the report counts this year's results only, so the
  * year's part is this year's total less last year's (none before the first year).
  */
-export function yearShare(i: Pick<IndicatorInfo, "target" | "yearTargets">, y: number) {
-  const byEnd = i.yearTargets[String(y)] ?? i.target;
-  const before = i.yearTargets[String(y - 1)] ?? 0;
-  return Math.max(0, byEnd - before);
+export function yearShare(i: Pick<IndicatorInfo, "target" | "yearTargets" | "measure">, y: number) {
+  return yearPart(i, y);
 }
 
 /** The indicator table for a quarter, from accepted results. */
@@ -379,8 +394,10 @@ export function buildRows(indicators: IndicatorInfo[], results: ResultRecord[], 
   const label = `Q${quarterNo} ${y}`;
   return indicators.map((i) => {
     const mine = results.filter((r) => r.indicator === i.code);
-    const q = totalsOf(mine, from, to);
-    const yr = totalsOf(mine, yearFrom, to);
+    // The same figure Progress and the annual report give (lib/measure): a sum unless the target is measured by a survey.
+    const ind = { baseline: i.baseline ?? null, unit: i.unit };
+    const q = measured(ind, mine, i.measure, from, to);
+    const yr = measured(ind, mine, i.measure, yearFrom, to);
     // Recorded this year but not counted yet: waiting for MEL, or queried.
     const open = mine.filter((r) => r.status !== "accepted" && r.date >= yearFrom && r.date <= to).length;
     // Name the provinces only when every counted record has one: a record without a province
@@ -405,6 +422,8 @@ export function buildRows(indicators: IndicatorInfo[], results: ResultRecord[], 
       provinces: unplaced ? [] : q.provinces,
       records: { quarter: q.records, year: yr.records, files: q.files, open },
       planned: i.workplanCode && plans[i.workplanCode] ? plans[i.workplanCode].filter((d) => d.startsWith(y)).map((d) => Math.floor((Number(d.slice(5, 7)) - 1) / 3) + 1) : null,
+      // A target that adds up keeps the row as it always was; only a survey measure adds these.
+      ...(i.measure && i.measure !== "sum" ? { measure: i.measure, baseline: i.baseline ?? null, latestDate: yr.date, note: { quarter: q.note, year: yr.note } } : {}),
     };
     const suggested = suggestStatus(base.year, base.yearTarget, quarterNo, base.year > 0 || open > 0, base.planned);
     const o = saved.rows[i.code];

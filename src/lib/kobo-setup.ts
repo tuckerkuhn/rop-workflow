@@ -36,7 +36,35 @@ export type KoboQuestion = { path: string; label: string; type: string; choices:
 export const MAPPING_ORIGINS = ["manual", "suggested", "suggested-edited"] as const;
 export type MappingOrigin = (typeof MAPPING_ORIGINS)[number];
 
-export type KoboMapping = { indicatorCode: string; assetUid: string; question: string; method: MappingMethod; value: string | null; origin?: MappingOrigin };
+/**
+ * Who a submission counts, so a result from KoboToolbox carries women, men and young people like
+ * one recorded in the app. Two shapes, as the form is built:
+ * - counts: the form asks how many women, how many men and how many young people; each answer is a number.
+ * - person: each submission is one person. The sex question's answer gives 1 woman or 1 man; the
+ *   age question gives 1 young person or 0 (an age from 18 to 35, or the choice that means young).
+ * Any part left unmapped stays empty on the result: nothing is guessed. Only numbers are kept,
+ * never an answer itself.
+ */
+export const breakdownSchema = z.discriminatedUnion("shape", [
+  z.object({ shape: z.literal("counts"), women: z.string().max(300).nullable(), men: z.string().max(300).nullable(), youth: z.string().max(300).nullable() }),
+  z.object({
+    shape: z.literal("person"),
+    sex: z.string().max(300).nullable(),
+    /** The sex question's choices (their names) for a woman and for a man. */
+    female: z.string().max(300).nullable(),
+    male: z.string().max(300).nullable(),
+    age: z.string().max(300).nullable(),
+    /** The age question's choice that means young, when it is a choice; empty when it holds the age in years. */
+    young: z.string().max(300).nullable(),
+  }),
+]);
+export type KoboBreakdown = z.infer<typeof breakdownSchema>;
+/** Who counts as young from an age in years (lib/results YOUTH: 18 to 35). */
+export const YOUTH_AGES = { from: 18, to: 35 } as const;
+/** Whether a breakdown maps any question at all. */
+export const hasBreakdown = (b: KoboBreakdown | null | undefined): b is KoboBreakdown => !!b && (b.shape === "counts" ? !!(b.women || b.men || b.youth) : !!(b.sex || b.age));
+
+export type KoboMapping = { indicatorCode: string; assetUid: string; question: string; method: MappingMethod; value: string | null; origin?: MappingOrigin; breakdown?: KoboBreakdown | null };
 
 export type KoboState = { connection: KoboConnectionInfo | null; forms: KoboFormInfo[]; mappings: KoboMapping[] };
 
@@ -59,6 +87,7 @@ export const mappingsSchema = z.object({
         method: z.enum(MAPPING_METHODS),
         value: z.string().max(300).nullable(),
         origin: z.enum(MAPPING_ORIGINS).default("manual"),
+        breakdown: breakdownSchema.nullable().optional(),
       }),
     )
     .max(200),

@@ -1,4 +1,5 @@
 import type { AppUser } from "@/lib/demo";
+import { measured } from "@/lib/measure";
 import { proofCount, quarterRange } from "@/lib/results";
 import { loadBudgetView } from "@/server/budget-view-store";
 import { loadReview } from "@/server/monthly-review-store";
@@ -51,8 +52,13 @@ export async function loadProgressSummary(code: string, u: AppUser) {
     const { from, to } = quarterRange(q);
     const inQ = accepted.filter((r) => r.date >= from && r.date <= to);
     if (!inQ.length) continue;
+    // Each target's figure for the quarter as the reports give it (lib/measure): a sum, or a survey's figure; none when it cannot be given.
     const by = new Map<string, number>();
-    for (const r of inQ) by.set(r.indicator, (by.get(r.indicator) ?? 0) + r.value);
+    for (const c of new Set(inQ.map((r) => r.indicator))) {
+      const i = nameOf(c);
+      const m = measured({ baseline: i?.baseline ?? null, unit: i?.unit ?? "" }, inQ.filter((r) => r.indicator === c), i?.measure ?? "sum");
+      if (m.reported !== null) by.set(c, m.reported);
+    }
     const top = [...by.entries()].filter(([c]) => nameOf(c)).sort((a, b) => b[1] / (nameOf(b[0])!.yearTarget || 1) - a[1] / (nameOf(a[0])!.yearTarget || 1)).slice(0, 3);
     wins.push({
       key: `quarter-${q}`,

@@ -778,7 +778,10 @@ function IndicatorRow({ r, v, act, card }: { r: Row; v: QprView; act: Act; card?
   const { user } = useRequireUser();
   const { project } = useCurrentProject();
   // One tap opens the accepted results behind the figure and their proof (lib/evidence).
-  const evidence = (f: string, value: number, records: number, proof?: number) => (
+  // A survey target with no figure to give (lib/measure) shows why in its place: "Baseline needed" or "No survey yet".
+  const evidence = (f: string, value: number, records: number, proof?: number, note?: string | null) => note ? (
+    <span className="font-sans text-xs font-semibold text-clay">{note}</span>
+  ) : (
     <ProofNumber project={project.id} user={user?.id ?? ""} indicator={r.code} from={f} to={to} value={value} records={records} proof={proof}>
       {num(value)}
     </ProofNumber>
@@ -797,8 +800,8 @@ function IndicatorRow({ r, v, act, card }: { r: Row; v: QprView; act: Act; card?
   );
   const yearCell = (
     <>
-        {evidence(yearFrom, r.year, r.records.year)}
-        {r.yearTarget > 0 && <span className="block text-xs text-muted">{Math.round((r.year / r.yearTarget) * 100)}%</span>}
+        {evidence(yearFrom, r.year, r.records.year, undefined, r.note?.year)}
+        {r.yearTarget > 0 && !r.note?.year && <span className="block text-xs text-muted">{Math.round((r.year / r.yearTarget) * 100)}%</span>}
     </>
   );
   // The one wording for a target's status (lib/target-status), as of the report's quarter.
@@ -872,7 +875,7 @@ function IndicatorRow({ r, v, act, card }: { r: Row; v: QprView; act: Act; card?
           </div>
           <div>
             <dt className={head}>{t("rp.col.quarter", { q: v.quarter.slice(5) })}</dt>
-            <dd className={fig}>{evidence(from, r.quarter, r.records.quarter, r.records.files)}</dd>
+            <dd className={fig}>{evidence(from, r.quarter, r.records.quarter, r.records.files, r.note?.quarter)}</dd>
           </div>
           <div>
             <dt className={head}>{t("rp.col.year")}</dt>
@@ -886,7 +889,7 @@ function IndicatorRow({ r, v, act, card }: { r: Row; v: QprView; act: Act; card?
     <LedgerRow cols={IND_COLS} className="text-sm">
       <span className="min-w-0">{name}</span>
       <Fig>{num(r.yearTarget)}</Fig>
-      <span className={`text-end ${fig}`}>{evidence(from, r.quarter, r.records.quarter, r.records.files)}</span>
+      <span className={`text-end ${fig}`}>{evidence(from, r.quarter, r.records.quarter, r.records.files, r.note?.quarter)}</span>
       <span className={`text-end ${fig}`}>{yearCell}</span>
       <span className="min-w-0">{statusCell}</span>
     </LedgerRow>

@@ -117,6 +117,10 @@ async function readReview(code: string, month: string, u: AppUser) {
       yearTarget: r.yearTarget,
       year: r.year,
       quarterValue: r.quarter,
+      // A survey target with no figure to give (lib/measure): "Baseline needed" or "No survey yet" in place of the year's figure.
+      ...(r.note?.year ? { note: r.note.year } : {}),
+      // How its figure is worked out, only for one that does not add up, so other readers measure it the same way.
+      ...(r.measure ? { measure: r.measure, baseline: r.baseline ?? null } : {}),
       // The team's own status from the quarterly report wins; otherwise judged as of today. A
       // quarter counts as over only once its last day has passed, so December is not judged as
       // if the year had already ended.

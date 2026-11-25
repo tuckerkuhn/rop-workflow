@@ -12,6 +12,8 @@ import { periodRange } from "@/lib/period-report";
 import { withoutNames } from "@/lib/personal-text";
 import { personName } from "@/lib/project";
 import { quarterRange, type ResultRecord } from "@/lib/results";
+import { measured } from "@/lib/measure";
+import { measuresFor } from "@/server/measures";
 import { loadActuals } from "@/server/actuals-store";
 import { projectByCode, donorNameOf } from "@/server/field-store";
 import { donorPhotoRule } from "@/server/photo-consent";
@@ -87,6 +89,8 @@ export async function proofFor(
       donorCode: s.indicators.donorCode,
       name: s.indicators.name,
       unit: s.indicators.unit,
+      source: s.indicators.source,
+      baseline: s.indicators.baseline,
     })
     .from(s.indicators)
     .where(
@@ -95,6 +99,8 @@ export async function proofFor(
     .limit(1);
   if (!ind) return null;
   const list = counted(await loadResults(code), indicator, from, to);
+  // The figure the report shows (lib/measure): the sum, or for a survey target its latest figure.
+  const m = measured({ baseline: ind.baseline === null ? null : Number(ind.baseline), unit: ind.unit }, list, (await measuresFor(p.id))(ind), from ?? undefined, to);
   return {
     indicator: {
       code: ind.code,
@@ -104,7 +110,8 @@ export async function proofFor(
     },
     from,
     to,
-    total: list.reduce((t, r) => t + r.value, 0),
+    total: m.value,
+    ...(m.measure !== "sum" ? { measure: m.measure, note: m.note } : {}),
     results: list.map((r) => toProof(r, ind.unit)),
   };
 }

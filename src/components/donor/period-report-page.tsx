@@ -79,7 +79,7 @@ export function DonorPeriodReportPage({ slug }: { slug: string }) {
                       </Fig>
                     ))}
                     <span className="text-end font-mono text-sm font-semibold tabular-nums">
-                      {n(row.achieved)}
+                      {row.note?.achieved ? <span className="font-sans text-xs text-clay">{tx(row.note.achieved)}</span> : n(row.achieved)}
                       {row.pct !== null && <span className="block text-xs font-normal text-muted">{row.pct}%</span>}
                     </span>
                     <span>

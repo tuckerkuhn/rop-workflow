@@ -37,6 +37,10 @@ export type IndicatorProgress = {
   forecast: ForecastYear[];
   /** Against this year's forecast, as of today. null when the indicator has no forecast for this year. */
   track: Track | null;
+  /** Only for a target measured by a survey (lib/measure): "latest" or "change". Left out for one that adds up. */
+  measure?: "latest" | "change";
+  /** Why `total` is null for such a target: no baseline to compare with, or no accepted survey result yet. */
+  measureState?: "baseline_needed" | "no_survey";
 };
 
 export type ForecastYear = { year: number; forecast: number | null; actual: number | null };

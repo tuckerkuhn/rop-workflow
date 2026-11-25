@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MEASURES } from "@/lib/measure";
 
 /**
  * The six facts about a target that setup does not ask for and that reports depend on: its
@@ -25,6 +26,8 @@ export const targetDetailsSchema = z.object({
   budgetRef: z.string().trim().max(60),
   workplanCode: z.string().trim().max(40),
   inQuarterlyReport: z.boolean(),
+  /** How its results become its figure (lib/measure). Left out: kept as it is. Kept in project_state, not on the target's row. */
+  measure: z.enum(MEASURES).optional(),
 });
 export type TargetDetailsPatch = z.infer<typeof targetDetailsSchema>;
 

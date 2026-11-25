@@ -10,7 +10,7 @@ import { mappingRisks, type Suggestion } from "@/lib/kobo-suggest";
 import { KoboApprovalSetting } from "@/components/setup/kobo-approval";
 import { Question, field } from "@/components/setup/question";
 import { primaryBtn, quietBtn } from "@/components/workspace/ui";
-import { FORM_PURPOSES, MAPPING_METHODS, guessPurpose, type FormPurpose, type KoboFormInfo, type KoboMapping, type KoboQuestion, type MappingMethod, type AutoSyncSecret, type SyncCounts } from "@/lib/kobo-setup";
+import { FORM_PURPOSES, MAPPING_METHODS, YOUTH_AGES, guessPurpose, type FormPurpose, type KoboBreakdown, type KoboFormInfo, type KoboMapping, type KoboQuestion, type MappingMethod, type AutoSyncSecret, type SyncCounts } from "@/lib/kobo-setup";
 import type { MessageKey } from "@/lib/i18n";
 
 /**
@@ -205,6 +205,89 @@ const METHOD_LABEL: Record<MappingMethod, MessageKey> = {
 
 type Draft = Record<string, KoboMapping | undefined>;
 
+const NUMBER_TYPE = /^(integer|decimal|range|calculate)$/;
+const NO_COUNTS: KoboBreakdown = { shape: "counts", women: null, men: null, youth: null };
+const NO_PERSON: KoboBreakdown = { shape: "person", sex: null, female: null, male: null, age: null, young: null };
+/** A person shape with a sex question needs the answers for a woman and for a man. */
+const breakdownReady = (b: KoboBreakdown | null | undefined) => !b || b.shape === "counts" || !b.sex || (!!b.female && !!b.male && b.female !== b.male);
+
+/** The suggested women, men and young people questions, in a few words. */
+function breakdownText(b: KoboBreakdown, qs: KoboQuestion[] | undefined) {
+  const label = (path: string | null) => (path ? (qs?.find((x) => x.path === path)?.label ?? path) : "");
+  if (b.shape === "counts")
+    return [b.women && `women from "${label(b.women)}"`, b.men && `men from "${label(b.men)}"`, b.youth && `young people from "${label(b.youth)}"`].filter(Boolean).join("; ");
+  return [b.sex && `women and men from "${label(b.sex)}"`, b.age && `young people from "${label(b.age)}"`].filter(Boolean).join("; ");
+}
+
+/**
+ * Which questions on the mapped form give the women, men and young people each submission counts.
+ * Optional: left out, results from KoboToolbox have no women and men, as before.
+ */
+function PeopleQuestions({ m, qs, onChange }: { m: KoboMapping; qs: KoboQuestion[] | undefined; onChange: (b: KoboBreakdown | null) => void }) {
+  const b = m.breakdown ?? null;
+  const numbers = (qs ?? []).filter((x) => NUMBER_TYPE.test(x.type));
+  const choices = (qs ?? []).filter((x) => x.choices.length > 0);
+  const pick = (value: string | null, list: KoboQuestion[], set: (v: string | null) => void, label: string) => (
+    <label className="mt-2 block text-xs text-muted">
+      {label}
+      <select value={value ?? ""} onChange={(e) => set(e.target.value || null)} disabled={!qs} className={field}>
+        <option value="">Not recorded</option>
+        {list.map((x) => (
+          <option key={x.path} value={x.path}>
+            {x.label} ({x.path})
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+  const sexQ = b?.shape === "person" ? qs?.find((x) => x.path === b.sex) : undefined;
+  const ageQ = b?.shape === "person" ? qs?.find((x) => x.path === b.age) : undefined;
+  const choice = (q: KoboQuestion | undefined, value: string | null, set: (v: string | null) => void, label: string) => (
+    <label className="mt-2 block text-xs text-muted">
+      {label}
+      <select value={value ?? ""} onChange={(e) => set(e.target.value || null)} className={field}>
+        <option value="" />
+        {(q?.choices ?? []).map((c) => (
+          <option key={c.name} value={c.name}>
+            {c.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+  return (
+    <fieldset className="mt-3 rounded-xl border border-line p-3">
+      <legend className="px-1 text-xs font-medium">Women, men and young people</legend>
+      <label className="block text-xs text-muted">
+        How the form records them
+        <select value={b?.shape ?? ""} onChange={(e) => onChange(e.target.value === "counts" ? NO_COUNTS : e.target.value === "person" ? NO_PERSON : null)} className={field}>
+          <option value="">Not recorded on this form</option>
+          <option value="counts">It asks how many women, men and young people</option>
+          <option value="person">Each submission is one person</option>
+        </select>
+      </label>
+      {b?.shape === "counts" && (
+        <>
+          {pick(b.women, numbers, (v) => onChange({ ...b, women: v }), "How many women")}
+          {pick(b.men, numbers, (v) => onChange({ ...b, men: v }), "How many men")}
+          {pick(b.youth, numbers, (v) => onChange({ ...b, youth: v }), `How many young people (${YOUTH_AGES.from} to ${YOUTH_AGES.to})`)}
+        </>
+      )}
+      {b?.shape === "person" && (
+        <>
+          {pick(b.sex, choices, (v) => onChange({ ...b, sex: v, female: null, male: null }), "The person's sex")}
+          {b.sex && choice(sexQ, b.female, (v) => onChange({ ...b, female: v }), "The answer for a woman")}
+          {b.sex && choice(sexQ, b.male, (v) => onChange({ ...b, male: v }), "The answer for a man")}
+          {pick(b.age, [...numbers, ...choices], (v) => onChange({ ...b, age: v, young: null }), "The person's age or age group")}
+          {b.age && ageQ && ageQ.choices.length > 0 && choice(ageQ, b.young, (v) => onChange({ ...b, young: v }), `The answer for ${YOUTH_AGES.from} to ${YOUTH_AGES.to} years old`)}
+          {b.age && ageQ && !ageQ.choices.length && <p className="mt-1 text-xs text-muted">An age from {YOUTH_AGES.from} to {YOUTH_AGES.to} counts as young.</p>}
+        </>
+      )}
+      <p className="mt-2 text-xs text-muted">Only the numbers go on the result, never the answers themselves.</p>
+    </fieldset>
+  );
+}
+
 export function KoboMap({ code, onDone }: { code: string; onDone: () => void }) {
   const { t } = useT();
   const { user } = useSession();
@@ -290,7 +373,7 @@ export function KoboMap({ code, onDone }: { code: string; onDone: () => void }) 
     return !!s.mapping && m?.origin === "suggested" && m.question === s.mapping.question && m.assetUid === s.mapping.assetUid;
   };
   const high = (suggestions ?? []).filter((s) => s.mapping && s.confidence === "high" && !isAccepted(s));
-  const ready = Object.values(draft ?? {}).every((m) => !m || (m.question && (m.method !== "count_answer" || m.value)));
+  const ready = Object.values(draft ?? {}).every((m) => !m || (m.question && (m.method !== "count_answer" || m.value) && breakdownReady(m.breakdown)));
   const submit = async () => {
     setBusy(true);
     setError("");
@@ -344,6 +427,7 @@ export function KoboMap({ code, onDone }: { code: string; onDone: () => void }) 
                           {form?.name} › {q?.label ?? s.mapping.question} · {t(METHOD_LABEL[s.mapping.method])}
                           {s.mapping.value ? ` (${q?.choices.find((c) => c.name === s.mapping!.value)?.label ?? s.mapping.value})` : ""}
                         </p>
+                        {s.mapping.breakdown && <p className="text-xs">{breakdownText(s.mapping.breakdown, qs)}</p>}
                         <p className="text-xs text-muted">
                           <Why>{s.reason}</Why>
                         </p>
@@ -465,6 +549,7 @@ export function KoboMap({ code, onDone }: { code: string; onDone: () => void }) 
                       )}
                     </label>
                   )}
+                  <PeopleQuestions m={m} qs={Array.isArray(qs) ? qs : undefined} onChange={(b) => set(i.code, { ...m, breakdown: b })} />
                 </>
               )}
             </li>

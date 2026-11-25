@@ -3,7 +3,8 @@ import { and, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { protectSubmission } from "@/server/kobo-protect";
 import { isReviewed, REVIEWED_PURPOSES } from "@/lib/kobo-setup";
-import type { AutoSyncSecret, FormPurpose, KoboMapping, KoboState, MappingMethod, MappingOrigin, SyncCounts } from "@/lib/kobo-setup";
+import { breakdownSchema, hasBreakdown } from "@/lib/kobo-setup";
+import type { AutoSyncSecret, FormPurpose, KoboBreakdown, KoboMapping, KoboState, MappingMethod, MappingOrigin, SyncCounts } from "@/lib/kobo-setup";
 import { logAudit } from "@/server/audit";
 import { projectByCode } from "@/server/field-store";
 import { HttpError } from "@/server/guard";
@@ -48,6 +49,31 @@ export async function readinessForms(code: string) {
   return { ...c, forms };
 }
 
+/**
+ * Which questions give each indicator's women, men and young people (lib/kobo-setup KoboBreakdown).
+ * Kept beside the mappings in project_state, by indicator code, with the form it was chosen on: a
+ * breakdown chosen on another form than the indicator's mapping now uses is not read.
+ */
+export const BREAKDOWN_KEY = "kobo-breakdown";
+type BreakdownDoc = Record<string, { assetUid: string; breakdown: KoboBreakdown }>;
+
+export async function koboBreakdowns(projectId: string): Promise<BreakdownDoc> {
+  const [row] = await db
+    .select({ data: s.projectState.data })
+    .from(s.projectState)
+    .where(and(eq(s.projectState.projectId, projectId), eq(s.projectState.key, BREAKDOWN_KEY)))
+    .limit(1);
+  const out: BreakdownDoc = {};
+  for (const [code, v] of Object.entries((row?.data ?? {}) as Record<string, { assetUid?: unknown; breakdown?: unknown }>)) {
+    const b = breakdownSchema.safeParse(v?.breakdown);
+    if (typeof v?.assetUid === "string" && b.success) out[code] = { assetUid: v.assetUid, breakdown: b.data };
+  }
+  return out;
+}
+
+/** The breakdown for an indicator's mapping, when one was chosen on the mapping's form. */
+export const breakdownFor = (doc: BreakdownDoc, code: string, assetUid: string) => (doc[code]?.assetUid === assetUid ? doc[code].breakdown : null);
+
 export async function koboState(code: string): Promise<KoboState> {
   // The project as the rest of the request reads it (kept once per read-only request); none here is an empty link.
   const project = await projectByCode(code).catch((e) => {
@@ -55,7 +81,7 @@ export async function koboState(code: string): Promise<KoboState> {
     throw e;
   });
   if (!project) return { connection: null, forms: [], mappings: [] };
-  const [c, forms, mappings] = await Promise.all([
+  const [c, forms, mappings, breakdowns] = await Promise.all([
     connectionOf(project.id),
     db.select().from(s.koboForms).where(eq(s.koboForms.projectId, project.id)),
     db
@@ -63,11 +89,12 @@ export async function koboState(code: string): Promise<KoboState> {
       .from(s.koboMappings)
       .innerJoin(s.indicators, eq(s.indicators.id, s.koboMappings.indicatorId))
       .where(eq(s.indicators.projectId, project.id)),
+    koboBreakdowns(project.id),
   ]);
   return {
     connection: c && { serverUrl: c.serverUrl, tokenHint: c.tokenHint, countOnly: c.countOnly === "approved" ? "approved" : "all", lastSyncedAt: c.lastSyncedAt?.toISOString() ?? null, autoSyncSince: c.hookSecretHash ? (c.hookEnabledAt?.toISOString() ?? null) : null },
     forms: forms.map((f) => ({ uid: f.assetUid, name: f.name, purpose: purposeOf(f.purpose) })),
-    mappings: mappings.map(({ code, m }) => ({ indicatorCode: code, assetUid: m.assetUid, question: m.question, method: m.method as MappingMethod, value: m.value, origin: (m.origin ?? "manual") as MappingOrigin })),
+    mappings: mappings.map(({ code, m }) => ({ indicatorCode: code, assetUid: m.assetUid, question: m.question, method: m.method as MappingMethod, value: m.value, origin: (m.origin ?? "manual") as MappingOrigin, breakdown: breakdownFor(breakdowns, code, m.assetUid) })),
   };
 }
 
@@ -89,6 +116,7 @@ export async function disconnect(code: string) {
   const project = await projectRow(code);
   const ids = (await db.select({ id: s.indicators.id }).from(s.indicators).where(eq(s.indicators.projectId, project.id))).map((r) => r.id);
   if (ids.length) await db.delete(s.koboMappings).where(inArray(s.koboMappings.indicatorId, ids));
+  await db.delete(s.projectState).where(and(eq(s.projectState.projectId, project.id), eq(s.projectState.key, BREAKDOWN_KEY)));
   await db.delete(s.koboForms).where(eq(s.koboForms.projectId, project.id));
   await db.delete(s.koboConnections).where(eq(s.koboConnections.projectId, project.id));
 }
@@ -186,15 +214,22 @@ export async function saveMappings(code: string, mappings: KoboMapping[], by: st
     if (!inds.some((i) => i.code === m.indicatorCode)) throw new KoboError(`No target ${m.indicatorCode} on this project.`);
     if (!forms.has(m.assetUid)) throw new KoboError("A mapping uses a form that is not chosen for this project.");
     if (m.method === "count_answer" && !m.value) throw new KoboError(`Say which answer counts for ${m.indicatorCode}.`);
+    const b = m.breakdown;
+    if (b?.shape === "person" && b.sex && (!b.female || !b.male || b.female === b.male)) throw new KoboError(`Say which answer means a woman and which means a man for ${m.indicatorCode}.`);
   }
+  const breakdowns: BreakdownDoc = Object.fromEntries(mappings.filter((m) => hasBreakdown(m.breakdown)).map((m) => [m.indicatorCode, { assetUid: m.assetUid, breakdown: m.breakdown! }]));
   await db.transaction(async (tx) => {
     if (inds.length) await tx.delete(s.koboMappings).where(inArray(s.koboMappings.indicatorId, inds.map((i) => i.id)));
     if (mappings.length)
       await tx.insert(s.koboMappings).values(
         mappings.map((m) => ({ indicatorId: inds.find((i) => i.code === m.indicatorCode)!.id, assetUid: m.assetUid, question: m.question, method: m.method, value: m.method === "count_answer" ? m.value : null, origin: m.origin ?? "manual" })),
       );
+    await tx
+      .insert(s.projectState)
+      .values({ projectId: project.id, key: BREAKDOWN_KEY, data: breakdowns })
+      .onConflictDoUpdate({ target: [s.projectState.projectId, s.projectState.key], set: { data: breakdowns, updatedAt: new Date() } });
     // Which question counts toward which indicator, and whether a person chose it or accepted a suggestion.
-    await logAudit(tx, project.id, { entity: "project", entityId: project.id, action: "kobo_mappings_saved", by, detail: { mappings: mappings.map((m) => ({ indicator: m.indicatorCode, form: m.assetUid, question: m.question, method: m.method, value: m.value, origin: m.origin ?? "manual" })) } });
+    await logAudit(tx, project.id, { entity: "project", entityId: project.id, action: "kobo_mappings_saved", by, detail: { mappings: mappings.map((m) => ({ indicator: m.indicatorCode, form: m.assetUid, question: m.question, method: m.method, value: m.value, origin: m.origin ?? "manual", ...(breakdowns[m.indicatorCode] ? { breakdown: breakdowns[m.indicatorCode].breakdown } : {}) })) } });
   });
 }
 

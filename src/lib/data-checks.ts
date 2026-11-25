@@ -6,6 +6,9 @@ import { proofCount } from "@/lib/results";
  * Rules, not AI, so the same record always gets the same flags. Flags inform; MEL decides.
  */
 
+/** Whether an indicator's unit counts people (farmers, trainees, households), not hectares or kilograms. */
+export const countsPeople = (unit: string) => /person|people|farmer|trainee|beneficiar|participant|household/i.test(unit);
+
 export type Indicator = { code: string; unit: string; disaggregation: string[] | null };
 
 /** The last day of the quarter a date falls in. */
@@ -37,7 +40,7 @@ export function dataChecks(r: ResultRecord, all: ResultRecord[], ind: Indicator 
     if (m > 0 && r.value > m * 4) out.push(`${r.value.toLocaleString("en-US")} is more than four times the usual record for this target (median ${m.toLocaleString("en-US")}): check the figure and its unit.`);
   }
   // Women and men should add up to the total when both are given for people.
-  if (r.female !== undefined && r.male !== undefined && r.female + r.male !== r.value && /person|people|farmer|trainee|beneficiar|participant|household/i.test(ind?.unit ?? ""))
+  if (r.female !== undefined && r.male !== undefined && r.female + r.male !== r.value && countsPeople(ind?.unit ?? ""))
     out.push(`${r.female} women and ${r.male} men make ${r.female + r.male}, not ${r.value}.`);
   // What the indicator is broken down by, and the record leaves out.
   const by = ind?.disaggregation ?? [];

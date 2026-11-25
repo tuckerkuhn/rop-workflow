@@ -1,5 +1,6 @@
 import { yearShare, type IndicatorInfo } from "@/lib/qpr";
-import { totalsOf, type ResultRecord } from "@/lib/results";
+import { type ResultRecord } from "@/lib/results";
+import { measured } from "@/lib/measure";
 
 /**
  * The annual and final reports' indicator table, from accepted results only, as the quarterly
@@ -37,6 +38,9 @@ export type PeriodRow = {
   /** Achieved as a share of the target, in percent; null without a target. */
   pct: number | null;
   verdict: "met" | "partly" | "not_met" | "no_target";
+  /** Only for a target measured by a survey (lib/measure): how it is measured plus what to show instead of a figure that cannot be given. */
+  measure?: "latest" | "change";
+  note?: { achieved: string | null; cumulative: string | null };
 };
 
 export const periodLabel = (p: Period) => (p.kind === "annual" ? `Annual report ${p.year}` : "Final report");
@@ -49,15 +53,18 @@ export function buildPeriodRows(indicators: PeriodIndicator[], results: ResultRe
   const lastYear = Number(to.slice(0, 4));
   return indicators.map((i) => {
     const mine = results.filter((r) => r.indicator === i.code);
-    const t = totalsOf(mine, from, to);
-    const cum = totalsOf(mine, undefined, to);
+    // The same figure as Progress and the quarterly report (lib/measure): a sum unless measured by a survey, then against the baseline where asked.
+    const of = (a?: string, b?: string) => measured({ baseline: i.baseline, unit: i.unit }, mine, i.measure, a, b);
+    const t = of(from, to);
+    const cum = of(undefined, to);
     const parts =
       p.kind === "annual"
-        ? [1, 2, 3, 4].map((q) => ({ label: `Q${q}`, value: totalsOf(mine, `${p.year}-${String((q - 1) * 3 + 1).padStart(2, "0")}-01`, `${p.year}-${String(q * 3).padStart(2, "0")}-${q === 1 || q === 4 ? "31" : "30"}`).value }))
-        : Array.from({ length: Math.max(0, lastYear - firstYear + 1) }, (_, k) => firstYear + k).map((y) => ({ label: String(y), value: totalsOf(mine, `${y}-01-01`, `${y}-12-31`).value }));
+        ? [1, 2, 3, 4].map((q) => ({ label: `Q${q}`, value: of(`${p.year}-${String((q - 1) * 3 + 1).padStart(2, "0")}-01`, `${p.year}-${String(q * 3).padStart(2, "0")}-${q === 1 || q === 4 ? "31" : "30"}`).value }))
+        : Array.from({ length: Math.max(0, lastYear - firstYear + 1) }, (_, k) => firstYear + k).map((y) => ({ label: String(y), value: of(`${y}-01-01`, `${y}-12-31`).value }));
     const target = p.kind === "annual" ? yearShare(i, p.year) : i.target;
     const achieved = p.kind === "annual" ? t.value : cum.value;
-    const pct = target > 0 ? Math.round((achieved / target) * 100) : null;
+    const shown = p.kind === "annual" ? t : cum;
+    const pct = target > 0 && shown.reported !== null ? Math.round((achieved / target) * 100) : null;
     return {
       code: i.code,
       donorCode: i.donorCode ?? i.code,
@@ -79,6 +86,7 @@ export function buildPeriodRows(indicators: PeriodIndicator[], results: ResultRe
       files: p.kind === "annual" ? t.files : cum.files,
       pct,
       verdict: target <= 0 ? "no_target" : achieved >= target ? "met" : achieved > 0 ? "partly" : "not_met",
+      ...(i.measure && i.measure !== "sum" ? { measure: i.measure, note: { achieved: shown.note, cumulative: cum.note } } : {}),
     };
   });
 }

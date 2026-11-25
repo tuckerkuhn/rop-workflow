@@ -43,6 +43,7 @@ export const pfEn = {
   "pf.c.signOff": "The plan and budget are not signed off yet (the project is still in Design)",
   "pf.c.unmatched": "Spending rows in Finance's import that match no budget line: {n} ({codes})",
   "pf.c.noResult": "{code} ({name}) has a target but no result recorded in the period",
+  "pf.c.baselineNeeded": "{code} ({name}) is measured as a change from its baseline, but has no baseline: record it on Target details",
   "pf.c.pending": "Results waiting for MEL to accept or send back with a question: {n}. They do not count until then.",
   "pf.c.queried": "Results MEL sent back with a question, to correct: {n}",
   "pf.c.noProof": "Accepted results with no proof attached: {n}",

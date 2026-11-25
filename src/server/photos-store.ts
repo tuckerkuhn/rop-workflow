@@ -5,7 +5,9 @@ import { db, schema as s } from "@/db";
 import type { AppUser } from "@/lib/demo";
 import { firstNamesOnly } from "@/lib/personal-text";
 import { AUDIENCE_TEXT, emptyPhotos, needs, PUBLIC_AUDIENCES, rank, SHARE_TEXT, shareLimit, type Audience, type PhotoAction, type PhotoMeta, type PhotosState, type Post, type Share } from "@/lib/photos";
-import { totalsOf, type ResultRecord } from "@/lib/results";
+import { type ResultRecord } from "@/lib/results";
+import { measured, RESULT_SOURCES } from "@/lib/measure";
+import { measuresFor } from "@/server/measures";
 import type { Story } from "@/lib/stories";
 import { ROP_VOICE } from "@/lib/voice";
 import { draftStructured } from "@/server/ai-structured";
@@ -176,13 +178,14 @@ const postSchema = z.object({ text: z.string(), checks: z.array(z.string()).desc
 
 /**
  * The project's totals to date against its life-of-project targets, one per indicator, from
- * results MEL accepted only (totalsOf, the same sum the reports use). Never added across indicators.
+ * results MEL accepted only (measured, the same figure the reports use). Never added across indicators.
  */
 async function acceptedTotals(projectId: string, results: ResultRecord[]) {
-  const inds = await db.select().from(s.indicators).where(and(eq(s.indicators.projectId, projectId), eq(s.indicators.source, "results"))).orderBy(asc(s.indicators.position));
+  const inds = await db.select().from(s.indicators).where(and(eq(s.indicators.projectId, projectId), inArray(s.indicators.source, RESULT_SOURCES))).orderBy(asc(s.indicators.position));
+  const measureOf = await measuresFor(projectId);
   return inds
     .map((i) => {
-      const t = totalsOf(results.filter((r) => r.indicator === i.code));
+      const t = measured({ baseline: i.baseline === null ? null : Number(i.baseline), unit: i.unit }, results.filter((r) => r.indicator === i.code), measureOf(i));
       return { indicator: i.name, unit: i.unit, achieved: t.value, target: Number(i.target) || null, ...(t.female ? { women: t.female } : {}), ...(t.male ? { men: t.male } : {}) };
     })
     .filter((x) => x.achieved > 0);

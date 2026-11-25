@@ -1,8 +1,10 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import ExcelJS from "exceljs";
 import { db, schema as s } from "@/db";
 import { activityOf, yearShare } from "@/lib/qpr";
-import { proofCount, quarterOf, quarterRange, totalsOf } from "@/lib/results";
+import { proofCount, quarterOf, quarterRange } from "@/lib/results";
+import { measured, RESULT_SOURCES } from "@/lib/measure";
+import { measuresFor } from "@/server/measures";
 import { projectByCode } from "@/server/field-store";
 import { loadResults } from "@/server/results-store";
 
@@ -16,20 +18,20 @@ async function indicatorsOf(code: string) {
   const rows = await db
     .select()
     .from(s.indicators)
-    .where(and(eq(s.indicators.projectId, project.id), eq(s.indicators.source, "results")))
+    .where(and(eq(s.indicators.projectId, project.id), inArray(s.indicators.source, RESULT_SOURCES)))
     .orderBy(asc(s.indicators.position));
-  return { project, rows };
+  return { project, rows, measureOf: await measuresFor(project.id) };
 }
 
 /** The indicator tracking table for a year: targets, each quarter's accepted results, the year and the life of the project. */
 export async function trackingTable(code: string, year: number): Promise<Buffer> {
-  const { project, rows } = await indicatorsOf(code);
+  const { project, rows, measureOf } = await indicatorsOf(code);
   const results = (await loadResults(code)).filter((r) => r.status === "accepted");
   const wb = new ExcelJS.Workbook();
   wb.creator = "ROP Workflow";
   const ws = wb.addWorksheet(`Tracking ${year}`, { views: [{ state: "frozen", ySplit: 4 }] });
   ws.addRow([`${project.name}: indicator tracking table, ${year}`]).font = { bold: true, size: 13 };
-  ws.addRow([`From results accepted by MEL, as of ${new Date().toISOString().slice(0, 10)}. Each figure is the sum of its records; the Records sheet lists them.`]).font = { italic: true, color: { argb: "FF555555" } };
+  ws.addRow([`From results accepted by MEL, as of ${new Date().toISOString().slice(0, 10)}. Each figure is the sum of its records${rows.some((i) => measureOf(i) !== "sum") ? " (a survey target: its latest survey figure, against the baseline where it says so)" : ""}; the Records sheet lists them.`]).font = { italic: true, color: { argb: "FF555555" } };
   ws.addRow([]);
   const head = ws.addRow(["Code", "Activity", "Indicator", "Unit", "Baseline", `Target ${year}`, "Q1", "Q2", "Q3", "Q4", `Total ${year}`, `% of ${year} target`, `Women ${year}`, `Men ${year}`, "Total to date", "Life-of-project target", "Records", "Records with proof"]);
   head.font = { bold: true };
@@ -37,13 +39,16 @@ export async function trackingTable(code: string, year: number): Promise<Buffer>
   for (const i of rows) {
     const mine = results.filter((r) => r.indicator === i.code);
     const inYear = mine.filter((r) => r.date.startsWith(String(year)));
-    // Every sum here is totalsOf (lib/results), the same function the reports use.
-    const q = (n: number) => totalsOf(mine, quarterRange(`${year}-Q${n}`).from, quarterRange(`${year}-Q${n}`).to).value;
-    const yr = totalsOf(mine, `${year}-01-01`, `${year}-12-31`);
+    // Every figure here is measured (lib/measure), the same function the reports use: a sum, or a survey's figure.
+    const measure = measureOf(i);
+    const ind = { baseline: i.baseline === null ? null : Number(i.baseline), unit: i.unit };
+    const fig = (m: ReturnType<typeof measured>) => m.note ?? m.value;
+    const q = (n: number) => fig(measured(ind, mine, measure, quarterRange(`${year}-Q${n}`).from, quarterRange(`${year}-Q${n}`).to));
+    const yr = measured(ind, mine, measure, `${year}-01-01`, `${year}-12-31`);
     const total = yr.value;
     // The same year share as the quarterly report: year targets are stored as running totals.
     const yearTargets = Object.fromEntries(Object.entries((i.forecast as Record<string, number> | null) ?? {}).map(([k, v]) => [k, Number(v)]));
-    const target = yearShare({ target: Number(i.target), yearTargets }, year);
+    const target = yearShare({ target: Number(i.target), yearTargets, measure }, year);
     ws.addRow([
       i.donorCode ?? i.code,
       activityOf(i.donorCode, i.code),
@@ -55,11 +60,11 @@ export async function trackingTable(code: string, year: number): Promise<Buffer>
       q(2),
       q(3),
       q(4),
-      total,
-      target ? Math.round((total / target) * 100) / 100 : "",
+      fig(yr),
+      target && yr.reported !== null ? Math.round((total / target) * 100) / 100 : "",
       yr.female,
       yr.male,
-      totalsOf(mine).value,
+      fig(measured(ind, mine, measure)),
       Number(i.target),
       inYear.length,
       inYear.filter((r) => proofCount(r)).length,

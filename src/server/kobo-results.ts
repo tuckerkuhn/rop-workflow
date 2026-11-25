@@ -1,10 +1,12 @@
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
-import type { MappingMethod } from "@/lib/kobo-setup";
+import { YOUTH_AGES, type KoboBreakdown, type MappingMethod } from "@/lib/kobo-setup";
 import type { Correction, ResultInput, ResultRecord } from "@/lib/results";
 import { logAudit } from "@/server/audit";
 import { attachmentBytes } from "@/server/kobo-client";
-import { credentials } from "@/server/kobo-link";
+import { breakdownFor, credentials, koboBreakdowns } from "@/server/kobo-link";
+import { farmersOf } from "@/server/distribution";
+import { countsPeople } from "@/lib/data-checks";
 import { saveFile } from "@/server/hr-files";
 import { koboMismatches, loadResults } from "@/server/results-store";
 
@@ -26,7 +28,7 @@ import { koboMismatches, loadResults } from "@/server/results-store";
 export const KOBO_BY = "kobo";
 const PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
-type Sub = { id: string; uuid: string; num: number | null; /** The KoboCollect account that sent it. */ by: string | null; at: Date | null; payload: Record<string, unknown>; removed: boolean; form: string | null; review: string };
+type Sub = { id: string; uuid: string; num: number | null; /** The KoboCollect account that sent it. */ by: string | null; /** The farmer ID picked from farmers.csv, when the form names one. */ farmer: string; at: Date | null; payload: Record<string, unknown>; removed: boolean; form: string | null; review: string };
 
 const text = (v: unknown) => (v === null || v === undefined ? "" : String(v).trim());
 /** A form's answer by question path, or by its last part (Kobo may store either). */
@@ -76,6 +78,63 @@ function addsUp(method: MappingMethod, value: string | null, a: string, seen: Se
   }
   return 1;
 }
+
+type People = { female?: number; male?: number; youth?: number };
+
+/** What a farmer record says about one farmer: their sex and age band (lib/field Farmer). */
+type FarmerFacts = { gender?: string; ageBand?: string } | null | undefined;
+
+/**
+ * Women, men and young people one submission counts, from the questions its indicator's mapping
+ * names (lib/kobo-setup KoboBreakdown). Only numbers come out: never the answer itself. A question
+ * not mapped, not answered or answered with something unexpected leaves its figure empty.
+ *
+ * `farmer`: the record of the farmer the submission names, when the indicator counts people and
+ * each submission is one farmer. It gives the sex and the age when no question is mapped for them
+ * (a mapped question wins, even unanswered). Its age band says young (18 to 29) or not (50 and
+ * over); 30 to 49 may or may not be 35 or under, so it is left empty.
+ */
+function breakdownOf(b: KoboBreakdown | null | undefined, p: Record<string, unknown>, farmer?: FarmerFacts): People {
+  const out: People = {};
+  if (b?.shape === "counts") {
+    // A group per submission: the farmer record says nothing about it.
+    const n = (q: string | null) => {
+      const a = q ? answer(p, q) : "";
+      const x = a === "" ? NaN : Number(a);
+      return Number.isInteger(x) && x >= 0 && x <= 1e7 ? x : undefined;
+    };
+    const [female, male, youth] = [n(b.women), n(b.men), n(b.youth)];
+    if (female !== undefined) out.female = female;
+    if (male !== undefined) out.male = male;
+    if (youth !== undefined) out.youth = youth;
+  } else {
+    if (b?.sex && b.female && b.male) {
+      const sex = answer(p, b.sex).split(/\s+/);
+      const isF = sex.includes(b.female);
+      const isM = sex.includes(b.male);
+      // Both or neither: not one person's sex, so not counted either way.
+      if (isF !== isM) Object.assign(out, { female: isF ? 1 : 0, male: isM ? 1 : 0 });
+    } else if (farmer?.gender === "Female" || farmer?.gender === "Male") Object.assign(out, { female: farmer.gender === "Female" ? 1 : 0, male: farmer.gender === "Male" ? 1 : 0 });
+    if (b?.age) {
+      const a = answer(p, b.age);
+      if (a && b.young) out.youth = a.split(/\s+/).includes(b.young) ? 1 : 0;
+      else if (a && Number.isFinite(Number(a)) && Number(a) > 0) out.youth = Number(a) >= YOUTH_AGES.from && Number(a) <= YOUTH_AGES.to ? 1 : 0;
+    } else if (farmer?.ageBand?.startsWith("18")) out.youth = 1;
+    else if (farmer?.ageBand?.startsWith("50")) out.youth = 0;
+  }
+  // More young people than people is not a figure a result can hold (lib/results): leave it out.
+  if (out.youth !== undefined && (out.female !== undefined || out.male !== undefined) && out.youth > (out.female ?? 0) + (out.male ?? 0)) delete out.youth;
+  return out;
+}
+
+/** The farmer ID a submission names: set by the sync on reviewed forms, else the form's farmer answer. A fingerprint is not an ID. */
+const farmerIdOf = (code: string | null, p: Record<string, unknown>) => {
+  const v = text(code) || text(p.farmer);
+  return v.startsWith("pseudonym:") ? "" : v.slice(0, 80);
+};
+
+const samePeople = (r: People, b: People) => r.female === b.female && r.male === b.male && r.youth === b.youth;
+const peopleOf = (r: People): People => ({ ...(r.female !== undefined ? { female: r.female } : {}), ...(r.male !== undefined ? { male: r.male } : {}), ...(r.youth !== undefined ? { youth: r.youth } : {}) });
 
 export type KoboResultCounts = { added: number; updated: number; removed: number; flagged: number; photos: number };
 
@@ -130,6 +189,7 @@ export async function koboToResults(code: string): Promise<KoboResultCounts> {
   const distributionForms = new Set(linked.filter((f) => f.purpose === "distribution").map((f) => f.assetUid));
   const existing = (await loadResults(code)).filter((r) => r.kobo);
   const mismatched = await koboMismatches(project.id);
+  const breakdowns = await koboBreakdowns(project.id);
 
   for (const { m, ind } of maps) {
     if (distributionForms.has(m.assetUid)) continue;
@@ -140,8 +200,12 @@ export async function koboToResults(code: string): Promise<KoboResultCounts> {
       .orderBy(asc(s.evidence.completedAt));
     const subs: Sub[] = rows
       .filter((r) => r.koboSubmissionUuid)
-      .map((r) => ({ id: r.id, uuid: r.koboSubmissionUuid!, num: r.koboSubmissionId, by: r.completedBy, at: r.completedAt, payload: (r.payload as Record<string, unknown>) ?? {}, removed: !!r.koboRemovedAt, form: r.form, review: r.reviewStatus }));
+      .map((r) => ({ id: r.id, uuid: r.koboSubmissionUuid!, num: r.koboSubmissionId, by: r.completedBy, at: r.completedAt, payload: (r.payload as Record<string, unknown>) ?? {}, removed: !!r.koboRemovedAt, form: r.form, review: r.reviewStatus, farmer: farmerIdOf(r.farmerCode, (r.payload as Record<string, unknown>) ?? {}) }));
     const seen = new Set<string>();
+    const breakdown = breakdownFor(breakdowns, ind.code, m.assetUid);
+    // One submission is one farmer only on a target counted in people (not hectares or kilograms):
+    // there the farmer record gives the sex and age no mapped question gives.
+    const farmers = countsPeople(ind.unit) ? await farmersOf(project.id, subs.map((x) => x.farmer)) : new Map<string, FarmerFacts>();
     // Results matched to a submission on this form; any other result from this form and target is left over.
     const matched = new Set<string>();
     for (const sub of subs) {
@@ -179,30 +243,37 @@ export async function koboToResults(code: string): Promise<KoboResultCounts> {
       const district = placeOf(sub.payload, "district");
       const gps = gpsOf(sub.payload);
       const formName = forms.get(m.assetUid) ?? "KoboToolbox form";
+      const people = breakdownOf(breakdown, sub.payload, farmers.get(sub.farmer));
       const note = `From KoboToolbox: "${formName}", submission ${sub.num ?? sub.uuid.slice(0, 8)}${district || province ? `, ${[district, province].filter(Boolean).join(", ")}` : ""}.`;
 
       if (mine) {
-        const changed = mine.value !== value || mine.date !== date || (mine.province ?? "") !== (province ?? "") || (mine.district ?? "") !== (district ?? "");
+        const moved = mine.value !== value || mine.date !== date || (mine.province ?? "") !== (province ?? "") || (mine.district ?? "") !== (district ?? "");
+        // Women, men and young people follow the form too: filled in on the next sync after they are mapped.
+        const changed = moved || !samePeople(mine, people);
         if (!changed) {
           // It had been noted as changed after acceptance and now agrees again (the edit was undone in KoboToolbox).
           if (mine.status === "accepted" && mismatched.delete(mine.id)) await logAudit(db, project.id, { entity: "result", entityId: mine.id, action: "kobo_matches_again", by: KOBO_BY, detail: { indicator: ind.code, submission: sub.num, value, date } });
           continue;
         }
         if (mine.status === "accepted") {
-          await flagOnce(project.id, mine.id, { indicator: ind.code, submission: sub.num, was: { value: mine.value, date: mine.date }, now: { value, date } });
+          await flagOnce(project.id, mine.id, { indicator: ind.code, submission: sub.num, was: { value: mine.value, date: mine.date, ...peopleOf(mine) }, now: { value, date, ...people } });
           out.flagged++;
           continue;
         }
-        // Queried by MEL and now corrected in KoboToolbox: back to MEL, with the query and the old figures kept.
+        // Queried by MEL and now corrected in KoboToolbox (or its women and men now filled in from the
+        // form or the farmer record): back to MEL, with the query and the old figures kept.
         const answered = mine.status === "queried";
-        const history: Correction[] = [...(mine.history ?? []), ...(answered ? [{ at: new Date().toISOString(), by: KOBO_BY, query: mine.query, reply: "Corrected in KoboToolbox", previous: { value: mine.value, date: mine.date, ...(mine.province ? { province: mine.province } : {}), ...(mine.district ? { district: mine.district } : {}) } }] : [])];
-        const payload: ResultInput & { history?: Correction[] } = { ...stored(mine), value, date, province, district, gps, ...(history.length ? { history } : {}) };
+        const reply = moved ? "Corrected in KoboToolbox" : "Women, men and young people filled in from the form or the farmer record";
+        const history: Correction[] = [...(mine.history ?? []), ...(answered ? [{ at: new Date().toISOString(), by: KOBO_BY, query: mine.query, reply, previous: { value: mine.value, date: mine.date, ...(mine.province ? { province: mine.province } : {}), ...(mine.district ? { district: mine.district } : {}), ...peopleOf(mine) } }] : [])];
+        const { female: _f, male: _m, youth: _y, ...rest } = stored(mine);
+        void [_f, _m, _y];
+        const payload: ResultInput & { history?: Correction[] } = { ...rest, value, date, province, district, gps, ...people, ...(history.length ? { history } : {}) };
         await db.transaction(async (tx) => {
           await tx
             .update(s.evidence)
             .set({ payload, completedAt: new Date(`${date}T12:00:00Z`), location: [district, province].filter(Boolean).join(", ") || null, updatedAt: new Date(), ...(answered ? { reviewStatus: "pending" as const, reviewedBy: null, reviewedAt: null, queryNote: null } : {}) })
             .where(and(where, eq(s.evidence.id, mine.id)));
-          await logAudit(tx, project.id, { entity: "result", entityId: mine.id, action: answered ? "result_corrected" : "kobo_result_updated", by: KOBO_BY, detail: { indicator: ind.code, submission: sub.num, value, date, ...(answered ? { query: mine.query, reply: "Corrected in KoboToolbox", before: { value: mine.value, date: mine.date }, after: { value, date } } : {}) } });
+          await logAudit(tx, project.id, { entity: "result", entityId: mine.id, action: answered ? "result_corrected" : "kobo_result_updated", by: KOBO_BY, detail: { indicator: ind.code, submission: sub.num, value, date, ...people, ...(answered ? { query: mine.query, reply, before: { value: mine.value, date: mine.date, ...peopleOf(mine) }, after: { value, date, ...people } } : {}) } });
         });
         out.updated++;
         continue;
@@ -234,6 +305,7 @@ export async function koboToResults(code: string): Promise<KoboResultCounts> {
         indicator: ind.code,
         date,
         value,
+        ...people,
         ...(province ? { province } : {}),
         ...(district ? { district } : {}),
         note,
@@ -248,7 +320,7 @@ export async function koboToResults(code: string): Promise<KoboResultCounts> {
           .insert(s.evidence)
           .values({ organizationId: project.organizationId, projectId: project.id, source: "manual", form: "result", reviewStatus: "pending", completedBy: KOBO_BY, completedAt: new Date(`${date}T12:00:00Z`), location: [district, province].filter(Boolean).join(", ") || null, payload: input })
           .returning({ id: s.evidence.id });
-        await logAudit(tx, project.id, { entity: "result", entityId: r.id, action: "result_recorded", by: KOBO_BY, detail: { indicator: ind.code, value, date, proof: files.length, submission: sub.num } });
+        await logAudit(tx, project.id, { entity: "result", entityId: r.id, action: "result_recorded", by: KOBO_BY, detail: { indicator: ind.code, value, date, ...people, proof: files.length, submission: sub.num } });
       });
       out.added++;
     }
@@ -273,4 +345,4 @@ export async function koboToResults(code: string): Promise<KoboResultCounts> {
 }
 
 /** The pure rules above, for tests. */
-export const koboResultRules = { answer, placeOf, gpsOf, addsUp, dateOf };
+export const koboResultRules = { answer, placeOf, gpsOf, addsUp, dateOf, breakdownOf };

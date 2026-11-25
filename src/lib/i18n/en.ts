@@ -286,6 +286,8 @@ export const en = {
   "progress.thisMonth": "{n} this month",
   "progress.thisQuarter": "{n} this quarter",
   "progress.noData": "No data this period",
+  "measure.baseline_needed": "Baseline needed",
+  "measure.no_survey": "No survey yet",
   "progress.endOfSeason": "Measured at the end of the season",
   "progress.pending": "{n} waiting for review",
   "progress.last": "Last record {date}",

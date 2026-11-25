@@ -10,6 +10,7 @@ import { useT } from "@/components/app/i18n";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { TopBar, primaryBtn } from "@/components/workspace/ui";
 import { BREAKDOWNS, type Breakdown, type TargetDetailsPatch } from "@/lib/target-details";
+import { MEASURES, MEASURE_TEXT, isPercentUnit } from "@/lib/measure";
 import type { TargetDetailsView } from "@/server/target-details";
 
 /**
@@ -86,7 +87,7 @@ export function TargetDetailsPage() {
         {v && (
           <div className="mt-4 space-y-4">
             {v.targets.map((x) => (
-              <TargetForm key={`${url}:${x.code}:${JSON.stringify([x.baseline, x.breakdown, x.verification, x.budgetRef, x.workplanCode, x.inQuarterlyReport])}`} x={x} v={v} save={save} justSaved={saved === x.code} />
+              <TargetForm key={`${url}:${x.code}:${JSON.stringify([x.baseline, x.breakdown, x.verification, x.budgetRef, x.workplanCode, x.inQuarterlyReport, x.measure])}`} x={x} v={v} save={save} justSaved={saved === x.code} />
             ))}
           </div>
         )}
@@ -98,18 +99,18 @@ export function TargetDetailsPage() {
 function TargetForm({ x, v, save, justSaved }: { x: Target; v: TargetDetailsView; save: (a: TargetDetailsPatch) => Promise<void>; justSaved: boolean }) {
   const { t } = useT();
   // The form starts from the saved facts. Its key holds them, so it starts again only when this target's own saved facts change; typing in other targets is left alone.
-  const [f, setF] = useState({ baseline: x.baseline === null ? "" : String(x.baseline), breakdown: x.breakdown as Breakdown[], verification: x.verification, budgetRef: x.budgetRef, workplanCode: x.workplanCode, inQuarterlyReport: x.inQuarterlyReport });
+  const [f, setF] = useState({ baseline: x.baseline === null ? "" : String(x.baseline), breakdown: x.breakdown as Breakdown[], verification: x.verification, budgetRef: x.budgetRef, workplanCode: x.workplanCode, inQuarterlyReport: x.inQuarterlyReport, measure: x.measure });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   // Digits with a point and at most two decimals. A comma is refused, not guessed at: "12,5" and "12,500" mean different things.
   const typed = f.baseline.trim();
   const badNumber = typed !== "" && !/^-?\d{1,12}(\.\d{1,2})?$/.test(typed);
   const baseline = typed === "" || badNumber ? null : Number(typed);
-  const dirty = badNumber || baseline !== x.baseline || JSON.stringify(BREAKDOWNS.filter((b) => f.breakdown.includes(b))) !== JSON.stringify(x.breakdown) || f.verification.trim() !== x.verification || f.budgetRef !== x.budgetRef || f.workplanCode !== x.workplanCode || f.inQuarterlyReport !== x.inQuarterlyReport;
+  const dirty = badNumber || baseline !== x.baseline || JSON.stringify(BREAKDOWNS.filter((b) => f.breakdown.includes(b))) !== JSON.stringify(x.breakdown) || f.verification.trim() !== x.verification || f.budgetRef !== x.budgetRef || f.workplanCode !== x.workplanCode || f.inQuarterlyReport !== x.inQuarterlyReport || f.measure !== x.measure;
   const off = !v.can.edit;
   const help = "mt-1 block text-xs text-muted";
   return (
-    <section className="rounded-2xl border border-line bg-surface p-4" aria-label={x.name}>
+    <section id={`target-${x.code}`} className="scroll-mt-20 rounded-2xl border border-line bg-surface p-4" aria-label={x.name}>
       <h2 className="text-base font-semibold">
         <span className="font-mono text-xs text-muted">{x.donorCode ?? x.code}</span> {x.name} <span className="font-normal text-muted">({x.unit})</span>
       </h2>
@@ -166,6 +167,22 @@ function TargetForm({ x, v, save, justSaved }: { x: Target; v: TargetDetailsView
           </select>
           <span className={help}>{t("td.workplanCode.help")}</span>
         </label>
+        <fieldset className="text-sm sm:col-span-2">
+          <legend>How the figure is worked out</legend>
+          <div className="mt-1 space-y-2">
+            {MEASURES.map((m) => (
+              <label key={m} className="flex min-h-10 items-start gap-2">
+                <input type="radio" name={`measure-${x.code}`} className="mt-0.5 h-5 w-5" checked={f.measure === m} disabled={off} onChange={() => setF({ ...f, measure: m })} />
+                <span>
+                  {MEASURE_TEXT[m].label}
+                  <span className={help}>{MEASURE_TEXT[m].help}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+          {f.measure === "change" && baseline === null && <span className="mt-1 block text-xs text-clay">Record the baseline above: until then the report shows &quot;Baseline needed&quot; in place of the figure.</span>}
+          {f.measure === "change" && baseline === 0 && isPercentUnit(x.unit) && <span className="mt-1 block text-xs text-clay">A percent change needs a baseline above zero.</span>}
+        </fieldset>
         <label className="flex min-h-10 items-start gap-2 text-sm sm:col-span-2">
           <input type="checkbox" className="mt-0.5 h-5 w-5" checked={f.inQuarterlyReport} disabled={off} onChange={(e) => setF({ ...f, inQuarterlyReport: e.target.checked })} />
           <span>
@@ -183,7 +200,7 @@ function TargetForm({ x, v, save, justSaved }: { x: Target; v: TargetDetailsView
           onClick={() => {
             setBusy(true);
             setError("");
-            save({ indicator: x.code, baseline, breakdown: BREAKDOWNS.filter((b) => f.breakdown.includes(b)), verification: f.verification.trim(), budgetRef: f.budgetRef, workplanCode: f.workplanCode, inQuarterlyReport: f.inQuarterlyReport })
+            save({ indicator: x.code, baseline, breakdown: BREAKDOWNS.filter((b) => f.breakdown.includes(b)), verification: f.verification.trim(), budgetRef: f.budgetRef, workplanCode: f.workplanCode, inQuarterlyReport: f.inQuarterlyReport, measure: f.measure })
               .catch((e) => setError(e instanceof Error ? e.message : String(e)))
               .finally(() => setBusy(false));
           }}

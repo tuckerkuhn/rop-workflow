@@ -4,6 +4,9 @@ import type { AppUser } from "@/lib/demo";
 import { BREAKDOWNS, detailChanges, linkProblem, nextDetails, type StoredDetails, type TargetDetailsPatch } from "@/lib/target-details";
 import { logAudit } from "@/server/audit";
 import { projectByCode } from "@/server/field-store";
+import { MEASURES_KEY, measureOf, type Measure } from "@/lib/measure";
+import { loadMeasures } from "@/server/measures";
+import { updateProjectState } from "@/server/project-state";
 
 /** Target details (lib/target-details): read for the screen, and saved one target at a time with an audit row. */
 
@@ -30,6 +33,7 @@ async function choices(projectId: string) {
 export async function loadTargetDetails(code: string, u: AppUser) {
   const project = await projectByCode(code);
   const rows = await db.select().from(s.indicators).where(eq(s.indicators.projectId, project.id)).orderBy(asc(s.indicators.position));
+  const measures = await loadMeasures(project.id);
   return {
     project: { code, name: project.name },
     can: { edit: mayEdit(u) },
@@ -48,6 +52,8 @@ export async function loadTargetDetails(code: string, u: AppUser) {
         budgetRef: d.budgetRef ?? "",
         workplanCode: d.workplanCode ?? "",
         inQuarterlyReport: d.inQuarterlyReport,
+        /** How its results become its figure (lib/measure): saved, or its default. */
+        measure: measureOf(measures, r),
       };
     }),
     ...(await choices(project.id)),
@@ -68,14 +74,21 @@ export async function saveTargetDetails(code: string, a: TargetDetailsPatch, u: 
   const why = linkProblem({ budgetRef: a.budgetRef === (before.budgetRef ?? "") ? "" : a.budgetRef, workplanCode: a.workplanCode === (before.workplanCode ?? "") ? "" : a.workplanCode }, budgetLines.map((l) => l.code), workplan.map((w) => w.code));
   if (why) return { status: 400, error: why };
   const after = nextDetails(before, a);
-  const changes = detailChanges(before, after);
-  if (!Object.keys(changes).length) return null;
-  await db.transaction(async (tx) => {
-    await tx
-      .update(s.indicators)
-      .set({ baseline: after.baseline === null ? null : String(after.baseline), disaggregation: after.disaggregation, verification: after.verification, budgetRef: after.budgetRef, workplanCode: after.workplanCode, inQuarterlyReport: after.inQuarterlyReport, updatedAt: new Date() })
-      .where(mine);
+  const changes: Record<string, { from: unknown; to: unknown }> = detailChanges(before, after);
+  const details = Object.keys(changes).length > 0;
+  // The measure is kept in the project's "measures" document (lib/measure), read and changed with its row locked.
+  await updateProjectState<Record<string, unknown>, void>(project.id, MEASURES_KEY, {}, async (doc, tx) => {
+    const was: Measure = measureOf(doc, row);
+    const measure = a.measure && a.measure !== was ? a.measure : null;
+    if (measure) changes.measure = { from: was, to: measure };
+    if (!details && !measure) return { data: null, result: undefined };
+    if (details)
+      await tx
+        .update(s.indicators)
+        .set({ baseline: after.baseline === null ? null : String(after.baseline), disaggregation: after.disaggregation, verification: after.verification, budgetRef: after.budgetRef, workplanCode: after.workplanCode, inQuarterlyReport: after.inQuarterlyReport, updatedAt: new Date() })
+        .where(mine);
     await logAudit(tx, project.id, { entity: "indicator", entityId: row.id, action: "target_details_set", by: u.id, detail: { code: row.code, donorCode: row.donorCode, changes } });
+    return { data: measure ? { ...doc, [row.code]: measure } : null, result: undefined };
   });
   return null;
 }

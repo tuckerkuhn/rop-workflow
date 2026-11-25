@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { EMPTY_LEARNING, type Learning } from "@/lib/learning";
 import { buildPeriodRows, PERIOD_COPIES, periodKey, periodRange, type Period, type PeriodIndicator } from "@/lib/period-report";
@@ -7,7 +7,9 @@ import { projectByCode, donorNameOf } from "@/server/field-store";
 import { donorPhotoRule } from "@/server/photo-consent";
 import { loadProjectState, loadProjectStates, updateProjectState } from "@/server/project-state";
 import { loadCopies, spendFor } from "@/server/qpr-store";
-import { quarterRange, totalsOf } from "@/lib/results";
+import { quarterRange } from "@/lib/results";
+import { measured, RESULT_SOURCES } from "@/lib/measure";
+import { measuresFor } from "@/server/measures";
 import { loadResults, loadUpdates } from "@/server/results-store";
 
 /**
@@ -27,16 +29,17 @@ export async function periodReport(code: string, p: Period) {
       if (start >= from.slice(0, 7) + "-01" && start <= to && start <= today) quarters.push(`${y}-Q${q}`);
     }
   // None of these depends on another: read together. Every quarter's saved report comes in one read.
-  const [rows, results, updates, learning, saved] = await Promise.all([
+  const [rows, results, updates, learning, saved, measureOf] = await Promise.all([
     db
       .select()
       .from(s.indicators)
-      .where(and(eq(s.indicators.projectId, project.id), eq(s.indicators.source, "results"), eq(s.indicators.inQuarterlyReport, true)))
+      .where(and(eq(s.indicators.projectId, project.id), inArray(s.indicators.source, RESULT_SOURCES), eq(s.indicators.inQuarterlyReport, true)))
       .orderBy(asc(s.indicators.position)),
     loadResults(code),
     loadUpdates(code),
     loadProjectState<Learning>(project.id, "learning", EMPTY_LEARNING),
     loadProjectStates<Record<string, Qpr | null>>(project.id, Object.fromEntries(quarters.map((q) => [`qpr:${q}`, null]))),
+    measuresFor(project.id),
   ]);
   const indicators: PeriodIndicator[] = rows.map((r) => ({
     code: r.code,
@@ -49,6 +52,8 @@ export async function periodReport(code: string, p: Period) {
     disaggregation: r.disaggregation,
     budgetRef: r.budgetRef,
     baseline: r.baseline === null ? null : Number(r.baseline),
+    // How results become its figure (lib/measure); left out for a target that adds up.
+    ...(measureOf(r) !== "sum" ? { measure: measureOf(r) } : {}),
   }));
   const table = buildPeriodRows(indicators, results, p, project.startDate, project.endDate);
 
@@ -88,8 +93,9 @@ export async function periodReport(code: string, p: Period) {
     if (!copy) continue;
     const range = quarterRange(q);
     for (const row of copy.data.rows) {
-      if (!indicators.some((i) => i.code === row.code)) continue;
-      const now = totalsOf(results.filter((x) => x.indicator === row.code), range.from, range.to).value;
+      const ind = indicators.find((i) => i.code === row.code);
+      if (!ind) continue;
+      const now = measured(ind, results.filter((x) => x.indicator === row.code), ind.measure, range.from, range.to).value;
       if (Math.abs(now - row.quarter) > 1e-9) changed.push({ code: row.code, donorCode: row.donorCode || row.code, quarter: q, then: row.quarter, now });
     }
   }

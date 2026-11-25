@@ -1,7 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { stampHistory } from "@/lib/history";
 import { mirrorFarmer } from "@/server/farmer-mirror";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { today } from "@/lib/clock";
 import type { AppUser } from "@/lib/demo";
@@ -182,8 +182,18 @@ async function changeFarmer(tx: Tx, projectId: string, farmerCode: string, chang
 }
 
 async function farmerOf(projectId: string, code: string) {
-  const [item] = await db.select().from(s.fieldItems).where(and(eq(s.fieldItems.projectId, projectId), eq(s.fieldItems.itemKey, code))).limit(1);
-  return item ? (item.data as Farmer) : null;
+  return (await farmersOf(projectId, [code])).get(code) ?? null;
+}
+
+/** Farmer records by farmer ID, many at once: results from KoboToolbox read each farmer's sex from them (server/kobo-results). */
+export async function farmersOf(projectId: string, codes: string[]): Promise<Map<string, Farmer>> {
+  const out = new Map<string, Farmer>();
+  const ids = [...new Set(codes.filter(Boolean))];
+  for (let i = 0; i < ids.length; i += 500) {
+    const rows = await db.select({ key: s.fieldItems.itemKey, data: s.fieldItems.data }).from(s.fieldItems).where(and(eq(s.fieldItems.projectId, projectId), inArray(s.fieldItems.itemKey, ids.slice(i, i + 500))));
+    for (const r of rows) out.set(r.key, r.data as Farmer);
+  }
+  return out;
 }
 
 /**

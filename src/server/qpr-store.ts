@@ -17,6 +17,8 @@ import { loadProjectState, loadProjectStateRaw, updateProjectState } from "@/ser
 import { loadLineReasons } from "@/server/overspend-store";
 import { ledgerSpent, spentBetween, type LedgerSpent } from "@/server/ledger-spent";
 import { early } from "@/server/early";
+import { RESULT_SOURCES } from "@/lib/measure";
+import { measuresFor } from "@/server/measures";
 import { oncePerRequest, requestWrote } from "@/server/request-memo";
 
 /** One saved quarterly report per project and quarter, as project_state "qpr:2026-Q3". */
@@ -185,6 +187,7 @@ async function readQprData(code: string, quarter: string) {
   const feedbackLater = early(loadProjectState<FeedbackLog>(project.id, "feedback", EMPTY_FEEDBACK).catch(() => EMPTY_FEEDBACK));
   // The lessons record (Lessons and close-out): the quarter's lessons go into the Lessons Learned section, not typed again.
   const learningLater = early(loadProjectState<Learning>(project.id, "learning", EMPTY_LEARNING).catch(() => EMPTY_LEARNING));
+  const measureLater = early(measuresFor(project.id));
   const planLater = early(db.select({ code: s.workplanItems.code, org: s.workplanItems.org, active: s.workplanItems.active }).from(s.workplanItems).where(eq(s.workplanItems.projectId, project.id)));
   const linesLater = early(
     db
@@ -196,8 +199,9 @@ async function readQprData(code: string, quarter: string) {
   const rows = await db
     .select()
     .from(s.indicators)
-    .where(and(eq(s.indicators.projectId, project.id), eq(s.indicators.source, "results"), eq(s.indicators.inQuarterlyReport, true)))
+    .where(and(eq(s.indicators.projectId, project.id), inArray(s.indicators.source, RESULT_SOURCES), eq(s.indicators.inQuarterlyReport, true)))
     .orderBy(asc(s.indicators.position));
+  const measureOf = await measureLater;
   const indicators: IndicatorInfo[] = rows.map((r) => ({
     code: r.code,
     donorCode: r.donorCode,
@@ -209,6 +213,8 @@ async function readQprData(code: string, quarter: string) {
     disaggregation: r.disaggregation,
     budgetRef: r.budgetRef,
     workplanCode: r.workplanCode,
+    // How results become its figure (lib/measure); only a target that does not add up carries it, so the rows of one that does stay as they were.
+    ...(measureOf(r) !== "sum" ? { measure: measureOf(r), baseline: r.baseline === null ? null : Number(r.baseline) } : {}),
   }));
   const results = await resultsLater;
   const updates = await updatesLater;

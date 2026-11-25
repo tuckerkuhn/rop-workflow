@@ -108,6 +108,8 @@ export async function donorSafeReport(code: string, projectId: string, quarter: 
       yearTarget: r.yearTarget,
       quarter: r.quarter,
       year: r.year,
+      // A survey target with no figure to give (lib/measure): what to show in its place.
+      ...(r.note ? { note: r.note } : {}),
       // The shared wording (lib/target-status), as of the report's quarter; only the Word file keeps UNDP's terms.
       status: targetStatusText(targetStatus(r, Number(quarter.slice(-1)))),
       comment: r.comment,

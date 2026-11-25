@@ -20,8 +20,9 @@ import { Empty, Fig, Figures, LedgerRow, LedgerTable, PageHead, SectionHead, She
 import type { Receipt } from "@/lib/expense";
 import { readWorkbook } from "@/lib/read-sheet";
 import { TEMPLATE_CSV, parseCsv, readResults, type ImportRow } from "@/lib/results-import";
-import { PROVINCES, YOUTH, proofCount, proofLinkSchema, quarterOf, quarterRange, totalsOf, type ProofLink, type ResultAction, type ResultInput, type UpdateInput } from "@/lib/results";
+import { PROVINCES, YOUTH, proofCount, proofLinkSchema, quarterOf, quarterRange, type ProofLink, type ResultAction, type ResultInput, type UpdateInput } from "@/lib/results";
 import type { ResultsView } from "@/app/api/projects/[code]/results/route";
+import { measured } from "@/lib/measure";
 import { NamesWarning } from "@/components/progress/names-warning";
 import { LookedAt } from "@/components/app/ai-why";
 import { FieldHelp } from "@/components/app/field-help";
@@ -213,8 +214,9 @@ export function ResultsPage() {
               <ul className="mt-3 border-t border-ink font-ledger [&>li:last-child]:border-ink">
                 {list.map((i) => {
                   const mine = v.results.filter((r) => r.indicator === i.code && (!range || (r.date >= range.from && r.date <= range.to)));
-                  const all = totalsOf(v.results.filter((r) => r.indicator === i.code));
-                  const shown = totalsOf(mine);
+                  // The same figure as Progress and the report (lib/measure): a sum, or a survey's figure.
+                  const all = measured(i, v.results.filter((r) => r.indicator === i.code), i.measure);
+                  const shown = measured(i, mine, i.measure);
                   const pending = mine.filter((r) => r.status === "pending").length;
                   const isOpen = open === i.code;
                   return (
@@ -228,7 +230,11 @@ export function ResultsPage() {
                         <span className="w-16 shrink-0 pt-0.5 font-mono text-xs text-muted">{i.donorCode ?? i.code}</span>
                         <span className="min-w-0 flex-1 font-semibold leading-snug">{i.name}</span>
                         <span className="shrink-0 text-end">
-                          <span className="font-mono text-xl font-bold tabular-nums">{num(range ? shown.value : all.value)}</span>
+                          {(range ? shown : all).note ? (
+                            <span className="font-mono text-sm font-bold text-clay">{(range ? shown : all).note}</span>
+                          ) : (
+                            <span className="font-mono text-xl font-bold tabular-nums">{num(range ? shown.value : all.value)}</span>
+                          )}
                           <span className="block text-xs text-muted">{range ? `in ${rangeLabel}` : `of ${num(i.target)} ${i.unit}`}</span>
                         </span>
                       </button>
@@ -984,8 +990,10 @@ function RecordForm({ ind, add, onClose, prefill }: { ind: Ind; add: (r: ResultI
           <input type="date" className={input} value={f.date} max={new Date().toISOString().slice(0, 10)} onChange={set("date")} />
         </label>
         <label className="text-sm">
-          How many ({ind.unit})
+          {ind.measure === "sum" ? `How many (${ind.unit})` : ind.measure === "change" ? "The survey's figure" : `The survey's figure (${ind.unit})`}
           <input inputMode="decimal" className={input} value={f.value} onChange={set("value")} />
+          {ind.measure === "change" && <span className="mt-1 block text-xs text-muted">The survey&apos;s own figure, e.g. the average income, in the same unit as the baseline ({ind.baseline ?? "not set yet"}). The app works out the change. Attach the survey file as proof.</span>}
+          {ind.measure === "latest" && <span className="mt-1 block text-xs text-muted">The survey&apos;s figure, e.g. a share or an average. Attach the survey file as proof.</span>}
         </label>
         <label className="text-sm">
           Province

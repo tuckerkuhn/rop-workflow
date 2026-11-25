@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import type { AppUser } from "@/lib/demo";
 import type { Story } from "@/lib/stories";
@@ -11,6 +11,8 @@ import { loadProjectState } from "@/server/project-state";
 import { loadResults } from "@/server/results-store";
 import { qprData } from "@/server/qpr-store";
 import { quarterOf } from "@/lib/results";
+import { measured, RESULT_SOURCES } from "@/lib/measure";
+import { measuresFor } from "@/server/measures";
 
 /**
  * ROP's track record for proposals: each project's donor, dates and budget, what it has achieved
@@ -27,12 +29,15 @@ export async function trackRecord(u: AppUser) {
     const home = await loadHome(code, u).catch(() => null);
     // The quarterly report holds the whole agreement: its budget across phases, and its duration as the agreement states it.
     const q = await qprData(code, quarterOf(new Date().toISOString().slice(0, 10))).catch(() => null);
-    const indicators = await db.select().from(s.indicators).where(and(eq(s.indicators.projectId, row.id), eq(s.indicators.source, "results"))).orderBy(asc(s.indicators.position));
+    const indicators = await db.select().from(s.indicators).where(and(eq(s.indicators.projectId, row.id), inArray(s.indicators.source, RESULT_SOURCES))).orderBy(asc(s.indicators.position));
     const results = (await loadResults(code)).filter((r) => r.status === "accepted");
+    const measureOf = await measuresFor(row.id);
     const achieved = indicators
       .map((i) => {
         const mine = results.filter((r) => r.indicator === i.code);
-        return { code: i.donorCode ?? i.code, name: i.name, unit: i.unit, total: mine.reduce((t, r) => t + r.value, 0), target: Number(i.target), women: mine.reduce((t, r) => t + (r.female ?? 0), 0), proof: mine.filter((r) => r.files.length || (r.links ?? []).length).length, records: mine.length };
+        // The same figure as the reports (lib/measure): a sum, or for a survey target its latest figure. Women and records stay those of every accepted result.
+        const m = measured({ baseline: i.baseline === null ? null : Number(i.baseline), unit: i.unit }, mine, measureOf(i));
+        return { code: i.donorCode ?? i.code, name: i.name, unit: i.unit, total: m.value, target: Number(i.target), women: mine.reduce((t, r) => t + (r.female ?? 0), 0), proof: mine.filter((r) => r.files.length || (r.links ?? []).length).length, records: mine.length };
       })
       .filter((x) => x.total > 0);
     const stories = (await loadProjectState<{ stories: Story[] }>(row.id, "stories", { stories: [] })).stories

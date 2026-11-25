@@ -76,7 +76,7 @@ export function IndicatorTable({ projectId, userId }: { projectId: string; userI
                       </span>
                       <span className="text-sm tabular-nums">
                         <span className="text-xs text-muted">{t("prog.result")} </span>
-                        <span className="font-semibold">{n(i.year)}</span>
+                        {i.note ? <span className="font-semibold text-clay">{i.note}</span> : <span className="font-semibold">{n(i.year)}</span>}
                       </span>
                       <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 sm:justify-end">
                         <span className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${TONE[st.tone]}`}>

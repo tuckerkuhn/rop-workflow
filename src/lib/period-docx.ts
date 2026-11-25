@@ -50,9 +50,10 @@ export async function periodDocx(v: PeriodReportView, origin: string, draft = 0)
               cell(n(r.baseline)),
               cell(n(r.target)),
               ...r.parts.map((x) => cell(n(x.value))),
-              cell(withRef(n(r.achieved), refOf(figs, r.code, "q"), r.achieved)),
+              // A survey target with no figure to give (lib/measure) says why: "Baseline needed" or "No survey yet".
+              cell(r.note?.achieved ?? withRef(n(r.achieved), refOf(figs, r.code, "q"), r.achieved)),
               cell(r.pct === null ? "—" : `${r.pct}%`),
-              ...(annual ? [cell(`${withRef(n(r.cumulative), refOf(figs, r.code, "y"), r.cumulative)} / ${n(r.lifeTarget)}`)] : []),
+              ...(annual ? [cell(`${r.note?.cumulative ?? withRef(n(r.cumulative), refOf(figs, r.code, "y"), r.cumulative)} / ${n(r.lifeTarget)}`)] : []),
             ],
           }),
       ),
