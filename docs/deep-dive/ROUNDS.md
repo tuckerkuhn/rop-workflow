@@ -23,20 +23,20 @@ All pushed to `deep-dive/handoffs-2026-11-24`. Nothing touched main or Supabase.
 - A signed monthly review keeps that day's figures and shows them for good (AA, decided by Tucker).
 
 **Big items still open (1).**
-- A paid purchase or bill does not reach the books. Finance types it twice (AI).
+- A paid purchase or bill does not reach the books. Finance types it twice (AI, decided by Tucker 25 Nov: build it, bills first).
 
 Not walked yet: most of chain 2 and all of chains 3 to 6. More big items may be there.
 
 **Decisions.** Recommended choice first. Letters match "Needs Tucker" below.
 - AA. Decided by Tucker 25 Nov: keeps that day's figures. Built.
-- AI. A paid purchase or bill posts to the books by itself. Or Finance keeps typing it.
+- AI. Decided by Tucker 25 Nov: Finance posts a filled-in entry with one click. Bills first. Not built yet.
 - X. Refuse a report's release before its period ends. Or keep the warning.
 - AB. A donor's account sees only photos cleared for donors. Or all, as now.
 - 20 smaller ones, O to AL, are under "Needs Tucker".
 
 **Tests.** 1,215 pass, up from 1,138. Typecheck and lint are clean.
 
-**Next action.** Answer AI. It unblocks the one big item left.
+**Next action.** Build AI as decided (see "Decided"), bills first, then purchases. Start from main: the branch was merged into main on 25 Nov (`29e7b10`).
 
 Tucker's instruction, 25 Nov 2026, 00:02: "Keep making rounds until we don't need any big changes
 left and then start clearing out the medium changes. It must be very tight to be useful and to be
@@ -495,6 +495,19 @@ Decisions A to N are in `11-handoffs-review.md`. Rounds add theirs here, lettere
   signed review. Say if you want it.
 
 ### Decided
+
+- **AI. A paid purchase or a filed bill and the books.** Decided by Tucker 25 Nov, all six points:
+  1. Finance gets an entry filled in from the bill or purchase and posts it with one click after
+     checking it. Nothing is typed twice. It never posts by itself.
+  2. It counts as spent when paid: a purchase when it is recorded as paid, a bill when its voucher is filed.
+  3. The app's books are the book of record for budget against actual and donor reports. NetSuite
+     stays the official accounts. The month-end reconciliation lists any difference to explain.
+  4. An afghani payment uses the rate on the invoice or payment as recorded.
+  5. A wrong posted payment gets a reversing entry and a corrected one. Nothing posted is deleted.
+  6. Bills first (the voucher is a clear "filed" moment), then purchases.
+  The ledger's own rules stand: no posting into a locked month, a second person over the self-post
+  limit. Post through `recordExpenditure` (`src/server/expenditure-store.ts`, see `09-finance.md`,
+  "What posts automatically"), with an idempotency key per bill or purchase so nothing posts twice.
 
 - **AA. What a signed monthly review shows.** Decided by Tucker 25 Nov: keeps that day's figures. Built.
   Before, it showed the year's figures as they stood on the day it was opened, whatever month it
