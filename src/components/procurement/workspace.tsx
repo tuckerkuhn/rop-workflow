@@ -19,6 +19,7 @@ import { AiCheck, DraftPanel, RoutePicker, SoleFacts, SupplierField, VoucherPane
 import { useSupplierRegister, type SupplierRow } from "@/components/procurement/suppliers-page";
 import { BidsPanel, DistributionPanel } from "@/components/procurement/bid-panels";
 import { DocumentViewer } from "@/components/procurement/document";
+import { PurchaseBooks } from "@/components/procurement/purchase-books";
 import { PaidPanel, PayFormPanel, PayFormSummary, PaymentsList, ReceiptPanel, SchedulePanel } from "@/components/procurement/payment-panels";
 import { asPaid, orderUsd, type PaymentRecord } from "@/lib/payments";
 import type { VoucherSetup } from "@/lib/voucher-setup";
@@ -821,6 +822,7 @@ function Detail({
       />
 
       <PaymentsList p={p} canFinance={!!user && procRolesFor(user).includes("finance")} update={update} onView={(r, doc) => setViewing({ doc, confirm: false, paid: r })} />
+      <PurchaseBooks code={current.id} purchase={p.id} paid={(p.payments ?? []).length} user={user?.id} />
 
       <div className="grid gap-6 sm:grid-cols-2">
         <section className="min-w-0">

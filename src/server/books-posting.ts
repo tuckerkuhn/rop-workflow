@@ -1,6 +1,6 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
-import { recordedRate, standing, type Posting, type PostingState } from "@/lib/books-posting";
+import { recordedRate, standing, type FilledEntry, type Posting, type PostingState } from "@/lib/books-posting";
 import type { AppUser } from "@/lib/demo";
 import { people } from "@/server/auth";
 import { recordExpenditure } from "@/server/expenditure-store";
@@ -8,7 +8,8 @@ import { projectByCode } from "@/server/field-store";
 import { HttpError } from "@/server/guard";
 import { ledgerSettings, LedgerError } from "@/server/ledger";
 import { ensureChart, moneyAccounts, type MoneyAccount } from "@/server/ledger-setup";
-import { asHttp, ledgerMay } from "@/server/ledger-view";
+import { asHttp, ledgerMay, ledgerProject, whoCanPost } from "@/server/ledger-view";
+import { loadProjectState, saveProjectState } from "@/server/project-state";
 
 /**
  * A filed bill or a paid purchase goes to the books when Finance posts it (decision AI, 25 Nov
@@ -63,6 +64,62 @@ export async function payingAccounts(projectCode: string): Promise<MoneyAccount[
   const project = await projectByCode(projectCode);
   await ensureChart(project.organizationId);
   return moneyAccounts(project.organizationId);
+}
+
+/**
+ * A bill or a purchase payment and the books, as its screen shows it: the entry filled in from
+ * it, the entry that stands, those reversed, and whether this person can post it now.
+ */
+export async function booksView(q: { code: string; entry: FilledEntry; postings: Posting[] | undefined; problem: string | null; recordedBy: string | null; me: string; post: boolean }) {
+  const postings = await postingStates(q.postings);
+  const now = standing(postings);
+  // The ledger's rule: over the organization's limit the person who recorded it does not post it.
+  // Said before the press, with who can.
+  let second: { limit: string; who: string[] } | null = null;
+  if (q.post && !q.problem && !now && q.recordedBy === q.me) {
+    const limit = await ledgerProject(q.entry.project)
+      .then((p) => ledgerSettings(p.organizationId))
+      .catch(() => null);
+    if (limit && q.entry.usd > Number(limit.selfPostLimit)) second = { limit: `${limit.functionalCurrency} ${Number(limit.selfPostLimit).toLocaleString("en-US", { minimumFractionDigits: 2 })}`, who: await whoCanPost(q.code, q.me).catch(() => []) };
+  }
+  return {
+    entry: q.entry,
+    standing: now,
+    reversed: postings.filter((p) => p.reversal?.posted),
+    /** It goes to the books: paid (a bill: filed) and charged to a project's budget line. */
+    goes: !q.problem,
+    /** This person recorded it and it is over the limit: who posts it instead. */
+    second,
+    /** Finance can post it now. */
+    canPost: q.post && !q.problem && !now && !second,
+    /** Why this person cannot post it, when Finance could. */
+    whyNot: q.problem ?? (now ? null : !q.post ? "Finance posts it to the books." : null),
+  };
+}
+export type BooksView = Awaited<ReturnType<typeof booksView>>;
+
+/* ---------------- Purchases ---------------- */
+
+/**
+ * Where a purchase payment's postings are kept: one project_state document, by "<purchase>#<payment
+ * number>". Not on the purchase itself, which the screen saves whole: a posting is written only here,
+ * by the server, when the books took the entry.
+ */
+export const PURCHASE_BOOKS_KEY = "purchase-books";
+export type PurchaseBooks = { postings: Record<string, Posting[]> };
+export const paymentKey = (purchase: string, n: number) => `${purchase}#${n}`;
+
+export async function loadPurchaseBooks(code: string): Promise<PurchaseBooks> {
+  return loadProjectState<PurchaseBooks>((await projectByCode(code)).id, PURCHASE_BOOKS_KEY, { postings: {} });
+}
+
+/** Adds one posting to a payment's record, once. */
+export async function keepPurchasePosting(code: string, key: string, posting: Posting): Promise<boolean> {
+  const project = await projectByCode(code);
+  const book = await loadProjectState<PurchaseBooks>(project.id, PURCHASE_BOOKS_KEY, { postings: {} });
+  if ((book.postings[key] ?? []).some((p) => p.entryId === posting.entryId)) return false;
+  await saveProjectState(project.id, PURCHASE_BOOKS_KEY, { postings: { ...book.postings, [key]: [...(book.postings[key] ?? []), posting] } });
+  return true;
 }
 
 const plain = (x: PostingState): Posting => ({ n: x.n, entryId: x.entryId, expenditureId: x.expenditureId, date: x.date, paidFrom: x.paidFrom, paidFromName: x.paidFromName, budgetLine: x.budgetLine, amount: x.amount, currency: x.currency, by: x.by, name: x.name, at: x.at });

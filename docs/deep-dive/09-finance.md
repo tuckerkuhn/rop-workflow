@@ -166,10 +166,18 @@ as Yusuf, sign in as Omid (Accounting Manager), Record a payment, "Drafts to pos
   (`also` in `server/ledger` `post`). When the ledger refuses (locked month, over the self-post limit
   without a second person, unknown account) the expenditure is not saved either, with the ledger's
   words. Nothing is queued.
-- Today nothing in the app writes `expenditures`: Bills keeps its own record (project_state "bills",
-  voucher posted in the accounting system) and Finance's workbook import writes `budget_lines.spent`
-  directly as spending to date. Neither posts to the ledger. A bill payment that creates an expenditure
-  must call `recordExpenditure`; no payables workflow was built.
+- Since 25 Nov 2026 (decision AI) a filed bill and a purchase recorded as paid reach `expenditures`
+  when Finance posts them: one press on the bill or the purchase, with the entry filled in from it
+  (`src/server/books-posting.ts`, `postToBooks`, which calls `recordExpenditure`). Nothing posts by
+  itself. The expenditure's id is made from the bill or payment and the number of the posting, so
+  its key `expenditure:<id>` is one key per bill or payment: a second press writes nothing. The
+  entry's source is `bill` with `<project>:<bill>` or `purchase` with `<project>:<purchase>#<payment>`.
+  The bill keeps its postings on itself; a purchase's are in project_state `purchase-books`.
+  A wrong entry is reversed in the books (`reverseExpenditure`): the reversing entry, a row in
+  `expenditures` that takes the amount off and the same off `budget_lines.spent`. The corrected
+  entry is then posted from the same bill or purchase.
+- Finance's workbook import still writes `budget_lines.spent` directly as spending to date. It
+  does not post to the ledger.
 - The demo project's books are written by the demo seed and reset (below).
 
 **Where spent is read.** `src/server/ledger-spent.ts` `ledgerSpent(projectId)`: posted expense lines on

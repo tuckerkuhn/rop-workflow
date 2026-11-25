@@ -1,4 +1,6 @@
 import { z } from "zod";
+import type { PaymentRecord } from "@/lib/payments";
+import type { Procurement } from "@/lib/procurement";
 
 /**
  * A bill or a purchase in the books. Finance is shown an entry filled in from the bill or the
@@ -68,4 +70,32 @@ export type FilledEntry = {
 export function recordedRate(amount: number, usd: number): string {
   if (!(amount > 0) || !(usd > 0)) return "1";
   return (usd / amount).toFixed(8);
+}
+
+/* ---------------- A purchase payment ---------------- */
+
+/** The budget line a purchase is charged to: the calendar's line when it was started from the calendar. */
+export const purchaseLine = (p: Pick<Procurement, "plan" | "budgetLine">) => p.plan?.budgetCode ?? p.budgetLine ?? "";
+
+/**
+ * Why a paid instalment does not go to the books, or null when it can. A purchase counts as spent
+ * when it is recorded as paid: the payment record holds the date and the bank reference.
+ */
+export function paymentBooksProblem(p: Procurement, r: PaymentRecord): string | null {
+  if (!r.paid?.date || !r.paid.ref?.trim()) return "A purchase goes to the books once its payment is recorded.";
+  if (!(r.invoice.amount > 0)) return "This payment has no invoice amount, so there is nothing to post.";
+  if (!purchaseLine(p)) return "This purchase is charged to no budget line, so it does not go to the project's books.";
+  if ((r.invoice.currency ?? "USD") !== "USD" && !(Number(r.invoice.rate) > 0)) return "The invoice is in afghani and has no rate recorded, so it cannot be written to the books.";
+  return null;
+}
+
+/**
+ * The entry Finance is shown for a paid instalment, every part of it from the purchase: the
+ * supplier, the budget line, the day it was paid and the invoice amount before tax is withheld
+ * (what the budget line is charged). An afghani invoice uses the rate recorded on it.
+ */
+export function paymentEntry(p: Procurement, r: PaymentRecord, project: string, lineName: string): FilledEntry {
+  const currency = r.invoice.currency ?? "USD";
+  const usd = currency === "USD" ? r.invoice.amount : Number(r.invoice.rate) > 0 ? Math.round((r.invoice.amount / Number(r.invoice.rate)) * 100) / 100 : 0;
+  return { payee: r.supplier, what: `${p.title}, payment ${r.n} of ${p.id}${r.invoice.number ? ` (invoice ${r.invoice.number})` : ""}`, project, budgetLine: purchaseLine(p), budgetLineName: lineName, date: r.paid.date, amount: r.invoice.amount, currency, usd };
 }

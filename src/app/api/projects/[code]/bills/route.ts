@@ -4,10 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db, schema as s } from "@/db";
 import { billBooksProblem, billEntry, billLineProblem, BILL_CATEGORIES, billActionSchema, billFlags, redoneAs, type Bill } from "@/lib/bills";
-import { standing } from "@/lib/books-posting";
-import { BILL_SOURCE, mayPostToBooks, payingAccounts, postingStates, postToBooks } from "@/server/books-posting";
-import { ledgerSettings } from "@/server/ledger";
-import { ledgerProject, whoCanPost } from "@/server/ledger-view";
+import { BILL_SOURCE, booksView, mayPostToBooks, payingAccounts, postingStates, postToBooks } from "@/server/books-posting";
 import { AFN_PER_USD } from "@/lib/demo";
 import { isSharePointUrl } from "@/lib/procurement";
 import { NON_CONTRACT } from "@/lib/timesheet";
@@ -82,32 +79,8 @@ async function view(code: string, u: AppUser) {
 }
 
 /** A bill and the books: the entry filled in from it, the entry that stands and those reversed. */
-async function booksOf(code: string, b: Bill, lines: Record<string, { code: string; description: string }[]>, post: boolean, me: string) {
-  const postings = await postingStates(b.postings);
-  const now = standing(postings);
-  const problem = billBooksProblem(b, NON_CONTRACT);
-  // The ledger's rule: over the organization's limit the person who recorded it does not post it.
-  // Said on the bill before the press, with who can.
-  let second: { limit: string; who: string[] } | null = null;
-  if (post && !problem && !now && b.raised.by === me) {
-    const limit = await ledgerProject(b.source)
-      .then((p) => ledgerSettings(p.organizationId))
-      .catch(() => null);
-    if (limit && b.usd > Number(limit.selfPostLimit)) second = { limit: `${limit.functionalCurrency} ${Number(limit.selfPostLimit).toLocaleString("en-US", { minimumFractionDigits: 2 })}`, who: await whoCanPost(code, me).catch(() => []) };
-  }
-  return {
-    /** This person recorded the bill and it is over the limit: who posts it instead. */
-    second,
-    entry: billEntry(b, lines[b.source]?.find((l) => l.code === b.budgetLine)?.description ?? ""),
-    standing: now,
-    reversed: postings.filter((p) => p.reversal?.posted),
-    /** It is a bill that goes to the books: filed and charged to a project's budget line. */
-    goes: !problem,
-    /** Finance can post it now: filed, on a budget line and not in the books. */
-    canPost: post && !problem && !now && !second,
-    /** Why this person cannot post it, when Finance could. */
-    whyNot: problem ?? (now ? null : !post ? "Finance posts it to the books." : null),
-  };
+function booksOf(code: string, b: Bill, lines: Record<string, { code: string; description: string }[]>, post: boolean, me: string) {
+  return booksView({ code, entry: billEntry(b, lines[b.source]?.find((l) => l.code === b.budgetLine)?.description ?? ""), postings: b.postings, problem: billBooksProblem(b, NON_CONTRACT), recordedBy: b.raised.by, me, post });
 }
 export type BillsView = Awaited<ReturnType<typeof view>>;
 
