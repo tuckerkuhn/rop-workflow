@@ -75,9 +75,10 @@ export function inLineCurrency(r: { lineCurrency: string; budgetCurrency: string
 
 /**
  * The project_state key that says a project's books are kept in the app: set when the demo books are
- * seeded and when the expenditure CLI posts a project's spending with --apply. Until it is set, the
- * pages keep reading the spending import, so a payment recorded on a project whose spending lives in
- * the workbook adds to Budget vs actual from the books without wiping out the other figures.
+ * seeded and when the expenditure CLI posts a project's spending with --apply. Kept as a record of
+ * when and why. Since decision AQ (25 Nov 2026) the pages read the books as soon as anything is
+ * posted on a project, whether or not this is set: a real project's spending to date must be loaded
+ * into the books before then, or "spent" shows only what was posted in the app.
  */
 export const BOOKS_KEY = "books";
 
@@ -87,15 +88,8 @@ export async function markBooksKept(projectId: string, why: string, exec: Exec =
     ON CONFLICT (project_id, key) DO NOTHING`);
 }
 
-async function booksKept(projectId: string, exec: Exec): Promise<boolean> {
-  const [row] = rowsOf<{ ok: number }>(await exec.execute(sql`SELECT 1 AS ok FROM project_state WHERE project_id = ${projectId} AND key = ${BOOKS_KEY} LIMIT 1`));
-  return !!row;
-}
-
 async function read(projectId: string, exec: Exec): Promise<LedgerSpent | null> {
   if (!(await ledgerTablesExist(exec))) return null;
-  // Not switched over: the pages keep reading the import (BOOKS_KEY).
-  if (!(await booksKept(projectId, exec))) return null;
   const rows = rowsOf<{ code: string; budget_currency: string; month: string; currency: string; amount: string; functional: string; org: string }>(
     await exec.execute(sql`
       SELECT bl.code, bl.currency AS budget_currency, to_char(e.period, 'YYYY-MM') AS month, l.currency, e.organization_id AS org,

@@ -1,5 +1,4 @@
-import { loadProjectStateRaw } from "@/server/project-state";
-import { BOOKS_KEY } from "@/server/ledger-spent";
+import { ledgerSpent } from "@/server/ledger-spent";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import type { AppUser } from "@/lib/demo";
@@ -295,7 +294,8 @@ export type EntryView = Awaited<ReturnType<typeof entryView>>;
 export async function budgetActualView(code: string) {
   const project = await ledgerProject(code);
   await openBooks(project.organizationId);
-  const [b, booksKept] = await Promise.all([budgetVsActual(project.id), loadProjectStateRaw(project.id, BOOKS_KEY).then((x) => x !== null)]);
+  // The pages read the books once anything is posted on the project (decision AQ).
+  const [b, booksKept] = await Promise.all([budgetVsActual(project.id), ledgerSpent(project.id).then((x) => x !== null)]);
   // Whether the Budget page's own figures come from these books or from the imported workbook.
   return { project: { code, name: project.name }, ...b, booksKept };
 }

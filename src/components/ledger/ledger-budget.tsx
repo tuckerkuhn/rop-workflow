@@ -54,7 +54,7 @@ export function LedgerBudget({ code, user }: { code: string; user: string }) {
           Record a payment
         </Link>{" "}
         or posted to the books another way.{" "}
-        {v?.booksKept ? "This project's books are kept here, so the figures above come from them too." : "The figures above come from the imported workbook until the project's books are kept here."}
+        {v?.booksKept ? "This project's books are kept here, so the figures above come from them too." : "The figures above come from the imported workbook until anything is posted in this project's books here."}
       </p>
       <Why>A donor asks what was spent on each line of their grant. An auditor picks figures from this table and asks for the payments behind them: open a line to see them.</Why>
       {error ? (
