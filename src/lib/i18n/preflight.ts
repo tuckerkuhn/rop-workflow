@@ -47,6 +47,7 @@ export const pfEn = {
   "pf.c.pending": "Results waiting for MEL to accept or send back with a question: {n}. They do not count until then.",
   "pf.c.queried": "Results MEL sent back with a question, to correct: {n}",
   "pf.c.noProof": "Accepted results with no proof attached: {n}",
+  "pf.c.noSummary": "The Executive Summary is not written. The report cannot be released without it.",
   "pf.c.empty": "Sections not written yet: {n} ({names})",
   "pf.c.drafted": "AI drafts to read and correct: {n}",
   "pf.c.copied": "Sections copied from last quarter, to review: {n}",
