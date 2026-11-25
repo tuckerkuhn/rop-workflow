@@ -53,7 +53,7 @@ describe("a quarterly report with no Executive Summary", { timeout: 60_000 }, ()
 
   it("is no longer blocked by it once the summary is written, while other empty sections still only warn", async () => {
     const saved = await loadQpr(code, quarter);
-    await saveQpr(code, quarter, { ...saved, sections: { ...saved.sections, summary: { text: "Eight farmers were trained in land preparation this quarter (fictional)." } } });
+    await saveQpr(code, quarter, { ...saved, sections: { ...saved.sections, summary: { text: "Eight farmers were trained in land preparation this quarter (fictional).", by: "omar", at: "2026-11-25T10:00:00.000Z" } } });
     const items = await check();
     expect(items.find((i) => i.key === "pf.c.noSummary")).toBeUndefined();
     expect(items.find((i) => i.key === "pf.c.empty")?.group).toBe("fix");
