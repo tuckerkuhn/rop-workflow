@@ -145,7 +145,7 @@ export function EntryDetail({ code, id, user, onChanged }: { code: string; id: s
             </label>
             <p className="mt-1 text-xs text-muted">
               A posted entry is never changed or deleted. Reversing writes the same lines the other way round, dated today, so the two cancel out and both stay on record.
-              {e.from ? ` The ${e.from.kind === "bill" ? "bill" : "purchase"} then shows it is not in the books, and Finance can post the corrected entry from it.` : ""}
+              {e.from ? ` The ${e.from.kind === "bill" ? "bill" : "purchase"} then shows it is not in the books. Finance can post the corrected entry from it.` : ""}
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
               <button type="button" disabled={busy || reason.trim().length < 3} className={dangerBtn} onClick={() => void reverse()}>
