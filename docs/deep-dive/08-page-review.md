@@ -225,3 +225,38 @@ communication, so donors are satisfied and impact is documented, without typing 
 
 Left: workplan "planned" quarters and some donor-view labels still use calendar quarters; new screen
 text is English only until translation (translation is last, by the owner's order).
+
+## 25 Nov 2026 (later): two code reviews, the handoffs merge and the GitHub check
+
+**Review of 24 Nov's work** (`efcc340`). Ten problems found, all fixed:
+
+| Problem | Fix |
+|---|---|
+| The opportunity link reader could be pointed at this network through a redirect or a name | `server/safe-fetch.ts`: every address is checked as it connects and on each redirect; the body stops at 4 MB |
+| Training proof could be any file in the HR store | Only a file the person uploaded |
+| Training records vanished when their author changed role | Each entry is judged by the roles held when it was written |
+| A finding could close before the CEO approved its fix | Closing needs the CEO's approval |
+| Two internal review actions at once could overwrite each other | The review row is locked while an action saves |
+| Survey targets with no survey said "Not met" in annual and final reports | "Not measured yet" |
+| Year to date counted an agreement period's December twice | Counts from 1 January |
+| A reused target code inherited the old target's measure | Removed targets' measures go with them |
+| KoboCollect forms could be linked to "activities" that are not workplan codes | Only real workplan activities are offered |
+| The internal review sample read projects one by one | Side by side |
+
+**Merge of `deep-dive/handoffs-2026-11-24`** (`29e7b10`, 60 commits). Conflicts in the quarterly
+report: both "a report under way calls planned work on track" and survey targets are kept
+(`buildRows(..., seasonEnds, over)`). Review fixes made in the merge:
+
+- A bill recorded again keeps `replaces`, so the reminder clears and it cannot be recorded twice.
+- Adding a signed-note photo locks the farmer's record while it saves.
+- The distribution form refuses a future date; one that arrives anyway counts on the day it reached the app.
+- Proof photos load one by one, each with its own error; where and when reads only the first 128 KB.
+- One shared helper for KoboCollect proof (`server/kobo-proof.ts`) and one set of farmer-photo rules (`lib/kobo-photo.ts`).
+- One rule for the quarters a project ran in (`ranIn`, `lib/period-report.ts`).
+- Home reads bills with its other reads, and the HR file only when the person's own roles do not settle it.
+- Not a problem after all: the new photo and form addresses already refuse people not on the project (the shared sign-in check).
+
+**GitHub check** (`6156bbd`). It had failed at `npm ci` since at least 24 Nov: the lock file lacked
+vitest's own esbuild. Rebuilt with npm 10, as the check uses. Keep the lock file in step with npm 10.
+
+Demo reset after the merge, so the purchase waiting for Finance's payment check shows its invoice.
