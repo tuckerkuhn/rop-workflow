@@ -377,8 +377,8 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
       {/* First on the page: the one thing to do next, then everything waiting on this person. Where the
           project stands, first steps and stories follow, for when the day's work is clear. */}
       {/* Field roles open in Summary (bands), everyone else in List (ledger); the person's own choice wins and is remembered. */}
-      {/* Managers first: their own three priorities for the week, then what the records say (lib/week).
-          Leadership, the technical lead and the people who run a project each read their own week. */}
+      {/* Managers first: their own three priorities for the week (lib/week), set once a week, then a
+          banner. Leadership, the technical lead and the people who run a project each set their own. */}
       {hasWeek && <WeekAhead />}
       {/* The fallback "add to the weekly update" is not shown on top of a row that already says it. */}
       <HomeLead rows={waiting} next={!mine[0] && waitingCount(waiting) > 0 ? null : next} view={view || (fieldStaff ? "bands" : "ledger")} onView={setView} />
@@ -388,7 +388,7 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
 
       <div className="flex flex-wrap items-start gap-3">
         <p className="min-w-0 flex-1 text-lg leading-snug">
-          {/* The week ahead already says where things stand: the older one-line summary is for everyone else. */}
+          {/* For managers the to-do list right below says where things stand: the older one-line summary is for everyone else. */}
           {!hasWeek && headline[lens]}
           {lens === "lead" && (
             <Link href="/portfolio" className="btn-link ms-2 whitespace-nowrap">
