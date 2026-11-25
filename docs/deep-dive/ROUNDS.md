@@ -106,6 +106,22 @@ worth more than a half-built large one.
 - `useShownAgain` (`src/components/app/use-shown-again.ts`) counts each time a page left open is
   looked at again. A screen that lists what waits for a person puts the count among what its read
   depends on. In a browser script, set `document.visibilityState` and send `visibilitychange`.
+- The log's times are Guatemala time, six hours behind the sandbox clock: `TZ=America/Guatemala date`.
+- `act.py` (in `tools`) opens a page as a demo person, presses what it is told and prints the page.
+  `walk.py` only opens pages. The app's own "are you sure" box is part of the page and repeats the
+  button's words: press the second one (`'click:Accept 10' 'click:Accept 10#1'`).
+- Round 4: the app was stopped for lack of memory by walking alone, after about 25 pages. It can
+  be started with `NODE_OPTIONS=--max-old-space-size=3072 nohup npx next dev -p 3000 > /tmp/dev.log 2>&1 &`.
+  It still went down once more after about 30 pages. Before the last walk, check it answers
+  (`curl -s -o /dev/null -w "%{http_code}" localhost:3000/about`) and start it again if not.
+- The demo has no released report before 1 January 2027 (the project starts on 1 October 2026). To
+  see what a donor sees: accept the results as `omar`, press "Mark final and release to the donor"
+  as `marcus`, then "Send and share" and "Make a link". Open the link with no sign-in.
+- A page that sends the person on with `redirect()` shows "Application error" here. An address
+  that only sends people on is a `route.ts` that answers with the redirect
+  (`src/app/(app)/progress/preflight/route.ts`).
+- What a donor is told about a kept document comes from `onFileKinds` in `src/lib/evidence.ts`: how
+  many and of what kind. A file's name or a link's title never goes to a donor.
 
 ## Chains to walk, in order
 
@@ -115,6 +131,12 @@ is used next. Then walk it as each role on a phone. The distribution chain is do
 1. **Results to report.** Field forms accepted, results accepted by MEL, Progress, monthly review,
    quarterly report, the donor's view. As `omar`, `nadia`, `marcus`, a donor. Can an auditor get from
    any number in the report to the record and the photo that prove it?
+   *Round 4 walked it in part and it is not clear.* Walked: accepting typed-in results and field
+   forms as `omar`, Progress and the records behind a figure as `nadia`, the quarterly report and
+   its release as `marcus`, a share link as a donor with no account. Not walked: the donor's own
+   account (`elena`), signing off the monthly review, the Word file, the evidence pack and the
+   audit pack, a result sent back with a question, the annual report past its heading. The next
+   round takes the queue's big item first, then these.
 2. **Purchase to payment.** Procurement calendar, purchase request, quotations, approval, goods
    received note, bill, payment, budget line. As the requester, `zahra`, `karim`, `yusuf`.
 3. **Just won to ready.** Project `GT-2027`: from the won proposal to a project that can record its
@@ -128,22 +150,45 @@ is used next. Then walk it as each role on a phone. The distribution chain is do
 
 ## Queue
 
-Big, open: none. The next round walks chain 1, "Results to report", and writes what it finds here.
+Big, open:
+1. **The donor evidence pack may name each kept document.** Read in the code in round 4, not opened.
+   `fileFor` in `src/server/proof.ts` holds a document back from the donor pack but keeps its file
+   name in the pack's list. A file name is typed by staff and can hold a participant's name. Open
+   the pack as `marcus` (the report's "Send and share", "Evidence pack"), look at the list and at
+   link titles. Then say kind and count as `onFileKinds` does. Look at the Word file the same way.
+2. **Finish chain 1.** The parts not walked are listed under chain 1 above.
 
 Medium, open:
-1. Dates still show as 2026-11-24 on most screens outside the approval page, the review queue and
-   the weekly page's messages. Use `longDate` or `periodLabel` from `src/lib/weekly.ts` where a
-   person reads a date in a sentence. Known places: Home's row "Last week's weekly update
-   (2026-11-15 to 2026-11-19) is not marked sent" (`src/server/preflight.ts`; its words are in four
-   languages in `src/lib/i18n/preflight*.ts`, so the dates go in as the words `{from}` and `{to}`),
-   the Results page ("Showing 2026-Q4 (2026-10-01 to 2026-12-31) only") and the period report's heading.
+1. Dates still show as 2026-11-24 in some places. Use `longDate` or `periodLabel` from
+   `src/lib/weekly.ts` where a person reads a date in a sentence. Done in rounds 3 and 4: the weekly
+   page's messages, the quarterly report page, the annual report's heading and release line, the
+   Results page's "Showing" line, a share link's line, the records a donor opens. Left: Home's row
+   "Last week's weekly update (2026-11-15 to 2026-11-19) is not marked sent" (`src/server/preflight.ts`;
+   its words are in four languages in `src/lib/i18n/preflight*.ts`, so the dates go in as the words
+   `{from}` and `{to}`), the monthly review ("to 2026-10") and the rows of the review queue on
+   Results ("2026-11-25 · 2026-Q4 · Village B").
 2. Some days are cut from a UTC timestamp and show tomorrow's date in the evening in Guatemala.
    Seen in round 3 on the weekly page: "today" is the server's UTC day (`weeklyView` in
    `src/server/weekly-store.ts`), so after six in the evening in Guatemala an item can be dated
-   tomorrow, and "Sent by Omar Sadiq on 25 November 2026" is the UTC day it was sent.
+   tomorrow, and "Sent by Omar Sadiq on 25 November 2026" is the UTC day it was sent. The same
+   holds for "Released 25 November 2026" on a report and for the day a share link was made.
 3. A weekly photo added before round 3, or one whose phone removed the place, has no place and the
    weekly page says nothing about it. The farmer page offers "use this device's location" for such
    a photo. The weekly page does not (Needs Tucker U).
+4. The report and Progress disagree about the same figure. On 25 November, with 11 of 20 farmers
+   trained and the work planned for Q4, Progress and the monthly review say "On track". The
+   quarterly report and the donor's view say "Behind · delayed", for every target. Find which is
+   right while the quarter is under way (`targetStatus` in `src/lib/target-status.ts` and what
+   Progress uses) and make them agree.
+5. The demo counts one farmer twice. F-0005's training on 20 and on 24 November are two typed-in
+   results, both listed as clean. The field forms queue flags the second as "Possible duplicate of
+   KB-101". After "Accept 10" the demo says 11 farmers trained. A typed-in result holds a count
+   and no farmer number, so the app cannot see this itself: it is the sample data
+   (`demoResults` in `src/lib/demo-design.ts`), which makes a result from a record the checker flags.
+6. A target card on Results says "8 of 250 farmers" and Progress says "8" of "20". One is the
+   whole project and one is this year. Neither says so.
+7. The report's narrative has headings "Activity 1.a: Activity 1.a" and "Activity IND: Activity
+   IND" for targets that sit under no activity.
 
 Done: see `11-handoffs-review.md` and `10-field-ledger.md`. Round 1: training attendance is one record
 per session with its farmers ticked (was big item 1). Round 2: the app makes the readiness, training
@@ -151,6 +196,8 @@ and farm visit forms (was big item 1), Accept stays put while a photo loads (was
 counts in `11-handoffs-review.md` are dated (was medium 4). Round 3: weekly update photos keep their
 place for people who may see participant names (was big item 1), Home is read again when a person
 comes back to it (was medium 3), Setup offers the distribution form beside the other three (was medium 4).
+Round 4: the donor's view counts kept documents and never names them (big, found in the walk), the two
+old addresses work, the quarterly report gives one blocking count and warns before an early release.
 
 ## Needs Tucker
 
@@ -203,6 +250,21 @@ Decisions A to N are in `11-handoffs-review.md`. Rounds add theirs here, lettere
   with the camera's location on. The form should say "Place found in the photo" under it. Then
   open the item as the project manager and press "Show on a map": the map should show the plot.
   No round can see the map. This sandbox cannot reach OpenStreetMap.
+
+- **X. Releasing a report before its period has ended.** On 25 November the vice president could
+  release the report for October to December in two taps. It is then locked for good. The question
+  he is asked now says "This period has not ended: it ends on 31 December 2026. A result accepted
+  after today will not be in the report the donor receives." The other choice is to refuse the
+  release until the period has ended. It is not built: it changes who may do what and when. Say
+  if you want it.
+- **Y. A report can be released with nothing written.** In the local test the report went out with
+  all 15 sections "Not written yet". Empty sections are listed as worth fixing and do not block.
+  Say if an empty Executive Summary should block the release.
+- **Z. What a donor is told about a kept document.** Before round 4 a share link and a donor's
+  account listed each file by its name ("Attendance sheet: F-0005, 2026-11-24.pdf"). A name typed
+  by staff can hold a farmer's name, so the donor now reads "1 PDF document". This holds for links
+  already sent. If a donor must be able to ask for one document by a reference, that reference
+  would be a new thing. Say if you want it.
 
 ## Log
 
@@ -381,4 +443,71 @@ found and left, tests passing.
   said "Step 1 of 2: check the KoboCollect record", Approve could not be pressed, and the request
   itself was refused.
   `10-field-ledger.md` updated: the place on a weekly photo is read from the photo.
-- **Round 4. 25 Nov 03:17. IN PROGRESS.** No big item in the queue, so chain 1 is walked: results to report.
+- **Round 4. 25 Nov 03:17 to 03:55. DONE.** Chain 1, results to report, walked in part. One big
+  item found and fixed, a second written into the queue, four medium items fixed. The chain is not
+  clear: what was not walked is listed under chain 1.
+  Walked on a phone-sized screen with fictional data: `omar` accepted the 10 typed-in results and
+  2 field forms. `nadia` opened Progress, the records behind a figure, the monthly review and the
+  quarterly report. `marcus` released the report for October to December and made a share link. A
+  donor with no account opened the link and the records behind a figure. The answer to the chain's
+  question, as far as walked: from a figure on Progress, on the report and on the donor's link a
+  person reaches each record, its date, its place and who accepted it. Staff reach the proof file.
+  A donor is told a document is kept and sees captioned photos only, as designed.
+  Out of order: the fixes were made as each thing was found. The queue was written at the
+  close, not before the first fix as the page says.
+  Decisions made alone, to check: a donor is told "1 PDF document" and no file name (Needs Tucker
+  Z). An early release is warned about and not refused (Needs Tucker X). An old address is
+  answered by the server, with no page of its own.
+  Fixed:
+  - *The donor's view counts the documents kept behind a record and never names them* (big, found
+    in the walk). A share link and a donor's account listed each kept file by the name staff gave it
+    and each link by its title: "Attendance sheet: F-0005, 2026-11-24 (sample).pdf". The demo's names
+    hold a farmer number. A real one can hold a farmer's name. A donor may not see one. The
+    server now sends "1 PDF document", "2 photos", "1 linked document" (`onFileKinds`,
+    `src/lib/evidence.ts`, used in `src/server/share-store.ts`) and the names stay here. It holds
+    for links already sent. Tests: `src/lib/__tests__/on-file.test.ts`, 3 tests.
+    `src/server/__tests__/donor-view.db.test.ts`, 1 test added: nothing sent to a donor's account
+    holds any kept file's name. Run in the browser as a donor with no account: "1 farmer · 24
+    November 2026 · Village B. Accepted by MEL on 25 November 2026. Also on file with Roots of
+    Peace, available on request: 1 PDF document." Not seen in the browser: the donor's own account
+    page. It reads the same answer from the server, which the test covers.
+  - *Two old addresses lead to their new pages again.* `/progress/preflight` and
+    `/progress/records` showed "Application error" five times out of six, for any role. No screen
+    links to them, so only a kept link or bookmark met it. Each is now answered by the server.
+    Test: `src/server/__tests__/old-addresses.test.ts`, 3 tests. Run in the browser as nadia: each
+    lands on its page, the report check on the right report, with no error. I could not tell
+    whether the error also shows on the live site: this sandbox cannot build it.
+  - *The quarterly report gives one blocking count.* As nadia the page said "Draft · 3 blocking"
+    beside "Report check: 1 blocking" and "Blocks the report 1". It now says 1 in all three. Run in
+    the browser. No test: one line on one screen. Release is still offered only when both the
+    report's own checks and the Report check find nothing.
+  - *A release before the period has ended is warned about.* The question now says "This period
+    has not ended: it ends on 31 December 2026. A result accepted after today will not be in the
+    report the donor receives." Read in the browser as marcus. No test: words in a question.
+  - *Dates in words* (part of medium 1): the quarterly report's period, "It ends on", "Released 25
+    November 2026 by Marcus Bell" and the line on a released copy, the Results page's "Showing"
+    line, the annual report's period. A share link reads "made by Marcus Bell on 25 November 2026 ·
+    works until 24 January 2027" (it said "made by marcus 2026-11-25"). The records behind a figure
+    say "1 farmer", not "1 farmers". All read in the browser. Changed and not seen, because nothing
+    in the demo shows them: the annual report's release line, the donor's annual report line and
+    the evidence pack's line about the release. They passed the typecheck only.
+  Found and left:
+  - The donor evidence pack may name kept documents: big 1 in the queue, read in the code only.
+  - The parts of chain 1 not walked: big 2 in the queue.
+  - The report and Progress disagree about a target's status, the demo counts one farmer twice,
+    "of 250" beside "of 20" and the "Activity 1.a: Activity 1.a" headings: medium 4 to 7.
+  - Needs Tucker X, Y, Z.
+  - Small, not queued: "0 women · 1 men", "1 farmers (1.2.1.1)" on Progress, "1 thing blocks the
+    report. It cannot be released until they are fixed", "1 thing needs attention, 1 of them now".
+  - The approval page tells the Director of MEL that the KoboCollect account bilal.kobo is not
+    matched to a person. It comes from the record the test tool makes. Not looked into.
+  Checks: 1,173 tests pass (1,166 before), typecheck clean, lint clean, on the final code (only
+  this page and `tools/act.py` changed after). The app stopped twice. Once the sandbox stopped it
+  for lack of memory during the walk. Once it was down after the tests. I did not see why:
+  starting it again cleared its log. Distribution chain walked in the browser on the final code,
+  on a local database made new for it: a fictional KoboCollect record for F-0007. For nadia the
+  page said "Step 1 of 2: check the KoboCollect record" and neither Approve nor Send back could
+  be pressed. rahima pressed "I have checked this record". nadia approved, the page said
+  "Approved by Nadia Rahimi" and the farmer's record moved to planting. Not done this round: the
+  request sent straight to the server before the check, which rounds 1 and 3 saw refused.
+  `10-field-ledger.md` not changed: no field was added, cut or prefilled.
