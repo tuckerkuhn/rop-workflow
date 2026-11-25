@@ -11,9 +11,10 @@ import { TopBar } from "@/components/workspace/ui";
 import type { DonorView } from "@/server/donor-view-store";
 
 /**
- * A donor's Reports: every quarterly report Roots of Peace has released, newest first, with how
- * the grant is being spent as the latest of them gave it and the date of the next one. Staff can
- * open the same page to see what a donor sees (from Project settings, under Donors).
+ * A donor's Reports: every annual or final report Roots of Peace has released, then every
+ * quarterly report, newest first, with how the grant is being spent as the latest quarterly
+ * report gave it and the date of the next one. Staff can open the same page to see what a donor
+ * sees (from Project settings, under Donors).
  */
 
 const LONG: Intl.DateTimeFormatOptions = { day: "numeric", month: "long", year: "numeric" };
@@ -60,7 +61,7 @@ export function DonorReportsPage() {
         {data && <PreviewNote view={data} onPick={(id) => router.replace(`/progress/released?donor=${encodeURIComponent(id)}`)} />}
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-warn">{data?.project.name ?? project.name}</p>
         <h1 className="mt-1 font-display text-4xl tracking-tight">{tx("Reports")}</h1>
-        <p className="mt-2 text-muted">{tx("Each quarterly report appears here once Roots of Peace has signed it off and released it. Every figure in a report opens the records behind it.")}</p>
+        <p className="mt-2 text-muted">{tx("Each quarterly, annual and final report appears here once Roots of Peace has signed it off and released it. Every figure in a quarterly report opens the records behind it.")}</p>
         {error && (
           <p role="alert" className="mt-4 text-sm text-clay">
             {error}
@@ -79,10 +80,21 @@ export function DonorReportsPage() {
             )}
 
             <h2 className="mt-8 font-display text-2xl">{tx("Released reports")}</h2>
-            {data.reports.length === 0 ? (
+            {data.reports.length === 0 && data.periods.length === 0 ? (
               <p className="mt-3 rounded-xl bg-sunken px-4 py-3 text-sm text-muted">{tx("No report has been released yet. The first one appears here when Roots of Peace signs it off.")}</p>
             ) : (
               <ul className="mt-3 space-y-3">
+                {data.periods.map((r) => (
+                  <li key={r.slug}>
+                    <Link href={`/progress/released/${r.slug}${withDonor}`} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-surface p-5 hover:border-forest">
+                      <span>
+                        <span className="block text-xl font-semibold">{tx(r.label)}</span>
+                        <span className="mt-1 block text-sm text-muted">{tx("Released {date}", { date: date(r.releasedAt.slice(0, 10), LONG) })}</span>
+                      </span>
+                      <span className="text-sm font-semibold text-forest">{tx("Read the report")} →</span>
+                    </Link>
+                  </li>
+                ))}
                 {data.reports.map((r, k) => (
                   <li key={r.quarter}>
                     <Link href={`/progress/released/${r.quarter}${withDonor}`} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-surface p-5 hover:border-forest">

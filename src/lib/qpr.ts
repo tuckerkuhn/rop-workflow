@@ -37,7 +37,7 @@ export const SECTIONS = [
   { key: "grm", heading: "3.5 Complaints and Feedback", draft: false, help: "The figures come from the feedback log (or what is typed above). Write the main themes and what was done about them. Required by UNDP's terms of reference." },
   { key: "story", heading: "3.6 Human Interest Story", draft: false, help: "Optional." },
   { key: "challenges", heading: "IV. Issues and Challenges", draft: false, help: "Operational and staffing; programmatic." },
-  { key: "lessons", heading: "VI. Lessons Learned", draft: false, help: "" },
+  { key: "lessons", heading: "VI. Lessons Learned", draft: true, help: "" },
   { key: "next", heading: "VII. Way Forward", draft: true, help: "Priorities for next quarter, from what is behind." },
 ] as const;
 export type SectionKey = (typeof SECTIONS)[number]["key"];
@@ -181,6 +181,8 @@ export const qprPatchSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("grm"), received: z.number().int().min(0).max(1e6).nullable(), resolved: z.number().int().min(0).max(1e6).nullable() }),
   /** The reason a budget line is over budget: saved on the line (server/overspend-store), so it is the same on Budget. */
   z.object({ action: z.literal("overspend"), ...lineReasonFields }),
+  // A lesson from the lessons record, added to the Lessons Learned section as it was recorded.
+  z.object({ action: z.literal("lesson-to-report"), id: z.string().min(1).max(40) }),
   z.object({ action: z.literal("draft"), keys: z.array(z.string().regex(/^[a-z0-9.]{1,40}$/)).min(1).max(20) }),
   z.object({ action: z.literal("release") }),
   /** Saves a frozen copy as if released, without locking anything: to rehearse and compare. */

@@ -189,7 +189,9 @@ async function annual(c: Ctx, year: number): Promise<Omit<Preflight, "items" | "
   const v = await periodReport(c.code, { kind: "annual", year });
   const { from, to } = v.range;
   const today = new Date().toISOString().slice(0, 10);
-  const ended = [1, 2, 3, 4].map((k) => `${year}-Q${k}`).filter((q) => quarterRange(q).to < today);
+  // Quarters that ended within the report's range: a quarter before the project started (or after it
+  // ended) has no quarterly report to release, and must not hold the annual report back.
+  const ended = [1, 2, 3, 4].map((k) => `${year}-Q${k}`).filter((q) => quarterRange(q).to < today && quarterRange(q).to >= from && quarterRange(q).from <= to);
   const released = new Set(v.quarters.filter((q) => q.released).map((q) => q.quarter));
   const open = ended.filter((q) => !released.has(q));
   for (const q of open) add(c, { group: "blocks", owner: "writers", text: `The ${q.replace("-", " ")} quarterly report is not released, so its text and figures are not final`, key: "pf.c.quarterOpen", vars: { q: q.replace("-", " ") }, href: `/progress/report?q=${q}` });

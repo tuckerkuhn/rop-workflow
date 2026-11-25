@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import type { AppUser } from "@/lib/demo";
 import { mayWriteReport, mergeQuestions, qprPatchSchema, SECTIONS, type Qpr } from "@/lib/qpr";
+import { lessonForReport } from "@/lib/learning";
 import { requireViewer } from "@/server/auth";
 import { DraftingUnavailable } from "@/server/ai-drafts";
 import { handle } from "@/server/guard";
@@ -131,6 +132,15 @@ export async function POST(req: Request, { params }: Ctx) {
         if (!validKey(a.key)) return NextResponse.json({ error: "No such section." }, { status: 400 });
         if (a.text.trim()) next.sections[a.key] = { text: a.text, by: u.id, at: now };
         else delete next.sections[a.key];
+      } else if (a.action === "lesson-to-report") {
+        // As a story goes to the Human Interest Story: the text comes from the record, never typed again. No AI needed.
+        const lesson = d.lessons.find((l) => l.id === a.id);
+        if (!lesson) return NextResponse.json({ error: "That lesson is not recorded in this quarter." }, { status: 400 });
+        const add = lessonForReport(lesson);
+        const cur = next.sections.lessons?.text.trim() ?? "";
+        if (cur.includes(add)) return NextResponse.json({ error: "That lesson is already in the report." }, { status: 409 });
+        // Text copied from last quarter or drafted keeps its "review" mark: it is still there.
+        next.sections.lessons = { ...next.sections.lessons, text: cur ? `${cur}\n\n${add}` : add, by: u.id, at: now };
       } else if (a.action === "row") {
         if (!d.rows.some((r) => r.code === a.indicator)) return NextResponse.json({ error: "No such indicator." }, { status: 400 });
         if (a.status === null && a.comment === null) delete next.rows[a.indicator];
@@ -185,7 +195,7 @@ export async function POST(req: Request, { params }: Ctx) {
       entityId: project.id,
       action: a.action === "release" ? "qpr_released" : a.action === "claim-decide" ? "qpr_claim_decided" : "qpr_edited",
       by: u.id,
-      detail: { quarter: q, part: a.action, ...(a.action === "claim-decide" ? { choice: a.choice ?? "undone", section: next.claimCheck?.issues[a.index]?.section, kind: next.claimCheck?.issues[a.index]?.kind, sentence: next.claimCheck?.issues[a.index]?.sentence.slice(0, 300), why: next.claimCheck?.issues[a.index]?.problem.slice(0, 300) } : {}), ...(a.action === "section" ? { key: a.key, cleared: !a.text.trim() } : a.action === "row" ? { key: a.indicator, status: a.status, comment: a.comment } : {}) },
+      detail: { quarter: q, part: a.action, ...(a.action === "claim-decide" ? { choice: a.choice ?? "undone", section: next.claimCheck?.issues[a.index]?.section, kind: next.claimCheck?.issues[a.index]?.kind, sentence: next.claimCheck?.issues[a.index]?.sentence.slice(0, 300), why: next.claimCheck?.issues[a.index]?.problem.slice(0, 300) } : {}), ...(a.action === "section" ? { key: a.key, cleared: !a.text.trim() } : a.action === "lesson-to-report" ? { key: "lessons", lesson: a.id } : a.action === "row" ? { key: a.indicator, status: a.status, comment: a.comment } : {}) },
     });
     return NextResponse.json(await view(code, q, u));
   });

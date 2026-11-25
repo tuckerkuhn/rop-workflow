@@ -28,6 +28,7 @@ import { personName } from "@/lib/project";
 import { ErrorNote } from "@/components/app/error-note";
 import { quarterOf, quarterRange } from "@/lib/results";
 import { lastEndedQuarter, useReportQuarter } from "@/components/progress/use-report-quarter";
+import { lessonForReport } from "@/lib/learning";
 import type { QprView } from "@/app/api/projects/[code]/qpr/route";
 
 /**
@@ -656,7 +657,60 @@ function Section({ v, k, heading, act, busy, draftable }: { v: QprView; k: strin
       ) : (
         <p className="mt-1 whitespace-pre-line text-sm">{saved?.text || <span className="text-muted">Not written yet.</span>}</p>
       )}
+      {k === "lessons" && v.mayEdit && <LessonsFromRecord v={v} act={act} busy={busy} dirty={dirty} />}
     </section>
+  );
+}
+
+/**
+ * The quarter's lessons from the lessons record (Lessons and close-out), each added to the section
+ * with one click, as an approved story goes to the Human Interest Story: nothing is typed twice,
+ * and it works without AI.
+ */
+function LessonsFromRecord({ v, act, busy, dirty }: { v: QprView; act: Act; busy: string; dirty: boolean }) {
+  const { tx } = useT();
+  const text = v.saved.sections.lessons?.text ?? "";
+  const cols = "7rem minmax(0,1fr)";
+  if (!v.lessons.length)
+    return (
+      <p className="mt-2 border-y border-line px-3 py-2 text-xs text-muted">
+        {tx("No lessons recorded this quarter.")}{" "}
+        <Link href="/progress/learning" className="font-semibold text-forest hover:underline">
+          {tx("Record them on Lessons and close-out")}
+        </Link>
+      </p>
+    );
+  return (
+    <div className="mt-3 border-s-[6px] border-line ps-3 text-sm">
+      <p className="font-mono text-xs text-muted">{tx("Lessons recorded this quarter")}</p>
+      {!text.trim() && <p className="mt-1 text-sm">{v.lessons.length === 1 ? tx("1 lesson recorded this quarter is available. Use it below.") : tx("{n} lessons recorded this quarter are available. Use them below.", { n: v.lessons.length })}</p>}
+      {dirty && <p className="mt-1 text-xs text-warn">{tx("Save your changes first, then add a lesson.")}</p>}
+      <LedgerTable cols={cols} head={[tx("Date"), tx("Lesson")]} label={tx("Lessons recorded this quarter")} className="mt-1">
+        {v.lessons.map((l) => {
+          const used = text.includes(lessonForReport(l));
+          return (
+            <LedgerRow key={l.id} cols={cols} className="text-sm">
+              <Fig tone="muted" className="text-start">
+                {l.date}
+              </Fig>
+              <span className="min-w-0">
+                <span className="font-semibold">{l.area}: </span>
+                {l.lesson}
+                <span className="mt-1 block">
+                  {used ? (
+                    <span className="font-mono text-xs text-muted">{tx("In the report")}</span>
+                  ) : (
+                    <button type="button" className={quietBtn} disabled={!!busy || dirty} onClick={() => void act({ action: "lesson-to-report", id: l.id }, tx("Added to Lessons Learned. Read it before the report goes out.")).catch(() => undefined)}>
+                      {tx("Use in the report")}
+                    </button>
+                  )}
+                </span>
+              </span>
+            </LedgerRow>
+          );
+        })}
+      </LedgerTable>
+    </div>
   );
 }
 

@@ -82,3 +82,21 @@ export function buildPeriodRows(indicators: PeriodIndicator[], results: ResultRe
     };
   });
 }
+
+/**
+ * A released annual or final report is kept as a frozen copy in project_state "period-copies",
+ * under "year:2026" or "final". In addresses it is "annual-2026" or "final".
+ */
+export const PERIOD_COPIES = "period-copies";
+export const periodKey = (p: Period) => (p.kind === "annual" ? `year:${p.year}` : "final");
+export const periodSlug = (p: Period) => (p.kind === "annual" ? `annual-${p.year}` : "final");
+export function periodOfKey(key: string): Period | null {
+  if (key === "final") return { kind: "final" };
+  const m = /^year:(\d{4})$/.exec(key);
+  return m ? { kind: "annual", year: Number(m[1]) } : null;
+}
+export function periodOfSlug(slug: string): Period | null {
+  if (slug === "final") return { kind: "final" };
+  const m = /^annual-(\d{4})$/.exec(slug);
+  return m ? { kind: "annual", year: Number(m[1]) } : null;
+}

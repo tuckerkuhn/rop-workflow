@@ -4,6 +4,7 @@ import { db, schema as s } from "@/db";
 import { spentIn } from "@/lib/bva";
 import { activityOf, breakdownsFor, buildRows, carryForward, checksFor, DEFAULT_ACRONYMS, grmLogFor, photosFor, prevQuarterOf, withLineReasons, type IndicatorInfo, type Qpr, type Spend } from "@/lib/qpr";
 import { EMPTY_FEEDBACK, type FeedbackLog } from "@/lib/feedback";
+import { EMPTY_LEARNING, lessonsInQuarter, type Learning } from "@/lib/learning";
 import { today as clockToday } from "@/lib/clock";
 import { quarterRange } from "@/lib/results";
 import { loadActuals } from "@/server/actuals-store";
@@ -182,6 +183,8 @@ async function readQprData(code: string, quarter: string) {
   const savedLater = early(loadQpr(code, quarter));
   const photoRuleLater = early(donorPhotoRule(project.id));
   const feedbackLater = early(loadProjectState<FeedbackLog>(project.id, "feedback", EMPTY_FEEDBACK).catch(() => EMPTY_FEEDBACK));
+  // The lessons record (Lessons and close-out): the quarter's lessons go into the Lessons Learned section, not typed again.
+  const learningLater = early(loadProjectState<Learning>(project.id, "learning", EMPTY_LEARNING).catch(() => EMPTY_LEARNING));
   const planLater = early(db.select({ code: s.workplanItems.code, org: s.workplanItems.org, active: s.workplanItems.active }).from(s.workplanItems).where(eq(s.workplanItems.projectId, project.id)));
   const linesLater = early(
     db
@@ -248,6 +251,8 @@ async function readQprData(code: string, quarter: string) {
     spend,
     activities,
     grmLog,
+    /** Lessons recorded in the quarter, from the lessons record. */
+    lessons: lessonsInQuarter((await learningLater).lessons, quarter),
     checks: checksFor(table, results, quarter, saved, spend, activityCodes, grmLog),
   };
 }

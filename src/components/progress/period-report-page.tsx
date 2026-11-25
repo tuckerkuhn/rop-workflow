@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { askConfirm } from "@/components/app/dialogs";
 import { useT } from "@/components/app/i18n";
-import { beforeDownload, PreflightButton, usePreflight } from "@/components/progress/preflight-page";
+import { askForChecks, beforeDownload, PreflightButton, usePreflightState } from "@/components/progress/preflight-page";
 import { ReportChecks, ReportKinds } from "@/components/progress/report-checks";
 import { ProofNumber } from "@/components/progress/proof-panel";
 import { useEffect, useState } from "react";
@@ -11,13 +12,16 @@ import { useRequireUser, useSession } from "@/components/app/session";
 import { TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { Empty, Fig, Figures, LedgerRow, LedgerTable, PageHead, SectionHead, StatusBlock } from "@/components/workspace/ledger";
 import { periodLabel, type Period } from "@/lib/period-report";
+import { personName } from "@/lib/project";
 import { YOUTH } from "@/lib/results";
+import type { PeriodView } from "@/app/api/projects/[code]/period-report/route";
 import type { PeriodReportView } from "@/server/period-report-store";
 
 /**
  * The annual and final reports: the indicator table for the period with baselines and links to
  * evidence, women, men and young people, the quarters' narrative gathered by section, lessons and
- * spending. Download as Word to edit, or print to PDF.
+ * spending. Download as Word to edit, or print to PDF. The person who releases reports releases it
+ * to the donor, as a quarterly report is released: from then on this page shows the frozen copy.
  */
 
 const n = (v: number | null) => (v === null ? "—" : v.toLocaleString("en-US", { maximumFractionDigits: 1 }));
@@ -35,15 +39,16 @@ export function PeriodReportPage() {
     const y = Number(new URLSearchParams(window.location.search).get("year"));
     if (y > 2000 && y <= thisYear) setPeriod({ kind: "annual", year: y });
   }, [thisYear]);
-  const [v, setV] = useState<PeriodReportView | null>(null);
+  const [v, setV] = useState<PeriodView | null>(null);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (!ready || !user || !project.saved) return;
     let live = true;
     setV(null);
-    const q = period.kind === "annual" ? `kind=annual&year=${period.year}` : "kind=final";
-    fetch(`/api/projects/${project.id}/period-report?${q}`, { cache: "no-store", headers: { "x-demo-user": user.id } })
+    setNotice("");
+    fetch(`/api/projects/${project.id}/period-report?${queryOf(period)}`, { cache: "no-store", headers: { "x-demo-user": user.id } })
       .then(async (r) => {
         const d = await r.json();
         if (!r.ok) throw new Error(d.error ?? "Could not load the report.");
@@ -54,13 +59,39 @@ export function PeriodReportPage() {
       live = false;
     };
   }, [ready, user, project.saved, project.id, period]);
-  const pf = usePreflight(project.id, user?.id, period.kind === "annual" ? { kind: "annual", year: period.year } : null, v);
+  // The annual report has a report check; once released it is history, not a to-do.
+  const { p: pf, fresh: pfFresh, failed: pfFailed } = usePreflightState(project.id, user?.id, period.kind === "annual" && !v?.released ? { kind: "annual", year: period.year } : null, v);
   if (!user) return null;
+  const blockN = pf ? pf.items.filter((i) => i.group === "blocks").length : 0;
+  // Mark final only when the check was read after the latest change and nothing blocks. The final report has no check.
+  const mayMarkFinal = period.kind === "final" || (pfFresh && blockN === 0);
+  const release = async () => {
+    const ok = await askConfirm({
+      message: `Mark the ${periodLabel(period).toLowerCase()} final and release it to the donor? It is locked for good: this copy is what the donor receives. It appears in the donor's Reports tab. No email is sent: tell the donor yourself.`,
+      confirm: "Mark final and release",
+    });
+    if (!ok) return;
+    setError("");
+    setNotice("");
+    setBusy(true);
+    try {
+      const r = await fetch(`/api/projects/${project.id}/period-report?${queryOf(period)}`, { method: "POST", headers: { "x-demo-user": user.id, "content-type": "application/json" }, body: JSON.stringify({ action: "release" }) });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error ?? "Could not release the report.");
+      setV(d);
+      setNotice("Released: the report is final and it is in the donor's Reports tab. It can no longer be changed.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
   const startYear = Number((v?.project.start ?? `${thisYear}`).slice(0, 4));
   const years = Array.from({ length: Math.max(1, thisYear - startYear + 1) }, (_, k) => startYear + k);
   const download = async () => {
     if (!v) return;
-    const draft = period.kind === "annual" ? await beforeDownload(project.id, user.id, pf, (n) => t("pf.draftConfirm", { n }), { kind: "annual", year: period.year }, t("pf.uncheckedConfirm")) : 0;
+    // A released report is downloaded as it was; a draft annual report goes through the report check first.
+    const draft = period.kind === "annual" && !v.released ? await beforeDownload(project.id, user.id, pf, (n) => t("pf.draftConfirm", { n }), { kind: "annual", year: period.year }, t("pf.uncheckedConfirm")) : 0;
     if (draft === null) return;
     setBusy(true);
     try {
@@ -109,21 +140,60 @@ export function PeriodReportPage() {
                   ))}
                   <option value="final">Final (whole project)</option>
                 </select>
-                {period.kind === "annual" && <PreflightButton p={pf} report={{ kind: "annual", year: period.year }} className={quietBtn} />}
+                {period.kind === "annual" && !v?.released && <PreflightButton p={pf} report={{ kind: "annual", year: period.year }} className={quietBtn} />}
                 <button type="button" className={primaryBtn} disabled={!v || busy} onClick={() => void download()}>
                   Download Word
                 </button>
                 <button type="button" className={quietBtn} disabled={!v} onClick={() => window.print()}>
                   Save as PDF
                 </button>
+                {v?.mayRelease && (
+                  <button
+                    type="button"
+                    className={primaryBtn}
+                    disabled={busy || !mayMarkFinal}
+                    title={period.kind === "annual" && !blockN && !pfFresh ? (pfFailed ? t("pf.notLoaded") : t("pf.rechecking")) : undefined}
+                    onClick={() => void release()}
+                  >
+                    Mark final and release to the donor{blockN ? ` (${blockN} blocking)` : ""}
+                  </button>
+                )}
+                {/* Why it cannot be marked final, in the page: a hover title never shows on a phone. */}
+                {v?.mayRelease && blockN > 0 && (
+                  <p className="basis-full text-sm text-clay">
+                    {blockN === 1 ? t("report.blockedOne") : t("report.blocked", { n: blockN })}{" "}
+                    <a href="#checks" onClick={askForChecks} className="font-semibold underline">
+                      {t("pf.button")}
+                    </a>
+                  </p>
+                )}
               </div>
             }
           >
             Figures are from results MEL accepted; each achieved figure opens the records behind it.
           </PageHead>
         </div>
-        {annual && <ReportChecks p={pf} />}
+        {v && (
+          <div className="mt-4 flex flex-wrap items-center gap-2 font-ledger">
+            {v.released ? (
+              <StatusBlock tone="forest">
+                Released {v.released.at.slice(0, 10)} by {personName(v.released.by)}
+              </StatusBlock>
+            ) : (
+              <StatusBlock tone="ochre">Draft · not released to the donor</StatusBlock>
+            )}
+          </div>
+        )}
+        {v?.released && (
+          <p className="mt-3 border-y border-ink px-3 py-3 text-sm font-semibold">This is the report as released on {v.released.at.slice(0, 10)}: what the donor received. It stays as it was.</p>
+        )}
+        {annual && !v?.released && <ReportChecks p={pf} />}
         {error && <p className="mt-4 bg-clay-soft px-4 py-3 text-sm text-clay">{error}</p>}
+        {notice && (
+          <p role="status" className="mt-4 bg-mist px-4 py-3 text-sm text-leaf">
+            {notice}
+          </p>
+        )}
         {!v && !error && <p className="mt-6 text-sm text-muted">Loading…</p>}
         {v && (
           <>
@@ -283,6 +353,7 @@ export function PeriodReportPage() {
 }
 
 const PEOPLE_COLS = "minmax(0,1fr) 6rem 6rem 7rem";
+const queryOf = (p: Period) => (p.kind === "annual" ? `kind=annual&year=${p.year}` : "kind=final");
 const LESSON_COLS = "minmax(6rem,1fr) 7rem minmax(0,3fr)";
 
 type Row = PeriodReportView["rows"][number];

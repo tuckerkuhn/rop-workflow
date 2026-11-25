@@ -45,6 +45,8 @@ export function describeAudit(entity: string, action: string, d: D): string {
       return "Recorded the answer to an entry in the feedback log";
     case "qpr_released":
       return `Released the ${str(d.quarter)} quarterly report`;
+    case "period_released":
+      return `Released the ${str(d.report).toLowerCase()} to the donor`;
     case "qpr_ai_drafted":
       return `AI drafted ${((d.keys as string[]) ?? []).join(", ")} in the ${str(d.quarter)} report (draft, to review)`;
     case "qpr_edited":

@@ -38,7 +38,7 @@ export async function trackRecordDocx(t: TrackRecord, images: TrackImages): Prom
           ],
         }),
       );
-      if (pr.women) kids.push(p(`Women reached across these results: ${n(pr.women)}.`, { after: 160 }));
+      if (pr.womenAtLeast) kids.push(p(`At least ${n(pr.womenAtLeast)} women reached: the most under any one result. The same woman can be counted under more than one result, so they are not added up.`, { after: 160 }));
     } else kids.push(p("No accepted results yet.", { italics: true, color: "777777" }));
     for (const st of pr.stories) {
       kids.push(new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun({ text: st.title, font: FONT })] }));

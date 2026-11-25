@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { withoutNames } from "@/lib/personal-text";
+import { quarterRange } from "@/lib/results";
 
 /**
  * Learning and closing: lessons recorded as the project runs (what happened, what we learned,
@@ -52,3 +54,28 @@ export const learningAction = z.discriminatedUnion("action", [
   z.object({ action: z.literal("close") }),
 ]);
 export type LearningAction = z.infer<typeof learningAction>;
+
+/** A lesson as the quarterly report shows it: what was recorded, without who recorded it. */
+export type ReportLesson = Pick<Lesson, "id" | "date" | "area" | "happened" | "lesson" | "action">;
+
+/** The lessons recorded in a quarter (by their date), oldest first, for that quarter's report. */
+export function lessonsInQuarter(lessons: Lesson[], quarter: string): ReportLesson[] {
+  const { from, to } = quarterRange(quarter);
+  return lessons
+    .filter((l) => l.date >= from && l.date <= to)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map((l) => ({ id: l.id, date: l.date, area: l.area, happened: l.happened, lesson: l.lesson, action: l.action }));
+}
+
+const sentence = (s: string) => {
+  const t = s.trim();
+  return /[.!?]$/.test(t) ? t : `${t}.`;
+};
+
+/**
+ * A lesson as one paragraph of the report's Lessons Learned section. Names of people are taken
+ * out: the report goes to the donor.
+ */
+export function lessonForReport(l: ReportLesson): string {
+  return withoutNames(`${l.area}. What happened: ${sentence(l.happened)} What we learned: ${sentence(l.lesson)} What we will do differently: ${sentence(l.action)}`);
+}

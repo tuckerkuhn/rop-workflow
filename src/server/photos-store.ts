@@ -1,16 +1,17 @@
 import { randomUUID } from "node:crypto";
-import { eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db, schema as s } from "@/db";
 import type { AppUser } from "@/lib/demo";
 import { firstNamesOnly } from "@/lib/personal-text";
 import { AUDIENCE_TEXT, emptyPhotos, needs, PUBLIC_AUDIENCES, rank, SHARE_TEXT, shareLimit, type Audience, type PhotoAction, type PhotoMeta, type PhotosState, type Post, type Share } from "@/lib/photos";
+import { totalsOf, type ResultRecord } from "@/lib/results";
 import type { Story } from "@/lib/stories";
 import { ROP_VOICE } from "@/lib/voice";
 import { draftStructured } from "@/server/ai-structured";
 import { scrubbed } from "@/server/ai";
 import { logAudit } from "@/server/audit";
-import { projectByCode } from "@/server/field-store";
+import { donorNameOf, projectByCode } from "@/server/field-store";
 import { aiAllowed } from "@/server/limits";
 import { coachPhoto, isDocumentName } from "@/server/photo-coach";
 import { loadProjectState, updateProjectState } from "@/server/project-state";
@@ -173,21 +174,40 @@ const CHANNEL: Record<Audience, string> = {
 
 const postSchema = z.object({ text: z.string(), checks: z.array(z.string()).describe("Facts to confirm before it goes out. Empty if none.") });
 
-export async function draftPost(code: string, st: PhotosState, audience: Audience, hashes: string[], ask: string | undefined, by: string) {
+/**
+ * The project's totals to date against its life-of-project targets, one per indicator, from
+ * results MEL accepted only (totalsOf, the same sum the reports use). Never added across indicators.
+ */
+async function acceptedTotals(projectId: string, results: ResultRecord[]) {
+  const inds = await db.select().from(s.indicators).where(and(eq(s.indicators.projectId, projectId), eq(s.indicators.source, "results"))).orderBy(asc(s.indicators.position));
+  return inds
+    .map((i) => {
+      const t = totalsOf(results.filter((r) => r.indicator === i.code));
+      return { indicator: i.name, unit: i.unit, achieved: t.value, target: Number(i.target) || null, ...(t.female ? { women: t.female } : {}), ...(t.male ? { men: t.male } : {}) };
+    })
+    .filter((x) => x.achieved > 0);
+}
+
+/** The facts a post is drafted from. Figures come from accepted results only. */
+export async function postFacts(code: string, st: PhotosState, audience: Audience, hashes: string[], ask?: string) {
   const p = await projectByCode(code);
   const { items, stories } = await allPhotos(code);
   const chosen = hashes.map((h) => items.find((i) => i.hash === h)).filter((x): x is PhotoItem => !!x);
   const results = await loadResults(code);
   const updates = await loadUpdates(code);
-  const facts = {
+  return {
     project: p.name,
-    donor: p.donor,
+    donor: await donorNameOf(p),
     audience: AUDIENCE_TEXT[audience],
+    project_totals_to_date: await acceptedTotals(p.id, results),
     photos: chosen.map((c) => ({ shows: st.photos[c.hash]?.coach?.shows ?? "", caption: firstNamesOnly(c.caption), date: c.date, province: c.province })),
     records: chosen.map((c) => {
       if (c.source.kind === "result") {
         const r = results.find((x) => x.id === c.source.id);
-        return r && { result: c.source.title, date: r.date, province: r.province, women: r.female, men: r.male, note: firstNamesOnly(r.note).slice(0, 400) };
+        if (!r) return undefined;
+        // A result MEL has not accepted (or sent back) gives no figures: its title carries its value too.
+        if (r.status !== "accepted") return { result: "(not accepted by MEL: use no figures from this record)", date: r.date, province: r.province };
+        return { result: c.source.title, date: r.date, province: r.province, women: r.female, men: r.male, note: firstNamesOnly(r.note).slice(0, 400) };
       }
       if (c.source.kind === "update") {
         const x = updates.find((y) => y.id === c.source.id);
@@ -200,10 +220,16 @@ export async function draftPost(code: string, st: PhotosState, audience: Audienc
     }),
     ...(ask ? { request: ask } : {}),
   };
+}
+
+export async function draftPost(code: string, st: PhotosState, audience: Audience, hashes: string[], ask: string | undefined, by: string) {
+  const p = await projectByCode(code);
+  const facts = await postFacts(code, st, audience, hashes, ask);
   const system = [
     "You draft posts and messages for Roots of Peace about its project work, from the facts given only. Invent nothing: no figures, quotes, names, prices or outcomes that are not in the facts, and no description of what people do, decide or feel beyond what the facts say. When the facts are thin, write less.",
     "People: present farmers and agribusinesses as economic actors who invest and decide, never as recipients. Use a first name only where the facts give one with a story; otherwise 'a farmer', 'growers' and so on. Places: name the province only, never a village or district.",
     "Credit the donor by name only for the Donor audience and where the facts name one. Write for the channel as described.",
+    "Project totals are results accepted by MEL to date, each against its life-of-project target. Never add totals of different indicators together: the same person can be counted under more than one.",
     ROP_VOICE,
   ].join(" ");
   const { out, model } = await draftStructured({ job: "postDraft", by, projectId: p.id, system, task: `Draft one ${AUDIENCE_TEXT[audience]} piece. ${CHANNEL[audience]}`, facts: scrubbed(facts, ["caption", "note", "request", "result", "update"], { firstNames: true }), schema: postSchema, effort: "low", maxTokens: 6000 });

@@ -20,7 +20,7 @@ import { TopBar } from "@/components/workspace/ui";
  */
 
 /** A photo for a signed-in reader. It is asked for when it comes into view, so the photos behind closed figures cost nothing. */
-function AccountPhoto({ src, caption, size, user }: { src: string; caption: string; size: "record" | "grid"; user: string }) {
+export function AccountPhoto({ src, caption, size, user }: { src: string; caption: string; size: "record" | "grid"; user: string }) {
   const [url, setUrl] = useState("");
   const box = useRef<HTMLElement>(null);
   useEffect(() => {

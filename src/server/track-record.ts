@@ -3,6 +3,7 @@ import { db, schema as s } from "@/db";
 import type { AppUser } from "@/lib/demo";
 import type { Story } from "@/lib/stories";
 import { onProject } from "@/server/auth";
+import { donorNameOf } from "@/server/field-store";
 import { loadHome } from "@/server/home-store";
 import { DEMO_PROJECT } from "@/server/procurement-guard";
 import { listProjects } from "@/server/project-store";
@@ -40,14 +41,16 @@ export async function trackRecord(u: AppUser) {
     out.push({
       code,
       name: row.name,
-      donor: row.donor,
+      donor: await donorNameOf(row),
       country: row.country,
       start: row.startDate,
       end: row.endDate,
       duration: q?.saved.info.duration?.trim() || null,
       budget: q && q.spend.budget ? { amount: q.spend.budget, currency: q.spend.currency, spentPct: q.spend.budget ? Math.round((q.spend.cumulative / q.spend.budget) * 100) : null } : home ? { amount: home.budget.approved, currency: home.budget.currency, spentPct: home.budget.spentPct } : null,
       achieved,
-      women: achieved.reduce((t, a) => t + a.women, 0),
+      // Never a sum across indicators: the same woman can be counted under several. The largest
+      // single indicator is what can honestly be said for the project: "at least N women".
+      womenAtLeast: Math.max(0, ...achieved.map((a) => a.women)),
       stories,
     });
   }

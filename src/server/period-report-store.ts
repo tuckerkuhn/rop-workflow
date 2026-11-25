@@ -1,11 +1,11 @@
 import { and, asc, eq } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { EMPTY_LEARNING, type Learning } from "@/lib/learning";
-import { buildPeriodRows, periodRange, type Period, type PeriodIndicator } from "@/lib/period-report";
+import { buildPeriodRows, PERIOD_COPIES, periodKey, periodRange, type Period, type PeriodIndicator } from "@/lib/period-report";
 import { activityOf, photosFor, SECTIONS, type Qpr, type Row } from "@/lib/qpr";
 import { projectByCode, donorNameOf } from "@/server/field-store";
 import { donorPhotoRule } from "@/server/photo-consent";
-import { loadProjectState, loadProjectStates } from "@/server/project-state";
+import { loadProjectState, loadProjectStates, updateProjectState } from "@/server/project-state";
 import { loadCopies, spendFor } from "@/server/qpr-store";
 import { quarterRange, totalsOf } from "@/lib/results";
 import { loadResults, loadUpdates } from "@/server/results-store";
@@ -110,3 +110,34 @@ export async function periodReport(code: string, p: Period) {
   };
 }
 export type PeriodReportView = Awaited<ReturnType<typeof periodReport>>;
+
+// ---------- Release: a frozen copy for the donor ----------
+
+/** What the donor received: the report as it stood when it was released, kept as it was. */
+export type PeriodCopy = { by: string; at: string; data: PeriodReportView };
+/** Every released annual or final report of a project, by period key ("year:2026" or "final"). */
+export type PeriodCopies = { copies: Record<string, PeriodCopy> };
+
+export const loadPeriodCopies = async (projectId: string) => (await loadProjectState<PeriodCopies>(projectId, PERIOD_COPIES, { copies: {} })).copies;
+
+/** The released copy of one period, or null while it has not been released. */
+export async function periodCopy(code: string, p: Period): Promise<PeriodCopy | null> {
+  const project = await projectByCode(code);
+  return (await loadPeriodCopies(project.id))[periodKey(p)] ?? null;
+}
+
+/**
+ * Freezes the report as it stands now and keeps it as what the donor receives. Null when the
+ * period was already released: a release is final, as a quarterly report's is. Who may release
+ * and the audit entry are the caller's (the period-report route), as for the quarterly report.
+ */
+export async function releasePeriod(code: string, p: Period, by: string, at: string): Promise<PeriodCopy | null> {
+  const project = await projectByCode(code);
+  const data = await periodReport(code, p);
+  return updateProjectState<PeriodCopies, PeriodCopy | null>(project.id, PERIOD_COPIES, { copies: {} }, async (cur) => {
+    const key = periodKey(p);
+    if (cur.copies[key]) return { data: null, result: null };
+    const copy: PeriodCopy = { by, at, data };
+    return { data: { copies: { ...cur.copies, [key]: copy } }, result: copy };
+  });
+}

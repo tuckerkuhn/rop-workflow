@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSession } from "@/components/app/session";
-import type { DonorReportView, DonorView } from "@/server/donor-view-store";
+import type { DonorPeriodReportView, DonorReportView, DonorView } from "@/server/donor-view-store";
 
 /** Loads one of the donor-view answers for the signed-in person. `path` is null until there is something to ask for. */
 function useAnswer<T>(path: string | null) {
@@ -38,5 +38,9 @@ export const useDonorView = (code: string | null, donorId?: string | null) => us
 /** One released report with the donor's money as it gave it. */
 export const useDonorReport = (code: string | null, quarter: string, donorId?: string | null) =>
   useAnswer<DonorReportView>(code ? `/api/projects/${encodeURIComponent(code)}/donor-view/${quarter}${asDonor(donorId)}` : null);
+
+/** One released annual or final report ("annual-2026" or "final"). */
+export const useDonorPeriodReport = (code: string | null, slug: string, donorId?: string | null) =>
+  useAnswer<DonorPeriodReportView>(code ? `/api/projects/${encodeURIComponent(code)}/donor-view/${slug}${asDonor(donorId)}` : null);
 
 export const quarterLabel = (q: string) => q.replace("-", " ");
