@@ -11,8 +11,16 @@ import { useT } from "@/components/app/i18n";
 import { primaryBtn, quietBtn } from "@/components/workspace/ui";
 import type { DistView } from "@/server/distribution";
 import type { DistFacts } from "@/server/distribution-photo";
-import { mapEmbed } from "@/lib/exif";
+import { WhereWhen } from "@/components/field/where-when";
 import { qtyItem } from "@/lib/package";
+import { longDate } from "@/lib/weekly";
+
+/** A timestamp as the day it was for the person reading it (their own time zone), in words. */
+const dayOfStamp = (at: string) => {
+  const d = new Date(at);
+  if (Number.isNaN(d.getTime())) return at.slice(0, 10);
+  return longDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
+};
 
 /**
  * The project manager's one screen for an input distribution: what went out, the goods received
@@ -37,7 +45,6 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
   const [koboShots, setKoboShots] = useState<{ note?: string; handover?: string; failed?: string }>({});
   // Where and when it happened, from the phone and the photo (never typed).
   const [facts, setFacts] = useState<DistFacts | null>(null);
-  const [showMap, setShowMap] = useState(false);
   const [canDecide, setCanDecide] = useState(false);
   const [canFix, setCanFix] = useState(false);
   const [canCheckKobo, setCanCheckKobo] = useState(false);
@@ -52,6 +59,9 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
   const fullPhotos = useFeature("full_photos");
   /** After a decision: the purchases whose lists grew, or who has the task to fix it. */
   const [reached, setReached] = useState<string[]>([]);
+  // What finance was actually asked to do by the approval, and who has the task to fix a record sent back.
+  const [payments, setPayments] = useState<{ purchase: string; supplier: string; to: string | null }[]>([]);
+  const [fixerName, setFixerName] = useState("");
   // The target the approval added a result to, when it added one.
   const [counted, setCounted] = useState<string | null>(null);
   // Other distributions waiting for this person, oldest first: after a decision, the next one is a click away.
@@ -125,6 +135,8 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
     setDone(decision);
     setCounted(decision === "approved" && body.result ? (body.targetName ?? body.target ?? null) : null);
     setReached(decision === "approved" ? (body.procurements ?? []) : body.fixer ? [body.fixer] : []);
+    setPayments(decision === "approved" ? (body.payments ?? []) : []);
+    setFixerName(typeof body.fixerName === "string" ? body.fixerName : "");
   }
 
   async function checkKobo() {
@@ -172,7 +184,7 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
       {d && (
         <>
           <p className="mt-2 text-sm text-muted">
-            {d.source === "kobo" ? tx("Recorded {date} by {name} in KoboCollect.", { date: d.date, name: d.recordedBy }) : tx("Recorded {date} by {name} in the app.", { date: d.date, name: d.recordedBy })}{" "}
+            {d.source === "kobo" ? tx("Handed out {date}, recorded by {name} in KoboCollect.", { date: longDate(d.date), name: d.recordedBy }) : tx("Handed out {date}, recorded by {name} in the app.", { date: longDate(d.date), name: d.recordedBy })}{" "}
             {d.status === "accepted"
               ? d.decided?.byName
                 ? tx("Approved by {name}.", { name: d.decided.byName })
@@ -189,6 +201,14 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
             {pending && !canDecide && user && d.approvers && !d.approvers.includes(user.id) && user.field.includes("manager") ? <>{" "}{tx("You recorded this one, and nobody approves their own record.")}</> : ""}
           </p>
 
+          {d.unmatchedAccount && pending && user && (
+            <p className="mt-3 rounded-xl border border-ochre/40 bg-ochre-soft px-4 py-3 text-sm">
+              {tx("The KoboCollect account {account} is not matched to a person yet, so the app cannot tell who collected this record or check that nobody approves their own.", { account: d.unmatchedAccount })}{" "}
+              <Link href="/setup?step=kobo-connect" className="font-medium text-forest underline">
+                {tx("Match the account")}
+              </Link>
+            </p>
+          )}
           {sentBack && (
             <div className="mt-4 rounded-xl border border-clay/40 bg-clay-soft px-4 py-3 text-sm text-clay">
               <p className="font-semibold">{tx("What needs fixing")}</p>
@@ -245,7 +265,7 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
                 <img src={koboShots.note} alt={tx("Signed goods received note for {id}", { id: d.farmerId })} className="max-h-96 w-full rounded-lg border border-line bg-mist object-contain" />
                 <figcaption className="mt-1 text-xs text-muted">
                   {facts?.photo?.date
-                    ? tx("Signed goods received note, photographed {date}. Check the signature or thumbprint and the quantities before approving.", { date: `${facts.photo.date}${facts.photo.time ? ` ${facts.photo.time}` : ""}` })
+                    ? tx("Signed goods received note, photographed {date}. Check the signature or thumbprint and the quantities before approving.", { date: `${longDate(facts.photo.date)}${facts.photo.time ? `, ${facts.photo.time}` : ""}` })
                     : tx("Signed goods received note, from KoboCollect. Check the signature or thumbprint and the quantities before approving.")}
                 </figcaption>
               </figure>
@@ -262,7 +282,7 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
                 {/* eslint-disable-next-line @next/next/no-img-element -- a stored data URL, not a static asset */}
                 <img src={notePhoto.src} alt={tx("Signed goods received note for {id}", { id: d.farmerId })} className="max-h-96 w-full rounded-lg border border-line bg-mist object-contain" />
                 <figcaption className="mt-1 text-xs text-muted">
-                  {tx("Signed goods received note, photographed {date}. Check the signature or thumbprint and the quantities before approving.", { date: notePhoto.date })}
+                  {tx("Signed goods received note, photographed {date}. Check the signature or thumbprint and the quantities before approving.", { date: /^\d{4}-\d{2}-\d{2}$/.test(notePhoto.date) ? longDate(notePhoto.date) : notePhoto.date })}
                 </figcaption>
               </figure>
             )}
@@ -270,52 +290,7 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
 
           {facts && (facts.place || facts.photo || facts.missing.length > 0) && (
             <section className="mt-4 rounded-xl border border-line bg-surface px-4 py-3">
-              <h2 className="font-medium">{tx("Where and when")}</h2>
-              <p className="mt-0.5 text-xs text-muted">{tx("Read from the phone and the photo. Nobody typed this.")}</p>
-              <ul className="mt-2 space-y-1 text-sm">
-                {facts.place && (
-                  <li>
-                    ✓ {tx("Place captured from {source}.", { source: tx(facts.place.fromText) })}
-                    {facts.place.lat !== undefined && facts.place.lon !== undefined && (
-                      <>
-                        {" "}
-                        <span className="font-mono text-xs text-muted">
-                          {facts.place.lat.toFixed(5)}, {facts.place.lon.toFixed(5)}
-                        </span>
-                      </>
-                    )}
-                  </li>
-                )}
-                {facts.photo?.date && <li>✓ {tx("Photo taken {when}.", { when: `${facts.photo.date}${facts.photo.time ? ` ${facts.photo.time}` : ""}` })}</li>}
-                {facts.apart && (
-                  <li className={facts.apart.far ? "text-clay" : ""}>
-                    {facts.apart.far ? "!" : "✓"} {tx("The photo was taken {distance} from where the form was filled in.", { distance: facts.apart.text })}
-                    {facts.apart.far ? ` ${tx("Ask why before approving.")}` : ""}
-                  </li>
-                )}
-                {facts.dayDiffers && (
-                  <li className="text-clay">
-                    ! {tx("The form says {form}; the photo was taken {photo}.", { form: facts.dayDiffers.form, photo: facts.dayDiffers.photo })}
-                  </li>
-                )}
-                {facts.missing.map((m) => (
-                  <li key={m} className="text-muted">
-                    {tx(m)}
-                  </li>
-                ))}
-              </ul>
-              {facts.place?.lat !== undefined && facts.place.lon !== undefined && (
-                <div className="mt-3">
-                  {showMap ? (
-                    <iframe title={tx("Map of where it was recorded")} src={mapEmbed({ lat: facts.place.lat, lon: facts.place.lon })} className="h-56 w-full rounded-lg border border-line" loading="lazy" referrerPolicy="no-referrer" />
-                  ) : (
-                    <button type="button" className={quietBtn} onClick={() => setShowMap(true)}>
-                      {tx("Show on a map")}
-                    </button>
-                  )}
-                  {!showMap && <p className="mt-1 text-xs text-muted">{tx("The map comes from OpenStreetMap. Opening it sends this point to their map service.")}</p>}
-                </div>
-              )}
+              <WhereWhen facts={facts} />
             </section>
           )}
 
@@ -461,11 +436,19 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
                 <ul className="mt-1 list-disc space-y-0.5 ps-5">
                   <li>{counted ? tx("Results: one farmer added to the target \"{target}\". It counts once MEL accepts it.", { target: counted }) : tx("Results: not added to a target. Nobody has chosen the target that counts distributions (Field activities, Input package).")}</li>
                   {reached.length > 0 && <li>{tx("Procurement: added to the distribution list on {list}.", { list: reached.join(tx(" and ")) })}</li>}
-                  <li>{tx("Finance: told when the purchase has a payment to release.")}</li>
+                  {payments.length > 0 ? (
+                    payments.map((p) => (
+                      <li key={p.purchase}>
+                        {p.to ? tx("Finance: {name} has a task to pay {supplier} for {purchase}.", { name: p.to, supplier: p.supplier, purchase: p.purchase }) : tx("Finance: a task to pay {supplier} for {purchase} is open, but nobody on this project holds the finance role to take it.", { supplier: p.supplier, purchase: p.purchase })}
+                      </li>
+                    ))
+                  ) : (
+                    <li>{tx("Finance: nothing to do. No payment is waiting on these purchases.")}</li>
+                  )}
                   <li>{tx("Audit log: your decision is recorded.")}</li>
                 </ul>
               )}
-              {done === "sent_back" && <p className="mt-1">{reached.length ? tx("The person who recorded it has a task to fix it and send it again. Nothing counts until you approve it.") : tx("Nobody on this project can change field records, so no one has the task. Ask an administrator to add a storekeeper or extension agent.")}</p>}
+              {done === "sent_back" && <p className="mt-1">{reached.length ? (fixerName ? tx("{name} has a task to fix it and send it again. Nothing counts until it is approved.", { name: fixerName }) : tx("The person who recorded it has a task to fix it and send it again. Nothing counts until it is approved.")) : tx("Nobody on this project can change field records, so no one has the task. Ask an administrator to add a storekeeper or extension agent.")}</p>}
               {done === "resubmit" && (
                 <p className="mt-1">
                   {d.koboCheck?.needed
@@ -495,10 +478,10 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
                 {d.history.map((h, k) => (
                   <li key={k} className="rounded-lg border border-line px-3 py-2 text-muted">
                     <span className="block">
-                      {h.sentBack.at.slice(0, 10)} · {tx("Sent back by {name}: {note}", { name: h.sentBack.byName, note: h.sentBack.note ?? "" })}
+                      {dayOfStamp(h.sentBack.at)} · {tx("Sent back by {name}: {note}", { name: h.sentBack.byName, note: h.sentBack.note ?? "" })}
                     </span>
                     <span className="block">
-                      {h.fixed.at.slice(0, 10)} · {tx("Fixed by {name}: {note}", { name: h.fixed.byName, note: h.fixed.note })}
+                      {dayOfStamp(h.fixed.at)} · {tx("Fixed by {name}: {note}", { name: h.fixed.byName, note: h.fixed.note })}
                     </span>
                   </li>
                 ))}

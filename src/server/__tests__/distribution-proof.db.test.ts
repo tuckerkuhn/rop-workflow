@@ -23,6 +23,7 @@ import { distributionFacts, koboPhoto } from "@/server/distribution-photo";
 import { loadField } from "@/server/field-store";
 import { saveKoboApproval } from "@/server/kobo-approval";
 import { loadResults } from "@/server/results-store";
+import { submissionPhoto, submissionProof } from "@/server/submission-proof";
 import { ready } from "@/server/__tests__/test-db";
 
 /**
@@ -75,6 +76,9 @@ describe("a KoboCollect distribution carries its own proof", () => {
 
   it("tells the page which photos can be opened and that a place came with it, without the coordinates", async () => {
     const d = (await listDistributions(code)).find((x) => x.id === id)!;
+    // The person, not the account name: bilal.kobo is matched to Bilal on this project.
+    expect(d.recordedBy).toBe("Bilal Haidari");
+    expect(d.unmatchedAccount).toBeNull();
     expect(d.koboPhotos).toEqual(["note", "handover"]);
     expect(d.hasPlace).toBe(true);
     expect(JSON.stringify(d)).not.toContain("34.562");
@@ -130,6 +134,7 @@ describe("whoever checks a KoboCollect record can return it to the person who co
     expect(await refusal(() => decideDistribution(code, id, "sent_back", farida, "wrong"))).toMatch(/Only .* can approve this distribution or send it back/);
     const back = await decideDistribution(code, id, "sent_back", rahima, "The photo is of another farmer's note");
     expect(back.fixer).toBe("bilal");
+    expect(back.fixerName).toBe("Bilal Haidari");
     const [task] = await db.select().from(s.workItems).where(like(s.workItems.sourceKey, `dist-fix:${id}`));
     expect(task.assignee).toBe("bilal");
     // The checker still cannot approve.
@@ -170,8 +175,39 @@ describe("whoever checks a KoboCollect record can return it to the person who co
     await checkKoboDistribution(code, bare.id, { id: rahima.id, name: rahima.name }, "http://test");
     const res = await decideDistribution(code, bare.id, "approved", nadia);
     expect(res.target).toBeTruthy();
+    // What finance was asked is said exactly: a task per purchase with a payment waiting, or none.
+    expect(Array.isArray(res.payments)).toBe(true);
+    for (const pay of res.payments) expect(pay).toMatchObject({ purchase: expect.stringMatching(/^PR-/), supplier: expect.any(String) });
     const made = (await loadResults(code)).filter((r) => r.distribution === bare.id);
     expect(made).toHaveLength(1);
     expect(made[0]).toMatchObject({ date: "2026-11-24", by: "bilal" });
+  });
+});
+
+describe("every KoboCollect form in the review queue carries its proof", () => {
+  let visit = "";
+  it("a readiness visit: the plot's photo by the question it was taken on, the plot's GPS, and the storekeeper's note", async () => {
+    const project = (await db.select().from(s.projects).where(eq(s.projects.code, code)))[0];
+    const [row] = await db
+      .insert(s.evidence)
+      .values({ organizationId: project.organizationId, projectId: project.id, source: "kobo", form: "readiness", farmerCode: farmerId, reviewStatus: "pending", completedBy: "farida.kobo", completedAt: new Date(), koboAssetUid: "aReady", koboSubmissionUuid: "proof-ready", koboSubmissionId: 7, payload: { farmer: farmerId, visit_date: "2026-11-24", ready: "yes", photo: "plot.jpg", location: "34.5621 69.2103 1790 5", start_geopoint: "34.5 69.1 0 9", notes: "Ridges redone since the first visit", _attachments: [{ download_url: `${base}/9/`, mimetype: "image/jpeg", filename: "rop/attachments/aReady/u/plot.jpg" }] } })
+      .returning({ id: s.evidence.id });
+    visit = row.id;
+    photo.bytes = Buffer.from(exifJpeg({ taken: "2026:11:24 11:20:00", gps: { lat: 34.5622, lon: 69.2104 } }));
+    const proof = await submissionProof(code, visit, true);
+    expect(proof.photos).toEqual([{ question: "photo", tag: "visit", label: "Photo of the plot" }]);
+    // Standing at the plot: the GPS question the agent answered is the place, not where the form was opened.
+    expect(proof.facts.place).toMatchObject({ lat: 34.5621, lon: 69.2103, from: "question" });
+    expect(proof.facts.photo).toEqual({ date: "2026-11-24", time: "11:20", hasPlace: true });
+    expect(proof.facts.apart!.far).toBe(false);
+    expect(proof.facts.note).toBe("Ridges redone since the first visit");
+    expect((await submissionProof(code, visit, false)).facts.place).toEqual({ from: "question", fromText: "the GPS question on the form" });
+  });
+
+  it("hands over the photo by its question, and refuses a question with no photo or a record typed in the app", async () => {
+    expect((await submissionPhoto(code, visit, "photo")).type).toBe("image/jpeg");
+    expect(await refusal(() => submissionPhoto(code, visit, "list_photo"))).toMatch(/no photo for this question/);
+    const typed = (await db.select().from(s.evidence).where(eq(s.evidence.source, "manual")))[0];
+    expect(await refusal(() => submissionProof(code, typed.id, true))).toMatch(/not on this project/);
   });
 });

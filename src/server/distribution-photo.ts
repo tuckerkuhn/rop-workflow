@@ -63,6 +63,8 @@ export type DistFacts = {
   dayDiffers: { form: string; photo: string } | null;
   /** In words, what could not be read and why that is not a fault. */
   missing: string[];
+  /** What the person in the field wrote under "Anything else to note". Signed-in staff only: it may hold a name. */
+  note?: string;
 };
 
 /** More than this between the form's point and the photo's is worth a look (a village is small; a district is not). */
@@ -120,5 +122,6 @@ export async function distributionFacts(code: string, id: string, precise: boole
     apart: metres === null ? null : { metres, text: distanceText(metres), far: metres > FAR_METRES },
     dayDiffers: formDay && facts?.date && facts.date !== formDay ? { form: formDay, photo: facts.date } : null,
     missing,
+    ...(row.source === "kobo" && typeof payload.notes === "string" && payload.notes.trim() ? { note: payload.notes.trim().slice(0, 1000) } : {}),
   };
 }

@@ -37,7 +37,8 @@ def training(code):
         ("start-geopoint", "start_geopoint", None, None, "", "", "", "", ""),
         ("select_one_from_file farmers.csv", "farmer", ("Farmer", "دهقان", "بزګر"), FARMER_HINT, "yes", "", "autocomplete", "", ""),
         ("date", "training_date", ("Training date", "تاریخ آموزش", "د روزنې نېټه"), None, "yes", "", "", "", "today()"),
-        ("select_one session", "session", ("Training session", "جلسه آموزشی", "د روزنې ناسته"), None, "yes", "", "", "", ""),
+        # The same for every farmer at one training: the phone offers the last answer, so it is chosen once per session.
+        ("select_one session", "session", ("Training session", "جلسه آموزشی", "د روزنې ناسته"), None, "yes", "", "", "", "${last-saved#session}"),
         (
             "select_one yes_no",
             "attended",
@@ -49,7 +50,7 @@ def training(code):
             "register_ref",
             ("Attendance register reference", "مرجع لیست حاضری", "د حاضرۍ لیست مرجع"),
             ("Book and page of the signed register, and where the original is kept", "کتاب و صفحه لیست امضا‌شده و محل نگهداری اصل آن", "د لاسلیک شوي لیست کتاب او پاڼه، او اصلي چېرته ساتل کېږي"),
-            "yes", "", "", "", "",
+            "yes", "", "", "", "${last-saved#register_ref}",
         ),
         ("image", "photo", ("Photo of the signed register page", "عکس صفحه امضا‌شده لیست حاضری", "د حاضرۍ د لاسلیک شوي لیست د پاڼې انځور"), None, "yes", "", "", "", ""),
         ("geopoint", "location", ("Training location (GPS)", "موقعیت آموزش (GPS)", "د روزنې ځای (GPS)"), ("The phone did not find its place by itself. Record it here.",) * 3, "", "string-length(${start_geopoint}) = 0", "", "", ""),

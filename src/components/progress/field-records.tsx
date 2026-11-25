@@ -3,9 +3,11 @@
 import { useState } from "react";
 import { useSession } from "@/components/app/session";
 import { useSubmissions } from "@/components/app/use-project-data";
+import { RecordProof } from "@/components/field/record-proof";
 import { Pill, dangerBtn, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { dataFlags, formLabel, personName, type Submission } from "@/lib/project";
 import type { SyncCounts } from "@/lib/kobo-setup";
+import { longDate } from "@/lib/weekly";
 
 /**
  * Field forms waiting to be checked: readiness visits, training attendance and farm visits from
@@ -55,13 +57,15 @@ export function useFieldForms(code: string, wanted = true) {
       return `${subs.length} record${subs.length === 1 ? "" : "s"} ${status === "accepted" ? "accepted" : "queried"}.`;
     });
   const synced = (r: SyncCounts) => `Synced: ${r.fetched} on KoboToolbox, ${r.added} new${r.updated ? `, ${r.updated} changed` : ""}${r.removed ? `, ${r.removed} deleted in KoboToolbox` : ""}.`;
-  return { show: user?.kind === "employee", kobo, pending, forMe, toSendBack, queried, clean, flagsOf, name, busy, outcome, run, decide, synced };
+  return { show: user?.kind === "employee", code, userId: user?.id ?? "", kobo, pending, forMe, toSendBack, queried, clean, flagsOf, name, busy, outcome, run, decide, synced };
 }
 export type FieldForms = ReturnType<typeof useFieldForms>;
 
 export function FieldRecords({ f, open, onToggle }: { f: FieldForms; open: boolean; onToggle: () => void }) {
-  const { kobo, pending, forMe, toSendBack, queried, flagsOf, name, busy, outcome, run, decide, synced } = f;
+  const { code, userId, kobo, pending, forMe, toSendBack, queried, flagsOf, name, busy, outcome, run, decide, synced } = f;
   const [querying, setQuerying] = useState<string | null>(null);
+  // Records whose photo and place the checker has opened.
+  const [proofOpen, setProofOpen] = useState<Set<string>>(new Set());
   const [note, setNote] = useState("");
 
   if (!f.show) return null;
@@ -121,7 +125,8 @@ export function FieldRecords({ f, open, onToggle }: { f: FieldForms; open: boole
                     <Pill tone={s.source === "kobo" ? "sky" : "muted"}>{s.source === "kobo" ? "KoboCollect" : "Sample"}</Pill>
                   </p>
                   <p className="mt-0.5 text-xs text-muted">
-                    {s.date} · collected by {name(s.enumerator)} · <span className="font-mono">{s.id}</span>
+                    {/^\d{4}-\d{2}-\d{2}$/.test(s.date) ? longDate(s.date) : s.date} · collected by {s.collectorName ?? name(s.enumerator)}
+                    {s.source === "kobo" && !s.collectorName ? " (a KoboCollect account not yet matched to a person)" : ""} · <span className="font-mono">{s.id}</span>
                   </p>
                   {Object.keys(s.fields).length > 0 && (
                     <dl className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs">
@@ -133,6 +138,13 @@ export function FieldRecords({ f, open, onToggle }: { f: FieldForms; open: boole
                       ))}
                     </dl>
                   )}
+                  {/* The proof itself, for a record from a phone: fetched when asked for, so the list stays fast. */}
+                  {s.source === "kobo" && s.dbId && (
+                    <button type="button" className="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-forest underline-offset-4 hover:underline" aria-expanded={proofOpen.has(s.id)} onClick={() => setProofOpen((cur) => { const next = new Set(cur); if (next.has(s.id)) next.delete(s.id); else next.add(s.id); return next; })}>
+                      {proofOpen.has(s.id) ? "Hide the photo" : s.photo ? "See the photo and where it was recorded" : "See where it was recorded"}
+                    </button>
+                  )}
+                  {s.source === "kobo" && s.dbId && proofOpen.has(s.id) && <RecordProof code={code} id={s.dbId} userId={userId} />}
                   {flags.length > 0 && (
                     <ul className="mt-2 space-y-1">
                       {flags.map((f) => (

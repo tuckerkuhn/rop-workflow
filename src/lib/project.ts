@@ -151,6 +151,8 @@ export type Submission = {
   /** The technical lead: may send this field form back with a note, but not accept it. */
   maySendBack?: boolean;
   deciders?: string;
+  /** The person who collected it, by name, when the KoboCollect account that sent it is matched to someone on the project. */
+  collectorName?: string;
 };
 
 /** Project area for the GPS check (fictional). */

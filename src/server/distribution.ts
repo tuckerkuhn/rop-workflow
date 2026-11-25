@@ -442,6 +442,12 @@ export type DistView = {
   koboPhotos: ("note" | "handover")[];
   /** Whether the record came with a place (the phone's GPS or the form's GPS question). Coordinates are never in this list. */
   hasPlace: boolean;
+  /**
+   * From KoboCollect: the account that sent it, when the project has not matched that account to a
+   * person. Until it is matched the app cannot tell who collected the record, so "nobody approves
+   * their own record" cannot be applied to it and a send-back goes to the storekeeper by default.
+   */
+  unmatchedAccount: string | null;
 };
 
 const photoOf = (r: { source: string; payload: unknown }) => {
@@ -494,13 +500,16 @@ export async function listDistributions(code: string): Promise<DistView[]> {
     .filter((r) => st.byId[r.id] && !r.koboRemovedAt)
     .map((r) => {
       const m = st.byId[r.id];
+      // The person, not the account name: a KoboCollect account matched to someone on the team shows as that person.
+      const who = recorderOf(r, m, rule, team);
+      const person = who ? team.find((p) => p.id === who)?.name : undefined;
       return {
         id: r.id,
         farmerId: r.farmerCode ?? "",
         village: m.village,
         date: dayOf(r),
         source: r.source === "kobo" ? ("kobo" as const) : ("app" as const),
-        recordedBy: m.recordedBy,
+        recordedBy: person ?? m.recordedBy,
         items: m.items,
         gender: m.gender,
         photo: photoNow(r, m),
@@ -525,6 +534,7 @@ export async function listDistributions(code: string): Promise<DistView[]> {
         closeBlock: closeBlock({ signed: m.signed ?? signedOf(r), photo: photoNow(r, m), source: sourceOf(r), condition: m.conditionOk ? null : conditionOf(r) }),
         koboPhotos: r.source === "kobo" ? (["note", "handover"] as const).filter((w) => !!koboAttachment(r.payload as Record<string, unknown>, w === "note" ? "list_photo" : "handover_photo", "distribution")) : [],
         hasPlace: r.source === "kobo" && !!koboPlace(r.payload as Record<string, unknown>),
+        unmatchedAccount: r.source === "kobo" && !who ? (r.completedBy ?? null) : null,
       };
     })
     .sort((a, b) => (a.status === b.status ? b.date.localeCompare(a.date) : a.status === "pending" ? -1 : 1));
@@ -642,6 +652,8 @@ export async function decideDistribution(code: string, id: string, decision: "ap
   const now = new Date();
   const day = today();
   const changed: string[] = [];
+  /** Payments finance was asked to release by this approval: the purchase, its supplier and who has the task. */
+  const payments: { purchase: string; supplier: string; to: string | null }[] = [];
   const team = decision === "approved" ? await people() : [];
   // The target approved distributions count toward (lib/package `target`), when the project has
   // named one and it takes recorded results.
@@ -687,6 +699,7 @@ export async function decideDistribution(code: string, id: string, decision: "ap
         // Finance: the goods are in and going out, so the supplier's invoice can be paid.
         // Not for a purchase already paid or closed: there is nothing left to release.
         if (!paymentDue(p)) continue;
+        if (!payments.some((x) => x.purchase === p.id)) payments.push({ purchase: p.id, supplier: p.supplier?.name ?? "the supplier", to: finance?.name ?? null });
         await tx
           .insert(s.workItems)
           .values({
@@ -755,7 +768,7 @@ export async function decideDistribution(code: string, id: string, decision: "ap
     // The link is used up and the decision kept with the record, in the same step as the decision itself.
     await putMeta(tx, project.id, id, { ...m, gate: g, hash: null, hashes: {}, decided: { by: by.id, byName: by.name, at: now.toISOString(), decision, ...(note ? { note: note.trim() } : {}) } });
   });
-  return { decision, procurements: changed, fixer, result, target: counts?.code ?? null, targetName: counts?.name ?? null };
+  return { decision, procurements: [...new Set(changed)], payments, fixer, fixerName: fixer ? (everyone.find((u) => u.id === fixer)?.name ?? null) : null, result, target: counts?.code ?? null, targetName: counts?.name ?? null };
 }
 
 const fixNotes = (code: string, id: string, by: string, note: string) => `Sent back by ${by}: ${note}\nOpen ${appOrigin()}/approve/${encodeURIComponent(code)}/${id}, correct what was recorded and send it again.`;

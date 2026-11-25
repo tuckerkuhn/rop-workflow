@@ -27,7 +27,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
     // `maySendBack`: the technical lead may send a field form back with a note, without accepting it.
     const annotated = submissions.map((s) => {
       const mayDecide = !refusalFor(v.user, team, rec(s), rule);
-      return { ...s, mayDecide, maySendBack: !mayDecide && maySendBack(v.user, team, { ...rec(s), form: s.form }), deciders: deciderNames(team, rec(s), rule) };
+      // The person, not the account: a KoboCollect account matched to someone on the team is shown by their name.
+      const who = team.find((p) => p.id === rec(s).collector)?.name;
+      return { ...s, mayDecide, maySendBack: !mayDecide && maySendBack(v.user, team, { ...rec(s), form: s.form }), deciders: deciderNames(team, rec(s), rule), ...(who ? { collectorName: who } : {}) };
     });
     return NextResponse.json({ submissions: annotated, roster: await roster(project.id) });
   });
