@@ -1,6 +1,7 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
-import { proofCount, quarterOf, type Correction, type ResultInput, type ResultRecord, type UpdateInput, type UpdateRecord } from "@/lib/results";
+import { proofCount, quarterOf, type Correction, type PhotoPlaces, type ResultInput, type ResultRecord, type UpdateInput, type UpdateRecord } from "@/lib/results";
+import { canSeePII, type AppUser } from "@/lib/demo";
 import type { z } from "zod";
 import type { correctionSchema } from "@/lib/results";
 import { logAudit } from "@/server/audit";
@@ -218,23 +219,69 @@ export async function loadUpdates(code: string): Promise<UpdateRecord[]> {
     .where(and(eq(s.evidence.projectId, project.id), eq(s.evidence.source, "manual"), eq(s.evidence.form, "update")));
   return rows
     .map((r) => {
-      const p = r.payload as UpdateInput;
+      // Where the photos were taken stays behind: every screen, report and copy reads updates here,
+      // and none of them may pass a point on by accident. See updatePlaces.
+      const { places: _kept, ...p } = r.payload as UpdateInput;
+      void _kept;
       return { ...p, id: r.id, quarter: quarterOf(p.date), by: r.completedBy ?? "", at: r.createdAt.toISOString() };
     })
     .sort((a, b) => b.date.localeCompare(a.date));
 }
+
+/**
+ * Where the photos on each update were taken, by update id and file fingerprint. Only for a person
+ * who may see participant names: a point can be where a farmer lives. Anyone else gets nothing.
+ */
+export async function updatePlaces(code: string, viewer: AppUser | null | undefined): Promise<Map<string, PhotoPlaces>> {
+  const out = new Map<string, PhotoPlaces>();
+  if (!canSeePII(viewer)) return out;
+  const project = await projectByCode(code);
+  const rows = await db
+    .select({ id: s.evidence.id, payload: s.evidence.payload })
+    .from(s.evidence)
+    .where(and(eq(s.evidence.projectId, project.id), eq(s.evidence.source, "manual"), eq(s.evidence.form, "update")));
+  for (const r of rows) {
+    const p = r.payload as UpdateInput;
+    const places = placesOn(p.files, p.places);
+    if (places) out.set(r.id, places);
+  }
+  return out;
+}
+
+/** The places of the photos that are on the item, and of no other file. */
+const placesOn = (files: UpdateInput["files"], ...from: (PhotoPlaces | undefined)[]): PhotoPlaces | null => {
+  const out: PhotoPlaces = {};
+  for (const f of files) {
+    const at = from.map((m) => m?.[f.hash]).find(Boolean);
+    if (at) out[f.hash] = at;
+  }
+  return Object.keys(out).length ? out : null;
+};
+const withPlaces = (input: UpdateInput, places: PhotoPlaces | null): UpdateInput => {
+  const { places: _sent, ...rest } = input;
+  void _sent;
+  return places ? { ...rest, places } : rest;
+};
 
 /** One activity update, or null. */
 export async function updateById(code: string, id: string) {
   return (await loadUpdates(code)).find((u) => u.id === id) ?? null;
 }
 
-/** Replaces an update's text and photos. The caller checks that its week has not been sent. */
+/**
+ * Replaces an update's text and photos. The caller checks that its week has not been sent.
+ * A photo that stays on the item keeps the place stored for it: the person editing may not be
+ * allowed to see places, so their screen never held them and cannot send them back. A photo added
+ * in this edit brings the place its own phone read.
+ */
 export async function editUpdate(code: string, id: string, input: UpdateInput, by: string) {
   const project = await projectByCode(code);
   const where = and(eq(s.evidence.id, id), eq(s.evidence.projectId, project.id), eq(s.evidence.form, "update"));
   return db.transaction(async (tx) => {
-    const [r] = await tx.update(s.evidence).set({ payload: input, completedAt: new Date(`${input.date}T12:00:00Z`), updatedAt: new Date() }).where(where).returning({ id: s.evidence.id });
+    const [old] = await tx.select({ payload: s.evidence.payload }).from(s.evidence).where(where).for("update");
+    if (!old) return false;
+    const payload = withPlaces(input, placesOn(input.files, (old.payload as UpdateInput).places, input.places));
+    const [r] = await tx.update(s.evidence).set({ payload, completedAt: new Date(`${input.date}T12:00:00Z`), updatedAt: new Date() }).where(where).returning({ id: s.evidence.id });
     if (r) await logAudit(tx, project.id, { entity: "update", entityId: r.id, action: "update_edited", by, detail: { activity: input.activity, date: input.date } });
     return !!r;
   });
@@ -265,7 +312,7 @@ export async function addUpdate(code: string, input: UpdateInput, by: string) {
         reviewStatus: "accepted",
         completedBy: by,
         completedAt: new Date(`${input.date}T12:00:00Z`),
-        payload: input,
+        payload: withPlaces(input, placesOn(input.files, input.places)),
       })
       .returning({ id: s.evidence.id });
     await logAudit(tx, project.id, { entity: "update", entityId: r.id, action: "update_added", by, detail: { activity: input.activity, date: input.date } });

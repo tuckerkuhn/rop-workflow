@@ -151,11 +151,21 @@ export const updateSchema = z.object({
   files: z.array(receiptSchema).max(20),
   captions: z.record(z.string().regex(/^[0-9a-f]{64}$/), z.string().trim().max(300)).optional(),
   taken: z.record(z.string().regex(/^[0-9a-f]{64}$/), z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),
+  /**
+   * Where each photo was taken, by file fingerprint: read from the photo on the phone that added it,
+   * never typed. A point can be where a farmer lives, so it is stored with the item and given to
+   * nobody with it: no reader of updates gets it (UpdateRecord below), and only people who may see
+   * participant names are given it, apart (updatePlaces in server/results-store).
+   */
+  places: z.record(z.string().regex(/^[0-9a-f]{64}$/), z.object({ lat: z.number().min(-90).max(90), lon: z.number().min(-180).max(180) })).optional(),
   /** What was written in Dari or Pashto, kept beside its English translation (set by the server). */
   original: z.object({ lang: z.enum(["fa", "ps", "other"]), title: z.string().max(400).optional(), note: z.string().max(8000).optional(), captions: z.record(z.string(), z.string().max(600)).optional(), pending: z.boolean().optional(), model: z.string().max(80).optional() }).optional(),
 });
 export type UpdateInput = z.infer<typeof updateSchema>;
-export type UpdateRecord = UpdateInput & { id: string; quarter: string; by: string; at: string };
+/** Where an item's photos were taken, by file fingerprint. */
+export type PhotoPlaces = NonNullable<UpdateInput["places"]>;
+/** An update as every screen and report reads it: without the places of its photos. */
+export type UpdateRecord = Omit<UpdateInput, "places"> & { id: string; quarter: string; by: string; at: string };
 
 export const resultActionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("record"), result: resultSchema }),

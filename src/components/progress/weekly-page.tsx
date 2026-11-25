@@ -16,8 +16,9 @@ import { OriginalText } from "@/components/progress/original-text";
 import { TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { Empty, LedgerRow, PageHead, SectionHead, Sheet, StatusBlock } from "@/components/workspace/ledger";
 import type { Receipt } from "@/lib/expense";
-import type { ResultAction, UpdateInput } from "@/lib/results";
-import { exifDate, longDate, periodLabel, weekOf, type WeeklyPatch } from "@/lib/weekly";
+import type { PhotoPlaces, ResultAction, UpdateInput } from "@/lib/results";
+import { mapEmbed, photoFacts } from "@/lib/exif";
+import { longDate, periodLabel, weekOf, type WeeklyPatch } from "@/lib/weekly";
 import { addToOutbox, isOffline, localHash } from "@/lib/outbox";
 // The Word builder (and the `docx` library) loads on the Download click, not with the page.
 import type { WeeklyImages } from "@/lib/weekly-docx";
@@ -79,11 +80,15 @@ function Thumb({ hash, user, alt, blob }: { hash: string; user: string; alt: str
 type Local = Record<string, { blob: Blob; name: string; type: string }>;
 function ItemForm({ v, start, onSave, onQueue, onClose, className = "mt-3" }: { v: WeeklyView; start?: Item; className?: string; onSave: (u: UpdateInput) => Promise<void>; onQueue?: (u: UpdateInput, local: Local) => Promise<void>; onClose: () => void }) {
   const { user } = useSession();
+  const { tx } = useT();
   const lastDay = v.week.to < v.today ? v.week.to : v.today;
   const [f, setF] = useState({ activity: start?.activity ?? v.activities[0]?.code ?? "", title: start?.title ?? "", date: start?.date ?? lastDay, note: start?.note ?? "" });
   const [files, setFiles] = useState<Receipt[]>(start?.files ?? []);
   const [captions, setCaptions] = useState<Record<string, string>>(start?.captions ?? {});
   const [taken, setTaken] = useState<Record<string, string>>(start?.taken ?? {});
+  // Where each photo added now was taken, read from the photo. The places of photos already on the
+  // item stay on the server: this screen is not given them to send back.
+  const [places, setPlaces] = useState<PhotoPlaces>({});
   // Photos picked without a connection: kept on the phone until the item is sent.
   const [local, setLocal] = useState<Local>({});
   const [busy, setBusy] = useState(false);
@@ -94,8 +99,10 @@ function ItemForm({ v, start, onSave, onQueue, onClose, className = "mt-3" }: { 
     setBusy(true);
     try {
       for (const file of Array.from(list)) {
-        // The date taken is in the original file; shrinking it for upload drops it.
-        const when = file.type === "image/jpeg" ? exifDate(await file.arrayBuffer()) : null;
+        // The date and the place are in the original file; shrinking it for upload drops them.
+        const facts = file.type === "image/jpeg" ? photoFacts(await file.arrayBuffer()) : null;
+        const when = facts?.date ?? null;
+        const at = facts?.gps ? { lat: Math.round(facts.gps.lat * 1e6) / 1e6, lon: Math.round(facts.gps.lon * 1e6) / 1e6 } : null;
         const small = await shrink(file);
         const body = new FormData();
         body.append("file", small);
@@ -112,6 +119,7 @@ function ItemForm({ v, start, onSave, onQueue, onClose, className = "mt-3" }: { 
         }
         setFiles((cur) => [...cur.filter((x) => x.hash !== r.hash), r].slice(0, 20));
         if (when) setTaken((cur) => ({ ...cur, [r.hash]: when }));
+        if (at) setPlaces((cur) => ({ ...cur, [r.hash]: at }));
       }
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -127,7 +135,8 @@ function ItemForm({ v, start, onSave, onQueue, onClose, className = "mt-3" }: { 
     if (photos.some((x) => !captions[x.hash]?.trim())) return setErr("Give every photo a caption: what, where (village, district).");
     if (photos.some((x) => !taken[x.hash])) return setErr("Give every photo the date it was taken.");
     const keep = (m: Record<string, string>) => Object.fromEntries(Object.entries(m).filter(([h, t]) => files.some((x) => x.hash === h) && t.trim()));
-    const item: UpdateInput = { activity: f.activity, date: f.date, ...(f.title.trim() ? { title: f.title.trim() } : {}), note: f.note.trim(), files, captions: keep(captions), taken: keep(taken) };
+    const where: PhotoPlaces = Object.fromEntries(Object.entries(places).filter(([h]) => files.some((x) => x.hash === h)));
+    const item: UpdateInput = { activity: f.activity, date: f.date, ...(f.title.trim() ? { title: f.title.trim() } : {}), note: f.note.trim(), files, captions: keep(captions), taken: keep(taken), ...(Object.keys(where).length ? { places: where } : {}) };
     const mine: Local = Object.fromEntries(Object.entries(local).filter(([h]) => files.some((x) => x.hash === h)));
     setBusy(true);
     try {
@@ -204,6 +213,7 @@ function ItemForm({ v, start, onSave, onQueue, onClose, className = "mt-3" }: { 
                       Taken on
                       <input type="date" className={`${input} font-mono`} value={taken[x.hash] ?? ""} max={v.today} onChange={(e) => setTaken({ ...taken, [x.hash]: e.target.value })} />
                     </label>
+                    {places[x.hash] && <p className="text-xs text-muted">✓ {tx("Place found in the photo.")} {tx("Only people who may see participant names are shown it.")}</p>}
                   </div>
                 </div>
               </li>
@@ -230,7 +240,11 @@ function ItemForm({ v, start, onSave, onQueue, onClose, className = "mt-3" }: { 
 
 /** One item of the week: a numbered ruled row, the photos under the text, the date and author in mono beneath. */
 function ItemCard({ it, n, v, user, act }: { it: Item; n: number; v: WeeklyView; user: string; act: (a: ResultAction, msg: string) => Promise<void> }) {
+  const { tx } = useT();
   const [editing, setEditing] = useState(false);
+  // The photo whose place is open on the map. The map is loaded only when asked for: showing it
+  // sends the point to OpenStreetMap, and a point can be where a farmer lives.
+  const [mapOf, setMapOf] = useState("");
   const activity = v.activities.find((a) => a.code === it.activity);
   const photos = it.files.filter((f) => f.type.startsWith("image/"));
   if (editing)
@@ -259,9 +273,24 @@ function ItemCard({ it, n, v, user, act }: { it: Item; n: number; v: WeeklyView;
                   <Thumb hash={f.hash} user={user} alt={it.captions?.[f.hash] ?? f.name} />
                 </button>
                 <span className="mt-1 block text-muted">{captionWithDate(it.captions?.[f.hash] ?? "", it.taken?.[f.hash])}</span>
+                {it.places[f.hash] && (
+                  <button type="button" aria-expanded={mapOf === f.hash} className={`${textBtn} font-semibold text-forest hover:underline`} onClick={() => setMapOf(mapOf === f.hash ? "" : f.hash)}>
+                    {mapOf === f.hash ? tx("Hide the map") : tx("Show on a map")}
+                  </button>
+                )}
               </li>
             ))}
           </ul>
+        )}
+        {photos.some((f) => it.places[f.hash]) && !mapOf && <p className="text-xs text-muted">{tx("The place was read from the photo. Only people who may see participant names are shown it.")} {tx("The map comes from OpenStreetMap. Opening it sends this point to their map service.")}</p>}
+        {mapOf && it.places[mapOf] && (
+          <div className="mt-2">
+            <p className="text-xs text-muted">
+              {tx("Where this photo was taken:")} <span className="font-mono">{it.places[mapOf].lat.toFixed(5)}, {it.places[mapOf].lon.toFixed(5)}</span>
+              {it.captions?.[mapOf] ? ` · ${it.captions[mapOf]}` : ""}
+            </p>
+            <iframe title={tx("Map of where the photo was taken")} src={mapEmbed(it.places[mapOf])} className="mt-2 h-56 w-full border border-line" loading="lazy" referrerPolicy="no-referrer" />
+          </div>
         )}
         <p className="mt-2 font-mono text-xs text-muted tabular-nums">
           {it.date} · {userById(it.by)?.name ?? it.by}
