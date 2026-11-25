@@ -4,7 +4,7 @@ import { NewMenu } from "@/components/app/new-menu";
 import { OPEN_ASSISTANT, Sparkle } from "@/components/app/assistant-button";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useT } from "@/components/app/i18n";
 import { Arrow } from "@/components/app/arrow";
@@ -27,20 +27,25 @@ export { TODAY } from "@/lib/demo";
 /** State kept in this browser's localStorage; falls back to `initial` when storage is unavailable. */
 export function usePersistentState<T>(key: string, initial: () => T) {
   const [value, setValue] = useState<T>(initial);
-  const [loaded, setLoaded] = useState(false);
+  // The key whose saved value has been read. Until the current key is read, nothing is written:
+  // otherwise a new key (another person signed in on this computer) was given the last one's value.
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
+  const first = useRef(initial);
   useEffect(() => {
+    let next = first.current();
     try {
       const saved = localStorage.getItem(key);
-      if (saved) setValue(JSON.parse(saved));
+      if (saved) next = JSON.parse(saved);
     } catch {}
-    setLoaded(true);
+    setValue(next);
+    setLoadedKey(key);
   }, [key]);
   useEffect(() => {
-    if (!loaded) return;
+    if (loadedKey !== key) return;
     try {
       localStorage.setItem(key, JSON.stringify(value));
     } catch {}
-  }, [key, value, loaded]);
+  }, [key, value, loadedKey]);
   return [value, setValue] as const;
 }
 

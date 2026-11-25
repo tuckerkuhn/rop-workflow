@@ -117,8 +117,9 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
   const [nr, setNr] = useState<NextReport | null>(() => cachedHome<HomeAnswer>(cacheKey)?.nextReport ?? null);
   // "More" is drawn (and its panels load their data) only once it is opened.
   const [more, setMore] = useState(false);
-  const [chosen, setChosen] = usePersistentState<Lens | "">("rop-home-lens", () => "");
-  const [view, setView] = usePersistentState<HomeViewKind | "">("rop-home-view", () => "");
+  // Remembered per person: on a shared office computer one person's choice is not the next person's Home.
+  const [chosen, setChosen] = usePersistentState<Lens | "">(`rop-home-lens:${user.id}`, () => "");
+  const [view, setView] = usePersistentState<HomeViewKind | "">(`rop-home-view:${user.id}`, () => "");
 
   // Which lenses a person has is known for sure only once Home answers; these are the ones their own roles give.
   const weekLikely = !!weekKindOf(user, [
@@ -354,6 +355,9 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
       </section>
     );
 
+  // Field staff (a field role such as extension agent or storekeeper, and not a lead or MEL) open in
+  // Bands, the design made for them; everyone else in the Ledger. A storekeeper on a bid committee is still field staff.
+  const fieldStaff = lens === "field" || (user.field.length > 0 && !v.lenses.includes("lead") && !v.lenses.includes("mel"));
   // Who has a week: the same rule as the API (lib/week weekKindOf, server/week-store weekKindFor), from the lenses Home's answer carries.
   const hasWeek = !!weekKindOf(user, v.lenses);
   return (
@@ -367,7 +371,7 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
           Leadership, the technical lead and the people who run a project each read their own week. */}
       {hasWeek && <WeekAhead />}
       {/* The fallback "add to the weekly update" is not shown on top of a row that already says it. */}
-      <HomeLead rows={waiting} next={!mine[0] && waitingCount(waiting) > 0 ? null : next} view={view || (lens === "field" ? "bands" : "ledger")} onView={setView} />
+      <HomeLead rows={waiting} next={!mine[0] && waitingCount(waiting) > 0 ? null : next} view={view || (fieldStaff ? "bands" : "ledger")} onView={setView} />
       {/* A new person's first steps stay in sight until they are done or hidden (the panel hides itself).
           Below the to-do list: it loads on its own, and above the list it pushed the rows down as they were clicked. */}
       <GettingStarted project={project.id} user={user.id} />
