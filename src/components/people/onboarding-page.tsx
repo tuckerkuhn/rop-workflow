@@ -1,5 +1,7 @@
 "use client";
 
+import { FieldHelp } from "@/components/app/field-help";
+
 import { plainError } from "@/lib/plain-error";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
@@ -249,14 +251,17 @@ function StepCard({ i, first, s, o, v, own, fmt, act }: { i: number; first: bool
                 <>
                   <label className="block text-sm">
                     <span className="font-medium">{tx("Your phone")}</span>
+                    <FieldHelp field="hr.phone" />
                     <input type="tel" value={details.phone} onChange={(e) => setDetails({ ...details, phone: e.target.value })} placeholder="+93 70 000 0000" className={input} />
                   </label>
                   <label className="block text-sm">
                     <span className="font-medium">{tx("Emergency contact: name, relation and phone")}</span>
+                    <FieldHelp field="hr.emergency" />
                     <input value={details.emergencyContact} onChange={(e) => setDetails({ ...details, emergencyContact: e.target.value })} className={input} />
                   </label>
                   <label className="block text-sm">
                     <span className="font-medium">{tx("Bank and account number for your salary")}</span>
+                    <FieldHelp field="hr.bank" />
                     <input value={details.bankAccount} onChange={(e) => setDetails({ ...details, bankAccount: e.target.value })} placeholder={tx("Bank name, account number")} className={input} />
                     <span className="mt-1 block text-xs text-muted">{tx("Seen only by you and HR. Changing it later needs the CFO and the CEO, so nobody can redirect your salary.")}</span>
                   </label>
