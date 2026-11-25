@@ -105,7 +105,8 @@ describe("the budget against the award ceiling", { timeout: 60_000 }, () => {
   it("defaults to the award's currency and warns above the ceiling", async () => {
     const total = (await loadBudget(code)).lines.reduce((t, l) => t + l.total, 0);
     const currency = (await loadBudget(code)).currency;
-    expect(await budgetCeiling(code)).toBeNull();
+    // The demo now comes from a won proposal (server/demo-origin), with its own ceiling.
+    expect((await budgetCeiling(code))?.ceiling).toBe(346200);
     await saveProjectState(projectId, ORIGIN_KEY, { proposalId: "P-1", opportunityId: null, title: "T", donor: "D", winThemes: [], documents: [], decidedAt: null, currency, ceiling: total - 1000, by: "nadia", at: "2026-10-01T00:00:00Z" });
     const res = await budgetRoute(new Request(`http://test/api/projects/${code}/budget`, { headers: { "x-demo-user": "nadia" } }), { params: Promise.resolve({ code }) });
     expect(((await res.json()) as { award: unknown }).award).toEqual({ currency, ceiling: total - 1000 });

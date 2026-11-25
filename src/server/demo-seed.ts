@@ -19,6 +19,7 @@ import { saveBudget, saveWorkplan } from "@/server/plan-store";
 import { rebuildPlan } from "@/server/procurement-plan-store";
 import { saveProjectState } from "@/server/project-state";
 import { seedDonors, seedIndicators } from "@/server/progress-store";
+import { seedDemoOrigin } from "@/server/demo-origin";
 import { seedWorkItems } from "@/server/work-store";
 import { seedDemoReport } from "@/server/demo-report";
 import { demoBooksSpending, resetDemoLedger, seedDemoLedger } from "@/server/demo-ledger";
@@ -190,6 +191,8 @@ async function loadDemoState(projectId: string, organizationId: string) {
   const spending = await seedDesign(projectId);
   // Report deadlines name calendar months and years ("Monthly report: February"), so they stay as written.
   await seedDonors(projectId, organizationId);
+  // Where the project came from: a fictional call, the proposal written for it, won, and this project set up from it.
+  await seedDemoOrigin(projectId, organizationId, realToday());
   await seedResults(projectId, organizationId, subs);
   const rows = await db.insert(s.evidence).values(
     subs.map((sub) => ({

@@ -37,6 +37,13 @@ export const demoFramework = (at: string): Framework => {
  * IND-3 is measured at the outcome; IND-5 (income, from a survey at the end of the season) has no
  * place under an output and is listed with the other targets.
  */
+/**
+ * The baseline survey's figures, before the project's first season (fictional): IND-5's net farm
+ * income per farmer per season, in US dollars. The target is a 25% rise on it, measured by the
+ * end-of-season survey (lib/measure "change").
+ */
+export const DEMO_BASELINES: Record<string, number> = { "IND-5": 410 };
+
 export const DEMO_TARGET_PLACES: Record<string, { donorCode: string; workplanCode: string | null; budgetRef: string | null }> = {
   "IND-1": { donorCode: "1.1.1.1", workplanCode: "1.1.1.1", budgetRef: "4.1" },
   "IND-4": { donorCode: "1.1.2.1", workplanCode: "1.1.2.1", budgetRef: "4.2" },

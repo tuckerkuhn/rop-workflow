@@ -1,7 +1,7 @@
 import { and, asc, eq, inArray, isNotNull, notInArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { projects as demoProjects, type AppUser } from "@/lib/demo";
-import { DEMO_TARGET_PLACES, demoTakesResults } from "@/lib/demo-design";
+import { DEMO_TARGET_PLACES, demoTakesResults, DEMO_BASELINES } from "@/lib/demo-design";
 import { actualFor, indicators as demoIndicators, results as demoResults, type Indicator, type Submission } from "@/lib/project";
 import { type ResultRecord } from "@/lib/results";
 import { measured, RESULT_SOURCES, type Measure } from "@/lib/measure";
@@ -286,6 +286,8 @@ export async function seedIndicators(projectId: string) {
         workplanCode: DEMO_TARGET_PLACES[i.id]?.workplanCode ?? null,
         budgetRef: DEMO_TARGET_PLACES[i.id]?.budgetRef ?? null,
         position: k,
+        // The baseline survey's figure where the demo has one (lib/demo-design DEMO_BASELINES).
+        baseline: DEMO_BASELINES[i.id] !== undefined ? String(DEMO_BASELINES[i.id]) : null,
       })),
     )
     .onConflictDoNothing();
