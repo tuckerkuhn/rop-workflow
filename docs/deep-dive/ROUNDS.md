@@ -139,3 +139,5 @@ found and left, tests passing.
   session with Tucker. Proof reaches checker and approver, where and when read from phone and
   photo, the app makes the distribution form, visitors can add photos, three holes closed.
   1,138 tests pass. Detail in `11-handoffs-review.md`.
+- **Round 1. Started 25 Nov 00:17. IN PROGRESS.** Queue, big item 1 (training attendance, one record
+  per session). Design goes here first.
