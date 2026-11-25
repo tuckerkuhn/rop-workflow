@@ -129,6 +129,10 @@ export function describeAudit(entity: string, action: string, d: D): string {
       return `Reconciled ${str(d.bankAccount)} for ${str(d.period).slice(0, 7)} at a zero difference: statement ${str(d.statementBalance)} ${str(d.currency)}, book ${str(d.bookBalance)} ${str(d.currency)}`;
     case "bill_recorded":
       return `Recorded bill ${str(d.bill ?? d.ref)}: ${num(d.amount)} ${str(d.currency)}${d.budgetLine ? ` on budget line ${str(d.budgetLine)}` : ""}`;
+    case "bill_posted_to_books":
+      return `Posted bill ${str(d.bill)} to the books: ${num(d.amount)} ${str(d.currency)} on budget line ${str(d.budgetLine)}, dated ${str(d.date)}${num(d.posting) !== "1" ? " (corrected entry)" : ""}`;
+    case "purchase_posted_to_books":
+      return `Posted payment ${str(d.payment)} of purchase ${str(d.purchase)} to the books: ${num(d.amount)} ${str(d.currency)} on budget line ${str(d.budgetLine)}, dated ${str(d.date)}${num(d.posting) !== "1" ? " (corrected entry)" : ""}`;
     case "kobo_approval_set":
       return "Changed who approves KoboCollect data on this project";
     case "policy_conflict_decided":

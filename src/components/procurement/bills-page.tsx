@@ -6,7 +6,9 @@ import { plainError } from "@/lib/plain-error";
 import { NON_CONTRACT } from "@/lib/timesheet";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useCurrentProject } from "@/components/app/current-project";
+import { EntryDetail } from "@/components/ledger/entry-detail";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { useT } from "@/components/app/i18n";
 import { SelfConfirmSheet } from "@/components/app/self-confirm";
@@ -32,6 +34,8 @@ async function call<T>(url: string, user: string | undefined, init?: RequestInit
 
 const input = "mt-1 block min-h-11 w-full border border-line-strong bg-paper px-3 py-2.5 text-base";
 const money = (n: number, c: string) => (c === "AFN" ? `${Math.round(n).toLocaleString("en-US")} AFN` : `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+/** A filed bill says whether it has reached the books, since that is what the budget's "spent" reads. */
+const statusOf = (b: Item) => (b.status === "filed" && b.books?.standing ? { tone: "forest", text: "Filed and in the books" } as const : b.status === "filed" && b.books?.goes && !b.books.standing ? { tone: "sky", text: b.books.reversed.length ? "Filed: the entry was reversed" : "Filed: not in the books yet" } as const : STATUS[b.status]);
 const STATUS = { waiting: { tone: "ochre", text: "Waiting for approval" }, approved: { tone: "sky", text: "Approved: voucher to prepare" }, returned: { tone: "clay", text: "Sent back" }, filed: { tone: "forest", text: "Filed and posted" } } as const;
 /** The bill, then its amount: narrow enough that a phone keeps both side by side. */
 const COLS = "minmax(0,1fr) auto";
@@ -123,7 +127,7 @@ export function BillsPage() {
                 <>
                   <LedgerTable cols={`2.25rem ${COLS}`} head={["#", "Bill", { label: "Amount", end: true }]} label="Bills paid directly">
                     {v.items.map((b, k) => (
-                      <BillRow key={b.id} n={k + 1} first={b.id === oldest} b={b} v={v} act={act} onRedo={() => (setNotice(""), setAdding(false), setRedo(b))} />
+                      <BillRow key={b.id} n={k + 1} first={b.id === oldest} b={b} v={v} act={act} reload={(m) => (setNotice(m), void load())} onRedo={() => (setNotice(""), setAdding(false), setRedo(b))} />
                     ))}
                   </LedgerTable>
                   {oldest && <p className="mt-2 text-xs text-muted">The shaded bill is the one that has waited longest for approval.</p>}
@@ -139,7 +143,7 @@ export function BillsPage() {
 
 type Item = BillsView["items"][number];
 
-function BillRow({ b, v, act, n, first, onRedo }: { b: Item; v: BillsView; act: (a: BillAction, msg: string) => Promise<void>; n: number; first: boolean; onRedo: () => void }) {
+function BillRow({ b, v, act, reload, n, first, onRedo }: { b: Item; v: BillsView; act: (a: BillAction, msg: string) => Promise<void>; reload: (message: string) => void; n: number; first: boolean; onRedo: () => void }) {
   const { user } = useSession();
   const { t, tx } = useT();
   const [selfing, setSelfing] = useState(false);
@@ -157,11 +161,17 @@ function BillRow({ b, v, act, n, first, onRedo }: { b: Item; v: BillsView; act: 
     }
   };
   const label = (id: string) => v.sources.find((s) => s.id === id)?.label ?? id;
+  // Opened from an entry in the books ("Open the bill"): bring that bill into view.
+  const opened = useSearchParams().get("open") === b.id;
+  const here = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (opened) here.current?.scrollIntoView({ block: "start" });
+  }, [opened]);
   return (
-    <LedgerRow n={n} first={first} cols={COLS}>
-      <article className="min-w-0">
+    <LedgerRow n={n} first={first || opened} cols={COLS}>
+      <article ref={here} className="min-w-0 scroll-mt-28">
         <div className="flex flex-wrap items-center gap-2">
-          <StatusBlock tone={STATUS[b.status].tone}>{STATUS[b.status].text}</StatusBlock>
+          <StatusBlock tone={statusOf(b).tone}>{statusOf(b).text}</StatusBlock>
           <span className="font-mono text-xs text-muted">{b.id}</span>
         </div>
         <h3 className="mt-1 font-semibold">
@@ -273,9 +283,134 @@ function BillRow({ b, v, act, n, first, onRedo }: { b: Item; v: BillsView; act: 
             </div>
           </Sheet>
         )}
+        {b.books && <BillBooks b={b} v={v} act={act} reload={reload} />}
       </article>
       <Fig strong>{money(b.amount, b.currency)}</Fig>
     </LedgerRow>
+  );
+}
+
+/**
+ * A filed bill and the books. Finance is shown the entry filled in from the bill and posts it
+ * with one press: the day it was paid and the account it was paid from are the only things to
+ * check. Once posted, the entry is one press away, with what it wrote and Reverse.
+ */
+function BillBooks({ b, v, act, reload }: { b: Item; v: BillsView; act: (a: BillAction, msg: string) => Promise<void>; reload: (message: string) => void }) {
+  const { user } = useSession();
+  const { tx } = useT();
+  const books = b.books!;
+  const e = books.entry;
+  const accounts = v.accounts[b.source] ?? [];
+  // The main bank account when there is one in a currency this bill can be paid in.
+  const usable = accounts.filter((a) => a.currency === e.currency || a.currency === "USD");
+  const [date, setDate] = useState(e.date);
+  const [from, setFrom] = useState((usable.find((a) => a.code === "1010") ?? usable[0])?.code ?? "");
+  const [line, setLine] = useState(e.budgetLine);
+  const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
+  const now = books.standing;
+  const corrected = books.reversed.length > 0;
+  const account = accounts.find((a) => a.code === from);
+  const post = async () => {
+    setBusy(true);
+    try {
+      await act({ action: "post", id: b.id, date, paidFrom: from, ...(corrected && line !== e.budgetLine ? { budgetLine: line } : {}) }, tx("{id} is in the books. It now counts as spent on its budget line.", { id: b.id }));
+    } catch {
+      /* shown above */
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="mt-3" data-books={b.id}>
+      {books.reversed.map((p) => (
+        <p key={p.entryId} className="mt-1 bg-clay-soft px-3 py-2 text-sm">
+          {tx("The entry of {date} was reversed by {name} on {on}: {reason}. Both stay on record and cancel out.", { date: longDate(p.date), name: p.reversal!.by, on: longDate(p.reversal!.date), reason: p.reversal!.reason })}
+        </p>
+      ))}
+      {now ? (
+        <div className="mt-1 border-s-[6px] border-forest bg-mist px-3 py-2 text-sm">
+          <p>
+            {tx("In the books: {amount} on line {line}, dated {date}, paid from {account}. Posted by {name}.", { amount: money(Number(now.amount), now.currency), line: now.budgetLine, date: longDate(now.date), account: now.paidFromName, name: now.name })}
+            {now.reversal && !now.reversal.posted ? ` ${tx("A reversal waits for a second person in Finance to post it, under Record a payment.")}` : ""}
+          </p>
+          <button type="button" aria-expanded={open} className="inline-flex min-h-11 items-center text-sm font-semibold text-forest hover:underline" onClick={() => setOpen(!open)}>
+            {open ? tx("Close the entry") : tx("See the entry in the books")}
+          </button>
+          {open && user && <EntryDetail code={b.source} id={now.entryId} user={user.id} onChanged={(m) => (setOpen(false), reload(m))} />}
+        </div>
+      ) : books.canPost ? (
+        <Sheet className="mt-1">
+          <p className="font-ledger text-sm font-bold">{corrected ? tx("Post the corrected entry to the books") : tx("Post to the books")}</p>
+          <p className="mt-1 text-sm text-muted">{tx("This is filled in from the bill. Nothing is typed again. Check it, then post it: it then counts as spent on the budget line.")}</p>
+          <dl className="mt-2 grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[9rem_minmax(0,1fr)]">
+            <dt className="text-muted">{tx("Paid to")}</dt>
+            <dd>{e.payee}</dd>
+            <dt className="text-muted">{tx("What for")}</dt>
+            <dd>{e.what}</dd>
+            <dt className="text-muted">{tx("Budget line")}</dt>
+            <dd>
+              {corrected ? (
+                <select value={line} onChange={(x) => setLine(x.target.value)} className={input} aria-label={tx("Budget line")}>
+                  {(v.lines[b.source] ?? []).map((l) => (
+                    <option key={l.code} value={l.code}>
+                      {l.code} {l.description}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <>
+                  <span className="font-mono">{e.budgetLine}</span> {e.budgetLineName}
+                </>
+              )}
+            </dd>
+            <dt className="text-muted">{tx("Amount")}</dt>
+            <dd>
+              {money(e.amount, e.currency)}
+              {e.currency !== "USD" ? ` (${money(e.usd, "USD")} ${tx("at the rate recorded on the bill")})` : ""}
+            </dd>
+          </dl>
+          {!accounts.length ? (
+            <p className="mt-2 text-sm text-warn">
+              {tx("The books have no bank or cash account to pay from yet.")}{" "}
+              <Link href="/work/payments" className="font-semibold text-forest hover:underline">
+                {tx("Set them up under Record a payment")}
+              </Link>
+            </p>
+          ) : (
+            <>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                <label className="text-sm">
+                  <span className="text-muted">{tx("Day it was paid (the day the voucher was filed)")}</span>
+                  <input type="date" value={date} max={new Date().toISOString().slice(0, 10)} onChange={(x) => setDate(x.target.value)} className={input} />
+                </label>
+                <label className="text-sm">
+                  <span className="text-muted">{tx("Paid from")}</span>
+                  <select value={from} onChange={(x) => setFrom(x.target.value)} className={input}>
+                    {accounts.map((a) => (
+                      <option key={a.code} value={a.code}>
+                        {a.code} {a.name} ({a.currency})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              {account && account.currency !== e.currency && <p className="mt-1 text-xs text-muted">{tx("This account holds {currency}, so the entry is written as {amount}.", { currency: account.currency, amount: money(e.usd, "USD") })}</p>}
+              <button type="button" disabled={busy || !from || !date} className={`${primaryBtn} mt-3 min-h-12`} onClick={() => void post()}>
+                {corrected ? tx("Post the corrected entry") : tx("Post to the books")}
+              </button>
+            </>
+          )}
+        </Sheet>
+      ) : books.second ? (
+        <p className="mt-1 bg-ochre-soft px-3 py-2 text-sm">
+          {tx("Not in the books yet. You recorded this bill and it is over {limit}, so someone else in Finance posts it to the books.", { limit: books.second.limit })}
+          {books.second.who.length ? ` ${tx("They can: {names}.", { names: books.second.who.join(", ") })}` : ""}
+        </p>
+      ) : (
+        books.whyNot && b.status === "filed" && <p className="mt-1 text-sm text-muted">{tx("Not in the books yet.")} {tx(books.whyNot)}</p>
+      )}
+    </div>
   );
 }
 

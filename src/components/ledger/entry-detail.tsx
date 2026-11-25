@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { acct } from "@/lib/file-store";
 import { newKey, type SaveOutcome } from "@/lib/ledger/screens";
@@ -118,6 +119,14 @@ export function EntryDetail({ code, id, user, onChanged }: { code: string; id: s
           Open the receipt ({e.receipt.name})
         </button>
       )}
+      {e.from && (
+        <p className="mt-1 text-sm">
+          {e.from.kind === "bill" ? `Posted from bill ${e.from.id}. Nothing was typed again: who was paid, the budget line and the amount are the bill's. ` : `Posted from purchase ${e.from.id.split("#")[0]}, payment ${e.from.id.split("#")[1] ?? "1"}. Nothing was typed again: the supplier, the budget line and the amount are the purchase's. `}
+          <Link href={e.from.href} className="font-semibold text-forest hover:underline">
+            {e.from.kind === "bill" ? "Open the bill" : "Open the purchase"}
+          </Link>
+        </p>
+      )}
       {e.reversesId && <p className="mt-1 text-sm text-warn">This entry reverses an earlier one.</p>}
       {e.reversedBy && <p className="mt-1 text-sm text-warn">This entry was reversed: the two cancel out.</p>}
       <h4 className="mt-4 border-s-[6px] border-ochre ps-2.5 font-ledger text-base font-bold leading-tight">What this wrote</h4>
@@ -134,7 +143,10 @@ export function EntryDetail({ code, id, user, onChanged }: { code: string; id: s
               <span className="font-medium">Why it is being reversed</span>
               <input value={reason} onChange={(x) => setReason(x.target.value)} placeholder="Paid twice by mistake" className="mt-1 block min-h-11 w-full border border-line-strong bg-paper px-3 py-2.5 text-base" />
             </label>
-            <p className="mt-1 text-xs text-muted">A posted entry is never changed or deleted. Reversing writes the same lines the other way round, dated today, so the two cancel out and both stay on record.</p>
+            <p className="mt-1 text-xs text-muted">
+              A posted entry is never changed or deleted. Reversing writes the same lines the other way round, dated today, so the two cancel out and both stay on record.
+              {e.from ? ` The ${e.from.kind === "bill" ? "bill" : "purchase"} then shows it is not in the books, and Finance can post the corrected entry from it.` : ""}
+            </p>
             <div className="mt-2 flex flex-wrap gap-2">
               <button type="button" disabled={busy || reason.trim().length < 3} className={dangerBtn} onClick={() => void reverse()}>
                 Reverse the entry

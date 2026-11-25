@@ -497,6 +497,7 @@ function Row({ r, n, open, onToggle }: { r: EntryRow; n: number; open: boolean; 
       <span className="col-start-2 row-start-1 min-w-0 sm:col-start-3">
         <span className="font-semibold">{r.payee ?? r.what}</span>
         {r.payee && <span className="block text-sm text-muted">{r.what}</span>}
+        {r.from && <span className="block text-xs text-muted">{r.from.kind === "bill" ? `From bill ${r.from.id}` : `From purchase ${r.from.id.split("#")[0]}, payment ${r.from.id.split("#")[1] ?? "1"}`}</span>}
         {r.kind === "reversal" && <span className="block text-xs text-warn">Reversal</span>}
         {r.reversedBy && <span className="block text-xs text-warn">Reversed</span>}
       </span>

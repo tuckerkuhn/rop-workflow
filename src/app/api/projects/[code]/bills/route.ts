@@ -3,7 +3,11 @@ import { loadBudget } from "@/server/plan-store";
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db, schema as s } from "@/db";
-import { billLineProblem, BILL_CATEGORIES, billActionSchema, billFlags, redoneAs, type Bill } from "@/lib/bills";
+import { billBooksProblem, billEntry, billLineProblem, BILL_CATEGORIES, billActionSchema, billFlags, redoneAs, type Bill } from "@/lib/bills";
+import { standing } from "@/lib/books-posting";
+import { BILL_SOURCE, mayPostToBooks, payingAccounts, postingStates, postToBooks } from "@/server/books-posting";
+import { ledgerSettings } from "@/server/ledger";
+import { ledgerProject, whoCanPost } from "@/server/ledger-view";
 import { AFN_PER_USD } from "@/lib/demo";
 import { isSharePointUrl } from "@/lib/procurement";
 import { NON_CONTRACT } from "@/lib/timesheet";
@@ -52,14 +56,57 @@ async function view(code: string, u: AppUser) {
   const micro = typeof rules.microMaxUsd === "number" ? rules.microMaxUsd : 500;
   const solo = await soloFor(code).catch((): SoloState => ({ on: false, blocked: null }));
   const projects = await db.select({ code: s.projects.code, name: s.projects.name }).from(s.projects);
+  const lines = await linesBySource(projects.map((p) => p.code).filter((c): c is string => !!c));
+  // The books: Finance posts a filed bill with one press. What each bill's entry would say, the
+  // entry that stands and any that were reversed. Read only for bills that can go to the books.
+  const post = await mayPostToBooks(u);
+  const books: Record<string, Awaited<ReturnType<typeof booksOf>>> = {};
+  const accounts: Record<string, Awaited<ReturnType<typeof payingAccounts>>> = {};
+  for (const b of book.items) {
+    if (b.status !== "filed" && !b.postings?.length) continue;
+    if (!billBooksProblem(b, NON_CONTRACT)) accounts[b.source] ??= await payingAccounts(b.source).catch(() => []);
+    books[b.id] = await booksOf(code, b, lines, post, u.id);
+  }
   return {
     me: u.id,
     // Each project's budget lines, so a bill is charged to a line chosen from the list.
-    lines: await linesBySource(projects.map((p) => p.code).filter((c): c is string => !!c)),
+    lines,
     ...roles,
+    post,
+    /** The bank and cash accounts each project's organization pays from, for the posting. */
+    accounts,
     sources: [{ id: NON_CONTRACT, label: "General and admin (non-contract)" }, ...projects.filter((p) => p.code).map((p) => ({ id: p.code!, label: p.name }))],
     // A bill sent back: who may correct it and record it again, and the bill that replaced it once they have.
-    items: [...book.items].reverse().map((b) => ({ ...b, flags: billFlags(b, book.items, micro), redoneAs: redoneAs(b, book.items), canRedo: roles.record && b.status === "returned" && !redoneAs(b, book.items), canApprove: roles.approve && b.status === "waiting" && b.raised.by !== u.id, canSelfApprove: roles.approve && b.status === "waiting" && b.raised.by === u.id && mayApproveOwn(solo, b, rules), canVoucher: roles.voucher && b.status === "approved" })),
+    items: [...book.items].reverse().map((b) => ({ ...b, flags: billFlags(b, book.items, micro), redoneAs: redoneAs(b, book.items), canRedo: roles.record && b.status === "returned" && !redoneAs(b, book.items), canApprove: roles.approve && b.status === "waiting" && b.raised.by !== u.id, canSelfApprove: roles.approve && b.status === "waiting" && b.raised.by === u.id && mayApproveOwn(solo, b, rules), canVoucher: roles.voucher && b.status === "approved", books: books[b.id] ?? null })),
+  };
+}
+
+/** A bill and the books: the entry filled in from it, the entry that stands and those reversed. */
+async function booksOf(code: string, b: Bill, lines: Record<string, { code: string; description: string }[]>, post: boolean, me: string) {
+  const postings = await postingStates(b.postings);
+  const now = standing(postings);
+  const problem = billBooksProblem(b, NON_CONTRACT);
+  // The ledger's rule: over the organization's limit the person who recorded it does not post it.
+  // Said on the bill before the press, with who can.
+  let second: { limit: string; who: string[] } | null = null;
+  if (post && !problem && !now && b.raised.by === me) {
+    const limit = await ledgerProject(b.source)
+      .then((p) => ledgerSettings(p.organizationId))
+      .catch(() => null);
+    if (limit && b.usd > Number(limit.selfPostLimit)) second = { limit: `${limit.functionalCurrency} ${Number(limit.selfPostLimit).toLocaleString("en-US", { minimumFractionDigits: 2 })}`, who: await whoCanPost(code, me).catch(() => []) };
+  }
+  return {
+    /** This person recorded the bill and it is over the limit: who posts it instead. */
+    second,
+    entry: billEntry(b, lines[b.source]?.find((l) => l.code === b.budgetLine)?.description ?? ""),
+    standing: now,
+    reversed: postings.filter((p) => p.reversal?.posted),
+    /** It is a bill that goes to the books: filed and charged to a project's budget line. */
+    goes: !problem,
+    /** Finance can post it now: filed, on a budget line and not in the books. */
+    canPost: post && !problem && !now && !second,
+    /** Why this person cannot post it, when Finance could. */
+    whyNot: problem ?? (now ? null : !post ? "Finance posts it to the books." : null),
   };
 }
 export type BillsView = Awaited<ReturnType<typeof view>>;
@@ -123,6 +170,42 @@ export async function POST(req: Request, { params }: Ctx) {
     }
     const b = book.items.find((x) => x.id === a.id);
     if (!b) return fail("No such bill.", 404);
+    if (a.action === "post") {
+      // Finance posts the filed bill to the books. Every part of the entry comes from the bill;
+      // Finance gives the day it was paid and the account it was paid from.
+      if (!(await mayPostToBooks(u))) return fail("Finance posts a bill to the books.");
+      const problem = billBooksProblem(b, NON_CONTRACT);
+      if (problem) return fail(problem, 409);
+      const earlier = await postingStates(b.postings);
+      // Another budget line only for a corrected entry, after the first was reversed.
+      const line = a.budgetLine && earlier.some((p) => p.reversal?.posted) ? a.budgetLine : b.budgetLine!;
+      const e = billEntry(b, "");
+      const { posting, replayed } = await postToBooks({
+        project: b.source,
+        budgetLine: line,
+        payee: e.payee,
+        what: e.what,
+        amount: b.amount,
+        currency: b.currency,
+        usd: b.usd,
+        date: a.date,
+        paidFrom: a.paidFrom,
+        recordedBy: b.raised.by,
+        postedBy: u,
+        source: { type: BILL_SOURCE, id: `${code}:${b.id}`, key: `bill:${(await projectByCode(code)).id}:${b.id}` },
+        earlier,
+      });
+      // Read again before saving: the bill may have changed while the entry was written.
+      const fresh = await loadBills(code);
+      const mine = fresh.items.find((x) => x.id === b.id);
+      if (mine && !(mine.postings ?? []).some((p) => p.entryId === posting.entryId)) {
+        mine.postings = [...(mine.postings ?? []), posting];
+        mine.timeline = [...mine.timeline, { date: sign.at, who: u.name, what: posting.n > 1 ? `Corrected entry posted to the books (line ${posting.budgetLine}, ${posting.date})` : `Posted to the books (line ${posting.budgetLine}, ${posting.date})` }];
+        await saveBills(code, fresh);
+        if (!replayed) await logAudit(db, (await projectByCode(code)).id, { entity: "bill", entityId: b.id, action: "bill_posted_to_books", by: u.id, detail: { bill: b.id, entry: posting.entryId, budgetLine: posting.budgetLine, amount: Number(posting.amount), currency: posting.currency, date: posting.date, paidFrom: posting.paidFrom, recordedBy: b.raised.by, posting: posting.n } });
+      }
+      return NextResponse.json(await view(code, u));
+    }
     const roles = await rolesOf(u);
     let voucherFiled: boolean | null = null;
     if (a.action === "approve" || a.action === "return") {

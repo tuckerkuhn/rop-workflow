@@ -4,6 +4,7 @@ import { db, schema as s } from "@/db";
 import { reverseSchema, type SaveOutcome } from "@/lib/ledger/screens";
 import { guard, handle, HttpError, readBody } from "@/server/guard";
 import { LedgerError, reverse } from "@/server/ledger";
+import { reverseExpenditure } from "@/server/expenditure-store";
 import { asHttp, ledgerMay, ledgerProject, whoCanPost } from "@/server/ledger-view";
 
 type Ctx = { params: Promise<{ code: string; id: string }> };
@@ -25,13 +26,16 @@ export async function POST(req: Request, { params }: Ctx) {
     const [e] = await db.select({ projectId: s.journalEntries.projectId }).from(s.journalEntries).where(eq(s.journalEntries.id, id)).limit(1);
     if (!e || e.projectId !== project.id) throw new HttpError(404, "That entry was not found on this project.");
     const who = { organizationId: project.organizationId, recordedBy: u.id, idempotencyKey: `reverse:${u.id}:${f.idempotencyKey}`, entryId: id, date: f.date ?? new Date().toISOString().slice(0, 10), memo: `Reversed: ${f.reason}` };
+    // An entry made from an expenditure (a bill or a purchase posted to the books) is reversed with
+    // its expenditure, so the old spent column and the expenditures table follow the books.
+    const spent = { organizationId: who.organizationId, entryId: id, by: u.id, date: who.date, memo: who.memo };
     try {
       let r;
       try {
-        r = await reverse(who);
+        r = (await reverseExpenditure(spent)) ?? (await reverse(who));
       } catch (err) {
         if (!(err instanceof LedgerError) || err.code !== "needs_second_person") throw err;
-        r = await reverse({ ...who, asDraft: true });
+        r = (await reverseExpenditure({ ...spent, asDraft: true })) ?? (await reverse({ ...who, asDraft: true }));
       }
       const draft = r.entry.status === "draft";
       const out: SaveOutcome = { outcome: draft ? "draft" : "posted", entryId: r.entry.id, replayed: r.replayed, whoCanPost: draft ? await whoCanPost(code, u.id) : [] };

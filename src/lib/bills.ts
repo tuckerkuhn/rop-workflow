@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { selfSchema } from "@/lib/solo";
 import { receiptSchema, type Receipt } from "@/lib/expense";
+import { postFields, type FilledEntry, type Posting } from "@/lib/books-posting";
 
 /**
  * Bills paid directly, outside procurement: rent under a lease, utilities, internet and phones,
@@ -57,6 +58,11 @@ export type Bill = {
   approval?: Sign & { selfApproved?: boolean; soloNote?: string };
   returned?: Sign & { note: string };
   voucher?: { number: string; month: string; sharepointUrl: string; netsuiteRef: string } & Sign;
+  /**
+   * Each time Finance posted this bill to the books (lib/books-posting): one, or more when an
+   * entry was reversed and a corrected one posted. Whether one was reversed is read from the books.
+   */
+  postings?: Posting[];
   timeline: { date: string; who: string; what: string }[];
 };
 
@@ -83,6 +89,8 @@ export const billActionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("approve"), id: z.string(), self: selfSchema.optional() }),
   z.object({ action: z.literal("return"), id: z.string(), note: z.string().trim().min(3).max(1000) }),
   z.object({ action: z.literal("voucher"), id: z.string(), number: z.string().trim().min(1).max(40), month: z.string().regex(/^\d{4}-\d{2}$/), sharepointUrl: z.string().trim().max(500), netsuiteRef: z.string().trim().max(80) }),
+  /** Finance posts the filed bill to the books: the entry is filled in from the bill. */
+  z.object({ action: z.literal("post"), id: z.string(), ...postFields }),
 ]);
 export type BillAction = z.infer<typeof billActionSchema>;
 
@@ -133,4 +141,19 @@ export function billLineProblem(source: string, budgetLine: string | null, lines
   if (!known.length) return budgetLine ? "That project has no budget loaded yet, so there is no line to charge. Load the budget first, or leave the line empty." : null;
   if (!budgetLine) return "Choose the budget line this bill is charged to.";
   return known.some((l) => l.code === budgetLine) ? null : `Line ${budgetLine} is not in that project's budget. Choose one from the list.`;
+}
+
+/**
+ * Why a bill does not go to the books, or null when it can. The books hold spending against a
+ * project's budget lines, and a bill counts as spent once its voucher is filed.
+ */
+export function billBooksProblem(b: Bill, nonContract: string): string | null {
+  if (b.status !== "filed") return "A bill goes to the books once its voucher is filed.";
+  if (b.source === nonContract || !b.budgetLine) return "This bill is charged to no project budget line, so it does not go to a project's books.";
+  return null;
+}
+
+/** The entry Finance is shown for a filed bill, every part of it from the bill. The date is the day its voucher was filed. */
+export function billEntry(b: Bill, lineName: string): FilledEntry {
+  return { payee: b.payee, what: `${b.description} (invoice ${b.invoiceNumber})`, project: b.source, budgetLine: b.budgetLine ?? "", budgetLineName: lineName, date: b.voucher?.at ?? b.invoiceDate, amount: b.amount, currency: b.currency, usd: b.usd };
 }
