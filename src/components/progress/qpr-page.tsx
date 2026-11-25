@@ -4,11 +4,12 @@ import { plainError } from "@/lib/plain-error";
 import { askConfirm } from "@/components/app/dialogs";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { openReceipt } from "@/components/people/expense-page";
 import { useRequireUser, useSession } from "@/components/app/session";
-import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn, StatusPill } from "@/components/workspace/ui";
+import { TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
+import { Empty, Fig, Figures, LedgerRow, LedgerTable, PageHead, SectionHead, StatusBlock } from "@/components/workspace/ledger";
 import { OverspendReasonPicker } from "@/components/progress/overspend-reason";
 import { SECTIONS, STATUSES, STATUS_LABEL, cannotOnReport, checkHref, durationOf, overspentLines, quarterSpendOf, type QprPatch, type Row, type Status } from "@/lib/qpr";
 // The Word builder (and the `docx` library) loads on the Download click, not with the page.
@@ -42,7 +43,7 @@ async function call<T>(url: string, user: string | undefined, init?: RequestInit
   return body as T;
 }
 
-const input = "mt-1 block w-full rounded-xl border border-line bg-paper px-3 py-2 text-base";
+const input = "mt-1 block min-h-11 w-full border border-line bg-paper px-3 py-2 text-base";
 const num = (v: number) => v.toLocaleString("en-US", { maximumFractionDigits: 2 });
 
 /** Quarters from the project's start to the last one that has ended (real date, not the demo date). */
@@ -205,24 +206,38 @@ export function QprPage() {
       <TopBar />
       <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
         <ReportKinds kind="qpr" />
-        <p className="mt-4 text-xs font-semibold uppercase tracking-[0.16em] text-warn">{project.name}</p>
-        <div className="mt-1 flex flex-wrap items-end justify-between gap-3">
-          <h1 className="font-display text-3xl tracking-tight">Quarterly progress report</h1>
-          <label className="text-sm">
-            Quarter
-            <select className={input} value={quarter} onChange={(e) => router.replace(`/progress/report?q=${e.target.value}`)}>
-              {quartersFor(v?.project.start ?? null).map((q) => (
-                <option key={q}>{q}</option>
-              ))}
-            </select>
-          </label>
+        <div className="mt-5">
+          <PageHead
+            kicker={project.name}
+            title="Quarterly progress report"
+            actions={
+              <label className="text-sm">
+                <span className="font-mono text-xs text-muted">Quarter</span>
+                <select className={`${input} font-mono`} value={quarter} onChange={(e) => router.replace(`/progress/report?q=${e.target.value}`)}>
+                  {quartersFor(v?.project.start ?? null).map((q) => (
+                    <option key={q}>{q}</option>
+                  ))}
+                </select>
+              </label>
+            }
+          >
+            <span className="font-mono text-xs text-ink">
+              {from} to {to}.
+            </span>{" "}
+            Figures come from results that monitoring, evaluation and learning (MEL) has accepted, and each one opens the records and proof behind it. Write or draft the text, fix what the checks list, then download it for Word.
+            <span className="mt-2 flex flex-wrap gap-x-4">
+              <Link href="/progress/results" className="inline-flex min-h-11 items-center font-semibold text-forest hover:underline">
+                Results and proof
+              </Link>
+              <Link href="/progress" className="inline-flex min-h-11 items-center font-semibold text-forest hover:underline">
+                Progress
+              </Link>
+            </span>
+          </PageHead>
         </div>
-        <p className="mt-1 max-w-2xl text-sm text-muted">
-          {from} to {to}. Figures come from results that monitoring, evaluation and learning (MEL) has accepted, and each one opens the records and proof behind it. Write or draft the text, fix what the checks list, then download it for Word.
-        </p>
         <ReportChecks p={pf} />
         {pfFailed && v && !v.frozen && !v.saved.released && <OwnChecks checks={v.checks} quarter={quarter} />}
-        <p className="mt-3 rounded-xl bg-sunken px-4 py-3 text-sm font-semibold">
+        <p className="mt-3 bg-sunken px-4 py-3 text-sm font-semibold">
           {quarter === nowQ ? (
             underWay ? t("rp.quarterNow", { q: qLabel(quarter), to }) : t("rp.quarterDue", { q: qLabel(quarter), from, to })
           ) : (
@@ -234,37 +249,29 @@ export function QprPage() {
             </>
           )}
         </p>
-        <p className="mt-2 flex flex-wrap gap-4 text-sm">
-          <Link href="/progress/results" className="font-semibold text-forest hover:underline">
-            Results and proof
-          </Link>
-          <Link href="/progress" className="font-semibold text-forest hover:underline">
-            Progress
-          </Link>
-        </p>
-        {!project.saved && <p className="mt-6 rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">Choose a project saved in the database (for example ACRP).</p>}
+        {!project.saved && <Empty className="mt-6">Choose a project saved in the database (for example ACRP).</Empty>}
         {error && <ErrorNote>{error}</ErrorNote>}
         {project.saved && !v && !error && <p className="mt-10 text-center text-sm text-muted">{t("report.loading")}</p>}
         {notice && (
-          <p role="status" className="mt-4 rounded-xl bg-mist px-4 py-3 text-sm text-leaf">
+          <p role="status" className="mt-4 bg-mist px-4 py-3 text-sm text-leaf">
             {notice}
           </p>
         )}
         {v && (
           <>
-            <div className="sticky top-0 z-10 -mx-4 mt-4 flex flex-wrap items-center gap-2 border-b border-line bg-paper/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
-              <Pill tone="muted">{qLabel(quarter)}</Pill>
+            <div className="sticky top-0 z-10 -mx-4 mt-4 flex flex-wrap items-center gap-2 border-b border-ink bg-paper/95 px-4 py-3 font-ledger backdrop-blur sm:-mx-6 sm:px-6">
+              <Fig className="font-bold">{qLabel(quarter)}</Fig>
               {v.frozen?.kind === "practice" ? (
-                <Pill tone="sky">Preview copy · {v.frozen.at.slice(0, 16).replace("T", " ")} UTC · {v.frozen.by}</Pill>
+                <StatusBlock tone="sky">Preview copy · {v.frozen.at.slice(0, 16).replace("T", " ")} UTC · {v.frozen.by}</StatusBlock>
               ) : v.saved.released ? (
-                <Pill tone="forest">Released {v.saved.released.at.slice(0, 10)} by {personName(v.saved.released.by)}</Pill>
+                <StatusBlock tone="forest">Released {v.saved.released.at.slice(0, 10)} by {personName(v.saved.released.by)}</StatusBlock>
               ) : (
-                <Pill tone={blockN ? "clay" : "ochre"}>
+                <StatusBlock tone={blockN ? "clay" : "ochre"}>
                   Draft · {blockN} blocking · {fixN} worth fixing
-                </Pill>
+                </StatusBlock>
               )}
               {v.work.sittings > 0 && (
-                <span className="text-xs text-muted" title="Edits less than 30 minutes apart count as one sitting, from its first edit to its last, plus 5 minutes.">
+                <span className="font-mono text-xs text-muted" title="Edits less than 30 minutes apart count as one sitting, from its first edit to its last, plus 5 minutes.">
                   {formatMinutes(v.work.minutes)} of work over {v.work.sittings} {v.work.sittings === 1 ? "sitting" : "sittings"}
                   {v.frozen ? " before this copy" : ""}
                 </span>
@@ -325,7 +332,7 @@ export function QprPage() {
 
             {/* What this person's roles do not allow on this report, said once, before they start. */}
             {!v.frozen && !v.saved.released && cannot.length > 0 && (
-              <div className="mt-3 rounded-xl border border-line bg-surface px-4 py-3 text-sm">
+              <div className="mt-3 border-y border-line px-3 py-3 text-sm">
                 <p className="font-semibold">{t("rp.cannot")}</p>
                 <ul className="mt-1 list-disc ps-5">
                   {cannot.map((k) => (
@@ -336,7 +343,7 @@ export function QprPage() {
               </div>
             )}
             {v.frozen && (
-              <section className="mt-4 rounded-xl border border-line bg-surface px-4 py-3 text-sm">
+              <section className="mt-4 border-y border-ink px-3 py-3 text-sm">
                 <p className="font-semibold">
                   {v.frozen.kind === "release"
                     ? `This is the report as released on ${v.frozen.at.slice(0, 10)}: what the donor received. It stays as it was.`
@@ -356,14 +363,14 @@ export function QprPage() {
                   <p className="mt-2 text-muted">Nothing has changed since.</p>
                 )}
                 {v.frozen.kind === "practice" && (
-                  <Link href={`/progress/report?q=${quarter}`} className="mt-2 inline-block font-semibold text-forest hover:underline">
+                  <Link href={`/progress/report?q=${quarter}`} className="mt-1 inline-flex min-h-11 items-center font-semibold text-forest hover:underline">
                     ← Back to the report
                   </Link>
                 )}
               </section>
             )}
             {v.photosHeld > 0 && (
-              <p className="mt-3 rounded-xl bg-mist px-4 py-3 text-sm">
+              <p className="mt-3 bg-mist px-4 py-3 text-sm">
                 {v.photosHeld} captioned {v.photosHeld === 1 ? "photo is" : "photos are"} held back from the report until checked for people who can be recognised, or until consent covers them.{" "}
                 <Link href="/progress/photos" className="font-semibold text-forest hover:underline">
                   Photos and posts
@@ -371,7 +378,7 @@ export function QprPage() {
               </p>
             )}
             {questions.length > 0 && (
-              <section className="mt-4 rounded-xl border border-ochre/40 bg-ochre-soft px-4 py-3 text-sm">
+              <section className="mt-4 border border-ochre/40 bg-ochre-soft px-4 py-3 text-sm">
                 <p className="font-semibold">Claude needs these facts (placeholders are in [brackets] in the drafts):</p>
                 <ul className="mt-1 list-disc ps-5">
                   {questions.map((q) => (
@@ -386,13 +393,13 @@ export function QprPage() {
             <Section v={v} k="summary" act={act} busy={busy} />
             <Section v={v} k="background" act={act} busy={busy} />
 
-            <section id="targets" className="mt-8 scroll-mt-24">
-              <h2 className="border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">II. Progress Towards Results</h2>
+            <section id="targets" className="mt-10 scroll-mt-24">
+              <SectionHead className="mt-0">II. Progress Towards Results</SectionHead>
               <IndicatorTable v={v} act={act} />
             </section>
 
-            <section className="mt-8">
-              <h2 className="border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">Narrative Description</h2>
+            <section className="mt-10">
+              <SectionHead className="mt-0">Narrative Description</SectionHead>
               {v.activities.map((a) => (
                 <div key={a.code}>
                   <Section v={v} k={`act.${a.code}`} heading={`Activity ${a.code}: ${a.name}`} act={act} busy={busy} draftable />
@@ -401,8 +408,8 @@ export function QprPage() {
               ))}
             </section>
 
-            <section className="mt-8">
-              <h2 className="border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">III. Cross-cutting Issues</h2>
+            <section className="mt-10">
+              <SectionHead className="mt-0">III. Cross-cutting Issues</SectionHead>
               <GenderStrip rows={v.rows} />
               <Section v={v} k="gender" act={act} busy={busy} />
               <Section v={v} k="principled" act={act} busy={busy} />
@@ -418,7 +425,7 @@ export function QprPage() {
             <Section v={v} k="next" act={act} busy={busy} />
 
             {/* Everything for sending the report out, in one place at the end, closed until wanted. */}
-            <Collapsible ids={["send", "claims", "share"]} className="mt-10 rounded-2xl border border-line bg-surface px-4 py-3" summary={<span className="font-ledger text-lg font-bold">Send and share</span>} hint="Downloads for the donor and the auditor, the check of the text against the records, preview copies and share links.">
+            <Collapsible ids={["send", "claims", "share"]} className="mt-12 border-t-2 border-ink pt-3" summary={<SectionHead className="mt-0">Send and share</SectionHead>} hint="Downloads for the donor and the auditor, the check of the text against the records, preview copies and share links.">
               <div id="send" className="scroll-mt-24" />
             {!v.frozen && v.copies.some((c) => c.kind === "practice") && (
               <p className="mt-3 text-sm text-muted">
@@ -429,7 +436,7 @@ export function QprPage() {
                   .map((c, k) => (
                     <span key={c.at}>
                       {k > 0 && " · "}
-                      <Link href={`/progress/report?q=${quarter}&copy=${encodeURIComponent(c.at)}`} className="hover:text-ink hover:underline">
+                      <Link href={`/progress/report?q=${quarter}&copy=${encodeURIComponent(c.at)}`} className="font-mono text-xs hover:text-ink hover:underline">
                         {c.at.slice(0, 16).replace("T", " ")} ({formatMinutes(c.minutes)})
                       </Link>
                     </span>
@@ -491,30 +498,42 @@ function InfoBox({ v, act, onImported }: { v: QprView; act: Act; onImported: () 
     </label>
   );
   return (
-    <Collapsible ids={["info", "overspend"]} id="info" className="mt-6 scroll-mt-24 rounded-2xl border border-line bg-surface p-4" summary={<SectionLabel>Project information and spending</SectionLabel>} hint="Title, agreement, budget, this quarter's spending and its import. Carried forward from last quarter.">
-      <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
-        <div>
-          <dt className="text-muted">Total budget</dt>
-          <dd className="font-semibold tabular-nums">
-            {num(v.spend.budget)} {c}
-          </dd>
-          <dd className="text-xs text-muted">{v.spend.withOverhead ? "Whole agreement, overhead included" : "Overhead not included"}</dd>
-        </div>
-        <div>
-          <dt className="text-muted">Cumulative to {to}</dt>
-          <dd className="font-semibold tabular-nums">
-            {num(v.spend.cumulative)} {c}
-          </dd>
-          <dd>
-            <MoneySourceLink project={project.id} user={user?.id ?? ""} />
-          </dd>
-        </div>
-        <div>
-          <dt className="text-muted">Spent this quarter</dt>
-          <dd className="font-semibold tabular-nums">{quarterSpendOf(v.saved, v.spend) === null ? "—" : `${num(quarterSpendOf(v.saved, v.spend)!)} ${c}`}</dd>
-          {v.saved.quarterSpend !== null && v.spend.quarter !== null && <dd className="text-xs text-warn">Typed in; the import says {num(v.spend.quarter)}</dd>}
-        </div>
-      </dl>
+    <Collapsible ids={["info", "overspend"]} id="info" className="mt-8 scroll-mt-24 border-t-2 border-ink pt-3" summary={<SectionHead className="mt-0">Project information and spending</SectionHead>} hint="Title, agreement, budget, this quarter's spending and its import. Carried forward from last quarter.">
+      {/* The note under each figure is set back to plain type: Figures sets its value in large mono. */}
+      <Figures
+        className="mt-3"
+        items={[
+          {
+            label: "Total budget",
+            value: (
+              <>
+                {num(v.spend.budget)} {c}
+                <span className="block font-ledger text-xs font-normal text-muted">{v.spend.withOverhead ? "Whole agreement, overhead included" : "Overhead not included"}</span>
+              </>
+            ),
+          },
+          {
+            label: `Cumulative to ${to}`,
+            value: (
+              <>
+                {num(v.spend.cumulative)} {c}
+                <span className="block font-ledger text-sm font-normal">
+                  <MoneySourceLink project={project.id} user={user?.id ?? ""} />
+                </span>
+              </>
+            ),
+          },
+          {
+            label: "Spent this quarter",
+            value: (
+              <>
+                {quarterSpendOf(v.saved, v.spend) === null ? "—" : `${num(quarterSpendOf(v.saved, v.spend)!)} ${c}`}
+                {v.saved.quarterSpend !== null && v.spend.quarter !== null && <span className="block font-ledger text-xs font-normal text-warn">Typed in; the import says {num(v.spend.quarter)}</span>}
+              </>
+            ),
+          },
+        ]}
+      />
       <p className="mt-2 text-xs text-muted">{t("rp.totals.onReport")}</p>
       <p className="mt-2 text-xs text-muted">
         {v.spend.source.kind === "import" ? (
@@ -543,7 +562,7 @@ function InfoBox({ v, act, onImported }: { v: QprView; act: Act; onImported: () 
       {v.mayEdit && (
         <label className="mt-3 block max-w-xs text-sm">
           <span className="text-muted">Type this quarter&rsquo;s spending instead ({c})</span>
-          <input inputMode="decimal" className={input} value={spend} placeholder={v.spend.quarter === null ? "" : `${num(v.spend.quarter)} from the import`} onChange={(e) => setSpend(e.target.value)} />
+          <input inputMode="decimal" className={`${input} font-mono`} value={spend} placeholder={v.spend.quarter === null ? "" : `${num(v.spend.quarter)} from the import`} onChange={(e) => setSpend(e.target.value)} />
         </label>
       )}
       <Overspend v={v} act={act} />
@@ -581,10 +600,10 @@ function Overspend({ v, act }: { v: QprView; act: Act }) {
   const lines = overspentLines(v.spend, v.saved);
   if (!lines.length) return null;
   return (
-    <div id="overspend" className="mt-3 scroll-mt-24 space-y-3 rounded-xl bg-paper p-3">
-      <p className="text-sm font-semibold">Budget lines above budget</p>
+    <div id="overspend" className="mt-4 scroll-mt-24 border-y border-ink">
+      <p className="border-b border-line px-3 py-2 font-ledger text-base font-bold">Budget lines above budget</p>
       {lines.map((l) => (
-        <div key={l.code} className="text-sm">
+        <div key={l.code} className="border-b border-line px-3 py-3 text-sm last:border-b-0">
           {t("os.line", { code: l.code, spent: num(l.actual), budget: num(l.budget), currency: v.spend.currency, pct: l.pct })}
           <OverspendReasonPicker saved={{ reason: l.reason, note: l.note, text: l.explanation }} mayWrite={v.mayEdit && !v.saved.released} onSave={(r) => act({ action: "overspend", line: l.code, ...r }, "Saved.")} />
         </div>
@@ -603,13 +622,13 @@ function Section({ v, k, heading, act, busy, draftable }: { v: QprView; k: strin
   const rows = Math.min(18, Math.max(4, Math.ceil(text.length / 95) + text.split("\n").length));
   return (
     <section className="mt-6 scroll-mt-24" id={`sec-${k}`}>
-      <div className="flex flex-wrap items-baseline gap-2">
-        <h3 className="text-lg font-semibold">{heading ?? def?.heading}</h3>
-        {saved?.drafted && <Pill tone="ochre">Drafted by Claude: review</Pill>}
-        {saved?.from && <Pill tone="ochre">Copied from {saved.from}: review</Pill>}
-        {saved && !saved.drafted && !saved.from && <span className="text-xs text-muted">Saved by {saved.by}</span>}
+      <div className="flex flex-wrap items-baseline gap-2 border-b border-line pb-1">
+        <h3 className="min-w-0 flex-1 font-ledger text-lg font-bold leading-tight">{heading ?? def?.heading}</h3>
+        {saved?.drafted && <StatusBlock tone="ochre">Drafted by Claude: review</StatusBlock>}
+        {saved?.from && <StatusBlock tone="ochre">Copied from {saved.from}: review</StatusBlock>}
+        {saved && !saved.drafted && !saved.from && <span className="font-mono text-xs text-muted">Saved by {saved.by}</span>}
       </div>
-      {def?.help && <p className="text-xs text-muted">{def.help}</p>}
+      {def?.help && <p className="mt-1 text-xs text-muted">{def.help}</p>}
       {v.mayEdit ? (
         <>
           <textarea className={input} rows={rows} value={text} onChange={(e) => setText(e.target.value)} />
@@ -641,6 +660,9 @@ function Section({ v, k, heading, act, busy, draftable }: { v: QprView; k: strin
   );
 }
 
+/** The columns of the progress table on a wide screen: target, three figures, status and comment. */
+const IND_COLS = "minmax(0,2fr) 7rem 7rem 7rem minmax(0,1.6fr)";
+
 function IndicatorTable({ v, act }: { v: QprView; act: Act }) {
   const outputs = [...new Set(v.rows.map((r) => r.output))];
   const year = v.quarter.slice(0, 4);
@@ -652,8 +674,8 @@ function IndicatorTable({ v, act }: { v: QprView; act: Act }) {
       <div className="mt-3 space-y-4 lg:hidden">
         {outputs.map((o) => (
           <div key={o}>
-            <p className="rounded-lg bg-sunken px-2 py-2 text-sm font-semibold">{o}</p>
-            <div className="divide-y divide-line">
+            <p className="border-y border-ink bg-sunken px-3 py-2 text-sm font-semibold">{o}</p>
+            <div className="divide-y divide-line border-b border-ink">
               {v.rows
                 .filter((r) => r.output === o)
                 .map((r) => (
@@ -663,33 +685,27 @@ function IndicatorTable({ v, act }: { v: QprView; act: Act }) {
           </div>
         ))}
       </div>
-    <div className="mt-3 hidden overflow-x-auto lg:block">
-      <table className="w-full min-w-[820px] text-sm">
-        <thead className="text-start text-xs uppercase tracking-wide text-muted">
-          <tr>
-            <th className="py-2 pe-3 text-start">Output target</th>
-            <th className="py-2 pe-3 text-end">{t("rp.col.target", { year })}</th>
-            <th className="py-2 pe-3 text-end">{t("rp.col.quarter", { q: qn })}</th>
-            <th className="py-2 pe-3 text-end">{t("rp.col.year")}</th>
-            <th className="py-2 pe-3 text-start">Status and comment</th>
-          </tr>
-        </thead>
-        {outputs.map((o) => (
-          <tbody key={o} className="divide-y divide-line">
-            <tr>
-              <td colSpan={5} className="bg-sunken px-2 py-2 font-semibold">
+      <div className="mt-3 hidden overflow-x-auto lg:block">
+        <LedgerTable
+          cols={IND_COLS}
+          label="Progress towards results"
+          className="mt-0 min-w-[52rem]"
+          head={["Output target", { label: t("rp.col.target", { year }), end: true }, { label: t("rp.col.quarter", { q: qn }), end: true }, { label: t("rp.col.year"), end: true }, "Status and comment"]}
+        >
+          {outputs.map((o) => (
+            <Fragment key={o}>
+              <div role="row" className="border-b border-line bg-sunken px-3 py-2 text-sm font-semibold">
                 {o}
-              </td>
-            </tr>
-            {v.rows
-              .filter((r) => r.output === o)
-              .map((r) => (
-                <IndicatorRow key={r.code} r={r} v={v} act={act} />
-              ))}
-          </tbody>
-        ))}
-      </table>
-    </div>
+              </div>
+              {v.rows
+                .filter((r) => r.output === o)
+                .map((r) => (
+                  <IndicatorRow key={r.code} r={r} v={v} act={act} />
+                ))}
+            </Fragment>
+          ))}
+        </LedgerTable>
+      </div>
     </>
   );
 }
@@ -775,13 +791,13 @@ function IndicatorRow({ r, v, act, card }: { r: Row; v: QprView; act: Act; card?
           </div>
         ) : (
           <div>
-            <StatusPill tone={st.tone}>{t(`prog.w.${st.word}`)}</StatusPill>
+            <StatusBlock tone={st.tone}>{t(`prog.w.${st.word}`)}</StatusBlock>
             {st.detail && <span className="ms-1 text-xs text-muted">{t(`prog.d.${st.detail}`)}</span>}
             {!r.edited && <span className="ms-2 text-xs text-muted">suggested</span>}
             <span className="block text-xs text-muted">{t("rp.wordTerm", { term: STATUS_LABEL[r.status] })}</span>
             <p className="mt-1">{r.comment}</p>
             {v.mayEdit && (
-              <button type="button" className="mt-1 text-xs font-semibold text-forest hover:underline" onClick={() => setEditing(true)}>
+              <button type="button" className="inline-flex min-h-11 items-center text-sm font-semibold text-forest hover:underline" onClick={() => setEditing(true)}>
                 Edit
               </button>
             )}
@@ -789,36 +805,37 @@ function IndicatorRow({ r, v, act, card }: { r: Row; v: QprView; act: Act; card?
         )}
     </>
   );
-  const head = "text-xs uppercase tracking-wide text-muted";
+  const head = "font-mono text-xs text-muted";
+  const fig = "font-mono text-sm tabular-nums";
   if (card)
     return (
-      <div className="py-3 text-sm">
+      <div className="px-3 py-3 text-sm">
         <p>{name}</p>
         <dl className="mt-2 grid grid-cols-3 gap-2">
           <div>
             <dt className={head}>{t("rp.col.target", { year: v.quarter.slice(0, 4) })}</dt>
-            <dd className="tabular-nums">{num(r.yearTarget)}</dd>
+            <dd className={fig}>{num(r.yearTarget)}</dd>
           </div>
           <div>
             <dt className={head}>{t("rp.col.quarter", { q: v.quarter.slice(5) })}</dt>
-            <dd>{evidence(from, r.quarter, r.records.quarter, r.records.files)}</dd>
+            <dd className={fig}>{evidence(from, r.quarter, r.records.quarter, r.records.files)}</dd>
           </div>
           <div>
             <dt className={head}>{t("rp.col.year")}</dt>
-            <dd>{yearCell}</dd>
+            <dd className={fig}>{yearCell}</dd>
           </div>
         </dl>
         <div className="mt-2">{statusCell}</div>
       </div>
     );
   return (
-    <tr className="align-top">
-      <td className="py-2 pe-3">{name}</td>
-      <td className="py-2 pe-3 text-end tabular-nums">{num(r.yearTarget)}</td>
-      <td className="py-2 pe-3 text-end">{evidence(from, r.quarter, r.records.quarter, r.records.files)}</td>
-      <td className="py-2 pe-3 text-end">{yearCell}</td>
-      <td className="py-2 pe-3">{statusCell}</td>
-    </tr>
+    <LedgerRow cols={IND_COLS} className="text-sm">
+      <span className="min-w-0">{name}</span>
+      <Fig>{num(r.yearTarget)}</Fig>
+      <span className={`text-end ${fig}`}>{evidence(from, r.quarter, r.records.quarter, r.records.files)}</span>
+      <span className={`text-end ${fig}`}>{yearCell}</span>
+      <span className="min-w-0">{statusCell}</span>
+    </LedgerRow>
   );
 }
 
@@ -828,14 +845,14 @@ function GenderStrip({ rows }: { rows: Row[] }) {
   const men = people.reduce((t, r) => t + r.men, 0);
   const wl = rows.reduce((t, r) => t + r.womenLed, 0);
   const ml = rows.reduce((t, r) => t + r.menLed, 0);
-  if (!women && !men && !wl && !ml) return <p className="mt-3 text-sm text-muted">No results this quarter record women and men separately.</p>;
+  if (!women && !men && !wl && !ml) return <Empty>No results this quarter record women and men separately.</Empty>;
   return (
-    <p className="mt-3 rounded-xl bg-sunken px-4 py-3 text-sm">
-      This quarter: <b>{num(women)}</b> women and <b>{num(men)}</b> men{women + men > 0 && ` (${Math.round((women / (women + men)) * 100)}% women)`}
+    <p className="mt-3 border-y border-line px-3 py-3 text-sm">
+      This quarter: <b className="font-mono tabular-nums">{num(women)}</b> women and <b className="font-mono tabular-nums">{num(men)}</b> men{women + men > 0 && ` (${Math.round((women / (women + men)) * 100)}% women)`}
       {wl + ml > 0 && (
         <>
           {" "}
-          · <b>{num(wl)}</b> women-led and <b>{num(ml)}</b> men-led businesses
+          · <b className="font-mono tabular-nums">{num(wl)}</b> women-led and <b className="font-mono tabular-nums">{num(ml)}</b> men-led businesses
         </>
       )}
       . Counted from accepted results; people may be counted under more than one target.
@@ -862,11 +879,11 @@ function Grm({ v, act }: { v: QprView; act: Act }) {
   const log = v.grmLog;
   const typed = v.saved.grm.received !== null;
   return (
-    <div id="grm" className="mt-6 scroll-mt-24 text-sm">
+    <div id="grm" className="mt-6 scroll-mt-24 border-y border-line px-3 py-3 text-sm">
       <p>
         {log ? (
           <>
-            From the feedback log: <b>{log.answered + log.open}</b> needing an answer, <b>{log.answered}</b> answered{log.open ? `, ${log.open} still open` : ""}
+            From the feedback log: <b className="font-mono tabular-nums">{log.answered + log.open}</b> needing an answer, <b className="font-mono tabular-nums">{log.answered}</b> answered{log.open ? `, ${log.open} still open` : ""}
             {log.thanks ? `; plus ${log.thanks} thank-you ${log.thanks === 1 ? "note" : "notes"}` : ""}.
           </>
         ) : (
@@ -878,7 +895,7 @@ function Grm({ v, act }: { v: QprView; act: Act }) {
       </p>
       {typed && log && <p className="mt-1 text-xs text-warn">The report uses the figures typed below instead of the log&rsquo;s count.</p>}
       {v.mayEdit && !typing && (
-        <button type="button" className="mt-1 text-xs font-semibold text-forest hover:underline" onClick={() => setTyping(true)}>
+        <button type="button" className="inline-flex min-h-11 items-center text-sm font-semibold text-forest hover:underline" onClick={() => setTyping(true)}>
           Type different figures instead
         </button>
       )}
@@ -886,11 +903,11 @@ function Grm({ v, act }: { v: QprView; act: Act }) {
         <div className="mt-2 flex flex-wrap items-end gap-3">
           <label className="text-sm">
             Complaints received this quarter
-            <input inputMode="numeric" className={input} value={rec} placeholder={log ? `${log.answered + log.open} from the log` : ""} disabled={!v.mayEdit} onChange={(e) => setRec(e.target.value)} />
+            <input inputMode="numeric" className={`${input} font-mono`} value={rec} placeholder={log ? `${log.answered + log.open} from the log` : ""} disabled={!v.mayEdit} onChange={(e) => setRec(e.target.value)} />
           </label>
           <label className="text-sm">
             Resolved
-            <input inputMode="numeric" className={input} value={res} placeholder={log ? `${log.answered} from the log` : ""} disabled={!v.mayEdit} onChange={(e) => setRes(e.target.value)} />
+            <input inputMode="numeric" className={`${input} font-mono`} value={res} placeholder={log ? `${log.answered} from the log` : ""} disabled={!v.mayEdit} onChange={(e) => setRes(e.target.value)} />
           </label>
           {v.mayEdit && dirty && (
             <button type="button" className={primaryBtn} onClick={() => void act({ action: "grm", received: toN(rec), resolved: toN(res) }, "Saved.").catch(() => undefined)}>
@@ -914,15 +931,18 @@ function Risks({ v, act }: { v: QprView; act: Act }) {
   const dirty = JSON.stringify(list) !== JSON.stringify(v.saved.risks);
   return (
     <section id="risks" className="mt-6 scroll-mt-24">
-      <h3 className="text-lg font-semibold">V. Risk Management</h3>
-      <div className="mt-2 space-y-2">
+      <h3 className="border-b border-line pb-1 font-ledger text-lg font-bold leading-tight">V. Risk Management</h3>
+      <div className="mt-2">
         {list.map((r, k) => (
-          <div key={k} className="grid gap-2 sm:grid-cols-2">
+          <div key={k} className="grid grid-cols-[2.25rem_minmax(0,1fr)] gap-x-2 gap-y-1 border-b border-line py-2 sm:grid-cols-[2.25rem_minmax(0,1fr)_minmax(0,1fr)]">
+            <span aria-hidden className="row-span-2 pt-3 font-mono text-xs text-muted sm:row-span-1">
+              {String(k + 1).padStart(2, "0")}
+            </span>
             <textarea className={input} rows={2} placeholder="Risk" value={r.risk} disabled={!v.mayEdit} onChange={(e) => setList(list.map((x, j) => (j === k ? { ...x, risk: e.target.value } : x)))} />
             <textarea className={input} rows={2} placeholder="Mitigation measures" value={r.mitigation} disabled={!v.mayEdit} onChange={(e) => setList(list.map((x, j) => (j === k ? { ...x, mitigation: e.target.value } : x)))} />
           </div>
         ))}
-        {!list.length && <p className="text-sm text-muted">No risks listed.</p>}
+        {!list.length && <Empty className="mt-0">No risks listed.</Empty>}
       </div>
       {v.mayEdit && (
         <div className="mt-2 flex gap-2">
@@ -949,7 +969,7 @@ function ActivityExtras({ v, activity }: { v: QprView; activity: string }) {
   const photos = v.photos.filter((p) => p.activity === activity);
   if (!updates.length && !tables.length && !photos.length)
     return (
-      <p className="mt-2 text-xs text-muted">
+      <p className="mt-2 border-y border-line px-3 py-2 text-xs text-muted">
         No activity updates or captioned photos this quarter.{" "}
         <Link href="/progress/results" className="font-semibold text-forest hover:underline">
           Add them on Results
@@ -957,55 +977,57 @@ function ActivityExtras({ v, activity }: { v: QprView; activity: string }) {
       </p>
     );
   return (
-    <div className="mt-3 space-y-3 rounded-xl bg-sunken p-3 text-sm">
+    <div className="mt-3 space-y-4 border-s-[6px] border-line ps-3 text-sm">
       {updates.length > 0 && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Updates this quarter (Claude drafts from these)</p>
-          <ul className="mt-1 list-disc space-y-1 ps-5">
+          <p className="font-mono text-xs text-muted">Updates this quarter (Claude drafts from these)</p>
+          <LedgerTable cols="7rem minmax(0,1fr)" head={["Date", "Update"]} label="Updates this quarter" className="mt-1">
             {updates.map((u) => (
-              <li key={u.id}>
-                <span className="text-muted">{u.date}:</span> {u.note}
-              </li>
+              <LedgerRow key={u.id} cols="7rem minmax(0,1fr)" className="text-sm">
+                <Fig tone="muted" className="text-start">
+                  {u.date}
+                </Fig>
+                <span className="min-w-0">{u.note}</span>
+              </LedgerRow>
             ))}
-          </ul>
+          </LedgerTable>
         </div>
       )}
-      {tables.map((b) => (
-        <div key={b.indicator}>
-          <p className="text-xs font-semibold">{b.title}</p>
-          <div className="mt-1 overflow-x-auto">
-            <table className="w-full min-w-[420px] text-xs">
-              <thead>
-                <tr>
-                  {b.columns.map((c) => (
-                    <th key={c} className="py-1 pe-3 text-start font-semibold text-muted">
-                      {c}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line">
+      {tables.map((b) => {
+        const cols = b.columns.map((_, j) => (j === 0 ? "minmax(8rem,1.5fr)" : "minmax(5rem,1fr)")).join(" ");
+        const isNum = (j: number) => b.rows.some((r) => typeof r[j] === "number");
+        return (
+          <div key={b.indicator}>
+            <p className="text-xs font-semibold">{b.title}</p>
+            <div className="overflow-x-auto">
+              <LedgerTable cols={cols} head={b.columns.map((c, j) => ({ label: c, end: isNum(j) }))} label={b.title} className="mt-1 min-w-[26rem]">
                 {b.rows.map((r, k) => (
-                  <tr key={k} className={r[0] === "Total" ? "font-semibold" : ""}>
-                    {r.map((c, j) => (
-                      <td key={j} className="py-1 pe-3 tabular-nums">
-                        {typeof c === "number" ? num(c) : c}
-                      </td>
-                    ))}
-                  </tr>
+                  <LedgerRow key={k} cols={cols} className={`text-xs ${r[0] === "Total" ? "font-semibold" : ""}`}>
+                    {r.map((c, j) =>
+                      typeof c === "number" ? (
+                        <Fig key={j} strong={r[0] === "Total"} className="text-xs">
+                          {num(c)}
+                        </Fig>
+                      ) : (
+                        <span key={j} className={isNum(j) ? "text-end font-mono tabular-nums" : ""}>
+                          {c}
+                        </span>
+                      ),
+                    )}
+                  </LedgerRow>
                 ))}
-              </tbody>
-            </table>
+              </LedgerTable>
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
       {photos.length > 0 && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Photos in the report ({photos.length})</p>
-          <ul className="mt-1 space-y-1">
+          <p className="font-mono text-xs text-muted">Photos in the report ({photos.length})</p>
+          <ul className="mt-1 border-t border-line">
             {photos.map((ph) => (
-              <li key={ph.hash}>
-                <button type="button" className="text-start font-semibold text-forest hover:underline" onClick={() => void openReceipt(ph.hash, user?.id)}>
+              <li key={ph.hash} className="border-b border-line">
+                <button type="button" className="min-h-11 w-full py-2 text-start font-semibold text-forest hover:underline" onClick={() => void openReceipt(ph.hash, user?.id)}>
                   {ph.caption}
                 </button>
               </li>
@@ -1029,15 +1051,18 @@ function Acronyms({ v, act }: { v: QprView; act: Act }) {
       .filter((x) => x.length >= 2 && x[0].trim() && x.slice(1).join(":").trim())
       .map((x) => [x[0].trim(), x.slice(1).join(":").trim()]);
   return (
-    <details className="mt-6 rounded-xl border border-line bg-surface px-4 py-3">
-      <summary className="cursor-pointer text-lg font-semibold">Acronyms ({v.saved.acronyms?.length ?? 0})</summary>
+    <details className="mt-6 border-y border-line">
+      <summary className="min-h-12 cursor-pointer py-3 font-ledger text-lg font-bold">
+        Acronyms <span className="font-mono text-sm font-normal text-muted">({v.saved.acronyms?.length ?? 0})</span>
+      </summary>
       <p className="mt-1 text-xs text-muted">One per line, as &ldquo;IWRM: Integrated Water Resources Management&rdquo;. Kept from quarter to quarter. The Word file also gets a table of contents.</p>
-      <textarea className={input} rows={8} value={text} disabled={!v.mayEdit} onChange={(e) => setText(e.target.value)} />
+      <textarea className={`${input} font-mono text-sm`} rows={8} value={text} disabled={!v.mayEdit} onChange={(e) => setText(e.target.value)} />
       {v.mayEdit && dirty && (
         <button type="button" className={`${primaryBtn} mt-2`} onClick={() => void act({ action: "acronyms", acronyms: parse() }, "Saved.").catch(() => undefined)}>
           Save acronyms
         </button>
       )}
+      <div className="h-3" />
     </details>
   );
 }
@@ -1057,7 +1082,7 @@ function Collapsible({ ids, id, className, summary, hint, children }: { ids: str
   }, []);
   return (
     <details id={id} open={open} onToggle={(e) => setOpen(e.currentTarget.open)} className={className}>
-      <summary className="cursor-pointer">
+      <summary className="min-h-11 cursor-pointer py-1">
         {summary}
         {hint && <span className="mt-0.5 block text-xs text-muted">{hint}</span>}
       </summary>
@@ -1084,23 +1109,27 @@ function OwnChecks({ checks, quarter }: { checks: QprView["checks"]; quarter: st
       <p className="font-ledger text-lg font-bold">{t("pf.title")}</p>
       <p role="status" className="mt-1 text-sm text-warn">{t("pf.notLoaded")}</p>
       {[
-        { label: t("pf.blocks"), list: stops, tone: "text-clay" },
-        { label: t("pf.fix"), list: rest, tone: "text-warn" },
+        { label: t("pf.blocks"), list: stops, tone: "text-clay", start: 1 },
+        { label: t("pf.fix"), list: rest, tone: "text-warn", start: stops.length + 1 },
       ].map((g) =>
         g.list.length ? (
-          <div key={g.label} className="mt-2">
-            <p className={`text-sm font-semibold ${g.tone}`}>
+          <div key={g.label} className="mt-3">
+            {/* The group's name sits in the column head; on a phone, where the head hides, it sits above. */}
+            <p className={`font-mono text-sm font-bold sm:hidden ${g.tone}`}>
               {g.label} {g.list.length}
             </p>
-            <ul className="mt-1 list-disc ps-5 text-sm">
+            <LedgerTable
+              cols="2.25rem minmax(0,1fr)"
+              head={["#", { label: <span className={`font-bold ${g.tone}`}>{`${g.label} ${g.list.length}`}</span> }]}
+              label={g.label}
+              className="mt-1 text-sm sm:mt-0"
+            >
               {g.list.map((c, i) => (
-                <li key={i}>
-                  <Link href={checkHref(c, quarter)} className="hover:underline">
-                    {itemText(t, c)}
-                  </Link>
-                </li>
+                <LedgerRow key={i} n={g.start + i} cols="minmax(0,1fr)" href={checkHref(c, quarter)}>
+                  <span className="min-w-0">{itemText(t, c)}</span>
+                </LedgerRow>
               ))}
-            </ul>
+            </LedgerTable>
           </div>
         ) : null,
       )}

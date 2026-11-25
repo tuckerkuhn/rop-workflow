@@ -5,6 +5,7 @@ import { acct } from "@/lib/file-store";
 import { newKey, type SaveOutcome } from "@/lib/ledger/screens";
 import { plainError } from "@/lib/plain-error";
 import { dangerBtn, quietBtn } from "@/components/workspace/ui";
+import { Fig, LedgerRow, LedgerTable, Sheet } from "@/components/workspace/ledger";
 import type { EntryLineView, EntryView } from "@/server/ledger-view";
 
 /**
@@ -36,38 +37,32 @@ export async function openLedgerReceipt(code: string, hash: string, user: string
  */
 export function JournalLines({ lines, currency, rule }: { lines: Pick<EntryLineView, "no" | "code" | "account" | "debit" | "credit" | "currency" | "fxRate" | "functionalDebit" | "functionalCredit" | "budgetLine" | "donor">[]; currency: string; rule: string }) {
   const foreign = lines.some((l) => l.currency !== currency);
+  // The account column, then debit and credit; in another currency, the rate and the same in the organization's own.
+  const cols = `minmax(12rem,1fr) 7rem 7rem${foreign ? " 11rem 7rem 7rem" : ""}`;
+  const fx = { label: "Rate", end: true };
   return (
     <div className="mt-2">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[520px] border-t-2 border-ink text-sm">
-          <thead className="text-xs uppercase tracking-[0.12em] text-muted">
-            <tr className="border-b border-line">
-              <th className="w-8 px-2 py-2 text-start font-semibold">No.</th>
-              <th className="px-2 py-2 text-start font-semibold">Account</th>
-              <th className="px-2 py-2 text-end font-semibold">Debit</th>
-              <th className="px-2 py-2 text-end font-semibold">Credit</th>
-              {foreign && <th className="px-2 py-2 text-end font-semibold">Rate</th>}
-              {foreign && <th className="px-2 py-2 text-end font-semibold">Debit {currency}</th>}
-              {foreign && <th className="px-2 py-2 text-end font-semibold">Credit {currency}</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {lines.map((l) => (
-              <tr key={l.no} className="border-b border-line align-top">
-                <td className="px-2 py-2 font-mono text-xs text-muted">{String(l.no).padStart(2, "0")}</td>
-                <td className="px-2 py-2">
-                  <span className="font-mono text-xs text-muted">{l.code}</span> {l.account}
-                  {(l.budgetLine || l.donor) && <span className="block text-xs text-muted">{[l.budgetLine && `Budget line ${l.budgetLine}`, l.donor && `Donor: ${l.donor}`].filter(Boolean).join(" · ")}</span>}
-                </td>
-                <td className="px-2 py-2 text-end font-mono tabular-nums">{figure(l.debit)}</td>
-                <td className="px-2 py-2 text-end font-mono tabular-nums">{figure(l.credit)}</td>
-                {foreign && <td className="px-2 py-2 text-end font-mono text-xs tabular-nums">{l.currency === currency ? "1" : `${Number(l.fxRate)} ${currency} for 1 ${l.currency}`}</td>}
-                {foreign && <td className="px-2 py-2 text-end font-mono tabular-nums">{figure(l.functionalDebit)}</td>}
-                {foreign && <td className="px-2 py-2 text-end font-mono tabular-nums">{figure(l.functionalCredit)}</td>}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <LedgerTable
+          cols={`2.25rem ${cols}`}
+          head={["No.", "Account", { label: "Debit", end: true }, { label: "Credit", end: true }, ...(foreign ? [fx, { label: `Debit ${currency}`, end: true }, { label: `Credit ${currency}`, end: true }] : [])]}
+          label="What this wrote"
+          className={`mt-0 ${foreign ? "min-w-[52rem]" : "min-w-[520px]"}`}
+        >
+          {lines.map((l) => (
+            <LedgerRow key={l.no} n={l.no} cols={cols} className="text-sm">
+              <span>
+                <span className="font-mono text-xs text-muted">{l.code}</span> {l.account}
+                {(l.budgetLine || l.donor) && <span className="block text-xs text-muted">{[l.budgetLine && `Budget line ${l.budgetLine}`, l.donor && `Donor: ${l.donor}`].filter(Boolean).join(" · ")}</span>}
+              </span>
+              <Fig>{figure(l.debit)}</Fig>
+              <Fig>{figure(l.credit)}</Fig>
+              {foreign && <Fig className="text-xs">{l.currency === currency ? "1" : `${Number(l.fxRate)} ${currency} for 1 ${l.currency}`}</Fig>}
+              {foreign && <Fig>{figure(l.functionalDebit)}</Fig>}
+              {foreign && <Fig>{figure(l.functionalCredit)}</Fig>}
+            </LedgerRow>
+          ))}
+        </LedgerTable>
       </div>
       <p className="mt-2 max-w-2xl text-xs text-muted">
         Amounts in {lines[0]?.currency ?? currency}. The two columns always add up to the same figure. {rule}
@@ -113,19 +108,19 @@ export function EntryDetail({ code, id, user, onChanged }: { code: string; id: s
     }
   };
   return (
-    <div className="mt-2 border-s-2 border-line ps-3">
+    <Sheet className="mt-2">
       <p className="text-sm text-muted">
         Recorded by {e.recordedBy}
         {e.postedBy ? `, posted by ${e.postedBy}` : ". Not posted yet"}. {e.memo}
       </p>
       {e.receipt && (
-        <button type="button" onClick={() => void openLedgerReceipt(code, e.receipt!.hash, user)} className="mt-1 text-sm font-semibold text-forest hover:underline">
+        <button type="button" onClick={() => void openLedgerReceipt(code, e.receipt!.hash, user)} className="mt-1 inline-flex min-h-11 items-center text-sm font-semibold text-forest hover:underline">
           Open the receipt ({e.receipt.name})
         </button>
       )}
       {e.reversesId && <p className="mt-1 text-sm text-warn">This entry reverses an earlier one.</p>}
       {e.reversedBy && <p className="mt-1 text-sm text-warn">This entry was reversed: the two cancel out.</p>}
-      <h4 className="mt-3 border-s-[6px] border-ochre ps-2 font-ledger text-base font-bold">What this wrote</h4>
+      <h4 className="mt-4 border-s-[6px] border-ochre ps-2.5 font-ledger text-base font-bold leading-tight">What this wrote</h4>
       <p className="text-xs text-muted">The lines in the books behind this {e.kind === "reversal" ? "reversal" : "payment"}, as an accountant or {acct()} would show them.</p>
       <JournalLines lines={v.lines} currency={v.currency} rule={v.balancingRule} />
       {e.canReverse &&
@@ -137,10 +132,10 @@ export function EntryDetail({ code, id, user, onChanged }: { code: string; id: s
           <div className="mt-3 max-w-xl">
             <label className="text-sm">
               <span className="font-medium">Why it is being reversed</span>
-              <input value={reason} onChange={(x) => setReason(x.target.value)} placeholder="Paid twice by mistake" className="mt-1 block w-full rounded-sm border border-line-strong bg-paper px-3 py-2.5 text-base" />
+              <input value={reason} onChange={(x) => setReason(x.target.value)} placeholder="Paid twice by mistake" className="mt-1 block min-h-11 w-full border border-line-strong bg-paper px-3 py-2.5 text-base" />
             </label>
             <p className="mt-1 text-xs text-muted">A posted entry is never changed or deleted. Reversing writes the same lines the other way round, dated today, so the two cancel out and both stay on record.</p>
-            <div className="mt-2 flex gap-2">
+            <div className="mt-2 flex flex-wrap gap-2">
               <button type="button" disabled={busy || reason.trim().length < 3} className={dangerBtn} onClick={() => void reverse()}>
                 Reverse the entry
               </button>
@@ -150,6 +145,6 @@ export function EntryDetail({ code, id, user, onChanged }: { code: string; id: s
             </div>
           </div>
         ))}
-    </div>
+    </Sheet>
   );
 }

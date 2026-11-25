@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Why } from "@/components/app/why";
 import { useT } from "@/components/app/i18n";
-import { SectionLabel, primaryBtn, quietBtn } from "@/components/workspace/ui";
+import { primaryBtn, quietBtn } from "@/components/workspace/ui";
+import { DoubleRule, Empty, Fig, LedgerRow, LedgerTable, SectionHead } from "@/components/workspace/ledger";
 import type { AppUser } from "@/lib/demo";
 import { guessMapping, mappingProblem, parseCsv, readStatement, type StatementMapping } from "@/lib/ledger/statement-csv";
 import type { BookLine, ImportResult, ReconciliationView, StatementRow } from "@/server/reconciliation";
@@ -29,9 +30,15 @@ type Answer = {
   matched?: number;
 };
 
-const field = "mt-1 block min-h-11 w-full rounded-sm border border-line-strong bg-surface px-3 py-2 text-base";
+const field = "mt-1 block min-h-11 w-full border border-line-strong bg-paper px-3 py-2 text-base";
 const focus = "focus-visible:outline focus-visible:outline-4 focus-visible:-outline-offset-4 focus-visible:outline-forest";
-const linkBtn = `font-semibold text-forest underline decoration-ochre decoration-2 underline-offset-4 hover:bg-ochre-soft ${focus}`;
+const linkBtn = `inline-flex min-h-11 items-center font-semibold text-forest underline decoration-ochre decoration-2 underline-offset-4 hover:bg-ochre-soft ${focus}`;
+/** A head inside the reconciliation: the gold tick, one level under the section's own. */
+const subHead = "border-s-[6px] border-ochre ps-2.5 font-ledger text-lg font-bold leading-tight text-ink";
+/** The three figures: number, what it is, the amount. */
+const SUM_COLS = "minmax(0,1fr) minmax(7rem,auto)";
+/** A statement or ledger line: number, what it is, the amount. */
+const LINE_COLS = "minmax(0,1fr) minmax(6.5rem,auto)";
 
 /** "1234.5" as "1,234.50"; negatives keep their sign. */
 const fig = (v: string | null | undefined) => (v === null || v === undefined ? "" : Number(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
@@ -116,9 +123,9 @@ export function BankReconciliation({ code, user }: { code: string; user: AppUser
 
   return (
     <section id="bank" aria-labelledby="bank-title" className="mt-8 scroll-mt-24 font-ledger">
-      <div id="bank-title">
-        <SectionLabel>Bank reconciliation</SectionLabel>
-      </div>
+      <SectionHead id="bank-title" className="mt-0">
+        Bank reconciliation
+      </SectionHead>
       <p className="mt-1 max-w-2xl text-sm text-muted">
         For each bank account and month: import the bank&apos;s statement, match its lines to the ledger, complete the reconciliation at a zero difference, then lock the month.
       </p>
@@ -136,7 +143,7 @@ export function BankReconciliation({ code, user }: { code: string; user: AppUser
       )}
 
       {data && !data.bankAccounts.length && (
-        <p className="mt-4 border border-dashed border-line-strong p-5 text-sm">
+        <Empty className="mt-4">
           No bank account is set up yet.{" "}
           {may ? (
             <>
@@ -149,7 +156,7 @@ export function BankReconciliation({ code, user }: { code: string; user: AppUser
           ) : (
             "Finance sets it up."
           )}
-        </p>
+        </Empty>
       )}
 
       {data && data.bankAccounts.length > 0 && (
@@ -174,16 +181,9 @@ export function BankReconciliation({ code, user }: { code: string; user: AppUser
       {v && (
         <>
           {/* The figures: statement, book, difference. The difference is the row to look at first. */}
-          <div aria-hidden className="mt-5 h-1 bg-forest" />
-          <div aria-hidden className="mt-[3px] h-px bg-forest" />
-          <div className="grid grid-cols-[2rem_1fr_minmax(7rem,auto)] border-b border-ink px-2 py-1.5 font-mono text-xs sm:px-4">
-            <span>#</span>
-            <span>{monthLabel}</span>
-            <span className="text-end">{cur}</span>
-          </div>
-          <ol>
-            <li className="grid grid-cols-[2rem_1fr_minmax(7rem,auto)] items-start gap-y-2 border-b border-line px-2 py-3 sm:px-4">
-              <span className="font-mono text-sm text-muted">1</span>
+          <DoubleRule className="mt-5" />
+          <LedgerTable cols={`2.25rem ${SUM_COLS}`} head={["#", monthLabel, { label: cur, end: true }]} label={`${v.bankAccount.name}, ${monthLabel}`} className="mt-0">
+            <LedgerRow n={1} cols={SUM_COLS} className="gap-y-2 py-3">
               <span>
                 <span className="text-lg font-semibold">Statement closing balance</span>
                 <span className="block text-sm text-muted">From the bank&apos;s statement on {date(v.asOf)}: read from the file&apos;s balance column, or typed from the statement.</span>
@@ -205,18 +205,16 @@ export function BankReconciliation({ code, user }: { code: string; user: AppUser
                   </form>
                 )}
               </span>
-              <span className="text-end font-mono text-lg tabular-nums">{v.statementBalance === null ? <span className="text-muted">not yet</span> : fig(v.statementBalance)}</span>
-            </li>
-            <li className="grid grid-cols-[2rem_1fr_minmax(7rem,auto)] items-start border-b border-line px-2 py-3 sm:px-4">
-              <span className="font-mono text-sm text-muted">2</span>
+              <Fig className="text-lg">{v.statementBalance === null ? <span className="text-muted">not yet</span> : fig(v.statementBalance)}</Fig>
+            </LedgerRow>
+            <LedgerRow n={2} cols={SUM_COLS} className="py-3">
               <span>
                 <span className="text-lg font-semibold">Book balance</span>
                 <span className="block text-sm text-muted">What the ledger says was in {v.bankAccount.name} at the end of {date(v.asOf)}, from posted entries.</span>
               </span>
-              <span className="text-end font-mono text-lg tabular-nums">{fig(v.bookBalance)}</span>
-            </li>
-            <li className="grid grid-cols-[2rem_1fr_minmax(7rem,auto)] items-start border-b border-ink bg-ochre-soft px-2 py-4 sm:px-4">
-              <span className="font-mono text-sm">3</span>
+              <Fig className="text-lg">{fig(v.bookBalance)}</Fig>
+            </LedgerRow>
+            <LedgerRow n={3} cols={SUM_COLS} first className="py-4">
               <span>
                 <span className="text-xl font-bold">Difference</span>
                 <span className="block text-sm">
@@ -229,9 +227,12 @@ export function BankReconciliation({ code, user }: { code: string; user: AppUser
                       : "Statement less book. Match the lines below, record what is missing from the ledger, or check the closing balance."}
                 </span>
               </span>
-              <span className={`text-end font-mono text-2xl font-bold tabular-nums ${v.difference !== null && !zero ? "text-clay" : "text-forest"}`}>{v.difference === null ? "" : fig(v.difference)}</span>
-            </li>
-          </ol>
+              <Fig strong tone={v.difference !== null && !zero ? "clay" : "forest"} className="text-2xl">
+                {v.difference === null ? "" : fig(v.difference)}
+              </Fig>
+            </LedgerRow>
+          </LedgerTable>
+          <p className="mt-2 text-xs text-muted">The difference is shaded: it is the figure to bring to zero.</p>
           {v.opening !== null && v.addsUp === false && (
             <p className="mt-2 text-sm text-clay">
               Last month closed at {fig(v.opening)} and this month&apos;s statement lines add up to {fig(v.statementTotal)}, so the statement should close at {fig((Number(v.opening) + Number(v.statementTotal)).toFixed(2))}. Check the closing balance or lines missing from the file.
@@ -266,7 +267,7 @@ export function BankReconciliation({ code, user }: { code: string; user: AppUser
             ) : (
               v.completed &&
               may && (
-                <div className="max-w-2xl border-s-[6px] border-warn bg-surface px-4 py-3">
+                <div className="max-w-2xl border-s-[6px] border-warn bg-ochre-soft px-4 py-3">
                   <p className="font-bold">Lock {monthLabel}</p>
                   <p className="mt-1 text-sm">
                     Once locked, nothing can be posted into {monthLabel} again by anyone. It cannot be unlocked: a payment found later is dated in an open month.
@@ -335,6 +336,9 @@ function importNotice(r: ImportResult, monthLabel: string): string {
 
 /* ---------------- Import with a preview ---------------- */
 
+/** The import preview: row in the file, date, description, amount, balance. */
+const PREVIEW_COLS = "3.5rem 7rem minmax(0,1fr) 7rem 7rem";
+
 function StatementImport({ code, user, bankAccountId, month, monthLabel, startOpen, onDone }: { code: string; user: AppUser; bankAccountId: string; month: string; monthLabel: string; startOpen: boolean; onDone: (r: ImportResult) => void }) {
   const { date } = useT();
   const [text, setText] = useState("");
@@ -378,8 +382,8 @@ function StatementImport({ code, user, bankAccountId, month, monthLabel, startOp
   );
 
   return (
-    <details className="mt-8 border-t border-ink pt-3" open={startOpen}>
-      <summary className={`cursor-pointer text-lg font-bold ${focus}`}>Import the bank statement</summary>
+    <details className="mt-8 border-t-2 border-ink pt-3" open={startOpen}>
+      <summary className={`flex min-h-11 cursor-pointer items-center text-lg font-bold ${focus}`}>Import the bank statement</summary>
       <p className="mt-1 max-w-2xl text-sm text-muted">
         A CSV file exported from the bank. Lines dated in {monthLabel} are added; a line already imported is never added twice, so the same file can be imported again safely.
       </p>
@@ -439,28 +443,17 @@ function StatementImport({ code, user, bankAccountId, month, monthLabel, startOp
           {parsed && (
             <>
               <div className="mt-4 overflow-x-auto">
-                <table className="w-full min-w-[32rem] text-sm">
-                  <thead>
-                    <tr className="border-b border-ink font-mono text-xs">
-                      <th className="px-2 py-1.5 text-start font-normal">Row</th>
-                      <th className="px-2 py-1.5 text-start font-normal">Date</th>
-                      <th className="px-2 py-1.5 text-start font-normal">Description</th>
-                      <th className="px-2 py-1.5 text-end font-normal">Amount</th>
-                      <th className="px-2 py-1.5 text-end font-normal">Balance</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {parsed.lines.slice(0, 8).map((l) => (
-                      <tr key={l.row} className={`border-b border-line ${l.date.slice(0, 7) === month ? "" : "text-muted line-through"}`}>
-                        <td className="px-2 py-1.5 font-mono text-xs">{l.row}</td>
-                        <td className="whitespace-nowrap px-2 py-1.5">{date(l.date)}</td>
-                        <td className="px-2 py-1.5">{l.description}</td>
-                        <td className="px-2 py-1.5 text-end font-mono tabular-nums">{fig(l.amount)}</td>
-                        <td className="px-2 py-1.5 text-end font-mono tabular-nums">{fig(l.balance)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <LedgerTable cols={PREVIEW_COLS} head={["Row", "Date", "Description", { label: "Amount", end: true }, { label: "Balance", end: true }]} label="What the file says" className="mt-0 min-w-[32rem]">
+                  {parsed.lines.slice(0, 8).map((l) => (
+                    <LedgerRow key={l.row} cols={PREVIEW_COLS} className={`text-sm ${l.date.slice(0, 7) === month ? "" : "text-muted line-through"}`}>
+                      <span className="font-mono text-xs">{l.row}</span>
+                      <span className="whitespace-nowrap font-mono text-xs">{date(l.date)}</span>
+                      <span>{l.description}</span>
+                      <Fig>{fig(l.amount)}</Fig>
+                      <Fig>{fig(l.balance)}</Fig>
+                    </LedgerRow>
+                  ))}
+                </LedgerTable>
               </div>
               <p className="mt-2 text-xs text-muted">
                 {parsed.lines.length} {parsed.lines.length === 1 ? "line" : "lines"} read{parsed.lines.length > 8 ? ", the first 8 shown" : ""}. {inMonth.length} dated in {monthLabel}.
@@ -519,10 +512,12 @@ function StatementLines({ v, busy, act, date }: { v: ReconciliationView; busy: b
   const [hand, setHand] = useState<Record<string, string>>({});
   const book = new Map(v.openBookLines.map((b) => [b.lineId, b]));
   const frozen = !!v.completed;
+  // Look first at the first line with no match at all: it needs matching by hand or recording.
+  const first = frozen ? undefined : v.statementLines.find((l) => !l.matchedLineId && !(l.suggestion && book.get(l.suggestion.lineId)))?.id;
   return (
     <div className="mt-8">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <h3 className="text-lg font-bold">Statement lines</h3>
+        <h3 className={`min-w-0 flex-1 ${subHead}`}>Statement lines</h3>
         {!frozen && v.counts.suggested > 0 && (
           <button type="button" className={quietBtn} disabled={busy} onClick={() => void act({ action: "match_suggested" }, (a) => `${a.matched ?? 0} ${a.matched === 1 ? "match" : "matches"} confirmed.`)}>
             Confirm all {v.counts.suggested} suggested {v.counts.suggested === 1 ? "match" : "matches"}
@@ -530,22 +525,20 @@ function StatementLines({ v, busy, act, date }: { v: ReconciliationView; busy: b
         )}
       </div>
       {v.statementLines.length === 0 ? (
-        <p className="mt-2 text-sm text-muted">No statement lines for this month yet. Import the bank&apos;s statement above.</p>
+        <Empty>No statement lines for this month yet. Import the bank&apos;s statement above.</Empty>
       ) : (
         <>
-          <div aria-hidden className="mt-2 h-px bg-ink" />
-          <ol>
+          <LedgerTable cols={`2.25rem ${LINE_COLS}`} head={["#", "Statement line", { label: "Amount", end: true }]} label="Statement lines">
             {v.statementLines.map((l, i) => {
               const s = l.suggestion ? book.get(l.suggestion.lineId) : null;
               const choices = l.candidates.map((id) => book.get(id)).filter((b): b is BookLine => !!b);
               return (
-                <li key={l.id} className={`grid grid-cols-[2rem_1fr_minmax(6.5rem,auto)] gap-y-1 border-b px-2 py-3 sm:px-4 ${l.matchedLineId ? "border-line" : "border-line bg-surface"}`}>
-                  <span className="font-mono text-sm text-muted">{i + 1}</span>
+                <LedgerRow key={l.id} n={i + 1} cols={LINE_COLS} first={l.id === first} className={l.matchedLineId || l.id === first ? "" : "bg-surface"}>
                   <span className="min-w-0">
                     <span className="block font-semibold">{l.description}</span>
-                    <span className="block text-sm text-muted">{date(l.date)}</span>
+                    <span className="block font-mono text-xs text-muted">{date(l.date)}</span>
                   </span>
-                  <span className={`text-end font-mono tabular-nums ${l.amount.startsWith("-") ? "" : "text-forest"}`}>{fig(l.amount)}</span>
+                  <Fig tone={l.amount.startsWith("-") ? undefined : "forest"}>{fig(l.amount)}</Fig>
                   <span className="col-start-2 col-end-4 text-sm">
                     {l.matchedLineId ? (
                       <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -577,7 +570,7 @@ function StatementLines({ v, busy, act, date }: { v: ReconciliationView; busy: b
                           <span className="flex items-end gap-2">
                             <label>
                               <span className="sr-only">Match by hand</span>
-                              <select className="min-h-10 rounded-sm border border-line-strong bg-surface px-2 text-sm" value={hand[l.id] ?? ""} onChange={(e) => setHand({ ...hand, [l.id]: e.target.value })}>
+                              <select className="min-h-11 border border-line-strong bg-paper px-2 text-sm" value={hand[l.id] ?? ""} onChange={(e) => setHand({ ...hand, [l.id]: e.target.value })}>
                                 <option value="">Match by hand...</option>
                                 {choices.map((b) => (
                                   <option key={b.lineId} value={b.lineId}>
@@ -601,10 +594,11 @@ function StatementLines({ v, busy, act, date }: { v: ReconciliationView; busy: b
                       </span>
                     )}
                   </span>
-                </li>
+                </LedgerRow>
               );
             })}
-          </ol>
+          </LedgerTable>
+          {first && <p className="mt-2 text-xs text-muted">The shaded line is the first one with no match yet: match it by hand or record it.</p>}
         </>
       )}
     </div>
@@ -614,29 +608,25 @@ function StatementLines({ v, busy, act, date }: { v: ReconciliationView; busy: b
 function BookLines({ lines, date }: { lines: BookLine[]; date: DateFn }) {
   return (
     <div className="mt-8">
-      <h3 className="text-lg font-bold">In the ledger, not on the statement</h3>
+      <h3 className={subHead}>In the ledger, not on the statement</h3>
       <p className="mt-1 max-w-2xl text-sm text-muted">Posted entries on this account dated in the month with no statement line yet: a cheque not yet cashed, a deposit still on its way, or an entry posted to the wrong account.</p>
       {lines.length === 0 ? (
-        <p className="mt-2 text-sm text-muted">None.</p>
+        <Empty>None.</Empty>
       ) : (
-        <>
-          <div aria-hidden className="mt-2 h-px bg-ink" />
-          <ol>
-            {lines.map((b, i) => (
-              <li key={b.lineId} className="grid grid-cols-[2rem_1fr_minmax(6.5rem,auto)] border-b border-line px-2 py-3 sm:px-4">
-                <span className="font-mono text-sm text-muted">{i + 1}</span>
-                <span className="min-w-0">
-                  <span className="block font-semibold">{b.memo}</span>
-                  <span className="block text-sm text-muted">
-                    {date(b.date)}
-                    {b.projectCode ? `, ${b.projectCode}` : ""}
-                  </span>
+        <LedgerTable cols={`2.25rem ${LINE_COLS}`} head={["#", "Ledger line", { label: "Amount", end: true }]} label="In the ledger, not on the statement">
+          {lines.map((b, i) => (
+            <LedgerRow key={b.lineId} n={i + 1} cols={LINE_COLS}>
+              <span className="min-w-0">
+                <span className="block font-semibold">{b.memo}</span>
+                <span className="block font-mono text-xs text-muted">
+                  {date(b.date)}
+                  {b.projectCode ? `, ${b.projectCode}` : ""}
                 </span>
-                <span className="text-end font-mono tabular-nums">{fig(b.amount)}</span>
-              </li>
-            ))}
-          </ol>
-        </>
+              </span>
+              <Fig>{fig(b.amount)}</Fig>
+            </LedgerRow>
+          ))}
+        </LedgerTable>
       )}
     </div>
   );

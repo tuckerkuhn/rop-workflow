@@ -7,6 +7,7 @@ import { useT } from "@/components/app/i18n";
 import { useRequireUser } from "@/components/app/session";
 import { usePlan } from "@/components/app/use-project-data";
 import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn, type Tone, StatusPill } from "@/components/workspace/ui";
+import { Empty, Fig, Figures, LedgerRow, LedgerTable, PageHead, SectionHead, Sheet, StatusBlock } from "@/components/workspace/ledger";
 import type { BudgetLine, WorkplanItem } from "@/lib/budget";
 import { canEditProject, userById, users, type AppUser } from "@/lib/demo";
 import { LEAD_DAYS, METHOD, awaiting, canAsk, isManager, isProcurementManager, procurementManager, toUsd, type PlanItem, type PlanStatus } from "@/lib/procurement-plan";
@@ -28,6 +29,8 @@ const STATUS: Record<PlanStatus, { label: string; tone: Tone }> = {
 const LEVEL_TONE: Record<PlanItem["level"], Tone> = { Micro: "muted", Small: "sky", Medium: "plum", Large: "clay" };
 
 type Filter = "all" | "mine" | PlanStatus;
+// The month lists: the purchase, then its value, size, status and start date at the right.
+const LIST_COLS = "minmax(0,1fr) 12rem";
 
 export function ProcurementPlanPage() {
   const { user } = useRequireUser();
@@ -82,6 +85,8 @@ export function ProcurementPlanPage() {
   const mineKeys = new Set([...mine.asManager, ...mine.asLead].map((i) => i.key));
   const shown = plan.items.filter((i) => (filter === "all" ? true : filter === "mine" ? mineKeys.has(i.key) || (i.status === "approved" && i.techLead === user.id) : i.status === filter));
   const months = [...new Set(shown.map((i) => i.startBy.slice(0, 7)))];
+  // Look first at the purchase furthest past the day it had to start.
+  const lateFirst = shown.filter((i) => i.startBy < today() && i.status !== "started").sort((a, b) => a.startBy.localeCompare(b.startBy))[0]?.key;
   const current = plan.items.find((i) => i.key === open) ?? null;
   const canBuild = isManager(user) || canEditProject(user) || !!user.admin;
   const mayAsk = canAsk(user) && !!plan.budget?.lines.length;
@@ -106,37 +111,36 @@ export function ProcurementPlanPage() {
 
   return (
     <Shell>
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-warn">{project.name}</p>
-          <h1 className="mt-1 font-display text-3xl tracking-tight">Procurement calendar</h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted">
-            Built from the budget lines marked to procure. The procurement manager and each line&apos;s technical lead approve it; approved purchases go on the Tasks calendar on the day they have to start.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {mayAsk && !asking && (
-            <button type="button" onClick={() => setAsking(true)} className={quietBtn}>
-              Ask for something not on the calendar
-            </button>
-          )}
-          <Link href="/work?source=procurement" className={quietBtn}>
-            Procurements in progress
-          </Link>
-          {canBuild && (
-            <button type="button" onClick={() => void rebuild()} disabled={busy} className={primaryBtn}>
-              {busy ? "Updating…" : plan.items.length ? "Update from budget" : "Build from budget"}
-            </button>
-          )}
-        </div>
-      </div>
+      <PageHead
+        kicker={project.name}
+        title="Procurement calendar"
+        actions={
+          <>
+            {mayAsk && !asking && (
+              <button type="button" onClick={() => setAsking(true)} className={quietBtn}>
+                Ask for something not on the calendar
+              </button>
+            )}
+            <Link href="/work?source=procurement" className={quietBtn}>
+              Procurements in progress
+            </Link>
+            {canBuild && (
+              <button type="button" onClick={() => void rebuild()} disabled={busy} className={primaryBtn}>
+                {busy ? "Updating…" : plan.items.length ? "Update from budget" : "Build from budget"}
+              </button>
+            )}
+          </>
+        }
+      >
+        Built from the budget lines marked to procure. The procurement manager and each line&apos;s technical lead approve it; approved purchases go on the Tasks calendar on the day they have to start.
+      </PageHead>
       {note && (
-        <p role="status" className="mt-3 rounded-xl bg-mist px-4 py-3 text-sm">
+        <p role="status" className="mt-4 bg-mist px-4 py-3 text-sm">
           {note}
         </p>
       )}
       {plan.error && (
-        <p role="alert" className="mt-3 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">
+        <p role="alert" className="mt-4 bg-clay-soft px-4 py-3 text-sm text-clay">
           {plan.error}
         </p>
       )}
@@ -157,50 +161,52 @@ export function ProcurementPlanPage() {
       )}
 
       {canBuild && plan.budget && plan.budget.lines.length > 0 && (
-        <details open={!plan.budget.lines.some((l) => l.procure)} className="mt-6 rounded-2xl border border-line bg-surface p-4">
-          <summary className="cursor-pointer text-sm font-semibold">
-            Budget lines to buy · {plan.budget.lines.filter((l) => l.procure).length} of {plan.budget.lines.length} marked
-          </summary>
-          <p className="mt-2 max-w-2xl text-xs text-muted">
-            Tick the lines bought through procurement; staff time, fees and charges are not. This moves no money, so it is not a plan change for the monthly review; each change is kept in the audit trail. Then press {plan.items.length ? "Update from budget" : "Build from budget"}.
-          </p>
-          <ul className="mt-3 divide-y divide-line text-sm">
-            {plan.budget.lines.map((l) => (
-              <li key={l.code}>
-                <label className="flex items-center gap-3 py-2">
-                  <input
-                    type="checkbox"
-                    checked={l.procure}
-                    disabled={busy}
-                    onChange={async (e) => {
-                      // Read before the save: by the time it returns the box has been drawn again.
-                      const on = e.target.checked;
-                      setBusy(true);
-                      try {
-                        await plan.markProcure({ [l.code]: on });
-                        setNote(`${l.code} ${on ? "marked to buy" : "no longer marked to buy"}. Press ${plan.items.length ? "Update from budget" : "Build from budget"} to update the calendar.`);
-                      } catch (err) {
-                        setNote(err instanceof Error ? err.message : String(err));
-                      } finally {
-                        setBusy(false);
-                      }
-                    }}
-                    className="h-5 w-5 accent-forest"
-                  />
-                  <span className="w-20 font-mono text-xs">{l.code}</span>
-                  <span className="min-w-0 flex-1">{l.description}</span>
-                  <span className="tabular-nums text-muted">{Math.round(l.total).toLocaleString("en-US")}</span>
-                </label>
-              </li>
-            ))}
-          </ul>
-        </details>
+        <Sheet className="mt-6">
+          <details open={!plan.budget.lines.some((l) => l.procure)}>
+            <summary className="flex min-h-11 cursor-pointer items-center font-ledger text-lg font-bold">
+              Budget lines to buy&nbsp;<span className="font-mono text-sm font-normal text-muted">· {plan.budget.lines.filter((l) => l.procure).length} of {plan.budget.lines.length} marked</span>
+            </summary>
+            <p className="mt-1 max-w-2xl text-xs text-muted">
+              Tick the lines bought through procurement; staff time, fees and charges are not. This moves no money, so it is not a plan change for the monthly review; each change is kept in the audit trail. Then press {plan.items.length ? "Update from budget" : "Build from budget"}.
+            </p>
+            <ul className="mt-3 border-t border-ink text-sm [&>li:last-child]:border-ink">
+              {plan.budget.lines.map((l) => (
+                <li key={l.code} className="border-b border-line">
+                  <label className="flex min-h-11 items-center gap-3 px-1 py-2">
+                    <input
+                      type="checkbox"
+                      checked={l.procure}
+                      disabled={busy}
+                      onChange={async (e) => {
+                        // Read before the save: by the time it returns the box has been drawn again.
+                        const on = e.target.checked;
+                        setBusy(true);
+                        try {
+                          await plan.markProcure({ [l.code]: on });
+                          setNote(`${l.code} ${on ? "marked to buy" : "no longer marked to buy"}. Press ${plan.items.length ? "Update from budget" : "Build from budget"} to update the calendar.`);
+                        } catch (err) {
+                          setNote(err instanceof Error ? err.message : String(err));
+                        } finally {
+                          setBusy(false);
+                        }
+                      }}
+                      className="h-5 w-5 accent-forest"
+                    />
+                    <span className="w-20 font-mono text-xs">{l.code}</span>
+                    <span className="min-w-0 flex-1">{l.description}</span>
+                    <Fig tone="muted">{Math.round(l.total).toLocaleString("en-US")}</Fig>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          </details>
+        </Sheet>
       )}
 
       {plan.status === "loading" ? (
         <p className="py-16 text-center text-sm text-muted">Loading…</p>
       ) : !plan.items.length ? (
-        <div className="mt-8 rounded-2xl border border-dashed border-line p-8 text-center text-sm text-muted">
+        <Empty className="mt-8">
           {plan.budget?.lines.length && !plan.budget.lines.some((l) => l.procure) ? (
             canBuild ? (
               <>None of the {plan.budget.lines.length} budget lines is marked to buy, so the calendar has nothing to plan. Tick the lines that are bought under &ldquo;Budget lines to buy&rdquo; below, then build the calendar.</>
@@ -222,17 +228,21 @@ export function ProcurementPlanPage() {
               .
             </>
           )}
-        </div>
+        </Empty>
       ) : (
         <>
-          <dl className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Stat label="Planned purchases" value={`${plan.items.length}`} sub={money(total)} />
-            <Stat label="Awaiting approval" value={`${count("draft") + count("returned")}`} />
-            <Stat label="Approved" value={`${count("approved")}`} />
-            <Stat label="Waiting on you" value={`${mineKeys.size}`} tone={mineKeys.size ? "text-clay" : undefined} />
-          </dl>
+          <Figures
+            className="mt-6"
+            items={[
+              { label: "Planned purchases", value: plan.items.length },
+              { label: "Planned value", value: money(total) },
+              { label: "Awaiting approval", value: count("draft") + count("returned") },
+              { label: "Approved", value: count("approved") },
+              { label: "Waiting on you", value: mineKeys.size, ...(mineKeys.size ? { tone: "clay" as const } : {}) },
+            ]}
+          />
 
-          <div role="tablist" className="mt-6 flex flex-wrap gap-1 text-sm">
+          <div role="tablist" className="mt-4 flex flex-wrap gap-1">
             {(
               [
                 ["all", "All"],
@@ -242,59 +252,63 @@ export function ProcurementPlanPage() {
                 ["approved", "Approved"],
               ] as [Filter, string][]
             ).map(([f, label]) => (
-              <button key={f} type="button" role="tab" aria-selected={filter === f} onClick={() => setFilter(f)} className={`rounded-full px-3 py-1.5 ${filter === f ? "bg-ink text-paper" : "bg-sunken text-muted hover:text-ink"}`}>
+              <button key={f} type="button" role="tab" aria-selected={filter === f} onClick={() => setFilter(f)} className={`min-h-11 px-3 font-mono text-xs ${filter === f ? "font-bold text-ink underline decoration-ochre decoration-4 underline-offset-8" : "text-muted hover:text-ink"}`}>
                 {label}
               </button>
             ))}
           </div>
 
-          <div className="mt-4 grid gap-6 lg:grid-cols-[1fr_minmax(0,26rem)]">
-            <div>
-              {!shown.length && <p className="py-10 text-center text-sm text-muted">Nothing here.</p>}
-              {months.map((m) => (
-                <section key={m} className="mb-6">
-                  <SectionLabel>Start in {date(`${m}-01`, { month: "long", year: "numeric" })}</SectionLabel>
-                  <ul className="mt-2 divide-y divide-line rounded-2xl border border-line bg-surface">
-                    {shown
-                      .filter((i) => i.startBy.startsWith(m))
-                      .map((i) => (
-                        <li key={i.key}>
-                          <button
-                            type="button"
-                            onClick={() => setOpen(i.key)}
-                            aria-current={open === i.key ? "true" : undefined}
-                            className={`flex w-full items-start gap-3 px-4 py-3 text-start transition hover:bg-sunken ${open === i.key ? "bg-mist" : ""}`}
-                          >
-                            <span className="min-w-0 flex-1">
-                              <span className="block font-medium leading-snug">{i.title}</span>
-                              <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
-                                <span className="font-mono">{i.key}</span>
-                                <span>· {i.budgetCode}</span>
-                                <span>· {userById(i.techLead ?? "")?.name ?? "No technical lead"}</span>
-                                {mineKeys.has(i.key) && <span className="font-semibold text-clay">· Waiting on you</span>}
-                                {i.unplanned && <Pill tone="plum">Not planned</Pill>}
-                                {i.unplanned?.urgent && <Pill tone="clay">Urgent</Pill>}
+          <div className="mt-2 grid gap-6 lg:grid-cols-[1fr_minmax(0,26rem)]">
+            <div className="min-w-0">
+              {!shown.length && <Empty className="mt-4">Nothing here.</Empty>}
+              {months.map((m, mi) => {
+                const inMonth = shown.filter((i) => i.startBy.startsWith(m));
+                return (
+                  <section key={m} className="mb-6">
+                    <SectionHead className={mi ? "mt-6" : "mt-4"}>Start in {date(`${m}-01`, { month: "long", year: "numeric" })}</SectionHead>
+                    <LedgerTable cols={LIST_COLS} head={["Purchase", { label: "Value and status", end: true }]} label={`Start in ${date(`${m}-01`, { month: "long", year: "numeric" })}`}>
+                      {inMonth.map((i) => {
+                        const late = i.startBy < today() && i.status !== "started";
+                        return (
+                          <LedgerRow key={i.key} cols="minmax(0,1fr)" onClick={() => setOpen(i.key)} selected={open === i.key} current={open === i.key} first={i.key === lateFirst} className="text-sm">
+                            <span className="flex flex-wrap items-start gap-x-3 gap-y-1 sm:grid sm:grid-cols-[minmax(0,1fr)_12rem]">
+                              <span className="min-w-0 flex-1">
+                                <span className="block font-bold leading-snug">{i.title}</span>
+                                <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-xs text-muted">
+                                  <span>{i.key}</span>
+                                  <span>· {i.budgetCode}</span>
+                                  <span>· {userById(i.techLead ?? "")?.name ?? "No technical lead"}</span>
+                                </span>
+                                {(mineKeys.has(i.key) || i.unplanned) && (
+                                  <span className="mt-1 flex flex-wrap items-center gap-1">
+                                    {mineKeys.has(i.key) && <StatusBlock tone="clay">Waiting on you</StatusBlock>}
+                                    {i.unplanned && <Pill tone="plum">Not planned</Pill>}
+                                    {i.unplanned?.urgent && <Pill tone="clay">Urgent</Pill>}
+                                  </span>
+                                )}
+                              </span>
+                              <span className="flex flex-col items-end gap-1 text-end">
+                                <Fig strong>{money(i.value)}</Fig>
+                                <span className="flex flex-wrap justify-end gap-1">
+                                  <Pill tone={LEVEL_TONE[i.level]}>{i.level}</Pill>
+                                  <StatusPill tone={STATUS[i.status].tone}>{STATUS[i.status].label}</StatusPill>
+                                </span>
+                                <span className={`block font-mono text-xs ${late ? "font-bold text-clay" : "text-muted"}`}>
+                                  Start by {date(i.startBy)}
+                                  {late ? " · late" : ""}
+                                </span>
                               </span>
                             </span>
-                            <span className="shrink-0 text-end">
-                              <span className="block tabular-nums text-sm">{money(i.value)}</span>
-                              <span className="mt-1 flex justify-end gap-1">
-                                <Pill tone={LEVEL_TONE[i.level]}>{i.level}</Pill>
-                                <StatusPill tone={STATUS[i.status].tone}>{STATUS[i.status].label}</StatusPill>
-                              </span>
-                              <span className={`mt-1 block text-xs ${i.startBy < today() && i.status !== "started" ? "font-semibold text-clay" : "text-muted"}`}>
-                                Start by {date(i.startBy)}
-                                {i.startBy < today() && i.status !== "started" ? " · late" : ""}
-                              </span>
-                            </span>
-                          </button>
-                        </li>
-                      ))}
-                  </ul>
-                </section>
-              ))}
+                          </LedgerRow>
+                        );
+                      })}
+                    </LedgerTable>
+                    {lateFirst && inMonth.some((i) => i.key === lateFirst) && <p className="mt-2 text-xs text-muted">The shaded row is the purchase furthest past its start date.</p>}
+                  </section>
+                );
+              })}
             </div>
-            <div className="lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:self-start lg:overflow-y-auto lg:rounded-2xl">
+            <div className="lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:self-start lg:overflow-y-auto">
               {current ? (
                 <div ref={detailRef} className="scroll-mt-20">
                 <Detail
@@ -310,7 +324,7 @@ export function ProcurementPlanPage() {
                 />
                 </div>
               ) : (
-                <p className="hidden rounded-2xl border border-dashed border-line p-6 text-center text-sm text-muted lg:block">Open a purchase to see what it is for, how it will be bought and who approves it.</p>
+                <Empty className="mt-4 hidden lg:block">Open a purchase to see what it is for, how it will be bought and who approves it.</Empty>
               )}
             </div>
           </div>
@@ -329,20 +343,10 @@ function Shell({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Stat({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: string }) {
-  return (
-    <div className="rounded-2xl bg-sunken p-3">
-      <dt className="text-xs text-muted">{label}</dt>
-      <dd className={`font-display text-2xl tabular-nums ${tone ?? ""}`}>{value}</dd>
-      {sub && <dd className="text-xs text-muted tabular-nums">{sub}</dd>}
-    </div>
-  );
-}
-
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="grid grid-cols-[8rem_1fr] gap-2 py-1.5 text-sm">
-      <dt className="text-muted">{label}</dt>
+    <div className="grid grid-cols-[7rem_1fr] gap-2 border-b border-line py-2 text-sm sm:grid-cols-[8rem_1fr]">
+      <dt className="pt-0.5 font-mono text-xs text-muted">{label}</dt>
       <dd className="min-w-0">{children}</dd>
     </div>
   );
@@ -412,13 +416,14 @@ function Detail({
     );
 
   return (
-    <article className="rounded-2xl border border-line bg-surface p-5" aria-labelledby="plan-detail-title">
+    <Sheet className="mt-4">
+    <article aria-labelledby="plan-detail-title">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="font-mono text-xs text-muted">
             {item.key} · {item.budgetCode}
           </p>
-          <h2 id="plan-detail-title" className="mt-1 text-xl leading-snug font-semibold">
+          <h2 id="plan-detail-title" className="mt-1 font-ledger text-2xl font-bold leading-tight">
             {item.title}
           </h2>
           <p className="mt-2 flex flex-wrap gap-1">
@@ -426,14 +431,14 @@ function Detail({
             <Pill tone={LEVEL_TONE[item.level]}>{item.level}</Pill>
           </p>
         </div>
-        <button type="button" onClick={onClose} aria-label="Close" className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-muted hover:bg-sunken">
+        <button type="button" onClick={onClose} aria-label="Close" className="grid h-11 w-11 shrink-0 place-items-center text-xl text-muted hover:bg-ochre-soft hover:text-ink">
           ×
         </button>
       </div>
-      {item.returnNote && item.status === "returned" && <p className="mt-3 rounded-xl bg-clay-soft px-3 py-2 text-sm text-clay">Sent back: {item.returnNote}</p>}
+      {item.returnNote && item.status === "returned" && <p className="mt-3 bg-clay-soft px-3 py-2 text-sm text-clay">Sent back: {item.returnNote}</p>}
 
       {item.unplanned && (
-        <section className="mt-4 rounded-xl bg-plum-soft px-3 py-2 text-sm">
+        <section className="mt-4 bg-plum-soft px-3 py-2 text-sm">
           <p className="font-semibold">
             Not on the calendar{item.unplanned.urgent ? " · urgent" : ""}
           </p>
@@ -463,7 +468,7 @@ function Detail({
             </Row>
           )}
           <Row label="Workplan">
-            {needsRow && canChange && <span className="mb-1 block rounded-lg bg-ochre-soft px-2 py-1 text-xs">No workplan row chosen. Choose one with the Change button before this can be approved.</span>}
+            {needsRow && canChange && <span className="mb-1 block bg-ochre-soft px-2 py-1 text-xs">No workplan row chosen. Choose one with the Change button before this can be approved.</span>}
             {wp && !item.workplanBy && item.status !== "started" && <span className="mb-1 block text-xs text-muted">Matched by the app from the budget line. Check it is the right row.</span>}
             {wp ? (
               <>
@@ -486,12 +491,12 @@ function Detail({
         <SectionLabel>Money</SectionLabel>
         <dl className="mt-1">
           <Row label="To buy">
-            <span className="tabular-nums">{money(item.value)}</span> <span className="text-xs text-muted">≈ ${item.usd.toLocaleString("en-US")}</span>
+            <span className="font-mono font-bold tabular-nums">{money(item.value)}</span> <span className="font-mono text-xs text-muted">≈ ${item.usd.toLocaleString("en-US")}</span>
           </Row>
           {line && (
             <Row label="Line budget">
-              <span className="tabular-nums">{money(line.total)}</span>
-              {line.spent ? <span className="block text-xs text-muted tabular-nums">{money(line.spent)} already spent</span> : null}
+              <span className="font-mono tabular-nums">{money(line.total)}</span>
+              {line.spent ? <span className="block font-mono text-xs text-muted tabular-nums">{money(line.spent)} already spent</span> : null}
               {line.quantity !== null && (
                 <span className="block text-xs text-muted">
                   {line.quantity} {line.unit ?? ""}
@@ -505,7 +510,7 @@ function Detail({
               {Object.entries(line.schedule)
                 .sort()
                 .map(([q, v]) => (
-                  <span key={q} className="block text-xs tabular-nums">
+                  <span key={q} className="block font-mono text-xs tabular-nums">
                     {date(q, { month: "short", year: "numeric" })} quarter: {money(v)}
                   </span>
                 ))}
@@ -513,7 +518,7 @@ function Detail({
           )}
         </dl>
         {!!line?.spent && (
-          <p className="mt-2 rounded-xl bg-sunken px-3 py-2 text-xs text-muted">Part of this line is already spent. If an existing contract covers the rest (rent, internet, fuel), untick the line in the budget and it leaves the calendar.</p>
+          <p className="mt-2 bg-sunken px-3 py-2 text-xs text-muted">Part of this line is already spent. If an existing contract covers the rest (rent, internet, fuel), untick the line in the budget and it leaves the calendar.</p>
         )}
       </section>
 
@@ -530,16 +535,16 @@ function Detail({
           <div className="mt-2 grid gap-3 sm:grid-cols-2">
             <label className="text-sm">
               Needed by
-              <input type="date" value={draft.neededBy} onChange={(e) => setDraft({ ...draft, neededBy: e.target.value })} className="mt-1 w-full rounded-lg border border-line bg-paper px-2 py-2" />
+              <input type="date" value={draft.neededBy} onChange={(e) => setDraft({ ...draft, neededBy: e.target.value })} className="mt-1 block min-h-11 w-full border border-line bg-paper px-2" />
             </label>
             <label className="text-sm">
               Lead time (days)
-              <input type="number" min={0} max={365} value={draft.leadDays} onChange={(e) => setDraft({ ...draft, leadDays: Number(e.target.value) })} className="mt-1 w-full rounded-lg border border-line bg-paper px-2 py-2" />
+              <input type="number" min={0} max={365} value={draft.leadDays} onChange={(e) => setDraft({ ...draft, leadDays: Number(e.target.value) })} className="mt-1 block min-h-11 w-full border border-line bg-paper px-2" />
             </label>
             {workplan.length > 0 && (
               <label className="text-sm sm:col-span-2">
                 Workplan row this purchase serves
-                <select value={draft.workplanCode} onChange={(e) => setDraft({ ...draft, workplanCode: e.target.value })} className="mt-1 w-full rounded-lg border border-line bg-paper px-2 py-2">
+                <select value={draft.workplanCode} onChange={(e) => setDraft({ ...draft, workplanCode: e.target.value })} className="mt-1 block min-h-11 w-full border border-line bg-paper px-2">
                   <option value="">Not chosen</option>
                   {rows.map((w) => (
                     <option key={w.code} value={w.code}>
@@ -551,7 +556,7 @@ function Detail({
             )}
             <label className="text-sm sm:col-span-2">
               Technical lead
-              <select value={draft.techLead} onChange={(e) => setDraft({ ...draft, techLead: e.target.value })} className="mt-1 w-full rounded-lg border border-line bg-paper px-2 py-2">
+              <select value={draft.techLead} onChange={(e) => setDraft({ ...draft, techLead: e.target.value })} className="mt-1 block min-h-11 w-full border border-line bg-paper px-2">
                 <option value="">Not chosen</option>
                 {leads.map((u) => (
                   <option key={u.id} value={u.id}>
@@ -564,12 +569,12 @@ function Detail({
         ) : (
           <dl className="mt-1">
             <Row label="Needed by">
-              {date(item.neededBy, { day: "numeric", month: "short", year: "numeric" })}
+              <span className="font-mono">{date(item.neededBy, { day: "numeric", month: "short", year: "numeric" })}</span>
               <span className="block text-xs text-muted">{item.neededWhy}</span>
             </Row>
-            <Row label="Lead time">{item.leadDays} days (typical for {item.level.toLowerCase()} purchases)</Row>
+            <Row label="Lead time"><span className="font-mono">{item.leadDays}</span> days (typical for {item.level.toLowerCase()} purchases)</Row>
             <Row label="Start by">
-              <span className={item.startBy < today() && item.status !== "started" ? "font-semibold text-clay" : ""}>
+              <span className={`font-mono ${item.startBy < today() && item.status !== "started" ? "font-bold text-clay" : ""}`}>
                 {date(item.startBy, { day: "numeric", month: "short", year: "numeric" })}
                 {item.startBy < today() && item.status !== "started" ? " · late" : ""}
               </span>
@@ -599,7 +604,7 @@ function Detail({
         {item.status === "started" && item.procurementKey && (
           <p className="mt-2 text-sm">
             Request made:{" "}
-            <Link href={`/work?source=procurement&open=${item.procurementKey}`} className="font-semibold text-forest hover:underline">
+            <Link href={`/work?source=procurement&open=${item.procurementKey}`} className="inline-flex min-h-11 items-center font-mono font-semibold text-forest hover:underline">
               {item.procurementKey}
             </Link>
           </p>
@@ -607,7 +612,7 @@ function Detail({
       </section>
 
       {error && (
-        <p role="alert" className="mt-4 rounded-xl bg-clay-soft px-3 py-2 text-sm text-clay">
+        <p role="alert" className="mt-4 bg-clay-soft px-3 py-2 text-sm text-clay">
           {error}
         </p>
       )}
@@ -617,8 +622,8 @@ function Detail({
           <label className="text-sm font-medium" htmlFor="return-why">
             What needs to change?
           </label>
-          <textarea id="return-why" value={why} onChange={(e) => setWhy(e.target.value)} rows={3} className="mt-1 w-full rounded-xl border border-line bg-paper px-3 py-2 text-sm" />
-          <div className="mt-2 flex gap-2">
+          <textarea id="return-why" value={why} onChange={(e) => setWhy(e.target.value)} rows={3} className="mt-1 w-full border border-line bg-paper px-3 py-2 text-sm" />
+          <div className="mt-2 flex flex-wrap gap-2">
             <button type="button" disabled={busy || why.trim().length < 3} onClick={() => void run({ action: "return", note: why })} className={primaryBtn}>
               Send back
             </button>
@@ -628,7 +633,7 @@ function Detail({
           </div>
         </div>
       ) : editing ? (
-        <div className="mt-4 flex gap-2">
+        <div className="mt-4 flex flex-wrap gap-2">
           <button
             type="button"
             disabled={busy || !draft.neededBy}
@@ -675,6 +680,7 @@ function Detail({
         <p className="mt-2 text-xs text-muted">You are an admin, so you can approve for others while the app is in draft. It is recorded as you signing for them.</p>
       )}
     </article>
+    </Sheet>
   );
 }
 
@@ -711,7 +717,7 @@ function AskForm({
   // Sooner than the usual time to buy something this size: it is urgent whether ticked or not.
   const soon = cost > 0 && !!neededBy && new Date(`${neededBy}T00:00:00Z`).getTime() - new Date(`${today()}T00:00:00Z`).getTime() < LEAD_DAYS[levelFor(toUsd(cost, currency))] * 86400000;
   const valid = title.trim().length >= 3 && !!line && cost > 0 && !!neededBy && reason.trim().length >= 10;
-  const field = "mt-1 w-full rounded-lg border border-line bg-paper px-2 py-2";
+  const field = "mt-1 block min-h-11 w-full border border-line bg-paper px-2 py-2";
 
   return (
     <form
@@ -728,13 +734,14 @@ function AskForm({
           setBusy(false);
         }
       }}
-      className="mt-6 rounded-2xl border border-line bg-surface p-5"
+      className="mt-6"
       aria-labelledby="ask-title"
     >
-      <h2 id="ask-title" className="text-lg font-semibold">
+      <SectionHead id="ask-title" className="mt-0">
         Ask for something not on the calendar
-      </h2>
-      <p className="mt-1 max-w-2xl text-sm text-muted">
+      </SectionHead>
+      <Sheet className="mt-3">
+      <p className="max-w-2xl text-sm text-muted">
         For a purchase nobody planned, or one that cannot wait. It goes on the calendar marked as not planned. The procurement manager and the technical lead approve it like any other purchase, and then the request starts the usual way.
       </p>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -767,18 +774,18 @@ function AskForm({
           <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={2} maxLength={500} placeholder="e.g. The old pump broke and seedlings need water every day." className={field} />
           <span className="mt-1 block text-xs text-muted">One short sentence. The people who approve it read this.</span>
         </label>
-        <label className="flex items-center gap-2 text-sm sm:col-span-2">
+        <label className="flex min-h-11 flex-wrap items-center gap-2 text-sm sm:col-span-2">
           <input type="checkbox" checked={urgent || soon} disabled={soon} onChange={(e) => setUrgent(e.target.checked)} className="h-5 w-5 accent-forest" />
           Urgent
           {soon && <span className="text-xs text-muted">(needed sooner than a purchase this size usually takes)</span>}
         </label>
       </div>
       {error && (
-        <p role="alert" className="mt-3 rounded-xl bg-clay-soft px-3 py-2 text-sm text-clay">
+        <p role="alert" className="mt-3 bg-clay-soft px-3 py-2 text-sm text-clay">
           {error}
         </p>
       )}
-      <div className="mt-4 flex gap-2">
+      <div className="mt-4 flex flex-wrap gap-2">
         <button type="submit" disabled={busy || !valid} className={primaryBtn}>
           {busy ? "Sending…" : "Send for approval"}
         </button>
@@ -786,6 +793,7 @@ function AskForm({
           Cancel
         </button>
       </div>
+      </Sheet>
     </form>
   );
 }

@@ -36,7 +36,6 @@ import {
   QueueFooter,
   QueueHeader,
   QueueItem,
-  SectionLabel,
   StepCard,
   Tracker,
   primaryBtn,
@@ -88,9 +87,12 @@ import {
 import { holdersOfType } from "@/lib/authority";
 import { ROLE_LABEL } from "@/lib/hr";
 import { today } from "@/lib/clock";
+import { DoubleRule, Empty, Fig, Figures, LedgerRow, LedgerTable, SectionHead, Sheet, StatusBlock } from "@/components/workspace/ledger";
 
 
-const fieldCls = "w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm focus:border-forest focus:outline-none disabled:bg-paper disabled:text-muted";
+const fieldCls = "min-h-11 w-full border border-line bg-surface px-3 py-2 text-sm focus:border-forest focus:outline-none disabled:bg-paper disabled:text-muted";
+// A link in the queue's ruled list (calendar, suppliers, register): one ruled row each, 44px or more.
+const queueLink = "flex min-h-11 items-center justify-between gap-2 px-3 py-2 text-sm font-semibold text-forest hover:bg-ochre-soft focus-visible:outline focus-visible:outline-4 focus-visible:-outline-offset-4 focus-visible:outline-forest";
 const lowerFirst = (s: string) => s[0].toLowerCase() + s.slice(1);
 
 const ISSUE_FOOTNOTE =
@@ -143,9 +145,9 @@ function RequisitionForm({ p, editable, update }: { p: Procurement; editable: bo
     });
   const line = lineOf(p);
   return (
-    <div className="border-b border-line bg-paper/60 px-5 py-5">
+    <div className="border-b border-line px-5 py-5 font-ledger">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <p className="text-sm font-semibold">Requisition details</p>
+        <p className="border-s-[6px] border-ochre ps-2 text-lg font-bold leading-tight text-ink">Requisition details</p>
         <p className="text-xs text-muted">{editable ? "Fill in here. The requisition document is generated from these fields." : "Filled in by the budget holder."}</p>
       </div>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -200,9 +202,13 @@ function RequisitionForm({ p, editable, update }: { p: Procurement; editable: bo
           <input id="rq-place" disabled={!editable} value={p.place} onChange={(e) => set({ place: e.target.value })} className={`mt-1 ${fieldCls}`} />
         </label>
         {p.plan ? (
-          <p className="flex items-end pb-2 text-sm text-muted">From procurement calendar {p.plan.key}</p>
+          <p className="flex items-end pb-2 text-sm text-muted">
+            <span>
+              From procurement calendar <span className="font-mono">{p.plan.key}</span>
+            </span>
+          </p>
         ) : (
-          <label className="flex items-end gap-2 pb-2 text-sm">
+          <label className="flex min-h-11 items-end gap-2 pb-2 text-sm">
             <input id="rq-urgent" type="checkbox" disabled={!editable} checked={p.urgent} onChange={(e) => set({ urgent: e.target.checked })} className="h-4 w-4 accent-[var(--forest)]" />
             Urgent (not in the procurement plan)
           </label>
@@ -230,12 +236,12 @@ function RequisitionForm({ p, editable, update }: { p: Procurement; editable: bo
           />
         </label>
       </div>
-      <p className="mt-3 text-sm text-muted">
-        Estimated total <span className="font-semibold text-ink tabular-nums">{money(valueOf(p))}</span> · {levelFor(valueOf(p))} level
+      <p className="mt-4 border-t border-ink pt-2 text-sm text-muted">
+        Estimated total <Fig strong className="text-ink">{money(valueOf(p))}</Fig> · {levelFor(valueOf(p))} level
         {line && (
           <>
             {" "}
-            · {money(line.remainingValue)} left on {line.code}
+            · <Fig>{money(line.remainingValue)}</Fig> left on <span className="font-mono">{line.code}</span>
           </>
         )}
       </p>
@@ -320,68 +326,77 @@ function NewRequest({ onCancel, onCreate, from, grant }: { onCancel: () => void;
       }}
       className="mx-auto max-w-2xl space-y-6"
     >
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-warn">
+      <header className="font-ledger">
+        <p className="font-mono text-xs uppercase tracking-[0.12em] text-warn">
           {item ? `Procurement request · ${item.key}` : "New request"}
           {grant ? ` · for grant ${grant.id}, ${grant.business}` : ""}
         </p>
-        <h2 className="mt-2 font-display text-3xl tracking-tight">{item ? "Check and complete the request" : "What do you need?"}</h2>
-        <p className="mt-1 text-sm text-muted">
+        <h2 className="mt-1 text-4xl font-bold leading-none tracking-tight text-ink">{item ? "Check and complete the request" : "What do you need?"}</h2>
+        <p className="mt-2 max-w-3xl text-sm text-muted">
           {item
             ? "Filled in from the approved procurement calendar. Check every field, add the specification and where it is delivered, then create it. You will review the generated document and sign it in the next steps."
             : "This starts the purchase requisition. You will finish it, review the generated document and sign it in the next steps."}
         </p>
-      </div>
+        <DoubleRule className="mt-4" />
+      </header>
       {item && from && (
-        <section className="rounded-2xl border border-line bg-surface p-4 text-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">From the plan</p>
-          <dl className="mt-2 grid gap-x-4 gap-y-1.5 sm:grid-cols-[9rem_1fr]">
-            <dt className="text-muted">Budget line</dt>
-            <dd>
-              <span className="font-mono text-xs">{item.budgetCode}</span> {from.line?.description ?? item.title}
-              {from.line && (
-                <span className="block text-xs text-muted">
-                  {from.line.quantity !== null ? `${from.line.quantity} ${from.line.unit ?? ""} · ` : ""}
-                  {from.line.spent ? "partly spent · " : ""}
-                  {item.value.toLocaleString("en-US")} {item.currency} left
-                </span>
-              )}
-            </dd>
+        <section className="text-sm">
+          <SectionHead className="mt-0">From the plan</SectionHead>
+          <dl className="mt-3 border-t border-ink font-ledger [&>div:last-child]:border-ink">
+            <div className="grid gap-x-4 gap-y-0.5 border-b border-line px-3 py-2.5 sm:grid-cols-[9rem_1fr]">
+              <dt className="text-muted">Budget line</dt>
+              <dd>
+                <span className="font-mono text-xs">{item.budgetCode}</span> {from.line?.description ?? item.title}
+                {from.line && (
+                  <span className="block font-mono text-xs tabular-nums text-muted">
+                    {from.line.quantity !== null ? `${from.line.quantity} ${from.line.unit ?? ""} · ` : ""}
+                    {from.line.spent ? "partly spent · " : ""}
+                    {item.value.toLocaleString("en-US")} {item.currency} left
+                  </span>
+                )}
+              </dd>
+            </div>
             {from.line?.activity && (
-              <>
+              <div className="grid gap-x-4 gap-y-0.5 border-b border-line px-3 py-2.5 sm:grid-cols-[9rem_1fr]">
                 <dt className="text-muted">Activity</dt>
                 <dd>
-                  {from.line.activityCode} {from.line.activity}
+                  <span className="font-mono text-xs">{from.line.activityCode}</span> {from.line.activity}
                 </dd>
-              </>
+              </div>
             )}
             {from.wp && (
-              <>
+              <div className="grid gap-x-4 gap-y-0.5 border-b border-line px-3 py-2.5 sm:grid-cols-[9rem_1fr]">
                 <dt className="text-muted">Workplan</dt>
                 <dd>
                   <span className="font-mono text-xs">{from.wp.code}</span> {from.wp.title}
                   {from.wp.indicator && <span className="block text-xs text-muted">{from.wp.indicator}</span>}
                 </dd>
-              </>
+              </div>
             )}
-            <dt className="text-muted">How it is bought</dt>
-            <dd>
-              {/* The method follows this request's value; the calendar's estimate may have been for more. */}
-              {(() => {
-                const lvl = value > 0 ? levelFor(value) : item.level;
-                return (
-                  <>
-                    {METHOD[lvl].title} <span className="text-xs text-muted">({lvl}{lvl !== item.level ? `; the calendar estimated ${item.level}` : ""})</span>
-                  </>
-                );
-              })()}
-            </dd>
-            <dt className="text-muted">Needed by</dt>
-            <dd>
-              {date(item.neededBy, { day: "numeric", month: "short", year: "numeric" })} <span className="text-xs text-muted">{item.neededWhy}</span>
-            </dd>
-            <dt className="text-muted">Approved by</dt>
-            <dd>{[item.approvals.manager, item.approvals.lead].filter(Boolean).map((a) => a!.name + (a!.for ? ` for ${a!.for}` : "")).join(" and ")}</dd>
+            <div className="grid gap-x-4 gap-y-0.5 border-b border-line px-3 py-2.5 sm:grid-cols-[9rem_1fr]">
+              <dt className="text-muted">How it is bought</dt>
+              <dd>
+                {/* The method follows this request's value; the calendar's estimate may have been for more. */}
+                {(() => {
+                  const lvl = value > 0 ? levelFor(value) : item.level;
+                  return (
+                    <>
+                      {METHOD[lvl].title} <span className="text-xs text-muted">({lvl}{lvl !== item.level ? `; the calendar estimated ${item.level}` : ""})</span>
+                    </>
+                  );
+                })()}
+              </dd>
+            </div>
+            <div className="grid gap-x-4 gap-y-0.5 border-b border-line px-3 py-2.5 sm:grid-cols-[9rem_1fr]">
+              <dt className="text-muted">Needed by</dt>
+              <dd>
+                <span className="font-mono tabular-nums">{date(item.neededBy, { day: "numeric", month: "short", year: "numeric" })}</span> <span className="text-xs text-muted">{item.neededWhy}</span>
+              </dd>
+            </div>
+            <div className="grid gap-x-4 gap-y-0.5 border-b border-line px-3 py-2.5 sm:grid-cols-[9rem_1fr]">
+              <dt className="text-muted">Approved by</dt>
+              <dd>{[item.approvals.manager, item.approvals.lead].filter(Boolean).map((a) => a!.name + (a!.for ? ` for ${a!.for}` : "")).join(" and ")}</dd>
+            </div>
           </dl>
         </section>
       )}
@@ -434,30 +449,26 @@ function NewRequest({ onCancel, onCreate, from, grant }: { onCancel: () => void;
           <input id="nr-date" type="date" value={neededBy} onChange={(e) => setNeededBy(e.target.value)} className={`mt-1 ${fieldCls}`} />
         </label>
         {!item && (
-          <label className="flex items-center gap-2 text-sm sm:col-span-2">
+          <label className="flex min-h-11 items-center gap-2 text-sm sm:col-span-2">
             <input id="nr-urgent" type="checkbox" checked={urgent} onChange={(e) => setUrgent(e.target.checked)} className="h-4 w-4 accent-[var(--forest)]" />
             Urgent (not in the procurement plan)
           </label>
         )}
       </div>
-      <div className="grid gap-px overflow-hidden rounded-xl border border-line bg-line sm:grid-cols-3">
-        {[
-          ["Estimated value", money(value)],
-          ["Level", value > 0 ? levelFor(value) : "—"],
-          ["Left on line", money(bl.remainingValue)],
-        ].map(([k, v]) => (
-          <div key={k} className="bg-surface px-4 py-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted">{k}</p>
-            <p className={`mt-1 font-semibold text-xl tabular-nums ${k === "Left on line" && value > bl.remainingValue ? "text-clay" : ""}`}>{v}</p>
-          </div>
-        ))}
-      </div>
-      <div className="flex gap-3">
-        <button type="submit" disabled={!valid} className={primaryBtn}>
+      <Figures
+        className="mt-0"
+        items={[
+          { label: "Estimated value", value: money(value) },
+          { label: "Level", value: value > 0 ? levelFor(value) : "—" },
+          { label: "Left on line", value: money(bl.remainingValue), tone: value > bl.remainingValue ? "clay" : undefined },
+        ]}
+      />
+      <div className="flex flex-wrap gap-3">
+        <button type="submit" disabled={!valid} className={`${primaryBtn} min-h-11`}>
           Create request
         </button>
         {item && !valid && <span className="self-center text-xs text-muted">Add the specification and delivery place to continue.</span>}
-        <button type="button" onClick={onCancel} className="rounded-full px-4 py-3 text-sm text-muted hover:text-ink">
+        <button type="button" onClick={onCancel} className="min-h-11 rounded-sm px-4 py-3 text-sm text-muted hover:text-ink">
           Cancel
         </button>
       </div>
@@ -521,6 +532,10 @@ function Detail({
   const blocks = blockingIssues(p);
   const docs = documentsOf(p);
   const reviewed = !!p.checks[reviewKey(p)];
+  // The step's checks with their state, and the first one still to do (the shaded row); the document review comes last.
+  const checkRows = p.step === DONE ? [] : (step?.checks ?? []).map((c) => ({ c, s: checkState(p, c, money) }));
+  const firstOpen = checkRows.findIndex((x) => !x.s.ok);
+  const goldRow = firstOpen >= 0 ? firstOpen : step?.signs && !reviewed ? checkRows.length : -1;
 
   const log = (q: Procurement, what: string): Procurement => ({ ...q, timeline: [...q.timeline, { date: today(), who: role ?? "procurement", what, ...(user ? { by: user.name } : {}) }] });
 
@@ -534,55 +549,76 @@ function Detail({
     <div className="space-y-6">
       <BackLink onClick={onBack} />
 
-      <div>
+      <header className="font-ledger">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-mono text-xs text-muted">{p.id}</span>
+          <span className="font-mono text-xs text-ink">{p.id}</span>
           <Pill tone="muted">{levelText(levelFor(value))}</Pill>
           {p.urgent && <Pill tone="clay">Urgent</Pill>}
           {p.feeds && <Pill tone="sky">Feeds field inputs</Pill>}
           {p.grant && links && (
-            <Link href={`/work/grants?project=${encodeURIComponent(links.project)}&open=${p.grant}`} className="text-xs font-semibold text-forest hover:underline">
-              For grant {p.grant}
+            <Link href={`/work/grants?project=${encodeURIComponent(links.project)}&open=${p.grant}`} className="inline-flex min-h-11 items-center text-xs font-semibold text-forest hover:underline">
+              For grant <span className="ms-1 font-mono">{p.grant}</span>
             </Link>
           )}
         </div>
-        <h2 className="mt-2 font-display text-3xl leading-tight tracking-tight">{p.title}</h2>
+        <div className="mt-1 flex flex-wrap items-end gap-x-4 gap-y-2">
+          <h2 className="min-w-0 flex-1 text-4xl font-bold leading-none tracking-tight text-ink">{p.title}</h2>
+          <p className="font-mono text-sm font-bold tabular-nums text-ink">{money(orderUsd(p))}</p>
+        </div>
         {links?.activity && (
-          <Link href={activityHref(links.project, links.activity.code)} className="mt-1 block text-sm text-forest hover:underline">
-            For {links.activity.code} {links.activity.title.slice(0, 80)}
+          <Link href={activityHref(links.project, links.activity.code)} className="mt-1 flex min-h-11 items-center text-sm text-forest hover:underline">
+            <span>
+              For <span className="font-mono">{links.activity.code}</span> {links.activity.title.slice(0, 80)}
+            </span>
           </Link>
         )}
-        <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-4">
-          {[
-            ["Quantity", `${p.qty.toLocaleString("en-US")} ${p.unit}`],
-            // Once a quotation is chosen or a contract signed, that is the value; the estimate stays beside it.
-            orderUsd(p) !== value ? ["Order value", `${money(orderUsd(p))} (estimate ${money(value)})`] : ["Value", money(value)],
-            ["Budget line", line ? `${line.code} ${line.name}` : p.budgetLine],
-            ["Needed by", p.neededBy],
-          ].map(([k, v]) => (
-            <div key={k} className="min-w-0">
-              <dt className="text-xs font-semibold uppercase tracking-wide text-muted">{k}</dt>
-              <dd className="mt-0.5 truncate tabular-nums">{v}</dd>
+        <DoubleRule className="mt-3" />
+        <dl className="text-sm [&>div:last-child]:border-ink">
+          {(
+            [
+              ["Quantity", <span key="v" className="font-mono tabular-nums">{`${p.qty.toLocaleString("en-US")} ${p.unit}`}</span>],
+              // Once a quotation is chosen or a contract signed, that is the value; the estimate stays beside it.
+              orderUsd(p) !== value
+                ? ["Order value", <span key="v" className="font-mono tabular-nums">{`${money(orderUsd(p))} (estimate ${money(value)})`}</span>]
+                : ["Value", <span key="v" className="font-mono tabular-nums">{money(value)}</span>],
+              [
+                "Budget line",
+                line ? (
+                  <span key="v">
+                    <span className="font-mono">{line.code}</span> {line.name}
+                  </span>
+                ) : (
+                  <span key="v" className="font-mono">{p.budgetLine}</span>
+                ),
+              ],
+              ["Needed by", <span key="v" className="font-mono tabular-nums">{p.neededBy}</span>],
+              ...(p.supplier ? [["Supplier", p.supplier.name]] : []),
+            ] as [string, React.ReactNode][]
+          ).map(([k, v]) => (
+            <div key={k} className="grid min-h-11 grid-cols-[7.5rem_minmax(0,1fr)] items-baseline gap-x-3 border-b border-line px-3 py-2 sm:grid-cols-[9rem_minmax(0,1fr)]">
+              <dt className="text-muted">{k}</dt>
+              <dd className="min-w-0 break-words">{v}</dd>
             </div>
           ))}
         </dl>
-        {p.supplier && <p className="mt-3 text-sm text-muted">Supplier: {p.supplier.name}</p>}
-      </div>
+      </header>
 
-      <div className="rounded-2xl border border-line bg-surface px-4 py-4">
+      <div className="border-b border-line px-1 py-4">
         <Tracker labels={stageLabels} current={p.step === DONE ? stages.length : step.stage} skipped={stages.map((_, i) => i).filter((i) => !stepsFor(p).some((s) => s.stage === i))} />
       </div>
 
       {p.step === DONE ? (
-        <div className="rounded-2xl border border-forest/30 bg-mist p-6">
-          <p className="font-display text-2xl text-forest">Closed</p>
-          <p className="mt-1 text-sm text-muted">The file is complete and every document carries {p.id}.</p>
-        </div>
+        <Sheet className="mt-0 font-ledger">
+          <StatusBlock tone="forest">Closed</StatusBlock>
+          <p className="mt-2 text-sm text-muted">
+            The file is complete and every document carries <span className="font-mono">{p.id}</span>.
+          </p>
+        </Sheet>
       ) : (
         <>
-          {checkedBySelf && <p className="rounded-xl bg-ochre-soft px-4 py-3 text-sm text-warn">You checked this payment, so another Finance person verifies it.</p>}
+          {checkedBySelf && <p className="bg-ochre-soft px-4 py-3 text-sm text-warn">You checked this payment, so another Finance person verifies it.</p>}
           {needsOther && (
-            <p className="rounded-xl bg-ochre-soft px-4 py-3 text-sm text-warn">
+            <p className="bg-ochre-soft px-4 py-3 text-sm text-warn">
               This signature needs the {ROLE_LABEL[needsOther].toLowerCase()} ({holdersOfType(needsOther).map((id) => userById(id)?.name ?? id).join(" or ") || "nobody named in the authority table"}):{" "}
               {needsOther === "ceo" ? "large awards and every sole source go to the executive head." : "it is outside your role."}
             </p>
@@ -606,7 +642,7 @@ function Detail({
                     {ownApproval && !mayOwn ? (
                       <p className="text-sm text-warn">The person who requested a purchase cannot approve it, so someone else signs here.{ownBarred && solo ? ` ${ownBarred}` : ""}</p>
                     ) : (
-                      <button type="button" disabled={!isReady} onClick={() => (mayOwn ? setSelfing(true) : complete())} className={primaryBtn}>
+                      <button type="button" disabled={!isReady} onClick={() => (mayOwn ? setSelfing(true) : complete())} className={`${primaryBtn} min-h-11`}>
                         {step.signs && !/\bsign\b/i.test(actionFor(p, step)) ? `Sign and ${lowerFirst(actionFor(p, step))}` : actionFor(p, step)} <Arrow />
                       </button>
                     )}
@@ -621,12 +657,12 @@ function Detail({
                       />
                     )}
                     {step.canReturn && !returning && (
-                      <button type="button" onClick={() => setReturning(true)} className="rounded-full border border-line px-4 py-3 text-sm font-medium hover:border-clay hover:text-clay">
+                      <button type="button" onClick={() => setReturning(true)} className="min-h-11 rounded-sm border border-line px-4 py-3 text-sm font-medium hover:border-clay hover:text-clay">
                         Return with comments
                       </button>
                     )}
                     {raising === null && (
-                      <button type="button" onClick={() => setRaising("")} className="rounded-full px-2 py-2 text-sm font-medium text-muted hover:text-ink sm:px-4 sm:py-3">
+                      <button type="button" onClick={() => setRaising("")} className="min-h-11 rounded-sm px-2 py-2 text-sm font-medium text-muted hover:text-ink sm:px-4 sm:py-3">
                         + Raise issue
                       </button>
                     )}
@@ -651,12 +687,12 @@ function Detail({
                         value={returnNote}
                         onChange={(e) => setReturnNote(e.target.value)}
                         placeholder="What needs to change?"
-                        className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm focus:border-clay focus:outline-none"
+                        className="min-h-11 min-w-0 flex-1 border border-line bg-surface px-3 py-2 text-sm focus:border-clay focus:outline-none"
                       />
-                      <button type="submit" className="rounded-full bg-clay px-4 py-2 text-sm font-medium text-white">
+                      <button type="submit" className="min-h-11 rounded-sm bg-clay px-4 py-2 text-sm font-medium text-white">
                         Return
                       </button>
-                      <button type="button" onClick={() => setReturning(false)} className="px-2 text-sm text-muted">
+                      <button type="button" onClick={() => setReturning(false)} className="min-h-11 px-2 text-sm text-muted">
                         Cancel
                       </button>
                     </form>
@@ -708,63 +744,69 @@ function Detail({
             <VoucherPanel p={p} editable={mine} update={update} coding={coding} preparedByMe={!!user && (p.signatures["Expense voucher"] ?? []).some((x) => x.as === "Prepared and entered by (finance)" && x.name === user.name)} />
           )}
           {step.checks.some((c) => c.ai) && <AiCheck p={p} editable={mine} onCheck={onCheck} />}
-          <ul className="divide-y divide-line px-5">
-            {step.checks.map((c) => {
-              const s = checkState(p, c, money);
-              return (
-                <CheckRow
-                  key={c.id}
-                  c={{
-                    key: `${p.id}-${p.step}-${c.id}`,
-                    label: c.label,
-                    why: c.why,
-                    tag: c.tag,
-                    ...s,
-                    findings: c.ai ? p.ai?.[p.step] : undefined,
-                    fix: c.fix,
-                    resolve: c.resolve,
-                  }}
-                  canEdit={mine}
-                  onToggle={() => update((q) => ({ ...q, checks: { ...q.checks, [`${q.step}.${c.id}`]: !q.checks[`${q.step}.${c.id}`] } }))}
-                  onRaise={(note) => setRaising(note)}
-                  onResolve={async () => {
-                    // Overriding an automatic check always says why, and where any memo is filed.
-                    const why = await askReason({
-                      message: `${c.resolve}. Say why, and paste the ${storeNames()} link to the memo if there is one.`,
-                      placeholder: "e.g. Only two suppliers sell this in the district. Memo: https://rootsofpeace.sharepoint.com/...",
-                      confirm: c.resolve!,
-                      min: 10,
-                    });
-                    if (!why) return;
-                    update((q) =>
-                      log(
-                        { ...q, checks: { ...q.checks, [`fix.${q.step}.${c.id}`]: true }, overrides: { ...q.overrides, [`fix.${q.step}.${c.id}`]: { why, by: user?.name ?? "", date: today() } } },
-                        `${c.resolve}: ${why}`,
-                      ),
-                    );
-                  }}
-                />
-              );
-            })}
-            {step.signs && (
-              <li className="flex items-start gap-3 py-3">
-                <span className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full text-xs font-bold text-white ${reviewed ? "bg-leaf" : "bg-line"}`}>{reviewed ? "✓" : ""}</span>
-                <div className="min-w-0 flex-1">
-                  <p className="leading-snug">Review the generated {step.signs.doc.toLowerCase()}</p>
-                  <p className="mt-0.5 text-sm text-muted">
-                    {reviewed ? `Reviewed. You sign as “${step.signs.as}” when you continue.` : `You sign it as “${step.signs.as}” when you continue.`}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setViewing({ doc: step.signs!.doc, confirm: mine })}
-                  className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-semibold transition ${reviewed || !mine ? "border border-line hover:border-forest hover:text-forest" : "bg-forest text-forest-ink"}`}
-                >
-                  {reviewed || !mine ? "Open" : "Review document"}
-                </button>
-              </li>
-            )}
-          </ul>
+          {(checkRows.length > 0 || step.signs) && (
+            <LedgerTable className="mt-0 px-2 py-3 sm:px-3" cols="minmax(0,1fr)" head={["What this step needs"]} label={`${step.title}: checks`}>
+              {checkRows.map(({ c, s }, i) => (
+                <LedgerRow key={c.id} cols="minmax(0,1fr)" n={i + 1} first={i === goldRow} className="[&>ul>li]:py-0">
+                  <ul className="min-w-0">
+                    <CheckRow
+                      key={c.id}
+                      c={{
+                        key: `${p.id}-${p.step}-${c.id}`,
+                        label: c.label,
+                        why: c.why,
+                        tag: c.tag,
+                        ...s,
+                        findings: c.ai ? p.ai?.[p.step] : undefined,
+                        fix: c.fix,
+                        resolve: c.resolve,
+                      }}
+                      canEdit={mine}
+                      onToggle={() => update((q) => ({ ...q, checks: { ...q.checks, [`${q.step}.${c.id}`]: !q.checks[`${q.step}.${c.id}`] } }))}
+                      onRaise={(note) => setRaising(note)}
+                      onResolve={async () => {
+                        // Overriding an automatic check always says why, and where any memo is filed.
+                        const why = await askReason({
+                          message: `${c.resolve}. Say why, and paste the ${storeNames()} link to the memo if there is one.`,
+                          placeholder: "e.g. Only two suppliers sell this in the district. Memo: https://rootsofpeace.sharepoint.com/...",
+                          confirm: c.resolve!,
+                          min: 10,
+                        });
+                        if (!why) return;
+                        update((q) =>
+                          log(
+                            { ...q, checks: { ...q.checks, [`fix.${q.step}.${c.id}`]: true }, overrides: { ...q.overrides, [`fix.${q.step}.${c.id}`]: { why, by: user?.name ?? "", date: today() } } },
+                            `${c.resolve}: ${why}`,
+                          ),
+                        );
+                      }}
+                    />
+                  </ul>
+                </LedgerRow>
+              ))}
+              {step.signs && (
+                <LedgerRow cols="minmax(0,1fr)" n={checkRows.length + 1} first={goldRow === checkRows.length}>
+                  <div className="flex flex-wrap items-start gap-3">
+                    <span className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center text-xs font-bold text-white ${reviewed ? "bg-leaf" : "bg-line"}`}>{reviewed ? "✓" : ""}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="leading-snug">Review the generated {step.signs.doc.toLowerCase()}</p>
+                      <p className="mt-0.5 text-sm text-muted">
+                        {reviewed ? `Reviewed. You sign as “${step.signs.as}” when you continue.` : `You sign it as “${step.signs.as}” when you continue.`}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setViewing({ doc: step.signs!.doc, confirm: mine })}
+                      className={`min-h-11 shrink-0 rounded-sm px-4 py-2 text-sm font-semibold transition ${reviewed || !mine ? "border border-line hover:border-forest hover:text-forest" : "bg-forest text-forest-ink"}`}
+                    >
+                      {reviewed || !mine ? "Open" : "Review document"}
+                    </button>
+                  </div>
+                </LedgerRow>
+              )}
+            </LedgerTable>
+          )}
+          {goldRow >= 0 && <p className="px-5 pb-3 text-xs text-muted">The shaded row is the first item still to do.</p>}
         </StepCard>
         </>
       )}
@@ -781,27 +823,24 @@ function Detail({
       <PaymentsList p={p} canFinance={!!user && procRolesFor(user).includes("finance")} update={update} onView={(r, doc) => setViewing({ doc, confirm: false, paid: r })} />
 
       <div className="grid gap-6 sm:grid-cols-2">
-        <section>
-          <SectionLabel>File · {docs.length} documents</SectionLabel>
+        <section className="min-w-0">
+          <SectionHead className="mt-0" aside={<Fig tone="muted">{docs.length} documents</Fig>}>
+            File
+          </SectionHead>
           {docs.length === 0 ? (
-            <p className="mt-2 text-sm text-muted">Documents appear here as each step completes.</p>
+            <Empty>Documents appear here as each step completes.</Empty>
           ) : (
-            <ul className="mt-2 space-y-1">
-              {docs.map((d) => {
+            <LedgerTable cols="minmax(0,1fr) 4rem" head={["Document", { label: "Signed", end: true }]} label={`File · ${docs.length} documents`}>
+              {docs.map((d, i) => {
                 const signed = p.signatures[d]?.length ?? 0;
                 return (
-                  <li key={d}>
-                    <button type="button" onClick={() => setViewing({ doc: d, confirm: false })} className="flex w-full items-center gap-2 rounded-lg px-1 py-1 text-start text-sm hover:bg-surface">
-                      <span aria-hidden className="grid h-6 w-5 shrink-0 place-items-center rounded-sm border border-line bg-paper text-[8px] text-muted">
-                        ▤
-                      </span>
-                      <span className="min-w-0 flex-1 truncate">{d}</span>
-                      {signed > 0 && <span className="shrink-0 text-xs text-leaf">✍ {signed}</span>}
-                    </button>
-                  </li>
+                  <LedgerRow key={d} cols="minmax(0,1fr) 4rem" n={i + 1} onClick={() => setViewing({ doc: d, confirm: false })} className="text-sm">
+                    <span className="min-w-0 truncate font-medium text-forest">{d}</span>
+                    <Fig tone={signed > 0 ? "forest" : "muted"}>{signed > 0 ? `✍ ${signed}` : ""}</Fig>
+                  </LedgerRow>
                 );
               })}
-            </ul>
+            </LedgerTable>
           )}
           <p className="mt-3 text-xs text-muted">Every document is generated from this record and filed under {p.id}.</p>
           <LinkedDocs p={p} canEdit={!!user && (user.procurementAccess === "edit" || !!user.admin)} add={(l) => update((q) => log({ ...q, links: [...(q.links ?? []), l] }, `Linked ${l.title} from ${storeNames()}`))} by={user?.name ?? ""} />
@@ -934,30 +973,40 @@ export function ProcurementWorkspace() {
       queue={
         <>
           {project.saved && (
-            <div className="mx-4 mt-3 grid gap-2 sm:mx-6">
-              <Link href="/work/plan" className="flex items-center justify-between rounded-xl bg-mist px-3 py-2 text-sm font-semibold text-forest hover:bg-sunken">
-                Procurement calendar
-                <Arrow />
-              </Link>
-              <Link href="/work/suppliers" className="flex items-center justify-between rounded-xl bg-mist px-3 py-2 text-sm font-semibold text-forest hover:bg-sunken">
-                Suppliers
-                <Arrow />
-              </Link>
-              <Link href="/work/register" className="flex items-center justify-between rounded-xl bg-mist px-3 py-2 text-sm font-semibold text-forest hover:bg-sunken">
-                Procurement register and monthly report
-                <Arrow />
-              </Link>
-              <Link href="/work/bills" className="flex items-center justify-between rounded-xl bg-mist px-3 py-2 text-sm font-semibold text-forest hover:bg-sunken">
-                Bills paid directly (rent, utilities, insurance)
-                <Arrow />
-              </Link>
-              {(myRoles.includes("finance") || user.admin) && (
-                <Link href="/work/closeout" className="flex items-center justify-between rounded-xl bg-mist px-3 py-2 text-sm font-semibold text-forest hover:bg-sunken">
-                  Month close
+            <ul className="mx-4 mt-3 border-t border-ink font-ledger sm:mx-6 [&>li:last-child]:border-ink">
+              <li className="border-b border-line">
+                <Link href="/work/plan" className={queueLink}>
+                  Procurement calendar
                   <Arrow />
                 </Link>
+              </li>
+              <li className="border-b border-line">
+                <Link href="/work/suppliers" className={queueLink}>
+                  Suppliers
+                  <Arrow />
+                </Link>
+              </li>
+              <li className="border-b border-line">
+                <Link href="/work/register" className={queueLink}>
+                  Procurement register and monthly report
+                  <Arrow />
+                </Link>
+              </li>
+              <li className="border-b border-line">
+                <Link href="/work/bills" className={queueLink}>
+                  Bills paid directly (rent, utilities, insurance)
+                  <Arrow />
+                </Link>
+              </li>
+              {(myRoles.includes("finance") || user.admin) && (
+                <li className="border-b border-line">
+                  <Link href="/work/closeout" className={queueLink}>
+                    Month close
+                    <Arrow />
+                  </Link>
+                </li>
               )}
-            </div>
+            </ul>
           )}
           <QueueHeader
             title={status === "loading" ? "Loading…" : readOnly || showAll ? "All procurements" : mineList.length ? `${mineList.length} waiting on you` : "Nothing waiting on you"}
@@ -1033,13 +1082,16 @@ export function ProcurementWorkspace() {
       detail={
         creating ? (
           project.saved && !planKey ? (
-            <div className="mx-auto max-w-xl py-16 text-center text-sm">
-              <p className="font-display text-2xl">Start from the procurement calendar</p>
-              <p className="mt-2 text-muted">On this project every request charges an approved calendar item, so it carries the real budget line and the money left on it.</p>
-              <Link href="/work/plan" className="mt-4 inline-block rounded-full bg-forest px-4 py-2 font-semibold text-paper">
+            <div className="mx-auto max-w-xl py-16 text-sm">
+              <header className="font-ledger">
+                <h2 className="text-3xl font-bold leading-none tracking-tight text-ink">Start from the procurement calendar</h2>
+                <p className="mt-2 text-muted">On this project every request charges an approved calendar item, so it carries the real budget line and the money left on it.</p>
+                <DoubleRule className="mt-4" />
+              </header>
+              <Link href="/work/plan" className={`${primaryBtn} mt-4 inline-flex min-h-11 items-center`}>
                 Open the procurement calendar
               </Link>
-              <Link href="/work/plan?ask=1" className="mt-6 block font-semibold text-forest hover:underline">
+              <Link href="/work/plan?ask=1" className="mt-4 flex min-h-11 items-center border-y border-line px-1 font-semibold text-forest hover:bg-ochre-soft">
                 Not on the calendar? Ask for it here
               </Link>
               <p className="mt-1 text-xs text-muted">Unplanned or urgent purchases go on the calendar marked as not planned, and are approved the same way before the request starts.</p>
@@ -1093,7 +1145,7 @@ export function ProcurementWorkspace() {
         ) : (
           <div className="grid h-full place-items-center py-24 text-center">
             <div>
-              <p className="font-display text-2xl">{status === "loading" ? "Loading…" : "Nothing selected"}</p>
+              <p className="font-ledger text-2xl font-bold text-ink">{status === "loading" ? "Loading…" : "Nothing selected"}</p>
               {status !== "loading" && <p className="mt-1 text-sm text-muted">Pick a procurement from the list, or start a new request.</p>}
             </div>
           </div>
@@ -1115,17 +1167,21 @@ function LinkedDocs({ p, canEdit, add, by }: { p: Procurement; canEdit: boolean;
   const isLink = (u: string) => isFileLink(u, fileStores.now);
   const ok = title.trim().length >= 2 && isLink(url);
   return (
-    <div className="mt-4">
-      <SectionLabel>Linked from {names} · {links.length}</SectionLabel>
+    <div className="mt-8">
+      <SectionHead className="mt-0" aside={<Fig tone="muted">{links.length}</Fig>}>
+        Linked from {names}
+      </SectionHead>
       {links.length > 0 && (
-        <ul className="mt-2 space-y-1">
+        <ul className="mt-3 border-t border-ink [&>li:last-child]:border-ink">
           {links.map((l) => (
-            <li key={l.url} className="text-sm">
-              <a href={l.url} target="_blank" rel="noopener noreferrer" className="font-semibold text-forest hover:underline">
-                {l.title} <span aria-hidden>↗</span>
+            <li key={l.url} className="border-b border-line px-3 py-2 text-sm">
+              <a href={l.url} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center font-semibold text-forest hover:underline">
+                <span>
+                  {l.title} <span aria-hidden>↗</span>
+                </span>
               </a>
               <span className="block text-xs text-muted">
-                {stepById[l.step]?.title ?? l.step} · {l.by}, {l.date}
+                {stepById[l.step]?.title ?? l.step} · {l.by}, <span className="font-mono tabular-nums">{l.date}</span>
               </span>
             </li>
           ))}
@@ -1133,15 +1189,15 @@ function LinkedDocs({ p, canEdit, add, by }: { p: Procurement; canEdit: boolean;
       )}
       {canEdit &&
         (open ? (
-          <div className="mt-2 space-y-2 rounded-xl border border-line bg-surface p-3 text-sm">
-            <input className="w-full rounded-lg border border-line bg-paper px-3 py-2" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What it is: signed bid from Vision Supply" aria-label="Document title" />
-            <input className="w-full rounded-lg border border-line bg-paper px-3 py-2" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" aria-label={`Link to the file in ${names}`} inputMode="url" />
+          <Sheet className="mt-3 space-y-2 text-sm">
+            <input className="min-h-11 w-full border border-line bg-paper px-3 py-2" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What it is: signed bid from Vision Supply" aria-label="Document title" />
+            <input className="min-h-11 w-full border border-line bg-paper px-3 py-2" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" aria-label={`Link to the file in ${names}`} inputMode="url" />
             {url && !isLink(url) && <p className="text-xs text-clay">That is not a link to {names}: open the file there and copy its link.</p>}
             <AnyLinkCaution />
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                className={primaryBtn}
+                className={`${primaryBtn} min-h-11`}
                 disabled={!ok}
                 onClick={() => {
                   add({ title: title.trim(), url: url.trim(), step: p.step, by, date: today() });
@@ -1152,13 +1208,13 @@ function LinkedDocs({ p, canEdit, add, by }: { p: Procurement; canEdit: boolean;
               >
                 Link document
               </button>
-              <button type="button" className={quietBtn} onClick={() => setOpen(false)}>
+              <button type="button" className={`${quietBtn} min-h-11`} onClick={() => setOpen(false)}>
                 Cancel
               </button>
             </div>
-          </div>
+          </Sheet>
         ) : (
-          <button type="button" className="mt-2 text-sm font-semibold text-forest hover:underline" onClick={() => setOpen(true)}>
+          <button type="button" className="mt-2 min-h-11 text-sm font-semibold text-forest hover:underline" onClick={() => setOpen(true)}>
             + Link a document in {names}
           </button>
         ))}

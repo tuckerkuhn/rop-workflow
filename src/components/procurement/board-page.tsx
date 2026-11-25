@@ -7,6 +7,7 @@ import { useT } from "@/components/app/i18n";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { Board, cardClass } from "@/components/workspace/board";
 import { Pill, TopBar, usePersistentState } from "@/components/workspace/ui";
+import { Empty, PageHead } from "@/components/workspace/ledger";
 import { STUCK_DAYS, isStuck, procurementColumns, type ProcCard } from "@/lib/boards";
 import { realToday } from "@/lib/clock";
 import { daysSince } from "@/lib/grants";
@@ -71,25 +72,26 @@ export function ProcurementBoardPage() {
       {/* The organization's view across projects: not this project's Procurement tab. */}
       <TopBar />
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
-        <Link href="/organization" className="text-sm text-muted hover:text-ink">
-          ← {t("nav.organization")}
-        </Link>
-        <div className="mt-2 flex flex-wrap items-end gap-3">
-          <h1 className="min-w-0 flex-1 font-display text-4xl tracking-tight">{t("bd.proc.title")}</h1>
-          <label className="flex min-h-12 items-center gap-2 text-sm">
-            <input type="checkbox" className="h-5 w-5" checked={medium} onChange={(e) => setMedium(e.target.checked)} />
-            {t("bd.proc.medium")}
-          </label>
-        </div>
-        {data && <p className="mt-2 text-sm text-muted">{t("bd.proc.help", { limit: `$${data.limit.toLocaleString("en-US")}`, days: STUCK_DAYS })}</p>}
-        <p className="mt-1 text-xs text-muted">{t("bd.help")}</p>
+        <PageHead
+          back={{ href: "/organization", label: t("nav.organization") }}
+          title={t("bd.proc.title")}
+          actions={
+            <label className="flex min-h-12 items-center gap-2 font-mono text-xs">
+              <input type="checkbox" className="h-5 w-5 accent-forest" checked={medium} onChange={(e) => setMedium(e.target.checked)} />
+              {t("bd.proc.medium")}
+            </label>
+          }
+        >
+          {data && <span className="block">{t("bd.proc.help", { limit: `$${data.limit.toLocaleString("en-US")}`, days: STUCK_DAYS })}</span>}
+          <span className="mt-1 block text-xs">{t("bd.help")}</span>
+        </PageHead>
         {error && (
-          <p role="alert" className="mt-4 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">
+          <p role="alert" className="mt-4 bg-clay-soft px-4 py-3 text-sm text-clay">
             {error}
           </p>
         )}
         {!data && !error && <p className="mt-6 text-sm text-muted">{t("bd.loading")}</p>}
-        {data && data.cards.length === 0 && <p className="mt-6 text-sm text-muted">{t("bd.proc.none")}</p>}
+        {data && data.cards.length === 0 && <Empty className="mt-6">{t("bd.proc.none")}</Empty>}
         {data && data.cards.length > 0 && <Board columns={columns} label={t("bd.proc.title")} />}
       </main>
     </div>

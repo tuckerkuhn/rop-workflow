@@ -103,7 +103,8 @@ export function LedgerTable({ cols, head, children, label, className = "mt-3" }:
  * One ruled row. `n` numbers it (01, 02…); `first` gives it the gold wash (the one row to look at
  * first, one per table); `href` or `onClick` makes the whole row the target.
  */
-export function LedgerRow({ cols, n, first, href, onClick, selected, children, className = "" }: { cols: string; n?: number; first?: boolean; href?: string; onClick?: () => void; selected?: boolean; children: React.ReactNode; className?: string }) {
+export function LedgerRow({ cols, n, first, href, onClick, selected, current, expanded, children, className = "" }: { cols: string; n?: number; first?: boolean; href?: string; onClick?: () => void; selected?: boolean; /** The row open beside the list: told to screen readers too. */ current?: boolean; expanded?: boolean; children: React.ReactNode; className?: string }) {
+  const aria = { ...(current ? { "aria-current": "true" as const } : {}), ...(expanded !== undefined ? { "aria-expanded": expanded } : {}) };
   const cls = `grid min-h-12 items-start gap-x-3 gap-y-1 border-b px-3 py-2.5 text-start ${first ? "border-ink bg-ochre-soft" : "border-line"} ${selected ? "outline outline-2 -outline-offset-2 outline-forest" : ""} ${href || onClick ? `w-full hover:bg-ochre-soft ${focus}` : ""} ${className}`;
   const style = { gridTemplateColumns: n === undefined ? cols : `2.25rem ${cols}` };
   const num = n !== undefined && (
@@ -113,20 +114,20 @@ export function LedgerRow({ cols, n, first, href, onClick, selected, children, c
   );
   if (href)
     return (
-      <Link role="row" href={href} className={cls} style={style}>
+      <Link role="row" href={href} className={cls} style={style} {...aria}>
         {num}
         {children}
       </Link>
     );
   if (onClick)
     return (
-      <button type="button" role="row" onClick={onClick} className={cls} style={style}>
+      <button type="button" role="row" onClick={onClick} className={cls} style={style} {...aria}>
         {num}
         {children}
       </button>
     );
   return (
-    <div role="row" className={cls} style={style}>
+    <div role="row" className={cls} style={style} {...aria}>
       {num}
       {children}
     </div>

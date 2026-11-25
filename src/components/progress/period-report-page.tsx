@@ -8,7 +8,8 @@ import { ProofNumber } from "@/components/progress/proof-panel";
 import { useEffect, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser, useSession } from "@/components/app/session";
-import { TopBar, cardLabel, primaryBtn, quietBtn, StatusPill } from "@/components/workspace/ui";
+import { TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
+import { Empty, Fig, Figures, LedgerRow, LedgerTable, PageHead, SectionHead, StatusBlock } from "@/components/workspace/ledger";
 import { periodLabel, type Period } from "@/lib/period-report";
 import { YOUTH } from "@/lib/results";
 import type { PeriodReportView } from "@/server/period-report-store";
@@ -77,6 +78,9 @@ export function PeriodReportPage() {
   const annual = period.kind === "annual";
   const rows = v ? v.rows.map((r) => indicatorCells(r, v, project.id, user.id)) : [];
   const met = v?.rows.filter((r) => r.verdict === "met").length ?? 0;
+  // The indicator table's columns: the indicator, baseline and target, any parts of the period, achieved, cumulative (annual only), the verdict.
+  const cols = ["minmax(14rem,2fr)", "6rem", "6rem", ...(v?.rows[0]?.parts.map(() => "6rem") ?? []), "7rem", ...(annual ? ["8rem"] : []), "7rem"].join(" ");
+  const people = v ? v.rows.filter((r) => r.women + r.men > 0) : [];
 
   return (
     <div className="min-h-screen">
@@ -85,54 +89,58 @@ export function PeriodReportPage() {
       </div>
       <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 print:max-w-none print:p-0">
         <ReportKinds kind="annual" />
-        <div className="mt-4 flex flex-wrap items-end gap-3">
-          <h1 className="flex-1 font-display text-4xl tracking-tight">{periodLabel(period)}</h1>
-          <div className="flex flex-wrap gap-2 print:hidden">
-            <select
-              aria-label="Report"
-              value={annual ? String(period.year) : "final"}
-              onChange={(e) => setPeriod(e.target.value === "final" ? { kind: "final" } : { kind: "annual", year: Number(e.target.value) })}
-              className="rounded-lg border border-line bg-surface px-3 py-2 text-sm"
-            >
-              {years.map((y) => (
-                <option key={y} value={y}>
-                  Annual {y}
-                </option>
-              ))}
-              <option value="final">Final (whole project)</option>
-            </select>
-            {period.kind === "annual" && <PreflightButton p={pf} report={{ kind: "annual", year: period.year }} className={quietBtn} />}
-            <button type="button" className={primaryBtn} disabled={!v || busy} onClick={() => void download()}>
-              Download Word
-            </button>
-            <button type="button" className={quietBtn} disabled={!v} onClick={() => window.print()}>
-              Save as PDF
-            </button>
-          </div>
+        <div className="mt-5">
+          <PageHead
+            kicker={project.name}
+            title={periodLabel(period)}
+            meta={v ? `${v.range.from} to ${v.range.to}` : undefined}
+            actions={
+              <div className="flex flex-wrap gap-2 print:hidden">
+                <select
+                  aria-label="Report"
+                  value={annual ? String(period.year) : "final"}
+                  onChange={(e) => setPeriod(e.target.value === "final" ? { kind: "final" } : { kind: "annual", year: Number(e.target.value) })}
+                  className="min-h-11 border border-line bg-paper px-3 font-mono text-sm"
+                >
+                  {years.map((y) => (
+                    <option key={y} value={y}>
+                      Annual {y}
+                    </option>
+                  ))}
+                  <option value="final">Final (whole project)</option>
+                </select>
+                {period.kind === "annual" && <PreflightButton p={pf} report={{ kind: "annual", year: period.year }} className={quietBtn} />}
+                <button type="button" className={primaryBtn} disabled={!v || busy} onClick={() => void download()}>
+                  Download Word
+                </button>
+                <button type="button" className={quietBtn} disabled={!v} onClick={() => window.print()}>
+                  Save as PDF
+                </button>
+              </div>
+            }
+          >
+            Figures are from results MEL accepted; each achieved figure opens the records behind it.
+          </PageHead>
         </div>
-        <p className="mt-1 text-sm text-muted">
-          {project.name}
-          {v ? ` · ${v.range.from} to ${v.range.to}` : ""}. Figures are from results MEL accepted; each achieved figure opens the records behind it.
-        </p>
         {annual && <ReportChecks p={pf} />}
-        {error && <p className="mt-4 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">{error}</p>}
+        {error && <p className="mt-4 bg-clay-soft px-4 py-3 text-sm text-clay">{error}</p>}
         {!v && !error && <p className="mt-6 text-sm text-muted">Loading…</p>}
         {v && (
           <>
-            <p className="mt-4 text-lg">
-              {met} of {v.rows.length} targets met {annual ? "for the year" : "for the life of the project"}
+            <p className="mt-5 font-ledger text-lg">
+              <Fig strong>{met}</Fig> of <Fig strong>{v.rows.length}</Fig> targets met {annual ? "for the year" : "for the life of the project"}
               {v.open ? `; ${v.open} ${v.open === 1 ? "result" : "results"} from the period ${v.open === 1 ? "is" : "are"} still waiting for MEL and not counted` : ""}.
             </p>
             {v.changed.length > 0 && (
-              <div id="changed" className="mt-4 scroll-mt-24 rounded-xl border border-clay/40 bg-clay-soft px-4 py-3 text-sm">
+              <div id="changed" className="mt-4 scroll-mt-24 border border-clay/40 bg-clay-soft px-4 py-3 text-sm">
                 <p className="font-semibold text-clay">
                   {v.changed.length === 1 ? "1 figure no longer matches" : `${v.changed.length} figures no longer match`} what a released quarterly report sent the donor
                 </p>
-                <ul className="mt-1 space-y-0.5">
+                <ul className="mt-1 border-t border-clay/40">
                   {v.changed.map((x) => (
-                    <li key={`${x.code}-${x.quarter}`}>
-                      {x.donorCode}, {x.quarter.replace("-", " ")}: {x.then.toLocaleString("en-US")} sent, {x.now.toLocaleString("en-US")} in the records now.{" "}
-                      <Link href={`/progress/results?indicator=${x.code}&q=${x.quarter}`} className="font-semibold text-forest underline">
+                    <li key={`${x.code}-${x.quarter}`} className="border-b border-clay/40 py-1">
+                      <span className="font-mono text-xs">{x.donorCode}</span>, <span className="font-mono text-xs">{x.quarter.replace("-", " ")}</span>: <span className="font-mono tabular-nums">{x.then.toLocaleString("en-US")}</span> sent, <span className="font-mono tabular-nums">{x.now.toLocaleString("en-US")}</span> in the records now.{" "}
+                      <Link href={`/progress/results?indicator=${x.code}&q=${x.quarter}`} className="inline-flex min-h-11 items-center font-semibold text-forest underline">
                         See the records
                       </Link>
                     </li>
@@ -142,34 +150,30 @@ export function PeriodReportPage() {
               </div>
             )}
             {/* Below a medium screen: one block per indicator, stacked, so nothing scrolls sideways on a phone. Print keeps the table. */}
-            <ul aria-label="Indicators" className="mt-4 divide-y divide-line rounded-2xl border border-line bg-surface md:hidden print:hidden">
+            <ul aria-label="Indicators" className="mt-4 divide-y divide-line border-y border-ink md:hidden print:hidden">
               {rows.map((c) => (
                 <IndicatorCard key={c.r.code} c={c} annual={annual} />
               ))}
             </ul>
-            <div className="mt-4 hidden overflow-x-auto rounded-2xl border border-line bg-surface md:block print:block print:overflow-visible">
-              <table className="w-full min-w-[720px] text-sm">
-                <thead className="bg-sunken text-start text-xs text-muted">
-                  <tr>
-                    <th className="px-3 py-2">Indicator</th>
-                    <th className="px-2 py-2 text-end">Baseline</th>
-                    <th className="px-2 py-2 text-end">Target</th>
-                    {v.rows[0]?.parts.map((x) => (
-                      <th key={x.label} className="px-2 py-2 text-end">
-                        {x.label}
-                      </th>
-                    ))}
-                    <th className="px-2 py-2 text-end">Achieved</th>
-                    {annual && <th className="px-2 py-2 text-end">Cumulative / life</th>}
-                    <th className="px-3 py-2" />
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-line">
-                  {rows.map((c) => (
-                    <IndicatorTableRow key={c.r.code} c={c} annual={annual} />
-                  ))}
-                </tbody>
-              </table>
+            <div className="mt-4 hidden overflow-x-auto md:block print:block print:overflow-visible">
+              <LedgerTable
+                cols={cols}
+                label="Indicators"
+                className="mt-0 min-w-[45rem] text-sm"
+                head={[
+                  "Indicator",
+                  { label: "Baseline", end: true },
+                  { label: "Target", end: true },
+                  ...(v.rows[0]?.parts.map((x) => ({ label: x.label, end: true })) ?? []),
+                  { label: "Achieved", end: true },
+                  ...(annual ? [{ label: "Cumulative / life", end: true }] : []),
+                  "",
+                ]}
+              >
+                {rows.map((c) => (
+                  <IndicatorTableRow key={c.r.code} c={c} annual={annual} cols={cols} />
+                ))}
+              </LedgerTable>
             </div>
             {v.rows.some((r) => r.baseline === null) && (
               <p className="mt-2 text-xs text-muted">
@@ -180,77 +184,95 @@ export function PeriodReportPage() {
               </p>
             )}
 
-            {v.rows.some((r) => r.women + r.men > 0) && (
-              <section className="mt-8">
-                <h2 className="border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">Women, men and young people</h2>
-                <p className="text-xs text-muted">
+            {people.length > 0 && (
+              <section className="mt-10">
+                <SectionHead className="mt-0">Women, men and young people</SectionHead>
+                <p className="mt-1 text-xs text-muted">
                   {YOUTH.label}: {YOUTH.source}.
                 </p>
-                <ul className="mt-2 space-y-1 text-sm">
-                  {v.rows
-                    .filter((r) => r.women + r.men > 0)
-                    .map((r) => (
-                      <li key={r.code}>
-                        <span className="font-mono text-xs text-muted">{r.donorCode}</span> {r.name}: {n(r.women)} women, {n(r.men)} men{r.youth ? `, ${n(r.youth)} young people` : ", young people not recorded"}
-                      </li>
+                <div className="overflow-x-auto print:overflow-visible">
+                  <LedgerTable cols={PEOPLE_COLS} label="Women, men and young people" className="mt-2 min-w-[32rem] text-sm" head={["Indicator", { label: "Women", end: true }, { label: "Men", end: true }, { label: "Young people", end: true }]}>
+                    {people.map((r) => (
+                      <LedgerRow key={r.code} cols={PEOPLE_COLS}>
+                        <span className="min-w-0">
+                          <span className="font-mono text-xs text-muted">{r.donorCode}</span> {r.name}
+                        </span>
+                        <Fig>{n(r.women)}</Fig>
+                        <Fig>{n(r.men)}</Fig>
+                        {r.youth ? <Fig>{n(r.youth)}</Fig> : <span className="text-end text-xs text-muted">Not recorded</span>}
+                      </LedgerRow>
                     ))}
-                </ul>
+                  </LedgerTable>
+                </div>
               </section>
             )}
 
-            <section className="mt-8">
-              <h2 className="border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">Narrative from the quarters</h2>
-              <p className="text-sm text-muted">
+            <section className="mt-10">
+              <SectionHead className="mt-0">Narrative from the quarters</SectionHead>
+              <p className="mt-1 text-sm text-muted">
                 What each quarterly report said, by section, to condense into the {annual ? "annual" : "final"} story. Quarters without a saved report: {v.quarters.length ? "none missing" : "all"}.
               </p>
-              {v.narrative.length === 0 && <p className="mt-2 text-sm text-muted">No quarterly report text saved for the period.</p>}
-              {v.narrative.map((sec) => (
-                <details key={sec.key} className="mt-3 rounded-xl border border-line bg-surface p-3 print:block" open={sec.key === "summary"}>
-                  <summary className="cursor-pointer text-sm font-semibold">
-                    {sec.heading} <span className="font-normal text-muted">({sec.parts.length})</span>
-                  </summary>
-                  {sec.parts.map((x) => (
-                    <div key={x.quarter} className="mt-2">
-                      <p className="text-xs font-semibold text-muted">
-                        {x.quarter.replace("-", " ")}
-                        {x.released ? "" : " (draft)"}
-                      </p>
-                      <p className="whitespace-pre-line text-sm">{x.text}</p>
-                    </div>
+              {v.narrative.length === 0 && <Empty>No quarterly report text saved for the period.</Empty>}
+              {v.narrative.length > 0 && (
+                <div className="mt-3 border-t border-ink [&>*:last-child]:border-ink">
+                  {v.narrative.map((sec) => (
+                    <details key={sec.key} className="border-b border-line px-3 print:block" open={sec.key === "summary"}>
+                      <summary className="min-h-12 cursor-pointer py-3 font-ledger text-base font-bold">
+                        {sec.heading} <span className="font-mono text-sm font-normal text-muted">({sec.parts.length})</span>
+                      </summary>
+                      {sec.parts.map((x) => (
+                        <div key={x.quarter} className="mb-3">
+                          <p className="font-mono text-xs font-semibold text-muted">
+                            {x.quarter.replace("-", " ")}
+                            {x.released ? "" : " (draft)"}
+                          </p>
+                          <p className="whitespace-pre-line text-sm">{x.text}</p>
+                        </div>
+                      ))}
+                    </details>
                   ))}
-                </details>
-              ))}
+                </div>
+              )}
             </section>
 
-            <section className="mt-8">
-              <h2 className="border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">Lessons learned</h2>
+            <section className="mt-10">
+              <SectionHead className="mt-0">Lessons learned</SectionHead>
               {v.lessons.length === 0 ? (
-                <p className="text-sm text-muted">
+                <Empty>
                   None recorded for the period.{" "}
                   <Link href="/progress/learning" className="font-semibold text-forest hover:underline print:hidden">
                     Record lessons
                   </Link>
-                </p>
+                </Empty>
               ) : (
-                <ul className="mt-2 space-y-2 text-sm">
-                  {v.lessons.map((l) => (
-                    <li key={l.id}>
-                      <span className="font-semibold">
-                        {l.area}, {l.date}:
-                      </span>{" "}
-                      {l.lesson} <span className="text-muted">We will: {l.action}.</span>
-                    </li>
+                <LedgerTable cols={`2.25rem ${LESSON_COLS}`} label="Lessons learned" className="mt-3 text-sm" head={["#", "Area", "Date", "Lesson and what we will do"]}>
+                  {v.lessons.map((l, i) => (
+                    <LedgerRow key={l.id} n={i + 1} cols={LESSON_COLS}>
+                      <span className="font-semibold">{l.area}</span>
+                      <Fig tone="muted" className="text-start">
+                        {l.date}
+                      </Fig>
+                      <span className="min-w-0">
+                        {l.lesson} <span className="text-muted">We will: {l.action}.</span>
+                      </span>
+                    </LedgerRow>
                   ))}
-                </ul>
+                </LedgerTable>
               )}
             </section>
 
             {v.spend && (
-              <section className="mt-8">
-                <h2 className="border-s-[6px] border-ochre ps-2 font-ledger text-lg font-bold leading-tight">Spending</h2>
-                <p className="text-sm">
-                  Budget {v.spend.currency} {n(v.spend.budget)}; spent {v.spend.currency} {n(v.spend.cumulative)} ({v.spend.budget ? Math.round((v.spend.cumulative / v.spend.budget) * 100) : 0}%){v.spend.withOverhead ? ", overhead included" : ""}.
-                </p>
+              <section className="mt-10">
+                <SectionHead className="mt-0">Spending</SectionHead>
+                <Figures
+                  className="mt-3"
+                  items={[
+                    { label: "Budget", value: `${v.spend.currency} ${n(v.spend.budget)}` },
+                    { label: "Spent", value: `${v.spend.currency} ${n(v.spend.cumulative)}` },
+                    { label: "Of the budget", value: `${v.spend.budget ? Math.round((v.spend.cumulative / v.spend.budget) * 100) : 0}%` },
+                  ]}
+                />
+                {v.spend.withOverhead && <p className="mt-2 text-xs text-muted">Overhead included.</p>}
               </section>
             )}
           </>
@@ -259,6 +281,9 @@ export function PeriodReportPage() {
     </div>
   );
 }
+
+const PEOPLE_COLS = "minmax(0,1fr) 6rem 6rem 7rem";
+const LESSON_COLS = "minmax(6rem,1fr) 7rem minmax(0,3fr)";
 
 type Row = PeriodReportView["rows"][number];
 /** One indicator's figures, worked out once and shown either as a table row or as a stacked block on a phone. */
@@ -285,41 +310,44 @@ function indicatorCells(r: Row, v: PeriodReportView, project: string, user: stri
         / {n(r.lifeTarget)}
       </>
     ),
-    verdict: <StatusPill tone={VERDICT[r.verdict].tone}>{VERDICT[r.verdict].text}</StatusPill>,
+    verdict: <StatusBlock tone={VERDICT[r.verdict].tone}>{VERDICT[r.verdict].text}</StatusBlock>,
   };
 }
+
+/** The small mono label over each figure when a row is shown as a stacked block on a phone. */
+const label = "font-mono text-xs text-muted";
 
 function IndicatorCard({ c, annual }: { c: Cells; annual: boolean }) {
   const { r } = c;
   return (
     <li className="px-4 py-3">
       <div className="flex items-start gap-2">
-        <h3 className="flex-1 text-sm">{c.name}</h3>
+        <h3 className="min-w-0 flex-1 font-ledger text-sm">{c.name}</h3>
         {c.verdict}
       </div>
-      <dl className="mt-2 grid grid-cols-3 gap-2 text-sm tabular-nums">
+      <dl className="mt-2 grid grid-cols-3 gap-2 font-mono text-sm tabular-nums">
         <div>
-          <dt className={cardLabel}>Baseline</dt>
+          <dt className={label}>Baseline</dt>
           <dd>{n(r.baseline)}</dd>
         </div>
         <div>
-          <dt className={cardLabel}>Target</dt>
+          <dt className={label}>Target</dt>
           <dd>{n(r.target)}</dd>
         </div>
         <div>
-          <dt className={cardLabel}>Achieved</dt>
+          <dt className={label}>Achieved</dt>
           <dd className="font-semibold">{c.achieved}</dd>
           {r.pct !== null && <dd className="text-xs text-muted">{r.pct}%</dd>}
         </div>
         {r.parts.map((x) => (
           <div key={x.label}>
-            <dt className={cardLabel}>{x.label}</dt>
+            <dt className={label}>{x.label}</dt>
             <dd className="text-muted">{n(x.value)}</dd>
           </div>
         ))}
         {annual && (
           <div className="col-span-2">
-            <dt className={cardLabel}>Cumulative / life</dt>
+            <dt className={label}>Cumulative / life</dt>
             <dd className="text-muted">{c.cumulative}</dd>
           </div>
         )}
@@ -328,24 +356,24 @@ function IndicatorCard({ c, annual }: { c: Cells; annual: boolean }) {
   );
 }
 
-function IndicatorTableRow({ c, annual }: { c: Cells; annual: boolean }) {
+function IndicatorTableRow({ c, annual, cols }: { c: Cells; annual: boolean; cols: string }) {
   const { r } = c;
   return (
-    <tr className="align-top">
-      <td className="px-3 py-2">{c.name}</td>
-      <td className="px-2 py-2 text-end tabular-nums">{n(r.baseline)}</td>
-      <td className="px-2 py-2 text-end tabular-nums">{n(r.target)}</td>
+    <LedgerRow cols={cols}>
+      <span className="min-w-0">{c.name}</span>
+      <Fig>{n(r.baseline)}</Fig>
+      <Fig>{n(r.target)}</Fig>
       {r.parts.map((x) => (
-        <td key={x.label} className="px-2 py-2 text-end tabular-nums text-muted">
+        <Fig key={x.label} tone="muted">
           {n(x.value)}
-        </td>
+        </Fig>
       ))}
-      <td className="px-2 py-2 text-end font-semibold tabular-nums">
+      <span className="text-end font-mono text-sm font-semibold tabular-nums">
         {c.achieved}
         {r.pct !== null && <span className="block text-xs font-normal text-muted">{r.pct}%</span>}
-      </td>
-      {annual && <td className="px-2 py-2 text-end tabular-nums text-muted">{c.cumulative}</td>}
-      <td className="px-3 py-2">{c.verdict}</td>
-    </tr>
+      </span>
+      {annual && <span className="text-end font-mono text-sm tabular-nums text-muted">{c.cumulative}</span>}
+      <span>{c.verdict}</span>
+    </LedgerRow>
   );
 }

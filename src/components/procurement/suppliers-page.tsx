@@ -5,7 +5,8 @@ import { plainError } from "@/lib/plain-error";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useRequireUser, useSession } from "@/components/app/session";
-import { Pill, TopBar, dangerBtn, primaryBtn, quietBtn, StatusPill } from "@/components/workspace/ui";
+import { TopBar, dangerBtn, primaryBtn, quietBtn } from "@/components/workspace/ui";
+import { Empty, Figures, LedgerRow, LedgerTable, PageHead, SectionHead, Sheet, StatusBlock } from "@/components/workspace/ledger";
 import { lastScreening, type Supplier, type SupplierAction } from "@/lib/suppliers";
 import type { SuppliersView } from "@/app/api/suppliers/route";
 
@@ -39,8 +40,12 @@ export function useSupplierRegister(enabled: boolean, userId: string | undefined
   return rows;
 }
 
-const input = "mt-1 block w-full rounded-xl border border-line bg-paper px-3 py-2.5 text-base";
-const lbl = "text-xs font-medium text-muted";
+const input = "mt-1 block min-h-11 w-full border border-line bg-paper px-3 py-2 text-base";
+const lbl = "font-mono text-xs text-muted";
+// The register's columns: supplier, licence, bank, last screening, where it stands.
+const COLS = "minmax(0,1.2fr) minmax(0,1fr) minmax(0,1.2fr) minmax(0,1.2fr) 9rem";
+/** A column's name over its cell on a phone, where the table head is hidden. */
+const cellLabel = "block font-mono text-xs text-muted sm:hidden";
 const empty = { name: "", aka: [] as string[], licenceNo: "", licenceExpiry: "", licenceEvidence: "", ownerId: "", phone: "", address: "" };
 
 function DetailsForm({ start, onSave, onCancel }: { start: typeof empty; onSave: (f: typeof empty) => Promise<void>; onCancel: () => void }) {
@@ -87,7 +92,7 @@ function DetailsForm({ start, onSave, onCancel }: { start: typeof empty; onSave:
         <span className={lbl}>Address</span>
         <input className={input} value={f.address} onChange={set("address")} />
       </label>
-      <div className="flex gap-2 sm:col-span-2">
+      <div className="flex flex-wrap gap-2 sm:col-span-2">
         <button type="submit" className={primaryBtn}>
           Save
         </button>
@@ -113,28 +118,25 @@ function SupplierCard({ s, can, act }: { s: SupplierRow; can: SuppliersView["can
     });
   const sc = lastScreening(s);
   return (
-    <li className="rounded-2xl border border-line bg-surface p-4">
-      <div className="flex flex-wrap items-start gap-2">
-        <div className="min-w-0 flex-1">
-          <p className="font-semibold">{s.name}</p>
+    <LedgerRow cols="minmax(0,1fr)" className="text-sm">
+      <div className="grid gap-y-2 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_9rem] sm:gap-x-3">
+        <div className="min-w-0">
+          <p className="font-bold">{s.name}</p>
           {s.aka.length > 0 && <p className="text-xs text-muted">Also: {s.aka.join(", ")}</p>}
           <p className="mt-0.5 font-mono text-xs text-muted">{s.id}</p>
         </div>
-        {s.status === "suspended" ? <StatusPill tone="clay">Suspended</StatusPill> : s.gaps.length ? <Pill tone="ochre">{s.gaps.length} to resolve</Pill> : <StatusPill tone="forest">Ready</StatusPill>}
-      </div>
-      <dl className="mt-3 grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[9rem_1fr]">
-        <dt className="text-muted">Licence</dt>
-        <dd>
-          {s.licenceNo || "—"}
-          {s.licenceExpiry && ` · valid until ${s.licenceExpiry}`}
+        <div className="min-w-0">
+          <span className={cellLabel}>Licence</span>
+          <span className="font-mono text-xs">{s.licenceNo || "—"}</span>
+          {s.licenceExpiry && <span className="block font-mono text-xs text-muted">valid until {s.licenceExpiry}</span>}
           {s.licenceEvidence && (
-            <a href={s.licenceEvidence} target="_blank" rel="noreferrer" className="ms-2 text-forest hover:underline">
+            <a href={s.licenceEvidence} target="_blank" rel="noreferrer" className="text-forest hover:underline">
               copy
             </a>
           )}
-        </dd>
-        <dt className="text-muted">Bank</dt>
-        <dd>
+        </div>
+        <div className="min-w-0">
+          <span className={cellLabel}>Bank</span>
           {s.bank ? (
             <>
               {s.bank.bank} …{s.bank.accountEnd} · confirmed by {s.bank.confirmedByName} on {s.bank.on} ({s.bank.how}){" "}
@@ -145,9 +147,9 @@ function SupplierCard({ s, can, act }: { s: SupplierRow; can: SuppliersView["can
           ) : (
             "Not confirmed"
           )}
-        </dd>
-        <dt className="text-muted">Last screened</dt>
-        <dd>
+        </div>
+        <div className="min-w-0">
+          <span className={cellLabel}>Last screened</span>
           {sc ? (
             <>
               {sc.date} by {sc.byName}: {sc.result === "clear" ? "no match" : "MATCH"} · {sc.lists}{" "}
@@ -158,19 +160,25 @@ function SupplierCard({ s, can, act }: { s: SupplierRow; can: SuppliersView["can
           ) : (
             "Never"
           )}
-        </dd>
-        <dt className="text-muted">No staff connection</dt>
-        <dd>{s.noStaffLink ? `Declared ${s.noStaffLink.on}` : "Not declared"}</dd>
-      </dl>
+        </div>
+        <div className="min-w-0">
+          <span className={cellLabel}>Where it stands</span>
+          {s.status === "suspended" ? <StatusBlock tone="clay">Suspended</StatusBlock> : s.gaps.length ? <StatusBlock tone="ochre">{s.gaps.length} to resolve</StatusBlock> : <StatusBlock tone="forest">Ready</StatusBlock>}
+          <span className="mt-1 block text-xs">
+            <span className="text-muted">No staff connection: </span>
+            {s.noStaffLink ? `Declared ${s.noStaffLink.on}` : "Not declared"}
+          </span>
+        </div>
+      </div>
       {s.gaps.length > 0 && (
-        <ul className="mt-2 space-y-0.5 text-xs text-clay">
+        <ul className="space-y-0.5 text-xs text-clay">
           {s.gaps.map((g) => (
             <li key={g}>· {g}</li>
           ))}
         </ul>
       )}
 
-      <div className="mt-3 flex flex-wrap gap-2 text-sm">
+      <div className="mt-2 flex flex-wrap gap-2 text-sm">
         {can.manage && (
           <>
             <button type="button" className={quietBtn} onClick={() => setPanel(panel === "edit" ? null : "edit")}>
@@ -310,17 +318,17 @@ function SupplierCard({ s, can, act }: { s: SupplierRow; can: SuppliersView["can
         </form>
       )}
 
-      <details className="mt-3 text-xs text-muted">
-        <summary className="cursor-pointer">History ({s.history.length})</summary>
-        <ul className="mt-1 space-y-0.5">
+      <details className="text-xs text-muted">
+        <summary className="flex min-h-11 cursor-pointer items-center font-mono">History ({s.history.length})</summary>
+        <ul className="space-y-0.5">
           {[...s.history].reverse().map((h, i) => (
             <li key={i}>
-              {h.at} · {h.byName}: {h.what}
+              <span className="font-mono">{h.at}</span> · {h.byName}: {h.what}
             </li>
           ))}
         </ul>
       </details>
-    </li>
+    </LedgerRow>
   );
 }
 
@@ -371,58 +379,65 @@ export function SuppliersPage() {
   return (
     <div className="min-h-screen">
       <TopBar active="procurement" />
-      <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-        <Link href={back ? backHref : "/work?source=procurement"} className="text-sm text-muted hover:text-ink">
-          ← {back ? `Back to ${back}` : "Procurement"}
-        </Link>
-        <h1 className="mt-2 font-display text-4xl tracking-tight">Suppliers</h1>
-        <p className="mt-1 text-sm text-muted">
+      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+        <PageHead
+          back={{ href: back ? backHref : "/work?source=procurement", label: back ? `Back to ${back}` : "Procurement" }}
+          title="Suppliers"
+          actions={
+            v?.can.manage &&
+            !adding && (
+              <button type="button" className={primaryBtn} onClick={() => setAdding(true)}>
+                + Add a supplier
+              </button>
+            )
+          }
+        >
           Every supplier ROP buys from, across projects: licence, confirmed bank details, screenings and the declaration of no staff connection. Procurements pick from this list. Re-screen after {v?.rescreenMonths ?? 6} months.
-        </p>
+        </PageHead>
         {v && (
-          <p className="mt-3 text-sm">
-            {v.suppliers.length} {v.suppliers.length === 1 ? "supplier" : "suppliers"} · {ready_} ready to award and pay
-          </p>
+          <Figures
+            items={[
+              { label: v.suppliers.length === 1 ? "Supplier" : "Suppliers", value: v.suppliers.length },
+              { label: "Ready to award and pay", value: ready_ },
+            ]}
+          />
         )}
         {error && (
-          <p role="alert" className="mt-3 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">
+          <p role="alert" className="mt-4 bg-clay-soft px-4 py-3 text-sm text-clay">
             {error}
           </p>
         )}
         {notice && !error && (
-          <div role="status" className="mt-3 flex flex-wrap items-center gap-3 rounded-xl bg-mist px-4 py-3 text-sm text-forest">
+          <div role="status" className="mt-4 flex flex-wrap items-center gap-3 bg-mist px-4 py-3 text-sm text-forest">
             <p className="min-w-0 flex-1">{notice}</p>
             {back && savedOne && (
-              <Link href={backHref} className="font-semibold hover:underline">
+              <Link href={backHref} className="inline-flex min-h-11 items-center font-semibold hover:underline">
                 Back to {back} →
               </Link>
             )}
           </div>
         )}
-        <div className="mt-4 flex flex-wrap gap-2">
-          <input className="min-w-0 flex-1 rounded-xl border border-line bg-paper px-3 py-2.5 text-base" placeholder="Find by name or licence" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Find a supplier" />
-          {v?.can.manage && !adding && (
-            <button type="button" className={primaryBtn} onClick={() => setAdding(true)}>
-              + Add a supplier
-            </button>
-          )}
-        </div>
         {adding && (
-          <section className="mt-4 rounded-2xl border border-line bg-surface p-4">
-            <h2 className="mb-3 text-xl font-semibold">New supplier</h2>
-            <DetailsForm start={empty} onSave={(fields) => act({ action: "add", fields }, `${fields.name} added. Screen it and have Finance confirm its bank details before an award.`).then(() => setAdding(false))} onCancel={() => setAdding(false)} />
+          <section>
+            <SectionHead>New supplier</SectionHead>
+            <Sheet className="mt-3">
+              <DetailsForm start={empty} onSave={(fields) => act({ action: "add", fields }, `${fields.name} added. Screen it and have Finance confirm its bank details before an award.`).then(() => setAdding(false))} onCancel={() => setAdding(false)} />
+            </Sheet>
           </section>
         )}
+        <div className="mt-6 flex flex-wrap gap-2">
+          <input className="min-h-11 min-w-0 flex-1 border border-line bg-paper px-3 py-2 text-base" placeholder="Find by name or licence" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Find a supplier" />
+        </div>
         {!v ? (
           <p className="mt-6 text-sm text-muted">Loading…</p>
         ) : shown.length === 0 ? (
-          <p className="mt-6 text-sm text-muted">{v.suppliers.length ? "No supplier matches." : "No suppliers yet. Add the first one with its licence."}</p>
+          <Empty className="mt-4">{v.suppliers.length ? "No supplier matches." : "No suppliers yet. Add the first one with its licence."}</Empty>
         ) : (
-          <ul className="mt-4 space-y-3">
+          <LedgerTable cols={COLS} head={["Supplier", "Licence", "Bank", "Last screened", "Where it stands"]} label="Suppliers" className="mt-4">
             {shown.map((s) => (
               <SupplierCard key={s.id} s={s} can={v.can} act={act} />
             ))}
-          </ul>
+          </LedgerTable>
         )}
       </main>
     </div>

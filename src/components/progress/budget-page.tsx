@@ -8,6 +8,7 @@ import { MoneySourceLink } from "@/components/progress/proof-panel";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser } from "@/components/app/session";
 import { Pill, TopBar } from "@/components/workspace/ui";
+import { Fig, Figures, LedgerRow, LedgerTable, PageHead, SectionHead } from "@/components/workspace/ledger";
 import { LIMITS, type ActivityView, type LineView } from "@/lib/budget-view";
 import type { Explain, loadBudgetView } from "@/server/budget-view-store";
 import { OverspendReasonPicker } from "@/components/progress/overspend-reason";
@@ -25,6 +26,9 @@ type View = Awaited<ReturnType<typeof loadBudgetView>> & { mayImport?: boolean }
 
 const money = (n: number | null) => (n === null ? "—" : Math.round(n).toLocaleString("en-US"));
 const pctText = (p: number | null) => (p === null ? "—" : `${p}%`);
+/** Activity, approved, spent, spent %, forecast, forecast %, to check. */
+const COLS = "minmax(14rem,1.6fr) 7rem 7rem 5rem 7rem 6rem 5rem";
+const HEAD = ["Activity", "Approved", "Spent", { label: "Spent %", end: true }, { label: "Forecast", end: true }, { label: "Forecast %", end: true }, { label: "To check", end: true }];
 const monthLabel = (m: string) => new Date(`${m}-15T00:00:00Z`).toLocaleDateString("en-GB", { month: "short", year: "numeric", timeZone: "UTC" });
 
 export function BudgetPage() {
@@ -58,11 +62,13 @@ export function BudgetPage() {
 
   if (!user) return null;
   const flagged = v?.activities.reduce((t, a) => t + a.flags, 0) ?? 0;
+  // Look first at the activity expected to end furthest over its approved budget.
+  const furthest = v?.activities.filter((a) => a.forecastPct !== null && a.forecastPct > 100).sort((a, b) => (b.forecastPct ?? 0) - (a.forecastPct ?? 0))[0]?.code;
   return (
     <div className="min-h-screen">
       <TopBar />
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
-        <h1 className="font-display text-4xl tracking-tight">{t("nav.budget")}</h1>
+        <PageHead kicker={project.name} title={t("nav.budget")} meta={v?.period ? `${monthLabel(v.period.from)} to ${monthLabel(v.period.to)}` : undefined} />
         <Why>The budget in the agreement is a promise, line by line. Spending well over a line without the donor&rsquo;s written agreement can be refused at audit, even when the project as a whole is under budget.</Why>
         {/* The same spending import as on the quarterly report, where a newcomer looks for it first. */}
         {project.saved && v?.mayImport && (
@@ -71,15 +77,15 @@ export function BudgetPage() {
           </div>
         )}
         {!project.saved ? (
-          <p className="mt-6 rounded-xl bg-sunken px-4 py-3 text-sm text-muted">This demo project is kept in this browser only; its budget is on the project page.</p>
+          <p className="mt-6 bg-sunken px-4 py-3 text-sm text-muted">This demo project is kept in this browser only; its budget is on the project page.</p>
         ) : error ? (
-          <p role="alert" className="mt-6 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">
+          <p role="alert" className="mt-6 bg-clay-soft px-4 py-3 text-sm text-clay">
             {error}
           </p>
         ) : !v ? (
           <p className="mt-6 text-sm text-muted">Loading…</p>
         ) : !v.period ? (
-          <p className="mt-6 rounded-xl bg-sunken px-4 py-3 text-sm text-muted">
+          <p className="mt-6 bg-sunken px-4 py-3 text-sm text-muted">
             No spending imported for this phase yet.{" "}
             {v.mayImport ? (
               <>Import Finance&rsquo;s budget against actual workbook above.</>
@@ -94,25 +100,21 @@ export function BudgetPage() {
           </p>
         ) : (
           <ExplainCtx.Provider value={v.explain ? { ...v.explain, save: saveReason } : null}>
-            <p className="mt-1 max-w-3xl text-sm text-muted">
+            <p className="mt-4 max-w-3xl text-sm text-muted">
               {project.name}, {monthLabel(v.period.from)} to {monthLabel(v.period.to)}, in {v.currency} before overhead, from {v.imported?.file}. Approved is Finance&rsquo;s budget; the expected total at the end (&ldquo;forecast&rdquo; in the table) is spent so far plus the revised plan for the quarters left.
             </p>
 
             <p className="mt-1 max-w-3xl text-sm text-muted">{t("rp.totals.onBudget")}</p>
 
-            <dl className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {[
-                ["Approved", money(v.totals.approved)],
-                ["Spent", `${money(v.totals.spent)} (${pctText(v.totals.approved ? Math.round((v.totals.spent / v.totals.approved) * 1000) / 10 : null)})`],
-                ["Expected total at the end", money(v.totals.forecast)],
-                ["Time gone", v.timeGone === null ? "—" : `${Math.round(v.timeGone * 100)}%`],
-              ].map(([k, val]) => (
-                <div key={k} className="rounded-2xl border border-line bg-surface px-4 py-3">
-                  <dt className="text-xs uppercase tracking-[0.12em] text-muted">{k}</dt>
-                  <dd className="mt-1 text-xl tabular-nums font-semibold">{val}</dd>
-                </div>
-              ))}
-            </dl>
+            <Figures
+              className="mt-5"
+              items={[
+                { label: "Approved", value: money(v.totals.approved) },
+                { label: "Spent", value: `${money(v.totals.spent)} (${pctText(v.totals.approved ? Math.round((v.totals.spent / v.totals.approved) * 1000) / 10 : null)})` },
+                { label: "Expected total at the end", value: money(v.totals.forecast) },
+                { label: "Time gone", value: v.timeGone === null ? "—" : `${Math.round(v.timeGone * 100)}%` },
+              ]}
+            />
             {user && (
               <p className="mt-2">
                 <MoneySourceLink project={project.id} user={user.id} />
@@ -120,41 +122,30 @@ export function BudgetPage() {
             )}
 
             {flagged > 0 && (
-              <p className="mt-4 rounded-xl bg-sunken px-4 py-3 text-sm">
+              <p className="mt-4 bg-sunken px-4 py-3 text-sm">
                 {flagged} {flagged === 1 ? "line needs" : "lines need"} a look: overspent (more than {LIMITS.overPct}% over approved), forecast more than {v.revisionPct}% over approved (needs donor approval), or spending more than {LIMITS.behindPts} points behind or ahead of the time gone. Open an activity to see them.
               </p>
             )}
 
             {/* Below a wide screen: one block per activity, stacked, so nothing scrolls sideways on a phone. */}
-            <div className="mt-5 divide-y divide-line rounded-2xl border border-line bg-surface lg:hidden">
+            <SectionHead>Budget lines by activity</SectionHead>
+            <div className="mt-3 divide-y divide-line border-y border-ink font-ledger lg:hidden">
               {v.activities.map((a) => (
-                <ActivityCard key={a.code} a={a} revisionPct={v.revisionPct} open={open === a.code} onToggle={() => setOpen(open === a.code ? null : a.code)} />
+                <ActivityCard key={a.code} a={a} revisionPct={v.revisionPct} first={a.code === furthest} open={open === a.code} onToggle={() => setOpen(open === a.code ? null : a.code)} />
               ))}
             </div>
-            <div className="mt-5 hidden overflow-x-auto rounded-2xl border border-line bg-surface lg:block">
-              <table className="w-full min-w-[720px] text-sm">
-                <thead className="text-xs uppercase tracking-[0.12em] text-muted">
-                  <tr>
-                    <th className="px-4 py-3 text-start font-semibold">Activity</th>
-                    <th className="px-3 py-3 text-end font-semibold">Approved</th>
-                    <th className="px-3 py-3 text-end font-semibold">Spent</th>
-                    <th className="px-3 py-3 text-end font-semibold">Spent %</th>
-                    <th className="px-3 py-3 text-end font-semibold">Forecast</th>
-                    <th className="px-3 py-3 text-end font-semibold">Forecast %</th>
-                    <th className="px-4 py-3 text-end font-semibold">To check</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-line">
-                  {v.activities.map((a) => (
-                    <ActivityRows key={a.code} a={a} revisionPct={v.revisionPct} open={open === a.code} onToggle={() => setOpen(open === a.code ? null : a.code)} />
-                  ))}
-                </tbody>
-              </table>
+            <div className="hidden overflow-x-auto lg:block">
+              <LedgerTable cols={COLS} head={HEAD} label="Budget against actual by activity" className="mt-3 min-w-[52rem]">
+                {v.activities.map((a) => (
+                  <ActivityRows key={a.code} a={a} revisionPct={v.revisionPct} first={a.code === furthest} open={open === a.code} onToggle={() => setOpen(open === a.code ? null : a.code)} />
+                ))}
+              </LedgerTable>
             </div>
+            {furthest && <p className="mt-2 text-xs text-muted">The shaded activity is the one expected to end furthest over its approved budget.</p>}
 
             {(v.notInBudget.length > 0 || v.notInFile.length > 0) && (
-              <section className="mt-6 rounded-2xl border border-line bg-surface p-4 text-sm">
-                <h2 className="font-semibold">Lines to map</h2>
+              <section className="text-sm">
+                <SectionHead>Lines to map</SectionHead>
                 {v.notInBudget.length > 0 && (
                   <p className="mt-2">
                     In Finance&rsquo;s file but not the budget (their spending is not counted above): {v.notInBudget.map((l) => `${l.code} (${money(l.actual)})`).join(", ")}. Add them to the budget in{" "}
@@ -187,25 +178,28 @@ function Reason({ line }: { line: string }) {
   return <OverspendReasonPicker saved={saved} mayWrite={x.mayWrite} onSave={(r) => x.save(line, r)} />;
 }
 
-function ActivityRows({ a, revisionPct, open, onToggle }: { a: ActivityView; revisionPct: number; open: boolean; onToggle: () => void }) {
+function ActivityRows({ a, revisionPct, first, open, onToggle }: { a: ActivityView; revisionPct: number; first: boolean; open: boolean; onToggle: () => void }) {
   return (
     <>
-      <tr className="cursor-pointer hover:bg-sunken" onClick={onToggle}>
-        <td className="px-4 py-3">
-          <button type="button" aria-expanded={open} className="text-start font-semibold" onClick={(e) => (e.stopPropagation(), onToggle())}>
+      {/* The whole row opens the activity; the button in it says whether it is open. */}
+      <div className="cursor-pointer [&:last-child>*]:border-ink" onClick={onToggle}>
+        <LedgerRow cols={COLS} first={first} className="items-center text-sm hover:bg-ochre-soft">
+          <button type="button" aria-expanded={open} className="min-h-11 text-start font-semibold" onClick={(e) => (e.stopPropagation(), onToggle())}>
             <span aria-hidden className="me-1 inline-block w-3 text-muted">
               {open ? "▾" : "▸"}
             </span>
-            {a.code} {a.name}
+            <span className="font-mono text-xs">{a.code}</span> {a.name}
           </button>
-        </td>
-        <td className="px-3 py-3 text-end tabular-nums">{money(a.approved)}</td>
-        <td className="px-3 py-3 text-end tabular-nums">{money(a.spent)}</td>
-        <td className="px-3 py-3 text-end tabular-nums">{pctText(a.spentPct)}</td>
-        <td className="px-3 py-3 text-end tabular-nums">{money(a.forecast)}</td>
-        <td className={`px-3 py-3 text-end tabular-nums ${a.forecastPct !== null && a.forecastPct > 100 + revisionPct ? "font-semibold text-clay" : ""}`}>{pctText(a.forecastPct)}</td>
-        <td className="px-4 py-3 text-end">{a.flags > 0 ? <Pill tone="ochre">{a.flags}</Pill> : <span className="text-muted">—</span>}</td>
-      </tr>
+          <Fig>{money(a.approved)}</Fig>
+          <Fig>{money(a.spent)}</Fig>
+          <Fig>{pctText(a.spentPct)}</Fig>
+          <Fig>{money(a.forecast)}</Fig>
+          <Fig strong={a.forecastPct !== null && a.forecastPct > 100 + revisionPct} tone={a.forecastPct !== null && a.forecastPct > 100 + revisionPct ? "clay" : undefined}>
+            {pctText(a.forecastPct)}
+          </Fig>
+          <span className="text-end">{a.flags > 0 ? <Pill tone="ochre">{a.flags}</Pill> : <span className="text-muted">—</span>}</span>
+        </LedgerRow>
+      </div>
       {open && a.lines.map((l) => <LineRow key={l.code} l={l} />)}
     </>
   );
@@ -232,10 +226,10 @@ function LineText({ l }: { l: LineView }) {
 }
 
 /** Approved, spent and forecast as three labelled figures, for the stacked view. */
-function Figures({ x, warn }: { x: { approved: number | null; spent: number | null; spentPct: number | null; forecast: number | null; forecastPct: number | null }; warn?: boolean }) {
-  const head = "text-xs uppercase tracking-wide text-muted";
+function LineFigures({ x, warn }: { x: { approved: number | null; spent: number | null; spentPct: number | null; forecast: number | null; forecastPct: number | null }; warn?: boolean }) {
+  const head = "font-mono text-xs text-muted";
   return (
-    <dl className="mt-2 grid grid-cols-3 gap-2 text-sm tabular-nums">
+    <dl className="mt-2 grid grid-cols-3 gap-2 font-mono text-sm tabular-nums">
       <div>
         <dt className={head}>Approved</dt>
         <dd>{money(x.approved)}</dd>
@@ -254,10 +248,10 @@ function Figures({ x, warn }: { x: { approved: number | null; spent: number | nu
   );
 }
 
-function ActivityCard({ a, revisionPct, open, onToggle }: { a: ActivityView; revisionPct: number; open: boolean; onToggle: () => void }) {
+function ActivityCard({ a, revisionPct, first, open, onToggle }: { a: ActivityView; revisionPct: number; first: boolean; open: boolean; onToggle: () => void }) {
   return (
-    <div className="px-4 py-3">
-      <button type="button" aria-expanded={open} className="flex w-full items-start gap-2 text-start text-sm font-semibold" onClick={onToggle}>
+    <div className={`px-3 py-3 ${first ? "bg-ochre-soft" : ""}`}>
+      <button type="button" aria-expanded={open} className="flex min-h-11 w-full items-start gap-2 text-start text-sm font-semibold" onClick={onToggle}>
         <span aria-hidden className="inline-block w-3 text-muted">
           {open ? "▾" : "▸"}
         </span>
@@ -266,13 +260,13 @@ function ActivityCard({ a, revisionPct, open, onToggle }: { a: ActivityView; rev
         </span>
         {a.flags > 0 && <Pill tone="ochre">{a.flags}</Pill>}
       </button>
-      <Figures x={a} warn={a.forecastPct !== null && a.forecastPct > 100 + revisionPct} />
+      <LineFigures x={a} warn={a.forecastPct !== null && a.forecastPct > 100 + revisionPct} />
       {open && (
-        <div className="mt-3 space-y-3 border-s-2 border-line ps-3">
+        <div className="mt-3 space-y-3 border-t border-line pt-3 ps-5">
           {a.lines.map((l) => (
             <div key={l.code}>
               <LineText l={l} />
-              <Figures x={l} />
+              <LineFigures x={l} />
             </div>
           ))}
         </div>
@@ -283,16 +277,16 @@ function ActivityCard({ a, revisionPct, open, onToggle }: { a: ActivityView; rev
 
 function LineRow({ l }: { l: LineView }) {
   return (
-    <tr className="bg-paper align-top">
-      <td className="px-4 py-2 ps-10">
+    <LedgerRow cols={COLS} className="bg-paper text-sm">
+      <span className="ps-5">
         <LineText l={l} />
-      </td>
-      <td className="px-3 py-2 text-end tabular-nums">{money(l.approved)}</td>
-      <td className="px-3 py-2 text-end tabular-nums">{money(l.spent)}</td>
-      <td className="px-3 py-2 text-end tabular-nums">{pctText(l.spentPct)}</td>
-      <td className="px-3 py-2 text-end tabular-nums">{money(l.forecast)}</td>
-      <td className="px-3 py-2 text-end tabular-nums">{pctText(l.forecastPct)}</td>
-      <td className="px-4 py-2" />
-    </tr>
+      </span>
+      <Fig>{money(l.approved)}</Fig>
+      <Fig>{money(l.spent)}</Fig>
+      <Fig>{pctText(l.spentPct)}</Fig>
+      <Fig>{money(l.forecast)}</Fig>
+      <Fig>{pctText(l.forecastPct)}</Fig>
+      <span />
+    </LedgerRow>
   );
 }

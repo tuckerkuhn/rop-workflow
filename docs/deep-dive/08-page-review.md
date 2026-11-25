@@ -198,3 +198,9 @@ review, Organization settings, Health, Procurement register) uses it: a page hea
 rule, gold-ticked section heads, ruled numbered rows with a mono column head, figures in mono, one
 gold row where something clearly comes first, square status blocks, no floating cards. Markup and
 classes only: no behaviour changed. The loading line everywhere is a ruled line, not a box.
+- **Manager pages on the Ledger template too:** Budget, the quarterly report, the annual and final
+  report, Month close with the bank reconciliation, Bills, Record a payment and the entry detail,
+  the procurement calendar, Suppliers, the purchases board's head and the purchase detail in
+  Procurement. Gold rows: the activity expected furthest over budget, the first voucher holding a
+  month open, the bill waiting longest, the oldest draft payment, the first unmatched statement
+  line, the purchase furthest past its start date, the next check to do on a purchase.
