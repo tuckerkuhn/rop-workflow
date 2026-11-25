@@ -143,12 +143,10 @@ number to its proof and a small organization setting up for the first time.
    laptop. A real phone and the sandbox account are needed to prove: KoboToolbox's attachment names, GPS at
    form start on the installed KoboCollect version, whether a photo's own date and place survive, that the
    phone offers the last answer on the training form, and that the form the app makes deploys cleanly.
-2. **The field form list sends every employee the GPS point**, though the screen shows it only to people who
-   may see participant names. The rule is kept on screen, not in what the server sends. Not changed: the
-   list's own checks ("No GPS point recorded") read it.
+2. *(Closed 25 Nov: the GPS point now goes only to people who may see participant names.)*
 3. **Training is still one record per farmer per session.** The phone now remembers the session and
    register, so nothing is retyped, but one record per session with farmers ticked would be the right shape.
-4. **The purchase's distribution list is dated the day of approval, not the day of the handout.**
+4. *(Closed 25 Nov: the list is dated the day of the handout.)*
 5. **Only the distribution form is made by the app.** Readiness, training and visit forms are still the
    hand-built files in `kobo/`. The same approach works for them once their questions are settled.
 6. **The form the app makes is English only**, like the rest of the app until translation.

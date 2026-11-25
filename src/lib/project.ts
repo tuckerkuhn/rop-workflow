@@ -140,6 +140,11 @@ export type Submission = {
   enumerator: string;
   /** Missing when the form was submitted without a GPS point. */
   gps: [number, number] | null;
+  /**
+   * What the checks say about the GPS point, sent in place of the point itself to people who may
+   * not see participant names: a GPS point is where a farmer lives.
+   */
+  gpsCheck?: "missing" | "outside" | "ok";
   fields: Record<string, string>;
   photo: boolean;
   status: "pending" | "accepted" | "queried";
@@ -158,6 +163,10 @@ export type Submission = {
 /** Project area for the GPS check (fictional). */
 export const AREA = { lat: [34.5, 34.6], lng: [69.1, 69.25] } as const;
 
+/** What the checks say about a GPS point, without the point: missing, outside the project area, or fine. */
+export const gpsCheck = (gps: [number, number] | null | undefined): "missing" | "outside" | "ok" =>
+  !gps ? "missing" : gps[0] < AREA.lat[0] || gps[0] > AREA.lat[1] || gps[1] < AREA.lng[0] || gps[1] > AREA.lng[1] ? "outside" : "ok";
+
 /** Data checker agent: quality flags on one submission. */
 /** Farmer roster the data checker compares against: farmer code to current Field activities step. */
 export type Roster = Record<string, string>;
@@ -168,11 +177,10 @@ export function dataFlags(s: Submission, all: Submission[], roster?: Roster): st
     (o) => o.id !== s.id && o.form === s.form && o.farmerId === s.farmerId && o.status !== "queried" && (o.date < s.date || (o.date === s.date && o.id < s.id)) && s.form !== "visit",
   );
   if (dup) f.push(`Possible duplicate of ${dup.id} (same farmer, same form)`);
-  if (!s.gps) f.push("No GPS point recorded");
-  else {
-    const [lat, lng] = s.gps;
-    if (lat < AREA.lat[0] || lat > AREA.lat[1] || lng < AREA.lng[0] || lng > AREA.lng[1]) f.push(`GPS ${lat.toFixed(3)}, ${lng.toFixed(3)} is outside the project area`);
-  }
+  // The same two checks whether or not this viewer was sent the point itself (gpsCheck).
+  const where = s.gpsCheck ?? gpsCheck(s.gps);
+  if (where === "missing") f.push("No GPS point recorded");
+  else if (where === "outside") f.push(s.gps ? `GPS ${s.gps[0].toFixed(3)}, ${s.gps[1].toFixed(3)} is outside the project area` : "The GPS point is outside the project area");
   // Intake checks apply to real Kobo submissions; the sample records are past history.
   if (roster && s.source === "kobo") {
     const step = roster[s.farmerId];

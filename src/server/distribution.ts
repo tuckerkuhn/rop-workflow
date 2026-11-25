@@ -688,11 +688,14 @@ export async function decideDistribution(code: string, id: string, decision: "ap
         const d = p.distribution ?? { forParticipants: true, lists: [], inStock: 0, checks: [] };
         const qty = inProcUnit(it.qty, it.unit, p);
         const place = m.village || "Not recorded";
-        const at = d.lists.findIndex((l) => l.date === day && l.place === place && l.by === by.id);
+        // Dated the day the goods were handed out (dayOf), not the day of this approval: the list is
+        // the record of the distribution, and a paper list entered late belongs to the day it happened.
+        const handedOut = dayOf(row);
+        const at = d.lists.findIndex((l) => l.date === handedOut && l.place === place && l.by === by.id);
         const lists = [...d.lists];
         const women = m.gender === "Female" ? 1 : 0;
         if (at >= 0) lists[at] = { ...lists[at], recipients: lists[at].recipients + 1, women: lists[at].women + women, qty: lists[at].qty + qty };
-        else lists.push({ date: day, place, recipients: 1, women, qty, evidence: `ROP Workflow distribution records, approved by ${by.name}`, by: by.id, byName: by.name, viaField: true });
+        else lists.push({ date: handedOut, place, recipients: 1, women, qty, evidence: `ROP Workflow distribution records, approved by ${by.name}`, by: by.id, byName: by.name, viaField: true });
         const next: Procurement = { ...p, rev: (p.rev ?? 0) + 1, distribution: { ...d, forParticipants: true, lists } };
         await tx.update(s.procurements).set({ data: next, updatedAt: now }).where(eq(s.procurements.id, r.id));
         changed.push(p.id);

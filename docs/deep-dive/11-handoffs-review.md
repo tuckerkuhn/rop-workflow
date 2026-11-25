@@ -53,8 +53,14 @@ could open the farmer and add nothing.
   the place needs its own pass, because weekly items are read by many screens and the point must
   stay with people who may see participant names. Someone with no access to Field activities still
   uses the weekly update, not the farmer page.
-- **One gap left.** The farmer page's own save does not check the signed note tag on the server.
-  The screen no longer offers it to a manager, but a crafted request could still set it.
+
+## Loose ends closed after midnight
+
+- **The farmer page's own save now refuses a signed note photo** from anyone who is not the
+  storekeeper or the extension agent, whatever the screen offered.
+- **The GPS point is no longer sent to everyone.** People who may not see participant names get what
+  the checks found (missing, outside the project area or fine), never the point.
+- **The purchase's distribution list is dated the day of the handout**, like the record and its result.
 
 ## Decisions I made for you
 
@@ -138,6 +144,6 @@ in as Rahima Stanikzai and open it from Home.
 3. Then: the app makes the readiness, training and visit forms too, and training becomes one record
    per session (ledger, findings 3 and 5).
 
-Checks on the finished branch: **1,134 tests pass** (1,095 before tonight), typecheck clean, lint
+Checks on the finished branch: **1,138 tests pass** (1,095 before tonight), typecheck clean, lint
 clean. Six commits. Time: about 25 minutes for each pass. The 3-hour and 8-hour
 figures were ceilings, and the work that is left is not the kind more hours of mine would finish.

@@ -55,6 +55,15 @@ export type Photo = {
   /** Added by someone visiting (management, communications): a picture of the work, never a field record or proof. */
   visitor?: boolean;
 };
+/**
+ * Whether a save adds a photo of the signed goods received note that the stored record did not hold.
+ * That photo is proof of a distribution, so only some people may add it (server/farmer-photo).
+ */
+export function addsSignedNote(stored: { photos?: Pick<Photo, "id">[] } | null | undefined, sent: { photos?: Pick<Photo, "id" | "signedNote" | "tag">[] } | null | undefined): boolean {
+  const had = new Set((stored?.photos ?? []).map((p) => p.id));
+  return (sent?.photos ?? []).some((p) => !had.has(p.id) && (!!p.signedNote || p.tag === "signed-note"));
+}
+
 /** Whether the farmer's record holds a photo of the signed goods received note. */
 export const hasSignedNotePhoto = (f: { photos?: Photo[] } | null | undefined) => !!f?.photos?.some((p) => p.activity === "distribution" && p.signedNote && !!p.src);
 

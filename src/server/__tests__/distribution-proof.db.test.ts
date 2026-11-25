@@ -181,6 +181,10 @@ describe("whoever checks a KoboCollect record can return it to the person who co
     const made = (await loadResults(code)).filter((r) => r.distribution === bare.id);
     expect(made).toHaveLength(1);
     expect(made[0]).toMatchObject({ date: "2026-11-24", by: "bilal" });
+    // The purchase's distribution list is dated the day of the handout too, not the day of approval.
+    const lists = (await db.select().from(s.procurements)).flatMap((r) => ((r.data as { distribution?: { lists?: { date: string; viaField?: boolean; by?: string }[] } }).distribution?.lists ?? []).filter((l) => l.viaField && l.by === nadia.id));
+    expect(lists.length).toBeGreaterThan(0);
+    expect(lists.every((l) => l.date === "2026-11-24")).toBe(true);
   });
 });
 

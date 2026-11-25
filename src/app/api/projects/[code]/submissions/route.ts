@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { collectorOf, deciderNames, maySendBack, refusalFor } from "@/lib/kobo-approval";
-import type { Submission } from "@/lib/project";
+import { gpsCheck, type Submission } from "@/lib/project";
 import { isEmployee, onProject, people, requireViewer } from "@/server/auth";
 import { roster } from "@/server/field-store";
 import { handle } from "@/server/guard";
@@ -29,7 +29,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
       const mayDecide = !refusalFor(v.user, team, rec(s), rule);
       // The person, not the account: a KoboCollect account matched to someone on the team is shown by their name.
       const who = team.find((p) => p.id === rec(s).collector)?.name;
-      return { ...s, mayDecide, maySendBack: !mayDecide && maySendBack(v.user, team, { ...rec(s), form: s.form }), deciders: deciderNames(team, rec(s), rule), ...(who ? { collectorName: who } : {}) };
+      return { ...s, mayDecide, maySendBack: !mayDecide && maySendBack(v.user, team, { ...rec(s), form: s.form }), deciders: deciderNames(team, rec(s), rule), ...(who ? { collectorName: who } : {}), ...(v.user.pii ? {} : { gps: null, gpsCheck: gpsCheck(s.gps) }) };
     });
     return NextResponse.json({ submissions: annotated, roster: await roster(project.id) });
   });
