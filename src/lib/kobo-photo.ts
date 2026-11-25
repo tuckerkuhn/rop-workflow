@@ -74,7 +74,7 @@ export const TAG_RULES: Record<PhotoTag, { record: string; next: string }> = {
   visit: { record: "the farmer's plot", next: "Kept on the farmer's record with the place and day it was taken." },
   landprep: { record: "the farmer's plot", next: "Kept on the farmer's record as proof the plot was prepared." },
   planting: { record: "the farmer's plot", next: "Kept on the farmer's record as proof of planting." },
-  receipt: { record: "an expense claim", next: "Opens an expense claim with this receipt attached and its date filled in. Your manager approves the claim." },
+  receipt: { record: "an expense claim", next: "Added on an expense line, where the date is filled in from the photo. Your manager approves the claim." },
 };
 
 /**

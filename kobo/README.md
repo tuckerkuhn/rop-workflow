@@ -18,6 +18,17 @@ Conventions:
   household-head initials. No names on devices.**
 - Labels in English, Dari and Pashto. **The Dari and Pashto labels are drafts; have a native
   speaker review them before field use.**
+- **Nothing is typed that the phone already knows.** Every form captures the phone's GPS when it is
+  opened (`start_geopoint`, the XLSForm `start-geopoint` metadata question: nothing to tap, and
+  KoboCollect shows a one-line notice that the form records location). On the distribution and
+  training forms the GPS question appears only when the phone found no place by itself. On the
+  readiness and farm visit forms the plot's GPS stays a question: standing at the plot is the point.
+  Dates default to today. There is no typed "distribution point": nothing read it.
+- **A photo is tagged by the question it is taken on.** `list_photo` is the signed goods received
+  note, `handover_photo` the handover, `photo` the plot or the signed register. The app shows the
+  signed note to whoever checks and approves the distribution, with the day, time and place the
+  photo itself holds (when the phone kept them: `max-pixels` resizing on older KoboCollect versions
+  drops them, which is why the form's own GPS point is the one relied on).
 - Each submission is stored once, keyed on Kobo's `_uuid`, and waits in the project's review
   queue (Check › Results and proof). Nothing changes in Field activities until the MEL owner accepts it.
 

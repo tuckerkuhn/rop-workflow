@@ -372,7 +372,7 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
                       {tx("I have checked this record")}
                     </button>
                   </div>
-                  <p className="mt-2 text-xs">{tx("Next: {names} is emailed at once and approves it. Nothing counts until then.", { names: d.approverNames })}</p>
+                  <p className="mt-2 text-xs">{tx("Next: it goes to {names} to approve. Nothing counts until then.", { names: d.approverNames })}</p>
                   <label className="mt-4 block font-medium" htmlFor="check-note">
                     {tx("Something is wrong? Say what, and send it back to the person who collected it")}
                   </label>
@@ -406,7 +406,7 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
               <h2 id="fix" className="font-medium">
                 {tx("Fix it and send it again")}
               </h2>
-              <p className="mt-1 text-sm text-muted">{tx("Correct what was recorded. The project manager is told at once and checks it again.")}</p>
+              <p className="mt-1 text-sm text-muted">{tx("Correct what was recorded and send it. It goes straight back for checking and approval.")}</p>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 {fixable(d).map((i) => (
                   <label key={i.key} className="block text-sm font-medium">
@@ -466,7 +466,13 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
                 </ul>
               )}
               {done === "sent_back" && <p className="mt-1">{reached.length ? tx("The person who recorded it has a task to fix it and send it again. Nothing counts until you approve it.") : tx("Nobody on this project can change field records, so no one has the task. Ask an administrator to add a storekeeper or extension agent.")}</p>}
-              {done === "resubmit" && <p className="mt-1">{tx("The project manager has been told and will check it again. Your task is closed.")}</p>}
+              {done === "resubmit" && (
+                <p className="mt-1">
+                  {d.koboCheck?.needed
+                    ? tx("Next: {name} checks the record, then {names} approves it. Your task is closed.", { name: d.koboCheck.by, names: d.approverNames })
+                    : tx("Next: {names} checks it again and approves it. Your task is closed.", { names: d.approverNames })}
+                </p>
+              )}
               {user && (
                 <div className="mt-3 flex flex-wrap items-center gap-3">
                   {waiting.length > 0 && (done === "approved" || done === "sent_back" || done === "checked") && (
