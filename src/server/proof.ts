@@ -76,12 +76,17 @@ const counted = (
     )
     .sort((a, b) => a.date.localeCompare(b.date));
 
-/** The proof panel: the accepted results behind one indicator's figure for a period. */
+/**
+ * The proof panel: the accepted results behind one indicator's figure for a period. With `asOf`,
+ * only what had been accepted by that moment: the records behind a figure kept on that day (a
+ * signed monthly review).
+ */
 export async function proofFor(
   code: string,
   indicator: string,
   from: string | null,
   to: string,
+  asOf?: string,
 ) {
   const p = await projectByCode(code);
   const [ind] = await db
@@ -99,7 +104,7 @@ export async function proofFor(
     )
     .limit(1);
   if (!ind) return null;
-  const list = counted(await loadResults(code), indicator, from, to);
+  const list = counted(await loadResults(code), indicator, from, to, asOf);
   // The figure the report shows (lib/measure): the sum, or for a survey target its latest figure.
   const m = measured({ baseline: ind.baseline === null ? null : Number(ind.baseline), unit: ind.unit }, list, (await measuresFor(p.id))(ind), from ?? undefined, to);
   return {
@@ -111,6 +116,7 @@ export async function proofFor(
     },
     from,
     to,
+    ...(asOf ? { asOf } : {}),
     total: m.value,
     ...(m.measure !== "sum" ? { measure: m.measure, note: m.note } : {}),
     results: list.map((r) => toProof(r, ind.unit)),

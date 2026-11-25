@@ -1,4 +1,7 @@
 import { z } from "zod";
+import type { BudgetView, Flag } from "@/lib/budget-view";
+import type { Measure } from "@/lib/measure";
+import type { Status } from "@/lib/qpr";
 import { selfSchema } from "@/lib/solo";
 
 /**
@@ -7,6 +10,9 @@ import { selfSchema } from "@/lib/solo";
  * A proposed change does nothing until a reviewer who did not propose it approves it; then it is
  * applied to the plan (a year's target, money moved between budget lines, an activity's quarters
  * in the workplan) and recorded in the audit trail. The review is closed with a sign-off.
+ *
+ * Signing keeps the figures of that day with the review (Tucker, 25 November 2026). A signed review
+ * shows what was signed, for good, and not today's numbers.
  */
 
 export const monthOk = /^\d{4}-(0[1-9]|1[0-2])$/;
@@ -59,13 +65,79 @@ export type Change = ChangeInput & {
 
 /** `drafted`: written by AI from the month's figures and not yet edited by a person. */
 export type Text = { text: string; by: string; at: string; drafted?: boolean };
+/** One target's line on the review: this year's figure against this year's target, and where it stands. */
+export type ReviewIndicator = {
+  code: string;
+  donorCode: string;
+  name: string;
+  unit: string;
+  yearTarget: number;
+  year: number;
+  quarterValue: number;
+  /** A survey target with no figure to give: what to show in its place. */
+  note?: string;
+  measure?: Measure;
+  baseline?: number | null;
+  status: Status;
+  planned: number[] | null;
+  workplanCode: string | null;
+  lastAccepted: string | null;
+};
+/** The figures a review shows: results against targets, money and open items. Kept whole at sign-off. */
+export type ReviewFigures = {
+  quarter: string;
+  year: string;
+  indicators: ReviewIndicator[];
+  budget: {
+    totals: BudgetView["totals"];
+    timeGone: number | null;
+    period: BudgetView["period"];
+    currency: string;
+    flagged: { code: string; description: string; flags: Flag[]; spentPct: number | null }[];
+  };
+  open: { pending: number; queried: number };
+};
 export type MonthlyReview = {
   month: string;
   summary?: Text;
   attention?: Text;
   changes: Change[];
-  signedOff?: { by: string; at: string };
+  /** `figures`: the page's figures as they stood at `at`. A review signed before 25 November 2026 has none. */
+  signedOff?: { by: string; at: string; figures?: ReviewFigures };
 };
+
+/** The part of what the review screen is given that signing keeps. */
+export const figuresOf = (v: ReviewFigures): ReviewFigures => ({ quarter: v.quarter, year: v.year, indicators: v.indicators, budget: v.budget, open: v.open });
+
+/**
+ * The figures a person had on the screen, as one line of text. The page sends it with the
+ * sign-off and the server compares it with the figures it is about to keep, so what is kept is
+ * what the signer read.
+ */
+export const figuresKey = (f: ReviewFigures) =>
+  JSON.stringify([
+    f.indicators.map((i) => [i.code, i.year, i.yearTarget, i.status, i.note ?? null]),
+    [f.budget.totals.spent, f.budget.totals.approved, f.budget.totals.forecast, f.budget.flagged.length],
+    [f.open.pending, f.open.queried],
+  ]);
+
+/**
+ * Whose figures a reader is looking at. "today": not signed, so as they stand now. "signed": the
+ * ones kept at sign-off. "unkept": signed before figures were kept, so today's, and the page says so.
+ */
+export type FiguresFrom = "today" | "signed" | "unkept";
+
+/**
+ * What a reader of the review is shown. A signed review gives the figures kept when it was signed
+ * in place of today's. The kept copy is not sent a second time inside the review.
+ */
+export function shownReview<V extends ReviewFigures & { review: MonthlyReview }>(v: V): V & { figuresFrom: FiguresFrom } {
+  const signed = v.review.signedOff;
+  if (!signed) return { ...v, figuresFrom: "today" };
+  const { figures, ...who } = signed;
+  const review = { ...v.review, signedOff: who };
+  return figures ? { ...v, ...figures, review, figuresFrom: "signed" } : { ...v, review, figuresFrom: "unkept" };
+}
 
 export const emptyReview = (month: string): MonthlyReview => ({
   month,
@@ -87,7 +159,8 @@ export const reviewActionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("withdraw"), id: z.string().min(1) }),
   /** AI drafts the summary and what needs attention from the month's figures. */
   z.object({ action: z.literal("draft") }),
-  z.object({ action: z.literal("signoff") }),
+  /** `seen`: the figures on the signer's screen (figuresKey). The sign-off is refused when they have changed since. */
+  z.object({ action: z.literal("signoff"), seen: z.string().max(100_000).optional() }),
 ]);
 export type ReviewAction = z.infer<typeof reviewActionSchema>;
 
