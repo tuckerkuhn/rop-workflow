@@ -200,6 +200,7 @@ found and left, tests passing.
     record gives them. One farmer with no sex recorded leaves the session's women and men empty for MEL
     to fill in. A part count would have read as the whole.
   Checks: 1,146 tests pass (1,138 before), typecheck clean, lint clean. Distribution chain walked on
-  the final code after a fresh local database: a fictional KoboCollect record for F-0007, refused for
-  nadia before the check, checked by rahima, approved by nadia, farmer moved to planting. `10-field-ledger.md`
-  updated: the per-farmer attendance question is cut.
+  the final code after a fresh local database: a fictional KoboCollect record for F-0007, checked by
+  rahima, approved by nadia, farmer moved to planting. The refusal for nadia before the check was seen
+  on the final code too, on a record for F-0008 that the store then rightly blocked (no NPK left).
+  `10-field-ledger.md` updated: the per-farmer attendance question is cut.
