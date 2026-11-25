@@ -211,3 +211,15 @@ describe("every KoboCollect form in the review queue carries its proof", () => {
     expect(await refusal(() => submissionProof(code, typed.id, true))).toMatch(/not on this project/);
   });
 });
+
+describe("the form the app makes from the package", () => {
+  it("one tap for the planned amount, a typed amount only when it differed, and an item not given left out", async () => {
+    const answered = await koboRow("proof-gen", farmerId, { farmer: farmerId, distribution_date: "2026-11-26", seed_given: "yes", npk_given: "other", npk_qty: "40", condition: "good", signed: "yes", list_photo: "note.jpg", _attachments: attachments });
+    const d = (await listDistributions(code)).find((x) => x.id === answered)!;
+    const planned = Object.fromEntries(d.planned.map((i) => [i.key, i.qty]));
+    expect(Object.fromEntries(d.items.map((i) => [i.key, i.qty]))).toEqual({ seed: planned.seed, npk: 40 });
+
+    const partial = await koboRow("proof-gen-2", farmerId, { farmer: farmerId, distribution_date: "2026-11-26", seed_given: "yes", npk_given: "no", condition: "good", signed: "yes", list_photo: "note.jpg", _attachments: attachments });
+    expect((await listDistributions(code)).find((x) => x.id === partial)!.items.map((i) => i.key)).toEqual(["seed"]);
+  });
+});

@@ -300,6 +300,16 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
               {d.gate.lines.map((l) => (
                 <li key={l.key} className={l.ok ? "" : "text-clay"}>
                   {l.ok ? "✓" : "✗"} {l.detail}
+                  {/* What unblocks it is one tap away: the purchases that supply this item. */}
+                  {!l.ok && pending && user && l.procurements.length > 0 && (
+                    <span className="mt-1 flex flex-wrap gap-x-4">
+                      {l.procurements.map((id) => (
+                        <Link key={id} href={`/work?source=procurement&open=${encodeURIComponent(id)}&project=${encodeURIComponent(code)}`} className="inline-flex min-h-11 items-center font-medium text-forest underline">
+                          {tx("Open {id}", { id })}
+                        </Link>
+                      ))}
+                    </span>
+                  )}
                 </li>
               ))}
             </ul>

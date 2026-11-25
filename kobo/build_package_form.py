@@ -51,7 +51,7 @@ def survey(spec):
             "yes", "", "autocomplete", "", "",
         ),
         ("calculate", "farmer_ha", None, None, "", "", "", "pulldata('farmers', 'hectares', 'name', ${farmer})", ""),
-        ("date", "distribution_date", ("Distribution date", "تاریخ توزیع", "د وېش نېټه"), None, "yes", "", "", "", "today()"),
+        ("date", "distribution_date", ("Distribution date", "تاریخ توزیع", "د وېش نېټه"), ("Today, unless you are entering a paper list from another day.",) * 3, "yes", "", "", "", "today()"),
     ]
     for it in spec["items"]:
         k = it["key"]
@@ -77,10 +77,10 @@ def survey(spec):
             ("Did the recipient sign or thumbprint the goods received note, saying they received the goods in acceptable condition and are responsible for them from now on?", "آیا دریافت‌کننده لیست توزیع را امضا یا انگشت زد؟", "ایا ترلاسه کوونکي د وېش لیست لاسلیک یا ګوته ولګوله؟"),
             None, "yes", "", "", "", "",
         ),
-        ("image", "list_photo", ("Photo of the signed goods received note", "عکس صفحه امضا‌شده لیست توزیع", "د وېش د لاسلیک شوي لیست د پاڼې انځور"), ("The page with this farmer's signature or thumbprint", "صفحه‌ای که امضا یا نشان انگشت این دهقان را دارد", "هغه پاڼه چې د دې بزګر لاسلیک یا ګوته پرې ده"), "yes", "", "", "", ""),
+        ("image", "list_photo", ("Photo of the signed goods received note", "عکس صفحه امضا‌شده لیست توزیع", "د وېش د لاسلیک شوي لیست د پاڼې انځور"), ("The page with this farmer's signature or thumbprint. Fill the frame: the mark and the amounts must be readable.", "صفحه‌ای که امضا یا نشان انگشت این دهقان را دارد", "هغه پاڼه چې د دې بزګر لاسلیک یا ګوته پرې ده"), "yes", "", "", "", ""),
         ("image", "handover_photo", ("Photo of the handover (optional)", "عکس تحویل (اختیاری)", "د سپارلو انځور (اختیاري)"), None, "", "", "", "", ""),
         ("geopoint", "location", ("Location (GPS)", "موقعیت (GPS)", "ځای (GPS)"), ("The phone did not find its place by itself. Record it here.",) * 3, "", "string-length(${start_geopoint}) = 0", "", "", ""),
-        ("text", "notes", ("Anything else to note", "نکات دیگر", "نور یادښتونه"), None, "", "", "multiline", "", ""),
+        ("text", "notes", ("Anything else to note", "نکات دیگر", "نور یادښتونه"), ("The person who checks this record reads it. Use the farmer ID, never a name.",) * 3, "", "", "multiline", "", ""),
     ]
     return rows
 
