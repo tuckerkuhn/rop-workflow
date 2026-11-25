@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { overlaps, weeklyPatchSchema } from "@/lib/weekly";
+import { overlaps, periodLabel, weeklyPatchSchema } from "@/lib/weekly";
 import { logAudit } from "@/server/audit";
 import { requireViewer } from "@/server/auth";
 import { projectByCode } from "@/server/field-store";
@@ -53,7 +53,7 @@ export async function POST(req: Request, { params }: Ctx) {
         if (old?.sent) return { error: "This week has been sent and can no longer be changed.", status: 409 };
         const others = state.weeks.filter((w) => w !== old);
         const clash = others.find((w) => overlaps(w, a));
-        if (clash) return { error: `These dates overlap update #${clash.n} (${clash.from} to ${clash.to}).`, status: 409 };
+        if (clash) return { error: `These dates overlap update #${clash.n} (${periodLabel(clash.from, clash.to)}).`, status: 409 };
         if (others.some((w) => w.n === a.n)) return { error: `There is already an update #${a.n}.`, status: 409 };
         state.weeks = [...others, { n: a.n, from: a.from, to: a.to }];
       } else {

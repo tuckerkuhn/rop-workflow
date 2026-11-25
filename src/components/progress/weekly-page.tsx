@@ -130,7 +130,7 @@ function ItemForm({ v, start, onSave, onQueue, onClose, className = "mt-3" }: { 
   const submit = async () => {
     setErr("");
     if (f.note.trim().length < 10) return setErr("Say what happened: where, with whom, what changed.");
-    if (f.date < v.week.from || f.date > v.week.to) return setErr(`Date it within this week (${v.week.from} to ${v.week.to}).`);
+    if (f.date < v.week.from || f.date > v.week.to) return setErr(`Date it within this week: ${periodLabel(v.week.from, v.week.to)}.`);
     const photos = files.filter((x) => x.type.startsWith("image/"));
     if (photos.some((x) => !captions[x.hash]?.trim())) return setErr("Give every photo a caption: what, where (village, district).");
     if (photos.some((x) => !taken[x.hash])) return setErr("Give every photo the date it was taken.");
@@ -612,7 +612,7 @@ export function WeeklyPage() {
                   <button
                     type="button"
                     className={`${primary} ms-auto`}
-                    onClick={() => void askConfirm({ message: `Mark update #${w.n} as sent? It is locked after that: nothing dated ${w.from} to ${w.to} can be added or changed.`, confirm: "Mark as sent" }).then((ok) => (ok ? save({ action: "send", from: w.from }, `Update #${w.n} marked sent.`).catch(() => undefined) : undefined))}
+                    onClick={() => void askConfirm({ message: `Mark update #${w.n} as sent? It is locked after that: nothing dated ${periodLabel(w.from, w.to)} can be added or changed.`, confirm: "Mark as sent" }).then((ok) => (ok ? save({ action: "send", from: w.from }, `Update #${w.n} marked sent.`).catch(() => undefined) : undefined))}
                   >
                     Mark as sent
                   </button>
