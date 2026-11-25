@@ -120,9 +120,14 @@ export const correctionSchema = z.object({
   note: z.string().trim().min(10).max(2000),
 });
 
+/** A time an accepted result was reopened by MEL, and when it had been accepted before that. */
+export type Reopened = { at: string; acceptedAt: string | null };
+
 export type ResultRecord = ResultInput & {
   /** Earlier versions, oldest first, each with the query that prompted the correction. */
   history?: Correction[];
+  /** Each time MEL reopened it after it was accepted (server/results-store reopenResult). */
+  reopened?: Reopened[];
   id: string;
   quarter: string;
   status: ResultStatus;

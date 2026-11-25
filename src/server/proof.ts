@@ -59,6 +59,14 @@ const toProof = (r: ResultRecord, unit: string): ProofResult => ({
   noFile: r.noFile ?? null,
 });
 
+/**
+ * Whether a result was accepted at that moment: accepted now and by then, or reopened after it
+ * while accepted then (a signed monthly review still lists it). The figure it was then is the one
+ * the review kept; the record shown is the result as it is now.
+ */
+const acceptedAt = (r: ResultRecord, asOf: string) =>
+  (r.status === "accepted" && (r.reviewedAt ?? "") <= asOf) || (r.reopened ?? []).some((x) => x.at > asOf && !!x.acceptedAt && x.acceptedAt <= asOf);
+
 /** Accepted results that count toward a figure; `asOf` keeps only what was accepted by then (a released report). */
 const counted = (
   results: ResultRecord[],
@@ -71,10 +79,9 @@ const counted = (
     .filter(
       (r) =>
         r.indicator === indicator &&
-        r.status === "accepted" &&
         (!from || r.date >= from) &&
         r.date <= to &&
-        (!asOf || (r.reviewedAt ?? "") <= asOf),
+        (asOf ? acceptedAt(r, asOf) : r.status === "accepted"),
     )
     .sort((a, b) => a.date.localeCompare(b.date));
 
