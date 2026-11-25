@@ -11,6 +11,7 @@ import { useProjectStage } from "@/components/app/project-stage";
 import { PROJECT_KEY } from "@/lib/project";
 import { useCurrentProject } from "@/components/app/current-project";
 import { DonorReportsCard } from "@/components/donor/home-card";
+import { AccountPhoto } from "@/components/donor/report-page";
 import { useT } from "@/components/app/i18n";
 import { quarterLabel, useDonorReport, useDonorView } from "@/components/donor/use-donor-view";
 import { Initials, useRequireUser, useSession } from "@/components/app/session";
@@ -239,10 +240,50 @@ function DonorTargets({ code }: { code: string }) {
   );
 }
 
+/**
+ * A donor's Home on a database project, from the latest released report only: its targets, the
+ * reports list, the report's human-interest story and the photos it carries (cleared for donors).
+ */
+function DonorReleasedHome({ code }: { code: string }) {
+  const { tx } = useT();
+  const { user } = useSession();
+  const { data: view } = useDonorView(code);
+  const latest = view?.reports[0];
+  const { data: rep } = useDonorReport(latest ? code : null, latest?.quarter ?? "");
+  const story = rep?.report.sections.find((x) => x.heading.includes("Human Interest Story"));
+  const photos = (rep?.report.photos ?? []).slice(0, 4);
+  return (
+    <>
+      <DonorTargets code={code} />
+      <DonorReportsCard code={code} />
+      {latest && story && (
+        <section className="rounded-2xl border border-forest/30 bg-mist p-5">
+          <SectionLabel>{tx("From the {quarter} report", { quarter: quarterLabel(latest.quarter) })}</SectionLabel>
+          <p className="mt-2 whitespace-pre-line leading-relaxed">{story.text}</p>
+        </section>
+      )}
+      {latest && user && photos.length > 0 && (
+        <section>
+          <SectionLabel>{tx("Photos in the {quarter} report", { quarter: quarterLabel(latest.quarter) })}</SectionLabel>
+          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {photos.map((p) => (
+              <AccountPhoto key={p.hash} src={`/api/projects/${encodeURIComponent(code)}/donor-view/${latest.quarter}/photo/${p.hash}`} caption={p.caption} size="grid" user={user.id} />
+            ))}
+          </div>
+        </section>
+      )}
+    </>
+  );
+}
+
 function DonorHome({ field, project }: { field: FieldItem[]; project: ProjectState }) {
   const { money, user } = useSession();
   // A database project speaks for itself; the demo projects kept in the browser use the sample package and season.
   const { project: current } = useCurrentProject();
+  // A database project: released figures only (decisions AC and AS, 25 Nov 2026). Today's field
+  // records (farmers enrolled, the season's steps, stories, photos) are not a donor's to read
+  // before a report gives them.
+  if (current.saved) return <DonorReleasedHome code={current.id} />;
   const farmers = field.filter((i): i is Farmer => i.kind === "farmer");
   const active = farmers.filter((f) => f.step !== "removed");
   const supplied = farmers.filter((f) => ["plant", "complete"].includes(f.step));
@@ -270,12 +311,7 @@ function DonorHome({ field, project }: { field: FieldItem[]; project: ProjectSta
         ))}
       </section>
 
-      {current.saved && <DonorTargets code={current.id} />}
-
-      {current.saved ? (
-        <DonorReportsCard code={current.id} />
-      ) : (
-        <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-surface p-5">
+      <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-surface p-5">
           <div>
             <p className="font-semibold">March progress report</p>
             <p className="text-sm text-muted">
@@ -290,7 +326,6 @@ function DonorHome({ field, project }: { field: FieldItem[]; project: ProjectSta
             </Link>
           )}
         </section>
-      )}
 
       {/* The season's steps, where the project runs the farmer workflow. */}
       {(!current.saved || farmers.length > 0) && (
