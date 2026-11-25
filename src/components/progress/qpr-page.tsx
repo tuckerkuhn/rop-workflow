@@ -1,6 +1,7 @@
 "use client";
 
 import { plainError } from "@/lib/plain-error";
+import { longDate } from "@/lib/weekly";
 import { askConfirm } from "@/components/app/dialogs";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -195,7 +196,9 @@ export function QprPage() {
   // Until it has loaded, the report's own checks stand in, so release is never offered too early.
   // Right after an edit the last check read may not hold a stop the edit added: the report's own count shows until it is re-read.
   const stops = v?.checks.filter((c) => c.level === "stop").length ?? 0;
-  const blockN = pf ? Math.max(blocking, stops) : stops;
+  // The Report check lists several of those stops as one row (results waiting, by target). Once it is read
+  // and names a blocker, its count is the one shown, so the page gives one number and not two.
+  const blockN = pf ? (pfFresh && blocking > 0 ? blocking : Math.max(blocking, stops)) : stops;
   // Mark final only when both say nothing blocks, and the check was read after the latest change.
   const mayMarkFinal = pfFresh && blockN === 0;
   const fixN = pf ? worthFixing : (v?.checks.length ?? 0) - stops;
@@ -236,7 +239,7 @@ export function QprPage() {
           >
             <span className="font-mono text-xs text-ink">
               {period?.name && `${period.name}${period.number ? `, agreement period ${period.number}` : ""}: `}
-              {from} to {to}.
+              {longDate(from)} to {longDate(to)}.
             </span>{" "}
             Figures come from results that monitoring, evaluation and learning (MEL) has accepted, and each one opens the records and proof behind it. Write or draft the text, fix what the checks list, then download it for Word.
             <span className="mt-2 flex flex-wrap gap-x-4">
@@ -254,7 +257,7 @@ export function QprPage() {
         {pfFailed && v && !v.frozen && !v.saved.released && <OwnChecks checks={v.checks} quarter={quarter} />}
         <p className="mt-3 bg-sunken px-4 py-3 text-sm font-semibold">
           {quarter === nowQ ? (
-            underWay ? t("rp.quarterNow", { q: qLabel(quarter), to }) : t("rp.quarterDue", { q: qLabel(quarter), from, to })
+            underWay ? t("rp.quarterNow", { q: qLabel(quarter), to: longDate(to) }) : t("rp.quarterDue", { q: qLabel(quarter), from: longDate(from), to: longDate(to) })
           ) : (
             <>
               {t("rp.quarterPast", { q: qLabel(quarter), from, to, now: qLabel(nowQ) })}{" "}
@@ -279,7 +282,7 @@ export function QprPage() {
               {v.frozen?.kind === "practice" ? (
                 <StatusBlock tone="sky">Preview copy · {v.frozen.at.slice(0, 16).replace("T", " ")} UTC · {v.frozen.by}</StatusBlock>
               ) : v.saved.released ? (
-                <StatusBlock tone="forest">Released {v.saved.released.at.slice(0, 10)} by {personName(v.saved.released.by)}</StatusBlock>
+                <StatusBlock tone="forest">Released {longDate(v.saved.released.at)} by {personName(v.saved.released.by)}</StatusBlock>
               ) : (
                 <StatusBlock tone={blockN ? "clay" : "ochre"}>
                   Draft · {blockN} blocking · {fixN} worth fixing
@@ -326,7 +329,7 @@ export function QprPage() {
                   title={!blockN && !pfFresh ? (pfFailed ? t("pf.notLoaded") : t("pf.rechecking")) : undefined}
                   onClick={() =>
                     void askConfirm({
-                      message: `Mark the ${qLabel(quarter)} report final and release it to the donor? It is locked for good: this copy is what the donor receives. It appears in the donor's Reports tab, and every share link for this quarter opens it from now on. No email is sent: tell the donor yourself. To see what would go out first, use "Save a preview copy" instead.`,
+                      message: `Mark the ${qLabel(quarter)} report final and release it to the donor? ${underWay ? `This period has not ended: it ends on ${longDate(to)}. A result accepted after today will not be in the report the donor receives. ` : ""}It is locked for good: this copy is what the donor receives. It appears in the donor's Reports tab, and every share link for this quarter opens it from now on. No email is sent: tell the donor yourself. To see what would go out first, use "Save a preview copy" instead.`,
                       confirm: "Mark final and release",
                     }).then((ok) => (ok ? quiet(act({ action: "release" }, "Released: the report is final, it is in the donor's Reports tab, and it can no longer be changed.")) : undefined))
                   }
@@ -361,7 +364,7 @@ export function QprPage() {
               <section className="mt-4 border-y border-ink px-3 py-3 text-sm">
                 <p className="font-semibold">
                   {v.frozen.kind === "release"
-                    ? `This is the report as released on ${v.frozen.at.slice(0, 10)}: what the donor received. It stays as it was.`
+                    ? `This is the report as released on ${longDate(v.frozen.at)}: what the donor received. It stays as it was.`
                     : "This is a preview copy: the report as it would have gone out at that moment. Nothing was locked or released."}
                 </p>
                 {v.changes.length ? (
