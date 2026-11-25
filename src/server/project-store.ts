@@ -157,9 +157,12 @@ async function syncIndicators(tx: Tx, projectId: string, list: IndicatorInput[])
       });
       return next;
     });
-  if (touched("measure"))
+  // A removed target's measure goes with it, and a new target starts with only its own: a code
+  // freed by a deletion and given out again must not inherit the old target's survey setting.
+  const fresh = new Set(codes.filter((c) => !keep.includes(c)));
+  if (touched("measure") || fresh.size || existing.length > keep.length)
     await changeState<MeasuresDoc>(tx, projectId, MEASURES_KEY, (doc) => {
-      const next = { ...doc };
+      const next: MeasuresDoc = Object.fromEntries(Object.entries(doc).filter(([c]) => codes.includes(c) && !fresh.has(c)));
       list.forEach((i, n) => {
         if (i.measure) next[codes[n]] = i.measure;
       });

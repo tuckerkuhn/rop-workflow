@@ -19,15 +19,17 @@ import { loadProcurements } from "@/server/procurement-store";
 const KEY = "internal-review";
 const today = () => new Date().toISOString().slice(0, 10);
 
-export async function loadBook(orgId: string): Promise<ReviewBook> {
-  const [row] = await db
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+/** With `lock`, inside a transaction: the row is held until it commits, so two actions never overwrite each other. */
+export async function loadBook(orgId: string, q: Tx | typeof db = db, lock = false): Promise<ReviewBook> {
+  const base = q
     .select()
     .from(s.organizationState)
     .where(and(eq(s.organizationState.organizationId, orgId), eq(s.organizationState.key, KEY)))
     .limit(1);
+  const [row] = lock ? await base.for("update") : await base;
   return { roles: null, reviews: [], findings: [], ...((row?.data as Partial<ReviewBook>) ?? {}) };
 }
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 async function saveBook(orgId: string, data: ReviewBook, q: Tx | typeof db) {
   await q
     .insert(s.organizationState)
@@ -36,9 +38,9 @@ async function saveBook(orgId: string, data: ReviewBook, q: Tx | typeof db) {
 }
 
 /** Names to person ids: procurement signatures keep the signer's name. */
-async function idsByName() {
+function idsByName(staff: { id: string; name: string }[]) {
   const map = new Map<string, string>();
-  for (const u of await people()) map.set(u.name.trim().toLowerCase(), u.id);
+  for (const u of staff) map.set(u.name.trim().toLowerCase(), u.id);
   return (name: string) => map.get(name.trim().toLowerCase()) ?? name;
 }
 
@@ -47,7 +49,7 @@ export async function candidatesFor(orgId: string, quarter: string): Promise<Can
   const { start, end, months } = quarterRange(quarter);
   const inQuarter = (d: string | null | undefined) => !!d && d.slice(0, 10) >= start && d.slice(0, 10) <= end;
   const out: Candidate[] = [];
-  const idOf = await idsByName();
+  const idOf = idsByName(await people());
 
   // Cash and bank: each bank account for each month, reconciled or not.
   const banks = await db.select({ id: s.bankAccounts.id, name: s.bankAccounts.name }).from(s.bankAccounts).where(eq(s.bankAccounts.organizationId, orgId));
@@ -77,8 +79,13 @@ export async function candidatesFor(orgId: string, quarter: string): Promise<Can
 
   const projects = await db.select({ id: s.projects.id, code: s.projects.code, kind: s.projects.kind }).from(s.projects).where(eq(s.projects.organizationId, orgId));
   const real = projects.filter((p) => p.kind === "real" && p.code);
-  for (const p of real) {
-    const bills = await loadBills(p.code!).catch(() => null);
+  // Each project's bills and purchases are read side by side, not one project after another.
+  const [allBills, allProcurements] = await Promise.all([
+    Promise.all(real.map((p) => loadBills(p.code!).catch(() => null))),
+    Promise.all(real.map((p) => loadProcurements(p.code!).catch(() => []))),
+  ]);
+  for (const [k, p] of real.entries()) {
+    const bills = allBills[k];
     for (const b of bills?.items ?? []) {
       const when = b.approval?.at ?? b.invoiceDate;
       if (!b.approval || !inQuarter(when)) continue;
@@ -100,8 +107,8 @@ export async function candidatesFor(orgId: string, quarter: string): Promise<Can
   }
 
   // Procurement: every purchase that moved in the quarter.
-  for (const p of real) {
-    for (const r of await loadProcurements(p.code!).catch(() => [])) {
+  for (const [k, p] of real.entries()) {
+    for (const r of allProcurements[k]) {
       const sigs = Object.values(r.signatures ?? {}).flat();
       const dates = [...(r.timeline ?? []).map((e) => e.date), ...sigs.map((x) => x.date)];
       if (!dates.some(inQuarter)) continue;
@@ -130,16 +137,30 @@ export const maySee = (u: AppUser, roles: Roles | null) => rolesOf(u, roles).len
 
 export async function reviewView(orgId: string, u: AppUser) {
   const book = await loadBook(orgId);
+  const everyone = await people();
   const names: Record<string, string> = {};
-  for (const p of await people()) names[p.id] = p.name;
-  return { ...book, me: u.id, mine: rolesOf(u, book.roles), today: today(), names, staff: (await people()).filter((p) => p.kind === "employee").map((p) => ({ id: p.id, name: p.name })) };
+  for (const p of everyone) names[p.id] = p.name;
+  return { ...book, me: u.id, mine: rolesOf(u, book.roles), today: today(), names, staff: everyone.filter((p) => p.kind === "employee").map((p) => ({ id: p.id, name: p.name })) };
 }
 export type ReviewView = Awaited<ReturnType<typeof reviewView>>;
 
 const log = (q: Tx, orgId: string, action: string, by: string, detail: Record<string, unknown>) => q.insert(s.auditLog).values({ projectId: null, entity: "internal_review", entityId: orgId, action, detail: { by, ...detail } });
 
 export async function actOnReview(orgId: string, a: ReviewAction, u: AppUser): Promise<string | null> {
-  const book = await loadBook(orgId);
+  // The sample's records are read before the lock (it is slow); the checks run again under it.
+  let pool: Candidate[] | null = null;
+  if (a.action === "draw") {
+    const b = await loadBook(orgId);
+    if (rolesOf(u, b.roles).includes("lead") && today() > quarterRange(a.quarter).end && !b.reviews.some((x) => x.quarter === a.quarter)) pool = await candidatesFor(orgId, a.quarter);
+  }
+  return db.transaction(async (tx) => {
+    await tx.insert(s.organizationState).values({ organizationId: orgId, key: KEY, data: {} }).onConflictDoNothing();
+    const book = await loadBook(orgId, tx, true);
+    return decide(tx, orgId, book, a, u, pool);
+  });
+}
+
+async function decide(tx: Tx, orgId: string, book: ReviewBook, a: ReviewAction, u: AppUser, pool: Candidate[] | null): Promise<string | null> {
   const mine = rolesOf(u, book.roles);
   const r = book.roles;
   let detail: Record<string, unknown> = {};
@@ -157,7 +178,8 @@ export async function actOnReview(orgId: string, a: ReviewAction, u: AppUser): P
       const { end } = quarterRange(a.quarter);
       if (today() <= end) return "The sample is drawn after the quarter ends.";
       if (book.reviews.some((x) => x.quarter === a.quarter)) return "This quarter's sample is drawn already: it stays as drawn.";
-      const items = drawSample(await candidatesFor(orgId, a.quarter), a.quarter, r);
+      if (!pool) return "Someone else changed the review at the same moment. Try again.";
+      const items = drawSample(pool, a.quarter, r);
       book.reviews.push({ quarter: a.quarter, drawnAt: today(), drawnBy: u.id, items, steps: {} });
       detail = { quarter: a.quarter, items: items.length };
     } else if (a.action === "step") {
@@ -202,14 +224,13 @@ export async function actOnReview(orgId: string, a: ReviewAction, u: AppUser): P
       } else {
         if (!mine.includes("lead")) return "The lead closes a finding after re-testing it.";
         if (!f.response) return "A finding closes after the country office has responded and the fix is re-tested.";
+        if (!f.approved) return "The CEO approves the corrective action before the finding closes.";
         f.closed = { by: u.id, at: today(), note: a.note };
       }
       detail = { finding: f.id };
     }
   }
-  await db.transaction(async (tx) => {
-    await saveBook(orgId, book, tx);
-    await log(tx, orgId, `internal_review_${a.action}`, u.id, detail);
-  });
+  await saveBook(orgId, book, tx);
+  await log(tx, orgId, `internal_review_${a.action}`, u.id, detail);
   return null;
 }

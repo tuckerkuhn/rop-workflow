@@ -7,6 +7,7 @@ import { primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { FARMER_TEMPLATE, parseFarmers, type FarmerRow } from "@/lib/farmer-import";
 import { canEditProject, canSeePII } from "@/lib/demo";
 import { describePackage, keyFrom, setupProblem, type FieldSetup, type PackageItem } from "@/lib/package";
+import { peopleList } from "@/lib/people-words";
 
 /**
  * Setting a project up for Field activities: the input package (what one farmer receives, on which
@@ -408,7 +409,7 @@ export function FarmerImport({ code, onDone, onCancel }: { code: string; onDone:
         <div className="space-y-3 rounded-2xl border border-line bg-surface p-4 text-sm">
           <p>
             <span className="font-semibold">{parsed.rows.length}</span> {parsed.rows.length === 1 ? "farmer" : "farmers"} ready to load
-            {parsed.rows.length > 0 && ` (${parsed.rows.filter((r) => r.gender === "Female").length} women, ${parsed.rows.filter((r) => r.gender === "Male").length} men)`}.
+            {parsed.rows.length > 0 && ` (${peopleList({ women: parsed.rows.filter((r) => r.gender === "Female").length, men: parsed.rows.filter((r) => r.gender === "Male").length })})`}.
           </p>
           {parsed.hasNames && !mayNames && <p className="text-clay">The list has names, and your role cannot add them. Remove the Name column, or ask someone with access to participants&apos; names to load it.</p>}
           {parsed.problems.length > 0 && (

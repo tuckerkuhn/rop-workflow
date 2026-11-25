@@ -27,6 +27,16 @@ describe("training log", () => {
     expect(records.find((r) => r.self)?.proof).toBeTruthy();
   });
 
+  it("a record stays when the person who wrote it no longer holds the role", () => {
+    // Sima held HR when she recorded it; today Omid does.
+    const today = { ...hr, rules: { holders: { hr: ["omid"] } } } as unknown as HrState;
+    const start = entry("tucker", "start", null, { rules: { steps: {}, holders: { hr: ["sima"] } } });
+    const { records, ignored, logStart } = foldTraining([start, entry("sima", "training-start", null, { effective: "2026-01-01" }), entry("sima", "training", "yusuf", rec), entry("nadia", "training", "yusuf", rec)], today);
+    expect(logStart).toBe("2026-01-01");
+    expect(records.map((r) => r.by)).toEqual(["sima"]);
+    expect(ignored.map((i) => i.actor)).toEqual(["nadia"]);
+  });
+
   it("a withdrawn record stays in the log, marked, and no longer counts", () => {
     n = 100;
     const e1 = entry("sima", "training", "yusuf", rec);

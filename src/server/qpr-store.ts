@@ -2,7 +2,7 @@ import { ourWork } from "@/lib/budget";
 import { and, asc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { spentIn } from "@/lib/bva";
-import { activityOf, breakdownsFor, buildRows, carryForward, checksFor, DEFAULT_ACRONYMS, grmLogFor, photosFor, prevQuarterOf, withLineReasons, type IndicatorInfo, type Qpr, type Spend } from "@/lib/qpr";
+import { breakdownsFor, buildRows, carryForward, checksFor, DEFAULT_ACRONYMS, grmLogFor, narrativeActivities, photosFor, prevQuarterOf, withLineReasons, type IndicatorInfo, type Qpr, type Spend } from "@/lib/qpr";
 import { EMPTY_FEEDBACK, type FeedbackLog } from "@/lib/feedback";
 import { EMPTY_LEARNING, lessonsInQuarter, type Learning } from "@/lib/learning";
 import { today as clockToday } from "@/lib/clock";
@@ -235,6 +235,8 @@ async function readQprData(code: string, quarter: string) {
       .from(s.budgetLines)
       .where(eq(s.budgetLines.projectId, project.id)),
   );
+  // When the project's seasons end: a target measured at the end of the season is due its survey then.
+  const seasonsLater = early(db.select({ end: s.seasons.endDate }).from(s.seasons).where(eq(s.seasons.projectId, project.id)));
   const wpLater = early(db.selectDistinct({ code: s.workplanItems.activityCode, name: s.workplanItems.activity }).from(s.workplanItems).where(and(eq(s.workplanItems.projectId, project.id), isNotNull(s.workplanItems.activityCode))));
   const rows = await db
     .select()
@@ -253,6 +255,8 @@ async function readQprData(code: string, quarter: string) {
     disaggregation: r.disaggregation,
     budgetRef: r.budgetRef,
     workplanCode: r.workplanCode,
+    level: r.level,
+    frequency: r.frequency,
     // How results become its figure (lib/measure); only a target that does not add up carries it, so the rows of one that does stay as they were.
     ...(measureOf(r) !== "sum" ? { measure: measureOf(r), baseline: r.baseline === null ? null : Number(r.baseline) } : {}),
   }));
@@ -265,15 +269,17 @@ async function readQprData(code: string, quarter: string) {
   const ours = ourWork(plan);
   const plans: Record<string, string[]> = {};
   for (const w of ours) plans[w.code] = [...new Set([...(plans[w.code] ?? []), ...((w.active as string[]) ?? [])])];
-  const table = buildRows(indicators, results, quarter, saved, plans, range);
+  const seasonEnds = (await seasonsLater).map((x) => x.end);
+  const table = buildRows(indicators, results, quarter, saved, plans, range, seasonEnds);
   const lines = await linesLater;
   const spend = await spendFor(code, quarter, lines, range);
   const names = new Map<string, string>();
   for (const l of lines) if (l.activityCode && l.activity && !names.has(l.activityCode)) names.set(l.activityCode, l.activity);
   const wp = await wpLater;
   for (const w of wp) if (w.code && w.name && !names.has(w.code)) names.set(w.code, w.name);
-  const activityCodes = [...new Set(indicators.map((i) => activityOf(i.donorCode, i.code)))];
-  const activities = activityCodes.map((a) => ({ code: a, name: names.get(a) ?? `Activity ${a}` }));
+  // Narrative sections only for real workplan activities: outcome and goal targets stay in the table.
+  const activities = narrativeActivities(indicators, names);
+  const activityCodes = activities.map((a) => a.code);
   // Photos go to the donor only as far as the photo library's consent rule allows (server/photo-consent).
   const photoOk = await photoRuleLater;
   const captioned = photosFor(table, results, updates, quarter, range);

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ProofNumber } from "@/components/progress/proof-panel";
 import type { FamiliesView } from "@/server/families";
+import { peopleList } from "@/lib/people-words";
 
 /**
  * Home's first block: what the work came to for people this quarter, and one family beside the
@@ -60,7 +61,7 @@ export function Families({ project, user, mayWriteStory }: { project: string; us
                 </p>
                 {(r.women > 0 || r.men > 0) && (
                   <p className="text-xs text-muted">
-                    {n(r.women)} women, {n(r.men)} men
+                    {peopleList({ women: r.women, men: r.men }, ", ", n)}
                   </p>
                 )}
                 {(r.womenLed > 0 || r.menLed > 0) && (

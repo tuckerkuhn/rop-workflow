@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { HR_ROLES, ROLE_LABEL, type HrRole } from "@/lib/hr";
+import { longDate } from "@/lib/weekly";
+import { offersSetUp } from "@/lib/project-origin";
 
 /**
  * Proposals: the work between "this opportunity is a match" and "submitted". A donor's call for
@@ -501,4 +503,40 @@ export function itemsFromPlan(plan: z.infer<typeof planSchema>, taken: string[])
     const scored = x.kind === "scored";
     return { ...blank(id, { ref: x.ref.slice(0, 40), title: x.title.slice(0, 200), kind: x.kind, todo: x.todo.slice(0, 1500), criteria: scored ? x.criteria.slice(0, 3000) : "", guidance: scored ? x.guidance.slice(0, 3000) : "", upload: x.kind === "decision" ? null : ++k }), points: scored ? x.points : null, unchecked: true };
   });
+}
+
+/* ---------------- A decided proposal ---------------- */
+
+/** The day the outcome was recorded: decidedAt for a win, else the last history line that names it. */
+export function decidedOn(p: Pick<FundingProposal, "outcome" | "decidedAt" | "history">): string | null {
+  if (p.outcome === "won" && p.decidedAt) return p.decidedAt;
+  const label = OUTCOME_LABEL[p.outcome];
+  const h = [...p.history].reverse().find((x) => x.what === label || x.what.startsWith(`${label}:`));
+  return h ? h.at.slice(0, 10) : null;
+}
+
+/**
+ * What a decided proposal (won, not funded or withdrawn) opens with, before anything about
+ * submitting it: the outcome and its day, the award ceiling for a win and the project set up
+ * from it (or the way to set it up). Null while it is still being prepared or waits for an answer.
+ */
+export type DecidedLead = {
+  outcome: Outcome;
+  headline: string;
+  award: string | null;
+  project: { code: string; label: string; href: string } | null;
+  setUpHref: string | null;
+};
+export function decidedLead(p: Pick<FundingProposal, "id" | "outcome" | "decidedAt" | "history" | "currency" | "budget" | "projectCode">, maySetUp: boolean): DecidedLead | null {
+  if (p.outcome === "drafting" || p.outcome === "submitted") return null;
+  const day = decidedOn(p);
+  const won = p.outcome === "won";
+  const code = won ? (p.projectCode ?? null) : null;
+  return {
+    outcome: p.outcome,
+    headline: day ? `${OUTCOME_LABEL[p.outcome]} on ${longDate(day)}` : OUTCOME_LABEL[p.outcome],
+    award: won && p.budget.ceiling != null ? `Award ceiling: ${p.currency} ${Math.round(p.budget.ceiling).toLocaleString("en-US")}` : null,
+    project: code ? { code, label: `Set up as ${code}`, href: `/project?project=${encodeURIComponent(code)}` } : null,
+    setUpHref: offersSetUp(p, maySetUp) ? `/setup?new=1&proposal=${encodeURIComponent(p.id)}` : null,
+  };
 }

@@ -37,7 +37,7 @@ export type PeriodRow = {
   files: number;
   /** Achieved as a share of the target, in percent; null without a target. */
   pct: number | null;
-  verdict: "met" | "partly" | "not_met" | "no_target";
+  verdict: "met" | "partly" | "not_met" | "no_target" | "not_measured";
   /** Only for a target measured by a survey (lib/measure): how it is measured plus what to show instead of a figure that cannot be given. */
   measure?: "latest" | "change";
   note?: { achieved: string | null; cumulative: string | null };
@@ -85,7 +85,8 @@ export function buildPeriodRows(indicators: PeriodIndicator[], results: ResultRe
       records: p.kind === "annual" ? t.records : cum.records,
       files: p.kind === "annual" ? t.files : cum.files,
       pct,
-      verdict: target <= 0 ? "no_target" : achieved >= target ? "met" : achieved > 0 ? "partly" : "not_met",
+      // A survey figure that cannot be given yet (no survey, no baseline) is not "not met": it is not measured yet.
+      verdict: target <= 0 ? "no_target" : shown.reported === null ? "not_measured" : achieved >= target ? "met" : achieved > 0 ? "partly" : "not_met",
       ...(i.measure && i.measure !== "sum" ? { measure: i.measure, note: { achieved: shown.note, cumulative: cum.note } } : {}),
     };
   });

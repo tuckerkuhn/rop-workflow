@@ -65,12 +65,23 @@ describe("quarterly internal review", { timeout: 60_000 }, () => {
     expect(await actOnReview(orgId, { action: "approve", finding: f.id }, tucker)).toMatch(/response first/);
     expect(await actOnReview(orgId, { action: "respond", finding: f.id, text: "Finance signs each month by the 10th." }, daniel)).toMatch(/focal point/);
     expect(await actOnReview(orgId, { action: "respond", finding: f.id, text: "Finance signs each month by the 10th." }, karim)).toBeNull();
+    // Not closed before the CEO approves the corrective action.
+    expect(await actOnReview(orgId, { action: "close", finding: f.id, note: "Re-tested: October and November signed." }, daniel)).toMatch(/CEO approves/);
     expect(await actOnReview(orgId, { action: "approve", finding: f.id }, tucker)).toBeNull();
     expect(await actOnReview(orgId, { action: "close", finding: f.id, note: "Re-tested: October and November signed." }, daniel)).toBeNull();
     const after = (await loadBook(orgId)).findings[0];
     expect(after.closed?.by).toBe("daniel");
     const logged = await db.select().from(s.auditLog).where(and(eq(s.auditLog.entity, "internal_review"), eq(s.auditLog.action, "internal_review_close")));
     expect(logged).toHaveLength(1);
+  });
+
+  it("two actions at the same moment both stay", async () => {
+    const q = "2026-Q3";
+    const text = (n: number) => `Simultaneous finding number ${n}, both must stay.`;
+    const before = (await loadBook(orgId)).findings.length;
+    const out = await Promise.all([1, 2, 3].map((n) => actOnReview(orgId, { action: "finding", quarter: q, area: "cash", rating: "low", text: text(n) }, daniel)));
+    expect(out).toEqual([null, null, null]);
+    expect((await loadBook(orgId)).findings.length).toBe(before + 3);
   });
 
   it("reads candidates from the records without failing on a quarter with none", async () => {

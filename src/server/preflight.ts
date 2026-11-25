@@ -161,8 +161,10 @@ async function qpr(c: Ctx, quarter: string): Promise<Omit<Preflight, "items" | "
   else if (inQ.length) ok(c, "pf.ok.proof");
 
   // Targets for the quarter: planned in the workplan for it, or (no workplan dates) a year target with nothing at all this year.
+  // A target measured by a survey ("latest" or "change") is due only when its survey is: at the end of
+  // its season (or the year), or every period for one measured monthly or quarterly (lib/qpr surveyDueIn).
   const qn = Number(quarter.slice(-1));
-  const due = d.rows.filter((r) => (r.planned ? r.planned.includes(qn) : r.yearTarget > 0 && r.year === 0 && r.records.open === 0));
+  const due = d.rows.filter((r) => (r.surveyDue ? r.surveyDue.quarter && r.yearTarget > 0 : r.planned ? r.planned.includes(qn) : r.yearTarget > 0 && r.year === 0 && r.records.open === 0));
   noResult(c, due, d.results, from, to, quarter);
   baselineNeeded(c, d.rows.map((r) => ({ ...r, needs: r.note?.year === MEASURE_NOTE.baseline_needed })));
   await soloCount(c, from, to);

@@ -18,7 +18,7 @@ import { TopBar } from "@/components/workspace/ui";
  */
 
 const n = (v: number | null) => (v === null ? "–" : v.toLocaleString("en-US", { maximumFractionDigits: 1 }));
-const VERDICT = { met: { tone: "forest", text: "Met" }, partly: { tone: "ochre", text: "Partly" }, not_met: { tone: "clay", text: "Not met" }, no_target: { tone: "muted", text: "No target" } } as const;
+const VERDICT = { met: { tone: "forest", text: "Met" }, partly: { tone: "ochre", text: "Partly" }, not_met: { tone: "clay", text: "Not met" }, no_target: { tone: "muted", text: "No target" }, not_measured: { tone: "muted", text: "Not measured yet" } } as const;
 const LESSON_COLS = "minmax(6rem,1fr) 7rem minmax(0,3fr)";
 
 export function DonorPeriodReportPage({ slug }: { slug: string }) {

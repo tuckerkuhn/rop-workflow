@@ -5,8 +5,10 @@ import { askReason } from "@/components/app/dialogs";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRequireUser, useSession } from "@/components/app/session";
-import { TopBar, primaryBtn, quietBtn, StatusPill } from "@/components/workspace/ui";
-import { DOC_LABELS, SOURCES, type CallReading, type OppAction, type OppDoc, type Opportunity } from "@/lib/opportunities";
+import { TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
+import { Empty, PageHead, Sheet, StatusBlock } from "@/components/workspace/ledger";
+import { DOC_LABELS, SOURCES, opportunityChain, type CallReading, type OppAction, type OppDoc, type Opportunity } from "@/lib/opportunities";
+import { longDate } from "@/lib/weekly";
 import { openReceipt } from "@/components/people/expense-page";
 import type { Receipt } from "@/lib/expense";
 import type { OpportunitiesView } from "@/server/opportunities-store";
@@ -81,13 +83,13 @@ function DocumentsField({ docs, onChange, onAdded }: { docs: OppDoc[]; onChange:
       <p>Call documents</p>
       <p className="mt-0.5 text-xs text-muted">The call (a CFP, RFP, RFA, NOFO or similar) and everything that comes with it: annexes, templates, budget sheets. PDF, Word or Excel, up to 4 MB each. Choose several at once if you have them.</p>
       {docs.length > 0 && (
-        <ul className="mt-2 divide-y divide-line rounded-lg border border-line bg-surface">
+        <ul className="mt-2 divide-y divide-line border-y border-line">
           {docs.map((d) => (
             <li key={d.hash} className="flex flex-wrap items-center gap-2 px-3 py-2">
               <span className="min-w-0 flex-1 truncate">{d.name}</span>
               <select
                 aria-label={`What ${d.name} is`}
-                className="rounded-lg border border-line bg-paper px-2 py-1.5 text-xs"
+                className="min-h-11 border border-line bg-paper px-2 py-1.5 text-xs"
                 value={d.label}
                 onChange={(e) => onChange(docs.map((x) => (x.hash === d.hash ? { ...x, label: e.target.value as OppDoc["label"] } : x)))}
               >
@@ -95,7 +97,7 @@ function DocumentsField({ docs, onChange, onAdded }: { docs: OppDoc[]; onChange:
                   <option key={l}>{l}</option>
                 ))}
               </select>
-              <button type="button" className="text-xs font-semibold text-muted hover:text-ink hover:underline" onClick={() => onChange(docs.filter((x) => x.hash !== d.hash))}>
+              <button type="button" className="min-h-11 text-xs font-semibold text-muted hover:text-ink hover:underline" onClick={() => onChange(docs.filter((x) => x.hash !== d.hash))}>
                 Remove
               </button>
             </li>
@@ -245,8 +247,8 @@ function OppForm({ start, canRead, onSave, onCancel }: { start: Fields; canRead:
       }}
     >
       {/* Start from the call: its link or the document, then one button fills in the rest. */}
-      <div className="space-y-3 rounded-xl bg-paper p-3 sm:col-span-2">
-        <p className="text-sm font-semibold">Start from the call</p>
+      <div className="space-y-3 border-y border-line py-3 sm:col-span-2">
+        <p className="font-ledger text-base font-bold">Start from the call</p>
         <p className="text-xs text-muted">Add the link, the documents or both. {canRead ? "The app reads the call and fills in the rest for you to check." : "Then fill in the fields that appear."}</p>
         <label className="block text-sm">
           Link to the call
@@ -278,7 +280,7 @@ function OppForm({ start, canRead, onSave, onCancel }: { start: Fields; canRead:
           <p className="text-xs text-muted">Reading the call needs the AI assistant, which is not set up here.</p>
         )}
         {readNote && (
-          <div role="status" className={`rounded-lg px-3 py-2 text-xs ${readNote.ok ? "bg-mist text-leaf" : "bg-ochre-soft text-ink"}`}>
+          <div role="status" className={`border-s-[6px] px-3 py-2 text-xs ${readNote.ok ? "border-forest bg-mist text-leaf" : "border-ochre bg-ochre-soft text-ink"}`}>
             <p>{readNote.text}</p>
             {readNote.missing.length > 0 && (
               <ul className="mt-1 list-disc ps-4 text-ink">
@@ -293,7 +295,7 @@ function OppForm({ start, canRead, onSave, onCancel }: { start: Fields; canRead:
 
       {!show && (
         <p className="text-sm sm:col-span-2">
-          <button type="button" className="font-semibold text-forest hover:underline" onClick={() => setByHand(true)}>
+          <button type="button" className="min-h-11 font-semibold text-forest hover:underline" onClick={() => setByHand(true)}>
             No link or document? Fill it in by hand
           </button>
         </p>
@@ -345,9 +347,9 @@ function OppForm({ start, canRead, onSave, onCancel }: { start: Fields; canRead:
           </label>
 
           {/* The rest feeds the match brief; it can be filled in now or later. Open when editing one that has it. */}
-          <details className="rounded-xl border border-line text-sm sm:col-span-2" open={!!(start.need || start.capacity || start.risks || (start.source && start.source !== "Donor call"))}>
-            <summary className="cursor-pointer px-3 py-2.5 font-medium">More for the match brief (optional)</summary>
-            <div className="grid gap-3 p-3 sm:grid-cols-2">
+          <details className="border-y border-line text-sm sm:col-span-2" open={!!(start.need || start.capacity || start.risks || (start.source && start.source !== "Donor call"))}>
+            <summary className="flex min-h-11 cursor-pointer items-center font-ledger font-bold">More for the match brief (optional)</summary>
+            <div className="grid gap-3 pb-3 sm:grid-cols-2">
               <label className="text-sm">
                 Where it came from
                 <select className={input} value={f.source} onChange={t("source")}>
@@ -419,16 +421,30 @@ function Card({ o, v, act }: { o: Opportunity; v: OpportunitiesView; act: (a: Op
   const [busy, setBusy] = useState(false);
   const st = STATUS[o.status];
   const b = o.brief;
+  // Where it led: the proposal written for it and the project set up from it (lib/opportunities).
+  const chain = opportunityChain(o, v.proposals);
   return (
-    <li className="rounded-2xl border border-line bg-surface p-4">
+    <li className="border-b border-line px-3 py-4 last:border-ink">
       <div className="flex flex-wrap items-start gap-2">
         <div className="min-w-0 flex-1">
-          <p className="font-semibold">{o.title}</p>
+          <p className="font-ledger text-lg font-bold leading-snug">{o.title}</p>
           <p className="text-xs text-muted">
             {o.donor} · {o.source}
             {o.country ? ` · ${o.country}` : ""}
-            {o.deadline ? ` · deadline ${o.deadline}` : ""}
-            {o.value ? ` · ${o.currency} ${o.value.toLocaleString("en-US")}` : ""}
+            {o.deadline && (
+              <>
+                {" · deadline "}
+                <span className="font-mono tabular-nums">{longDate(o.deadline)}</span>
+              </>
+            )}
+            {o.value ? (
+              <>
+                {" · "}
+                <span className="font-mono tabular-nums">
+                  {o.currency} {o.value.toLocaleString("en-US")}
+                </span>
+              </>
+            ) : null}
             {o.link && (
               <>
                 {" · "}
@@ -439,13 +455,27 @@ function Card({ o, v, act }: { o: Opportunity; v: OpportunitiesView; act: (a: Op
             )}
           </p>
         </div>
-        <StatusPill tone={st.tone}>{st.text}</StatusPill>
+        <StatusBlock tone={st.tone}>{st.text}</StatusBlock>
       </div>
+      {(chain.proposal || chain.project) && (
+        <p className="mt-1 flex flex-wrap gap-x-5 text-sm">
+          {chain.proposal && (
+            <Link href={chain.proposal.href} className="inline-flex min-h-11 items-center gap-1 font-semibold text-forest hover:underline">
+              {chain.proposal.label} <span aria-hidden>→</span>
+            </Link>
+          )}
+          {chain.project && (
+            <Link href={chain.project.href} className="inline-flex min-h-11 items-center gap-1 font-mono font-semibold text-forest hover:underline">
+              {chain.project.label} <span aria-hidden>→</span>
+            </Link>
+          )}
+        </p>
+      )}
       {(o.documents ?? []).length > 0 && (
         <ul className="mt-2 flex flex-wrap gap-2 text-xs">
           {(o.documents ?? []).map((d) => (
             <li key={d.hash}>
-              <button type="button" className="rounded-lg bg-mist px-2.5 py-1.5 font-semibold text-forest hover:bg-sunken" title={d.label} onClick={() => user && void openReceipt(d.hash, user.id)}>
+              <button type="button" className="min-h-11 border border-line px-2.5 py-1.5 font-semibold text-forest hover:bg-ochre-soft" title={d.label} onClick={() => user && void openReceipt(d.hash, user.id)}>
                 {d.name}
               </button>
             </li>
@@ -453,14 +483,14 @@ function Card({ o, v, act }: { o: Opportunity; v: OpportunitiesView; act: (a: Op
         </ul>
       )}
       {editing ? (
-        <div className="mt-3">
+        <Sheet className="mt-3">
           <OppForm start={o} canRead={v.can.brief} onCancel={() => setEditing(false)} onSave={(fields) => act({ action: "edit", id: o.id, fields }).then(() => setEditing(false))} />
-        </div>
+        </Sheet>
       ) : (
         <>
           {b ? (
-            <div className="mt-3 space-y-1.5 rounded-xl bg-paper p-3 text-sm">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted">Match brief (AI draft, {b.at}): check it before the call</p>
+            <div className="mt-3 space-y-1.5 border-s-[6px] border-line ps-3 text-sm">
+              <p className="font-mono text-xs uppercase tracking-wide text-muted">Match brief (AI draft, {/^\d{4}-\d{2}-\d{2}/.test(b.at) ? longDate(b.at.slice(0, 10)) : b.at}): check it before the call</p>
               {b.fromDocuments && (
                 <p>
                   <span className="font-semibold">From the call documents: </span>
@@ -518,7 +548,7 @@ function Card({ o, v, act }: { o: Opportunity; v: OpportunitiesView; act: (a: Op
           )}
           {o.decision && (
             <p className={`mt-3 text-sm ${o.decision.match ? "text-forest" : "text-muted"}`}>
-              <span className="font-semibold">{o.decision.match ? "Match" : "No match"}</span>, {o.decision.byName} on {o.decision.at}: {o.decision.reason}
+              <span className="font-semibold">{o.decision.match ? "Match" : "No match"}</span>, {o.decision.byName} on {longDate(o.decision.at.slice(0, 10))}: {o.decision.reason}
             </p>
           )}
           <div className="mt-3 flex flex-wrap gap-2 text-sm">
@@ -567,7 +597,7 @@ function Card({ o, v, act }: { o: Opportunity; v: OpportunitiesView; act: (a: Op
             {(o.status === "match" || o.status === "no_match") && v.can.decide && (
               <button
                 type="button"
-                className="text-xs text-muted hover:text-ink"
+                className="min-h-11 text-xs text-muted hover:text-ink"
                 onClick={async () => {
                   // Cancel means do not reopen: before, it reopened with an empty reason.
                   const reason = await askReason({
@@ -595,7 +625,7 @@ function Card({ o, v, act }: { o: Opportunity; v: OpportunitiesView; act: (a: Op
               }}
             >
               <input
-                className="min-w-0 flex-1 rounded-lg border border-line bg-paper px-3 py-2 text-sm"
+                className="min-h-11 min-w-0 flex-1 border border-line bg-paper px-3 py-2 text-sm"
                 placeholder={deciding ? "Why it is a match" : "Why not: kept so the next similar call learns from it"}
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
@@ -649,33 +679,37 @@ export function OpportunitiesPage() {
     <div className="min-h-screen">
       <TopBar />
       <main className={`mx-auto px-4 py-6 sm:px-6 ${view === "board" ? "max-w-7xl" : "max-w-3xl"}`}>
-        <Link href="/project" className="text-sm text-muted hover:text-ink">
-          ← Projects
-        </Link>
-        <div className="mt-2 flex flex-wrap items-end gap-3">
-          <h1 className="min-w-0 flex-1 font-display text-4xl tracking-tight">Opportunities</h1>
-          {v && v.items.length > 0 && <ViewSwitch value={view} onChange={setView} />}
-          {v && <TrackRecordButton user={user.id} />}
-          {/* Stays in place while the form is open: when it went, the button beside it slid under the pointer. */}
-          {v?.can.add && (
-            <button type="button" className={primaryBtn} disabled={adding} onClick={() => setAdding(true)}>
-              + Record an opportunity
-            </button>
-          )}
-        </div>
-        <p className="mt-1 text-sm text-muted">Record funding calls, check if they fit ROP, and decide yes or no.</p>
-        {error && <p className="mt-4 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">{error}</p>}
+        <PageHead
+          back={{ href: "/project", label: "Projects" }}
+          title="Opportunities"
+          meta={v ? `${v.items.length} recorded` : undefined}
+          actions={
+            <>
+              {v && v.items.length > 0 && <ViewSwitch value={view} onChange={setView} />}
+              {v && <TrackRecordButton user={user.id} />}
+              {/* Stays in place while the form is open: when it went, the button beside it slid under the pointer. */}
+              {v?.can.add && (
+                <button type="button" className={primaryBtn} disabled={adding} onClick={() => setAdding(true)}>
+                  + Record an opportunity
+                </button>
+              )}
+            </>
+          }
+        >
+          Record funding calls, check if they fit ROP, and decide yes or no.
+        </PageHead>
+        {error && <p className="mt-4 border-y border-clay bg-clay-soft px-3 py-3 text-sm text-clay">{error}</p>}
         {adding && (
-          <section className="mt-4 rounded-2xl border border-line bg-surface p-4">
+          <Sheet>
             <OppForm start={EMPTY} canRead={!!v?.can.brief} onCancel={() => setAdding(false)} onSave={(fields) => act({ action: "add", fields }).then(() => setAdding(false))} />
-          </section>
+          </Sheet>
         )}
-        {!v && !error && <p className="mt-6 text-sm text-muted">Loading…</p>}
-        {v && v.items.length === 0 && !adding && <p className="mt-6 text-sm text-muted">No opportunities recorded yet.</p>}
+        {!v && !error && <Empty className="mt-6">Loading…</Empty>}
+        {v && v.items.length === 0 && !adding && <Empty className="mt-6">No opportunities recorded yet.</Empty>}
         {v && view === "board" && v.items.length > 0 ? (
           <>
             <PipelineBoard items={v.items} picked={picked} pick={(id) => setPicked(picked === id ? null : id)} />
-            <ul className="mt-2 space-y-3">
+            <ul className="mt-2 border-t-2 border-ink empty:hidden">
               {v.items
                 .filter((o) => o.id === picked)
                 .map((o) => (
@@ -684,11 +718,14 @@ export function OpportunitiesPage() {
             </ul>
           </>
         ) : (
-          <ul className="mt-4 space-y-3">
-            {v?.items.map((o) => (
-              <Card key={o.id} o={o} v={v} act={act} />
-            ))}
-          </ul>
+          v &&
+          v.items.length > 0 && (
+            <ul className="mt-4 border-t-2 border-ink">
+              {v.items.map((o) => (
+                <Card key={o.id} o={o} v={v} act={act} />
+              ))}
+            </ul>
+          )
         )}
       </main>
     </div>

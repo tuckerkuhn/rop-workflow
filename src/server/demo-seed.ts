@@ -18,6 +18,8 @@ import { saveActuals } from "@/server/actuals-store";
 import { saveBudget, saveWorkplan } from "@/server/plan-store";
 import { rebuildPlan } from "@/server/procurement-plan-store";
 import { saveProjectState } from "@/server/project-state";
+import { periodEndMonths, type SavedObligation } from "@/lib/obligations";
+import { saveObligations } from "@/server/obligations-store";
 import { seedDonors, seedIndicators } from "@/server/progress-store";
 import { seedDemoOrigin } from "@/server/demo-origin";
 import { seedWorkItems } from "@/server/work-store";
@@ -191,6 +193,8 @@ async function loadDemoState(projectId: string, organizationId: string) {
   const spending = await seedDesign(projectId);
   // Report deadlines name calendar months and years ("Monthly report: February"), so they stay as written.
   await seedDonors(projectId, organizationId);
+  // What each donor's agreement asks to be reported and when (fictional), so report deadlines work out.
+  await seedDemoObligations(projectId);
   // Where the project came from: a fictional call, the proposal written for it, won, and this project set up from it.
   await seedDemoOrigin(projectId, organizationId, realToday());
   await seedResults(projectId, organizationId, subs);
@@ -219,6 +223,51 @@ async function loadDemoState(projectId: string, organizationId: string) {
   // The demo's books (server/demo-ledger): October on the main bank account as the sample statement
   // shows it, and the rest of the imported sample spending, so the ledger and the import agree.
   await seedDemoLedger(projectId, organizationId, spending);
+}
+
+/**
+ * The demo donors' reporting obligations (lib/obligations), as setup would confirm them from the
+ * agreements (fictional): Demo Foundation's quarterly progress report on the agreement's quarters
+ * from the project's start, due 30 days after each; Agri Futures Fund's annual report, due 60 days
+ * after the year ends. Each goes to the donor seedDonors added under that name.
+ */
+export async function seedDemoObligations(projectId: string) {
+  const [project] = await db.select({ startDate: s.projects.startDate }).from(s.projects).where(eq(s.projects.id, projectId)).limit(1);
+  const donors = await db.select({ id: s.donors.id, name: s.donors.name }).from(s.donors).where(eq(s.donors.projectId, projectId));
+  const idOf = (name: string) => donors.find((d) => d.name === name)?.id ?? null;
+  const startMonth = project?.startDate ? Number(project.startDate.slice(5, 7)) : null;
+  const at = `${project?.startDate ?? realToday()}T09:00:00.000Z`;
+  const list: SavedObligation[] = [
+    {
+      donorId: idOf("Demo Foundation (fictional)"),
+      report: "quarterly",
+      name: "Quarterly progress report",
+      frequency: "quarterly",
+      periodEnds: periodEndMonths("quarterly", startMonth),
+      daysAfter: 30,
+      dueDates: [],
+      format: "Donor's quarterly template (fictional)",
+      formatFile: null,
+      source: "Grant agreement, reporting clause (fictional)",
+      by: "demo",
+      at,
+    },
+    {
+      donorId: idOf("Agri Futures Fund (fictional)"),
+      report: "annual",
+      name: "Annual report",
+      frequency: "annual",
+      periodEnds: periodEndMonths("annual", null),
+      daysAfter: 60,
+      dueDates: [],
+      format: "",
+      formatFile: null,
+      source: "Co-funding agreement, reporting clause (fictional)",
+      by: "demo",
+      at,
+    },
+  ];
+  await saveObligations(projectId, list);
 }
 
 /**

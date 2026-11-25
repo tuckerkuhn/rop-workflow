@@ -1,5 +1,6 @@
 import type { ResultRecord } from "@/lib/results";
 import { proofCount } from "@/lib/results";
+import { peopleList } from "@/lib/people-words";
 
 /**
  * Checks on a recorded result, shown to the MEL owner before accepting it: the "data checker".
@@ -41,7 +42,7 @@ export function dataChecks(r: ResultRecord, all: ResultRecord[], ind: Indicator 
   }
   // Women and men should add up to the total when both are given for people.
   if (r.female !== undefined && r.male !== undefined && r.female + r.male !== r.value && countsPeople(ind?.unit ?? ""))
-    out.push(`${r.female} women and ${r.male} men make ${r.female + r.male}, not ${r.value}.`);
+    out.push(`${peopleList({ women: r.female, men: r.male }, " and ")} make ${r.female + r.male}, not ${r.value}.`);
   // What the indicator is broken down by, and the record leaves out.
   const by = ind?.disaggregation ?? [];
   if (by.includes("sex") && r.female === undefined && r.male === undefined && r.womenLed === undefined && r.menLed === undefined) out.push("This target is reported by women and men, but the record has no women and men.");

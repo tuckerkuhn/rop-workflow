@@ -56,4 +56,18 @@ describe("project setup keeps what the documents say about each indicator", { ti
     await updateProject(code, { name: design.name, country: design.country, crop: "", goal: "", startDate: "2028-01-01", endDate: "2029-12-31", indicators: again.indicators });
     expect((await projectDesign(code))!.indicators).toEqual(again.indicators);
   });
+
+  it("a removed target's measure goes with it, and a new target given its freed code starts as a sum", async () => {
+    const design = (await projectDesign(code))!;
+    const p = (await db.select().from(s.projects).where(eq(s.projects.code, code)))[0];
+    const meta = { name: design.name, country: design.country, crop: "", goal: "", startDate: "2028-01-01", endDate: "2029-12-31" };
+    // IND-2 (measured "latest") removed: IND-1 is now the highest code, so the next new target is IND-2 again.
+    await updateProject(code, { ...meta, indicators: [design.indicators[0]] });
+    expect(await state(p.id, MEASURES_KEY)).toEqual({});
+    const rest = { ...design.indicators[1], code: undefined, measure: undefined, name: "Households with a kitchen garden" };
+    await updateProject(code, { ...meta, indicators: [design.indicators[0], rest] });
+    const after = (await projectDesign(code))!;
+    expect(after.indicators[1].code).toBe("IND-2");
+    expect(after.indicators[1].measure).toBeUndefined();
+  });
 });

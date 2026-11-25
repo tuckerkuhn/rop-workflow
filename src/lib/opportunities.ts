@@ -105,3 +105,21 @@ export const readSchema = z.object({
   missing: z.array(z.string()).describe("Anything a team would need that the call does not say or that could not be read, e.g. 'No deadline found'."),
 });
 export type CallReading = z.infer<typeof readSchema>;
+
+/* ---------------- Where an opportunity went ---------------- */
+
+/** The proposal written for an opportunity, as the opportunities list may show it. */
+export type OppProposal = { id: string; opportunityId: string | null; title: string; outcome: string; outcomeLabel: string; projectCode?: string };
+
+/**
+ * Where an opportunity led: its proposal (linked to the proposals screen) and the project set up
+ * from it (linked with ?project=, which makes it the current project). Either may be missing.
+ */
+export function opportunityChain(o: Pick<Opportunity, "id" | "projectCode">, proposals: OppProposal[]): { proposal: { id: string; label: string; href: string } | null; project: { code: string; label: string; href: string } | null } {
+  const p = proposals.find((x) => x.opportunityId === o.id) ?? null;
+  const code = o.projectCode || p?.projectCode || null;
+  return {
+    proposal: p && { id: p.id, label: `Proposal: ${p.title} (${p.outcomeLabel})`, href: `/work/proposals?open=${encodeURIComponent(p.id)}` },
+    project: code ? { code, label: `Project ${code}`, href: `/project?project=${encodeURIComponent(code)}` } : null,
+  };
+}

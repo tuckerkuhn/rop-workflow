@@ -19,6 +19,7 @@ import {
   STATUSES,
   STATUS_LABEL,
   byPerson,
+  decidedLead,
   hoursLeft,
   isDone,
   placeOf,
@@ -32,8 +33,7 @@ import {
   type Status,
 } from "@/lib/funding-proposals";
 import { ROLE_LABEL } from "@/lib/hr";
-import { SectionHead, Sheet } from "@/components/workspace/ledger";
-import { offersSetUp } from "@/lib/project-origin";
+import { Sheet, StatusBlock } from "@/components/workspace/ledger";
 import type { ProposalsView } from "@/server/funding-proposals-store";
 
 /**
@@ -457,6 +457,40 @@ function Detail({ p, v, me, act, busy }: { p: P; v: ProposalsView; me: string; a
   const people = [...(v.core?.members ?? []), ...p.team.map((id) => ({ id, name: v.names[id] ?? id })), ...p.outside.map((o) => ({ id: o.id, name: v.names[o.id] ?? o.name }))];
   const row = (i: Item) => <ItemRow key={i.id} p={p} i={i} v={v} me={me} act={act} busy={busy} />;
   const close = () => setPanel("");
+  // Won, not funded or withdrawn: the outcome comes first; how it was prepared folds away below.
+  const lead = decidedLead(p, v.can.setUp);
+  // Whether it can be submitted and how it would stand: first while it is prepared, folded away once decided.
+  const readinessPanels = (
+    <div className="grid gap-4 md:grid-cols-2">
+      <section className="rounded-2xl border border-line bg-surface p-4">
+        <SectionLabel>Can it be submitted?</SectionLabel>
+        <p className="mt-1 text-lg font-medium">{r.blockers.length ? "Not yet" : "Yes"}</p>
+        <p className="text-sm text-muted">
+          {r.checks.done} of {r.checks.of} checkbox items final{r.decisions.length ? ` · ${r.decisions.length} decision${r.decisions.length === 1 ? "" : "s"} open` : ""}
+        </p>
+        {r.blockers.length > 0 && (
+          <ul className="mt-2 list-disc space-y-1 ps-5 text-sm">
+            {r.blockers.map((b) => (
+              <li key={b}>{b}</li>
+            ))}
+          </ul>
+        )}
+      </section>
+      <section className="rounded-2xl border border-line bg-surface p-4">
+        <SectionLabel>How would it stand?</SectionLabel>
+        <p className="mt-1 text-lg font-medium">{r.scored.band ? `${BAND_LABEL[r.scored.band]}${r.scored.rated < r.scored.of ? ", on the sections rated so far" : ""}` : r.scored.of ? "Not rated yet" : "Nothing in this call is scored"}</p>
+        <p className="text-sm text-muted">
+          {r.scored.rated} of {r.scored.of} scored sections rated by a reviewer{r.scored.suggested ? ` · ${r.scored.suggested} with an AI suggestion to confirm` : ""}. A band, not a score: it weighs each section by its points in the grid.
+        </p>
+        {r.scored.weakest.length > 0 && (
+          <p className="mt-2 text-sm">
+            <span className="font-semibold">Weakest, most points first: </span>
+            {r.scored.weakest.slice(0, 3).map((i) => `${i.title} (${BAND_LABEL[i.rating!.band].toLowerCase()})`).join("; ")}
+          </p>
+        )}
+      </section>
+    </div>
+  );
 
   return (
     <div className="space-y-5">
@@ -501,35 +535,31 @@ function Detail({ p, v, me, act, busy }: { p: P; v: ProposalsView; me: string; a
         </section>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <section className="rounded-2xl border border-line bg-surface p-4">
-          <SectionLabel>Can it be submitted?</SectionLabel>
-          <p className="mt-1 text-lg font-medium">{r.blockers.length ? "Not yet" : "Yes"}</p>
-          <p className="text-sm text-muted">
-            {r.checks.done} of {r.checks.of} checkbox items final{r.decisions.length ? ` · ${r.decisions.length} decision${r.decisions.length === 1 ? "" : "s"} open` : ""}
-          </p>
-          {r.blockers.length > 0 && (
-            <ul className="mt-2 list-disc space-y-1 ps-5 text-sm">
-              {r.blockers.map((b) => (
-                <li key={b}>{b}</li>
-              ))}
-            </ul>
+      {lead && (
+        <Sheet className="text-sm" tone={lead.outcome === "won" ? "gold" : undefined}>
+          <div className="flex flex-wrap items-center gap-3">
+            <StatusBlock tone={lead.outcome === "won" ? "forest" : "muted"}>{OUTCOME_LABEL[lead.outcome]}</StatusBlock>
+            <p className="font-ledger text-xl font-bold">{lead.headline}</p>
+          </div>
+          {lead.award && <p className="mt-2 font-mono tabular-nums">{lead.award}</p>}
+          {/* Won: the proposal becomes the project, so nothing is typed twice (server/project-origin). */}
+          {lead.project && (
+            <Link href={lead.project.href} className="mt-1 inline-flex min-h-11 items-center gap-1 font-semibold text-forest hover:underline">
+              {lead.project.label} <span aria-hidden>→</span>
+            </Link>
           )}
-        </section>
-        <section className="rounded-2xl border border-line bg-surface p-4">
-          <SectionLabel>How would it stand?</SectionLabel>
-          <p className="mt-1 text-lg font-medium">{r.scored.band ? `${BAND_LABEL[r.scored.band]}${r.scored.rated < r.scored.of ? ", on the sections rated so far" : ""}` : r.scored.of ? "Not rated yet" : "Nothing in this call is scored"}</p>
-          <p className="text-sm text-muted">
-            {r.scored.rated} of {r.scored.of} scored sections rated by a reviewer{r.scored.suggested ? ` · ${r.scored.suggested} with an AI suggestion to confirm` : ""}. A band, not a score: it weighs each section by its points in the grid.
-          </p>
-          {r.scored.weakest.length > 0 && (
-            <p className="mt-2 text-sm">
-              <span className="font-semibold">Weakest, most points first: </span>
-              {r.scored.weakest.slice(0, 3).map((i) => `${i.title} (${BAND_LABEL[i.rating!.band].toLowerCase()})`).join("; ")}
-            </p>
+          {lead.setUpHref && (
+            <>
+              <p className="mt-2 text-muted">Setup opens with the name, donor, currency, ceiling and start date from this proposal. You check each step; nothing is created until you save it.</p>
+              <Link href={lead.setUpHref} className={`${primaryBtn} mt-3 inline-block`}>
+                Set up the project from this proposal
+              </Link>
+            </>
           )}
-        </section>
-      </div>
+        </Sheet>
+      )}
+
+      {!lead && readinessPanels}
 
       <section className="rounded-2xl border border-line bg-surface p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -824,26 +854,11 @@ function Detail({ p, v, me, act, busy }: { p: P; v: ProposalsView; me: string; a
         </section>
       )}
 
-      {/* Won: the proposal becomes the project, so nothing is typed twice (server/project-origin). */}
-      {p.outcome === "won" && (p.projectCode || offersSetUp(p, v.can.setUp)) && (
-        <Sheet className="text-sm">
-          <SectionHead className="mt-0">The project</SectionHead>
-          {p.projectCode ? (
-            <p className="mt-2">
-              Set up as{" "}
-              <Link href={`/settings?project=${encodeURIComponent(p.projectCode)}`} className="font-mono font-semibold text-forest hover:underline">
-                {p.projectCode}
-              </Link>
-            </p>
-          ) : (
-            <>
-              <p className="mt-2 text-muted">Setup opens with the name, donor, currency, ceiling and start date from this proposal. You check each step; nothing is created until you save it.</p>
-              <Link href={`/setup?new=1&proposal=${encodeURIComponent(p.id)}`} className={`${primaryBtn} mt-3 inline-block`}>
-                Set up the project from this proposal
-              </Link>
-            </>
-          )}
-        </Sheet>
+      {lead && (
+        <details className="rounded-2xl border border-line bg-surface">
+          <summary className="cursor-pointer px-4 py-3 text-sm font-medium">How it was prepared</summary>
+          <div className="px-4 pb-4">{readinessPanels}</div>
+        </details>
       )}
 
       <details className="rounded-2xl border border-line bg-surface">

@@ -303,7 +303,7 @@ export const en = {
   "progress.csv": "Spreadsheet (CSV)",
 
   "report.title": "Progress report",
-  "report.format.baseline": "Baseline report",
+  "report.format.baseline": "Standard format",
   "report.col.code": "Code",
   "report.col.indicator": "Indicator",
   "report.col.unit": "Unit",

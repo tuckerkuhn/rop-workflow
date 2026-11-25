@@ -26,7 +26,7 @@ import {
   type Item,
   type ProposalAction,
 } from "@/lib/funding-proposals";
-import type { Opportunity } from "@/lib/opportunities";
+import type { OppProposal, Opportunity } from "@/lib/opportunities";
 import { asIs } from "@/server/ai";
 import { draftStructured } from "@/server/ai-structured";
 import { people } from "@/server/auth";
@@ -106,6 +106,14 @@ export async function proposalMenuMap(orgId: string | null, only?: string): Prom
 const setsCore = (u: AppUser, holders: Holders) => !!u.admin || !!holders.ceo?.includes(u.id);
 
 const sees = (p: FundingProposal, u: AppUser, core: boolean) => core || p.team.includes(u.id);
+
+/** The proposals this person may open, in short, for the opportunities list to link to (lib/opportunities opportunityChain). */
+export async function proposalLinks(orgId: string, u: AppUser): Promise<OppProposal[]> {
+  if (u.kind !== "employee") return [];
+  const [r, b] = await Promise.all([roster(orgId), load(orgId)]);
+  const core = r.is(u.id);
+  return b.items.filter((p) => sees(p, u, core)).map((p) => ({ id: p.id, opportunityId: p.opportunityId, title: p.title, outcome: p.outcome, outcomeLabel: OUTCOME_LABEL[p.outcome], ...(p.projectCode ? { projectCode: p.projectCode } : {}) }));
+}
 
 /** What one person sees: every proposal for the core, and for a contributor only the ones they are named on. */
 export async function loadProposals(orgId: string, u: AppUser) {

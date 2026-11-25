@@ -1,5 +1,6 @@
 import { AlignmentType, BorderStyle, Document, HeadingLevel, ImageRun, Packer, Paragraph, Table, TableCell, TableRow, TextRun, WidthType } from "docx";
 import type { TrackRecord } from "@/server/track-record";
+import { peopleCount } from "@/lib/people-words";
 
 /** ROP's track record as a Word document, for proposals: one section per project. */
 
@@ -38,7 +39,7 @@ export async function trackRecordDocx(t: TrackRecord, images: TrackImages): Prom
           ],
         }),
       );
-      if (pr.womenAtLeast) kids.push(p(`At least ${n(pr.womenAtLeast)} women reached: the most under any one result. The same woman can be counted under more than one result, so they are not added up.`, { after: 160 }));
+      if (pr.womenAtLeast) kids.push(p(`At least ${peopleCount(pr.womenAtLeast, "women", n)} reached: the most under any one result. The same woman can be counted under more than one result, so they are not added up.`, { after: 160 }));
     } else kids.push(p("No accepted results yet.", { italics: true, color: "777777" }));
     for (const st of pr.stories) {
       kids.push(new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun({ text: st.title, font: FONT })] }));

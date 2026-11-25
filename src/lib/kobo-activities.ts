@@ -14,6 +14,15 @@ export const ACTIVITY_LINK_ORIGINS = ["suggested", "manual"] as const;
 export type ActivityLinkOrigin = (typeof ACTIVITY_LINK_ORIGINS)[number];
 
 const activityCode = z.string().trim().regex(/^\d+(\.\d+)*$/, "An activity code is numbers with dots, like 1.2.1.").max(30);
+
+/**
+ * A target's workplan activity, or null when it has none a form could be linked to: a target with
+ * no donor code ("IND-3") or an outcome ("1.a") is not a workplan activity.
+ */
+export function workplanActivityOf(donorCode: string | null, code: string): string | null {
+  const a = activityOf(donorCode, code);
+  return /^\d+(\.\d+)*$/.test(a) ? a : null;
+}
 export const activityLinksSchema = z.object({
   links: z
     .array(z.object({ form: z.string().min(1).max(100), activities: z.array(activityCode).max(50), origin: z.enum(ACTIVITY_LINK_ORIGINS).default("manual") }))
@@ -30,7 +39,7 @@ export function suggestActivities(mappings: { indicatorCode: string; assetUid: s
   for (const m of mappings) {
     const i = indicators.find((x) => x.code === m.indicatorCode);
     if (!i || !m.assetUid) continue;
-    const a = activityOf(i.donorCode, i.code);
+    const a = workplanActivityOf(i.donorCode, i.code);
     if (!a) continue;
     out[m.assetUid] = [...new Set([...(out[m.assetUid] ?? []), a])].sort();
   }

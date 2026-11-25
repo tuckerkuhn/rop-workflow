@@ -1,12 +1,11 @@
-import { and, eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
-import { db, schema as s } from "@/db";
 import { seesAll } from "@/lib/hr";
 import { foldOnboarding } from "@/lib/onboarding";
 import { foldTraining, logRows, mayPlan, mayRecord, standing, trainingActionSchema } from "@/lib/training";
 import { people, requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
-import { append, hrBook, loadHr, todayIso } from "@/server/hr-store";
+import { loadFile } from "@/server/hr-files";
+import { append, loadHr, todayIso } from "@/server/hr-store";
 
 /**
  * The training log (lib/training), from the HR ledger. Operations (HR) and the organization's
@@ -60,11 +59,6 @@ async function view(me: string, person: string | null) {
 }
 export type TrainingView = Awaited<ReturnType<typeof view>>;
 
-async function fileExists(hash: string) {
-  const found = await db.select({ hash: s.hrFiles.hash }).from(s.hrFiles).where(and(eq(s.hrFiles.book, hrBook()), inArray(s.hrFiles.hash, [hash])));
-  return found.length === 1;
-}
-
 export async function GET(req: Request) {
   return handle(async () => {
     const v = await requireViewer(req, { allow: (u) => u.kind === "employee" });
@@ -104,7 +98,13 @@ export async function POST(req: Request) {
       if (!mayRecord(me, a.person, hr)) return fail("Only the person, their supervisor or HR records training.");
       if (a.record.date > todayIso()) return fail("Record training once it has taken place.", 400);
       if (a.person === me && !a.record.proof) return fail("Attach the attendance sheet or certificate: training you record for yourself needs its proof.", 400);
-      if (a.record.proof && !(await fileExists(a.record.proof.hash))) return fail("The file did not finish uploading.", 400);
+      if (a.record.proof) {
+        // Only a file this person uploaded: a fingerprint copied from elsewhere (a contract, a sick
+        // note) must not become openable as "training proof".
+        const f = await loadFile(a.record.proof.hash);
+        if (!f) return fail("The file did not finish uploading.", 400);
+        if (f.uploadedBy !== me) return fail("Attach the proof yourself: that file was uploaded by someone else.", 400);
+      }
       n = await append(me, "training", a.person, a.record);
       person = a.person;
     } else if (a.action === "plan") {

@@ -389,7 +389,7 @@ function FindingsLog({ v, busy, act, name }: { v: ReviewView; busy: boolean; act
         Findings log
       </SectionHead>
       <p className="mt-1 text-sm text-muted">
-        High: {RATINGS.high.rule.toLowerCase()}. Medium: {RATINGS.medium.rule.toLowerCase()}. Low: {RATINGS.low.rule.toLowerCase()}. A finding closes once the lead re-tests the fix.
+        High: {RATINGS.high.rule.toLowerCase()}. Medium: {RATINGS.medium.rule.toLowerCase()}. Low: {RATINGS.low.rule.toLowerCase()}. A finding closes once the CEO has approved the corrective action and the lead re-tests the fix.
       </p>
       {adding && quarter && (
         <Sheet className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -476,7 +476,7 @@ function FindingRow({ n, x, v, busy, act, name, first }: { n: number; x: Finding
                   Approve the corrective action
                 </button>
               )}
-              {v.mine.includes("lead") && x.response && !mode && (
+              {v.mine.includes("lead") && x.response && x.approved && !mode && (
                 <button type="button" className={quietBtn} onClick={() => setMode("close")}>
                   Close after re-testing
                 </button>

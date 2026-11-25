@@ -17,7 +17,7 @@ import {
   TextRun,
   WidthType,
 } from "docx";
-import { SECTIONS, STATUS_LABEL, grmOf, overspentLines, quarterSpendOf, type Breakdown, type GrmLog, type Photo, type Qpr, type Row, type Spend, durationOf } from "@/lib/qpr";
+import { activityHeading, SECTIONS, STATUS_LABEL, grmOf, overspentLines, quarterSpendOf, type Breakdown, type GrmLog, type Photo, type Qpr, type Row, type Spend, durationOf } from "@/lib/qpr";
 import { quarterRange } from "@/lib/results";
 import type { QprPeriod } from "@/lib/obligations";
 
@@ -152,13 +152,16 @@ export async function qprDocx(d: DocxInput, images: Images): Promise<Blob> {
   for (const o of outputs) {
     indicatorRows.push(new TableRow({ children: [cell(o || "Outputs", { bold: true, shade: "F1EFE8", span: 6 })] }));
     for (const a of [...new Set(d.rows.filter((r) => r.output === o).map((r) => r.activity))]) {
-      const name = d.activities.find((x) => x.code === a)?.name ?? "";
+      // A workplan activity by its title; an outcome or goal target (no workplan activity) says which it is.
+      const found = d.activities.find((x) => x.code === a);
+      const level = d.rows.find((r) => r.output === o && r.activity === a)?.level;
+      const label = found ? activityHeading(found) : level === "goal" ? "Goal" : level === "outcome" ? "Outcome" : "Not linked to a workplan activity";
       const list = d.rows.filter((r) => r.output === o && r.activity === a);
       list.forEach((r, k) =>
         indicatorRows.push(
           new TableRow({
             children: [
-              ...(k === 0 ? [cell(`Activity ${a}: ${name}`, { rowSpan: list.length, width: 16 })] : []),
+              ...(k === 0 ? [cell(label, { rowSpan: list.length, width: 16 })] : []),
               cell(`${r.donorCode} ${r.name} (${r.unit})`, { width: 28 }),
               cell(n(r.yearTarget), { width: 8 }),
               // A survey target with no figure to give (lib/measure) says why: "Baseline needed" or "No survey yet".
@@ -185,7 +188,7 @@ export async function qprDocx(d: DocxInput, images: Images): Promise<Blob> {
   const narrative = d.activities.flatMap((a) => {
     const codes = d.rows.filter((r) => r.activity === a.code).map((r) => r.code);
     return [
-      h(`Activity ${a.code}: ${a.name}`, 2),
+      h(activityHeading(a), 2),
       ...paras(sec(`act.${a.code}`)),
       ...d.breakdowns.filter((b) => codes.includes(b.indicator)).flatMap((b) => [p(withRef(b.title, refOf(figs, b.indicator, "q"), 1), { bold: true, size: 18 }), table(b.columns, b.rows), p("")]),
       ...d.photos.filter((ph) => ph.activity === a.code && ph !== cover).flatMap(photo),

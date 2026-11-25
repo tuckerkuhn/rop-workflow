@@ -259,7 +259,7 @@ export const fa: Messages = {
   "progress.word": "سند Word",
   "progress.csv": "صفحه‌گسترده (CSV)",
   "report.title": "گزارش پیشرفت",
-  "report.format.baseline": "گزارش پایه",
+  "report.format.baseline": "قالب استاندارد",
   "report.col.code": "کد",
   "report.col.indicator": "شاخص",
   "report.col.unit": "واحد",

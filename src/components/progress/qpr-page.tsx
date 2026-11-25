@@ -11,7 +11,7 @@ import { useRequireUser, useSession } from "@/components/app/session";
 import { TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { Empty, Fig, Figures, LedgerRow, LedgerTable, PageHead, SectionHead, StatusBlock } from "@/components/workspace/ledger";
 import { OverspendReasonPicker } from "@/components/progress/overspend-reason";
-import { SECTIONS, STATUSES, STATUS_LABEL, cannotOnReport, checkHref, durationOf, overspentLines, quarterSpendOf, type QprPatch, type Row, type Status } from "@/lib/qpr";
+import { activityHeading, SECTIONS, STATUSES, STATUS_LABEL, cannotOnReport, checkHref, durationOf, overspentLines, quarterSpendOf, type QprPatch, type Row, type Status } from "@/lib/qpr";
 // The Word builder (and the `docx` library) loads on the Download click, not with the page.
 import type { Images } from "@/lib/qpr-docx";
 import { targetStatus, wordOfStatus } from "@/lib/target-status";
@@ -417,7 +417,7 @@ export function QprPage() {
               <SectionHead className="mt-0">Narrative Description</SectionHead>
               {v.activities.map((a) => (
                 <div key={a.code}>
-                  <Section v={v} k={`act.${a.code}`} heading={`Activity ${a.code}: ${a.name}`} act={act} busy={busy} draftable />
+                  <Section v={v} k={`act.${a.code}`} heading={activityHeading(a)} act={act} busy={busy} draftable />
                   <ActivityExtras v={v} activity={a.code} />
                 </div>
               ))}
@@ -920,7 +920,7 @@ function GenderStrip({ rows }: { rows: Row[] }) {
   if (!women && !men && !wl && !ml) return <Empty>No results this quarter record women and men separately.</Empty>;
   return (
     <p className="mt-3 border-y border-line px-3 py-3 text-sm">
-      This quarter: <b className="font-mono tabular-nums">{num(women)}</b> women and <b className="font-mono tabular-nums">{num(men)}</b> men{women + men > 0 && ` (${Math.round((women / (women + men)) * 100)}% women)`}
+      This quarter: <b className="font-mono tabular-nums">{num(women)}</b> {women === 1 ? "woman" : "women"} and <b className="font-mono tabular-nums">{num(men)}</b> {men === 1 ? "man" : "men"}{women + men > 0 && ` (${Math.round((women / (women + men)) * 100)}% women)`}
       {wl + ml > 0 && (
         <>
           {" "}

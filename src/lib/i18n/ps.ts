@@ -259,7 +259,7 @@ export const ps: Messages = {
   "progress.word": "د Word سند",
   "progress.csv": "سپریډشیټ (CSV)",
   "report.title": "د پرمختګ راپور",
-  "report.format.baseline": "بنسټیز راپور",
+  "report.format.baseline": "معیاري بڼه",
   "report.col.code": "کوډ",
   "report.col.indicator": "شاخص",
   "report.col.unit": "واحد",

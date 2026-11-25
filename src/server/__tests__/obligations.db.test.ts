@@ -11,7 +11,7 @@ import { reportPeriod } from "@/lib/progress";
 import { ready } from "@/server/__tests__/test-db";
 import { seedDatabase } from "@/server/demo-seed";
 import { projectByCode } from "@/server/field-store";
-import { loadObligations } from "@/server/obligations-store";
+import { loadObligations, saveObligations } from "@/server/obligations-store";
 import { reportDeadline } from "@/server/preflight";
 import { listDonors } from "@/server/progress-store";
 import { reportCalendar } from "@/server/report-calendar";
@@ -50,8 +50,22 @@ beforeAll(async () => {
 }, 120_000);
 
 describe("reporting obligations from the agreement", { timeout: 60_000 }, () => {
+  it("the demo comes with its donors' obligations, so the quarterly report has a deadline", async () => {
+    const project = await projectByCode(code);
+    const saved = await loadObligations(project.id);
+    const byName = new Map(donors.map((d) => [d.name, d.id]));
+    expect(saved.map((o) => [o.donorId, o.frequency, o.periodEnds, o.daysAfter, o.format])).toEqual([
+      [byName.get("Demo Foundation (fictional)"), "quarterly", [3, 6, 9, 12], 30, "Donor's quarterly template (fictional)"],
+      [byName.get("Agri Futures Fund (fictional)"), "annual", [12], 60, ""],
+    ]);
+    // The 2026 Q4 report: the quarter's end plus 30 days, from the agreement.
+    expect(await reportDeadline(code, "2026-12-31", 60, "quarterlyReportDays")).toMatchObject({ due: "2027-01-30", source: { kind: "policy", days: 30 } });
+    expect((await reportDeadline(code, "2026-12-31", 120, "annualReportDays")).due).toBe("2027-03-01");
+  });
+
   it("without obligations, periods and deadlines work out as before", async () => {
     const project = await projectByCode(code);
+    await saveObligations(project.id, []);
     expect(await loadObligations(project.id)).toEqual([]);
     expect((await listDonors(code, userById("nadia")!)).every((d) => d.obligations === undefined)).toBe(true);
     const { rows } = await reportCalendar(code, "2026-11-21");

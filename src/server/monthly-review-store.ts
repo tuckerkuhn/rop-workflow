@@ -1,3 +1,4 @@
+import { MEASURE_NOTE } from "@/lib/measure";
 import { ourWork } from "@/lib/budget";
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
@@ -124,7 +125,8 @@ async function readReview(code: string, month: string, u: AppUser) {
       // The team's own status from the quarterly report wins; otherwise judged as of today. A
       // quarter counts as over only once its last day has passed, so December is not judged as
       // if the year had already ended.
-      status: r.status !== r.suggested ? r.status : suggestStatus(r.year, r.yearTarget, Number(quarter.slice(6)), r.year > 0 || r.records.open > 0, r.planned, quarterEnded(quarter)),
+      // A survey not due yet keeps the report's own status: not measured yet is not late.
+      status: r.status !== r.suggested || (r.surveyDue?.year === false && r.note?.year === MEASURE_NOTE.no_survey) ? r.status : suggestStatus(r.year, r.yearTarget, Number(quarter.slice(6)), r.year > 0 || r.records.open > 0, r.planned, quarterEnded(quarter)),
       planned: r.planned,
       workplanCode: r.workplanCode,
       // The date of the latest accepted result, whenever it was.

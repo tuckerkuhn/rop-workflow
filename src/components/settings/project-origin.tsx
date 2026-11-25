@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useSession } from "@/components/app/session";
+import { longDate } from "@/lib/weekly";
 
 type Origin = { proposalId: string | null; opportunityId: string | null; title: string; donor: string; decidedAt: string | null };
 
@@ -32,7 +33,7 @@ export function ProjectOriginRow({ code, className }: { code: string; className:
         Comes from {origin.proposalId ? "proposal" : "opportunity"} {origin.title}
         <span className="block text-xs font-normal text-muted">
           {origin.donor}
-          {origin.decidedAt ? ` · ${origin.proposalId ? "won" : "matched"} ${origin.decidedAt}` : ""}
+          {origin.decidedAt ? ` · ${origin.proposalId ? "won" : "matched"} ${longDate(origin.decidedAt)}` : ""}
         </span>
       </span>
       <span aria-hidden>→</span>

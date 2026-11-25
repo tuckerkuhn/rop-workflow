@@ -12,8 +12,7 @@ import { Question, field } from "@/components/setup/question";
 import { primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { FORM_PURPOSES, MAPPING_METHODS, YOUTH_AGES, guessPurpose, type FormPurpose, type KoboBreakdown, type KoboFormInfo, type KoboMapping, type KoboQuestion, type MappingMethod, type AutoSyncSecret, type SyncCounts } from "@/lib/kobo-setup";
 import type { MessageKey } from "@/lib/i18n";
-import { suggestActivities, type ActivityLinkOrigin, type KoboActivityLinks } from "@/lib/kobo-activities";
-import { activityOf } from "@/lib/qpr";
+import { suggestActivities, workplanActivityOf, type ActivityLinkOrigin, type KoboActivityLinks } from "@/lib/kobo-activities";
 
 /**
  * Setup steps for KoboToolbox: connect the account, choose the project's forms, and say which
@@ -301,8 +300,8 @@ function FormActivities({ forms, indicators, mappings, value, onChange }: { form
   // Every activity of the project's targets, with the targets under it as its label.
   const options = new Map<string, string[]>();
   for (const i of indicators) {
-    const a = activityOf(i.donorCode, i.code);
-    options.set(a, [...(options.get(a) ?? []), i.name]);
+    const a = workplanActivityOf(i.donorCode, i.code);
+    if (a) options.set(a, [...(options.get(a) ?? []), i.name]);
   }
   for (const a of Object.values(value.acts).flat()) if (!options.has(a)) options.set(a, []);
   const codes = [...options.keys()].sort((x, y) => x.localeCompare(y, undefined, { numeric: true }));

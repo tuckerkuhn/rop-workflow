@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { Entry, HrState } from "@/lib/hr";
+import { fold, type Entry, type HrState } from "@/lib/hr";
 import { receiptSchema } from "@/lib/expense";
 import type { Onboarding } from "@/lib/onboarding";
 
@@ -105,22 +105,37 @@ export function foldTraining(entries: Entry[], hr: HrState, onboarding: Onboardi
   const records = new Map<number, TrainingRecord>();
   const plans = new Map<string, Plan>();
   const ignored: TrainingIgnored[] = [];
+  // Each entry is judged by who held which role when it was written, not today: a record made by
+  // a former supervisor or HR holder stays. Today's state is tried first; the past is folded only
+  // when it fails, once per entry.
+  const past = new Map<number, HrState>();
+  const at = (e: Entry) => {
+    let st = past.get(e.n);
+    if (!st) past.set(e.n, (st = fold(entries.filter((x) => x.n < e.n), e.at.slice(0, 10))));
+    return st;
+  };
+  // People missing from the past state (hired by a later entry, or a test's state) keep today's record.
+  const allowed = (e: Entry, check: (h: HrState) => boolean) => {
+    if (check(hr)) return true;
+    const then = at(e);
+    return check({ ...then, people: { ...hr.people, ...then.people } });
+  };
   for (const e of [...entries].sort((a, b) => a.n - b.n)) {
     if (e.kind === "training-start") {
       const d = startSchema.safeParse(e.data);
       if (!d.success) ignored.push({ n: e.n, kind: e.kind, actor: e.actor, why: "unreadable" });
-      else if (!isHr(e.actor, hr)) ignored.push({ n: e.n, kind: e.kind, actor: e.actor, why: "only HR sets the day the policy took effect" });
+      else if (!allowed(e, (h) => isHr(e.actor, h))) ignored.push({ n: e.n, kind: e.kind, actor: e.actor, why: "only HR sets the day the policy took effect" });
       else logStart = d.data.effective;
     } else if (e.kind === "training") {
       const d = recordSchema.safeParse(e.data);
       if (!d.success || !e.subject) ignored.push({ n: e.n, kind: e.kind, actor: e.actor, why: "unreadable" });
-      else if (!mayRecord(e.actor, e.subject, hr)) ignored.push({ n: e.n, kind: e.kind, actor: e.actor, why: "only the person, their supervisor or HR records training" });
+      else if (!allowed(e, (h) => mayRecord(e.actor, e.subject!, h))) ignored.push({ n: e.n, kind: e.kind, actor: e.actor, why: "only the person, their supervisor or HR records training" });
       else if (e.actor === e.subject && !d.data.proof) ignored.push({ n: e.n, kind: e.kind, actor: e.actor, why: "training a person records for themselves needs its proof" });
       else records.set(e.n, { ...d.data, n: e.n, person: e.subject, by: e.actor, at: e.at, self: e.actor === e.subject });
     } else if (e.kind === "training-plan") {
       const d = planSchema.safeParse(e.data);
       if (!d.success || !e.subject) ignored.push({ n: e.n, kind: e.kind, actor: e.actor, why: "unreadable" });
-      else if (!mayPlan(e.actor, e.subject, hr)) ignored.push({ n: e.n, kind: e.kind, actor: e.actor, why: "the supervisor or HR writes the year's priorities" });
+      else if (!allowed(e, (h) => mayPlan(e.actor, e.subject!, h))) ignored.push({ n: e.n, kind: e.kind, actor: e.actor, why: "the supervisor or HR writes the year's priorities" });
       // A later plan for the same year replaces the earlier one; both stay in the ledger.
       else plans.set(`${e.subject}:${d.data.year}`, { ...d.data, person: e.subject, by: e.actor, at: e.at, n: e.n });
     } else if (e.kind === "training-void") {
@@ -128,7 +143,7 @@ export function foldTraining(entries: Entry[], hr: HrState, onboarding: Onboardi
       const r = d.success ? records.get(d.data.record) : undefined;
       if (!d.success || !r) ignored.push({ n: e.n, kind: e.kind, actor: e.actor, why: "no such training record" });
       else if (r.voided) ignored.push({ n: e.n, kind: e.kind, actor: e.actor, why: "already withdrawn" });
-      else if (e.actor !== r.by && !isHr(e.actor, hr)) ignored.push({ n: e.n, kind: e.kind, actor: e.actor, why: "only who recorded it, or HR, withdraws a record" });
+      else if (e.actor !== r.by && !allowed(e, (h) => isHr(e.actor, h))) ignored.push({ n: e.n, kind: e.kind, actor: e.actor, why: "only who recorded it, or HR, withdraws a record" });
       else r.voided = { by: e.actor, at: e.at, why: d.data.why };
     }
   }

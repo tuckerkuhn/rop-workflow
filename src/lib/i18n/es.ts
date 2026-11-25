@@ -265,7 +265,7 @@ export const es: Messages = {
   "progress.word": "Documento de Word",
   "progress.csv": "Hoja de cálculo (CSV)",
   "report.title": "Informe de avance",
-  "report.format.baseline": "Informe base",
+  "report.format.baseline": "Formato estándar",
   "report.col.code": "Código",
   "report.col.indicator": "Indicador",
   "report.col.unit": "Unidad",

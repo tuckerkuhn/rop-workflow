@@ -6,6 +6,7 @@ import { qcEn } from "@/lib/i18n/qpr-checks";
 import { longDate } from "@/lib/weekly";
 import { proofCount, quarterRange, type ResultRecord, type UpdateRecord } from "@/lib/results";
 import { MEASURE_NOTE, measured, yearPart, type Measure } from "@/lib/measure";
+import { peopleList } from "@/lib/people-words";
 
 /**
  * The UNDP quarterly progress report (QPR), in the layout ROP sends for ACRP (Q3 2026): project
@@ -45,6 +46,38 @@ export type SectionKey = (typeof SECTIONS)[number]["key"];
 
 /** The activity an indicator belongs to: "1.1.1.4" and "2.1.1.1-a" give "1.1.1" and "2.1.1". */
 export const activityOf = (donorCode: string | null, code: string) => (donorCode ?? code).split("-")[0].split(".").slice(0, 3).join(".");
+
+/** A workplan activity's code is numbers only ("1.1.1"); an outcome's "1.a" or a target's own "IND" is not one. */
+const ACTIVITY_CODE = /^\d+(\.\d+)+$/;
+
+/**
+ * The workplan activities the report writes a narrative for: those its output targets belong to.
+ * An outcome or goal target, or one with no donor code or a code that is not an activity's (an
+ * outcome's "1.a"), gets no narrative section: it stays in the progress table only. When the
+ * workplan or budget names activities (`names`, code to title), only those count, with their titles.
+ */
+export function narrativeActivities(indicators: Pick<IndicatorInfo, "code" | "donorCode" | "level">[], names: Map<string, string>): { code: string; name: string }[] {
+  const codes = indicators
+    .filter((i) => i.level !== "outcome" && i.level !== "goal" && !!i.donorCode)
+    .map((i) => activityOf(i.donorCode, i.code))
+    .filter((c) => ACTIVITY_CODE.test(c) && (!names.size || names.has(c)));
+  return [...new Set(codes)].map((code) => ({ code, name: names.get(code) ?? "" }));
+}
+
+/** "Activity 1.1.1: Train farmers", or "Activity 1.1.1" when the workplan gives no title. */
+export const activityHeading = (a: { code: string; name: string }) => `Activity ${a.code}${a.name && a.name !== `Activity ${a.code}` ? `: ${a.name}` : ""}`;
+
+/**
+ * Whether a target measured by a survey ("latest" or "change") is due a survey result in the days
+ * from `from` to `to`: one measured every month or quarter always is; one measured at the end of
+ * the season when one of the project's seasons ends in those days; with no seasons known, when the
+ * days reach the end of the year.
+ */
+export function surveyDueIn(frequency: string | null | undefined, from: string, to: string, seasonEnds: string[] = []): boolean {
+  if (frequency === "monthly" || frequency === "quarterly") return true;
+  if (seasonEnds.length) return seasonEnds.some((e) => e >= from && e <= to);
+  return to >= `${from.slice(0, 4)}-12-31`;
+}
 
 export type Text = { text: string; by: string; at: string; drafted?: boolean; from?: string };
 export type Qpr = {
@@ -248,7 +281,7 @@ export function grmOf(saved: Qpr, log: GrmLog | null | undefined): { received: n
   return { received: null, resolved: null, open: null, thanks: 0, from: null };
 }
 
-export type IndicatorInfo = { code: string; donorCode: string | null; name: string; unit: string; target: number; yearTargets: Record<string, number>; result: string | null; disaggregation: string[] | null; budgetRef: string | null; workplanCode?: string | null; /** How its results become its figure (lib/measure); "sum" when left out. */ measure?: Measure; baseline?: number | null };
+export type IndicatorInfo = { code: string; donorCode: string | null; name: string; unit: string; target: number; yearTargets: Record<string, number>; result: string | null; disaggregation: string[] | null; budgetRef: string | null; workplanCode?: string | null; /** How its results become its figure (lib/measure); "sum" when left out. */ measure?: Measure; baseline?: number | null; /** "goal", "outcome" or "output"; an outcome or goal gets no activity narrative. */ level?: string | null; /** How often it is measured: "monthly", "quarterly" or "end_of_season". */ frequency?: string | null };
 
 export type Row = {
   code: string;
@@ -287,6 +320,12 @@ export type Row = {
   baseline?: number | null;
   latestDate?: string | null;
   note?: { quarter: string | null; year: string | null };
+  /** Only for a survey measure: whether a survey result is due in the quarter and by the quarter's end this year (surveyDueIn). */
+  surveyDue?: { quarter: boolean; year: boolean };
+  /** Only for an outcome or goal target: its level. */
+  level?: string;
+  /** Only for a survey measure: how often it is measured, for the comment. */
+  frequency?: string | null;
 };
 
 const n = (v: number) => v.toLocaleString("en-US", { maximumFractionDigits: 2 });
@@ -351,7 +390,7 @@ const units = (v: number, unit: string) => (v === 1 && /[^s]s$/.test(unit) ? uni
 export function suggestComment(r: Omit<Row, "suggested" | "status" | "comment" | "edited">, status: Status, quarterLabel: string) {
   if (r.measure && r.measure !== "sum") return measureComment(r, status);
   const where = r.provinces.length ? ` in ${r.provinces.join(" and ")}` : "";
-  const people = r.women + r.men > 0 ? ` (${n(r.women)} women, ${n(r.men)} men)` : r.womenLed + r.menLed > 0 ? ` (${n(r.womenLed)} women-led, ${n(r.menLed)} men-led)` : "";
+  const people = r.women + r.men > 0 ? ` (${peopleList({ women: r.women, men: r.men }, ", ", n)})` : r.womenLed + r.menLed > 0 ? ` (${n(r.womenLed)} women-led, ${n(r.menLed)} men-led)` : "";
   const pct = r.yearTarget ? ` (${Math.round((r.year / r.yearTarget) * 100)}% of the annual target)` : "";
   const waiting = r.records.open > 0 ? ` ${r.records.open} ${r.records.open === 1 ? "record is" : "records are"} waiting for MEL review.` : "";
   const done = r.quarter > 0 ? `During ${quarterLabel}, ${n(r.quarter)} ${units(r.quarter, r.unit)}${where}${people}.` : `Nothing was counted during ${quarterLabel}.${waiting}`;
@@ -366,11 +405,16 @@ export function suggestComment(r: Omit<Row, "suggested" | "status" | "comment" |
 function measureComment(r: Omit<Row, "suggested" | "status" | "comment" | "edited">, status: Status) {
   const label = STATUS_LABEL[status];
   if (r.note?.year === MEASURE_NOTE.baseline_needed) return `${label}: the change cannot be shown until the baseline is recorded on Target details.`;
+  // Not measured yet and not due yet: the survey comes later.
+  if (r.note?.year === MEASURE_NOTE.no_survey && r.surveyDue?.year === false) return `${label}. Measured by ${surveyName(r.frequency)}; no survey result yet.`;
   if (r.note?.year) return `${label}: no survey result has been accepted yet this year.`;
   const when = r.latestDate ? ` (${longDate(r.latestDate)})` : "";
   const against = r.measure === "change" ? ` against the baseline of ${n(r.baseline ?? 0)}` : "";
   return `${label}: the latest survey${when} gives ${n(r.year)} ${r.unit}${against}; the target for this year is ${n(r.yearTarget)} ${r.unit}.`;
 }
+
+/** The survey a target is measured by, for its comment. */
+const surveyName = (frequency: string | null | undefined) => (frequency === "end_of_season" ? "the end-of-season survey" : frequency === "monthly" ? "the monthly survey" : frequency === "quarterly" ? "the quarterly survey" : "a survey");
 
 /**
  * This year's part of the target. Year targets are stored as running totals from the project's
@@ -391,12 +435,15 @@ export type ReportRange = { from: string; to: string; label?: string };
 /**
  * `plans`: for each workplan activity code, the first days of the quarters with work planned
  * (workplan_items.active, e.g. ["2026-07-01"]), for the partner whose report this is.
+ * `seasonEnds`: the last days of the project's seasons, when a target measured at the end of the
+ * season is due its survey (surveyDueIn).
  */
-export function buildRows(indicators: IndicatorInfo[], results: ResultRecord[], quarter: string, saved: Qpr, plans: Record<string, string[]> = {}, range: ReportRange = quarterRange(quarter)): Row[] {
+export function buildRows(indicators: IndicatorInfo[], results: ResultRecord[], quarter: string, saved: Qpr, plans: Record<string, string[]> = {}, range: ReportRange = quarterRange(quarter), seasonEnds: string[] = []): Row[] {
   const { from, to } = range;
   const y = quarter.slice(0, 4);
-  // This year to the period's end; an agreement period that starts in the year before counts from its own start.
-  const yearFrom = [`${y}-01-01`, from].sort()[0];
+  // This year to the period's end, from 1 January: the year's target is a calendar year's, so an
+  // agreement period that starts in December does not count December again in the new year.
+  const yearFrom = to >= `${y}-01-01` ? `${y}-01-01` : from;
   const quarterNo = Number(quarter.slice(6));
   const label = range.label ?? `Q${quarterNo} ${y}`;
   return indicators.map((i) => {
@@ -419,6 +466,8 @@ export function buildRows(indicators: IndicatorInfo[], results: ResultRecord[], 
       unit: i.unit,
       budgetRef: i.budgetRef,
       workplanCode: i.workplanCode ?? null,
+      // An outcome or goal target says so in the Word table's activity column: it has no workplan activity.
+      ...(i.level === "outcome" || i.level === "goal" ? { level: i.level } : {}),
       yearTarget: yearShare(i, Number(y)),
       quarter: q.value,
       year: yr.value,
@@ -430,9 +479,13 @@ export function buildRows(indicators: IndicatorInfo[], results: ResultRecord[], 
       records: { quarter: q.records, year: yr.records, files: q.files, open },
       planned: i.workplanCode && plans[i.workplanCode] ? plans[i.workplanCode].filter((d) => d.startsWith(y)).map((d) => Math.floor((Number(d.slice(5, 7)) - 1) / 3) + 1) : null,
       // A target that adds up keeps the row as it always was; only a survey measure adds these.
-      ...(i.measure && i.measure !== "sum" ? { measure: i.measure, baseline: i.baseline ?? null, latestDate: yr.date, note: { quarter: q.note, year: yr.note } } : {}),
+      ...(i.measure && i.measure !== "sum"
+        ? { measure: i.measure, baseline: i.baseline ?? null, latestDate: yr.date, note: { quarter: q.note, year: yr.note }, surveyDue: { quarter: surveyDueIn(i.frequency, from, to, seasonEnds), year: surveyDueIn(i.frequency, yearFrom, to, seasonEnds) }, frequency: i.frequency ?? null }
+        : {}),
     };
-    const suggested = suggestStatus(base.year, base.yearTarget, quarterNo, base.year > 0 || open > 0, base.planned);
+    // A survey not due yet with no result is not late: on track, its comment says it is not measured yet.
+    const notYet = yr.state === "no_survey" && base.surveyDue?.year === false;
+    const suggested = notYet ? "on_track" : suggestStatus(base.year, base.yearTarget, quarterNo, base.year > 0 || open > 0, base.planned);
     const o = saved.rows[i.code];
     const status = o?.status ?? suggested;
     return { ...base, suggested, status, comment: o?.comment ?? suggestComment(base, status, label), edited: !!(o?.status || o?.comment) };

@@ -2,7 +2,7 @@ import { ROLE_FOR } from "@/lib/evidence";
 import { donorPhotoRule } from "@/server/photo-consent";
 import { randomBytes } from "node:crypto";
 import { db, schema as s } from "@/db";
-import { SECTIONS } from "@/lib/qpr";
+import { activityHeading, SECTIONS } from "@/lib/qpr";
 import { targetStatus, targetStatusText } from "@/lib/target-status";
 import { quarterRange } from "@/lib/results";
 import { projectByCode } from "@/server/field-store";
@@ -93,7 +93,7 @@ export async function donorSafeReport(code: string, projectId: string, quarter: 
   const results = (await loadResults(code)).filter((r) => counted.has(r.id) && r.date >= from && r.date <= to);
   const sections = [
     ...SECTIONS.map((x) => ({ heading: x.heading as string, text: d.saved.sections[x.key]?.text ?? "" })),
-    ...d.activities.map((a) => ({ heading: `Activity ${a.code}: ${a.name}`, text: d.saved.sections[`act.${a.code}`]?.text ?? "" })),
+    ...d.activities.map((a) => ({ heading: activityHeading(a), text: d.saved.sections[`act.${a.code}`]?.text ?? "" })),
   ].filter((x) => x.text.trim());
   return {
     project: { name: d.project.name, donor: d.project.donor },

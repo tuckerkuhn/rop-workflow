@@ -98,11 +98,11 @@ describe("the report counts by the period's real dates", () => {
     expect(breakdownsFor([row], results, "2026-Q2", range)[0].title).toMatch(/\(Feb to Apr 2026\)$/);
   });
 
-  it("counts this year from the period's start when it begins in the year before", () => {
+  it("counts this year from 1 January when the period begins in the year before: November is not counted again in the new year", () => {
     const late = [result({ date: "2026-11-20", value: 4, status: "accepted" }), result({ date: "2027-01-05", value: 6, status: "accepted" })];
     const p = qprPeriod("2027-Q1", ob(FEB), "2026-01-01", "2028-12-31");
     const [row] = buildRows([{ ...ind, yearTargets: { "2027": 300 } }], late, "2027-Q1", emptyQpr("P"), {}, p);
-    expect([row.quarter, row.year]).toEqual([10, 10]);
+    expect([row.quarter, row.year]).toEqual([10, 6]);
   });
 
   it("takes photos from the period, not the calendar quarter", () => {

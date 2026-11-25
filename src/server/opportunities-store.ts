@@ -6,10 +6,12 @@ import { briefSchema, MATCH_ROLE_TYPES, readSchema, type CallReading, type OppAc
 import { draftStructured } from "@/server/ai-structured";
 import { asIs } from "@/server/ai";
 import { EXCEL_TYPE, loadFile, WORD_TYPE } from "@/server/hr-files";
+import { FetchRefused, safeFetch, type Fetched } from "@/server/safe-fetch";
 import { readWorkbook } from "@/lib/read-sheet";
 import type { SetupFile } from "@/server/setup-extract";
 import { loadHr } from "@/server/hr-store";
 import { listProjects } from "@/server/project-store";
+import { proposalLinks } from "@/server/funding-proposals-store";
 
 const KEY = "opportunities";
 const today = () => new Date().toISOString().slice(0, 10);
@@ -43,6 +45,8 @@ export async function loadOpportunities(orgId: string, u: AppUser) {
   return {
     items: [...b.items].sort((a, c) => order[a.status] - order[c.status] || (a.deadline ?? "9999").localeCompare(c.deadline ?? "9999")),
     can: { add: u.kind === "employee", decide: await mayMatch(u), brief: !!process.env.ANTHROPIC_API_KEY },
+    // The proposals this person may open, so each opportunity links to the one written for it.
+    proposals: await proposalLinks(orgId, u).catch(() => []),
   };
 }
 export type OpportunitiesView = Awaited<ReturnType<typeof loadOpportunities>>;
@@ -101,16 +105,22 @@ async function linkDocument(link: string): Promise<SetupFile | null> {
   } catch {
     return null;
   }
-  const host = url.hostname.toLowerCase();
-  const local = host === "localhost" || host.endsWith(".local") || host.endsWith(".internal") || /^[\d.]+$/.test(host) || host.includes(":") || !host.includes(".");
-  if (url.protocol !== "https:" || local) throw new Error("The link must be a public web address starting with https://.");
-  const res = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(15_000), headers: { "User-Agent": "Mozilla/5.0 (compatible; grant-call-reader)" } }).catch(() => null);
+  let res: Fetched | null;
+  try {
+    res = await safeFetch(url.href, { headers: { "User-Agent": "Mozilla/5.0 (compatible; grant-call-reader)" } });
+  } catch (err) {
+    if (err instanceof FetchRefused) {
+      if (err.message === "too large") throw new Error("The page behind the link is over 4 MB. Download the call and attach it instead.");
+      throw new Error(err.message === "Too many redirects." ? "The link did not open from here. Download the call and attach it instead." : err.message);
+    }
+    res = null;
+  }
   if (res && (res.status === 401 || res.status === 403 || res.status === 429))
     throw new Error("This funder's site does not let the app read its pages. Open the link in your browser, save the page as a PDF (Print, then Save as PDF) and attach it here.");
-  if (!res || !res.ok) throw new Error("The link did not open from here. Download the call and attach it instead.");
-  const type = res.headers.get("content-type") ?? "";
-  const buf = Buffer.from(await res.arrayBuffer());
-  if (buf.length > 4_000_000) throw new Error("The page behind the link is over 4 MB. Download the call and attach it instead.");
+  if (!res || res.status < 200 || res.status >= 300) throw new Error("The link did not open from here. Download the call and attach it instead.");
+  const type = res.type;
+  const buf = res.body;
+  url = res.url;
   if (type.includes("pdf")) return { name: url.pathname.split("/").pop() || "call.pdf", kind: "pdf", data: buf.toString("base64") };
   if (!type.includes("html") && !type.includes("text")) throw new Error("The link is not a web page or a PDF. Download the call and attach it instead.");
   const text = buf
