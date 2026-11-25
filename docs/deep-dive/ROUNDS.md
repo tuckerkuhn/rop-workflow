@@ -1,5 +1,41 @@
 # Rounds: tightening the app until nothing big is left
 
+## Morning summary, 25 Nov
+
+Checked against the log and the commits.
+
+**Rounds.** Seven ran, 1 to 7, one an hour from 00:16 to 06:56. None was missed. None failed.
+All pushed to `deep-dive/handoffs-2026-11-24`. Nothing touched main or Supabase.
+
+**Big items fixed overnight (10).**
+- Training attendance is one record per session.
+- The app makes the readiness, training and farm visit forms.
+- Weekly photos keep their place, for people who may see names.
+- A donor's view never names a kept document.
+- The donor evidence pack never names held proof.
+- A donor's account gets no signed note picture and no photo place.
+- A farmer photo's place no longer goes to staff kept from names.
+- A first year's annual report can be released.
+- A bill sent back can be corrected and recorded again.
+- Home tells the approver and Finance that a bill waits.
+
+**Big items still open (2).**
+- A signed monthly review keeps no copy of its figures (AA).
+- A paid purchase or bill does not reach the books. Finance types it twice (AI).
+
+Not walked yet: most of chain 2 and all of chains 3 to 6. More big items may be there.
+
+**Decisions.** Recommended choice first. Letters match "Needs Tucker" below.
+- AA. Signing a monthly review keeps that day's figures. Or it shows today's.
+- AI. A paid purchase or bill posts to the books by itself. Or Finance keeps typing it.
+- X. Refuse a report's release before its period ends. Or keep the warning.
+- AB. A donor's account sees only photos cleared for donors. Or all, as now.
+- 19 smaller ones, O to AK, are under "Needs Tucker".
+
+**Tests.** 1,204 pass, up from 1,138. Typecheck and lint are clean.
+
+**Next action.** Answer AA and AI. Each unblocks a big item.
+
 Tucker's instruction, 25 Nov 2026, 00:02: "Keep making rounds until we don't need any big changes
 left and then start clearing out the medium changes. It must be very tight to be useful and to be
 adopted." Each round is one working session, alone, with nobody to ask. Test everything yourself.
@@ -832,7 +868,7 @@ found and left, tests passing.
   point, pressed "I have checked this record" and the page said "Checked." nadia approved, the
   page said "Approved by Nadia Rahimi" and the farmer's record moved to planting.
   `10-field-ledger.md` not changed: no field was added, cut or prefilled.
-- **Round 7. 25 Nov 06:16 to 06:58. DONE.** The last round of the night. Chain 2, purchase to
+- **Round 7. 25 Nov 06:16 to 06:56. DONE.** The last round of the night. Chain 2, purchase to
   payment, walked in part. Two big items found and fixed, a third written for Tucker (AI), three
   medium items fixed. The chain is not clear: what was not walked is listed under chain 2.
   Walked on a phone-sized screen with fictional data: `nadia` filled in and submitted the request
