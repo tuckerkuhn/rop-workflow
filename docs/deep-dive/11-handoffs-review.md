@@ -142,9 +142,12 @@ in as Rahima Stanikzai and open it from Home.
 1. **The sandbox KoboToolbox account** (open since 17 Nov). 20 minutes of yours. It unlocks Part 5
    and items 1 to 4 of what I could not verify. Nothing I can build replaces it.
 2. Your answers to A to N.
-3. Then: the app makes the readiness, training and visit forms too (ledger, finding 5). Training
-   became one record per session in round 1 (`ROUNDS.md`).
+3. Done since: training became one record per session in round 1, and the app makes the readiness,
+   training and visit forms in round 2 (`ROUNDS.md`). Upload each made form to the sandbox account
+   and open it on a real phone, as for the distribution form.
 
-Checks on the finished branch: **1,138 tests pass** (1,095 before tonight), typecheck clean, lint
-clean. Six commits. Time: about 25 minutes for each pass. The 3-hour and 8-hour
+Checks when these two passes ended, 25 Nov at 00:20: **1,138 tests passed** (1,095 before that
+night), typecheck clean, lint clean, six commits in the session. The rounds since keep their own
+counts in the log of `ROUNDS.md`: read that page for the branch as it is now. Time: about 25
+minutes for each pass. The 3-hour and 8-hour
 figures were ceilings, and the work that is left is not the kind more hours of mine would finish.
