@@ -7,6 +7,7 @@ import { updateSchema, type UpdateInput } from "@/lib/results";
 import { ready } from "@/server/__tests__/test-db";
 import { seedDatabase } from "@/server/demo-seed";
 import { addUpdate, editUpdate, loadUpdates, updatePlaces } from "@/server/results-store";
+import { koboApprovalFor, saveKoboApproval } from "@/server/kobo-approval";
 import { loadWeekly, weeklyView } from "@/server/weekly-store";
 import { POST as weeklyPost } from "@/app/api/projects/[code]/weekly/route";
 
@@ -55,17 +56,31 @@ describe("the place a weekly photo was taken", { timeout: 90_000 }, () => {
     expect(holdsAPoint(all)).toBe(false);
   });
 
-  it("is given to people who may see participant names and to nobody else", async () => {
+  it("is given to people who may see participant names, to the Director of MEL and to nobody else", async () => {
     const id = await idOf("Trellis installation");
     expect((await updatePlaces(CODE, nadia)).get(id)).toEqual(at);
     expect((await updatePlaces(CODE, omar)).get(id)).toEqual(at);
-    for (const who of [rahima, marcus, writerNoNames, null, undefined]) expect((await updatePlaces(CODE, who)).size).toBe(0);
+    // Decision V, 25 Nov 2026: the one person the project names to approve KoboCollect data vouches for field data.
+    expect((await koboApprovalFor(CODE)).person).toBe("rahima");
+    expect((await updatePlaces(CODE, rahima)).get(id)).toEqual(at);
+    for (const who of [marcus, writerNoNames, null, undefined]) expect((await updatePlaces(CODE, who)).size).toBe(0);
+  });
+
+  it("is hers only while the project names her: not by her title, and not for a role group", async () => {
+    const rule = await koboApprovalFor(CODE);
+    await saveKoboApproval(CODE, { who: "mel" });
+    expect((await updatePlaces(CODE, rahima)).size).toBe(0);
+    await saveKoboApproval(CODE, { ...rule, person: "omar", standIn: "rahima" });
+    expect((await updatePlaces(CODE, rahima)).size).toBe(0);
+    await saveKoboApproval(CODE, rule);
+    expect((await updatePlaces(CODE, rahima)).size).toBeGreaterThan(0);
   });
 
   it("shows on the weekly page for those people only", async () => {
     const mine = await weeklyView(CODE, nadia, "2026-11-15");
     expect(mine.items.find((i) => i.title === "Trellis installation")?.places).toEqual(at);
-    for (const who of [rahima, marcus, writerNoNames]) {
+    expect((await weeklyView(CODE, rahima, "2026-11-15")).items.find((i) => i.title === "Trellis installation")?.places).toEqual(at);
+    for (const who of [marcus, writerNoNames]) {
       const theirs = await weeklyView(CODE, who, "2026-11-15");
       expect(theirs.items.find((i) => i.title === "Trellis installation")?.places).toEqual({});
       expect(holdsAPoint(theirs)).toBe(false);

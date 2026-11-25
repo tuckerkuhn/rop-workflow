@@ -99,6 +99,8 @@ export async function donorSafeReport(code: string, projectId: string, quarter: 
   return {
     project: { name: d.project.name, donor: d.project.donor },
     quarter,
+    /** The days the report covers. Until the last one has passed the report carries the Draft watermark (lib/early-draft). */
+    period: { from, to },
     status: copy.kind === "release" ? ("released" as const) : ("draft" as const),
     asOf: copy.at,
     rows: d.rows.map((r) => ({

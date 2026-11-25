@@ -1,4 +1,6 @@
+import { createHash } from "node:crypto";
 import { CROP_PLAN_KEY, type CropPlan } from "@/lib/crops";
+import { donorPhotoRule } from "@/server/photo-consent";
 import { EMPTY_FRAMEWORK, FRAMEWORK_KEY, type Framework } from "@/lib/framework";
 import { mirrorFarmer } from "@/server/farmer-mirror";
 import { loadProjectState, loadProjectStateRaw, loadProjectStates, saveProjectState, type Reader } from "@/server/project-state";
@@ -268,10 +270,20 @@ export async function keepHidden(code: string, user: AppUser, items: FieldItem[]
 
 /**
  * A farmer's photos for someone who may not see participant names: where a photo was taken is
- * left out, since a plot's place shows where a named person lives. `hasPlace` says one is kept.
+ * left out, since a plot's place shows where a named person lives. They are told nothing about
+ * it either: not that a place is kept (decision AH, 25 Nov 2026). Their save still gets each
+ * place back from the stored record (withPlaces), by the photo, with no mark from their page.
  */
 function withoutPlaces(f: Farmer): Farmer {
-  return { ...f, photos: (f.photos ?? []).map(({ gps, ...rest }) => (gps ? { ...rest, hasPlace: true } : rest)) };
+  return {
+    ...f,
+    photos: (f.photos ?? []).map((p) => {
+      const { gps: _gps, hasPlace: _hasPlace, ...rest } = p;
+      void _gps;
+      void _hasPlace;
+      return rest;
+    }),
+  };
 }
 
 /**
@@ -297,19 +309,35 @@ function withPlaces(sent: Farmer, was: Farmer | undefined): Farmer {
 /**
  * A farmer's record for someone outside Roots of Peace (a donor's account). The signed goods
  * received note has the farmer's name and signature on it, so its picture is not sent: the entry
- * stays, to show that a note is on file. No photo carries where it was taken. An account like
+ * stays, to show that a note is on file. No photo carries where it was taken. Every other photo
+ * is sent only when it is cleared for donors by the rule a report's photos pass
+ * (server/photo-consent `donorPhotoRule`): checked for people who can be recognised and cleared by
+ * what it shows or by recorded consent. A photo not cleared is not sent at all, not even its
+ * caption, which staff typed (decision AB, 25 Nov 2026). An account like
  * this cannot save a farmer, so nothing left out here can be lost by a save.
  */
-function forOutside(f: Farmer): Farmer {
+function forOutside(f: Farmer, cleared: (src: string) => boolean): Farmer {
   return {
     ...f,
-    photos: f.photos.map((p) => {
-      const { gps: _gps, hasPlace: _hasPlace, src, ...rest } = p;
-      void _gps;
-      void _hasPlace;
-      return p.signedNote || src === undefined ? rest : { ...rest, src };
-    }),
+    photos: f.photos
+      // The signed note's entry stays with no picture. Any other photo goes only when it is cleared for donors.
+      .filter((p) => p.signedNote || (p.src !== undefined && cleared(p.src)))
+      .map((p) => {
+        const { gps: _gps, hasPlace: _hasPlace, src, ...rest } = p;
+        void _gps;
+        void _hasPlace;
+        return p.signedNote || src === undefined ? rest : { ...rest, src };
+      }),
   };
+}
+
+/**
+ * The fingerprint of a farmer photo's picture, as the photo library keeps it for a file: the
+ * picture's own bytes. A photo with no picture of its own has none.
+ */
+export function photoFingerprint(src: string): string | null {
+  const m = /^data:[^;,]+;base64,(.+)$/.exec(src);
+  return m ? createHash("sha256").update(Buffer.from(m[1], "base64")).digest("hex") : null;
 }
 
 /**
@@ -330,15 +358,21 @@ export async function loadField(code: string, user?: AppUser) {
   ]);
 
   const outside = !!user && user.kind !== "employee";
+  // The consent rule is read only for an account outside the organization: it decides which farmer photos go.
+  const rule = outside ? await donorPhotoRule(project.id) : null;
+  const cleared = (src: string) => {
+    const hash = photoFingerprint(src);
+    return !!hash && !!rule?.(hash).ok;
+  };
   const items = rows
     .map((r) => ({ ...(r.data as FieldItem), rev: r.updatedAt.toISOString() }) as FieldItem)
     .map((i): FieldItem => (i.kind === "farmer" ? (hiddenFrom ? withoutPlaces(withoutName({ ...i, name: "" }, hiddenFrom.get(i.id) ?? "")) : { ...i, name: names.get(i.id) ?? "" }) : i))
-    .map((i): FieldItem => (outside && i.kind === "farmer" ? forOutside(i) : i))
+    .map((i): FieldItem => (outside && i.kind === "farmer" ? forOutside(i, cleared) : i))
     .sort((a, b) => a.id.localeCompare(b.id));
   return { items, stock: (stock as Stock | null) ?? null, setup };
 }
 
-/** What is stored for an item: no name (farmer_pii holds it), no version stamp and no `hasPlace` mark, which is made for a reader (withoutPlaces). */
+/** What is stored for an item: no name (farmer_pii holds it), no version stamp and no `hasPlace` mark, which a page loaded before 25 Nov 2026 may still send back. */
 const storable = (raw: FieldItem): FieldItem => {
   const { rev: _rev, ...item } = stripPII(raw);
   void _rev;

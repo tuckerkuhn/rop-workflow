@@ -330,7 +330,7 @@ export async function post(input: PostInput): Promise<PostResult> {
 }
 
 /** Posts a draft. The person posting is `by`; over the limit, it must be someone other than the recorder. */
-export async function postDraft(entryId: string, by: string): Promise<PostResult> {
+export async function postDraft(entryId: string, by: string, also?: PostInput["also"]): Promise<PostResult> {
   const [e] = await db.select().from(s.journalEntries).where(eq(s.journalEntries.id, entryId)).limit(1);
   if (!e) throw new LedgerError("not_found", "That entry was not found.");
   if (e.status !== "draft") throw new LedgerError("not_draft", "That entry is already posted.");
@@ -349,6 +349,7 @@ export async function postDraft(entryId: string, by: string): Promise<PostResult
         .where(and(eq(s.journalEntries.id, e.id), eq(s.journalEntries.status, "draft")))
         .returning();
       if (!posted) throw new LedgerError("not_draft", "That entry is already posted.");
+      if (also) await also(tx);
       await tx.insert(s.auditLog).values({
         projectId: e.projectId,
         entity: "journal_entry",

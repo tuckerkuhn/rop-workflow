@@ -10,6 +10,7 @@ import { HttpError } from "@/server/guard";
 import { hrBook, loadHr } from "@/server/hr-store";
 import { accounts, budgetLineEntries, budgetVsActual, expenseAccountFor, ledgerSettings, LedgerError, type EntryWithLines, type JournalEntry } from "@/server/ledger";
 import { ensureChart, moneyAccounts } from "@/server/ledger-setup";
+import { sourceOf } from "@/server/books-posting";
 
 /**
  * What the ledger screens read and who may do what on them: Record a payment (/work/payments)
@@ -109,6 +110,8 @@ export type EntryRow = {
   recordedBy: string;
   postedBy: string | null;
   receipt: { hash: string; name: string } | null;
+  /** The bill or purchase the entry was posted from, and the page that holds it. */
+  from: { kind: "bill" | "purchase"; id: string; project: string; href: string } | null;
   reversesId: string | null;
   reversedBy: string | null;
   canPost: boolean;
@@ -119,7 +122,7 @@ export type EntryRow = {
 /** Who was paid and what for, from how the payment screen writes them: memo "payee: what", the expense line's memo "what". */
 function payeeAndWhat(e: EntryWithLines): { payee: string | null; what: string } {
   const lineMemo = e.lines.find((l) => toCents(l.debit) > BigInt(0) && l.memo)?.memo ?? null;
-  if (e.entry.sourceType === "payment" && lineMemo && e.entry.memo.endsWith(`: ${lineMemo}`)) return { payee: e.entry.memo.slice(0, -(lineMemo.length + 2)), what: lineMemo };
+  if (["payment", "bill", "purchase"].includes(e.entry.sourceType) && lineMemo && e.entry.memo.endsWith(`: ${lineMemo}`)) return { payee: e.entry.memo.slice(0, -(lineMemo.length + 2)), what: lineMemo };
   return { payee: null, what: e.entry.memo };
 }
 
@@ -155,6 +158,7 @@ function rowOf(e: EntryWithLines, ctx: Ctx): EntryRow {
     recordedBy: ctx.names.get(e.entry.recordedBy) ?? e.entry.recordedBy,
     postedBy: e.entry.postedBy ? (ctx.names.get(e.entry.postedBy) ?? e.entry.postedBy) : null,
     receipt: hash ? { hash, name: ctx.receipts.get(hash) ?? "Receipt" } : null,
+    from: sourceOf(e.entry.sourceType, e.entry.sourceId),
     reversesId: e.entry.reversesId,
     reversedBy,
     canPost: draft && ctx.may.post && (e.entry.recordedBy !== ctx.me || !over),

@@ -13,7 +13,10 @@ import { koboApprovalFor } from "@/server/kobo-approval";
 import { koboState } from "@/server/kobo-link";
 import { loadProcurements } from "@/server/procurement-store";
 import { billRoles, loadBills } from "@/server/bills-store";
-import { toCorrect } from "@/lib/bills";
+import { billBooksProblem, toCorrect } from "@/lib/bills";
+import { NON_CONTRACT } from "@/lib/timesheet";
+import { loadPurchaseBooks, mayPostToBooks, paymentKey } from "@/server/books-posting";
+import { paymentBooksProblem } from "@/lib/books-posting";
 import type { FieldItem } from "@/lib/field";
 import { koboMismatches } from "@/server/results-store";
 import { db, schema as s } from "@/db";
@@ -395,6 +398,19 @@ async function homeActions(c: ActionsInput): Promise<{ actions: HomeAction[]; le
       actions.push({ key: "bills-approve", for: lenses.includes("lead") ? "lead" : lenses[0], bucket: "approve", urgent: true, text: waiting.length === 1 ? `Approve the bill from ${waiting[0].payee}` : `Approve ${waiting.length} bills paid directly`, href: "/work/bills", since: oldest(waiting.map((b) => b.raised.at)) });
     if (roles?.record && back.length)
       actions.push({ key: "bills-correct", for: lenses.includes("finance") ? "finance" : lenses[0], bucket: "fix", urgent: true, text: back.length === 1 ? `Correct the bill from ${back[0].payee} that was sent back and record it again` : `Correct ${back.length} bills that were sent back and record them again`, href: "/work/bills", since: oldest(back.map((b) => b.returned?.at)) });
+    // A filed bill that is not in the books yet: Finance posts it with one press (decision AI).
+    // Until then the budget's "spent" does not hold it. A bill whose entry was reversed is told on Bills itself.
+    const toPost = (book?.items ?? []).filter((b) => !billBooksProblem(b, NON_CONTRACT) && !b.postings?.length);
+    if (toPost.length && (u.procurement.includes("finance") || u.project.includes("finance-import") || (await mayPostToBooks(u).catch(() => false))))
+      actions.push({ key: "bills-post", for: lenses.includes("finance") ? "finance" : lenses[0], bucket: "due", urgent: false, text: toPost.length === 1 ? `Post the bill from ${toPost[0].payee} to the books` : `Post ${toPost.length} filed bills to the books`, href: "/work/bills", since: oldest(toPost.map((b) => b.voucher?.at)) });
+    // The same for a purchase recorded as paid: it counts as spent once Finance has posted it.
+    const paidOnes = ((await (reads.procurements ?? null)) ?? []).flatMap((p) => (p.payments ?? []).filter((r) => !paymentBooksProblem(p, r)).map((r) => ({ p, r })));
+    if (paidOnes.length && (u.procurement.includes("finance") || u.project.includes("finance-import") || (await mayPostToBooks(u).catch(() => false)))) {
+      const kept = (await loadPurchaseBooks(code).catch(() => ({ postings: {} as Record<string, unknown[]> }))).postings;
+      const open = paidOnes.filter((x) => !kept[paymentKey(x.p.id, x.r.n)]?.length);
+      if (open.length)
+        actions.push({ key: "purchases-post", for: lenses.includes("finance") ? "finance" : lenses[0], bucket: "due", urgent: false, text: open.length === 1 ? `Post the payment to ${open[0].r.supplier} to the books` : `Post ${open.length} purchase payments to the books`, href: `/work?source=procurement&open=${open[0].p.id}&project=${code}`, since: oldest(open.map((x) => x.r.paid.date)) });
+    }
   }
 
   // Who approves KoboCollect data on this project (lib/kobo-approval): results made from a form

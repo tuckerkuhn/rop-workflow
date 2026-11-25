@@ -89,6 +89,27 @@ function ItemForm({ v, start, onSave, onQueue, onClose, className = "mt-3" }: { 
   // Where each photo added now was taken, read from the photo. The places of photos already on the
   // item stay on the server: this screen is not given them to send back.
   const [places, setPlaces] = useState<PhotoPlaces>({});
+  // Photos added on this screen now. A photo whose own place was removed (many phones and apps do)
+  // can take the place of the device in hand, with one button, as on the farmer's page.
+  const [added, setAdded] = useState<string[]>([]);
+  const [fromDevice, setFromDevice] = useState<string[]>([]);
+  const [locating, setLocating] = useState<string | null>(null);
+  const placeFromDevice = (hash: string) => {
+    if (!navigator.geolocation) return setErr(tx("This device cannot give its location. The photo can be saved without a place."));
+    setLocating(hash);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLocating(null);
+        setPlaces((cur) => ({ ...cur, [hash]: { lat: Math.round(pos.coords.latitude * 1e6) / 1e6, lon: Math.round(pos.coords.longitude * 1e6) / 1e6 } }));
+        setFromDevice((cur) => [...cur, hash]);
+      },
+      () => {
+        setLocating(null);
+        setErr(tx("The device did not give its location. The photo can be saved without a place."));
+      },
+      { enableHighAccuracy: true, timeout: 15000 },
+    );
+  };
   // Photos picked without a connection: kept on the phone until the item is sent.
   const [local, setLocal] = useState<Local>({});
   const [busy, setBusy] = useState(false);
@@ -120,6 +141,7 @@ function ItemForm({ v, start, onSave, onQueue, onClose, className = "mt-3" }: { 
         setFiles((cur) => [...cur.filter((x) => x.hash !== r.hash), r].slice(0, 20));
         if (when) setTaken((cur) => ({ ...cur, [r.hash]: when }));
         if (at) setPlaces((cur) => ({ ...cur, [r.hash]: at }));
+        if (small.type.startsWith("image/") || file.type.startsWith("image/")) setAdded((cur) => [...cur.filter((h) => h !== r.hash), r.hash]);
       }
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -213,7 +235,16 @@ function ItemForm({ v, start, onSave, onQueue, onClose, className = "mt-3" }: { 
                       Taken on
                       <input type="date" className={`${input} font-mono`} value={taken[x.hash] ?? ""} max={v.today} onChange={(e) => setTaken({ ...taken, [x.hash]: e.target.value })} />
                     </label>
-                    {places[x.hash] && <p className="text-xs text-muted">✓ {tx("Place found in the photo.")} {tx("Only people who may see participant names are shown it.")}</p>}
+                    {places[x.hash] && <p className="text-xs text-muted">✓ {fromDevice.includes(x.hash) ? tx("Place taken from this device.") : tx("Place found in the photo.")} {tx("It is shown only to people who may see participant names and to the person named to approve KoboCollect data.")}</p>}
+                    {!places[x.hash] && added.includes(x.hash) && (
+                      <div className="text-xs text-muted">
+                        <p>{tx("No place in this photo. Many phones and apps remove it.")}</p>
+                        <button type="button" className={`${quietBtn} mt-1 min-h-11`} disabled={locating !== null} onClick={() => placeFromDevice(x.hash)}>
+                          {locating === x.hash ? tx("Finding this device…") : tx("Use this device’s location")}
+                        </button>
+                        <span className="ms-2">{tx("Only if you are where the photo was taken.")}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </li>
@@ -282,7 +313,7 @@ function ItemCard({ it, n, v, user, act }: { it: Item; n: number; v: WeeklyView;
             ))}
           </ul>
         )}
-        {photos.some((f) => it.places[f.hash]) && !mapOf && <p className="text-xs text-muted">{tx("The place was read from the photo. Only people who may see participant names are shown it.")} {tx("The map comes from OpenStreetMap. Opening it sends this point to their map service.")}</p>}
+        {photos.some((f) => it.places[f.hash]) && !mapOf && <p className="text-xs text-muted">{tx("The place was read from the photo or given by the device. It is shown only to people who may see participant names and to the person named to approve KoboCollect data.")} {tx("The map comes from OpenStreetMap. Opening it sends this point to their map service.")}</p>}
         {mapOf && it.places[mapOf] && (
           <div className="mt-2">
             <p className="text-xs text-muted">

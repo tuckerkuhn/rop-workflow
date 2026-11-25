@@ -1,22 +1,7 @@
 import { qprFigures, refOf, withRef } from "@/lib/evidence";
 import { draftMark } from "@/lib/preflight";
-import {
-  AlignmentType,
-  BorderStyle,
-  Document,
-  HeadingLevel,
-  ImageRun,
-  Packer,
-  PageBreak,
-  Paragraph,
-  ShadingType,
-  Table,
-  TableCell,
-  TableOfContents,
-  TableRow,
-  TextRun,
-  WidthType,
-} from "docx";
+import { EARLY_DRAFT_WORD, earlyDraftLine, periodNotEnded } from "@/lib/early-draft";
+import { AlignmentType, BorderStyle, Document, HeadingLevel, ImageRun, Packer, PageBreak, Paragraph, ShadingType, Table, TableCell, TableOfContents, TableRow, TextRun, WidthType, Header } from "docx";
 import { activityHeading, SECTIONS, STATUS_LABEL, grmOf, overspentLines, quarterSpendOf, type Breakdown, type GrmLog, type Photo, type Qpr, type Row, type Spend, durationOf } from "@/lib/qpr";
 import { quarterRange } from "@/lib/results";
 import type { QprPeriod } from "@/lib/obligations";
@@ -45,6 +30,8 @@ export type DocxInput = {
   origin: string;
   /** Downloaded while pre-flight still lists this many blockers: marked as a draft, not checked. */
   draft?: number;
+  /** The day of the download, YYYY-MM-DD. Default today. Before the period's last day has passed the file carries the Draft watermark. */
+  today?: string;
 };
 
 /** Photos as JPEG, keyed by fingerprint, with their size in pixels. */
@@ -117,7 +104,10 @@ export async function qprDocx(d: DocxInput, images: Images): Promise<Blob> {
 
   // Cover: the first captioned photo, as ROP's reports have one.
   const cover = d.photos[0];
+  // The period has not ended: "Draft" at the head of every page and the reason on the cover (lib/early-draft).
+  const early = periodNotEnded(to, d.today);
   const coverChildren = [
+    ...(early ? [p(earlyDraftLine(to), { bold: true, size: 24, color: "AA3333" })] : []),
     ...(d.draft ? [p(draftMark(d.draft), { bold: true, size: 24, color: "AA3333" })] : []),
     p(d.project.name, { size: 28, color: GREEN }),
     p("QUARTERLY PROGRESS REPORT", { bold: true, size: 44 }),
@@ -211,6 +201,7 @@ export async function qprDocx(d: DocxInput, images: Images): Promise<Blob> {
     styles: { default: { document: { run: { font: FONT, size: 22 } } } },
     sections: [
       {
+        ...(early ? { headers: { default: new Header({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: EARLY_DRAFT_WORD.toUpperCase(), bold: true, size: 72, color: "D9B3B3", font: FONT })] })] }) } } : {}),
         children: [
           ...coverChildren,
           h("Project Information", 1),

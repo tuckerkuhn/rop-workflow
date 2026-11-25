@@ -64,6 +64,20 @@ describe("a review that is not signed", { timeout: 60_000 }, () => {
 });
 
 describe("signing a review", { timeout: 60_000 }, () => {
+  // Decision AE, 25 Nov 2026: an empty summary blocks the sign-off, as an empty Executive Summary blocks a report's release.
+  it("is refused while the summary is not written, and goes ahead once it is, whatever the needs-attention note holds", async () => {
+    const page = await read(marcus, SIGNED);
+    const r = await post(marcus, SIGNED, { action: "signoff", seen: figuresKey(page) });
+    expect(r.status).toBe(400);
+    expect(r.body.error).toBe("Not signed off: the summary is not written. Write where the project stands this month, then sign off.");
+    expect((await rawReview(projectId, SIGNED)).signedOff).toBeUndefined();
+    // Spaces are not a summary.
+    await post(marcus, SIGNED, { action: "summary", text: "   " });
+    expect((await post(marcus, SIGNED, { action: "signoff", seen: figuresKey(page) })).body.error).toContain("the summary is not written");
+    expect((await post(marcus, SIGNED, { action: "summary", text: "Training is on plan. Forty farmers were trained by 20 October (fictional)." })).status).toBe(200);
+    expect((await read(marcus, SIGNED)).review.attention?.text ?? "").toBe("");
+  });
+
   it("is refused when the figures have changed since the signer's page was opened, and nothing is signed", async () => {
     const page = await read(marcus, SIGNED);
     await accept({ value: 5, date: "2026-10-28" });

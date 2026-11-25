@@ -1,3 +1,4 @@
+import { vouchesForFieldData } from "@/server/kobo-approval";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { proofCount, quarterOf, type Correction, type PhotoPlaces, type ResultInput, type ResultRecord, type UpdateInput, type UpdateRecord } from "@/lib/results";
@@ -230,11 +231,13 @@ export async function loadUpdates(code: string): Promise<UpdateRecord[]> {
 
 /**
  * Where the photos on each update were taken, by update id and file fingerprint. Only for a person
- * who may see participant names: a point can be where a farmer lives. Anyone else gets nothing.
+ * who may see participant names, and for the one person the project names to approve KoboCollect
+ * data (the Director of MEL), who vouches for field data (server/kobo-approval
+ * vouchesForFieldData). A point can be where a farmer lives. Anyone else gets nothing.
  */
 export async function updatePlaces(code: string, viewer: AppUser | null | undefined): Promise<Map<string, PhotoPlaces>> {
   const out = new Map<string, PhotoPlaces>();
-  if (!canSeePII(viewer)) return out;
+  if (!canSeePII(viewer) && !(await vouchesForFieldData(code, viewer))) return out;
   const project = await projectByCode(code);
   const rows = await db
     .select({ id: s.evidence.id, payload: s.evidence.payload })

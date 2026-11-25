@@ -38,16 +38,20 @@ beforeAll(async () => {
 }, 120_000);
 
 describe("where a farmer's photo was taken, for staff who may not see participant names", { timeout: 60_000 }, () => {
-  it("is not sent to them: they are told a place is kept, and only for a photo that has one", async () => {
+  // Decision AH, 25 Nov 2026: they are told nothing about a photo's place, not even that one is kept.
+  it("is not sent to them, and nothing says a place is kept", async () => {
     for (const id of ["rahima", "marcus", "karim", "yusuf"]) {
       const f = await farmer(userById(id)!);
-      expect(photo(f, NOTE.id)).toMatchObject({ src: NOTE.src, hasPlace: true });
-      expect(photo(f, PLOT.id)).toMatchObject({ src: PLOT.src, hasPlace: true });
-      expect(photo(f, BARE.id)!.hasPlace).toBeUndefined();
+      expect(photo(f, NOTE.id)).toMatchObject({ src: NOTE.src });
+      expect(photo(f, PLOT.id)).toMatchObject({ src: PLOT.src });
+      for (const p of f.photos) expect("hasPlace" in p).toBe(false);
+      // A photo with a place and a photo with none read the same to them.
+      expect(Object.keys(photo(f, PLOT.id)!).sort()).toEqual(Object.keys(photo(f, BARE.id)!).sort());
       for (const p of f.photos) expect(p.gps).toBeUndefined();
       const sent = JSON.stringify((await loadField(code, userById(id)!)).items);
       expect(sent).not.toContain("34.56");
       expect(sent).not.toContain('"gps"');
+      expect(sent).not.toContain("hasPlace");
     }
   });
 
@@ -93,8 +97,8 @@ describe("where a farmer's photo was taken, for staff who may not see participan
     expect(photo(stored, PLOT.id)!.gps).toEqual(PLOT.gps);
     expect(photo(stored, BARE.id)!.gps).toBeUndefined();
     expect(photo(stored, added.id)!.gps).toEqual(added.gps);
-    // Their own next read tells them a place is kept for the photo they added, and no longer sends it.
-    expect(photo(await farmer(editor), added.id)).toMatchObject({ hasPlace: true });
+    // Their own next read no longer sends the place of the photo they added, and says nothing of it.
+    expect("hasPlace" in photo(await farmer(editor), added.id)!).toBe(false);
     expect(photo(await farmer(editor), added.id)!.gps).toBeUndefined();
   });
 

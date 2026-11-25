@@ -5,6 +5,7 @@ import { type AppUser } from "@/lib/demo";
 import { addDays, fieldSteps, plantingProblem, trainBlock, type Farmer, type Planting } from "@/lib/field";
 import { cropPlanProblem, hectaresFor, type CropPlan } from "@/lib/crops";
 import { selectionHold } from "@/lib/selection";
+import { HELD_KEY, LEFT_OUT_KEY, TICKED_KEY, heldFarmers } from "@/lib/kobo-setup";
 import { selectionOutcomes } from "@/server/selection-store";
 import { toSubmission } from "@/server/kobo";
 import { today } from "@/lib/clock";
@@ -47,15 +48,29 @@ export async function decide(code: string, evidenceId: string, status: "accepted
     if (row.form === "distribution") throw new HttpError(409, "The project manager approves input distributions, from the email or from Home, where the goods received and quantity checks are shown.");
 
     const moves = status === "accepted" && row.source === "kobo" && (row.form === "readiness" || row.form === "training" || row.form === "visit");
+    // What holds each farmer left open on a session record accepted for everyone else.
+    let heldNow: string[] = [];
     // A farmer waitlisted or left out in Farmer selection is not moved along by a field form:
     // enforced here, not only by the Field activities page. Sending the form back stays open.
     if (moves) {
       const sub = toSubmission(row);
       const outcomes = await selectionOutcomes(row.projectId, tx);
-      // A training session record names many farmers: every one of them must be clear.
-      const holds = (sub.farmers ?? [sub.farmerId || row.farmerCode]).map((id) => selectionHold(outcomes, id)).filter((h): h is string => !!h);
-      if (holds.length === 1) throw new HttpError(409, `${holds[0]}. Select them first, or send this form back.`);
-      if (holds.length) throw new HttpError(409, `${holds.length} farmers on this record are held in Farmer selection: ${holds.slice(0, 6).join("; ")}${holds.length > 6 ? `; and ${holds.length - 6} more` : ""}. Select them first, or send this form back.`);
+      const ids = sub.farmers ?? [sub.farmerId || row.farmerCode];
+      const stopped = ids.map((id) => ({ id, why: selectionHold(outcomes, id) })).filter((h): h is { id: string; why: string } => !!h.why);
+      const holds = stopped.map((h) => h.why);
+      // A training session record names many farmers. One held farmer no longer holds up the
+      // others (decision P, 25 Nov 2026): everyone else is recorded, and the held farmer stays open
+      // on the record, to be recorded once selected or left out. A record about one farmer, or a
+      // session whose farmers are all held, has nobody to record and is refused as before.
+      if (holds.length && sub.farmers && holds.length < ids.length) {
+        const p = (row.payload ?? {}) as Record<string, unknown>;
+        const out = new Set(stopped.map((h) => h.id));
+        // The tick list keeps only the farmers recorded now, so nothing counts a held farmer.
+        row.payload = { ...p, [TICKED_KEY]: p[TICKED_KEY] ?? p.farmers, farmers: sub.farmers.filter((id) => !out.has(id)).join(" "), [HELD_KEY]: [...out].join(" ") };
+        await tx.update(s.evidence).set({ payload: row.payload, updatedAt: new Date() }).where(eq(s.evidence.id, evidenceId));
+        heldNow = holds;
+      } else if (holds.length === 1) throw new HttpError(409, `${holds[0]}. Select them first, or send this form back.`);
+      else if (holds.length) throw new HttpError(409, `${holds.length} farmers on this record are held in Farmer selection: ${holds.slice(0, 6).join("; ")}${holds.length > 6 ? `; and ${holds.length - 6} more` : ""}. Select them first, or send this form back.`);
     }
 
     await tx
@@ -76,14 +91,55 @@ export async function decide(code: string, evidenceId: string, status: "accepted
       if (counted) applied = `${applied} ${counted.already ? "Already counted toward the target: not counted again." : "Counted toward the target, waiting for MEL on the Results page."}`;
     }
 
+    if (heldNow.length && applied) applied = `${applied} ${heldSentence(heldNow)}`;
     await tx.insert(s.auditLog).values({
       projectId: row.projectId,
       entity: "evidence",
       entityId: row.id,
       action: status,
-      detail: { by: user.id, form: row.form, farmer: row.farmerCode, ...(row.form === "training" && toSubmission(row).farmers ? { farmers: toSubmission(row).farmers } : {}), note: note ?? null, applied },
+      detail: { by: user.id, form: row.form, farmer: row.farmerCode, ...(row.form === "training" && toSubmission(row).farmers ? { farmers: toSubmission(row).farmers } : {}), ...(heldNow.length ? { held: heldFarmers((row.payload ?? {}) as Record<string, unknown>) } : {}), note: note ?? null, applied },
     });
     return { already: null, applied };
+  });
+}
+
+/** What the person who accepted is told about the farmers left open on the record. */
+const heldSentence = (holds: string[]) =>
+  `${holds.length === 1 ? "1 farmer is" : `${holds.length} farmers are`} not recorded and ${holds.length === 1 ? "stays" : "stay"} open on this record: ${holds.slice(0, 6).join("; ")}${holds.length > 6 ? `; and ${holds.length - 6} more` : ""}. Select them first, or leave them out.`;
+
+/**
+ * A farmer left open on an accepted session record because Farmer selection held them (decision P).
+ * "record": once they are selected, their attendance is recorded as it was for the others, and
+ * they join the record's tick list, so they count from now on. "leave_out": they come off the
+ * record for good and nothing is recorded for them. Decided by whoever may accept the record.
+ */
+export async function settleHeld(code: string, evidenceId: string, farmer: string, action: "record" | "leave_out", user: AppUser, refusal?: (fromKobo: boolean, by: string | null, form: string | null) => string | null) {
+  const project = await projectByCode(code);
+  return db.transaction(async (tx) => {
+    const [row] = await tx.select().from(s.evidence).where(and(eq(s.evidence.id, evidenceId), eq(s.evidence.projectId, project.id))).for("update").limit(1);
+    if (!row || row.form !== "training") throw new HttpError(404, "That record is not in this project's review queue. Reload the queue.");
+    const why = refusal?.(row.source === "kobo", row.completedBy, row.form);
+    if (why) throw new HttpError(403, why);
+    const p = (row.payload ?? {}) as Record<string, unknown>;
+    const held = heldFarmers(p);
+    if (row.reviewStatus !== "accepted" || !held.includes(farmer)) return { already: true, applied: null as string | null };
+    const rest = held.filter((id) => id !== farmer).join(" ");
+    let applied: string;
+    if (action === "record") {
+      const hold = selectionHold(await selectionOutcomes(row.projectId, tx), farmer);
+      if (hold) throw new HttpError(409, `${hold}. Select them first, or leave them out.`);
+      const ticked = typeof p.farmers === "string" ? p.farmers.split(/\s+/).filter(Boolean) : [];
+      const payload = { ...p, farmers: [...new Set([...ticked, farmer])].join(" "), [HELD_KEY]: rest };
+      await tx.update(s.evidence).set({ payload, updatedAt: new Date() }).where(eq(s.evidence.id, row.id));
+      const out = await trainOne(tx, row.projectId, toSubmission({ ...row, payload }), farmer, true, user);
+      applied = `${farmer}: ${out.summary}`;
+    } else {
+      const left = typeof p[LEFT_OUT_KEY] === "string" ? `${p[LEFT_OUT_KEY]} ${farmer}` : farmer;
+      await tx.update(s.evidence).set({ payload: { ...p, [HELD_KEY]: rest, [LEFT_OUT_KEY]: left }, updatedAt: new Date() }).where(eq(s.evidence.id, row.id));
+      applied = `${farmer} is left out of this record. Nothing was recorded for them.`;
+    }
+    await tx.insert(s.auditLog).values({ projectId: row.projectId, entity: "evidence", entityId: row.id, action: action === "record" ? "held_farmer_recorded" : "held_farmer_left_out", detail: { by: user.id, form: row.form, farmer, applied } });
+    return { already: false, applied };
   });
 }
 

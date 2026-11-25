@@ -22,19 +22,20 @@ All pushed to `deep-dive/handoffs-2026-11-24`. Nothing touched main or Supabase.
 **Big item fixed on the morning of 25 Nov (1).**
 - A signed monthly review keeps that day's figures and shows them for good (AA, decided by Tucker).
 
-**Big items still open (1).**
-- A paid purchase or bill does not reach the books. Finance types it twice (AI, decided by Tucker 25 Nov: build it, bills first).
+**Big items still open (0).**
+- A paid purchase or bill did not reach the books. Built on 25 Nov on branch `build/decided-2026-11-25` (AI, decided by Tucker). Not merged: Tucker merges.
 
 Not walked yet: most of chain 2 and all of chains 3 to 6. More big items may be there.
 
 **Decisions.** Recommended choice first. Letters match "Needs Tucker" below.
 - AA. Decided by Tucker 25 Nov: keeps that day's figures. Built.
-- AI. Decided by Tucker 25 Nov: Finance posts a filled-in entry with one click. Bills first. Not built yet.
-- X, AB and O to AL. Decided 25 Nov: see "Decided". To build: X (Draft watermark), P, U, V, Y, AB, AC, AD, AE, AF, AH.
+- AI. Decided by Tucker 25 Nov: Finance posts a filled-in entry with one click. Bills first. Built, bills and purchases.
+- X, AB and O to AL. Decided 25 Nov: see "Decided". Built: X (Draft watermark), AB, P, U, V, Y, AC, AD, AE, AF, AH.
+- New, found while building: AM to AU under "Needs Tucker".
 
-**Tests.** 1,215 pass, up from 1,138. Typecheck and lint are clean.
+**Tests.** 1,293 pass on branch `build/decided-2026-11-25`. Main had 1,252 after the morning's merge (1,215 was counted before it). Typecheck and lint are clean.
 
-**Next action.** Build AI as decided (see "Decided"), bills first, then purchases. Start from main: the branch was merged into main on 25 Nov (`29e7b10`).
+**Next action.** Tucker reads the log entry "Decided items" at the foot of this page, then merges `build/decided-2026-11-25` or says what to change. Rounds then go on with chain 2.
 
 Tucker's instruction, 25 Nov 2026, 00:02: "Keep making rounds until we don't need any big changes
 left and then start clearing out the medium changes. It must be very tight to be useful and to be
@@ -198,8 +199,26 @@ worth more than a half-built large one.
   number. Who may record, approve and prepare the voucher is `billRoles` in
   `src/server/bills-store.ts`. Home's two rows for bills are in `homeActions`
   (`src/server/home-store.ts`).
-- A paid purchase and a filed bill do not post to the books (`09-finance.md`, "What posts
-  automatically"). Do not build it: Needs Tucker AI.
+- A filed bill and a purchase recorded as paid go to the books when Finance posts them (item AI,
+  built 25 Nov). The rules are in `src/lib/books-posting.ts`, the posting in
+  `src/server/books-posting.ts` (`postToBooks`, which calls `recordExpenditure`). A bill keeps its
+  postings on itself (`postings`). A purchase's are in the `project_state` row `purchase-books`,
+  by `<purchase>#<payment>`. Whether an entry was reversed is read from the books, never kept twice.
+  The panel on the bill and on the purchase is one component: `src/components/ledger/books-panel.tsx`.
+- To see a purchase payment in the demo, record one as paid: the demo's two closed purchases hold
+  no payment record. `closeInstalment` (`src/lib/payments.ts`) files it as the step does. The test
+  `purchase-to-books.db.test.ts` shows how.
+- A bill over USD 500 recorded by `yusuf` is posted by `omid`. `yusuf` posts his own under that.
+- A farmer left open on an accepted training record is in the record's stored answers as
+  `_rop_held` (`src/lib/kobo-setup.ts`). The tick list `farmers` then holds only the farmers
+  recorded, so every count reads it as before. `_rop_ticked` keeps the list as the phone sent it.
+- A report carries the Draft watermark while `periodNotEnded` says so (`src/lib/early-draft.ts`).
+  The Word builders take the day as their last argument, so a test can ask for any day.
+- A farmer photo's fingerprint for the consent rule is the sha256 of its picture
+  (`photoFingerprint` in `src/server/field-store.ts`). To clear one for a donor in the demo, put
+  that fingerprint in the `photos` row as the note on the evidence pack above says.
+- The browser's location can be given to a walk: `geolocation` and `permissions` on the
+  Playwright context. `act.py` does not do it.
 - In a test `karim` has no leadership view of Home: the people who hold roles come from a table
   the test database does not fill. Use `marcus` for a row only leadership sees.
 - `act.py`: `'btn:Open'` presses "Open AI assistant". On a purchase press `'btn:Review document'`
@@ -237,7 +256,7 @@ is used next. Then walk it as each role on a phone. The distribution chain is do
    payment form, the second Finance check, approving the payment, the three voucher steps,
    "Record the payment", close out, a bill's voucher, month close, approving the calendar, "Ask
    for something not on the calendar", the supplier register and the procurement register.
-   The chain is not clear. One big item waits for Tucker (Needs Tucker AI).
+   The chain is not clear: most of it is not walked. Its one known big item (AI) was built on 25 Nov.
 3. **Just won to ready.** Project `GT-2027`: from the won proposal to a project that can record its
    first distribution. As `nadia` and as someone who has never run a grant. Count every field asked.
 4. **Readiness, training and farm visits.** From the phone to the farmer's record and the target.
@@ -263,8 +282,7 @@ Big, open:
 3. *Done in round 7.* **A bill waiting for approval is on nobody's Home.** Found in round 7. With the bill waiting,
    `karim`'s Home said "3 approvals are waiting on you" and listed three other things. Only a
    person who opens "Bills paid directly" by himself sees it. Approved bills do reach Finance's Home.
-4. **A paid purchase or a filed bill does not reach the books.** *Waits for Tucker (Needs Tucker
-   AI). It is a new feature.* Found in round 7. Procurement and Bills keep their own records.
+4. *Done on 25 Nov (item AI, decided by Tucker), on branch `build/decided-2026-11-25`.* **A paid purchase or a filed bill does not reach the books.** Found in round 7. Procurement and Bills keep their own records.
    The books behind the budget's "spent" are written only by "Record a payment", where Finance
    types the supplier, what it was for, the line and the amount again and attaches the receipt
    again. `09-finance.md` lists it as not built.
@@ -492,41 +510,81 @@ Decisions A to N are in `11-handoffs-review.md`. Rounds add theirs here, lettere
   may sign it once more, to keep the figures of the day they do. It is not built: it changes a
   signed review. Say if you want it.
 
+- **AM. Tax withheld on a purchase and the bank.** A purchase goes to the books as the invoice in
+  full, paid from the bank account on the day it was paid. That is what the budget line is
+  charged. Where tax was withheld the bank paid the supplier less that day and paid the tax
+  later. The bank statement then has two lines where the books have one. The month's
+  reconciliation will not match them by itself. The other choice: the net amount on the day paid
+  and the tax on the day it is remitted. It needs the accountant. It also needs an entry with a third side,
+  which `recordExpenditure` does not write. Not built.
+- **AN. A bill charged to no project.** A general and admin bill has no budget line, so it does
+  not go to a project's books. Its page says so. Say if such bills should reach the books, and
+  against what.
+- **AO. Who may post a bill they recorded.** The ledger's rule stands, as decided: over the limit
+  (USD 500 unless changed in Settings) the person who recorded the bill does not post it. An office
+  with one Finance person cannot post a bill of USD 600 that person recorded, though programme
+  management approved it. Say if an approved bill should count as the second person.
+- **AP. A filed bill with a wrong amount.** A corrected entry can go to another budget line, day or
+  account. Its amount is always the bill's. A filed bill is never changed (AK), so a wrong amount on
+  a filed bill cannot be put right in the app.
+- **AQ. When the books speak for a project's budget.** A project's "spent" reads the books only
+  once its books are marked as kept in the app (the demo is). On any other project a posted bill
+  shows under "Budget vs actual from the books" and is added to the old spent column, which the
+  next workbook import writes over. Before the books can be the record for a real project, its
+  spending to date must be in them (`09-finance.md`, question 18). Nothing was changed here.
+- **AR. No farmer photo reaches a donor today.** The consent rule clears a photo that was checked
+  in the photo library. The library lists photos on results, weekly updates and stories. It does
+  not list farmer photos, so none is checked and none goes to a donor's account. That is the
+  privacy rule working. To send any, the library would have to list farmer photos: a new feature.
+- **AS. The rest of a donor's Home.** "Results against targets" now shows released figures only.
+  The four figures at the head (farmers enrolled, received inputs, satisfaction, stories), the
+  season's steps and the stories are today's field records. Progress, one tap away, gives a
+  donor today's counts too: its request is written to. Say if these should be released figures only.
+- **AT. Who else vouches for field data.** The place of a weekly photo now goes to the one person
+  a project names to approve KoboCollect data. It does not go to the stand-in. On a project whose
+  rule is "anyone with the MEL role" or "the project manager" nobody new is given it. Say if the
+  stand-in should be.
+- **AU. What carries the Draft watermark.** A released report's page and a preview copy, any Word
+  file downloaded before the period's last day has passed (also of a report not yet released), a
+  donor's link and a donor's account. It goes the day after the period ends. The report itself
+  stays as released early. Say if a report released early should keep the mark for good.
+
 ### Decided
 
 Decided 25 Nov. X by Tucker; AB by the privacy rule (names and anything that can identify a farmer
 only to people who need them, none to donors); the rest on the recommendation, which Tucker accepted.
-"Build" means a round builds it; "keep" means nothing changes.
+"Build" means a round builds it; "keep" means nothing changes. "Built" means it is on branch
+`build/decided-2026-11-25` with the commit named, tested and walked. Tucker merges.
 
-- **X. Build.** A report may still be released before its period ends, after the warning. Until its
+- **X. Built (`0230bf3`, `c78661d`).** A report may still be released before its period ends, after the warning. Until its
   period has ended it carries a "Draft" watermark (page, Word file and donor link), so nobody takes
   it for the final report. Nothing is refused.
-- **AB. Build.** A donor's account sees only the farmer photos cleared for donors by the same consent
+- **AB. Built (`af3c823`).** A donor's account sees only the farmer photos cleared for donors by the same consent
   rule a report's photos pass. Other photos are not sent.
 - **O. Keep.** English only until a native speaker words Dari and Pashto (translation is last).
-- **P. Build.** Record everyone else on the session; the held farmer stays open on the record for MEL
+- **P. Built (`d0e4dae`).** Record everyone else on the session; the held farmer stays open on the record for MEL
   with the same message, to select or leave out. One farmer no longer holds up the others.
 - **Q. Keep.** Tucker replaces the training form in KoboToolbox if a real project uses the old one.
 - **R. Keep.** Projects needing Dari or Pashto on the phone use the `kobo/` files until the wording is reviewed.
 - **S. Keep.** The plot photo stays required on the readiness form.
 - **T. Keep.** The same three training sessions for v1.0. A setting only when a project needs others.
-- **U. Build.** The weekly page offers the same one button as the farmer page: use the place of the device in hand.
-- **V. Build.** The Director of MEL sees where a weekly photo was taken: she vouches for field data.
+- **U. Built (`cc658dd`).** The weekly page offers the same one button as the farmer page: use the place of the device in hand.
+- **V. Built (`15db437`).** The Director of MEL sees where a weekly photo was taken: she vouches for field data.
 - **W. Keep.** Nothing can bring back places for photos added before round 3.
-- **Y. Build.** An empty Executive Summary blocks a report's release. Other empty sections still only warn.
+- **Y. Built (`d8b254a`, `38b9a75`).** An empty Executive Summary blocks a report's release. Other empty sections still only warn.
 - **Z. Keep.** A donor reads "1 PDF document". A reference only if a donor asks for one.
-- **AC. Build.** A donor's Home shows released figures only, as the reports page does.
-- **AD. Build.** The donor evidence pack gives no free-text note. Counts and dates only.
-- **AE. Build.** An empty summary blocks a monthly review's sign-off, as Y does for reports.
-- **AF. Build.** A donor's annual report gives the lines their grant pays (USD 193,200 in the demo),
+- **AC. Built (`7209fad`).** A donor's Home shows released figures only, as the reports page does.
+- **AD. Built (`5fb691a`).** The donor evidence pack gives no free-text note. Counts and dates only.
+- **AE. Built (`f6c6092`).** An empty summary blocks a monthly review's sign-off, as Y does for reports.
+- **AF. Built (`6069cf1`).** A donor's annual report gives the lines their grant pays (USD 193,200 in the demo),
   with the whole agreement (USD 346,200, cost share and overhead) as one line of context under it.
 - **AG. Keep.** A report under way says what Progress says; a report released early keeps that day's words.
-- **AH. Build.** Staff who may not see names are told nothing about a photo's place either.
+- **AH. Built (`fb607d5`).** Staff who may not see names are told nothing about a photo's place either.
 - **AJ. Keep.** A bill recorded on a project's page starts as that project, with its budget line.
 - **AK. Keep.** A bill sent back keeps its number; the corrected bill gets a new one.
 - **AL. Keep.** A review signed before 25 November shows today's figures with the note; no second signature.
 
-- **AI. A paid purchase or a filed bill and the books.** Decided by Tucker 25 Nov, all six points:
+- **AI. A paid purchase or a filed bill and the books.** Built (bills `0abb889`, purchases `62746f1`, `3fb5e46`). Decided by Tucker 25 Nov, all six points:
   1. Finance gets an entry filled in from the bill or purchase and posts it with one click after
      checking it. Nothing is typed twice. It never posts by itself.
   2. It counts as spent when paid: a purchase when it is recorded as paid, a bill when its voucher is filed.
@@ -1073,3 +1131,131 @@ found and left, tests passing.
   note, pressed "I have checked this record" and the page said "Checked." nadia approved, the
   page said "Approved by Nadia Rahimi" and the farmer's record moved to planting.
   `10-field-ledger.md` not changed: no field a person fills in was added, cut or prefilled.
+- **Decided items. 25 Nov 10:46 to 12:05. DONE.** Not the queue. Tucker's instruction, 25 Nov
+  10:38: "Start from main. Build item AI first, bills first, then the items marked Build under
+  Decided." All twelve are built, each in its own commit, on branch `build/decided-2026-11-25`,
+  made from main at `2fc5fcc`. No migration. Nothing is pushed to main: Tucker merges.
+  The sandbox refused `git checkout main`, so the branch was made from `origin/main` after a
+  fetch. That is the same commit and main was never checked out.
+  Decisions made alone, to check:
+  - *AI: what the entry is.* A payment through `recordExpenditure`, as the page says: the budget
+    line's expense account against the bank or cash account. Its memo is who was paid and what
+    for. Its source is the bill or the purchase payment. A bill's date is the day its voucher
+    was filed. A purchase's is the day recorded as paid. Finance may change the day and picks the
+    account it was paid from. Those are the two things the bill and the purchase do not hold.
+  - *AI: what "cannot post twice" rests on.* The expenditure's id is made from the bill or payment
+    and the number of the posting, so the entry's key is one per bill or payment. A second press,
+    two people at once and a press after the bill's own record was lost all give the first entry.
+  - *AI: a wrong entry.* Reversed in the books with a reason, on the bill or under Record a
+    payment. The reversal writes a row that takes the amount off the expenditures table and takes
+    it off the old spent column. The bill or purchase then says it is not in the books and offers
+    the corrected entry. Only a corrected entry may go to another budget line.
+  - *AI: who is "the person who recorded it".* For a bill, who recorded the bill. For a purchase,
+    who recorded it as paid (read from the purchase's history by name). Over the limit that person
+    does not post it and the page says who can, before the press (AO).
+  - *AI: afghani.* Paid from an afghani account: posted in afghani at the rate on the bill or
+    invoice. Paid from a dollar account: posted as the dollars that rate gives. The memo
+    says so. The demo has no afghani account, so only the second was run.
+  - *AI: a purchase's amount* is the invoice in full, before tax withheld (AM).
+  - *AI: where a purchase's posting is kept.* In its own row, not on the purchase, which the
+    screen saves whole.
+  - *X: where the mark shows.* See AU. In the Word file it is the word DRAFT at the head of every
+    page and one line on the cover. The library has no true watermark.
+  - *AB: a photo not cleared is not sent at all*, not its picture and not its caption (AR).
+  - *P: where the held farmer is kept.* On the same record, beside the tick list. The record is
+    accepted for the others. A session whose farmers are all held is refused as before. So is a
+    record about one held farmer.
+  - *V: who "the Director of MEL" is.* The one person the project names to approve KoboCollect
+    data (AT). Not a job title, which the app does not read.
+  - *Y and AE: what counts as written.* Anything but spaces. Y is the quarterly report. The
+    annual report has no Executive Summary of its own.
+  - *AC: which figure.* The year's figure and the year's target, as the released report gives
+    them, with the report named.
+  - *AD: the reason a result has no file* is typed by staff too. A donor reads "the reason is kept
+    by Roots of Peace".
+  - *AF: with nothing set about what a donor funds*, the whole agreement is given alone and named so.
+  Fixed:
+  - *AI, bills.* A filed bill shows Finance "Post to the books" with who was paid, what for, the
+    line and the amount, all from the bill. One press posts it. The bill then says "In the books"
+    with the line, day, account and who posted. It opens the entry with what it wrote. The entry
+    says "Posted from bill BL-001" and links back. The list under Record a payment names the bill
+    on each row. Finance's Home says "Post the bill from ... to the books". Test:
+    `src/server/__tests__/bill-to-books.db.test.ts`, 14 tests through the bills request and the
+    ledger's own requests: nothing posts by itself, the filled-in entry, who may post, Home, the
+    one press and what it writes, no second posting, both links, the reversal and the corrected
+    entry on another line, the limit, a locked month, a date after today, a reversal that waits
+    for a second person, an afghani bill and a bill with no budget line. Run in the browser on a
+    phone-sized screen with fictional bills: `yusuf` saw Home's row and posted BL-001 (USD 120).
+    For BL-002 (USD 900) he read "You recorded this bill and it is over USD 500.00" with who can
+    post. `omid` posted it. `yusuf` opened BL-001's entry, reversed it with a reason and
+    posted the corrected entry on line 5.1. The books list showed all three.
+  - *AI, purchases.* The same panel under a purchase's payments, for each payment recorded as paid.
+    Test: `src/server/__tests__/purchase-to-books.db.test.ts`, 8 tests, and
+    `src/lib/__tests__/books-posting.test.ts`, 7 tests of the rules. Run in the browser as `omid`
+    on PR-2027-009 with a payment record placed on the local database: the filled-in entry, the
+    press, "In the books: $7,800.00 on line 2.3" and the entry naming the purchase. `omid`'s
+    Home, shown for Finance, said "Post the payment to FarmTools Co. (fictional) to the books"
+    and the row opened the purchase.
+  - *Reversing any expenditure's entry* now takes its amount off the old spent column too. Before,
+    only the books changed. This also holds for entries the posting CLI made.
+  - *X.* Test: `src/server/__tests__/early-draft.db.test.ts`, 4 tests: the rule to the day, both
+    Word files read back, the period sent with a donor's report. Run in the browser: `marcus`
+    read the new line in the release question and released the quarter early. The page, a share
+    link opened with no sign-in, `elena`'s account and her annual report all said "Draft. The
+    period this report covers ends on 31 December 2026." The word was seen across the page in a
+    picture of the phone screen.
+  - *AB.* Test: `donor-field.db.test.ts`, 3 tests (one new): a cleared photo goes with its
+    picture, an unchecked one and one that shows a person do not, nor their captions. In the
+    browser `elena`'s page for F-0001 showed the signed note's line and no other photo.
+  - *P.* Test: `training-session.db.test.ts`, 9 tests (two rewritten): the others are recorded,
+    the held farmers stay open and are not counted, recording one is refused until selected,
+    then recorded once and counted, one is left out and the two refusals stay. Run in
+    the browser as `omar` with a fictional session of three and F-0004 waitlisted: "1 farmer is
+    not recorded and stays open on this record", the two buttons, then F-0004 selected and
+    recorded from the record and moved to Prepare the plot. "Leave out" was not pressed there.
+  - *U.* Run in the browser as `omar`, with the browser given a place: a photo with none showed
+    "No place in this photo" and the button, then "Place taken from this device". The saved
+    item showed "Show on a map". No test: it is one button on one form.
+  - *V.* Test: `weekly-photo-place.db.test.ts`, 9 tests (one new, two changed). In the browser
+    `rahima` saw "Show on a map" and the point. `marcus` saw neither.
+  - *Y.* Test: `summary-blocks-release.db.test.ts`, 3 tests. In the browser `marcus` read "The
+    Executive Summary is not written. The report cannot be released without it." under what
+    blocks the report, with 12 other empty sections only listed. `omar` wrote it and `marcus`
+    released the report.
+  - *AC.* In the browser `elena`'s Home gave the released report's figures and named the report.
+    With no report released it says so and shows no figure. No new test: Home reads the two
+    answers the reports page reads, which `donor-view.db.test.ts` covers.
+  - *AD.* Test: `evidence-pack.db.test.ts` (added to). The donor pack was downloaded in the
+    browser: its index has no "What was done" column.
+  - *AE.* Test: `signed-review-figures.db.test.ts`, 12 tests (one new). In the browser `marcus`
+    could not press Sign off, read why, wrote the summary and signed.
+  - *AF.* Test: `period-release.db.test.ts` (one new). In the browser `elena` read "Your grant,
+    approved USD 193,200. Spent USD 10,750" and under it "For context, the whole agreement, with
+    the cost share and overhead: budget USD 346,200, spent USD 17,950."
+  - *AH.* Test: `farmer-photo-place-hidden.db.test.ts` (changed). In the browser `karim` read
+    nothing about a place on F-0002's new photo. `nadia` read "place recorded".
+  Found and left:
+  - Needs Tucker AM to AU.
+  - Home does not tell MEL that a farmer stays open on a training record. The queue on Results does.
+  - The new words are English only. A missing line shows in English in the other three languages.
+  - A purchase recorded as paid before today is offered for posting like any other. The demo's two
+    closed purchases have no payment record, so they are not offered (sample data, medium 26).
+  - Not seen in the browser: an afghani bill, a reversal waiting for a second person, a bill with
+    no budget line, a locked month, the printed PDF of a report with the mark. Tests cover the
+    first four.
+  - A corrected entry posted for a large afghani amount can differ from the bill's dollars by a
+    few cents: the ledger takes a rate with 8 decimals.
+  - Medium items in the queue are as they were.
+  Checks: 1,293 tests pass, typecheck clean, lint clean, on the final code. After them only this
+  page and two sentences of words on two screens changed. Typecheck and lint ran again, clean. Main had 1,252: the 1,215 in the morning summary was counted before the merge.
+  41 tests are new. The full checks also ran after the third item (1,286 passed). The app was
+  not seen to stop.
+  Distribution chain walked on the final code after the tests, on a local database made new for
+  it: a fictional KoboCollect record for F-0007. For nadia the page said "Step 1 of 2: check the
+  KoboCollect record" and Approve could not be pressed. rahima saw the signed note and no point,
+  pressed "I have checked this record" and the page said "Checked." nadia approved, the page
+  said "Approved by Nadia Rahimi" and the farmer's record moved to planting. On the same
+  database `elena`'s Home said "No report is released yet, so there are no figures to show."
+  `10-field-ledger.md` not changed: it lists the fields of the distribution chain. For the
+  record: on a bill and on a purchase Finance no longer types who was paid, what for, the budget
+  line or the amount a second time. No receipt is attached a second time.

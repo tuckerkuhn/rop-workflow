@@ -3,7 +3,8 @@ import { NextResponse } from "next/server";
 import { db, schema as s } from "@/db";
 import { draftActionSchema } from "@/lib/ledger/screens";
 import { guard, handle, HttpError, readBody } from "@/server/guard";
-import { deleteDraft, postDraft } from "@/server/ledger";
+import { deleteDraft } from "@/server/ledger";
+import { postExpenditureDraft } from "@/server/expenditure-store";
 import { asHttp, ledgerMay, ledgerProject } from "@/server/ledger-view";
 
 type Ctx = { params: Promise<{ code: string; id: string }> };
@@ -26,7 +27,8 @@ export async function POST(req: Request, { params }: Ctx) {
     try {
       if (action === "post") {
         if (!may.post) throw new HttpError(403, "Finance posts drafts to the books.");
-        const r = await postDraft(id, v.user.id);
+        // A reversal of a bill's or a purchase's entry also takes the amount off the old spent column.
+        const r = await postExpenditureDraft(id, v.user.id);
         return NextResponse.json({ outcome: "posted", entryId: r.entry.id });
       }
       if (!may.post && e.recordedBy !== v.user.id) throw new HttpError(403, "Only Finance or the person who recorded it can delete a draft.");

@@ -399,6 +399,16 @@ export function useSubmissions(code = "A-2027", wanted = true) {
     [code, user?.id, reload],
   );
 
+  /** A farmer left open on an accepted session record, held in Farmer selection: record them now, or leave them out. */
+  const settleHeld = useCallback(
+    async (dbId: string, farmer: string, action: "record" | "leave_out") => {
+      const r = await call<{ applied: string | null }>(`/api/projects/${code}/submissions/${dbId}`, user?.id, { method: "POST", body: JSON.stringify({ held: farmer, action }) });
+      await reload();
+      return r.applied ?? "";
+    },
+    [code, user?.id, reload],
+  );
+
   const sync = useCallback(async () => {
     // The project's own Kobo link: readiness forms land in this queue, data forms count on Progress.
     const r = await call<SyncCounts>(`/api/projects/${code}/kobo/sync`, user?.id, { method: "POST" });
@@ -421,7 +431,7 @@ export function useSubmissions(code = "A-2027", wanted = true) {
     URL.revokeObjectURL(url);
   }, [code, user?.id]);
 
-  return { submissions, roster, status, error, reload, decide, sync, pushFarmers, downloadFarmers };
+  return { submissions, roster, status, error, reload, decide, settleHeld, sync, pushFarmers, downloadFarmers };
 }
 
 /** Tasks and milestones on a project. `saved` is false for demo projects kept only in this browser. */

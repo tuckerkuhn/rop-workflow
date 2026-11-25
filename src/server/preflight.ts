@@ -173,12 +173,16 @@ async function qpr(c: Ctx, quarter: string): Promise<Omit<Preflight, "items" | "
   // Each row lands on the place in the report where it is fixed (the page scrolls to the #part once loaded).
   if (!d.saved.released) {
     const keys = [...SECTIONS.filter((s) => s.key !== "story").map((s) => ({ key: s.key as string, heading: s.heading as string })), ...d.activities.map((a) => ({ key: `act.${a.code}`, heading: `Activity ${a.code}` }))];
-    const empty = keys.filter((k) => !d.saved.sections[k.key]?.text.trim());
+    // An empty Executive Summary blocks the release (decision Y, 25 Nov 2026): a report does not go
+    // to a donor with nothing written at its head. Any other empty section still only warns.
+    const noSummary = !d.saved.sections.summary?.text.trim();
+    if (noSummary) add(c, { group: "blocks", owner: "writers", text: "The Executive Summary is not written. The report cannot be released without it", key: "pf.c.noSummary", href: `/progress/report?${q}#sec-summary` });
+    const empty = keys.filter((k) => k.key !== "summary" && !d.saved.sections[k.key]?.text.trim());
     const drafted = keys.filter((k) => d.saved.sections[k.key]?.drafted);
     // The optional story is never "not written", but a story copied from last quarter is still worth a look.
     const copied = [...keys, ...SECTIONS.filter((s) => s.key === "story").map((s) => ({ key: s.key as string, heading: s.heading as string }))].filter((k) => d.saved.sections[k.key]?.from);
     if (empty.length) add(c, { group: "fix", owner: "writers", text: `${n(empty.length, "section", "sections")} not written yet (${empty.slice(0, 3).map((k) => k.heading).join(", ")}${empty.length > 3 ? "…" : ""})`, key: "pf.c.empty", vars: { n: empty.length, names: `${empty.slice(0, 3).map((k) => k.heading).join(", ")}${empty.length > 3 ? "…" : ""}` }, href: `/progress/report?${q}#sec-${empty[0].key}` });
-    else ok(c, "pf.ok.written");
+    else if (!noSummary) ok(c, "pf.ok.written");
     if (drafted.length) add(c, { group: "fix", owner: "writers", text: `${n(drafted.length, "AI draft", "AI drafts")} to read and correct`, key: "pf.c.drafted", vars: { n: drafted.length }, href: `/progress/report?${q}#sec-${drafted[0].key}` });
     if (copied.length) add(c, { group: "fix", owner: "writers", text: `${n(copied.length, "section", "sections")} copied from last quarter, to review`, key: "pf.c.copied", vars: { n: copied.length }, href: `/progress/report?${q}#sec-${copied[0].key}` });
     // The claim check (lib/qpr ClaimCheck): its findings are worth a look; people decide.

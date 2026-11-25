@@ -6,7 +6,9 @@ import { plainError } from "@/lib/plain-error";
 import { NON_CONTRACT } from "@/lib/timesheet";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useCurrentProject } from "@/components/app/current-project";
+import { BooksPanel } from "@/components/ledger/books-panel";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { useT } from "@/components/app/i18n";
 import { SelfConfirmSheet } from "@/components/app/self-confirm";
@@ -32,6 +34,8 @@ async function call<T>(url: string, user: string | undefined, init?: RequestInit
 
 const input = "mt-1 block min-h-11 w-full border border-line-strong bg-paper px-3 py-2.5 text-base";
 const money = (n: number, c: string) => (c === "AFN" ? `${Math.round(n).toLocaleString("en-US")} AFN` : `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+/** A filed bill says whether it has reached the books, since that is what the budget's "spent" reads. */
+const statusOf = (b: Item) => (b.status === "filed" && b.books?.standing ? { tone: "forest", text: "Filed and in the books" } as const : b.status === "filed" && b.books?.goes && !b.books.standing ? { tone: "sky", text: b.books.reversed.length ? "Filed: the entry was reversed" : "Filed: not in the books yet" } as const : STATUS[b.status]);
 const STATUS = { waiting: { tone: "ochre", text: "Waiting for approval" }, approved: { tone: "sky", text: "Approved: voucher to prepare" }, returned: { tone: "clay", text: "Sent back" }, filed: { tone: "forest", text: "Filed and posted" } } as const;
 /** The bill, then its amount: narrow enough that a phone keeps both side by side. */
 const COLS = "minmax(0,1fr) auto";
@@ -123,7 +127,7 @@ export function BillsPage() {
                 <>
                   <LedgerTable cols={`2.25rem ${COLS}`} head={["#", "Bill", { label: "Amount", end: true }]} label="Bills paid directly">
                     {v.items.map((b, k) => (
-                      <BillRow key={b.id} n={k + 1} first={b.id === oldest} b={b} v={v} act={act} onRedo={() => (setNotice(""), setAdding(false), setRedo(b))} />
+                      <BillRow key={b.id} n={k + 1} first={b.id === oldest} b={b} v={v} act={act} reload={(m) => (setNotice(m), void load())} onRedo={() => (setNotice(""), setAdding(false), setRedo(b))} />
                     ))}
                   </LedgerTable>
                   {oldest && <p className="mt-2 text-xs text-muted">The shaded bill is the one that has waited longest for approval.</p>}
@@ -139,7 +143,7 @@ export function BillsPage() {
 
 type Item = BillsView["items"][number];
 
-function BillRow({ b, v, act, n, first, onRedo }: { b: Item; v: BillsView; act: (a: BillAction, msg: string) => Promise<void>; n: number; first: boolean; onRedo: () => void }) {
+function BillRow({ b, v, act, reload, n, first, onRedo }: { b: Item; v: BillsView; act: (a: BillAction, msg: string) => Promise<void>; reload: (message: string) => void; n: number; first: boolean; onRedo: () => void }) {
   const { user } = useSession();
   const { t, tx } = useT();
   const [selfing, setSelfing] = useState(false);
@@ -157,11 +161,17 @@ function BillRow({ b, v, act, n, first, onRedo }: { b: Item; v: BillsView; act: 
     }
   };
   const label = (id: string) => v.sources.find((s) => s.id === id)?.label ?? id;
+  // Opened from an entry in the books ("Open the bill"): bring that bill into view.
+  const opened = useSearchParams().get("open") === b.id;
+  const here = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (opened) here.current?.scrollIntoView({ block: "start" });
+  }, [opened]);
   return (
-    <LedgerRow n={n} first={first} cols={COLS}>
-      <article className="min-w-0">
+    <LedgerRow n={n} first={first || opened} cols={COLS}>
+      <article ref={here} className="min-w-0 scroll-mt-28">
         <div className="flex flex-wrap items-center gap-2">
-          <StatusBlock tone={STATUS[b.status].tone}>{STATUS[b.status].text}</StatusBlock>
+          <StatusBlock tone={statusOf(b).tone}>{statusOf(b).text}</StatusBlock>
           <span className="font-mono text-xs text-muted">{b.id}</span>
         </div>
         <h3 className="mt-1 font-semibold">
@@ -272,6 +282,18 @@ function BillRow({ b, v, act, n, first, onRedo }: { b: Item; v: BillsView; act: 
               </button>
             </div>
           </Sheet>
+        )}
+        {b.books && (
+          <BooksPanel
+            kind="bill"
+            name={b.id}
+            books={b.books}
+            accounts={v.accounts[b.source] ?? []}
+            lines={v.lines[b.source] ?? []}
+            shown={b.status === "filed"}
+            onPost={(f) => act({ action: "post", id: b.id, ...f }, tx("{id} is in the books. It now counts as spent on its budget line.", { id: b.id }))}
+            onReload={reload}
+          />
         )}
       </article>
       <Fig strong>{money(b.amount, b.currency)}</Fig>

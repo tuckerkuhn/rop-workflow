@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { askConfirm } from "@/components/app/dialogs";
 import { useSession } from "@/components/app/session";
 import { useSubmissions } from "@/components/app/use-project-data";
 import { RecordProof } from "@/components/field/record-proof";
@@ -35,6 +36,8 @@ export function useFieldForms(code: string, wanted = true) {
   // The technical lead's: forms they may send back for correction, not accept.
   const toSendBack = pending.filter((s) => s.maySendBack).length;
   const queried = all.filter((s) => s.status === "queried" && s.form !== "distribution");
+  // Session records accepted for everyone but a farmer held in Farmer selection: that farmer stays open here.
+  const heldOpen = all.filter((s) => s.status === "accepted" && s.form === "training" && (s.held?.length ?? 0) > 0);
   const flagsOf = (s: Submission) => dataFlags(s, all, kobo.roster);
   const clean = pending.filter((s) => s.mayDecide && flagsOf(s).length === 0);
   const name = (id: string) => personName(id) || id;
@@ -56,13 +59,14 @@ export function useFieldForms(code: string, wanted = true) {
       if (status === "queried" && subs.length === 1) return `Sent back to ${name(subs[0].enumerator)} with your note.`;
       return `${subs.length} record${subs.length === 1 ? "" : "s"} ${status === "accepted" ? "accepted" : "queried"}.`;
     });
+  const settleHeld = (s: Submission, farmer: string, action: "record" | "leave_out") => run(`held-${s.id}-${farmer}`, async () => (action === "record" ? `Field activities updated: ${await kobo.settleHeld(s.dbId!, farmer, action)}` : await kobo.settleHeld(s.dbId!, farmer, action)));
   const synced = (r: SyncCounts) => `Synced: ${r.fetched} on KoboToolbox, ${r.added} new${r.updated ? `, ${r.updated} changed` : ""}${r.removed ? `, ${r.removed} deleted in KoboToolbox` : ""}.`;
-  return { show: user?.kind === "employee", code, userId: user?.id ?? "", kobo, pending, forMe, toSendBack, queried, clean, flagsOf, name, busy, outcome, run, decide, synced };
+  return { show: user?.kind === "employee", code, userId: user?.id ?? "", kobo, pending, forMe, toSendBack, queried, heldOpen, clean, flagsOf, name, busy, outcome, run, decide, settleHeld, synced };
 }
 export type FieldForms = ReturnType<typeof useFieldForms>;
 
 export function FieldRecords({ f, open, onToggle }: { f: FieldForms; open: boolean; onToggle: () => void }) {
-  const { code, userId, kobo, pending, forMe, toSendBack, queried, flagsOf, name, busy, outcome, run, decide, synced } = f;
+  const { code, userId, kobo, pending, forMe, toSendBack, queried, heldOpen, flagsOf, name, busy, outcome, run, decide, settleHeld, synced } = f;
   const [querying, setQuerying] = useState<string | null>(null);
   // Records whose photo and place the checker has opened.
   const [proofOpen, setProofOpen] = useState<Set<string>>(new Set());
@@ -111,6 +115,45 @@ export function FieldRecords({ f, open, onToggle }: { f: FieldForms; open: boole
         <p role="status" className={`mt-3 rounded-xl border px-4 py-3 text-sm ${outcome?.ok ? "border-forest/30 bg-mist text-leaf" : "border-clay/40 bg-clay-soft text-clay"}`}>
           {outcome?.text ?? kobo.error}
         </p>
+      )}
+
+      {heldOpen.length > 0 && (
+        <ul className="mt-4 space-y-2" aria-label="Farmers left open on a training record">
+          {heldOpen.map((s) => (
+            <li key={s.id} className="rounded-xl border border-clay/40 p-4" data-held={s.id}>
+              <p className="text-sm">
+                <span className="font-medium">{formLabel[s.form]}</span> · {s.fields.session || "Session"} · {/^\d{4}-\d{2}-\d{2}$/.test(s.date) ? longDate(s.date) : s.date} · <span className="font-mono">{s.id}</span>
+              </p>
+              <p className="mt-1 text-sm text-muted">
+                Everyone else on this record is recorded. {s.held!.length === 1 ? "One farmer stays open on it" : `${s.held!.length} farmers stay open on it`} until they are recorded or left out.
+              </p>
+              {s.held!.map((h) => (
+                <div key={h.id} className="mt-2 border-t border-line pt-2">
+                  <p className="text-sm">
+                    {h.why ? `${h.why}. Select them first, or leave them out.` : `${h.id} is selected now. Record their attendance, or leave them out.`}{" "}
+                    {h.why && (
+                      <a href="/work/selection" className="font-semibold text-forest hover:underline">
+                        Open Farmer selection
+                      </a>
+                    )}
+                  </p>
+                  {s.mayDecide ? (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <button type="button" disabled={!!busy || !!h.why} onClick={() => void settleHeld(s, h.id, "record")} className={`${primaryBtn} min-h-11`}>
+                        Record {h.id}
+                      </button>
+                      <button type="button" disabled={!!busy} onClick={() => void askConfirm({ message: `Leave ${h.id} out of this training record? Nothing is recorded for them and they do not count as trained. This cannot be undone here.`, confirm: `Leave ${h.id} out`, danger: true }).then((ok) => (ok ? settleHeld(s, h.id, "leave_out") : undefined))} className={`${quietBtn} min-h-11`}>
+                        Leave {h.id} out
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="mt-1 text-xs text-muted">Waiting on {s.deciders || "MEL"}.</p>
+                  )}
+                </div>
+              ))}
+            </li>
+          ))}
+        </ul>
       )}
 
       <ul id="field-records-list" className="mt-4 space-y-2">

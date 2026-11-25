@@ -57,7 +57,8 @@ async function buildPack(
       "Value",
       "Province",
       "District",
-      "What was done",
+      // The donor pack gives no free-text note: counts and dates only.
+      ...(audit ? ["What was done"] : []),
       "Recorded by",
       "Accepted by",
       "Accepted on",
@@ -79,7 +80,7 @@ async function buildPack(
         r.value,
         r.province,
         r.district,
-        r.note,
+        ...(audit ? [r.note] : []),
         r.recordedBy,
         r.acceptedBy ?? "",
         (r.acceptedAt ?? "").slice(0, 10),

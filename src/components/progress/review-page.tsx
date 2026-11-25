@@ -257,10 +257,10 @@ export function ReviewPage() {
                     <button
                       type="button"
                       className={primaryBtn}
-                      disabled={busy || proposed > 0}
+                      disabled={busy || proposed > 0 || !v.review.summary?.text.trim()}
                       onClick={async () => {
-                        // Signing off locks the review: say so, and say what is still empty.
-                        const empty = [!v.review.summary?.text.trim() && "the summary", !v.review.attention?.text.trim() && "the needs-attention note"].filter(Boolean).join(" and ");
+                        // Signing off locks the review: say so, and say what is still empty. An empty summary stops it before this.
+                        const empty = [!v.review.attention?.text.trim() && "the needs-attention note"].filter(Boolean).join(" and ");
                         const message = `Sign off the review for ${monthName(month)}? It cannot be changed after. The figures on this page are kept with it as they stand today.${empty ? ` Nothing is written in ${empty}.` : ""}`;
                         if (!(await askConfirm({ message, confirm: "Sign off" }))) return;
                         // The figures read on this screen go with the sign-off. When they have changed since, the server refuses and the new ones are shown.
@@ -273,6 +273,12 @@ export function ReviewPage() {
                       Sign off the review for {monthName(month)}
                     </button>
                     {proposed > 0 && <p className="mt-2 text-xs text-muted">Decide or withdraw the proposed changes first.</p>}
+                    {!v.review.summary?.text.trim() && (
+                      <p className="mt-2 text-sm text-warn">
+                        The summary is not written, so the review cannot be signed off yet.{" "}
+                        {v.mayEdit ? "Write it under Summary above: where the project stands this month, in a few sentences." : "The monthly reviewer or the project manager writes it under Summary above."}
+                      </p>
+                    )}
                     <p className="mt-2 text-xs text-muted">Signing off locks the summary, the needs-attention note and the changes for this month. It keeps today&apos;s figures with the review. From then on the review shows what was signed, not the figures of a later day.</p>
                   </Sheet>
                 )}
