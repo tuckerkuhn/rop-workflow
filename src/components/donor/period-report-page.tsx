@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { longDate } from "@/lib/weekly";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useT } from "@/components/app/i18n";
@@ -55,7 +56,7 @@ export function DonorPeriodReportPage({ slug }: { slug: string }) {
             <p className="mt-4 text-xs font-semibold uppercase tracking-[0.16em] text-warn">{r.project.donor ?? ""}</p>
             <h1 className="mt-1 font-display text-3xl tracking-tight sm:text-4xl">{r.project.name}</h1>
             <p className="mt-1 text-lg">
-              {r.label}, {r.range.from} to {r.range.to}
+              {r.label}, {longDate(r.range.from)} to {longDate(r.range.to)}
             </p>
             <p className="mt-2 text-sm text-muted">{tx("Released by Roots of Peace on {date}. This is the report as it was released.", { date: longDay(r.releasedAt) })}</p>
 

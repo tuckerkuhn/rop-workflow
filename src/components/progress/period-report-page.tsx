@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { longDate } from "@/lib/weekly";
 import { askConfirm } from "@/components/app/dialogs";
 import { useT } from "@/components/app/i18n";
 import { askForChecks, beforeDownload, PreflightButton, usePreflightState } from "@/components/progress/preflight-page";
@@ -125,7 +126,7 @@ export function PeriodReportPage() {
           <PageHead
             kicker={project.name}
             title={periodLabel(period)}
-            meta={v ? `${v.range.from} to ${v.range.to}` : undefined}
+            meta={v ? `${longDate(v.range.from)} to ${longDate(v.range.to)}` : undefined}
             actions={
               <div className="flex flex-wrap gap-2 print:hidden">
                 <select
@@ -179,7 +180,7 @@ export function PeriodReportPage() {
           <div className="mt-4 flex flex-wrap items-center gap-2 font-ledger">
             {v.released ? (
               <StatusBlock tone="forest">
-                Released {v.released.at.slice(0, 10)} by {personName(v.released.by)}
+                Released {longDate(v.released.at)} by {personName(v.released.by)}
               </StatusBlock>
             ) : (
               <StatusBlock tone="ochre">Draft · not released to the donor</StatusBlock>
@@ -187,7 +188,7 @@ export function PeriodReportPage() {
           </div>
         )}
         {v?.released && (
-          <p className="mt-3 border-y border-ink px-3 py-3 text-sm font-semibold">This is the report as released on {v.released.at.slice(0, 10)}: what the donor received. It stays as it was.</p>
+          <p className="mt-3 border-y border-ink px-3 py-3 text-sm font-semibold">This is the report as released on {longDate(v.released.at)}: what the donor received. It stays as it was.</p>
         )}
         {annual && !v?.released && <ReportChecks p={pf} />}
         {error && <p className="mt-4 bg-clay-soft px-4 py-3 text-sm text-clay">{error}</p>}

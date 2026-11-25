@@ -1,6 +1,7 @@
 "use client";
 
 import { AnyLinkCaution } from "@/components/app/any-link-caution";
+import { longDate } from "@/lib/weekly";
 import { storeNames } from "@/lib/file-store";
 import { Why } from "@/components/app/why";
 import { unitOf } from "@/lib/package";
@@ -137,7 +138,7 @@ export function ResultsPage() {
   const iso = /^\d{4}-\d{2}-\d{2}$/;
   const [pf, pt] = [params.get("from") ?? "", params.get("to") ?? ""];
   const range = quarter && /^\d{4}-Q[1-4]$/.test(quarter) ? quarterRange(quarter) : iso.test(pf) && iso.test(pt) ? { from: pf, to: pt } : null;
-  const rangeLabel = quarter ?? (range ? `${range.from} to ${range.to}` : "");
+  const rangeLabel = quarter ?? (range ? `${longDate(range.from)} to ${longDate(range.to)}` : "");
 
   return (
     <div className="min-h-screen">
@@ -189,7 +190,7 @@ export function ResultsPage() {
         {range && (
           <p className="mt-6 flex flex-wrap items-center gap-x-3 bg-sunken px-4 py-1 text-sm">
             <span>
-              Showing <span className="font-mono">{quarter ? `${quarter} (${range.from} to ${range.to})` : rangeLabel}</span> only.
+              Showing <span className="font-mono">{quarter ? `${quarter} (${longDate(range.from)} to ${longDate(range.to)})` : rangeLabel}</span> only.
             </span>
             <Link href={`/progress/results${open ? `?indicator=${open}` : ""}`} className="inline-flex min-h-11 items-center font-semibold text-forest hover:underline">
               Show all
@@ -235,7 +236,7 @@ export function ResultsPage() {
                           ) : (
                             <span className="font-mono text-xl font-bold tabular-nums">{num(range ? shown.value : all.value)}</span>
                           )}
-                          <span className="block text-xs text-muted">{range ? `in ${rangeLabel}` : `of ${num(i.target)} ${i.unit}`}</span>
+                          <span className="block text-xs text-muted">{range ? `${quarter ? "in" : "from"} ${rangeLabel}` : `of ${num(i.target)} ${i.unit}`}</span>
                         </span>
                       </button>
                       <p className="flex flex-wrap gap-x-3 px-3 pb-2.5 ps-[5.5rem] text-xs text-muted">
@@ -267,7 +268,7 @@ export function ResultsPage() {
                               </button>
                             )
                           )}
-                          {!mine.length && <Empty className="mt-3">Nothing recorded{range ? ` in ${rangeLabel}` : ""} yet.</Empty>}
+                          {!mine.length && <Empty className="mt-3">Nothing recorded{range ? ` ${quarter ? "in" : "from"} ${rangeLabel}` : ""} yet.</Empty>}
                           {mine.length > 0 && <ResultRows list={mine} v={v} ind={i} act={act} label={`${i.donorCode ?? i.code}: ${i.name}`} />}
                         </div>
                       )}
