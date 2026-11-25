@@ -5,43 +5,32 @@ each checked against the code on 25 Nov. About 38 older items were found already
 left out. The rounds queue (medium 1 to 27, 19 open) stays in `ROUNDS.md` and is not repeated.
 Not walked yet: most of chain 2 and chains 3 to 6 (`ROUNDS.md`).
 
-## 1. Waiting on Tucker's decision
+## 1. Decided by Tucker, 25 Nov (all option a)
 
-- **11-handoffs-review A to N.** The first option of each was built (map, send-back, GPS,
-  voucher...). Nobody has confirmed or changed them.
-- **Share link from a preview copy.** A donor link can still be made from an unreleased preview
-  (`share-store.ts`). Allow it? (CURRENT-STATE, AUDIT Q19, 07-five-lens.)
-- **Accepted result with no proof.** It only warns before a release (`preflight.ts`). Should it block? (CURRENT-STATE, AUDIT Q8.)
-- **Farmer list upload can start farmers at Distribute**, skipping the readiness check
-  (`farmer-import.ts`). A real mid-season start, or a loophole? (CONNECTIONS.)
-- **Store issue voucher** is still a tick box with no number kept (`field.ts`). Waits on the voucher naming decision. (03-plan batch 10.)
-- **Report tab** opens on the quarter under way or the last one ended? (MORNING Q11.)
-- **Target details after plan sign-off.** May they change? The server does not check. (MORNING Q12.)
-- **Overspend reason.** May Finance write it? Today it is refused. (MORNING Q13.)
-- **An approved distribution** counts at once, or waits for MEL (today it waits)? (UX-PASS.)
-- **Emailed approval link** approves without sign-in. Keep it? (02-audit A8.)
-- **Proposals:** sign-ins for outside contributors, support-cost base, SharePoint file checks.
-  The recommendation was to wait on all three. (06-proposals.)
+- **11-handoffs-review A to N:** confirmed as built.
+- **Share link from a preview copy:** allowed. It says "A draft shared for review" and carries the Draft watermark.
+- **Accepted result with no proof:** warns before a release, does not block. The reason is kept.
+- **Farmer list upload starting at Distribute:** allowed as a mid-season start; the audit log records it.
+- **Store issue voucher:** a tick box for v1.0.
+- **Report tab:** opens on the last quarter that ended.
+- **Target details after plan sign-off:** as for the rest of the plan, a plan approver with a written reason, or a proposed change in the monthly review. Built (`c48c43d`).
+- **Overspend reason:** Finance may give it too. Built (`e80186d`).
+- **An approved distribution:** waits for MEL, as today.
+- **Emailed approval link without sign-in:** kept.
+- **Proposals (outside sign-ins, support-cost base, SharePoint checks):** after v1.0.
+- **The public repo:** stays public. Test data only.
 
 ## 2. To build or fix (size S, M or L)
 
-- **AI jobs and the data protection note** (S): translation sends Dari and Pashto text as written,
-  and the photo check sends the photo itself; `DATA-PROTECTION.md` says neither happens. Nothing
-  runs while there is no AI key.
-- **Weekly photo caption asks for the village** (S, `weekly-page.tsx`).
-- **The bill book has no lock**: two saves at once can lose one (S to M, `bills-store.ts`).
 - **Afghani rate fixed at 70, no quetzal rate** (M: `demo.ts`, bills route, `procurement-plan.ts`).
 - **Report header facts** (agreement number, director, locations, partner) are typed on the first
   report and carried forward, not kept on the project (M, `qpr.ts`).
-- **Payroll file download writes no audit row** (S).
 - **Expense claims carry no budget line** (M, `expense.ts`).
 - **The audit log is not add-only in the database** (M, needs a migration).
 - **No read-only auditor account** (M to L).
 - **Nobody can approve:** the record says "nobody yet" and nobody is told; no fallback (S to M,
   `kobo-approval.ts`, `distribution.ts`).
-- **A result reopened after a monthly review is signed** drops out of that review's record list (S, `proof.ts`).
-- **Home does not tell MEL a farmer is left open on a training record** (S).
-- **No "?" help on the photo consent form or the HR forms** (S, `field-help.ts`).
+- **No "?" help on the photo consent form or the HR forms** (S, `field-help.ts`). Needs wording in four languages.
 - **Demo field staff have no HR record**, so Timesheets, Leave and Expenses dead-end in the demo (S).
 - **Workplan "planned" quarters use calendar quarters** (M).
 - **No indirect-cost rate per donor** (M).
@@ -50,6 +39,11 @@ Not walked yet: most of chain 2 and chains 3 to 6 (`ROUNDS.md`).
 - **Season steps written into the code** (L, probably after v1.0, `field.ts`).
 - **Staff and timesheet routes not scoped to an organization.** Safe with one organization (M).
 - **Duplicate helpers:** 28 fetch helpers, 17 `addDays` (M, cleanup).
+
+Fixed on 25 Nov (branch `build/open-items-2026-11-25`): the weekly caption no longer asks for the
+village; the bill book is locked while saved; a payroll download writes an audit row; Home tells MEL
+about farmers left open on a training record; a result reopened after a signed review stays in its
+records; the data protection note says what the AI would send.
 
 Fixed on 25 Nov while building AR: a photo could be checked only by the AI, so with no AI key no
 photo could ever reach a donor. Photos can now be checked by hand in the photo library.
@@ -71,8 +65,8 @@ photo could ever reach a donor. Photos can now be checked by hand in the photo l
   - Set DEMO_SIGN_IN, SITE_PASSWORD, RESEND_API_KEY and NOTIFY_TEST_TO on the demo server.
   - Time Home on the deployed app.
   - Rehearse once and reset the demo that morning.
-- **Repo and secrets:** the repo is public and its history holds two real staff names: make it
-  private. Reset the Supabase password and the Kobo key before real data.
+- **Secrets:** reset the Supabase password and the Kobo key before real data. (The repo stays
+  public: Tucker, 25 Nov, test data only.)
 - **ADP RUN layout:** confirm it. The download is still named "-DRAFT-LAYOUT".
 - **Vercel plan:** confirm it runs all four nightly jobs.
 - **Real projects and the books (AQ):** load a project's spending to date into the books before

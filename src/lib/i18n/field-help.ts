@@ -42,5 +42,5 @@ export const fhEn = {
   "fh.weekly.photos.why": "Dated photos show the work. A captioned photo can go into the donor report.",
   "fh.farmer.photo": "Farmer photo",
   "fh.farmer.photo.why": "A photo of the farmer's plot or activity shows the work was done.",
-  "fh.farmer.photo.protect": "Kept in the app and seen only by staff with access to Field. On the free plan photos are saved small (800 pixels on the long side); full phone quality is part of the paid plan.",
+  "fh.farmer.photo.protect": "Kept in the app and seen by staff with access to Field. It goes to a donor only once someone has checked it in the photo library, and where a person can be recognised only with their recorded consent; its place never goes. On the free plan photos are saved small (800 pixels on the long side); full phone quality is part of the paid plan.",
 };

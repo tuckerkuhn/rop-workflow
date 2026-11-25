@@ -37,3 +37,10 @@ export const OTHER_ERROR = `Say what the reason is (at least ${OTHER_MIN} charac
 export const lineReasonSchema = z
   .object(lineReasonFields)
   .refine(otherHasNote, { message: OTHER_ERROR, path: ["note"] });
+
+/**
+ * Who gives the reason a budget line is over: the people who write the quarterly report (lib/qpr
+ * mayWriteReport), and Finance, who knows the spend (decision 8, 25 Nov 2026).
+ */
+export const mayExplainOverspend = (u: { kind: string; admin?: boolean; project: string[]; procurement?: string[] }) =>
+  u.kind === "employee" && (!!u.admin || u.project.some((r) => ["mel-owner", "report-release", "plan-approver", "monthly-review", "finance-import"].includes(r)) || !!u.procurement?.includes("finance"));

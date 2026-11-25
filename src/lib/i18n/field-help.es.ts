@@ -40,5 +40,5 @@ export const fhEs: Partial<Record<keyof typeof fhEn, string>> = {
   "fh.weekly.photos.why": "Las fotos con fecha muestran el trabajo. Una foto con pie puede entrar en el informe al donante.",
   "fh.farmer.photo": "Foto del agricultor",
   "fh.farmer.photo.why": "Una foto de la parcela o la actividad del agricultor muestra que el trabajo se hizo.",
-  "fh.farmer.photo.protect": "Se guarda en la aplicación y solo la ve el personal con acceso a Campo. En el plan gratuito las fotos se guardan pequeñas (800 píxeles en el lado largo); la calidad completa del teléfono es parte del plan de pago.",
+  "fh.farmer.photo.protect": "Se guarda en la aplicación y la ve el personal con acceso a Campo. Llega a un donante solo después de que alguien la revisa en la biblioteca de fotos y, si se puede reconocer a una persona, solo con su consentimiento registrado; el lugar nunca se envía. En el plan gratuito las fotos se guardan pequeñas (800 píxeles en el lado largo); la calidad completa del teléfono es parte del plan de pago.",
 };

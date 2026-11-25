@@ -1,7 +1,7 @@
 import { vouchesForFieldData } from "@/server/kobo-approval";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
-import { proofCount, quarterOf, type Correction, type PhotoPlaces, type ResultInput, type ResultRecord, type UpdateInput, type UpdateRecord } from "@/lib/results";
+import { proofCount, quarterOf, type Reopened, type Correction, type PhotoPlaces, type ResultInput, type ResultRecord, type UpdateInput, type UpdateRecord } from "@/lib/results";
 import { canSeePII, type AppUser } from "@/lib/demo";
 import type { z } from "zod";
 import type { correctionSchema } from "@/lib/results";
@@ -149,9 +149,16 @@ export async function reviewResult(code: string, id: string, status: "accepted" 
 export async function reopenResult(code: string, id: string, by: string, note: string) {
   const project = await projectByCode(code);
   return db.transaction(async (tx) => {
+    // When it had been accepted, kept on the result: a monthly review signed while it was accepted
+    // still lists it among the records behind its figures.
+    const [was] = await tx.select({ payload: s.evidence.payload, reviewedAt: s.evidence.reviewedAt }).from(s.evidence).where(and(eq(s.evidence.id, id), eq(s.evidence.projectId, project.id), eq(s.evidence.form, "result"), eq(s.evidence.reviewStatus, "accepted"))).for("update");
+    if (!was) return null;
+    const now = new Date();
+    const prior = (was.payload as ResultInput & { reopened?: Reopened[] }).reopened ?? [];
+    const payload = { ...(was.payload as object), reopened: [...prior, { at: now.toISOString(), acceptedAt: was.reviewedAt?.toISOString() ?? null }] };
     const [r] = await tx
       .update(s.evidence)
-      .set({ reviewStatus: "queried", reviewedBy: by, reviewedAt: new Date(), queryNote: note, updatedAt: new Date() })
+      .set({ reviewStatus: "queried", reviewedBy: by, reviewedAt: now, queryNote: note, payload, updatedAt: now })
       .where(and(eq(s.evidence.id, id), eq(s.evidence.projectId, project.id), eq(s.evidence.form, "result"), eq(s.evidence.reviewStatus, "accepted")))
       .returning();
     if (!r) return null;

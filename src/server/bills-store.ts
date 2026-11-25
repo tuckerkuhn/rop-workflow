@@ -1,3 +1,4 @@
+import { updateProjectState } from "@/server/project-state";
 import { and, eq } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import type { Bill } from "@/lib/bills";
@@ -24,6 +25,18 @@ export async function saveBills(code: string, data: BillBook) {
     .insert(s.projectState)
     .values({ projectId: project.id, key: "bills", data })
     .onConflictDoUpdate({ target: [s.projectState.projectId, s.projectState.key], set: { data, updatedAt: new Date() } });
+}
+
+/**
+ * Changes the bill book with it locked, so two people saving at once never lose a save. `change`
+ * returns why not (nothing saved) or null to save the book as changed.
+ */
+export async function changeBills(code: string, change: (book: BillBook) => string | null): Promise<string | null> {
+  const project = await projectByCode(code);
+  return updateProjectState<BillBook, string | null>(project.id, "bills", { items: [], next: 1 }, async (book) => {
+    const why = change(book);
+    return why ? { data: null, result: why } : { data: book, result: null };
+  });
 }
 
 /** What a person may do with bills. Who holds which role comes from the authority table. */

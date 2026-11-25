@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { lineReasonSchema } from "@/lib/overspend";
-import { mayWriteReport } from "@/lib/qpr";
+import { mayExplainOverspend } from "@/lib/overspend";
 import { isEmployee, requireViewer } from "@/server/auth";
 import { loadBudgetView } from "@/server/budget-view-store";
 import { handle } from "@/server/guard";
@@ -17,7 +17,7 @@ export async function POST(req: Request, { params }: Ctx) {
   return handle(async () => {
     const v = await requireViewer(req, { write: true, allow: isEmployee });
     if (v instanceof NextResponse) return v;
-    if (!mayWriteReport(v.user)) return NextResponse.json({ error: "The MEL owner or a programme lead gives the reason." }, { status: 403 });
+    if (!mayExplainOverspend(v.user)) return NextResponse.json({ error: "The MEL owner, a programme lead or Finance gives the reason." }, { status: 403 });
     const p = lineReasonSchema.safeParse(await req.json().catch(() => null));
     if (!p.success) return NextResponse.json({ error: p.error.issues[0]?.message ?? "Choose a reason." }, { status: 400 });
     const view = await loadBudgetView(code, true);

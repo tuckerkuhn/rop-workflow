@@ -285,4 +285,12 @@ describe("bills the books do not take as they are", () => {
     expect((await post(omid, { action: "post", id, date: today, paidFrom: "1010" })).status).toBe(200);
     expect(await entriesOf(id)).toHaveLength(1);
   });
+  it("two bills recorded at the same moment are both kept, with two numbers (the book is locked)", async () => {
+    const raise = (n: number) => post(yusuf, { action: "raise", payee: `Kabul Power (fictional) ${n}`, invoiceNumber: `KP-${n}`, invoiceDate: "2026-11-20", description: "Office power, November", category: "utilities", amount: 30, currency: "USD", source: code, budgetLine: "5.2", contractRef: null, file });
+    const [a, b] = await Promise.all([raise(1), raise(2)]);
+    expect([a.status, b.status]).toEqual([200, 200]);
+    const items = (await view(omid)).items.filter((x) => x.payee.startsWith("Kabul Power (fictional)"));
+    expect(items).toHaveLength(2);
+    expect(new Set(items.map((x) => x.id)).size).toBe(2);
+  });
 });
