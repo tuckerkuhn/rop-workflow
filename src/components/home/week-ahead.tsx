@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { Priority } from "@/lib/week";
 import { useSession } from "@/components/app/session";
 import { cachedHome, homeCacheKey, keepHome } from "@/components/home/home-cache";
 import { primaryBtn, quietBtn } from "@/components/workspace/ui";
@@ -10,9 +11,10 @@ import type { WeekAction } from "@/lib/week";
 import type { WeekView } from "@/server/week-store";
 
 /**
- * The week ahead, on a manager's Home under the next thing to do and what waits on them: four sentences built from the
- * records and up to three priorities the app proposes and the person makes their
- * own. The priorities come first: they are what the person decided, the rest is what informed it. The sentence that needs attention carries the gold wash; every figure opens its page.
+ * The week ahead, at the top of a manager's Home: up to three priorities the app proposes from the
+ * records and the person makes their own, once a week. Confirmed, they are a banner with a pencil
+ * to change them, and stay at the top of the screen as one line while the page scrolls. What the
+ * records say is in the to-do list right below, so it is not repeated here.
  */
 
 type Draft = { id: string; text: string; href: string; own: boolean; carried?: boolean };
@@ -111,7 +113,6 @@ export function WeekAhead() {
   const confirmed = !!v.plan.confirmedAt;
   // Choosing: the person's own list if they reopened it, else what the app proposes.
   const list: Draft[] = draft ?? (v.plan.items.length ? v.plan.items.map(({ id, text, href, own }) => ({ id, text, href, own })) : v.suggestions.map((x) => ({ id: x.id, text: x.text, href: x.href, own: !!x.own, carried: !!x.carried })));
-  const done = v.plan.items.filter((i) => i.done).length;
   // When the records raise only the approvals, they are already listed one by one in the to-do list
   // above: the week ahead says so in one line instead of naming them again.
   const onlyApprovals = list.length === 1 && list[0].id === "approvals" && !list[0].own;
@@ -125,6 +126,24 @@ export function WeekAhead() {
     setAdd("");
   };
 
+  const weekOf = new Date(`${v.week}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "long", timeZone: "UTC" });
+  const scope = v.projects.length === 0 ? "no running project" : v.projects.length <= 3 ? v.projects.map((p) => p.short).join(", ") : `${v.projects.length} projects`;
+
+  // Confirmed for this week: a banner, set once a week and changed with the pencil. Scrolled past,
+  // it stays at the top of the screen as one line.
+  if (confirmed)
+    return (
+      <PriorityBanner
+        items={v.plan.items}
+        weekOf={weekOf}
+        scope={scope}
+        busy={busy}
+        error={error}
+        onDone={(id, d) => void act({ action: "done", id, done: d })}
+        onEdit={() => void act({ action: "reopen" })}
+      />
+    );
+
   return (
     <section className="mt-8" aria-labelledby="week-heading">
       <div className="flex flex-wrap items-baseline gap-x-3">
@@ -133,18 +152,13 @@ export function WeekAhead() {
         </h2>
         <span className="font-mono text-xs text-muted">
           {/* Named, so nobody reads it as the project open in the picker: the week covers every project the person runs. */}
-          week of {new Date(`${v.week}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "long", timeZone: "UTC" })} · {v.projects.length === 0 ? "no running project" : v.projects.length <= 3 ? v.projects.map((p) => p.short).join(", ") : `${v.projects.length} projects`}
+          week of {weekOf} · {scope}
         </span>
       </div>
 
       <div className="mt-3">
         <div className="flex flex-wrap items-baseline gap-x-3">
-          <h3 className="font-ledger text-base font-bold">{confirmed ? "Your priorities this week" : "Suggested priorities: make them yours"}</h3>
-          {confirmed && (
-            <span className="font-mono text-xs text-muted">
-              {done} of {v.plan.items.length} done
-            </span>
-          )}
+          <h3 className="font-ledger text-base font-bold">Suggested priorities: make them yours</h3>
         </div>
         {error && (
           <p role="alert" className="mt-2 bg-clay-soft px-3 py-2 text-sm text-clay">
@@ -152,35 +166,7 @@ export function WeekAhead() {
           </p>
         )}
 
-        {confirmed ? (
-          <>
-            {v.plan.items.length === 0 ? (
-              <p className="mt-2 text-sm text-muted">You confirmed a week with no priorities.</p>
-            ) : (
-              <ol className="mt-2 border-t-2 border-ink">
-                {v.plan.items.map((i, k) => (
-                  <li key={i.id} className="flex min-h-12 items-center gap-3 border-b border-line px-2 py-2">
-                    <span aria-hidden className="w-6 shrink-0 font-mono text-xs text-muted">
-                      {String(k + 1).padStart(2, "0")}
-                    </span>
-                    <input type="checkbox" className="h-5 w-5 shrink-0" checked={i.done} disabled={busy} aria-label={`Done: ${i.text}`} onChange={(e) => void act({ action: "done", id: i.id, done: e.target.checked })} />
-                    {i.href ? (
-                      <Link href={i.href} className={`min-w-0 flex-1 text-sm hover:underline ${i.done ? "text-muted line-through" : "font-semibold"}`}>
-                        {i.text}
-                      </Link>
-                    ) : (
-                      <span className={`min-w-0 flex-1 text-sm ${i.done ? "text-muted line-through" : "font-semibold"}`}>{i.text}</span>
-                    )}
-                    {i.own && <span className="shrink-0 font-mono text-xs uppercase text-muted">yours</span>}
-                  </li>
-                ))}
-              </ol>
-            )}
-            <button type="button" className={`${quietBtn} mt-3`} disabled={busy} onClick={() => void act({ action: "reopen" })}>
-              Change the list
-            </button>
-          </>
-        ) : (
+        {(
           <>
             {v.lastWeek && (
               <p className="mt-1 font-mono text-xs text-muted">
@@ -238,24 +224,106 @@ export function WeekAhead() {
           </>
         )}
       </div>
-      <h3 className="mt-8 font-ledger text-base font-bold">What the records say</h3>
-      <div className="mt-1 max-w-3xl text-base leading-relaxed">
-        {v.summary.map((s) => (
-          <p key={s.kind} className={s.flag ? "border-s-[6px] border-ochre bg-ochre-soft px-3 py-1.5" : "px-3 py-1.5 ps-[calc(0.75rem+6px)]"}>
-            {s.parts.map((p, k) =>
-              p.href ? (
-                <Link key={k} href={p.href} className="font-semibold text-forest underline decoration-1 underline-offset-2 hover:decoration-2">
-                  {p.t}
-                </Link>
-              ) : (
-                <span key={k}>{p.t}</span>
-              ),
-            )}
-          </p>
-        ))}
-      </div>
-
 
     </section>
+  );
+}
+
+/** The pencil: change this week's priorities. */
+function EditButton({ onEdit, busy, small }: { onEdit: () => void; busy: boolean; small?: boolean }) {
+  return (
+    <button type="button" disabled={busy} onClick={onEdit} aria-label="Change this week's priorities" title="Change this week's priorities" className={`inline-flex shrink-0 items-center justify-center rounded-full text-sky hover:bg-sky/10 ${small ? "h-11 w-11 sm:h-8 sm:w-8" : "h-11 w-11"}`}>
+      <svg aria-hidden viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M13.5 3.5l3 3L7 16l-4 1 1-4z" />
+      </svg>
+    </button>
+  );
+}
+
+/**
+ * This week's confirmed priorities as a banner in its own colour. Once it scrolls out of sight a
+ * one-line copy stays at the top of the screen, under the header when the header shows.
+ */
+function PriorityBanner({ items, weekOf, scope, busy, error, onDone, onEdit }: { items: Priority[]; weekOf: string; scope: string; busy: boolean; error: string; onDone: (id: string, done: boolean) => void; onEdit: () => void }) {
+  const ref = useRef<HTMLElement>(null);
+  const [away, setAway] = useState(false);
+  const [box, setBox] = useState({ top: 0, left: 0, width: 0 });
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const header = () => Math.max(0, document.querySelector("header")?.getBoundingClientRect().bottom ?? 0);
+    // Lined up with the banner itself, so it sits over the page's content and not under a side menu.
+    const onScroll = () => {
+      const h = header();
+      const r = el.getBoundingClientRect();
+      setBox({ top: h, left: r.left, width: r.width });
+      setAway(r.bottom < h);
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, []);
+  const done = items.filter((i) => i.done).length;
+  return (
+    <>
+      <section ref={ref} aria-labelledby="week-heading" className="mt-6 border-s-[6px] border-sky bg-sky-soft px-4 py-3">
+        <div className="flex items-start gap-2">
+          <div className="min-w-0 flex-1">
+            <h2 id="week-heading" className="font-ledger text-base font-bold leading-tight">
+              This week&apos;s priorities
+            </h2>
+            <p className="font-mono text-xs text-muted">
+              week of {weekOf} · {scope}
+              {items.length ? ` · ${done} of ${items.length} done` : ""}
+            </p>
+          </div>
+          <EditButton onEdit={onEdit} busy={busy} />
+        </div>
+        {error && (
+          <p role="alert" className="mt-2 bg-clay-soft px-3 py-2 text-sm text-clay">
+            {error}
+          </p>
+        )}
+        {items.length === 0 ? (
+          <p className="mt-1 text-sm text-muted">No priorities set for this week.</p>
+        ) : (
+          <ol className="mt-1">
+            {items.map((i) => (
+              <li key={i.id} className="flex min-h-11 items-center gap-3">
+                <input type="checkbox" className="h-5 w-5 shrink-0" checked={i.done} disabled={busy} aria-label={`Done: ${i.text}`} onChange={(e) => onDone(i.id, e.target.checked)} />
+                {i.href ? (
+                  <Link href={i.href} className={`min-w-0 flex-1 text-sm hover:underline ${i.done ? "text-muted line-through" : "font-semibold"}`}>
+                    {i.text}
+                  </Link>
+                ) : (
+                  <span className={`min-w-0 flex-1 text-sm ${i.done ? "text-muted line-through" : "font-semibold"}`}>{i.text}</span>
+                )}
+              </li>
+            ))}
+          </ol>
+        )}
+      </section>
+      {/* The same, as one line at the top of the screen once the banner has scrolled away. */}
+      {away && items.length > 0 && (
+        <div style={box} className="fixed z-30 border-s-[6px] border-sky bg-sky-soft/95 shadow-sm backdrop-blur" role="region" aria-label="This week's priorities">
+          <div className="flex items-center gap-3 ps-3 pe-1">
+            <span className="shrink-0 font-ledger text-xs font-bold uppercase tracking-wide text-sky">This week</span>
+            <ol className="flex min-w-0 flex-1 gap-4 overflow-x-auto py-1">
+              {items.map((i) => (
+                <li key={i.id} className="flex min-h-11 shrink-0 items-center gap-2 sm:min-h-9">
+                  <input type="checkbox" className="h-4 w-4" checked={i.done} disabled={busy} aria-label={`Done: ${i.text}`} onChange={(e) => onDone(i.id, e.target.checked)} />
+                  <span className={`max-w-[16rem] truncate text-sm ${i.done ? "text-muted line-through" : "font-semibold"}`}>{i.text}</span>
+                </li>
+              ))}
+            </ol>
+            <EditButton onEdit={onEdit} busy={busy} small />
+          </div>
+        </div>
+      )}
+    </>
   );
 }
