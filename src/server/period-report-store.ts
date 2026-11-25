@@ -1,7 +1,7 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { EMPTY_LEARNING, type Learning } from "@/lib/learning";
-import { buildPeriodRows, PERIOD_COPIES, periodKey, periodRange, type Period, type PeriodIndicator } from "@/lib/period-report";
+import { buildPeriodRows, PERIOD_COPIES, periodKey, periodRange, ranIn, type Period, type PeriodIndicator } from "@/lib/period-report";
 import { activityOf, photosFor, SECTIONS, type Qpr, type Row } from "@/lib/qpr";
 import { projectByCode, donorNameOf } from "@/server/field-store";
 import { donorPhotoRule } from "@/server/photo-consent";
@@ -108,6 +108,8 @@ export async function periodReport(code: string, p: Period) {
     rows: table,
     narrative,
     quarters: reports.map(([q, r]) => ({ quarter: q, released: !!r!.released })),
+    // Quarters of the period the project ran in that have started and have no saved report: their text is not in the narrative.
+    missing: quarters.filter((q) => !saved[`qpr:${q}`] && ranIn(q, project.startDate, project.endDate)),
     lessons,
     spend,
     photos,

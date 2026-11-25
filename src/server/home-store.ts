@@ -1,6 +1,7 @@
 import { hoursLeft } from "@/lib/funding-proposals";
 import { proposalWork } from "@/server/funding-proposals-store";
 import { quarterRange } from "@/lib/results";
+import { quartersDue } from "@/lib/period-report";
 import { reportDeadline } from "@/server/preflight";
 import { ourWork } from "@/lib/budget";
 import { and, asc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
@@ -11,6 +12,8 @@ import { collectorOf, mayApproveKobo, mayDecideRecord, maySendBack } from "@/lib
 import { koboApprovalFor } from "@/server/kobo-approval";
 import { koboState } from "@/server/kobo-link";
 import { loadProcurements } from "@/server/procurement-store";
+import { billRoles, loadBills } from "@/server/bills-store";
+import { toCorrect } from "@/lib/bills";
 import type { FieldItem } from "@/lib/field";
 import { koboMismatches } from "@/server/results-store";
 import { db, schema as s } from "@/db";
@@ -207,6 +210,8 @@ function waitingReads(code: string, u: AppUser, project: Project, full: boolean)
     accounts: full && matchesAccounts ? early(db.selectDistinct({ account: s.evidence.completedBy }).from(s.evidence).where(and(eq(s.evidence.projectId, project.id), eq(s.evidence.source, "kobo"), isNotNull(s.evidence.completedBy)))) : null,
     proposals: project.organizationId ? early(proposalWork(project.organizationId, u).catch(() => [])) : null,
     procurements: u.procurementAccess === "none" ? null : early(loadProcurements(code).catch(() => [])),
+    // Bills paid directly, read with the rest rather than after them.
+    bills: u.kind === "employee" ? early(loadBills(code).catch(() => null)) : null,
   };
 }
 
@@ -359,7 +364,8 @@ async function homeActions(c: ActionsInput): Promise<{ actions: HomeAction[]; le
       if (waiting) actions.push({ key: `decide-${r.month}`, for: "lead", bucket: "approve", urgent: true, text: `Decide ${waiting} proposed plan ${waiting === 1 ? "change" : "changes"} in the ${monthName(r.month)} review`, msg: { key: waiting === 1 ? "ha.decide1" : "ha.decide", vars: { n: waiting, month: r.month } }, href: "/progress/review" });
     }
     if (!lastReview.review.signedOff) actions.push({ key: "review-signoff", for: "lead", bucket: "approve", urgent: false, text: `Sign off the ${monthName(lastReview.month)} monthly review`, msg: { key: "ha.reviewSignoff", vars: { month: lastReview.month } }, href: "/progress/review" });
-    if (!c.lastReleased) actions.push({ key: "release", for: "lead", bucket: "approve", urgent: false, text: `Release the ${qLabel(lastQ).replace("-", " ")} report in the app`, msg: { key: "ha.release", vars: { quarter: qLabel(lastQ).replace("-", " ") } }, href: "/progress/report" });
+    // Only a quarter the project ran in has a report to release (lib/period-report quartersDue).
+    if (!c.lastReleased && quartersDue(Number(lastQ.slice(0, 4)), project.startDate, project.endDate, today).includes(qLabel(lastQ))) actions.push({ key: "release", for: "lead", bucket: "approve", urgent: false, text: `Release the ${qLabel(lastQ).replace("-", " ")} report in the app`, msg: { key: "ha.release", vars: { quarter: qLabel(lastQ).replace("-", " ") } }, href: "/progress/report" });
   }
   // The procurement calendar: items waiting for this person's approval (procurement manager or the
   // line's technical lead), and approved items whose request this technical lead has not made yet.
@@ -372,6 +378,23 @@ async function homeActions(c: ActionsInput): Promise<{ actions: HomeAction[]; le
     const toStart = allPlan.filter((i) => i.status === "approved" && i.techLead === u.id && days(today, i.startBy) <= 14);
     for (const i of toStart)
       actions.push({ key: `plan-start:${i.key}`, for: lenses.includes("procurement") ? "procurement" : lenses[0], bucket: "due", urgent: i.startBy < today, text: `Make the request for ${i.title}: ${i.startBy < today ? `it was due to start ${i.startBy}` : `start by ${i.startBy}`}`, href: "/work/plan" });
+  }
+
+  // Bills paid directly: a bill waiting for approval is told to the people who approve bills, and a
+  // bill sent back to the people who record them. Without these rows a bill waits on someone who
+  // was never told. The person who recorded a bill does not approve it, so it is not theirs to approve.
+  if (u.kind === "employee") {
+    const book = await (reads.bills ?? null);
+    const waiting = (book?.items ?? []).filter((b) => b.status === "waiting" && b.raised.by !== u.id);
+    const back = toCorrect(book?.items ?? []);
+    // The person's own procurement roles answer most cases; the HR role holders are read only when they do not.
+    const own = { record: u.procurement.includes("finance"), approve: u.procurement.includes("approver") };
+    const settled = (!waiting.length || own.approve) && (!back.length || own.record);
+    const roles = !waiting.length && !back.length ? null : settled ? own : await billRoles(u).catch(() => own);
+    if (roles?.approve && waiting.length)
+      actions.push({ key: "bills-approve", for: lenses.includes("lead") ? "lead" : lenses[0], bucket: "approve", urgent: true, text: waiting.length === 1 ? `Approve the bill from ${waiting[0].payee}` : `Approve ${waiting.length} bills paid directly`, href: "/work/bills", since: oldest(waiting.map((b) => b.raised.at)) });
+    if (roles?.record && back.length)
+      actions.push({ key: "bills-correct", for: lenses.includes("finance") ? "finance" : lenses[0], bucket: "fix", urgent: true, text: back.length === 1 ? `Correct the bill from ${back[0].payee} that was sent back and record it again` : `Correct ${back.length} bills that were sent back and record them again`, href: "/work/bills", since: oldest(back.map((b) => b.returned?.at)) });
   }
 
   // Who approves KoboCollect data on this project (lib/kobo-approval): results made from a form

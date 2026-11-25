@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { longDate } from "@/lib/weekly";
+import { quarterRange } from "@/lib/results";
 import { askConfirm } from "@/components/app/dialogs";
 import { useT } from "@/components/app/i18n";
 import { askForChecks, beforeDownload, PreflightButton, usePreflightState } from "@/components/progress/preflight-page";
@@ -66,9 +68,11 @@ export function PeriodReportPage() {
   const blockN = pf ? pf.items.filter((i) => i.group === "blocks").length : 0;
   // Mark final only when the check was read after the latest change and nothing blocks. The final report has no check.
   const mayMarkFinal = period.kind === "final" || (pfFresh && blockN === 0);
+  // An annual report asked for before its year has ended: the question says so, as the quarterly report's does.
+  const underWay = period.kind === "annual" && !!v && new Date().toISOString().slice(0, 10) <= v.range.to;
   const release = async () => {
     const ok = await askConfirm({
-      message: `Mark the ${periodLabel(period).toLowerCase()} final and release it to the donor? It is locked for good: this copy is what the donor receives. It appears in the donor's Reports tab. No email is sent: tell the donor yourself.`,
+      message: `Mark the ${periodLabel(period).toLowerCase()} final and release it to the donor? ${underWay && v ? `This period has not ended: it ends on ${longDate(v.range.to)}. A result accepted after today will not be in the report the donor receives. ` : ""}It is locked for good: this copy is what the donor receives. It appears in the donor's Reports tab. No email is sent: tell the donor yourself.`,
       confirm: "Mark final and release",
     });
     if (!ok) return;
@@ -125,7 +129,7 @@ export function PeriodReportPage() {
           <PageHead
             kicker={project.name}
             title={periodLabel(period)}
-            meta={v ? `${v.range.from} to ${v.range.to}` : undefined}
+            meta={v ? `${longDate(v.range.from)} to ${longDate(v.range.to)}` : undefined}
             actions={
               <div className="flex flex-wrap gap-2 print:hidden">
                 <select
@@ -179,7 +183,7 @@ export function PeriodReportPage() {
           <div className="mt-4 flex flex-wrap items-center gap-2 font-ledger">
             {v.released ? (
               <StatusBlock tone="forest">
-                Released {v.released.at.slice(0, 10)} by {personName(v.released.by)}
+                Released {longDate(v.released.at)} by {personName(v.released.by)}
               </StatusBlock>
             ) : (
               <StatusBlock tone="ochre">Draft · not released to the donor</StatusBlock>
@@ -187,7 +191,7 @@ export function PeriodReportPage() {
           </div>
         )}
         {v?.released && (
-          <p className="mt-3 border-y border-ink px-3 py-3 text-sm font-semibold">This is the report as released on {v.released.at.slice(0, 10)}: what the donor received. It stays as it was.</p>
+          <p className="mt-3 border-y border-ink px-3 py-3 text-sm font-semibold">This is the report as released on {longDate(v.released.at)}: what the donor received. It stays as it was.</p>
         )}
         {annual && !v?.released && <ReportChecks p={pf} />}
         {error && <p className="mt-4 bg-clay-soft px-4 py-3 text-sm text-clay">{error}</p>}
@@ -282,7 +286,9 @@ export function PeriodReportPage() {
             <section className="mt-10">
               <SectionHead className="mt-0">Narrative from the quarters</SectionHead>
               <p className="mt-1 text-sm text-muted">
-                What each quarterly report said, by section, to condense into the {annual ? "annual" : "final"} story. Quarters without a saved report: {v.quarters.length ? "none missing" : "all"}.
+                What each quarterly report said, by section, to condense into the {annual ? "annual" : "final"} story.
+                {/* Only quarters the project ran in can lack a report. A copy released before this was counted has no list. */}
+                {(v.missing ?? []).length > 0 && ` No quarterly report is saved yet for ${(v.missing ?? []).map(quarterWords).join("; ")}.`}
               </p>
               {v.narrative.length === 0 && <Empty>No quarterly report text saved for the period.</Empty>}
               {v.narrative.length > 0 && (
@@ -393,6 +399,13 @@ function indicatorCells(r: Row, v: PeriodReportView, project: string, user: stri
     verdict: <StatusBlock tone={VERDICT[r.verdict].tone}>{VERDICT[r.verdict].text}</StatusBlock>,
   };
 }
+
+/** "2026-Q4" as "October to December 2026". */
+const quarterWords = (q: string) => {
+  const month = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-GB", { month: "long", timeZone: "UTC" });
+  const r = quarterRange(q);
+  return `${month(r.from)} to ${month(r.to)} ${q.slice(0, 4)}`;
+};
 
 /** The small mono label over each figure when a row is shown as a stacked block on a phone. */
 const label = "font-mono text-xs text-muted";

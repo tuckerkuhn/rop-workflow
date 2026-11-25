@@ -1,9 +1,11 @@
 import { formLabel } from "@/lib/project";
+import { koboPlace } from "@/lib/kobo-photo";
 import { desc, eq } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import type { Submission, SubmissionForm } from "@/lib/project";
 import { farmerListRows, projectByCode, setupFor } from "@/server/field-store";
 import { readinessForms } from "@/server/kobo-link";
+import { sessionFarmers } from "@/lib/kobo-setup";
 
 /**
  * Readiness checks from KoboToolbox: the farmer list pushed to the project's readiness form as
@@ -84,12 +86,17 @@ const str = (v: unknown) => (typeof v === "string" ? v : "");
 /** A choice name as words: "land_prep" → "Land prep". */
 const label = (v: string) => (v ? v.charAt(0).toUpperCase() + v.slice(1).replace(/_/g, " ") : "");
 
-function gpsOf(raw: unknown): [number, number] | null {
-  const parts = str(raw).trim().split(/\s+/).map(Number);
-  return parts.length >= 2 && parts.every((n) => !Number.isNaN(n)) ? [parts[0], parts[1]] : null;
+/**
+ * Where the form was filled in: the phone's own fix when the form was opened, else the GPS question,
+ * else KoboToolbox's own reading (lib/kobo-photo koboPlace). Nobody types coordinates.
+ */
+function gpsOf(p: Record<string, unknown>): [number, number] | null {
+  const at = koboPlace(p);
+  return at ? [at.lat, at.lon] : null;
 }
 
 type EvidenceRow = typeof s.evidence.$inferSelect;
+
 
 export function toSubmission(row: EvidenceRow): Submission {
   const p = (row.payload ?? {}) as Record<string, unknown>;
@@ -116,10 +123,13 @@ export function toSubmission(row: EvidenceRow): Submission {
     Object.assign(fields, { gender: str(p._rop_gender), ...amounts, signature: str(p.signed) === "yes" ? "Yes" : "Not confirmed" });
   }
   const yn = (v: unknown) => (str(v) === "yes" ? "Yes" : str(v) === "no" ? "No" : "");
+  const ticked = row.form === "training" ? sessionFarmers(p) : null;
   if (row.form === "training") {
     // kobo/build_field_forms.py, training attendance. Sex comes from the farmer record when accepted.
     for (const k of Object.keys(fields)) delete fields[k];
-    Object.assign(fields, { session: label(str(p.session)), attended: yn(p.attended), register: str(p.register_ref) });
+    // One record per session with its farmers ticked, or (the earlier form) one record per farmer.
+    if (ticked) Object.assign(fields, { session: label(str(p.session)), attended: ticked.join(", "), register: str(p.register_ref) });
+    else Object.assign(fields, { session: label(str(p.session)), attended: yn(p.attended), register: str(p.register_ref) });
   }
   if (row.form === "visit") {
     // kobo/build_field_forms.py, farm visit after planting.
@@ -140,10 +150,11 @@ export function toSubmission(row: EvidenceRow): Submission {
     source: "kobo",
     orgId: row.organizationId ?? "",
     form: (row.form as SubmissionForm) ?? "readiness",
-    farmerId: row.farmerCode ?? str(p.farmer),
+    farmerId: ticked ? "" : (row.farmerCode ?? str(p.farmer)),
+    ...(ticked ? { farmers: ticked } : {}),
     date: str(p.visit_date) || str(p.training_date) || (row.completedAt ? row.completedAt.toISOString().slice(0, 10) : ""),
     enumerator: row.completedBy ?? "kobo",
-    gps: gpsOf(p.location),
+    gps: gpsOf(p),
     fields,
     photo: !!str(p.photo) || !!str(p.list_photo),
     status,

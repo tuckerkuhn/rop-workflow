@@ -2,6 +2,7 @@
 
 import { Why } from "@/components/app/why";
 import { PlaceTabs, REVIEW_TABS } from "@/components/progress/report-checks";
+import { longDate } from "@/lib/weekly";
 import { askConfirm } from "@/components/app/dialogs";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
@@ -14,14 +15,18 @@ import { SelfConfirmSheet, useSolo } from "@/components/app/self-confirm";
 import { TopBar, primaryBtn, quietBtn, Loading, StatusPill } from "@/components/workspace/ui";
 import { Empty, Fig, LedgerRow, LedgerTable, PageHead, SectionHead, Sheet, StatusBlock } from "@/components/workspace/ledger";
 import { userById } from "@/lib/demo";
-import { describeChange, lastMonth, quartersLabel, type Change, type ChangeInput, type ReviewAction } from "@/lib/monthly-review";
+import { describeChange, figuresKey, lastMonth, quartersLabel, type Change, type ChangeInput, type FiguresFrom, type ReviewAction } from "@/lib/monthly-review";
 import { targetStatus } from "@/lib/target-status";
-import type { ReviewView } from "@/server/monthly-review-store";
+import type { ReviewView as Standing } from "@/server/monthly-review-store";
+
+/** What the review's request answers with: a signed review carries the figures kept when it was signed (lib/monthly-review shownReview). */
+type ReviewView = Standing & { figuresFrom: FiguresFrom };
 
 /**
  * The monthly project review: results against targets and the workplan, money against the
  * budget, open items, a summary, and changes to the plan that apply only once another reviewer
- * approves them. Closed with a sign-off; every step is in the audit trail.
+ * approves them. Closed with a sign-off; every step is in the audit trail. A signed review shows
+ * the figures of the day it was signed, and says so.
  */
 
 const field = "mt-1 min-h-11 w-full border border-line bg-paper px-3 py-2 text-sm focus:border-forest focus:outline-none";
@@ -45,14 +50,15 @@ export function ReviewPage() {
   const { tx } = useT();
   const url = `/api/projects/${project.id}/review?month=${month}`;
 
-  const load = useCallback(async () => {
+  // `keepMessage`: read the figures again and leave what the page has just told the person.
+  const load = useCallback(async (keepMessage = false) => {
     if (!user || !project.saved) return;
     try {
       const r = await fetch(url, { cache: "no-store", headers: { "x-demo-user": user.id } });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error ?? "Could not load the review.");
       setV(d);
-      setError("");
+      if (!keepMessage) setError("");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -61,6 +67,12 @@ export function ReviewPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // A sign-off the server refused: once the reason is on the page, bring it into view.
+  const [refused, setRefused] = useState(0);
+  useEffect(() => {
+    if (refused) document.getElementById("review-message")?.scrollIntoView({ block: "center" });
+  }, [refused]);
 
   const act = async (a: ReviewAction) => {
     if (!user) return false;
@@ -85,6 +97,8 @@ export function ReviewPage() {
     const i = v?.indicators.find((x) => x.code === code);
     return i ? `${i.donorCode} ${i.name}` : code;
   };
+  // A signed review whose figures were kept: the page shows that day's figures, in the past.
+  const kept = v?.figuresFrom === "signed";
   const proposed = v?.review.changes.filter((c) => c.status === "proposed").length ?? 0;
   // The one change to settle first: the first still waiting for a decision.
   const nextChange = v?.review.changes.find((c) => c.status === "proposed");
@@ -110,7 +124,7 @@ export function ReviewPage() {
                 <span>{v.project.stage} ·</span>
                 {v.review.signedOff ? (
                   <StatusBlock tone="forest">
-                    Signed off by {who(v.review.signedOff.by)} on <span className={mono}>{day(v.review.signedOff.at)}</span>
+                    Signed off by {who(v.review.signedOff.by)} on {longDate(day(v.review.signedOff.at))}
                   </StatusBlock>
                 ) : (
                   <StatusBlock tone="ochre">Not signed off yet</StatusBlock>
@@ -125,17 +139,33 @@ export function ReviewPage() {
         ) : (
           <>
             {error && (
-              <p role="alert" className="mt-4 bg-clay-soft px-4 py-3 text-sm text-clay">
+              <p id="review-message" role="alert" className="mt-4 scroll-mt-24 bg-clay-soft px-4 py-3 text-sm text-clay">
                 {error}
               </p>
             )}
             {!v && !error && <Loading className="mt-6" />}
             {v && (
               <>
+                {v.review.signedOff && v.figuresFrom === "signed" && (
+                  <p className="mt-4 border-s-[6px] border-forest bg-sunken px-4 py-3 text-sm">
+                    {tx("These are the figures as they stood when {name} signed on {date}. They do not change.", { name: who(v.review.signedOff.by), date: longDate(day(v.review.signedOff.at)) })}{" "}
+                    {tx("Today's figures are on")}{" "}
+                    <Link href="/progress" className="font-semibold text-forest hover:underline">
+                      {tx("Progress")}
+                    </Link>
+                    .
+                  </p>
+                )}
+                {v.review.signedOff && v.figuresFrom === "unkept" && (
+                  <p className="mt-4 border-s-[6px] border-ochre bg-sunken px-4 py-3 text-sm">
+                    {tx("This review was signed on {date}, before the app kept the figures with a signature. The figures below are today's, not the ones that were signed.", { date: longDate(day(v.review.signedOff.at)) })}
+                  </p>
+                )}
                 <section>
                   <SectionHead>
                     Results against targets (<span className={mono}>{v.year}</span>, to the end of <span className={mono}>{v.quarter.replace("-", " ")}</span>)
                   </SectionHead>
+                  {!v.review.signedOff && <p className="mt-1 text-sm text-muted">{tx("These are today's figures. Signing off keeps them with the review as they stand that day.")}</p>}
                   <TargetRows v={v} project={project.id} user={user?.id ?? ""} />
                 </section>
 
@@ -148,11 +178,11 @@ export function ReviewPage() {
                           <p>
                             Spent <Fig>{money(v.budget.totals.spent)}</Fig> of <Fig>{money(v.budget.totals.approved)}</Fig> {v.budget.currency} approved (
                             <Fig>{v.budget.totals.approved ? Math.round((v.budget.totals.spent / v.budget.totals.approved) * 100) : 0}%</Fig>) with{" "}
-                            <Fig>{v.budget.timeGone === null ? "—" : `${Math.round(v.budget.timeGone * 100)}%`}</Fig> of the time gone, to <Fig>{v.budget.period.to}</Fig>. Expected total at the end{" "}
+                            <Fig>{v.budget.timeGone === null ? "—" : `${Math.round(v.budget.timeGone * 100)}%`}</Fig> of the time gone, to the end of {/^\d{4}-\d{2}$/.test(v.budget.period.to) ? monthName(v.budget.period.to) : v.budget.period.to}. Expected total at the end{" "}
                             <Fig>{money(v.budget.totals.forecast)}</Fig>.
                           </p>
                           <p className="mt-2">
-                            <Fig>{v.budget.flagged.length}</Fig> budget {v.budget.flagged.length === 1 ? "line needs" : "lines need"} a look.{" "}
+                            <Fig>{v.budget.flagged.length}</Fig> budget {kept ? (v.budget.flagged.length === 1 ? "line needed" : "lines needed") : v.budget.flagged.length === 1 ? "line needs" : "lines need"} a look.{" "}
                             <Link href="/progress/budget" className="inline-flex min-h-11 items-center font-semibold text-forest hover:underline">
                               Budget vs actual
                             </Link>
@@ -173,7 +203,8 @@ export function ReviewPage() {
                     <SectionHead className="">Open items</SectionHead>
                     <Sheet className="mt-3">
                       <p>
-                        <Fig>{v.open.pending}</Fig> {v.open.pending === 1 ? "result is" : "results are"} waiting for monitoring, evaluation and learning (MEL) to accept, and <Fig>{v.open.queried}</Fig> {v.open.queried === 1 ? "has" : "have"} been sent back with a question.{" "}
+                        {/* A signed review tells what stood open on the day it was signed, so in the past. */}
+                        <Fig>{v.open.pending}</Fig> {kept ? (v.open.pending === 1 ? "result was" : "results were") : v.open.pending === 1 ? "result is" : "results are"} waiting for monitoring, evaluation and learning (MEL) to accept, and <Fig>{v.open.queried}</Fig> {kept ? "had" : v.open.queried === 1 ? "has" : "have"} been sent back with a question.{" "}
                         <Link href="/progress/results" className="inline-flex min-h-11 items-center font-semibold text-forest hover:underline">
                           Results and proof
                         </Link>
@@ -218,12 +249,31 @@ export function ReviewPage() {
                   {v.mayEdit && <Propose v={v} busy={busy} act={act} />}
                 </section>
 
+                {!v.mayEdit && !v.mayDecide && !v.review.signedOff && (
+                  <p className="mt-10 bg-sunken px-4 py-3 text-sm text-muted">You can read this review. MEL and the monthly reviewers write it. A monthly reviewer or a plan approver signs it off, and it then shows here as signed.</p>
+                )}
                 {v.mayDecide && !v.review.signedOff && (
                   <Sheet className="mt-10">
-                    <button type="button" className={primaryBtn} disabled={busy || proposed > 0} onClick={() => void act({ action: "signoff" })}>
-                      Sign off the <span className={mono}>{month}</span> review
+                    <button
+                      type="button"
+                      className={primaryBtn}
+                      disabled={busy || proposed > 0}
+                      onClick={async () => {
+                        // Signing off locks the review: say so, and say what is still empty.
+                        const empty = [!v.review.summary?.text.trim() && "the summary", !v.review.attention?.text.trim() && "the needs-attention note"].filter(Boolean).join(" and ");
+                        const message = `Sign off the review for ${monthName(month)}? It cannot be changed after. The figures on this page are kept with it as they stand today.${empty ? ` Nothing is written in ${empty}.` : ""}`;
+                        if (!(await askConfirm({ message, confirm: "Sign off" }))) return;
+                        // The figures read on this screen go with the sign-off. When they have changed since, the server refuses and the new ones are shown.
+                        if (await act({ action: "signoff", seen: figuresKey(v) })) return;
+                        // The button is at the foot of the page and the reason is at its head: bring the reason into view.
+                        setRefused((n) => n + 1);
+                        void load(true);
+                      }}
+                    >
+                      Sign off the review for {monthName(month)}
                     </button>
                     {proposed > 0 && <p className="mt-2 text-xs text-muted">Decide or withdraw the proposed changes first.</p>}
+                    <p className="mt-2 text-xs text-muted">Signing off locks the summary, the needs-attention note and the changes for this month. It keeps today&apos;s figures with the review. From then on the review shows what was signed, not the figures of a later day.</p>
                   </Sheet>
                 )}
               </>
@@ -234,6 +284,9 @@ export function ReviewPage() {
     </div>
   );
 }
+
+/** "2026-10" as "October 2026". */
+const monthName = (m: string) => new Date(`${m}-01T00:00:00Z`).toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" });
 
 function Note({ label, hint, value, editable, busy, onSave }: { label: string; hint: string; value?: { text: string; by: string; at: string; drafted?: boolean }; editable: boolean; busy: boolean; onSave: (text: string) => Promise<boolean> }) {
   const [text, setText] = useState(value?.text ?? "");
@@ -297,20 +350,24 @@ function ChangeItem({ n, first, c, me, mayDecide, solo, busy, label, act }: { n:
         </span>
         <span className="mt-1 block">{c.reason}</span>
         <span className="mt-1 block text-xs text-muted">
-          Proposed by {who(c.proposedBy)} on <span className={mono}>{day(c.proposedAt)}</span>
-          {c.decidedBy && (
-            <>
-              {` · ${c.status} by ${who(c.decidedBy)} on `}
-              <span className={mono}>{day(c.decidedAt)}</span>
-            </>
-          )}
+          Proposed by {who(c.proposedBy)} on {c.proposedAt ? longDate(day(c.proposedAt)) : ""}
+          {c.decidedBy && ` · ${c.status} by ${who(c.decidedBy)} on ${c.decidedAt ? longDate(day(c.decidedAt)) : ""}`}
           {c.note && ` · “${c.note}”`}
         </span>
       </span>
       {c.status === "proposed" && mayDecide && c.proposedBy !== me && (
         <div className="col-start-2 flex flex-wrap items-center gap-2">
           <input className="min-h-11 min-w-0 flex-1 border border-line bg-paper px-3 py-1.5 text-sm focus:border-forest focus:outline-none" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note (optional)" aria-label="Decision note" />
-          <button type="button" className={primaryBtn} disabled={busy} onClick={() => void act({ action: "decide", id: c.id, decision: "approve", note: note.trim() || undefined })}>
+          <button
+            type="button"
+            className={primaryBtn}
+            disabled={busy}
+            onClick={async () => {
+              // One tap changed the plan: ask first, and say what it does.
+              const message = `Approve this change? ${label}. The plan changes at once, for Progress and for every report not yet released. A report already released keeps what it said.`;
+              if (await askConfirm({ message, confirm: "Approve and apply" })) void act({ action: "decide", id: c.id, decision: "approve", note: note.trim() || undefined });
+            }}
+          >
             Approve and apply
           </button>
           <button type="button" className={quietBtn} disabled={busy} onClick={() => void act({ action: "decide", id: c.id, decision: "reject", note: note.trim() || undefined })}>
@@ -500,7 +557,7 @@ function targetCells(i: ReviewView["indicators"][number], v: ReviewView, project
         {i.note ? (
           <span className="text-clay">{i.note}</span>
         ) : (
-          <ProofNumber project={project} user={user} indicator={i.code} from={`${v.year}-01-01`} to={quarterRange(v.quarter).to} value={i.year} records={i.year ? 1 : 0} className="tabular-nums">
+          <ProofNumber project={project} user={user} indicator={i.code} from={`${v.year}-01-01`} to={quarterRange(v.quarter).to} asOf={v.figuresFrom === "signed" ? v.review.signedOff?.at : undefined} value={i.year} records={i.year ? 1 : 0} className="tabular-nums">
             {i.year.toLocaleString("en-US")}
           </ProofNumber>
         )}{" "}

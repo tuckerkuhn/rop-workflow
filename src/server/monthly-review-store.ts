@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import type { AppUser } from "@/lib/demo";
-import { describeChange, emptyReview, quarterOfMonth, type Change, type ChangeInput, type MonthlyReview, type ReviewAction } from "@/lib/monthly-review";
+import { describeChange, emptyReview, figuresKey, figuresOf, quarterOfMonth, type Change, type ChangeInput, type MonthlyReview, type ReviewAction, type ReviewFigures, type ReviewIndicator } from "@/lib/monthly-review";
 import { suggestStatus, yearShare } from "@/lib/qpr";
 import { z } from "zod";
 import { draftStructured } from "@/server/ai-structured";
@@ -57,7 +57,12 @@ async function ourWorkplan(projectId: string) {
   return ourWork(rows);
 }
 
-/** Everything the review screen needs: the saved review plus where results and money stand. */
+/**
+ * Everything the review screen needs: the saved review plus where results and money stand today.
+ * Home, Progress and All projects read today's standing from here, so the figures are always
+ * today's, signed or not. What a reader of a signed review is shown is `shownReview`
+ * (lib/monthly-review), which the review's own request applies.
+ */
 export function loadReview(code: string, month: string, u: AppUser) {
   // Built once per read-only request (server/request-memo): Home, the summary and the framework each ask for the same month.
   return oncePerRequest(`review:${code}:${month}:${u.id}`, () => readReview(code, month, u));
@@ -110,7 +115,7 @@ async function readReview(code: string, month: string, u: AppUser) {
     quarter,
     review,
     // Judged as of the month: until the quarter's last month, work due this quarter is not yet late (the report's own status assumes the quarter is over).
-    indicators: report.rows.map((r) => ({
+    indicators: report.rows.map((r): ReviewIndicator => ({
       code: r.code,
       donorCode: r.donorCode,
       name: r.name,
@@ -374,6 +379,23 @@ export async function actOnReview(code: string, month: string, a: ReviewAction, 
     }
     return null;
   }
+  // Signing keeps the figures as they stand at that moment, so a signed review shows what was
+  // signed and not a later day's numbers. They are read before the transaction: a second
+  // connection inside one can wait forever on a small pool.
+  let signing: { at: string; figures: ReviewFigures } | null = null;
+  if (a.action === "signoff") {
+    if (!mayDecideReview(u)) return "Only the monthly reviewers and plan approvers can sign off the review.";
+    if (review.changes.some((c) => c.status === "proposed")) return "Decide or withdraw every proposed change first.";
+    let figures: ReviewFigures;
+    try {
+      figures = figuresOf(await readReview(code, month, u));
+    } catch (e) {
+      return `Not signed off: the figures could not be read to keep them with the review. ${e instanceof Error ? e.message : String(e)}`;
+    }
+    // The signer's screen showed other figures (a result was accepted since, or the plan changed): they read the new ones first.
+    if (a.seen !== undefined && a.seen !== figuresKey(figures)) return "Not signed off: the figures changed after you opened this page. They are shown again below. Read them, then sign off.";
+    signing = { at: new Date().toISOString(), figures };
+  }
   try {
     await db.transaction(async (tx) => {
       if (a.action === "summary" || a.action === "attention") {
@@ -402,12 +424,12 @@ export async function actOnReview(code: string, month: string, a: ReviewAction, 
         if (!c || c.status !== "proposed" || c.proposedBy !== u.id) throw new Error("Only a change you proposed, and not yet decided, can be withdrawn.");
         review.changes = review.changes.filter((x) => x.id !== a.id);
         await log(tx, "review_change_withdrawn", { change: describeChange(c) });
-      } else if (a.action === "signoff") {
-        if (!mayDecideReview(u)) throw new Error("Only the monthly reviewers and plan approvers can sign off the review.");
-        if (review.changes.some((c) => c.status === "proposed")) throw new Error("Decide or withdraw every proposed change first.");
-        review.signedOff = { by: u.id, at: now };
+      } else if (a.action === "signoff" && signing) {
+        review.signedOff = { by: u.id, at: signing.at, figures: signing.figures };
         await log(tx, "review_signed_off", {
           changes: review.changes.filter((c) => c.status === "approved").length,
+          // How many targets' figures were kept with the signature.
+          figuresKept: signing.figures.indicators.length,
         });
       }
       await saveReview(tx, project.id, review);

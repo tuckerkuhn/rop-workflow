@@ -39,7 +39,7 @@ export function ReportBody({ v, photo }: { v: Pick<DonorSafeReport, "rows" | "se
                 {r.records.map((x, k) => (
                   <li key={k} className="rounded-lg bg-paper p-3 text-sm">
                     <p>
-                      <span className="font-semibold tabular-nums">{num(x.value)}</span> {r.unit} · {x.date}
+                      <span className="font-semibold tabular-nums">{num(x.value)}</span> {x.value === 1 ? r.unit.replace(/s$/, "") : r.unit} · {longDay(x.date)}
                       {x.place ? ` · ${x.place}` : ""}
                     </p>
                     {x.accepted && (

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { longDate } from "@/lib/weekly";
 import type { ReportRef } from "@/lib/preflight";
 import type { PackIndex, PackKind } from "@/server/proof";
 
@@ -84,7 +85,7 @@ async function buildPack(
         (r.acceptedAt ?? "").slice(0, 10),
         r.selfApproved ? "Yes" : "",
       ];
-      if (!r.files.length && !r.links.length && !r.kobo)
+      if (!r.files.length && !r.held.length && !r.links.length && !r.kobo)
         rows.push([
           ...base,
           r.noFile ? `No file: ${r.noFile}` : "No proof attached",
@@ -100,11 +101,8 @@ async function buildPack(
             : "Held by Roots of Peace, available for verification",
           "",
         ]);
+      // Every file the server lists is in the pack. In the donor pack a photo has a plain name, never the one staff typed.
       for (const f of r.files) {
-        if (!f.include) {
-          rows.push([...base, f.name, f.why, f.caption]);
-          continue;
-        }
         if (!fetched.has(f.hash)) {
           const path = `proof/${safe(`${r.date} ${r.id.slice(0, 8)} ${f.name}`)}`;
           const fr = await fetch(`/api/files/${f.hash}`, {
@@ -121,15 +119,11 @@ async function buildPack(
           f.caption,
         ]);
       }
+      // The donor pack only: what stays with Roots of Peace, by kind and count.
+      for (const h of r.held) rows.push([...base, h.what, h.why, ""]);
+      // The audit pack only: the server sends no link for the donor pack.
       for (const l of r.links)
-        rows.push([
-          ...base,
-          l.title || "Linked document",
-          audit
-            ? "Linked"
-            : "Held by Roots of Peace, available for verification",
-          audit ? l.url : "",
-        ]);
+        rows.push([...base, l.title || "Linked document", "Linked", l.url]);
     }
   }
   zip.file("index.csv", csv(rows));
@@ -169,9 +163,9 @@ async function buildPack(
     `${idx.project.name}: evidence pack for the ${idx.label}`,
     audit
       ? "AUDIT PACK: every file, with people's names and Finance's figures. Personal data: keep it to the audit it is for."
-      : "DONOR PACK: photos only where consent allows donor use; documents with personal data are listed and held by Roots of Peace for verification; people are shown by their role.",
+      : "DONOR PACK: photos only where consent allows donor use, each under a plain name. Documents and links are counted by kind and held by Roots of Peace for verification. Their names are not given. People are shown by their role.",
     "",
-    "Every figure in the report carries a reference, e.g. [E-07]. index.csv lists each reference, the results MEL accepted behind it, and their proof: in proof/ when it is in this pack, otherwise where it is held.",
+    "Every figure in the report carries a reference, e.g. [E-07]. index.csv lists each reference, the results MEL accepted behind it, and their proof: in proof/ when it is in this pack, otherwise how many are held and why.",
     "audit-log.csv: what happened to these results and to the report in the period.",
     idx.money.length
       ? "finance/: Finance's budget against actual as imported, line by line and month by month."
@@ -183,7 +177,7 @@ async function buildPack(
       : "",
     "",
     idx.released
-      ? `The report was released on ${idx.released.slice(0, 10)}: this pack holds what was accepted by then.`
+      ? `The report was released on ${longDate(idx.released)}: this pack holds what was accepted by then.`
       : "The report is not released yet: this pack reflects the records as they stand.",
     `Made ${idx.built.slice(0, 10)} from ROP Workflow.`,
   ].filter((x, k, all) => x || all[k - 1]);

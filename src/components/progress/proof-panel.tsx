@@ -68,6 +68,7 @@ export function ProofNumber({
   indicator,
   from,
   to,
+  asOf,
   value,
   records,
   proof,
@@ -81,6 +82,8 @@ export function ProofNumber({
   /** Null: since the start. */
   from: string | null;
   to: string;
+  /** A figure kept on a day (a signed monthly review): only the records accepted by that moment. */
+  asOf?: string;
   value: number;
   /** Accepted results behind the figure; with none, the number is plain text. */
   records: number;
@@ -91,7 +94,7 @@ export function ProofNumber({
   plain?: boolean;
   children?: React.ReactNode;
 }) {
-  const { t, date } = useT();
+  const { t, tx, date } = useT();
   const [open, setOpen] = useState(false);
   const [v, setV] = useState<ProofView | null>(null);
   const [error, setError] = useState("");
@@ -99,7 +102,7 @@ export function ProofNumber({
   useEffect(() => {
     if (!open || v) return;
     fetch(
-      `/api/projects/${project}/proof?indicator=${encodeURIComponent(indicator)}&to=${to}${from ? `&from=${from}` : ""}`,
+      `/api/projects/${project}/proof?indicator=${encodeURIComponent(indicator)}&to=${to}${from ? `&from=${from}` : ""}${asOf ? `&asOf=${encodeURIComponent(asOf)}` : ""}`,
       { headers: { "x-demo-user": user } },
     )
       .then(async (r) => {
@@ -108,7 +111,7 @@ export function ProofNumber({
         else setV(d);
       })
       .catch((e) => setError(String(e)));
-  }, [open, v, project, user, indicator, from, to]);
+  }, [open, v, project, user, indicator, from, to, asOf]);
   if (!records) return <span className={className}>{shown}</span>;
   return (
     <>
@@ -167,6 +170,13 @@ export function ProofNumber({
                   unit: v.indicator.unit,
                 })}
               </p>
+              {v.asOf && (
+                <p className="mt-1 text-sm text-muted">
+                  {tx("Only the records accepted by {date}, when this figure was signed. A record accepted later is not here.", {
+                    date: date(v.asOf.slice(0, 10), { day: "numeric", month: "long", year: "numeric" }),
+                  })}
+                </p>
+              )}
               {!v.results.length && (
                 <p className="mt-3 text-sm text-muted">{t("ev.none")}</p>
               )}
@@ -182,7 +192,7 @@ export function ProofNumber({
                         <span className="font-semibold tabular-nums">
                           {fmt(r.value)}
                         </span>{" "}
-                        {r.unit} ·{" "}
+                        {r.value === 1 ? r.unit.replace(/s$/, "") : r.unit} ·{" "}
                         {date(r.date, { day: "numeric", month: "short" })}
                         {r.district || r.province
                           ? ` · ${[r.district, r.province].filter(Boolean).join(", ")}`

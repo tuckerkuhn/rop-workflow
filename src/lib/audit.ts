@@ -88,7 +88,7 @@ export function describeAudit(entity: string, action: string, d: D): string {
       return d.created ? `Requested purchase ${str(d.procurement)}: ${str(d.title)}` : `Procurement ${str(d.procurement)}:${moved}${signed}${num(d.checks)} check(s) changed${((d.fields as string[]) ?? []).length ? `; edited ${((d.fields as string[]) ?? []).join(", ")}` : ""}`;
     }
     case "review_signed_off":
-      return `Signed off the ${str(d.month)} monthly review (${num(d.changes)} change(s) applied)`;
+      return `Signed off the ${str(d.month)} monthly review (${num(d.changes)} change(s) applied${d.figuresKept !== undefined ? ", the figures of that day kept" : ""})`;
     case "accepted":
     case "queried":
       return `${action === "accepted" ? "Accepted" : "Queried"} a ${str(d.form)} submission${d.farmer ? ` for farmer ${str(d.farmer)}` : ""}${d.note ? `: ${str(d.note)}` : ""}${d.applied ? ` (${str(d.applied)})` : ""}`;

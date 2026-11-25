@@ -1861,7 +1861,8 @@ export function seedProcurements(): Procurement[] {
       closingDate: "2026-12-10",
       grn: { qty: 60, place: "Village B collection point" },
       contractUsd: 7800,
-      invoice: { amount: 7800, qty: 60 },
+      // Entered by procurement at the step before, as a real record must be before it reaches Finance.
+      invoice: { number: "FT-0118 (fictional)", date: "2027-02-25", amount: 7800, qty: 60, rate: 70 },
       issues: [
         {
           id: "I-1",

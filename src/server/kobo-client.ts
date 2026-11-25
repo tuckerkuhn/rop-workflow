@@ -75,7 +75,8 @@ export async function listForms(server: string, token: string): Promise<KoboForm
 type SurveyRow = { type: string; name?: string; $xpath?: string; label?: string[] | string; select_from_list_name?: string };
 type Choice = { list_name: string; name: string; label?: string[] | string };
 
-const SKIP = new Set(["begin_group", "end_group", "begin_repeat", "end_repeat", "note", "start", "end", "today", "deviceid", "username", "calculate", "hidden"]);
+// "start-geopoint": the phone's own GPS fix when the form opens. Captured without a question, so it is not one to map.
+const SKIP = new Set(["begin_group", "end_group", "begin_repeat", "end_repeat", "note", "start", "end", "today", "deviceid", "username", "calculate", "hidden", "start-geopoint", "background-geopoint", "audit"]);
 const firstLabel = (l: string[] | string | undefined, fallback: string) => (Array.isArray(l) ? l.find(Boolean) : l) || fallback;
 
 /** The questions on a form, with choices for select questions. Groups, notes and metadata are left out. */
@@ -133,6 +134,39 @@ async function pages<T>(server: string, token: string, first: string) {
  * KoboToolbox server; Kobo may then hand the file over from its storage (a redirect, on which the
  * token is not sent on). Files over `max` bytes are skipped (null).
  */
+/**
+ * The first `bytes` of a KoboToolbox attachment, for reading a photo's own date and place (EXIF
+ * sits at the start of the file): a range request, and at most `bytes` read even when the server
+ * ignores the range and sends the whole photo.
+ */
+export async function attachmentHead(server: string, token: string, url: string, bytes = 131_072): Promise<Buffer | null> {
+  const u = new URL(url, server);
+  if (u.origin !== server) throw new KoboError("A photo's address is on another server; it was not downloaded.");
+  let res: Response;
+  try {
+    res = await fetch(u, { headers: { Authorization: `Token ${token}`, Range: `bytes=0-${bytes - 1}` }, redirect: "follow", cache: "no-store", signal: AbortSignal.timeout(30000) });
+  } catch {
+    return null;
+  }
+  if (!res.ok || !res.body) return null;
+  const parts: Uint8Array[] = [];
+  let size = 0;
+  const reader = res.body.getReader();
+  try {
+    while (size < bytes) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      parts.push(value);
+      size += value.length;
+    }
+  } catch {
+    return null;
+  } finally {
+    void reader.cancel().catch(() => {});
+  }
+  return Buffer.concat(parts).subarray(0, bytes);
+}
+
 export async function attachmentBytes(server: string, token: string, url: string, max = 4_000_000): Promise<{ bytes: Buffer; type: string } | null> {
   const u = new URL(url, server);
   if (u.origin !== server) throw new KoboError("A photo's address is on another server; it was not downloaded.");

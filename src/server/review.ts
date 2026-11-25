@@ -50,8 +50,12 @@ export async function decide(code: string, evidenceId: string, status: "accepted
     // A farmer waitlisted or left out in Farmer selection is not moved along by a field form:
     // enforced here, not only by the Field activities page. Sending the form back stays open.
     if (moves) {
-      const hold = selectionHold(await selectionOutcomes(row.projectId, tx), toSubmission(row).farmerId || row.farmerCode);
-      if (hold) throw new HttpError(409, `${hold}. Select them first, or send this form back.`);
+      const sub = toSubmission(row);
+      const outcomes = await selectionOutcomes(row.projectId, tx);
+      // A training session record names many farmers: every one of them must be clear.
+      const holds = (sub.farmers ?? [sub.farmerId || row.farmerCode]).map((id) => selectionHold(outcomes, id)).filter((h): h is string => !!h);
+      if (holds.length === 1) throw new HttpError(409, `${holds[0]}. Select them first, or send this form back.`);
+      if (holds.length) throw new HttpError(409, `${holds.length} farmers on this record are held in Farmer selection: ${holds.slice(0, 6).join("; ")}${holds.length > 6 ? `; and ${holds.length - 6} more` : ""}. Select them first, or send this form back.`);
     }
 
     await tx
@@ -77,7 +81,7 @@ export async function decide(code: string, evidenceId: string, status: "accepted
       entity: "evidence",
       entityId: row.id,
       action: status,
-      detail: { by: user.id, form: row.form, farmer: row.farmerCode, note: note ?? null, applied },
+      detail: { by: user.id, form: row.form, farmer: row.farmerCode, ...(row.form === "training" && toSubmission(row).farmers ? { farmers: toSubmission(row).farmers } : {}), note: note ?? null, applied },
     });
     return { already: null, applied };
   });
@@ -162,34 +166,59 @@ async function saveFarmer(tx: Tx, id: string, f: Farmer, date: string, what: str
  * Train step and moves the farmer on to Prepare the plot, as "Record training" does, but only when
  * the step's other checks (enrolled, contribution paid) already hold. Otherwise it is recorded and
  * the farmer stays where they are.
+ *
+ * A session record (one record, its farmers ticked) does this for each farmer ticked, in the same
+ * transaction, and says in one summary how many moved, who stays and why.
  */
 async function applyTraining(tx: Tx, row: typeof s.evidence.$inferSelect, user: AppUser): Promise<string> {
   const sub = toSubmission(row);
-  const code = sub.farmerId;
-  const item = await farmerItem(tx, row.projectId, code);
-  if (!item) return `Farmer ${code} is not on the farmer list; attendance kept on the submission only`;
+  if (!sub.farmers) return (await trainOne(tx, row.projectId, sub, sub.farmerId, sub.fields.attended === "Yes", user)).summary;
+  if (!sub.farmers.length) return "No farmer is ticked on this record; nothing recorded.";
+  const got: { id: string; out: Trained }[] = [];
+  for (const id of sub.farmers) got.push({ id, out: await trainOne(tx, row.projectId, sub, id, true, user) });
+  const of = (kind: Trained["kind"]) => got.filter((g) => g.out.kind === kind);
+  const list = (ids: string[]) => `${ids.slice(0, 6).join(", ")}${ids.length > 6 ? ` and ${ids.length - 6} more` : ""}`;
+  const [moved, stays, noted, missing] = [of("moved"), of("stays"), of("noted"), of("missing")];
+  const n = sub.farmers.length;
+  return [
+    `Training recorded for ${n} ${n === 1 ? "farmer" : "farmers"}.`,
+    moved.length ? `${moved.length} moved to Prepare the plot.` : "",
+    stays.length ? `${stays.length} ${stays.length === 1 ? "stays" : "stay"} at Train: ${stays.slice(0, 6).map((g) => `${g.id} (${g.out.why})`).join(", ")}${stays.length > 6 ? ` and ${stays.length - 6} more` : ""}.` : "",
+    noted.length ? `${noted.length} already past Train, attendance noted: ${list(noted.map((g) => g.id))}.` : "",
+    missing.length ? `Not on the farmer list, kept on this record only: ${list(missing.map((g) => g.id))}.` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+/** What accepting attendance did for one farmer. `why`: what keeps a farmer at Train. */
+type Trained = { kind: "missing" | "absent" | "noted" | "stays" | "moved"; summary: string; why?: string };
+
+async function trainOne(tx: Tx, projectId: string, sub: ReturnType<typeof toSubmission>, code: string, attended: boolean, user: AppUser): Promise<Trained> {
+  const item = await farmerItem(tx, projectId, code);
+  if (!item) return { kind: "missing", summary: `Farmer ${code} is not on the farmer list; attendance kept on the submission only` };
   const f = item.data as Farmer;
   const date = sub.date || today();
   const kbo = `Kobo ${sub.id}, accepted by ${user.name}`;
   const session = sub.fields.session || "training";
-  if (sub.fields.attended !== "Yes") {
+  if (!attended) {
     await saveFarmer(tx, item.id, f, date, `Did not attend ${session.toLowerCase()} (${kbo})`);
-    return "Not attended: noted on the farmer's record; the step did not move.";
+    return { kind: "absent", summary: "Not attended: noted on the farmer's record; the step did not move." };
   }
   const register = sub.fields.register ? `, register ${sub.fields.register}` : "";
   if (f.step !== "train") {
     await saveFarmer(tx, item.id, f, date, `Attended ${session.toLowerCase()}${register} (${kbo})`);
-    return `Attendance recorded; farmer was at "${fieldSteps[f.step]?.title ?? f.step}", so the step did not move.`;
+    return { kind: "noted", summary: `Attendance recorded; farmer was at "${fieldSteps[f.step]?.title ?? f.step}", so the step did not move.` };
   }
   const checks = { ...f.checks, "train.attended": true, "train.register": true };
   // The Train rule shared with enrolment, the contribution and selection (lib/field leaveTrain).
   const blocked = trainBlock(f);
   if (blocked) {
     await saveFarmer(tx, item.id, { ...f, checks }, date, `Attended ${session.toLowerCase()}${register}; stays at Train: ${blocked} (${kbo})`);
-    return `Attendance recorded. Stays at Train: ${blocked}.`;
+    return { kind: "stays", summary: `Attendance recorded. Stays at Train: ${blocked}.`, why: blocked };
   }
   await saveFarmer(tx, item.id, { ...f, checks, step: "prepare" }, date, `Training recorded: ${session.toLowerCase()}${register} (${kbo})`);
-  return "Training recorded. Moved to Prepare the plot.";
+  return { kind: "moved", summary: "Training recorded. Moved to Prepare the plot." };
 }
 
 /**

@@ -7,16 +7,16 @@ form's writer. Run:
     python3 kobo/build_field_forms.py ACRP-2026  # another project (files get the code in their name)
 
 Writes:
-- training_attendance.xlsx: one submission per farmer per session, from the signed attendance register.
-  In Setup mark it "Training attendance". MEL accepts each one in Project > Verify; an accepted
-  "attended: yes" ticks the training checks and moves a farmer at "Train" on to "Prepare the plot"
-  (once enrolled and the contribution is paid).
+- training_attendance.xlsx: one submission per training session, from the signed attendance register,
+  with every farmer who attended ticked. In Setup mark it "Training attendance". MEL accepts the
+  session once; that ticks the training checks for each farmer ticked and moves those at "Train"
+  on to "Prepare the plot" (once enrolled and the contribution is paid).
 - field_visit.xlsx: the follow-up visit after planting. In Setup mark it "Farm visit". An accepted
   visit that finds the package planted at the trained spacing records planting (the date, and the
   area planted, or the number planted for a crop counted one by one) and completes the farmer's
   season path; otherwise what needs follow-up goes on the farmer's record.
 
-Both follow the other forms: hidden project_code, farmer picked from farmers.csv (ID, village,
+Both follow the other forms: hidden project_code, farmers picked from farmers.csv (ID, village,
 initials; no names on devices), photo evidence, GPS. Labels in English, Dari and Pashto; the Dari and
 Pashto are drafts for a native speaker to review.
 """
@@ -27,21 +27,28 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import build_readiness_form as base  # noqa: E402
 
+FARMER = ("Farmer", "دهقان", "بزګر")
 FARMER_HINT = ("Search by farmer ID or village", "بر اساس شماره دهقان یا قریه جستجو کنید", "د بزګر د شمېرې یا کلي له مخې ولټوئ")
 YES_NO = [("yes_no", "yes", ("Yes", "بلی", "هو")), ("yes_no", "no", ("No", "نخیر", "نه"))]
 
 
 def training(code):
+    # One record per training session: the session, the date, the register and its photo are given
+    # once, and every farmer who attended is ticked. A farmer who is not ticked did not attend.
+    # The app also still reads records from the earlier form (one per farmer, with `farmer` and
+    # `attended`). The tick list's Dari and Pashto labels reuse "Farmer" until a native speaker
+    # words "Farmers who attended".
     survey = [
         ("calculate", "project_code", None, None, "", "", "", f"'{code}'", ""),
-        ("select_one_from_file farmers.csv", "farmer", ("Farmer", "دهقان", "بزګر"), FARMER_HINT, "yes", "", "autocomplete", "", ""),
+        ("start-geopoint", "start_geopoint", None, None, "", "", "", "", ""),
         ("date", "training_date", ("Training date", "تاریخ آموزش", "د روزنې نېټه"), None, "yes", "", "", "", "today()"),
         ("select_one session", "session", ("Training session", "جلسه آموزشی", "د روزنې ناسته"), None, "yes", "", "", "", ""),
         (
-            "select_one yes_no",
-            "attended",
-            ("Did the farmer attend the classroom and field parts of the session?", "آیا دهقان در بخش‌های صنفی و ساحوی جلسه حاضر بود؟", "ایا بزګر د ناستې په ټولګي او ساحوي برخو کې ګډون وکړ؟"),
-            None, "yes", "", "", "", "",
+            "select_multiple_from_file farmers.csv",
+            "farmers",
+            ("Farmers who attended the classroom and field parts of the session", FARMER[1], FARMER[2]),
+            ("Tick every farmer who signed the register. Search by farmer ID or village.", FARMER_HINT[1], FARMER_HINT[2]),
+            "yes", "", "autocomplete", "", "",
         ),
         (
             "text",
@@ -51,14 +58,13 @@ def training(code):
             "yes", "", "", "", "",
         ),
         ("image", "photo", ("Photo of the signed register page", "عکس صفحه امضا‌شده لیست حاضری", "د حاضرۍ د لاسلیک شوي لیست د پاڼې انځور"), None, "yes", "", "", "", ""),
-        ("geopoint", "location", ("Training location (GPS)", "موقعیت آموزش (GPS)", "د روزنې ځای (GPS)"), None, "", "", "", "", ""),
+        ("geopoint", "location", ("Training location (GPS)", "موقعیت آموزش (GPS)", "د روزنې ځای (GPS)"), ("The phone did not find its place by itself. Record it here.",) * 3, "", "string-length(${start_geopoint}) = 0", "", "", ""),
         ("text", "notes", ("Anything else to note", "نکات دیگر", "نور یادښتونه"), None, "", "", "multiline", "", ""),
     ]
     choices = [
         ("session", "land_prep", ("Land preparation and planting", "آماده‌سازی زمین و کشت", "د ځمکې چمتو کول او کرنه")),
         ("session", "crop_care", ("Crop care and irrigation", "مراقبت از محصول و آبیاری", "د فصل ساتنه او اوبه ورکول")),
         ("session", "harvest", ("Harvest and storage", "برداشت و ذخیره", "حاصل راټولول او زېرمه کول")),
-        *YES_NO,
     ]
     return survey, choices, "training_date"
 
@@ -67,6 +73,7 @@ def visit(code):
     followup = "${planted} = 'no' or ${spacing_ok} = 'no'"
     survey = [
         ("calculate", "project_code", None, None, "", "", "", f"'{code}'", ""),
+        ("start-geopoint", "start_geopoint", None, None, "", "", "", "", ""),
         ("select_one_from_file farmers.csv", "farmer", ("Farmer", "دهقان", "بزګر"), FARMER_HINT, "yes", "", "autocomplete", "", ""),
         # The farmer's plot size from farmers.csv, shown with the area planted.
         ("calculate", "farmer_ha", None, None, "", "", "", "pulldata('farmers', 'hectares', 'name', ${farmer})", ""),
@@ -135,6 +142,8 @@ def main():
     for name, title, make in FORMS:
         base.SURVEY, base.CHOICES, date_field = make(code)
         form_id = f"rop_{name}" if demo else f"{slug}_{name}"
+        # A training record covers many farmers: it is named after its session and date.
+        base.INSTANCE_FIRST = "session" if name == "training_attendance" else "farmer"
         base.SETTINGS = [(f"ROP {title}" if demo else f"{code} {title}", form_id, version, base.LANGS[0], date_field)]
         out = os.path.join(here, f"{name}.xlsx" if demo else f"{slug}_{name}.xlsx")
         base.build(out)

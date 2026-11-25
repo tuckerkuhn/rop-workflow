@@ -96,3 +96,27 @@ export const mappingsSchema = z.object({
 
 /** fetched: submissions on the forms in KoboToolbox. updated: edited or approval changed. removed: deleted in KoboToolbox. */
 export type SyncCounts = { fetched: number; added: number; already: number; updated: number; removed: number; forms: number; results?: { added: number; updated: number; removed: number; flagged: number; photos: number } };
+
+/**
+ * The farmers ticked on a training session record (kobo/build_field_forms.py: one record per
+ * session, question `farmers`, a tick list stored as farmer numbers with spaces between). Null on a
+ * record about one farmer, which answers `farmer` instead.
+ */
+export function sessionFarmers(p: Record<string, unknown>): string[] | null {
+  if (typeof p.farmers !== "string" || (typeof p.farmer === "string" && p.farmer)) return null;
+  return [...new Set(p.farmers.split(/\s+/).filter(Boolean))];
+}
+
+/**
+ * A linked question that names farmers on a training form: the tick list of a session record
+ * (`farmers`) or the one farmer of a record from the earlier form (`farmer`). Gives where each of
+ * the two answers sits, so a link made on either question counts records of both shapes: counted
+ * as "different answers", each farmer counts once. Null for any other question.
+ */
+export function farmerQuestion(question: string): { linked: "farmers" | "farmer"; ticks: string; one: string } | null {
+  const parts = question.split("/");
+  const last = parts.at(-1);
+  if (last !== "farmers" && last !== "farmer") return null;
+  const at = (name: string) => [...parts.slice(0, -1), name].join("/");
+  return { linked: last, ticks: at("farmers"), one: at("farmer") };
+}

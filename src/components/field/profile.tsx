@@ -8,6 +8,8 @@ import { useRouter } from "next/navigation";
 import { mayWriteStory } from "@/lib/stories";
 import { useState } from "react";
 import { stageOf } from "@/components/field/workspace";
+import { PhotoTagger, filedAs } from "@/components/field/photo-tagger";
+import { tagLabels, tagsFor, type PhotoTag } from "@/lib/kobo-photo";
 import { useFieldData } from "@/components/app/use-project-data";
 import { Initials, useFeature, useRequireUser, useSession } from "@/components/app/session";
 import { PHOTO_QUALITY } from "@/lib/plans";
@@ -157,9 +159,8 @@ export function FarmerProfile({ id }: { id: string }) {
   const [score, setScore] = useState(0);
   const [comment, setComment] = useState("");
   const [addingPhoto, setAddingPhoto] = useState(false);
-  const [photoKind, setPhotoKind] = useState<PhotoKind>("visit");
-  const [photoCaption, setPhotoCaption] = useState("");
-  const [photoError, setPhotoError] = useState("");
+  // Photos this person added on this visit to the page: the server has them; shown at once without reloading.
+  const [addedPhotos, setAddedPhotos] = useState<Farmer["photos"]>([]);
   // Photo quality follows the plan: a small copy on the free plan, normal phone quality on the paid one.
   const fullPhotos = useFeature("full_photos");
   const [noteTitle, setNoteTitle] = useState("");
@@ -177,6 +178,13 @@ export function FarmerProfile({ id }: { id: string }) {
 
   const myRole = user.field[0];
   const canEdit = user.field.length > 0;
+  // Anyone on the project who visits farmers can add a photo, not only the people who record field
+  // work: management and communications too. A visitor's photo is a picture of the work, never proof,
+  // so the signed goods received note stays with field staff (server/farmer-photo).
+  // Staff only: the server refuses a photo from an account outside Roots of Peace (a donor's).
+  const canAddPhoto = canEdit || (user.kind === "employee" && user.fieldAccess !== "none");
+  // The signed note is proof: only the people who hand goods out add it, never whoever checks or approves.
+  const photoTags: PhotoTag[] = tagsFor(user);
   const update = (fn: (f: Farmer) => Farmer) => setItems((all) => all.map((i) => (i.kind === "farmer" && i.id === id ? fn(i) : i)));
   const citing = items.filter((i): i is Finding => i.kind === "finding" && i.sources.includes(id));
   const latest = farmer.surveys[farmer.surveys.length - 1];
@@ -315,69 +323,54 @@ export function FarmerProfile({ id }: { id: string }) {
             <section>
               <div className="flex items-center justify-between">
                 <div className="flex flex-wrap items-center">
-                  <SectionLabel>{tx("Photos · {n}", { n: farmer.photos.length })}</SectionLabel>
+                  <SectionLabel>{tx("Photos · {n}", { n: farmer.photos.length + addedPhotos.filter((p) => !farmer.photos.some((x) => x.id === p.id)).length })}</SectionLabel>
                   <FieldHelp field="farmer.photo" />
                 </div>
-                {canEdit && !addingPhoto && (
+                {canAddPhoto && !addingPhoto && (
                   <button type="button" onClick={() => setAddingPhoto(true)} className={bandLink}>
                     {tx("+ Add photo")}
                   </button>
                 )}
               </div>
               {addingPhoto && (
-                <div className="mt-3 flex flex-wrap items-end gap-2 bg-sunken p-4">
-                  <label className="text-sm">
-                    <span className="block font-bold">{tx("Activity")}</span>
-                    <select id="photo-kind" value={photoKind} onChange={(e) => setPhotoKind(e.target.value as PhotoKind)} className={`mt-1 ${field}`}>
-                      {(Object.keys(photoLabels) as PhotoKind[]).map((k) => (
-                        <option key={k} value={k}>
-                          {tx(photoLabels[k])}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="min-w-48 flex-1 text-sm">
-                    <span className="block font-bold">{tx("Caption")}</span>
-                    <input id="photo-caption" value={photoCaption} onChange={(e) => setPhotoCaption(e.target.value)} className={`mt-1 ${field}`} />
-                  </label>
-                  <label className={`${primaryBtn} inline-flex min-h-12 cursor-pointer items-center text-base font-bold`}>
-                    {tx("Choose image")}
-                    <input
-                      id="photo-file"
-                      type="file"
-                      accept="image/*"
-                      className="sr-only"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        e.target.value = "";
-                        if (!file) return;
-                        if (file.size > 25_000_000) {
-                          setPhotoError(t("fp.tooBig"));
-                          return;
-                        }
-                        void shrinkPhoto(file, fullPhotos ? PHOTO_QUALITY.full : PHOTO_QUALITY.small)
-                          .then((src) => {
-                            update((f) => ({
-                              ...f,
-                              photos: [...f.photos, { id: `${f.id}-${Date.now()}`, activity: photoKind, date: TODAY, caption: photoCaption.trim() || `${photoLabels[photoKind]} · ${f.id}`, src }],
-                            }));
-                            setAddingPhoto(false);
-                            setPhotoCaption("");
-                            setPhotoError("");
-                          })
-                          .catch(() => setPhotoError(t("fp.unreadable")));
-                      }}
-                    />
-                  </label>
-                  <button type="button" onClick={() => setAddingPhoto(false)} className={`min-h-12 px-3 text-base font-bold text-muted hover:text-ink ${focusRing}`}>
-                    {tx("Cancel")}
-                  </button>
-                  <p className="w-full text-xs text-muted">{fullPhotos ? t("fp.full") : t("fp.small")}</p>
-                  {photoError && <p className="w-full text-sm text-clay">{photoError}</p>}
-                </div>
+                <>
+                  {/* Nothing typed: the day, time and place come from the photo, and one tag files it. */}
+                  <PhotoTagger
+                    tags={photoTags}
+                    quality={fullPhotos ? PHOTO_QUALITY.full : PHOTO_QUALITY.small}
+                    precise={!!user?.pii}
+                    onCancel={() => setAddingPhoto(false)}
+                    onSave={async (shot) => {
+                      // Field staff: added to the record they are already editing, saved with their other changes.
+                      if (canEdit) {
+                        update((f) => ({
+                          ...f,
+                          photos: [
+                            ...f.photos,
+                            { id: `${f.id}-${Date.now()}`, ...filedAs(shot.tag), tag: shot.tag, date: shot.taken?.date ?? TODAY, caption: `${tagLabels[shot.tag]} · ${f.id}`, src: shot.src, ...(shot.taken ? { taken: shot.taken } : {}), ...(shot.gps ? { gps: shot.gps } : {}), by: user.id, byName: user.name },
+                          ],
+                        }));
+                        setAddingPhoto(false);
+                        return;
+                      }
+                      // A visitor cannot change the record: the server files the photo in one locked step, with their name.
+                      const res = await fetch(`/api/projects/${encodeURIComponent(project.id)}/field/photos`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", "x-demo-user": user.id },
+                        body: JSON.stringify({ farmerId: farmer.id, tag: shot.tag, src: shot.src, taken: shot.taken, gps: shot.gps }),
+                      });
+                      const body = (await res.json().catch(() => ({}))) as { photo?: Farmer["photos"][number]; error?: string };
+                      if (!res.ok || !body.photo) throw new Error(body.error ?? t("fp.unreadable"));
+                      setAddedPhotos((cur) => [...cur, body.photo!]);
+                      setAddingPhoto(false);
+                    }}
+                  />
+                  {!canEdit && <p className="mt-1 text-xs text-muted">{tx("Your photo is kept as a picture of the work, with your name. It counts toward nothing and starts no approval.")}</p>}
+                  <p className="mt-1 text-xs text-muted">{fullPhotos ? t("fp.full") : t("fp.small")}</p>
+                </>
               )}
               <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-                {[...farmer.photos].reverse().map((p) => (
+                {[...farmer.photos, ...addedPhotos.filter((p) => !farmer.photos.some((x) => x.id === p.id))].reverse().map((p) => (
                   <li key={p.id} className="overflow-hidden bg-sunken">
                     <div className="relative aspect-[16/11]">
                       {p.src ? (
@@ -391,10 +384,12 @@ export function FarmerProfile({ id }: { id: string }) {
                       )}
                     </div>
                     <div className="px-3 py-2">
-                      <p className="text-sm font-extrabold">{tx(photoLabels[p.activity])}</p>
+                      <p className="text-sm font-extrabold">{tx(p.tag && p.tag in tagLabels ? tagLabels[p.tag as PhotoTag] : p.signedNote ? tagLabels["signed-note"] : photoLabels[p.activity])}</p>
                       <p className="truncate text-xs text-muted">
-                        {p.date} · {maskName(p.caption, farmer, user)}
+                        {p.taken ? `${p.taken.date}${p.taken.time ? ` ${p.taken.time}` : ""}` : p.date}
+                        {p.gps || p.hasPlace ? ` · ${tx("place recorded")}` : ""} · {maskName(p.caption, farmer, user)}
                       </p>
+                      {p.byName && <p className="truncate text-xs text-muted">{p.visitor ? tx("Added by {name}, visiting", { name: p.byName }) : tx("Added by {name}", { name: p.byName })}</p>}
                     </div>
                   </li>
                 ))}
@@ -520,16 +515,3 @@ export function FarmerProfile({ id }: { id: string }) {
   );
 }
 
-/** The photo resized on the phone (long side at most `maxEdge` pixels) and kept as a JPEG data URL. */
-export async function shrinkPhoto(file: File, q: { maxEdge: number; jpeg: number }): Promise<string> {
-  const bitmap = await createImageBitmap(file);
-  const scale = Math.min(1, q.maxEdge / Math.max(bitmap.width, bitmap.height));
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.round(bitmap.width * scale);
-  canvas.height = Math.round(bitmap.height * scale);
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("No canvas");
-  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  bitmap.close();
-  return canvas.toDataURL("image/jpeg", q.jpeg);
-}

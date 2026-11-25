@@ -270,7 +270,8 @@ async function readQprData(code: string, quarter: string) {
   const plans: Record<string, string[]> = {};
   for (const w of ours) plans[w.code] = [...new Set([...(plans[w.code] ?? []), ...((w.active as string[]) ?? [])])];
   const seasonEnds = (await seasonsLater).map((x) => x.end);
-  const table = buildRows(indicators, results, quarter, saved, plans, range, seasonEnds);
+  // A period still under way is judged as the monthly review judges it: work due in it is not yet late.
+  const table = buildRows(indicators, results, quarter, saved, plans, range, seasonEnds, new Date().toISOString().slice(0, 10) > range.to);
   const lines = await linesLater;
   const spend = await spendFor(code, quarter, lines, range);
   const names = new Map<string, string>();

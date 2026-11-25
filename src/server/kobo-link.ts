@@ -2,7 +2,7 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { and, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { protectSubmission } from "@/server/kobo-protect";
-import { isReviewed, REVIEWED_PURPOSES } from "@/lib/kobo-setup";
+import { farmerQuestion, isReviewed, REVIEWED_PURPOSES } from "@/lib/kobo-setup";
 import { breakdownSchema, hasBreakdown } from "@/lib/kobo-setup";
 import { activityOf } from "@/lib/qpr";
 import type { ActivityLinkInput, KoboActivityLinks } from "@/lib/kobo-activities";
@@ -454,8 +454,26 @@ const answer = (p: Record<string, unknown>, q: string) => {
 type Mapped = { method: MappingMethod; question: string; value: string | null };
 type Row = { date: string; payload: Record<string, unknown> };
 
-/** One indicator's value from submissions: count, distinct answers or a sum. */
+/**
+ * One indicator's value from submissions: count, distinct answers or a sum.
+ *
+ * Distinct answers on a question that names farmers on a training form (lib/kobo-setup
+ * farmerQuestion): a session record ticks many farmers in one answer, and each is one different
+ * answer. A link made on the earlier form's `farmer` question counts those ticks too, and a link
+ * on the tick list counts the earlier form's one farmer.
+ */
 export function mappedValue(m: Mapped, rows: Row[]) {
+  const fq = m.method === "count_unique" ? farmerQuestion(m.question) : null;
+  const farmersOf = (r: Row) => {
+    const ticks = answer(r.payload, fq!.ticks);
+    if (ticks) return ticks.split(/\s+/).filter(Boolean);
+    const one = answer(r.payload, fq!.one);
+    return one ? [one] : [];
+  };
+  if (fq) {
+    const hits = rows.filter((r) => farmersOf(r).length);
+    return { value: new Set(hits.flatMap(farmersOf)).size, dates: hits.map((r) => r.date) };
+  }
   const hits = rows.filter((r) => {
     const a = answer(r.payload, m.question);
     if (!a) return false;
@@ -484,8 +502,20 @@ export async function mappedInputs(projectId: string) {
   return new Map(
     await Promise.all(
       rows.map(async ({ code, m }) => {
+        // A question that names farmers on a training form is read with its other shape beside it: the
+        // session record's tick list, and the earlier form's one farmer (left out when that record
+        // is linked through the tick list and says the farmer did not attend).
+        const fq = m.method === "count_unique" ? farmerQuestion(m.question) : null;
+        const other = fq ? (fq.linked === "farmers" ? fq.one : fq.ticks) : null;
         const mine = await db
-          .select({ at: s.evidence.completedAt, answer: sql<unknown>`${s.evidence.payload} -> ${m.question}`, status: sql<string | null>`${s.evidence.payload} -> '_validation_status' ->> 'uid'`, form: s.evidence.form, review: s.evidence.reviewStatus })
+          .select({
+            at: s.evidence.completedAt,
+            answer: sql<unknown>`${s.evidence.payload} -> ${m.question}`,
+            other: !other ? sql<unknown>`null` : fq!.linked === "farmers" ? sql<unknown>`case when ${s.evidence.payload} ->> 'attended' = 'no' then null else ${s.evidence.payload} -> ${other} end` : sql<unknown>`${s.evidence.payload} -> ${other}`,
+            status: sql<string | null>`${s.evidence.payload} -> '_validation_status' ->> 'uid'`,
+            form: s.evidence.form,
+            review: s.evidence.reviewStatus,
+          })
           .from(s.evidence)
           .where(and(eq(s.evidence.projectId, projectId), eq(s.evidence.koboAssetUid, m.assetUid), isNull(s.evidence.koboRemovedAt)));
         // Readiness records count only once accepted in the review queue; until then they wait.
@@ -494,7 +524,7 @@ export async function mappedInputs(projectId: string) {
           code,
           {
             mapping: { method: m.method as MappingMethod, question: m.question, value: m.value },
-            counted: counted.map((e) => ({ date: (e.at?.toISOString() ?? "").slice(0, 10), payload: { [m.question]: e.answer } as Record<string, unknown> })),
+            counted: counted.map((e) => ({ date: (e.at?.toISOString() ?? "").slice(0, 10), payload: { [m.question]: e.answer, ...(other ? { [other]: e.other } : {}) } as Record<string, unknown> })),
             waiting: mine.length - counted.length,
           },
         ] as const;

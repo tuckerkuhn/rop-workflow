@@ -20,6 +20,7 @@ LANGS = ["English (en)", "Dari (prs)", "Pashto (ps)"]
 # type, name, (en, prs, ps) label, (en, prs, ps) hint, required, relevance, appearance, calculation, default
 SURVEY = [
     ("calculate", "project_code", None, None, "", "", "", "'A-2027'", ""),
+    ("start-geopoint", "start_geopoint", None, None, "", "", "", "", ""),
     (
         "select_one_from_file farmers.csv",
         "farmer",
@@ -74,6 +75,8 @@ CHOICES = [
 
 VERSION = datetime.date.today().strftime("%Y%m%d") + "01"
 SETTINGS = [("ROP readiness check", "rop_readiness_check", VERSION, LANGS[0], "visit_date")]
+# The question a saved record is named after, with its date. A form about one farmer names the farmer.
+INSTANCE_FIRST = "farmer"
 
 
 def survey_rows():
@@ -91,7 +94,7 @@ def choice_rows():
 
 
 def settings_rows():
-    return [["form_title", "form_id", "version", "default_language", "instance_name"]] + [[t, i, v, d, f"concat(${{farmer}}, ' ', ${{{n}}})"] for t, i, v, d, n in SETTINGS]
+    return [["form_title", "form_id", "version", "default_language", "instance_name"]] + [[t, i, v, d, f"concat(${{{INSTANCE_FIRST}}}, ' ', ${{{n}}})"] for t, i, v, d, n in SETTINGS]
 
 
 def col(n):

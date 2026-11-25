@@ -437,8 +437,12 @@ export type ReportRange = { from: string; to: string; label?: string };
  * (workplan_items.active, e.g. ["2026-07-01"]), for the partner whose report this is.
  * `seasonEnds`: the last days of the project's seasons, when a target measured at the end of the
  * season is due its survey (surveyDueIn).
+ *
+ * `over`: whether the period has ended as the rows are built. A report opened, previewed or
+ * released while its period is under way judges like the monthly review: work due this quarter
+ * is not yet late (suggestStatus `quarterOver`).
  */
-export function buildRows(indicators: IndicatorInfo[], results: ResultRecord[], quarter: string, saved: Qpr, plans: Record<string, string[]> = {}, range: ReportRange = quarterRange(quarter), seasonEnds: string[] = []): Row[] {
+export function buildRows(indicators: IndicatorInfo[], results: ResultRecord[], quarter: string, saved: Qpr, plans: Record<string, string[]> = {}, range: ReportRange = quarterRange(quarter), seasonEnds: string[] = [], over = true): Row[] {
   const { from, to } = range;
   const y = quarter.slice(0, 4);
   // This year to the period's end, from 1 January: the year's target is a calendar year's, so an
@@ -485,7 +489,7 @@ export function buildRows(indicators: IndicatorInfo[], results: ResultRecord[], 
     };
     // A survey not due yet with no result is not late: on track, its comment says it is not measured yet.
     const notYet = yr.state === "no_survey" && base.surveyDue?.year === false;
-    const suggested = notYet ? "on_track" : suggestStatus(base.year, base.yearTarget, quarterNo, base.year > 0 || open > 0, base.planned);
+    const suggested = notYet ? "on_track" : suggestStatus(base.year, base.yearTarget, quarterNo, base.year > 0 || open > 0, base.planned, over);
     const o = saved.rows[i.code];
     const status = o?.status ?? suggested;
     return { ...base, suggested, status, comment: o?.comment ?? suggestComment(base, status, label), edited: !!(o?.status || o?.comment) };

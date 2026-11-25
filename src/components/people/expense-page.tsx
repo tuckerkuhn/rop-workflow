@@ -1,6 +1,7 @@
 "use client";
 
 import { plainError } from "@/lib/plain-error";
+import { photoFacts } from "@/lib/exif";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useT } from "@/components/app/i18n";
 import { useRequireUser, useSession } from "@/components/app/session";
@@ -618,18 +619,27 @@ function LineForm({ v, month, currency, line, onSave, onCancel }: { v: ExpenseVi
   const rate = v.mileageRates[l.source]?.rate ?? MILEAGE_RATE;
   const pd = l.perDiem ?? { place: "", rate: 0, start: `${month}-01`, end: `${month}-01` };
   const calc = isPerDiem ? perDiemOf(pd) : null;
+  const [dateFromPhoto, setDateFromPhoto] = useState("");
   const upload = async (files: FileList | null) => {
     if (!files?.length) return;
     setUploading(true);
     setError("");
     try {
       const added: Receipt[] = [];
+      // The day the receipt was photographed, read from the photo before it is shrunk (which drops it).
+      let taken: string | null = null;
       for (const f of Array.from(files)) {
+        if (!taken && f.type === "image/jpeg") taken = photoFacts(await f.arrayBuffer()).date;
         const body = new FormData();
         body.append("file", await shrink(f));
         added.push(await call<Receipt>("/api/files", user?.id, { method: "POST", body }));
       }
-      setL((cur) => ({ ...cur, receipts: [...cur.receipts, ...added].slice(0, 10) }));
+      // Nobody types a date the photo already holds: while the line still has the month's first day
+      // (nothing chosen yet) and the photo was taken in this claim's month, the photo's day is used.
+      // It stays a date field, so a receipt photographed on a later day is put right in one tap.
+      const fromPhoto = taken && taken.startsWith(`${month}-`) ? taken : null;
+      setL((cur) => ({ ...cur, receipts: [...cur.receipts, ...added].slice(0, 10), ...(fromPhoto && cur.date === `${month}-01` && cur.category !== "perDiem" ? { date: fromPhoto } : {}) }));
+      if (fromPhoto) setDateFromPhoto(fromPhoto);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -674,6 +684,7 @@ function LineForm({ v, month, currency, line, onSave, onCancel }: { v: ExpenseVi
           <label className="text-sm">
             <span className="font-medium">{t("exp.date")}</span>
             <input type="date" value={l.date} onChange={(e) => set({ date: e.target.value })} className={input} />
+            {dateFromPhoto && l.date === dateFromPhoto && <span className="mt-1 block text-xs text-muted">Filled in from the receipt photo. Change it if the receipt shows another day.</span>}
           </label>
         )}
         <label className="text-sm">

@@ -5,7 +5,7 @@ import { acct, storeNames, opening } from "@/lib/file-store";
 import { plainError } from "@/lib/plain-error";
 import { NON_CONTRACT } from "@/lib/timesheet";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { useT } from "@/components/app/i18n";
@@ -15,6 +15,7 @@ import { TopBar, dangerBtn, primaryBtn, quietBtn, Loading } from "@/components/w
 import { Empty, Fig, LedgerRow, LedgerTable, PageHead, SectionHead, Sheet, StatusBlock } from "@/components/workspace/ledger";
 import { BILL_CATEGORIES, BILL_CATEGORY_KEYS, type BillAction, type BillCategory } from "@/lib/bills";
 import type { Receipt } from "@/lib/expense";
+import { longDate } from "@/lib/weekly";
 import type { BillsView } from "@/app/api/projects/[code]/bills/route";
 
 /**
@@ -43,6 +44,8 @@ export function BillsPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [adding, setAdding] = useState(false);
+  // A bill sent back that is being corrected: the form opens with what was recorded and its document.
+  const [redo, setRedo] = useState<Item | null>(null);
   const url = `/api/projects/${project.id}/bills`;
 
   const load = useCallback(async () => {
@@ -103,6 +106,8 @@ export function BillsPage() {
           <>
             {!v.record ? (
               <p className="mt-6 bg-sunken px-4 py-3 text-sm text-muted">Bills are recorded by Finance and by people named for bill entry. Give the bill to Finance.</p>
+            ) : redo ? (
+              <AddBill key={redo.id} v={v} from={redo} onClose={() => setRedo(null)} add={(a) => act(a, `Recorded again in place of ${redo.id}. It goes to programme management for approval.`).then(() => setRedo(null))} />
             ) : adding ? (
               <AddBill v={v} onClose={() => setAdding(false)} add={(a) => act(a, "Recorded. It goes to programme management for approval.").then(() => setAdding(false))} />
             ) : (
@@ -118,7 +123,7 @@ export function BillsPage() {
                 <>
                   <LedgerTable cols={`2.25rem ${COLS}`} head={["#", "Bill", { label: "Amount", end: true }]} label="Bills paid directly">
                     {v.items.map((b, k) => (
-                      <BillRow key={b.id} n={k + 1} first={b.id === oldest} b={b} v={v} act={act} />
+                      <BillRow key={b.id} n={k + 1} first={b.id === oldest} b={b} v={v} act={act} onRedo={() => (setNotice(""), setAdding(false), setRedo(b))} />
                     ))}
                   </LedgerTable>
                   {oldest && <p className="mt-2 text-xs text-muted">The shaded bill is the one that has waited longest for approval.</p>}
@@ -134,9 +139,9 @@ export function BillsPage() {
 
 type Item = BillsView["items"][number];
 
-function BillRow({ b, v, act, n, first }: { b: Item; v: BillsView; act: (a: BillAction, msg: string) => Promise<void>; n: number; first: boolean }) {
+function BillRow({ b, v, act, n, first, onRedo }: { b: Item; v: BillsView; act: (a: BillAction, msg: string) => Promise<void>; n: number; first: boolean; onRedo: () => void }) {
   const { user } = useSession();
-  const { t } = useT();
+  const { t, tx } = useT();
   const [selfing, setSelfing] = useState(false);
   const [back, setBack] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -184,6 +189,23 @@ function BillRow({ b, v, act, n, first }: { b: Item; v: BillsView; act: (a: Bill
               <li key={f}>⚠ {f}</li>
             ))}
           </ul>
+        )}
+        {b.status === "returned" && b.returned && (
+          <div className="mt-2 bg-clay-soft px-3 py-2 text-sm">
+            <p>{tx("{name} sent this bill back on {date}: {note}", { name: b.returned.name, date: longDate(b.returned.at), note: b.returned.note })}</p>
+            {b.redoneAs ? (
+              <p className="mt-1 text-muted">{tx("It was corrected and recorded again as {id}.", { id: b.redoneAs })}</p>
+            ) : b.canRedo ? (
+              <>
+                <p className="mt-1">{tx("It will not be paid as it stands. Correct it and record it again. What was recorded and its document are kept, so nothing is typed twice.")}</p>
+                <button type="button" className={`${primaryBtn} mt-2 min-h-12`} onClick={onRedo}>
+                  {tx("Correct it and record it again")}
+                </button>
+              </>
+            ) : (
+              <p className="mt-1">{tx("It will not be paid as it stands. Finance corrects it and records it again.")}</p>
+            )}
+          </div>
         )}
         {b.status === "waiting" && !b.canApprove && !b.canSelfApprove && b.raised.by === v.me && <p className="mt-2 text-sm text-muted">Waiting for programme management; you recorded it, so someone else approves it.</p>}
         {b.canSelfApprove && (
@@ -257,17 +279,35 @@ function BillRow({ b, v, act, n, first }: { b: Item; v: BillsView; act: (a: Bill
   );
 }
 
-function AddBill({ v, onClose, add }: { v: BillsView; onClose: () => void; add: (a: BillAction) => Promise<void> }) {
+/** `from`: a bill sent back, corrected here and recorded again as a new bill with the same document. */
+function AddBill({ v, from, onClose, add }: { v: BillsView; from?: Item; onClose: () => void; add: (a: BillAction) => Promise<void> }) {
   const { user } = useSession();
-  const [f, setF] = useState({ payee: "", invoiceNumber: "", invoiceDate: new Date().toISOString().slice(0, 10), description: "", category: "rent" as BillCategory, amount: "", currency: "AFN" as "USD" | "AFN", source: v.sources[0]?.id ?? "non-contract", budgetLine: "", contractRef: "" });
-  const [file, setFile] = useState<Receipt | null>(null);
+  const { tx } = useT();
+  // A bill recorded on a project's page starts as that project's: its budget line is then asked for.
+  // A general and admin bill is one choice away.
+  const { project } = useCurrentProject();
+  const [f, setF] = useState(
+    from
+      ? { payee: from.payee, invoiceNumber: from.invoiceNumber, invoiceDate: from.invoiceDate, description: from.description, category: from.category, amount: String(from.amount), currency: from.currency, source: from.source, budgetLine: from.budgetLine ?? "", contractRef: from.contractRef ?? "" }
+      : { payee: "", invoiceNumber: "", invoiceDate: new Date().toISOString().slice(0, 10), description: "", category: "rent" as BillCategory, amount: "", currency: "AFN" as "USD" | "AFN", source: v.sources.find((x) => x.id === project.id)?.id ?? v.sources[0]?.id ?? "non-contract", budgetLine: "", contractRef: "" },
+  );
+  const [file, setFile] = useState<Receipt | null>(from?.file ?? null);
+  // The button that opens this form sits in the list below it: bring the form to the person.
+  const top = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (from) top.current?.scrollIntoView({ block: "start" });
+  }, [from]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const set = (patch: Partial<typeof f>) => setF((x) => ({ ...x, ...patch }));
-  const ok = file && f.payee.trim().length >= 2 && f.invoiceNumber.trim() && f.description.trim().length >= 3 && Number(f.amount) > 0;
+  const needsLine = (v.lines[f.source] ?? []).length > 0 && !f.budgetLine;
+  // What still stops Record, said under the button so nobody has to guess.
+  const missing = [!file && "the bill's photo or PDF", f.payee.trim().length < 2 && "who it is paid to", !f.invoiceNumber.trim() && "the invoice number", f.description.trim().length < 3 && "what it is for", !(Number(f.amount) > 0) && "the amount", needsLine && "the budget line"].filter((x): x is string => !!x);
+  const ok = !missing.length;
   return (
-    <section>
-      <SectionHead>Record a bill</SectionHead>
+    <section ref={top} className="scroll-mt-32">
+      <SectionHead>{from ? tx("Correct {id} and record it again", { id: from.id }) : "Record a bill"}</SectionHead>
+      {from?.returned && <p className="mt-3 bg-clay-soft px-3 py-2 text-sm">{tx("{name} sent it back: {note}", { name: from.returned.name, note: from.returned.note })}</p>}
       <Sheet className="mt-3">
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="text-sm sm:col-span-2">
@@ -374,7 +414,7 @@ function AddBill({ v, onClose, add }: { v: BillsView; onClose: () => void; add: 
             onClick={async () => {
               setBusy(true);
               try {
-                await add({ action: "raise", ...f, amount: Number(f.amount), budgetLine: f.budgetLine.trim() || null, contractRef: f.contractRef.trim() || null, file: file! });
+                await add({ action: "raise", ...f, amount: Number(f.amount), budgetLine: f.budgetLine.trim() || null, contractRef: f.contractRef.trim() || null, file: file!, ...(from ? { replaces: from.id } : {}) });
               } catch {
                 /* shown above */
               } finally {
@@ -388,6 +428,7 @@ function AddBill({ v, onClose, add }: { v: BillsView; onClose: () => void; add: 
             Cancel
           </button>
         </div>
+        {missing.length > 0 && <p className="mt-2 text-sm text-muted">{tx("Still needed: {list}.", { list: missing.join(", ") })}</p>}
       </Sheet>
     </section>
   );

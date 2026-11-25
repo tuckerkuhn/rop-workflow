@@ -13,6 +13,7 @@ import { insertResult } from "@/server/results-store";
 import { addGiven, applyFix, approvalRefusal, approverNamesOf, badCondition, approversOf, closeBlock, drawnFrom, fixOwner, flagsFor, gate, inProcUnit, lineOf, paymentDue, resultFor, resultForPlanting, storeStock, type DistItem, type Fix, type Flag, type Gate, type Given } from "@/lib/distribution";
 import { countsAtPlanting, itemsFor, qtyItem, type FieldSetup } from "@/lib/package";
 import { hasSignedNotePhoto, type Farmer } from "@/lib/field";
+import { koboAttachment, koboPlace } from "@/lib/kobo-photo";
 import type { Procurement } from "@/lib/procurement";
 import type { Submission } from "@/lib/project";
 import { demoMode, onProject, people, toAppUser } from "@/server/auth";
@@ -171,7 +172,8 @@ export async function stockFor(code: string) {
 
 /** Changes a farmer's Field activities record inside a transaction; `change` returns null to leave it. */
 async function changeFarmer(tx: Tx, projectId: string, farmerCode: string, change: (f: Farmer) => Farmer | null) {
-  const [item] = await tx.select().from(s.fieldItems).where(and(eq(s.fieldItems.projectId, projectId), eq(s.fieldItems.itemKey, farmerCode))).limit(1);
+  // Held until the transaction commits, as addFarmerPhoto does: a save to the same farmer at the same moment waits instead of being overwritten.
+  const [item] = await tx.select().from(s.fieldItems).where(and(eq(s.fieldItems.projectId, projectId), eq(s.fieldItems.itemKey, farmerCode))).limit(1).for("update");
   if (!item) return;
   const changed = change(item.data as Farmer);
   if (!changed) return;
@@ -434,6 +436,19 @@ export type DistView = {
   approverNames: string;
   /** Why it cannot close yet apart from the goods received checks (the recipient's signed note); null when it may. */
   closeBlock: string | null;
+  /**
+   * From KoboCollect: which of its photos can be opened in the app (fetched from the project's
+   * KoboToolbox account when asked for), so the checker and the approver see the proof itself.
+   */
+  koboPhotos: ("note" | "handover")[];
+  /** Whether the record came with a place (the phone's GPS or the form's GPS question). Coordinates are never in this list. */
+  hasPlace: boolean;
+  /**
+   * From KoboCollect: the account that sent it, when the project has not matched that account to a
+   * person. Until it is matched the app cannot tell who collected the record, so "nobody approves
+   * their own record" cannot be applied to it and a send-back goes to the storekeeper by default.
+   */
+  unmatchedAccount: string | null;
 };
 
 const photoOf = (r: { source: string; payload: unknown }) => {
@@ -446,6 +461,20 @@ const conditionOf = (r: { source: string; payload: unknown }) => {
   return r.source === "kobo" && typeof c === "string" && c ? c : null;
 };
 const sourceOf = (r: { source: string }) => (r.source === "kobo" ? ("kobo" as const) : ("app" as const));
+
+/**
+ * The day the goods were handed out: the date on the record itself (the KoboCollect form's
+ * distribution date, or the day it was recorded in the app), so a paper list entered a day or a
+ * week later is reported in the period it happened. Only when the record holds no usable date,
+ * the day it reached the app.
+ */
+export const dayOf = (r: { payload: unknown; completedAt: Date | null; createdAt?: Date | null }): string => {
+  const p = (r.payload ?? {}) as Record<string, unknown>;
+  const own = [p.distribution_date, p.date].find((d): d is string => typeof d === "string" && /^\d{4}-\d{2}-\d{2}/.test(d));
+  const arrived = (r.completedAt ?? r.createdAt ?? new Date()).toISOString().slice(0, 10);
+  // A date after the record reached the app is a typing slip (2027 for 2026): the day it arrived is used instead.
+  return own && own.slice(0, 10) <= arrived ? own.slice(0, 10) : arrived;
+};
 
 const signedOf = (r: { source: string; payload: unknown }) => {
   const p = (r.payload ?? {}) as Record<string, unknown>;
@@ -474,13 +503,16 @@ export async function listDistributions(code: string): Promise<DistView[]> {
     .filter((r) => st.byId[r.id] && !r.koboRemovedAt)
     .map((r) => {
       const m = st.byId[r.id];
+      // The person, not the account name: a KoboCollect account matched to someone on the team shows as that person.
+      const who = recorderOf(r, m, rule, team);
+      const person = who ? team.find((p) => p.id === who)?.name : undefined;
       return {
         id: r.id,
         farmerId: r.farmerCode ?? "",
         village: m.village,
-        date: (r.completedAt ?? r.createdAt).toISOString().slice(0, 10),
+        date: dayOf(r),
         source: r.source === "kobo" ? ("kobo" as const) : ("app" as const),
-        recordedBy: m.recordedBy,
+        recordedBy: person ?? m.recordedBy,
         items: m.items,
         gender: m.gender,
         photo: photoNow(r, m),
@@ -503,6 +535,9 @@ export async function listDistributions(code: string): Promise<DistView[]> {
         approvers: approversOf(team, recorderOf(r, m, rule, team)).map((p) => p.id),
         approverNames: approverNamesOf(team, recorderOf(r, m, rule, team)),
         closeBlock: closeBlock({ signed: m.signed ?? signedOf(r), photo: photoNow(r, m), source: sourceOf(r), condition: m.conditionOk ? null : conditionOf(r) }),
+        koboPhotos: r.source === "kobo" ? (["note", "handover"] as const).filter((w) => !!koboAttachment(r.payload as Record<string, unknown>, w === "note" ? "list_photo" : "handover_photo", "distribution")) : [],
+        hasPlace: r.source === "kobo" && !!koboPlace(r.payload as Record<string, unknown>),
+        unmatchedAccount: r.source === "kobo" && !who ? (r.completedBy ?? null) : null,
       };
     })
     .sort((a, b) => (a.status === b.status ? b.date.localeCompare(a.date) : a.status === "pending" ? -1 : 1));
@@ -597,7 +632,14 @@ export async function decideDistribution(code: string, id: string, decision: "ap
 
   // Nobody approves a distribution they recorded or collected themselves.
   const everyone = (await people()).filter((u) => onProject(u, code));
-  const refused = by.id === "manager-link" ? null : approvalRefusal(by.id, everyone, recorderOf(row, m, rule, everyone));
+  // One exception, for sending back only: whoever checks this KoboCollect record. A checker who
+  // sees a wrong photo or amount returns it to the person who collected it, without first passing
+  // it to the project manager to do the same. Approving stays with the managers.
+  const checkerSendsBack =
+    decision === "sent_back" &&
+    needsKoboCheck({ source: row.source, koboChecked: m.koboChecked }, rule) &&
+    decidersOf(everyone, { fromKobo: true, collector: collectorOf(row.completedBy, rule, everyone) }, rule).some((p) => p.id === by.id);
+  const refused = by.id === "manager-link" || checkerSendsBack ? null : approvalRefusal(by.id, everyone, recorderOf(row, m, rule, everyone));
   if (refused) throw new HttpError(403, refused);
 
   const g = gate(m.items, ctx.procs, ctx.given, ctx.setup);
@@ -608,10 +650,13 @@ export async function decideDistribution(code: string, id: string, decision: "ap
 
   const finance = decision === "approved" ? (await people()).filter((u) => u.procurement.includes("finance") && onProject(u, code))[0] : undefined;
   // Sent back to the person who recorded it; to the storekeeper or extension agent when that was a phone in the field.
-  const fixer = decision === "sent_back" ? fixOwner(m.recorderId ?? row.completedBy, (await people()).filter((u) => onProject(u, code))) : null;
+  // A KoboCollect record goes back to the person whose KoboCollect account sent it, when the project has matched the account.
+  const fixer = decision === "sent_back" ? fixOwner(recorderOf(row, m, rule, everyone) ?? m.recorderId ?? row.completedBy, everyone) : null;
   const now = new Date();
   const day = today();
   const changed: string[] = [];
+  /** Payments finance was asked to release by this approval: the purchase, its supplier and who has the task. */
+  const payments: { purchase: string; supplier: string; to: string | null }[] = [];
   const team = decision === "approved" ? await people() : [];
   // The target approved distributions count toward (lib/package `target`), when the project has
   // named one and it takes recorded results.
@@ -646,17 +691,21 @@ export async function decideDistribution(code: string, id: string, decision: "ap
         const d = p.distribution ?? { forParticipants: true, lists: [], inStock: 0, checks: [] };
         const qty = inProcUnit(it.qty, it.unit, p);
         const place = m.village || "Not recorded";
-        const at = d.lists.findIndex((l) => l.date === day && l.place === place && l.by === by.id);
+        // Dated the day the goods were handed out (dayOf), not the day of this approval: the list is
+        // the record of the distribution, and a paper list entered late belongs to the day it happened.
+        const handedOut = dayOf(row);
+        const at = d.lists.findIndex((l) => l.date === handedOut && l.place === place && l.by === by.id);
         const lists = [...d.lists];
         const women = m.gender === "Female" ? 1 : 0;
         if (at >= 0) lists[at] = { ...lists[at], recipients: lists[at].recipients + 1, women: lists[at].women + women, qty: lists[at].qty + qty };
-        else lists.push({ date: day, place, recipients: 1, women, qty, evidence: `ROP Workflow distribution records, approved by ${by.name}`, by: by.id, byName: by.name, viaField: true });
+        else lists.push({ date: handedOut, place, recipients: 1, women, qty, evidence: `ROP Workflow distribution records, approved by ${by.name}`, by: by.id, byName: by.name, viaField: true });
         const next: Procurement = { ...p, rev: (p.rev ?? 0) + 1, distribution: { ...d, forParticipants: true, lists } };
         await tx.update(s.procurements).set({ data: next, updatedAt: now }).where(eq(s.procurements.id, r.id));
         changed.push(p.id);
         // Finance: the goods are in and going out, so the supplier's invoice can be paid.
         // Not for a purchase already paid or closed: there is nothing left to release.
         if (!paymentDue(p)) continue;
+        if (!payments.some((x) => x.purchase === p.id)) payments.push({ purchase: p.id, supplier: p.supplier?.name ?? "the supplier", to: finance?.name ?? null });
         await tx
           .insert(s.workItems)
           .values({
@@ -678,7 +727,7 @@ export async function decideDistribution(code: string, id: string, decision: "ap
       // (server/kobo-results skips it), so this is the one place a distribution is counted.
       if (counts && row.farmerCode) {
         const recorder = team.find((u) => u.id === (row.source === "kobo" ? collectorOf(row.completedBy, rule, team) : (m.recorderId ?? row.completedBy)));
-        const input = resultFor({ id, farmerId: row.farmerCode, village: m.village, gender: m.gender ?? undefined, date: (row.completedAt ?? now).toISOString().slice(0, 10), items: m.items, recordedBy: recorder?.name ?? "the field team", approvedBy: by.name }, counts.code);
+        const input = resultFor({ id, farmerId: row.farmerCode, village: m.village, gender: m.gender ?? undefined, date: dayOf(row), items: m.items, recordedBy: recorder?.name ?? "the field team", approvedBy: by.name }, counts.code);
         const made = await insertResult(tx, project, input, recorder?.id ?? (row.source === "kobo" ? by.id : (row.completedBy ?? by.id)));
         result = made.id;
       }
@@ -725,7 +774,7 @@ export async function decideDistribution(code: string, id: string, decision: "ap
     // The link is used up and the decision kept with the record, in the same step as the decision itself.
     await putMeta(tx, project.id, id, { ...m, gate: g, hash: null, hashes: {}, decided: { by: by.id, byName: by.name, at: now.toISOString(), decision, ...(note ? { note: note.trim() } : {}) } });
   });
-  return { decision, procurements: changed, fixer, result, target: counts?.code ?? null, targetName: counts?.name ?? null };
+  return { decision, procurements: [...new Set(changed)], payments, fixer, fixerName: fixer ? (everyone.find((u) => u.id === fixer)?.name ?? null) : null, result, target: counts?.code ?? null, targetName: counts?.name ?? null };
 }
 
 const fixNotes = (code: string, id: string, by: string, note: string) => `Sent back by ${by}: ${note}\nOpen ${appOrigin()}/approve/${encodeURIComponent(code)}/${id}, correct what was recorded and send it again.`;
@@ -733,8 +782,8 @@ const fixNotes = (code: string, id: string, by: string, note: string) => `Sent b
 /* ---------- 5. fixed and sent again ---------- */
 
 /**
- * The fix for a distribution the manager sent back: the corrected quantities, signature and photo
- * replace what was recorded, the record waits for the manager again with fresh checks and a new
+ * The fix for a distribution the manager sent back: the corrected quantities and signature replace
+ * what was recorded, the photo is whatever is on file now (never a tick), the record waits for the manager again with fresh checks and a new
  * link, and the fix task closes. What was sent back and why stays in the record's history.
  */
 export async function resubmitDistribution(code: string, id: string, by: { id: string; name: string }, fix: Fix, note: string, origin = appOrigin()) {
@@ -760,7 +809,9 @@ export async function resubmitDistribution(code: string, id: string, by: { id: s
   const items = applyFix(m.items, fix, planned);
   // From the app the photo is the one on the farmer's record, looked at again now: a tick is not
   // a document. From KoboCollect the image came with the form; a fix can say it has since been added.
-  const photo = row.source === "kobo" ? (fix.photo ?? m.photo ?? photoOf(row)) || hasSignedNotePhoto(farmer) : hasSignedNotePhoto(farmer) || !!m.photo;
+  // The same for a KoboCollect record: the image that came with the form, or one added to the
+  // farmer's record since (addSignedNote). A tick saying "there is a photo" is not accepted.
+  const photo = row.source === "kobo" ? (m.photo ?? photoOf(row)) || hasSignedNotePhoto(farmer) : hasSignedNotePhoto(farmer) || !!m.photo;
   const signed = fix.signed ?? m.signed ?? signedOf(row);
   const conditionOk = fix.conditionOk ?? m.conditionOk;
   const flags = flagsFor({ farmerId: row.farmerCode ?? m.farmerId, items, photo, signed, step: row.source === "kobo" ? (farmer?.step ?? "unknown") : null }, ctx.others, planned);
@@ -769,6 +820,35 @@ export async function resubmitDistribution(code: string, id: string, by: { id: s
   void [_decided, _hash, _hashes, _expires, _notified];
   await prepare(code, project, id, { ...kept, items, photo, signed, ...(conditionOk === undefined ? {} : { conditionOk }), gate: gate(items, ctx.procs, ctx.given, ctx.setup), flags, history }, origin, { by: by.name, note: note.trim() }, row.source === "kobo");
   return { ok: true as const };
+}
+
+/* ---------- the signed note's photo, added where it is asked for ---------- */
+
+/**
+ * Adds the photo of the signed goods received note to the farmer's record, from the distribution's
+ * own page: the person fixing a sent-back record takes or chooses the photo there and it is filed
+ * in one step (tagged as the signed note, lib/kobo-photo). The day, time and place come from the
+ * photo itself, read before it was shrunk; nobody types them. A record still waiting counts the
+ * photo at once.
+ */
+export async function addSignedNote(code: string, id: string, by: { id: string; name: string }, photo: { src: string; taken?: { date?: string | null; time?: string | null } | null; gps?: { lat: number; lon: number } | null }) {
+  const project = await projectByCode(code);
+  const [row] = await db.select().from(s.evidence).where(and(eq(s.evidence.id, id), eq(s.evidence.projectId, project.id), eq(s.evidence.form, "distribution"))).limit(1);
+  if (!row?.farmerCode) throw new HttpError(404, "That distribution is not on this project.");
+  if (row.reviewStatus === "accepted") throw new HttpError(409, "This distribution is already approved. Its photo is on file and is not replaced.");
+  const day = photo.taken?.date && /^\d{4}-\d{2}-\d{2}$/.test(photo.taken.date) ? photo.taken.date : today();
+  let added = false;
+  await db.transaction(async (tx) => {
+    await changeFarmer(tx, project.id, row.farmerCode!, (f) => {
+      added = true;
+      const entry = { id: `${f.id}-note-${Date.now()}`, activity: "distribution" as const, date: day, caption: `Signed goods received note · ${f.id}`, src: photo.src, signedNote: true, tag: "signed-note", ...(photo.taken?.date ? { taken: { date: photo.taken.date, time: photo.taken.time ?? null } } : {}), ...(photo.gps ? { gps: photo.gps } : {}) };
+      return { ...f, photos: [...(f.photos ?? []), entry], timeline: [...f.timeline, { date: today(), who: "system", what: `Photo of the signed goods received note added by ${by.name}` }] };
+    });
+    if (added) await tx.insert(s.auditLog).values({ projectId: project.id, entity: "distribution", entityId: id, action: "distribution_note_photo_added", detail: { by: by.id, farmer: row.farmerCode, taken: photo.taken?.date ?? null, hasPlace: !!photo.gps } });
+  });
+  if (!added) throw new HttpError(409, `${row.farmerCode} has no record in Field activities to keep the photo on.`);
+  requestWrote();
+  return { ok: true as const, date: day };
 }
 
 /* ---------- readiness "No": a task for the extension agent ---------- */
@@ -838,7 +918,7 @@ export async function countApprovedDistributions(code: string, target: string): 
       const m = st.byId[row.id];
       if (!m || row.koboRemovedAt || !row.farmerCode || counted.has(row.id) || planted.has(row.farmerCode) || m.decided?.decision !== "approved") continue;
       const recorder = team.find((u) => u.id === (row.source === "kobo" ? collectorOf(row.completedBy, rule, team) : (m.recorderId ?? row.completedBy)));
-      const input = resultFor({ id: row.id, farmerId: row.farmerCode, village: m.village, gender: m.gender ?? undefined, date: (row.completedAt ?? new Date()).toISOString().slice(0, 10), items: m.items, recordedBy: recorder?.name ?? "the field team", approvedBy: m.decided.byName }, target);
+      const input = resultFor({ id: row.id, farmerId: row.farmerCode, village: m.village, gender: m.gender ?? undefined, date: dayOf(row), items: m.items, recordedBy: recorder?.name ?? "the field team", approvedBy: m.decided.byName }, target);
       await insertResult(tx, project, input, recorder?.id ?? m.decided.by);
       added += 1;
     }

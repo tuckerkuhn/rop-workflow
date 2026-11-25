@@ -3,6 +3,8 @@
 import { askConfirm } from "@/components/app/dialogs";
 import { useCallback, useEffect, useState } from "react";
 import { quietBtn } from "@/components/workspace/ui";
+import { personName } from "@/lib/project";
+import { longDate } from "@/lib/weekly";
 
 /**
  * Read-only links to this quarter's report for the donor. A link shows the release (or, before
@@ -64,7 +66,7 @@ export function ShareLinks({ project, quarter, user, ready }: { project: string;
                 {copied === s.token ? "Copied" : "Copy"}
               </button>
               <span className="text-muted">
-                made by {s.by} {s.at.slice(0, 10)} · works until {s.expires.slice(0, 10)}
+                made by {personName(s.by)} on {longDate(s.at)} · works until {longDate(s.expires)}
               </span>
               <button type="button" className="text-muted hover:text-clay" onClick={() => void askConfirm({ message: "Withdraw this link? Anyone holding it can no longer open the report.", confirm: "Withdraw link", danger: true }).then((ok) => (ok ? act({ action: "revoke", token: s.token }) : undefined))}>
                 Withdraw

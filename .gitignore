@@ -41,3 +41,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .claude/worktrees/
+
+# Local testing only (docs/deep-dive/tools)
+.sim.ts
+docs/deep-dive/tools/*.jpg
+docs/deep-dive/tools/*.png
+docs/deep-dive/tools/*.txt

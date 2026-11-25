@@ -542,7 +542,7 @@ export const en = {
   "kobo.submissions": "{n} submissions",
   "kobo.purpose": "What is this form for?",
   "kobo.purpose.readiness": "Readiness check: each submission waits on Check › Results and proof, under Field forms to check, and counts only once accepted",
-  "kobo.purpose.training": "Training attendance: each submission waits in the review queue; once accepted it records the training on the farmer and moves them on from Train",
+  "kobo.purpose.training": "Training attendance: each session's record waits in the review queue; once accepted it records the training on every farmer ticked and moves them on from Train",
   "kobo.purpose.visit": "Farm visit after planting: each submission waits in the review queue; once accepted it records planting or what needs follow-up on the farmer",
   "kobo.purpose.data": "Field data: submissions count straight toward targets",
   "kobo.purpose.distribution": "Input distribution: each submission is checked against the goods received note and goes to the project manager to approve; it counts once approved",

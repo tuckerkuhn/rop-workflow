@@ -43,7 +43,29 @@ export type Photo = {
   src?: string;
   /** The photo is of the goods received note the recipient signed or thumbprinted (lib/distribution closeBlock). */
   signedNote?: boolean;
+  /** The one tag picked when it was added (lib/kobo-photo PHOTO_TAGS): it decides where the photo is filed and what it sets going. */
+  tag?: string;
+  /** When the photo itself says it was taken (its EXIF data, read before it was shrunk). `date` above is that day when known. */
+  taken?: { date: string; time: string | null };
+  /** Where the photo itself says it was taken. Shown only to people who may see participant names. */
+  gps?: { lat: number; lon: number };
+  /** Set by the server in place of `gps` for someone who may not see participant names: a place is kept and they are not sent it. Never stored. */
+  hasPlace?: boolean;
+  /** Who added it (person id and name), when it was added through the app. */
+  by?: string;
+  byName?: string;
+  /** Added by someone visiting (management, communications): a picture of the work, never a field record or proof. */
+  visitor?: boolean;
 };
+/**
+ * Whether a save adds a photo of the signed goods received note that the stored record did not hold.
+ * That photo is proof of a distribution, so only some people may add it (server/farmer-photo).
+ */
+export function addsSignedNote(stored: { photos?: Pick<Photo, "id">[] } | null | undefined, sent: { photos?: Pick<Photo, "id" | "signedNote" | "tag">[] } | null | undefined): boolean {
+  const had = new Set((stored?.photos ?? []).map((p) => p.id));
+  return (sent?.photos ?? []).some((p) => !had.has(p.id) && (!!p.signedNote || p.tag === "signed-note"));
+}
+
 /** Whether the farmer's record holds a photo of the signed goods received note. */
 export const hasSignedNotePhoto = (f: { photos?: Photo[] } | null | undefined) => !!f?.photos?.some((p) => p.activity === "distribution" && p.signedNote && !!p.src);
 

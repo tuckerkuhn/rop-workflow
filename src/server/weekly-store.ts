@@ -6,7 +6,7 @@ import { emptyWeekly, weekOf, type Week, type WeeklyState } from "@/lib/weekly";
 import { isMelOwner } from "@/server/auth";
 import { projectByCode, donorNameOf } from "@/server/field-store";
 import { loadProjectState, updateProjectState } from "@/server/project-state";
-import { loadUpdates } from "@/server/results-store";
+import { loadUpdates, updatePlaces } from "@/server/results-store";
 
 /** The weekly update: its weeks in project_state ("weekly"), its items as activity updates. */
 
@@ -58,12 +58,14 @@ export async function weeklyView(code: string, u: AppUser, from: string | null) 
   const order = (a: string) => activities.findIndex((x) => x.code === a);
   const items = updates.sort((a, b) => order(a.activity) - order(b.activity) || a.date.localeCompare(b.date) || a.at.localeCompare(b.at));
   const write = mayWriteWeekly(u) && !current.sent;
+  const where = await updatePlaces(code, u);
   return {
     project: { code: project.code, name: project.name, donor: await donorNameOf(project) },
     region: state.region,
     weeks: state.weeks.map((w) => ({ n: w.n, from: w.from, to: w.to, sent: !!w.sent })),
     week: current,
-    items: items.map((x) => ({ ...x, mayEdit: write && (x.by === u.id || isMelOwner(u)) })),
+    // Where each photo was taken: empty for anyone who may not see participant names.
+    items: items.map((x) => ({ ...x, places: where.get(x.id) ?? {}, mayEdit: write && (x.by === u.id || isMelOwner(u)) })),
     activities,
     today,
     may: { write, add: write && current.saved && current.from <= today && activities.length > 0, send: write && current.saved && items.length > 0 },

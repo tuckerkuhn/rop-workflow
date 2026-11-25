@@ -6,7 +6,7 @@ Field staff use KoboCollect (offline, Android) or Enketo web forms.
 | Form | Workflow step | Status |
 |---|---|---|
 | `readiness_check.xlsx` | Verify readiness / recheck | **Built.** Accepted results move the farmer in Field activities. |
-| `training_attendance.xlsx` | Train farmers | **Draft for review.** One record per farmer per session, from the signed register. Accepted "attended" moves the farmer from Train to Prepare the plot. |
+| `training_attendance.xlsx` | Train farmers | **Draft for review.** One record per session, from the signed register, with every farmer who attended ticked. Accepting it moves each ticked farmer from Train to Prepare the plot. |
 | `distribution_form.xlsx` | Distribute inputs (demo maize package, A-2027) | **Draft for review.** Checked against the goods received note; the project manager approves each one (email link or Home). |
 | `acrp_distribution_form.xlsx` | Distribute inputs (ACRP-2026) | **Draft for review.** Built from `acrp_distribution.json` by `build_package_form.py`: cuttings, trellising, drip irrigation; each item "given?" then amount. |
 | `field_visit.xlsx` | Plant and follow up | **Draft for review.** Accepted "planted at the trained spacing" records planting; otherwise the follow-up goes on the farmer's record. |
@@ -18,8 +18,36 @@ Conventions:
   household-head initials. No names on devices.**
 - Labels in English, Dari and Pashto. **The Dari and Pashto labels are drafts; have a native
   speaker review them before field use.**
+- **Nothing is typed that the phone already knows.** Every form captures the phone's GPS when it is
+  opened (`start_geopoint`, the XLSForm `start-geopoint` metadata question: nothing to tap, and
+  KoboCollect shows a one-line notice that the form records location). On the distribution and
+  training forms the GPS question appears only when the phone found no place by itself. On the
+  readiness and farm visit forms the plot's GPS stays a question: standing at the plot is the point.
+  Dates default to today. There is no typed "distribution point": nothing read it.
+- **A photo is tagged by the question it is taken on.** `list_photo` is the signed goods received
+  note, `handover_photo` the handover, `photo` the plot or the signed register. The app shows the
+  signed note to whoever checks and approves the distribution, with the day, time and place the
+  photo itself holds (when the phone kept them: `max-pixels` resizing on older KoboCollect versions
+  drops them, which is why the form's own GPS point is the one relied on).
 - Each submission is stored once, keyed on Kobo's `_uuid`, and waits in the project's review
   queue (Check › Results and proof). Nothing changes in Field activities until the MEL owner accepts it.
+
+## The app makes each project's forms
+
+A project does not need these scripts. In Setup, on the step "Which forms belong to this project?",
+the buttons **Readiness check form**, **Training attendance form** and **Farm visit form** download
+each form for the project, ready to upload in KoboToolbox (`src/lib/field-forms.ts`). The
+distribution form is downloaded in Field activities, under Input package
+(`src/lib/distribution-form.ts`). The made forms use the same question names as the files here and
+are English only. They differ in three ways:
+
+- The farm visit form asks for the number planted or for the area planted, never both, by the crop
+  plan saved in Set up. Change the crop plan and the form must be downloaded and uploaded again.
+- A date in the future, a planting date after the visit and an area above the farmer's plot are
+  refused on the phone.
+- The readiness form requires the photo of the plot.
+
+The files in this folder stay as the three-language drafts for a native speaker to review.
 
 ## Setting up the distribution form
 
@@ -54,9 +82,14 @@ Set them up like the readiness check below, and in Setup mark them **Training at
 **Farm visit**. **Push farmer list to Kobo** updates `farmers.csv` on them too.
 
 Each submission waits on Check › Results and proof, under Field forms to check, and is counted on Home. When MEL accepts it:
-- Training, attended: the Train checks are ticked and the farmer moves to Prepare the plot, but only
-  if already enrolled with the contribution paid; otherwise they stay at Train with the attendance
-  recorded. Not attended: noted on the record only.
+- Training: one record per session. For each farmer ticked, the Train checks are ticked and the
+  farmer moves to Prepare the plot, but only if already enrolled with the contribution paid;
+  otherwise they stay at Train with the attendance recorded. The message after accepting says how
+  many moved, who stays and why. A farmer who is not ticked did not attend. To count farmers trained
+  toward a target, link the question `farmers` in Setup and count "Different answers": each farmer
+  counts once, however many sessions they attend. Records from the earlier form (one per farmer,
+  with "attended" yes or no) still read, accept and count, and a link already made on that form's
+  `farmer` question counts the new session records too.
 - Farm visit at Plant: planted at the trained spacing records planting (the date planted, and the area
   planted, or for a crop counted one by one the number planted, which the app turns into hectares from
   the spacing) and completes the season path. When the project's target counts at planting, the

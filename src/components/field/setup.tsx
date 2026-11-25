@@ -7,6 +7,7 @@ import { primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { FARMER_TEMPLATE, parseFarmers, type FarmerRow } from "@/lib/farmer-import";
 import { canEditProject, canSeePII } from "@/lib/demo";
 import { describePackage, keyFrom, setupProblem, type FieldSetup, type PackageItem } from "@/lib/package";
+import { FORM_STEPS } from "@/lib/distribution-form";
 import { peopleList } from "@/lib/people-words";
 
 /**
@@ -44,6 +45,9 @@ export function PackageSetup({ code, onSaved, onCancel }: { code: string; onSave
   const [targetAt, setTargetAt] = useState<"distribution" | "planting">("distribution");
   const [targets, setTargets] = useState<{ code: string; name: string; unit: string }[]>([]);
   const [fromDraft, setFromDraft] = useState(false);
+  // A package is saved: its KoboCollect form can be made from it.
+  const [hasSaved, setHasSaved] = useState(false);
+  const [formState, setFormState] = useState<{ busy: boolean; error: string; done: boolean }>({ busy: false, error: "", done: false });
   // A draft copied from another project says which one (lib/project-template).
   const [copiedFrom, setCopiedFrom] = useState("");
   // Projects this one can be started from, offered only while it has no package at all.
@@ -58,6 +62,7 @@ export function PackageSetup({ code, onSaved, onCancel }: { code: string; onSave
     if (!user) return;
     api<{ setup: FieldSetup | null; draft: (FieldSetup & { from?: string }) | null; lines: Line[]; targets?: { code: string; name: string; unit: string }[]; canEdit: boolean; crop?: string | null }>(`/api/projects/${encodeURIComponent(code)}/field/setup`, user.id)
       .then((r) => {
+        setHasSaved(!!r.setup?.items?.length);
         setLines(r.lines);
         setCanEdit(r.canEdit);
         setTargets(r.targets ?? []);
@@ -332,6 +337,47 @@ export function PackageSetup({ code, onSaved, onCancel }: { code: string; onSave
               </button>
             )}
           </div>
+        </div>
+      )}
+      {/* The package is entered once: the form the storekeeper fills in on a phone is made from it. */}
+      {hasSaved && (
+        <div className="rounded-xl border border-line bg-surface px-4 py-4">
+          <h3 className="font-semibold">The form for the phone</h3>
+          <p className="mt-1 text-sm text-muted">
+            The KoboCollect distribution form for this project, made from the package saved above: one question per item, the farmer&apos;s planned amount shown, the signed note&apos;s photo required. The place is taken from the phone and nothing is
+            typed unless an amount differed.
+          </p>
+          <button
+            type="button"
+            className={`${quietBtn} mt-3`}
+            disabled={formState.busy}
+            onClick={() => {
+              setFormState({ busy: true, error: "", done: false });
+              void fetch(`/api/projects/${encodeURIComponent(code)}/field/form`, { headers: { "x-demo-user": user?.id ?? "" } })
+                .then(async (res) => {
+                  if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? plainError(res.status));
+                  const a = document.createElement("a");
+                  a.href = URL.createObjectURL(await res.blob());
+                  a.download = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "")?.[1] ?? `${code}-input-distribution-form.xlsx`;
+                  a.click();
+                  URL.revokeObjectURL(a.href);
+                  setFormState({ busy: false, error: "", done: true });
+                })
+                .catch((e: unknown) => setFormState({ busy: false, error: e instanceof Error ? e.message : String(e), done: false }));
+            }}
+          >
+            {formState.busy ? "Making the form…" : "Download the distribution form"}
+          </button>
+          {formState.error && (
+            <p role="alert" className="mt-2 text-sm text-clay">
+              {formState.error}
+            </p>
+          )}
+          <ol className="mt-3 list-decimal space-y-1 ps-5 text-sm">
+            {FORM_STEPS.map((step) => (
+              <li key={step}>{step}</li>
+            ))}
+          </ol>
         </div>
       )}
     </div>

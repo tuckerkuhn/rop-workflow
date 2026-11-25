@@ -2,7 +2,8 @@
 
 import { useProcurements } from "@/components/app/use-project-data";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useShownAgain } from "@/components/app/use-shown-again";
 import { useCloseouts, useFieldData, usePlan, useSubmissions, useWorkItems } from "@/components/app/use-project-data";
 import { PROJECT_KEY } from "@/lib/project";
 import { workFor } from "@/components/tasks/work";
@@ -20,7 +21,7 @@ const STATUS_WORD: Record<string, string> = { not_started: "Not started", in_pro
  * expenses, HR record changes to sign, onboarding and leaving steps, and a broken HR record.
  * The person's own timesheet, leave and expenses are on Home, not here.
  */
-function useHrWork(user: AppUser): Row[] {
+function useHrWork(user: AppUser, shownAgain: number): Row[] {
   const [rows, setRows] = useState<Row[]>([]);
   useEffect(() => {
     if (user.kind !== "employee") return setRows([]);
@@ -48,7 +49,7 @@ function useHrWork(user: AppUser): Row[] {
     return () => {
       live = false;
     };
-  }, [user.id, user.kind]);
+  }, [user.id, user.kind, shownAgain]);
   return rows;
 }
 
@@ -56,22 +57,33 @@ function useHrWork(user: AppUser): Row[] {
  * A database project's own work for this person, from the same view as Home: what needs them,
  * the activities they own this quarter, and (for leads) the activities nobody owns yet.
  */
-function useProjectWork(user: AppUser, project: ProjectInfo): { rows: Row[]; failed: boolean } {
+function useProjectWork(user: AppUser, project: ProjectInfo, shownAgain: number): { rows: Row[]; failed: boolean } {
   const [home, setHome] = useState<HomeView | null>(null);
   // A failed load is not the same as nothing to do: the page says which.
   const [failed, setFailed] = useState(false);
+  // Whose rows are showing, once a read for them has answered.
+  const shown = useRef("");
   useEffect(() => {
-    setFailed(false);
+    // Read again when a page left open is looked at again: the rows shown stay until the new ones
+    // arrive, and a read that fails then (no connection yet) leaves them as they are.
+    const key = `${project.id}|${user.id}`;
+    const again = shown.current === key;
+    if (!again) setFailed(false);
     if (!project.saved || user.kind !== "employee") return setHome(null);
     let live = true;
     fetch(`/api/projects/${project.id}/home`, { cache: "no-store", headers: { "x-demo-user": user.id } })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-      .then((d) => live && setHome(d))
-      .catch(() => live && setFailed(true));
+      .then((d) => {
+        if (!live) return;
+        shown.current = key;
+        setHome(d);
+        setFailed(false);
+      })
+      .catch(() => live && !again && setFailed(true));
     return () => {
       live = false;
     };
-  }, [project.saved, project.id, user.id, user.kind]);
+  }, [project.saved, project.id, user.id, user.kind, shownAgain]);
   const rows = useMemo(() => {
     if (!home) return [];
     const today = new Date().toISOString().slice(0, 10);
@@ -100,8 +112,10 @@ export function useTaskRows(user: AppUser, project: ProjectInfo) {
   const plan = usePlan(project.saved ? project.id : null);
   const closeouts = useCloseouts(project.saved && procRolesFor(user).includes("finance") ? project.id : null);
   const [local] = usePersistentState<ProjectState>(PROJECT_KEY, seedProject);
-  const { rows: projectWork, failed: projectWorkFailed } = useProjectWork(user, project);
-  const hrWork = useHrWork(user);
+  // A list left open on a phone is read again when the person comes back to it.
+  const shownAgain = useShownAgain();
+  const { rows: projectWork, failed: projectWorkFailed } = useProjectWork(user, project, shownAgain);
+  const hrWork = useHrWork(user, shownAgain);
 
   const rows = useMemo<Row[]>(() => {
     const stored: Row[] = work.items

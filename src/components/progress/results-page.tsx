@@ -1,6 +1,7 @@
 "use client";
 
 import { AnyLinkCaution } from "@/components/app/any-link-caution";
+import { longDate } from "@/lib/weekly";
 import { storeNames } from "@/lib/file-store";
 import { Why } from "@/components/app/why";
 import { unitOf } from "@/lib/package";
@@ -58,7 +59,7 @@ export function ResultsPage() {
   const { user } = useRequireUser();
   const { ready } = useSession();
   const { project } = useCurrentProject();
-  const { t } = useT();
+  const { t, tx } = useT();
   const params = useSearchParams();
   const [v, setV] = useState<ResultsView | null>(null);
   const [error, setError] = useState("");
@@ -69,6 +70,7 @@ export function ResultsPage() {
   const [reviewing, setReviewing] = useState<string[] | null>(null);
   const [open, setOpen] = useState<string | null>(params.get("indicator"));
   const quarter = params.get("q");
+
   // From "+ New → Record a result": once loaded, put the person on the indicator picker.
   const recordAsked = params.get("record") === "1";
   // A result filled in from another record (a closed-out grant, a distribution list: lib/connections.ts), for the person to check and send.
@@ -134,10 +136,12 @@ export function ResultsPage() {
   };
   // Solo mode adds MEL's own results, accepted one at a time with the statement (server/solo.ts).
   const waiting = v?.results.filter((r) => r.canReview || r.canSelfAccept) ?? [];
+  // This person's own results that MEL sent back with a question.
+  const sentBack = v?.results.filter((r) => r.status === "queried" && r.by === v.me) ?? [];
   const iso = /^\d{4}-\d{2}-\d{2}$/;
   const [pf, pt] = [params.get("from") ?? "", params.get("to") ?? ""];
   const range = quarter && /^\d{4}-Q[1-4]$/.test(quarter) ? quarterRange(quarter) : iso.test(pf) && iso.test(pt) ? { from: pf, to: pt } : null;
-  const rangeLabel = quarter ?? (range ? `${range.from} to ${range.to}` : "");
+  const rangeLabel = quarter ?? (range ? `${longDate(range.from)} to ${longDate(range.to)}` : "");
 
   return (
     <div className="min-h-screen">
@@ -159,6 +163,32 @@ export function ResultsPage() {
         {v && !v.indicators.length && <Empty className="mt-6">{t("pw.noTargets")}</Empty>}
 
         {v && reviewing && <ReviewQueue ids={reviewing} v={v} act={act} onClose={() => setReviewing(null)} />}
+
+        {/* Results MEL sent back to this person: said first, with one button to each target that holds one. */}
+        {v && !range && !reviewing && sentBack.length > 0 && (
+          <div className="mt-6 bg-clay-soft px-4 py-3 text-sm text-clay">
+            <p className="font-semibold">
+              {sentBack.length === 1 ? tx("MEL sent 1 of your results back with a question. It does not count until you answer.") : `MEL sent ${sentBack.length} of your results back with a question. They do not count until you answer.`}
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {v.indicators
+                .filter((i) => sentBack.some((r) => r.indicator === i.code))
+                .map((i) => (
+                  <button
+                    key={i.code}
+                    type="button"
+                    className={quietBtn}
+                    onClick={() => {
+                      setOpen(i.code);
+                      setTimeout(() => document.querySelector(`#ind-${i.code} [data-sent-back]`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 80);
+                    }}
+                  >
+                    Open {i.donorCode ?? i.code} {i.name}
+                  </button>
+                ))}
+            </div>
+          </div>
+        )}
 
         {/* One place for everything waiting to be checked: typed-in results, then KoboCollect field forms. */}
         {project.saved && !range && !reviewing && (fieldForms.show || waiting.length > 0) && (
@@ -189,7 +219,7 @@ export function ResultsPage() {
         {range && (
           <p className="mt-6 flex flex-wrap items-center gap-x-3 bg-sunken px-4 py-1 text-sm">
             <span>
-              Showing <span className="font-mono">{quarter ? `${quarter} (${range.from} to ${range.to})` : rangeLabel}</span> only.
+              Showing <span className="font-mono">{quarter ? `${quarter} (${longDate(range.from)} to ${longDate(range.to)})` : rangeLabel}</span> only.
             </span>
             <Link href={`/progress/results${open ? `?indicator=${open}` : ""}`} className="inline-flex min-h-11 items-center font-semibold text-forest hover:underline">
               Show all
@@ -235,7 +265,7 @@ export function ResultsPage() {
                           ) : (
                             <span className="font-mono text-xl font-bold tabular-nums">{num(range ? shown.value : all.value)}</span>
                           )}
-                          <span className="block text-xs text-muted">{range ? `in ${rangeLabel}` : `of ${num(i.target)} ${i.unit}`}</span>
+                          <span className="block text-xs text-muted">{range ? `${quarter ? "in" : "from"} ${rangeLabel}` : `of ${num(i.target)} ${i.unit}`}</span>
                         </span>
                       </button>
                       <p className="flex flex-wrap gap-x-3 px-3 pb-2.5 ps-[5.5rem] text-xs text-muted">
@@ -267,7 +297,7 @@ export function ResultsPage() {
                               </button>
                             )
                           )}
-                          {!mine.length && <Empty className="mt-3">Nothing recorded{range ? ` in ${rangeLabel}` : ""} yet.</Empty>}
+                          {!mine.length && <Empty className="mt-3">Nothing recorded{range ? ` ${quarter ? "in" : "from"} ${rangeLabel}` : ""} yet.</Empty>}
                           {mine.length > 0 && <ResultRows list={mine} v={v} ind={i} act={act} label={`${i.donorCode ?? i.code}: ${i.name}`} />}
                         </div>
                       )}
@@ -675,7 +705,7 @@ function CorrectForm({ r, act, onClose }: { r: Res; act: (a: ResultAction, msg: 
 
 function ResultCard({ r, ind, act, mayAddProof, me, first }: { r: Res; ind?: Ind; act: (a: ResultAction, msg: string) => Promise<void>; mayAddProof: boolean; me: string; first?: boolean }) {
   const { project } = useCurrentProject();
-  const { t } = useT();
+  const { t, tx } = useT();
   const [selfing, setSelfing] = useState(false);
   const { user } = useSession();
   const [query, setQuery] = useState<string | null>(null);
@@ -694,9 +724,11 @@ function ResultCard({ r, ind, act, mayAddProof, me, first }: { r: Res; ind?: Ind
     }
   };
   const place = [r.district, r.province].filter(Boolean).join(", ");
+  // The latest question and answer, when the result has been corrected.
+  const lastAnswer = (r.history ?? []).at(-1);
   return (
     <LedgerRow cols="minmax(0,1fr)" first={first}>
-      <article className="min-w-0">
+      <article className="min-w-0" {...(r.status === "queried" ? { "data-sent-back": "" } : {})}>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
           <StatusBlock tone={STATUS[r.status].tone}>{STATUS[r.status].text}</StatusBlock>
           <span>
@@ -792,6 +824,20 @@ function ResultCard({ r, ind, act, mayAddProof, me, first }: { r: Res; ind?: Ind
           </button>
         )}
         {correcting && <CorrectForm r={r} act={act} onClose={() => setCorrecting(false)} />}
+        {/* Back from its recorder: MEL reads the question and the answer without opening anything. */}
+        {r.status === "pending" && lastAnswer && (
+          <p className="mt-1 bg-mist px-3 py-2 text-sm">
+            MEL asked: {lastAnswer.query ?? "—"}
+            <br />
+            Answer: {lastAnswer.reply}
+            <br />
+            <span className="text-xs text-muted">
+              {String(lastAnswer.previous.value) !== String(r.value) || String(lastAnswer.previous.date) !== r.date
+                ? `It was ${String(lastAnswer.previous.value)} on ${longDate(String(lastAnswer.previous.date))}. It is now ${num(r.value)} on ${longDate(r.date)}.`
+                : tx("The figure and the date were not changed.")}
+            </span>
+          </p>
+        )}
         {(r.history ?? []).length > 0 && (
           <details className="mt-2 text-xs text-muted">
             <summary className="flex min-h-11 cursor-pointer items-center">

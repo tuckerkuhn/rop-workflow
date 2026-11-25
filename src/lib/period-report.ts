@@ -1,5 +1,5 @@
 import { yearShare, type IndicatorInfo } from "@/lib/qpr";
-import { type ResultRecord } from "@/lib/results";
+import { quarterRange, type ResultRecord } from "@/lib/results";
 import { measured } from "@/lib/measure";
 
 /**
@@ -46,6 +46,22 @@ export type PeriodRow = {
 export const periodLabel = (p: Period) => (p.kind === "annual" ? `Annual report ${p.year}` : "Final report");
 export const periodRange = (p: Period, start: string | null, end: string | null) =>
   p.kind === "annual" ? { from: `${p.year}-01-01`, to: `${p.year}-12-31` } : { from: start ?? "2000-01-01", to: end ?? new Date().toISOString().slice(0, 10) };
+
+/**
+ * The quarters of a year whose quarterly report must be released before the annual report is:
+ * those that have ended and fall within the project's own dates. A quarter that ended before the
+ * project began, or began after it ended, has no quarterly report and holds nothing back. A
+ * project with no dates recorded is held to every quarter of the year that has ended.
+ */
+export function quartersDue(year: number, start: string | null, end: string | null, today: string): string[] {
+  return [1, 2, 3, 4].map((k) => `${year}-Q${k}`).filter((q) => quarterRange(q).to < today && ranIn(q, start, end));
+}
+
+/** Whether the project ran in a quarter: the quarter overlaps its dates. The one rule for every list of quarters. */
+export function ranIn(quarter: string, start: string | null, end: string | null): boolean {
+  const r = quarterRange(quarter);
+  return (!start || r.to >= start.slice(0, 10)) && (!end || r.from <= end.slice(0, 10));
+}
 
 export function buildPeriodRows(indicators: PeriodIndicator[], results: ResultRecord[], p: Period, start: string | null, end: string | null): PeriodRow[] {
   const { from, to } = periodRange(p, start, end);

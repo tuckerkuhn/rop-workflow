@@ -96,6 +96,18 @@ describe("buildRows: the indicator table", () => {
     expect(r.comment).toBe("Delayed: rain.");
     expect(r.edited).toBe(true);
   });
+  it("calls work due this quarter late only once the quarter has ended", () => {
+    const plan = { "1.1.1.3": ["2026-10-01"] };
+    const q4 = [result({ date: "2026-11-10", value: 11, female: 4, male: 7, province: "Kandahar" })];
+    const [after] = buildRows([ind({ workplanCode: "1.1.1.3" })], q4, "2026-Q4", emptyQpr("Sandbox"), plan);
+    expect(after.suggested).toBe("delayed");
+    const [during] = buildRows([ind({ workplanCode: "1.1.1.3" })], q4, "2026-Q4", emptyQpr("Sandbox"), plan, undefined, [], false);
+    expect(during.suggested).toBe("on_track");
+    expect(during.comment.startsWith("On track:")).toBe(true);
+    // Nothing recorded yet in the quarter the work is due: not started while it runs, late after.
+    expect(buildRows([ind({ workplanCode: "1.1.1.3" })], [], "2026-Q4", emptyQpr("Sandbox"), plan, undefined, [], false)[0].suggested).toBe("not_started");
+    expect(buildRows([ind({ workplanCode: "1.1.1.3" })], [], "2026-Q4", emptyQpr("Sandbox"), plan)[0].suggested).toBe("not_implemented");
+  });
   it("reads the planned quarters of this year from the workplan", () => {
     const [r] = buildRows([ind({ workplanCode: "1.1.1.3" })], results, Q, emptyQpr("Sandbox"), { "1.1.1.3": ["2026-07-01", "2026-10-01", "2027-01-01"] });
     expect(r.planned).toEqual([3, 4]);

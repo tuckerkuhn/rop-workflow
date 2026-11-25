@@ -15,7 +15,7 @@ import { projectByCode } from "@/server/field-store";
 import { addProof, addResult, addResults, addUpdate, correctResult, editUpdate, koboMismatches, loadResults, loadUpdates, removeUpdate, reopenResult, reviewResult, updateById } from "@/server/results-store";
 import { activityOf } from "@/lib/qpr";
 import { loadQpr } from "@/server/qpr-store";
-import { sentWeekFor } from "@/lib/weekly";
+import { periodLabel, sentWeekFor } from "@/lib/weekly";
 import { loadWeekly } from "@/server/weekly-store";
 import { toEnglish } from "@/server/translate";
 import { dataChecks } from "@/lib/data-checks";
@@ -107,7 +107,7 @@ export async function POST(req: Request, { params }: Ctx) {
       if (!(mayRecord(u) || isMelOwner(u))) return NextResponse.json({ error: "Only field staff and MEL can add activity updates." }, { status: 403 });
       if (a.update.date > new Date().toISOString().slice(0, 10)) return NextResponse.json({ error: "The date is in the future." }, { status: 400 });
       const sent = sentWeekFor(await loadWeekly(code), a.update.date);
-      if (sent) return NextResponse.json({ error: `Weekly update #${sent.n} (${sent.from} to ${sent.to}) has been sent: date this in a week that is still open.` }, { status: 409 });
+      if (sent) return NextResponse.json({ error: `Weekly update #${sent.n} (${periodLabel(sent.from, sent.to)}) has been sent: date this in a week that is still open.` }, { status: 409 });
       await addUpdate(code, await inEnglish(a.update, u.id, 4000), u.id);
       return NextResponse.json(await view(code, u));
     }

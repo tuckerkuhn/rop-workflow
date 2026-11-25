@@ -1,4 +1,4 @@
-import { ROLE_FOR } from "@/lib/evidence";
+import { ROLE_FOR, onFileKinds } from "@/lib/evidence";
 import { donorPhotoRule } from "@/server/photo-consent";
 import { randomBytes } from "node:crypto";
 import { db, schema as s } from "@/db";
@@ -15,7 +15,8 @@ import { loadResults } from "@/server/results-store";
  * Read-only links for the donor: a quarter's report as frozen (the release, or the latest practice
  * copy), where each figure opens the records behind it. What a link shows is what the report already
  * gives the donor, plus the records' dates, places (province and district) and captioned photos.
- * Result notes and other documents (attendance sheets carry full names) are never opened from it.
+ * Result notes and other documents (attendance sheets carry full names) are never opened from it,
+ * and a document is counted by its kind, never called by its name: a file name can hold a person's name.
  * Links expire, can be withdrawn, and every view is recorded.
  */
 
@@ -122,7 +123,8 @@ export async function donorSafeReport(code: string, projectId: string, quarter: 
           // To a donor, people appear by role (lib/evidence); the audit pack and the audit log keep the names.
           accepted: x.reviewedAt ? { by: ROLE_FOR.accepted, on: x.reviewedAt.slice(0, 10) } : null,
           photos: x.files.filter((f) => f.type.startsWith("image/") && x.captions?.[f.hash] && photoOk(f.hash).ok).map((f) => ({ hash: f.hash, caption: x.captions![f.hash] })),
-          documents: [...x.files.filter((f) => !(f.type.startsWith("image/") && x.captions?.[f.hash])).map((f) => f.name), ...(x.links ?? []).map((l) => l.title)],
+          // How many documents are kept and of what kind. Their names are typed by staff and can name a participant: they stay here.
+          documents: onFileKinds(x.files.filter((f) => !(f.type.startsWith("image/") && x.captions?.[f.hash])), (x.links ?? []).length),
         })),
     })),
     sections,
