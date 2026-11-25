@@ -108,6 +108,19 @@ export function sessionFarmers(p: Record<string, unknown>): string[] | null {
 }
 
 /**
+ * Farmers ticked on a session record whom Farmer selection held when the record was accepted
+ * (decision P, 25 Nov 2026): everyone else on the record was recorded and these stay open on it,
+ * to be recorded once selected or left out. They are kept beside the tick list, not in it, so
+ * nothing counts them. `_rop_ticked` keeps the tick list as the phone sent it.
+ */
+export const HELD_KEY = "_rop_held";
+export const TICKED_KEY = "_rop_ticked";
+export const LEFT_OUT_KEY = "_rop_left_out";
+export function heldFarmers(p: Record<string, unknown>): string[] {
+  return typeof p[HELD_KEY] === "string" ? [...new Set((p[HELD_KEY] as string).split(/\s+/).filter(Boolean))] : [];
+}
+
+/**
  * A linked question that names farmers on a training form: the tick list of a session record
  * (`farmers`) or the one farmer of a record from the earlier form (`farmer`). Gives where each of
  * the two answers sits, so a link made on either question counts records of both shapes: counted

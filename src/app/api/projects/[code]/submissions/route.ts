@@ -6,6 +6,8 @@ import { roster } from "@/server/field-store";
 import { handle } from "@/server/guard";
 import { koboApprovalFor } from "@/server/kobo-approval";
 import { listSubmissions } from "@/server/kobo";
+import { selectionHold } from "@/lib/selection";
+import { selectionOutcomes } from "@/server/selection-store";
 
 /**
  * The review queue: field forms (KoboCollect and sample records) with the farmer roster for the data
@@ -25,7 +27,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
       return { fromKobo, collector: fromKobo ? collectorOf(s.enumerator, rule, team) : s.enumerator };
     };
     // `maySendBack`: the technical lead may send a field form back with a note, without accepting it.
-    const annotated = submissions.map((s) => {
+    // Farmers left open on an accepted session record: what holds each one today (nothing, once they are selected).
+    const outcomes = submissions.some((s) => s.held?.length) ? await selectionOutcomes(project.id) : null;
+    const withHeld = (s: Submission): Submission => (s.held?.length ? { ...s, held: s.held.map((h) => ({ id: h.id, ...(selectionHold(outcomes, h.id) ? { why: selectionHold(outcomes, h.id)! } : {}) })) } : s);
+    const annotated = submissions.map(withHeld).map((s) => {
       const mayDecide = !refusalFor(v.user, team, rec(s), rule);
       // The person, not the account: a KoboCollect account matched to someone on the team is shown by their name.
       const who = team.find((p) => p.id === rec(s).collector)?.name;

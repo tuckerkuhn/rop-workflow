@@ -5,7 +5,7 @@ import { db, schema as s } from "@/db";
 import type { Submission, SubmissionForm } from "@/lib/project";
 import { farmerListRows, projectByCode, setupFor } from "@/server/field-store";
 import { readinessForms } from "@/server/kobo-link";
-import { sessionFarmers } from "@/lib/kobo-setup";
+import { heldFarmers, sessionFarmers } from "@/lib/kobo-setup";
 
 /**
  * Readiness checks from KoboToolbox: the farmer list pushed to the project's readiness form as
@@ -152,6 +152,7 @@ export function toSubmission(row: EvidenceRow): Submission {
     form: (row.form as SubmissionForm) ?? "readiness",
     farmerId: ticked ? "" : (row.farmerCode ?? str(p.farmer)),
     ...(ticked ? { farmers: ticked } : {}),
+    ...(ticked && heldFarmers(p).length ? { held: heldFarmers(p).map((id) => ({ id })) } : {}),
     date: str(p.visit_date) || str(p.training_date) || (row.completedAt ? row.completedAt.toISOString().slice(0, 10) : ""),
     enumerator: row.completedBy ?? "kobo",
     gps: gpsOf(p),

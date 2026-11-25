@@ -142,6 +142,12 @@ export type Submission = {
    * as attending. Absent on a record about one farmer.
    */
   farmers?: string[];
+  /**
+   * Farmers ticked on an accepted session record who are held in Farmer selection and not recorded
+   * yet (lib/kobo-setup heldFarmers). `why`: what holds each one today, from the server; absent
+   * once the farmer is selected and can be recorded.
+   */
+  held?: { id: string; why?: string }[];
   date: string;
   enumerator: string;
   /** Missing when the form was submitted without a GPS point. */
