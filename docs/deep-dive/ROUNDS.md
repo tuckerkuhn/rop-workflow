@@ -301,3 +301,4 @@ found and left, tests passing.
   have checked this record". nadia approved. The farmer moved to planting.
   `10-field-ledger.md` updated: the farm visit form asks one of two questions, the readiness photo
   is required, and finding 5 is closed.
+- **Round 3. 25 Nov 02:16. IN PROGRESS.** Queue, big item 1 (the place on weekly update photos).
