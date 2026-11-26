@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { OPEN_ASSISTANT, Sparkle } from "@/components/app/assistant-button";
 import { useT } from "@/components/app/i18n";
 import { useRowWords } from "@/components/home/waiting";
 import { BUCKETS, waitingCount, type WaitingRow } from "@/lib/home-buckets";
@@ -56,20 +55,6 @@ export function ViewSwitch({ view, onView }: { view: HomeViewKind; onView: (v: H
       {option("bands", tx("Summary"))}
       {option("ledger", tx("List"))}
     </div>
-  );
-}
-
-/** Opens the AI assistant, which answers from this person's own work and project data. */
-function AskAssistant() {
-  const { t, tx } = useT();
-  return (
-    <button type="button" onClick={() => window.dispatchEvent(new Event(OPEN_ASSISTANT))} className={`flex min-h-16 w-full items-center justify-between gap-4 bg-sunken px-5 text-start text-lg font-bold text-ink hover:bg-ochre-soft active:bg-ochre-soft ${focus}`}>
-      <span>
-        {t("assistant.name")}
-        <span className="block text-sm font-medium text-muted">{tx("Ask what to do next")}</span>
-      </span>
-      <Sparkle className="h-7 w-7 shrink-0 text-forest" />
-    </button>
   );
 }
 
@@ -219,7 +204,6 @@ function Bands({ rows, next }: { rows: Rows; next: Next }) {
           </Link>
         );
       })}
-      <AskAssistant />
       {total > 1 && (
         <button
           type="button"
