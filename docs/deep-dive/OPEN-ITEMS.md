@@ -72,6 +72,13 @@ photo could ever reach a donor. Photos can now be checked by hand in the photo l
   real use, or its "spent" shows only what was posted in the app.
 - **The external data protection review document** holds open decisions; it is not in the repo.
 
+## Before the 10 Jan demo: database connections (decided 27 Nov, option 3)
+
+"Draft with AI" and other reads failed with "max clients reached in session mode, pool_size 15":
+everything shares 15 connections. Done now: the local dev server stopped, the live site holds 1
+connection per instance (was 2). Revisit before the demo: try Supabase's transaction pooler again on
+a preview under load (it lost replies on 24 Nov), or raise the pool size in Supabase.
+
 ## 4. Unsure, to look at
 
 - Four tests tied to today's date may fail when the clock reaches 10 Jan.
