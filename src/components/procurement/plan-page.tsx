@@ -385,8 +385,10 @@ function Detail({
   const lead = userById(item.techLead ?? "");
   const manager = procurementManager(users);
   // Only the procurement manager approves for procurement; an administrator may sign for them.
-  const asManager = isProcurementManager(user, users) || !!user.admin;
-  const asLead = user.id === item.techLead || !!user.admin;
+  // Nobody approves what they asked for, in either seat (lib/procurement-plan OWN_REQUEST).
+  const mine = item.unplanned?.by === user.id;
+  const asManager = !mine && (isProcurementManager(user, users) || !!user.admin);
+  const asLead = !mine && (user.id === item.techLead || !!user.admin);
   const canChange = (isManager(user) || user.id === item.techLead || !!user.admin) && item.status !== "approved" && item.status !== "started";
   const leads = users.filter((u) => u.leads?.length || u.procurement.includes("holder"));
   const method = METHOD[item.level];
@@ -596,9 +598,9 @@ function Detail({
           </Row>
         </dl>
         {item.status === "approved" && <p className="mt-2 text-sm text-forest">On the Tasks calendar for {lead?.name ?? "the technical lead"} to start on {date(item.startBy)}.</p>}
-        {item.status === "approved" && (user.id === item.techLead || !!user.admin) && (
+        {item.status === "approved" && (user.id === item.techLead || mine || !!user.admin) && (
           <Link href={`/work?source=procurement&new=1&plan=${item.key}`} className={`${primaryBtn} mt-3 inline-block`}>
-            {user.id === item.techLead ? "Start the procurement request" : `Start the request for ${lead?.name ?? "the lead"}`}
+            {user.id === item.techLead || mine ? "Start the procurement request" : `Start the request for ${lead?.name ?? "the lead"}`}
           </Link>
         )}
         {item.status === "started" && item.procurementKey && (
@@ -676,7 +678,12 @@ function Detail({
           )}
         </div>
       )}
-      {user.admin && !isProcurementManager(user, users) && user.id !== item.techLead && item.status !== "approved" && (
+      {mine && item.status !== "approved" && item.status !== "started" && (
+        <p className="mt-2 text-xs text-muted">
+          You asked for this, so someone else approves it: {manager?.name ?? "the procurement manager"} for procurement and {lead && lead.id !== user.id ? lead.name : "a technical lead still to be chosen"} as technical lead.
+        </p>
+      )}
+      {user.admin && !mine && !isProcurementManager(user, users) && user.id !== item.techLead && item.status !== "approved" && (
         <p className="mt-2 text-xs text-muted">You are an admin, so you can approve for others while the app is in draft. It is recorded as you signing for them.</p>
       )}
     </article>

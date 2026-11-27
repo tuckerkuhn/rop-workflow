@@ -117,6 +117,20 @@ export function leadFor(line: Pick<BudgetLine, "activityCode" | "kind">, people:
   return best?.id ?? null;
 }
 
+/**
+ * Who approves a purchase as technical lead when the line's own lead is the person asking for it
+ * (review round 1, ISS-03): nobody approves what they proposed. In order: another lead of the
+ * same line, then the requester's line manager. Null when there is neither: the procurement
+ * manager or an administrator then names someone.
+ */
+export function leadOtherThan(line: Pick<BudgetLine, "activityCode" | "kind">, people: AppUser[], requester: AppUser): string | null {
+  const others = people.filter((p) => p.id !== requester.id);
+  const boss = others.find((p) => p.id === requester.reportsTo && p.kind === "employee");
+  return leadFor(line, others) ?? boss?.id ?? null;
+}
+/** The words for it, wherever the requester meets the rule. */
+export const OWN_REQUEST = "You asked for this purchase, so someone else approves it. Nobody approves what they asked for.";
+
 const pad = (n: number) => String(n).padStart(3, "0");
 
 /** A plan item for one budget line, or null when nothing is left to buy on it. */
@@ -283,7 +297,8 @@ export function unplannedItem(a: AskInput, o: { line: BudgetLine | undefined; cu
     leadDays,
     // Never in the past: it is asked for today.
     startBy: due < now ? now : due,
-    techLead: leadFor(line, people),
+    // The line's lead approves it, unless they are the one asking: then another lead, or their line manager.
+    techLead: leadFor(line, people) === user.id ? leadOtherThan(line, people, user) : leadFor(line, people),
     status: "draft",
     approvals: {},
     returnNote: null,
@@ -335,6 +350,8 @@ export function applyAction(item: PlanItem, a: PlanAction, u: AppUser, people: A
   switch (a.action) {
     case "approve": {
       if (item.status === "approved") return "Already approved.";
+      // In either seat, and for an administrator too: the person who asked does not approve it.
+      if (item.unplanned?.by === u.id) return OWN_REQUEST;
       if (a.as === "manager") {
         const holder = procurementManager(people);
         if (!isProcurementManager(u, people) && !u.admin) return `Only the procurement manager${holder ? ` (${holder.name})` : ""} approves for procurement.`;
@@ -351,7 +368,7 @@ export function applyAction(item: PlanItem, a: PlanAction, u: AppUser, people: A
       if (!isManager(u) && u.id !== item.techLead && !u.admin) return "Only the procurement manager or the technical lead can send it back.";
       return { ...item, status: "returned", approvals: {}, returnNote: `${a.note} (${u.name}, ${today})` };
     case "start":
-      if (u.id !== item.techLead && !u.admin) return "Only this line's technical lead starts the request.";
+      if (u.id !== item.techLead && u.id !== item.unplanned?.by && !u.admin) return "Only this line's technical lead, or the person who asked for it, starts the request.";
       if (item.status !== "approved") return "It needs both approvals before the request starts.";
       return { ...item, status: "started", procurementKey: a.procurementKey };
     case "reopen":
@@ -361,6 +378,7 @@ export function applyAction(item: PlanItem, a: PlanAction, u: AppUser, people: A
       if (!isManager(u) && u.id !== item.techLead && !u.admin) return "Only the procurement manager or the technical lead can change it.";
       if (item.status === "approved") return "Reopen it before changing it.";
       if (a.workplanCode && rows && !rows.includes(a.workplanCode)) return "That row is not in this project's workplan. Choose one from the list.";
+      if (a.techLead && a.techLead === item.unplanned?.by) return "The person who asked for a purchase cannot be the one who approves it as technical lead. Choose someone else.";
       const neededBy = a.neededBy ?? item.neededBy;
       const leadDays = a.leadDays ?? item.leadDays;
       // A change needs both approvals again.
@@ -386,6 +404,6 @@ const settle = (i: PlanItem): PlanItem => ({ ...i, status: i.approvals.manager &
 
 /** What a person still has to approve. */
 export const awaiting = (items: PlanItem[], u: AppUser) => ({
-  asManager: isProcurementManager(u) ? items.filter((i) => i.status === "draft" && !i.approvals.manager) : [],
-  asLead: items.filter((i) => i.status === "draft" && i.techLead === u.id && !i.approvals.lead),
+  asManager: isProcurementManager(u) ? items.filter((i) => i.status === "draft" && !i.approvals.manager && i.unplanned?.by !== u.id) : [],
+  asLead: items.filter((i) => i.status === "draft" && i.techLead === u.id && !i.approvals.lead && i.unplanned?.by !== u.id),
 });

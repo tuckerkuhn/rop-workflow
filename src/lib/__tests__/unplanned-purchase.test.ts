@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { users } from "@/lib/demo";
 import { demoBudget, demoWorkplan } from "@/lib/demo-design";
-import { addDays, applyAction, askSchema, buildPlan, canAsk, unplannedItem, type AskInput, type PlanItem } from "@/lib/procurement-plan";
+import { OWN_REQUEST, addDays, applyAction, askSchema, awaiting, buildPlan, canAsk, leadFor, leadOtherThan, unplannedItem, type AskInput, type PlanItem } from "@/lib/procurement-plan";
 
 /** Asking for a purchase that is not on the procurement calendar: an added path, never a shortcut past the approvals. */
 const TODAY = "2026-11-15";
@@ -53,8 +53,8 @@ describe("asking for something not on the calendar", () => {
     const item = make() as PlanItem;
     const lead = by(item.techLead!);
     expect(applyAction(item, { action: "start", procurementKey: "PR-2027-900" }, lead, users, TODAY, rows)).toBe("It needs both approvals before the request starts.");
-    // The person who asked cannot approve for procurement unless they are procurement.
-    expect(applyAction(item, { action: "approve", as: "manager" }, nadia, users, TODAY, rows)).toMatch(/Only the procurement manager/);
+    // The person who asked cannot approve it at all (review round 1, ISS-03).
+    expect(applyAction(item, { action: "approve", as: "manager" }, nadia, users, TODAY, rows)).toBe(OWN_REQUEST);
     // A procurement officer is not the procurement manager: only the manager approves for procurement.
     expect(applyAction(item, { action: "approve", as: "manager" }, zahra, users, TODAY, rows)).toMatch(/Only the procurement manager \(Hamid Wardak\)/);
     const one = applyAction(item, { action: "approve", as: "manager" }, hamid, users, TODAY, rows) as PlanItem;
@@ -63,6 +63,35 @@ describe("asking for something not on the calendar", () => {
     const two = applyAction(one, { action: "approve", as: "lead" }, lead, users, TODAY, rows) as PlanItem;
     expect(two.status).toBe("approved");
     expect(applyAction(two, { action: "start", procurementKey: "PR-2027-900" }, lead, users, TODAY, rows)).toMatchObject({ status: "started", procurementKey: "PR-2027-900", unplanned: { by: "nadia" } });
+  });
+
+  // Review round 1, ISS-03: Laila leads 5 of the 6 planned lines and approved her own requests as technical lead.
+  it("the person who asked never approves it, in either seat, and their own line goes to someone else", () => {
+    const laila = by("laila");
+    const own = budget.lines.find((l) => leadFor(l, users) === "laila")!;
+    const item = unplannedItem(ask({ budgetCode: own.code, value: 1 }), { line: own, currency: budget.currency, workplan, people: users, user: laila, today: TODAY, key: "UP-002" }) as PlanItem;
+    // Her line's approval goes to another lead of the line, or to her line manager: never to her.
+    expect(item.techLead).toBe(leadOtherThan(own, users, laila));
+    expect(item.techLead).not.toBe("laila");
+    expect(item.techLead).toBeTruthy();
+    expect(applyAction(item, { action: "approve", as: "lead" }, laila, users, TODAY, rows)).toBe(OWN_REQUEST);
+    expect(applyAction(item, { action: "approve", as: "manager" }, laila, users, TODAY, rows)).toBe(OWN_REQUEST);
+    // An administrator who asked cannot sign for others on their own request either.
+    const admin = { ...laila, admin: true };
+    expect(applyAction(item, { action: "approve", as: "lead" }, admin, users, TODAY, rows)).toBe(OWN_REQUEST);
+    // She cannot be put back as the approver, and it is not on her list of things to approve.
+    expect(applyAction(item, { action: "edit", techLead: "laila" }, hamid, users, TODAY, rows)).toMatch(/cannot be the one who approves it/);
+    expect(awaiting([{ ...item, techLead: "laila" }], laila).asLead).toHaveLength(0);
+    // The procurement manager asking for something is held to the same rule.
+    const his = unplannedItem(ask({ value: 1 }), { line, currency: budget.currency, workplan, people: users, user: hamid, today: TODAY, key: "UP-003" }) as PlanItem;
+    expect(applyAction(his, { action: "approve", as: "manager" }, hamid, users, TODAY, rows)).toBe(OWN_REQUEST);
+    expect(awaiting([his], hamid).asManager).toHaveLength(0);
+    // Once two other people approve, she starts her own request.
+    const other = by(item.techLead!);
+    const approved = applyAction(applyAction(item, { action: "approve", as: "manager" }, hamid, users, TODAY, rows) as PlanItem, { action: "approve", as: "lead" }, other, users, TODAY, rows) as PlanItem;
+    expect(approved.status).toBe("approved");
+    expect(approved.approvals.lead?.by).not.toBe("laila");
+    expect(applyAction(approved, { action: "start", procurementKey: "PR-2027-901" }, laila, users, TODAY, rows)).toMatchObject({ status: "started" });
   });
 
   it("stays on the calendar when the calendar is rebuilt from the budget, beside the line's planned item", () => {
