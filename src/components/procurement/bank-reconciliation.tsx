@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Why } from "@/components/app/why";
+import { SelfConfirmSheet, useSolo } from "@/components/app/self-confirm";
 import { useT } from "@/components/app/i18n";
 import { primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { DoubleRule, Empty, Fig, LedgerRow, LedgerTable, SectionHead } from "@/components/workspace/ledger";
@@ -24,6 +25,8 @@ type Answer = {
   bankAccounts: { id: string; name: string; currency: string }[];
   month: string;
   canReconcile: boolean;
+  /** Entries on this account this month that the viewer recorded or posted: with any, someone else completes it. */
+  ownEntries?: number;
   view: ReconciliationView | null;
   names: Record<string, string>;
   lock?: { draftsLeft: number; already: boolean };
@@ -66,6 +69,9 @@ export function BankReconciliation({ code, user }: { code: string; user: AppUser
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [balance, setBalance] = useState("");
+  // Solo mode: a small team's one finance person completes their own month, confirming it each time.
+  const solo = useSolo(code, user.id);
+  const [confirming, setConfirming] = useState(false);
 
   const base = `/api/projects/${encodeURIComponent(code)}/reconciliation`;
   const load = useCallback(
@@ -120,6 +126,7 @@ export function BankReconciliation({ code, user }: { code: string; user: AppUser
   const zero = v?.difference === "0.00";
   const may = !!data?.canReconcile;
   const open = may && !!v && !v.completed;
+  const own = data?.ownEntries ?? 0;
 
   return (
     <section id="bank" aria-labelledby="bank-title" className="mt-8 scroll-mt-24 font-ledger">
@@ -249,12 +256,31 @@ export function BankReconciliation({ code, user }: { code: string; user: AppUser
               <p className="text-base">
                 <span className="font-bold text-forest">Reconciled</span> by {name(v.completed.by)} on {date(v.completed.at.slice(0, 10))}.
               </p>
+            ) : may && own > 0 && !solo ? (
+              <p className="max-w-2xl text-sm">
+                You recorded or posted {own} {own === 1 ? "entry" : "entries"} on {v.bankAccount.name} in {monthLabel}, so someone else in Finance completes its reconciliation. The person who enters payments does not reconcile the account they were paid from. You can still import the statement and match its lines for them.
+              </p>
             ) : may ? (
               <div>
-                <button type="button" className={primaryBtn} disabled={busy || !zero || !v.monthEnded} onClick={() => void act({ action: "complete" }, () => `${v.bankAccount.name} is reconciled for ${monthLabel}.`)}>
+                <button
+                  type="button"
+                  className={primaryBtn}
+                  disabled={busy || !zero || !v.monthEnded}
+                  onClick={() => (own > 0 ? setConfirming(true) : void act({ action: "complete" }, () => `${v.bankAccount.name} is reconciled for ${monthLabel}.`))}
+                >
                   Complete the reconciliation
                 </button>
                 <p className="mt-1 text-xs text-muted">{!v.monthEnded ? `${monthLabel} has not ended yet.` : zero ? "The difference is zero." : "Completes only at a zero difference."}</p>
+                {confirming && (
+                  <SelfConfirmSheet
+                    what={`You recorded or posted ${own} ${own === 1 ? "entry" : "entries"} on ${v.bankAccount.name} in ${monthLabel}, and you are completing its reconciliation yourself.`}
+                    onCancel={() => setConfirming(false)}
+                    onConfirm={async (self) => {
+                      setConfirming(false);
+                      await act({ action: "complete", self }, () => `${v.bankAccount.name} is reconciled for ${monthLabel}.`);
+                    }}
+                  />
+                )}
               </div>
             ) : (
               <p className="text-sm text-muted">Not reconciled yet. Finance does it.</p>

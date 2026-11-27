@@ -4,7 +4,7 @@ import { isManager } from "@/lib/procurement-plan";
 import { isEmployee, requireViewer } from "@/server/auth";
 import { audit, handle } from "@/server/guard";
 import { loadBudget, loadWorkplan } from "@/server/plan-store";
-import { loadPlan, rebuildPlan } from "@/server/procurement-plan-store";
+import { committedOnLines, loadPlan, rebuildPlan } from "@/server/procurement-plan-store";
 
 type Ctx = { params: Promise<{ code: string }> };
 
@@ -15,7 +15,8 @@ export async function GET(req: Request, { params }: Ctx) {
     const v = await requireViewer(req, { allow: (u) => isEmployee(u) && u.procurementAccess !== "none" });
     if (v instanceof NextResponse) return v;
     const [items, budget, workplan] = await Promise.all([loadPlan(code), loadBudget(code), loadWorkplan(code)]);
-    return NextResponse.json({ items, budget, workplan });
+    // What purchases under way are committed to on each line, so every screen shows the same money left (lib/line-money).
+    return NextResponse.json({ items, budget, workplan, committed: await committedOnLines(code, budget.currency) });
   });
 }
 

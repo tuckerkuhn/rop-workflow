@@ -30,7 +30,25 @@ export const quarterRange = (q: string) => {
   return { from, to: end };
 };
 
-export const PROVINCES = ["Kandahar", "Helmand", "Uruzgan", "Zabul", "Kabul", "Herat", "Balkh", "Nangarhar"];
+/**
+ * The first level of place below the country: what each country calls it, and its names. The list
+ * follows the project's country (review round 1, ISS-29: a Guatemalan project was offered Afghan
+ * provinces). A country not listed here is typed in.
+ */
+export const PLACES: Record<string, { label: string; names: string[] }> = {
+  Afghanistan: {
+    label: "Province",
+    names: ["Badakhshan", "Badghis", "Baghlan", "Balkh", "Bamyan", "Daykundi", "Farah", "Faryab", "Ghazni", "Ghor", "Helmand", "Herat", "Jowzjan", "Kabul", "Kandahar", "Kapisa", "Khost", "Kunar", "Kunduz", "Laghman", "Logar", "Nangarhar", "Nimroz", "Nuristan", "Paktia", "Paktika", "Panjshir", "Parwan", "Samangan", "Sar-e Pol", "Takhar", "Uruzgan", "Wardak", "Zabul"],
+  },
+  Guatemala: {
+    label: "Department",
+    names: ["Alta Verapaz", "Baja Verapaz", "Chimaltenango", "Chiquimula", "El Progreso", "Escuintla", "Guatemala", "Huehuetenango", "Izabal", "Jalapa", "Jutiapa", "Petén", "Quetzaltenango", "Quiché", "Retalhuleu", "Sacatepéquez", "San Marcos", "Santa Rosa", "Sololá", "Suchitepéquez", "Totonicapán", "Zacapa"],
+  },
+};
+/** The places to choose from for a project's country, or null when the country has no list (the place is then typed). */
+export const placesFor = (country: string | null | undefined) => PLACES[(country ?? "").trim()] ?? null;
+/** Afghanistan's provinces: kept under its old name for the code that still asks for it. */
+export const PROVINCES = PLACES.Afghanistan.names;
 
 /**
  * Proof kept where ROP already keeps it: a link to the document in SharePoint (or another https

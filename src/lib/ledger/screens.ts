@@ -25,6 +25,13 @@ export const paymentSchema = z.object({
   paidFrom: uuid,
   date: iso,
   receipt: receiptSchema,
+  /** Why this is not one of the purchases still open on its budget line (lib/ledger/payment-guard). */
+  notAPurchase: z.string().trim().max(300).nullable().optional(),
+  /** The money was handed to someone other than the payee: who, the payee's written authorization, and when the receiver was screened. */
+  thirdParty: z
+    .object({ receivedBy: z.string().trim().min(2, "Say who received the money.").max(200), authorization: receiptSchema, screenedOn: iso })
+    .nullable()
+    .optional(),
 });
 export type PaymentForm = z.infer<typeof paymentSchema>;
 

@@ -40,6 +40,31 @@ export const suppliersOf = (line: string, procs: Procurement[]) => (line ? procs
 /** What a purchase has received, in another unit; null when the units cannot be compared. */
 const receivedIn = (p: Procurement, unit: string) => convert(receivedQty(p), p.unit, unit);
 
+/**
+ * The day a purchase's goods came into the store: when its goods received note was first signed.
+ * Null when the record does not say (an older record): it is then counted whatever the date.
+ */
+export function receivedOn(p: Procurement): string | null {
+  const signed = [...(p.payments ?? []).flatMap((r) => r.signatures?.["Goods received note"] ?? []), ...(p.signatures?.["Goods received note"] ?? [])];
+  return signed.map((x) => x.date).filter((d) => /^\d{4}-\d{2}-\d{2}/.test(d ?? "")).map((d) => d.slice(0, 10)).sort()[0] ?? null;
+}
+/** The day a hand-out happened, with what hand-outs on or before that day had already taken (in package units). */
+export type OnDay = {
+  day: string;
+  given?: Given;
+  /**
+   * Today's real date. A receipt dated after today cannot be a real one (a sample project's
+   * records run on its own calendar): it is counted whatever the hand-out's date, as before.
+   */
+  today?: string;
+  /**
+   * What other hand-outs had taken by each later hand-out day (cumulative, this one left out). A
+   * hand-out dated before others already counted must leave each of them covered too (code review
+   * of ISS-16): otherwise more goes out by a later day than had arrived by it.
+   */
+  later?: { day: string; given: Given }[];
+};
+
 export type GateLine = { key: string; item: string; unit: string; procurements: string[]; received: number; given: number; thisQty: number; ok: boolean; detail: string };
 export type Gate = { ok: boolean; lines: GateLine[]; block: string | null };
 
@@ -48,7 +73,7 @@ export type Gate = { ok: boolean; lines: GateLine[]; block: string | null };
  * was already given plus this package stays within what was received. `given` is what earlier
  * distributions of each item already took, in the package unit.
  */
-export function gate(items: DistItem[], procs: Procurement[], given: Given, setup: FieldSetup): Gate {
+export function gate(items: DistItem[], procs: Procurement[], given: Given, setup: FieldSetup, on?: OnDay): Gate {
   const lines = items.map((it): GateLine => {
     const line = lineOf(it, setup);
     const unit = unitOf(it, setup);
@@ -65,6 +90,17 @@ export function gate(items: DistItem[], procs: Procurement[], given: Given, setu
     const odd = done.filter((p) => receivedIn(p, unit) === null);
     if (odd.length) return { ...base, received: 0, ok: false, detail: `${it.item}: ${odd.map((p) => `${p.id} was bought in ${p.unit}`).join("; ")}, but the package gives ${unit}. Use the same unit in the package and the purchase.` };
     const got = done.reduce((s, p) => s + (receivedIn(p, unit) ?? 0), 0);
+    /** Whether this hand-out leaves a later hand-out day with more gone out than had arrived by then. */
+    const laterShort = (key: string, qty: number): string | null => {
+      if (!on?.later?.length) return null;
+      for (const l of on.later) {
+        if (l.day <= on.day) continue;
+        const by = done.filter((p) => { const d = receivedOn(p); return !d || d <= l.day || (!!on.today && d > on.today); }).reduce((s, p) => s + (receivedIn(p, unit) ?? 0), 0);
+        const out = (l.given[key] ?? 0) + qty;
+        if (out > by + 1e-9) return `this hand-out is dated ${on.day}, before hand-outs already counted. By ${l.day} ${qtyUnit(out, unit)} would have gone out, but only ${qtyUnit(by, unit)} had been received by then. Check the hand-out date.`;
+      }
+      return null;
+    };
     if (already + thisQty > got + 1e-9) {
       // Say what would unblock it: a delivery that has arrived but whose received note is not signed yet.
       const coming = sources.filter((p) => !received(p) && stepById[p.step]?.id === "receive");
@@ -79,6 +115,28 @@ export function gate(items: DistItem[], procs: Procurement[], given: Given, setu
           : `${it.item}: this package needs ${qtyUnit(thisQty, unit)}, but only ${qtyUnit(left, unit)} of the ${qtyUnit(got, unit)} received is left.${next}`,
       };
     }
+    // A hand-out draws only on what had arrived by its own day (review round 1, ISS-16): goods
+    // received a week later cannot have supplied it, however much is in the store now.
+    const late = on ? done.filter((p) => (receivedOn(p) ?? "") > on.day && (!on.today || receivedOn(p)! <= on.today)) : [];
+    if (on && late.length) {
+      const early = done.filter((p) => !late.includes(p));
+      const gotThen = early.reduce((s, p) => s + (receivedIn(p, unit) ?? 0), 0);
+      // What had gone out by this day: none of an item nobody had handed out by then, not everything since.
+      const takenThen = on.given ? (on.given[it.key] ?? 0) : already;
+      const after = late.map((p) => `${p.id} on ${receivedOn(p)}`).join(", ");
+      if (takenThen + thisQty > gotThen + 1e-9)
+        return {
+          ...base,
+          received: gotThen,
+          ok: false,
+          detail: `${it.item}: this hand-out is dated ${on.day}, when only ${qtyUnit(Math.max(0, gotThen - takenThen), unit)} of the ${qtyUnit(gotThen, unit)} received by then was left, and it needs ${qtyUnit(thisQty, unit)}. More arrived later (${after}). Check the hand-out date.`,
+        };
+      const short = laterShort(it.key, thisQty);
+      if (short) return { ...base, received: gotThen, ok: false, detail: `${it.item}: ${short}` };
+      return { ...base, received: gotThen, ok: true, detail: `${it.item}: ${fmt(takenThen + thisQty)} of ${fmt(gotThen)} ${unit} received by ${on.day} will have gone out (${early.map((p) => p.id).join(", ")}).` };
+    }
+    const short = laterShort(it.key, thisQty);
+    if (short) return { ...base, received: got, ok: false, detail: `${it.item}: ${short}` };
     return { ...base, received: got, ok: true, detail: `${it.item}: ${fmt(already + thisQty)} of ${fmt(got)} ${unit} received will have gone out (${done.map((p) => p.id).join(", ")}).` };
   });
   // Nothing recorded as given is not a distribution: approving it would count the farmer as

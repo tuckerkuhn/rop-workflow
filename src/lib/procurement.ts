@@ -12,6 +12,7 @@ import { holdersOfType, holdsType } from "@/lib/authority";
 import type { HrRole } from "@/lib/hr";
 import { ROP, type Value } from "@/lib/policy";
 import { DEMO_DATE, today } from "@/lib/clock";
+import { lineFigure, lineFigureText, type LineFigure } from "@/lib/line-money";
 import { lastScreening, sameSupplierName, supplierGaps, type Supplier, screeningStale } from "@/lib/suppliers";
 import {
   type YearPaid,
@@ -74,6 +75,9 @@ const rule = (k: string, fallback: number) => (typeof rules[k] === "number" ? (r
 const ruleList = (k: string) => (Array.isArray(rules[k]) ? (rules[k] as string[]) : []);
 
 /** The level a value falls in, by the thresholds in force (ROP: $500 / $5,000 / $25,000, April 2025 Table 1). */
+/** Typical days from starting a procurement to having the goods, per level. A starting guess; the calendar lets each item change it. */
+export const LEAD_DAYS: Record<Level, number> = { Micro: 7, Small: 21, Medium: 45, Large: 90 };
+
 export function levelFor(value: number): Level {
   if (value <= rule("microMaxUsd", 500)) return "Micro";
   if (value <= rule("smallMaxUsd", 5000)) return "Small";
@@ -325,7 +329,7 @@ export type Procurement = {
    * Why an automatic check was overridden (e.g. fewer than three quotations), by check key
    * ("fix.quotes.three"): the reason, and where a memo is filed when there is one.
    */
-  overrides?: Record<string, { why: string; by: string; date: string }>;
+  overrides?: Record<string, { why: string; by: string; date: string; /** A second person's confirmation, where the check asks for one (`Check.second`). */ confirmedBy?: { name: string; date: string } }>;
   timeline: TimelineEvent[];
   /**
    * Started from the procurement calendar: the plan item and the project budget line it buys
@@ -423,6 +427,16 @@ export type Draft = {
   asIs?: boolean;
 };
 
+/** What a draft's `model` says when a person wrote it from the app's template instead of AI (lib/hand-draft). */
+export const HAND_WRITTEN = "written by hand";
+export const byHand = (d: Draft | undefined | null) => d?.model === HAND_WRITTEN;
+/** The blanks a hand-written document still has: each "[what is wanted]" left in its text. */
+export function openBlanks(d: Draft | undefined | null): string[] {
+  if (!d) return [];
+  const found = d.sections.flatMap((x) => x.body.match(/\[[^\[\]\n]{2,160}\]/g) ?? []);
+  return [...new Set(found)];
+}
+
 export type PlanLink = {
   key: string;
   project: string;
@@ -436,7 +450,16 @@ export type PlanLink = {
   /** The technical lead who made the request: name, and person id. */
   requestedBy: string;
   requestedById?: string;
+  /** Asked for outside the procurement calendar: who asked, when, why, and whether it was urgent. The approver reads it on the requisition. */
+  unplanned?: { by: string; at: string; reason: string; urgent: boolean };
 };
+
+/** How a purchase came about, as the requisition prints it: planned, or not on the calendar and why (review round 1, ISS-10). */
+export function plannedOrUrgent(p: Pick<Procurement, "urgent" | "plan">): string {
+  const u = p.plan?.unplanned;
+  if (u) return `${u.urgent ? "Urgent, not" : "Not"} on the procurement calendar. Asked for by ${u.by} on ${u.at}: ${u.reason}`;
+  return p.urgent ? "Urgent (not in the procurement plan)" : "Planned";
+}
 
 /**
  * The person holding a role on this procurement. Requests started from the procurement calendar
@@ -643,17 +666,85 @@ function declareCheck(p: Procurement) {
  * contract value once recorded, or the estimate, less instalments already paid. Without it two
  * requests could each pass against the same money.
  */
+/**
+ * What other purchases under way on this purchase's budget line are committed to: every one on the
+ * line, started from the calendar or not, as `committedByLine` counts them for the ask form and the
+ * calendar (code review of ISS-07: a direct purchase was left out here and counted there).
+ */
 export function committedOn(p: Procurement) {
   const line = p.plan?.budgetCode ?? p.budgetLine;
   const others = everyProcurement
-    .filter((q) => q.id !== p.id && q.step !== DONE && (q.plan?.budgetCode ?? q.budgetLine) === line && (!p.plan || q.plan?.project === p.plan.project))
-    .map((q) => {
-      const value = contractCurrency(q) === "USD" && q.contractUsd && q.contractUsd > 0 ? q.contractUsd : valueOf(q);
-      const paid = (q.payments ?? []).reduce((s, r) => s + (r.invoice.currency === "AFN" ? (r.invoice.rate ? r.invoice.amount / r.invoice.rate : 0) : r.invoice.amount), 0);
-      return { id: q.id, open: Math.max(0, value - paid) };
-    })
+    .filter((q) => q.id !== p.id && q.step !== DONE && (q.plan?.budgetCode ?? q.budgetLine) === line && (!p.plan || !q.plan || q.plan.project === p.plan.project))
+    .map((q) => ({ id: q.id, open: openValueOf(q) }))
     .filter((o) => o.open > 0);
   return { others, total: others.reduce((s, o) => s + o.open, 0) };
+}
+/** What a purchase is committed to and has not yet paid, in USD: the contract value once recorded, or the estimate, less instalments paid. */
+export function openValueOf(q: Procurement): number {
+  if (q.step === DONE) return 0;
+  const value = contractCurrency(q) === "USD" && q.contractUsd && q.contractUsd > 0 ? q.contractUsd : valueOf(q);
+  const paid = (q.payments ?? []).reduce((s, r) => s + (r.invoice.currency === "AFN" ? (r.invoice.rate ? r.invoice.amount / r.invoice.rate : 0) : r.invoice.amount), 0);
+  return Math.max(0, value - paid);
+}
+/** The unpaid commitments of every open purchase, by budget line code, in USD. For the calendar and the ask form. */
+export function committedByLine(all: readonly Procurement[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const q of all) {
+    const open = openValueOf(q);
+    if (open > 0) {
+      const code = q.plan?.budgetCode ?? q.budgetLine;
+      out[code] = (out[code] ?? 0) + open;
+    }
+  }
+  return out;
+}
+
+/* ---------- One figure for what is left on a budget line (lib/line-money) ---------- */
+
+/** A budget line's live money in USD, with the asks made outside the calendar that have not started. Set by the workspace and by the server's guard. */
+export type LineMoney = { code: string; budgetUsd: number; spentUsd: number; asks: { key: string; usd: number }[] };
+let lineMoney: LineMoney[] | null = null;
+export function setLineMoney(lines: LineMoney[] | null) {
+  lineMoney = lines;
+}
+/**
+ * What is available on this purchase's budget line for it to use: the line's budget, less
+ * spending posted, less what other purchases are committed to, less other asks made outside the
+ * calendar. Null when the project's budget is not loaded (the demo's sample lines, a test).
+ */
+export function availableFor(p: Procurement): { figure: LineFigure; others: { id: string; open: number }[] } | null {
+  const code = p.plan?.budgetCode ?? p.budgetLine;
+  const line = lineMoney?.find((l) => l.code === code);
+  if (!line) return null;
+  const c = committedOn(p);
+  const asked = line.asks.filter((a) => a.key !== p.plan?.key).reduce((s, a) => s + a.usd, 0);
+  return { figure: lineFigure(code, line.budgetUsd, line.spentUsd, c.total, asked), others: c.others };
+}
+/** The budget check, the same for the requester and the approver. Null when no budget figure is known. */
+function budgetCheck(p: Procurement, money: Money): CheckResult | null {
+  const a = availableFor(p);
+  if (a) return { ok: valueOf(p) <= a.figure.available, detail: `Needs ${money(valueOf(p))} · ${lineFigureText(a.figure, money, a.others.map((o) => o.id).join(", "))}` };
+  const l = lineOf(p);
+  if (!l) return null;
+  // No live budget: the amount the calendar set aside for this request, less other open requests on the line.
+  const c = committedOn(p);
+  const free = l.remainingValue - c.total;
+  const held = c.others.length ? ` less ${money(c.total)} committed to ${c.others.map((o) => o.id).join(", ")}` : "";
+  return { ok: valueOf(p) <= free, detail: `Needs ${money(valueOf(p))} · ${money(l.remainingValue)} left on ${l.code}${held}${held ? ` = ${money(free)} free` : ""}` };
+}
+
+/**
+ * The day the purchase's supplier was last screened, one date wherever it is shown (review round
+ * 1, ISS-13: the payment check said 13 May while the purchase's own history said 28 October). The
+ * supplier register's latest screening when the supplier is linked to it; otherwise the later of
+ * the date kept with the supplier and the day this purchase's own screening step was signed.
+ */
+export function screenedOnOf(p: Pick<Procurement, "supplier" | "signatures">): string | null {
+  const r = p.supplier?.id && supplierRegister ? supplierRegister.find((x) => x.id === p.supplier!.id) : null;
+  const inRegister = r ? lastScreening(r)?.date : null;
+  if (inRegister) return inRegister;
+  const own = (p.signatures?.["Screening record"] ?? []).map((x) => x.date);
+  return [p.supplier?.screenedOn ?? "", ...own].filter((d) => /^\d{4}-\d{2}-\d{2}/.test(d)).sort().at(-1) ?? null;
 }
 
 export const lineOf = (p: Procurement): BudgetLine | undefined =>
@@ -678,6 +769,11 @@ export type Check = {
   fix?: string;
   /** One-click record of the fix that clears a failed automatic check. */
   resolve?: string;
+  /**
+   * The override needs a second person to confirm it before the step can go on (review round 1,
+   * ISS-17: the approver alone could record a possible split purchase as separate needs).
+   */
+  second?: string;
 };
 
 export type Step = {
@@ -716,7 +812,10 @@ const fmt = (n: number) => n.toLocaleString("en-US");
 function draftRead(p: Procurement, doc: string) {
   const d = p.drafts?.[doc];
   if (!d) return { ok: false, detail: "Draft it above first" };
-  return d.edited ? { ok: true, detail: d.asIs ? "Read: no changes needed" : "Corrected" } : { ok: false, detail: "Read it above: correct it, or confirm no changes are needed" };
+  // Written by hand from the template: it is finished only when every blank is filled.
+  const blanks = byHand(d) ? openBlanks(d).length : 0;
+  if (blanks) return { ok: false, detail: `Fill in the ${blanks === 1 ? "part" : `${blanks} parts`} still in [square brackets] above` };
+  return d.edited ? { ok: true, detail: d.asIs ? "Read: no changes needed" : byHand(d) ? "Written by hand" : "Corrected" } : { ok: false, detail: "Read it above: correct it, or confirm no changes are needed" };
 }
 
 const AI_GATE = {
@@ -735,9 +834,32 @@ export const steps: Step[] = [
     done: "Need confirmed",
     produces: [],
     checks: [
-      { id: "activity", label: "Tied to an activity in the approved workplan", why: "A purchase that cannot be tied to a workplan activity and its result is not procured.", tag: "D1 §2.7" },
+      {
+        id: "activity",
+        label: "Tied to an activity in the approved workplan",
+        why: "A purchase that cannot be tied to a workplan activity and its result is not procured.",
+        tag: "D1 §2.7",
+        // A request made from the procurement calendar already names its activity: the app says so
+        // instead of asking again (review round 1, ISS-21). Any other request is confirmed by a person.
+        auto: (p) => (p.plan && p.activity.trim() ? { ok: true, detail: `${p.activity.trim()}, from calendar item ${p.plan.key}` } : null),
+      },
       { id: "spec", label: "Specification confirmed with technical staff", why: "Specifications describe what is needed without restricting competition. Brand names only with equivalents accepted.", tag: "D1 §2.7, §4.1" },
-      { id: "leadtime", label: "Lead time fits the activity date", why: "If the market cannot deliver in time, re-plan the activity. Do not shorten the procurement.", tag: "D1 §2.7" },
+      {
+        id: "leadtime",
+        label: "Lead time fits the activity date",
+        why: "If the market cannot deliver in time, re-plan the activity. Do not shorten the procurement.",
+        tag: "D1 §2.7",
+        fix: "The usual time to buy something this size does not fit the date it is needed: re-plan the activity, or record why this one can be delivered sooner.",
+        resolve: "Reason recorded",
+        // From the calendar the app knows the date needed and the usual time for a purchase this size.
+        auto: (p) => {
+          if (!p.plan || !p.neededBy) return null;
+          const level = levelFor(valueOf(p));
+          const lead = LEAD_DAYS[level];
+          const have = daysBetween(madeOn(p), p.neededBy);
+          return { ok: have >= lead, detail: `Needed by ${p.neededBy}, ${have} days after the request. A ${level} purchase usually takes ${lead} days` };
+        },
+      },
     ],
   },
   {
@@ -758,15 +880,7 @@ export const steps: Step[] = [
         tag: "D1 §4.1",
         fix: "Budget revision needed: agree with the funder before approval.",
         resolve: "Record funder-approved revision",
-        auto: (p, money) => {
-          const l = lineOf(p);
-          if (!l) return null;
-          // Other open requests on the line have a claim on the same money.
-          const c = committedOn(p);
-          const free = l.remainingValue - c.total;
-          const held = c.others.length ? ` less ${money(c.total)} committed to ${c.others.map((o) => o.id).join(", ")}` : "";
-          return { ok: valueOf(p) <= free, detail: `Needs ${money(valueOf(p))} · ${money(l.remainingValue)} left on ${l.code}${held}${held ? ` = ${money(free)} free` : ""}` };
-        },
+        auto: (p, money) => budgetCheck(p, money),
       },
       {
         id: "budgetQty",
@@ -814,12 +928,25 @@ export const steps: Step[] = [
       { id: "noContact", label: "No supplier has been approached yet", why: "Requisition approval comes before any supplier is approached, at every level. Otherwise it is a post-facto action.", tag: "D1 §3.2" },
       { id: "reviewed", label: "Requisition reviewed and complete", why: "The approver relies on the budget, price basis and activity link shown above.", tag: "D1 §3.2" },
       {
+        // The approver sees the same budget figure as the requester, worked out again as it stands now
+        // (review round 1, ISS-07): another purchase may have been committed on the line since.
+        id: "budgetStill",
+        label: "Budget line still has enough left",
+        why: "The same figure the requester saw, as it stands today: the line's budget, less what is spent, less what other purchases are committed to. A shortfall is agreed with the funder before approval.",
+        tag: "D1 §4.1",
+        fix: "Budget revision needed: agree with the funder before approval.",
+        resolve: "Record funder-approved revision",
+        // With no live budget loaded, the requisition's own check stands: nothing more to confirm here.
+        auto: (p, money) => (availableFor(p) ? budgetCheck(p, money) : { ok: true, detail: "Checked when the requisition was submitted" }),
+      },
+      {
         id: "notSplit",
         label: "Not split from a larger need",
         why: `Requests for the same budget line and activity made within ${SPLIT_WINDOW_DAYS} days are added together; if together they reach a higher level, they are one purchase at that level.`,
         tag: "ROP April 2025 §3.2.2 p14, p26–27",
         fix: "Possible split purchase: combine the requests and buy at the combined level, or record why they are separate needs.",
         resolve: "Separate needs, recorded",
+        second: "the procurement manager",
         auto: (p, money) => {
           const s = splitRequests(p);
           if (!s.others.length) return { ok: true, detail: "No other request for this line and activity nearby" };
@@ -883,7 +1010,7 @@ export const steps: Step[] = [
     produces: ["Request for quotation"],
     signs: { doc: "Request for quotation", as: "Prepared by (procurement)" },
     checks: [
-      { id: "draft", label: "Request for quotation drafted", why: "Drafted from the approved request so nothing is typed twice.", tag: "TS", auto: (p) => ({ ok: !!p.drafts?.["Request for quotation"], detail: p.drafts?.["Request for quotation"] ? `Drafted ${p.drafts["Request for quotation"].at}` : "Draft it above" }) },
+      { id: "draft", label: "Request for quotation drafted", why: "Drafted from the approved request so nothing is typed twice.", tag: "TS", auto: (p) => ({ ok: !!p.drafts?.["Request for quotation"], detail: p.drafts?.["Request for quotation"] ? `${byHand(p.drafts["Request for quotation"]) ? "Written by hand" : "Drafted"} ${p.drafts["Request for quotation"].at}` : "Draft it above, with AI or by hand" }) },
       { id: "read", label: "Draft read and corrected by a person", why: "AI drafts; procurement decides what goes to suppliers.", tag: "TS", auto: (p) => draftRead(p, "Request for quotation") },
       { id: "terms", label: "Deadline, validity and lowest-compliant-price basis stated once", why: "A quotation is only rejected on grounds the request stated.", tag: "D1 §4.4, §5.2" },
     ],
@@ -901,7 +1028,7 @@ export const steps: Step[] = [
     signs: { doc: "Sole source justification", as: "Prepared by (procurement)" },
     checks: [
       { id: "facts", label: "Supplier named and the reason only they can supply it recorded", why: "The justification rests on facts procurement can show.", tag: "D1 §5.5", auto: (p) => ({ ok: !!p.sole?.supplier.trim() && (p.sole?.reason.trim().length ?? 0) > 20, detail: p.sole?.supplier ? `${p.sole.supplier}` : "Add them above" }) },
-      { id: "draft", label: "Justification drafted", why: "Drafted from the request and the facts above.", tag: "TS", auto: (p) => ({ ok: !!p.drafts?.["Sole source justification"], detail: p.drafts?.["Sole source justification"] ? `Drafted ${p.drafts["Sole source justification"].at}` : "Draft it above" }) },
+      { id: "draft", label: "Justification drafted", why: "Drafted from the request and the facts above.", tag: "TS", auto: (p) => ({ ok: !!p.drafts?.["Sole source justification"], detail: p.drafts?.["Sole source justification"] ? `${byHand(p.drafts["Sole source justification"]) ? "Written by hand" : "Drafted"} ${p.drafts["Sole source justification"].at}` : "Draft it above, with AI or by hand" }) },
       { id: "read", label: "Draft read and corrected by a person", why: "AI drafts; procurement stands behind every statement in it.", tag: "TS", auto: (p) => draftRead(p, "Sole source justification") },
       { id: "price", label: "Price shown to be reasonable without competition", why: "Past prices, market data or a cost breakdown. Without competition, this is the only price check.", tag: "D1 §4.2, §5.5" },
     ],
@@ -1132,8 +1259,20 @@ export const steps: Step[] = [
           return rules.dueDiligenceAllLevels === true ? "Vendor documents at every level, including Micro." : "Due diligence at Medium and above, from evidence submitted with the bid.";
         },
         tag: "ROP April 2025 checklists p26–39",
+        // A missing document stops the award, not just the tax rate at payment (review round 1, ISS-08).
+        // It goes ahead without one only as an exception, with the reason kept on the record.
+        fix: "A vendor document is missing or out of date: get it on file, or record why this purchase goes ahead without it.",
+        resolve: "Exception recorded, with the reason",
         auto: (p) => {
-          if (!supplierRegister) return null;
+          if (!supplierRegister) {
+            // No supplier register on this project: the licence is on the purchase itself. The ID, the
+            // bank details and the declaration are still confirmed by a person (the tick below).
+            const s = p.supplier;
+            if (!s?.name?.trim()) return { ok: false, detail: "Name the supplier above" };
+            if (!s.licenceNo?.trim() || !s.licenceExpiry) return { ok: false, detail: `No business licence is recorded for ${s.name}. Record its number and the date it is valid until, above` };
+            if (!licenceValid(s.licenceExpiry, today())) return { ok: false, detail: `${s.name}'s licence expired on ${s.licenceExpiry}. Record the renewed licence above` };
+            return null;
+          }
           const r = registered(p);
           if (!r) return { ok: false, detail: "Pick the supplier from the supplier register" };
           const gaps = supplierGaps(r, today(), rule("rescreenMonths", 6)).filter((g) => !/screen/i.test(g));
@@ -1259,7 +1398,7 @@ export const steps: Step[] = [
         label: "Cover memo drafted and corrected",
         why: "Summarises what was bought, how, from whom, for how much, and anything outstanding.",
         tag: "TS",
-        auto: (p) => ({ ok: !!p.drafts?.["Procurement package"]?.edited, detail: !p.drafts?.["Procurement package"] ? "Draft it above" : p.drafts["Procurement package"].edited ? (p.drafts["Procurement package"].asIs ? "Read: no changes needed" : "Corrected") : "Drafted: read and correct it" }),
+        auto: (p) => (p.drafts?.["Procurement package"] ? draftRead(p, "Procurement package") : { ok: false, detail: "Draft it above" }),
       },
       { id: "aiPackage", label: "AI completeness check reviewed", why: "Missing documents, approvals out of order and figures that do not match. AI flags; procurement decides.", tag: "D1 §4.17; TS", ai: true, ...AI_GATE },
       { id: "filed", label: "Every document filed under the procurement ID", why: "Finance and auditors find the whole record in one place.", tag: "D1 §4.16" },
@@ -1365,9 +1504,11 @@ export const steps: Step[] = [
             const d = daysBetween(sc.date, today());
             return { ok: sc.result === "clear" && !screeningStale(sc.date, today(), months), detail: `Last screened ${sc.date} by ${sc.byName}: ${sc.result} (${d} days ago; re-screen after ${months} months)` };
           }
-          const d = daysBetween(p.supplier.screenedOn, today());
+          const on = screenedOnOf(p);
+          if (!on) return { ok: false, detail: `No screening is recorded for ${p.supplier.name}` };
+          const d = daysBetween(on, today());
           const months = rule("rescreenMonths", 6);
-          return { ok: !screeningStale(p.supplier.screenedOn, today(), months), detail: `Last screened ${p.supplier.screenedOn} (${d} days ago; re-screen after ${months} months)` };
+          return { ok: !screeningStale(on, today(), months), detail: `Last screened ${on} (${d} days ago; re-screen after ${months} months)` };
         },
       },
       {
@@ -1631,7 +1772,13 @@ export function completeStep(p: Procurement, sig: { name: string; date: string; 
 export function checkState(p: Procurement, c: Check, money: Money = usdFmt): { ok: boolean; auto: boolean; detail?: string } {
   const r = c.auto?.(p, money);
   const key = `fix.${p.step}.${c.id}`;
-  if (r && !r.ok && p.checks[key]) return { ok: true, auto: true, detail: `${r.detail} · ${c.resolve}${p.overrides?.[key] ? `: ${p.overrides[key].why}` : ""}` };
+  if (r && !r.ok && p.checks[key]) {
+    const o = p.overrides?.[key];
+    const said = `${r.detail} · ${c.resolve}${o ? `: ${o.why}` : ""}`;
+    // An override a second person must confirm counts only once they have (ISS-17).
+    if (c.second && !o?.confirmedBy) return { ok: false, auto: true, detail: `${said}${o?.by ? ` (${o.by})` : ""}. Waiting for ${c.second} to confirm it.` };
+    return { ok: true, auto: true, detail: `${said}${o?.confirmedBy ? `. Confirmed by ${o.confirmedBy.name}` : ""}` };
+  }
   if (r) return { ok: r.ok, auto: true, detail: r.detail };
   return { ok: !!p.checks[`${p.step}.${c.id}`], auto: false };
 }
@@ -1730,6 +1877,9 @@ function seed(
   });
   (base.doneChecks ?? []).forEach((c) => (p.checks[`${p.step}.${c}`] = true));
   delete (p as { doneChecks?: string[] }).doneChecks;
+  // The date kept with the supplier is the day this purchase's screening was signed, when it was: one date, not two.
+  const screened = p.signatures["Screening record"]?.at(-1)?.date;
+  if (p.supplier && screened) p.supplier = { ...p.supplier, screenedOn: screened };
   return p as Procurement;
 }
 
@@ -1856,7 +2006,8 @@ export function seedProcurements(): Procurement[] {
       place: "Village B collection point",
       urgent: false,
       step: "payReady",
-      supplier: { name: "FarmTools Co. (fictional)", screenedOn: "2026-08-20" },
+      // Its licence was on file before the award, as the screening step requires (review round 1, ISS-08).
+      supplier: { name: "FarmTools Co. (fictional)", screenedOn: "2026-08-20", licenceNo: "D-04-1187 (fictional)", licenceExpiry: "2027-09-30" },
       advertisedDays: 10,
       closingDate: "2026-12-10",
       grn: { qty: 60, place: "Village B collection point" },

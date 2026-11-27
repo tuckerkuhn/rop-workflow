@@ -7,6 +7,7 @@ import { fromCents, periodOf, toCents } from "@/lib/ledger/rules";
 import { closingBalanceOf, parseAmount, parseCsv, readStatement, withOccurrence, type StatementMapping } from "@/lib/ledger/statement-csv";
 import { logAudit } from "@/server/audit";
 import { LedgerError, lockPeriod, periodEnd } from "@/server/ledger";
+import { selfApproval, type SelfConfirm, type SoloState } from "@/server/solo";
 
 /**
  * Bank reconciliation, the step of Month close where Finance shows that the bank's statement and the
@@ -48,6 +49,29 @@ export const mayReadReconciliation = (u: AppUser) => u.kind === "employee";
 
 /** How many days apart a statement line and a ledger line may be for a suggested match. */
 export const MATCH_DAYS = 4;
+
+/* ---------------- Who may complete it ---------------- */
+
+/** Why someone who recorded or posted entries on the account that month does not complete its reconciliation. */
+export const ownEntriesRefusal = (n: number, bankName: string, month: string) =>
+  `You recorded or posted ${n} ${n === 1 ? "entry" : "entries"} on ${bankName} in ${month}, so someone else in Finance completes its reconciliation. The person who enters payments does not reconcile the account they were paid from.`;
+
+/** How many posted entries on the bank account in the month this person recorded or posted. */
+async function ownEntries(exec: Exec, bank: BankAccount, period: string, by: string): Promise<number> {
+  const [r] = rowsOf<{ n: number }>(
+    await exec.execute(sql`
+      SELECT count(DISTINCT e.id)::int AS n
+      FROM journal_entries e JOIN journal_lines l ON l.entry_id = e.id
+      WHERE e.status = 'posted' AND l.account_id = ${bank.ledgerAccountId}
+        AND e.entry_date BETWEEN ${period}::date AND ${periodEnd(period)}::date
+        AND (e.recorded_by = ${by} OR e.posted_by = ${by})`),
+  );
+  return r?.n ?? 0;
+}
+/** The same count for a screen, so it can say who completes the month before anyone tries. */
+export async function ownEntriesOn(orgId: string, bankAccountId: string, month: string, by: string): Promise<number> {
+  return ownEntries(db, await bankOf(db, orgId, bankAccountId), monthPeriod(month), by);
+}
 
 /* ---------------- Bank accounts ---------------- */
 
@@ -491,7 +515,7 @@ export async function matchSuggested(input: { organizationId: string; bankAccoun
  * database refuses any other). The book balance is read again in the same transaction. One audit
  * row, action ledger_reconciled.
  */
-export async function completeReconciliation(input: { organizationId: string; bankAccountId: string; month: string; by: string; projectId: string }): Promise<{ id: string; completedAt: string }> {
+export async function completeReconciliation(input: { organizationId: string; bankAccountId: string; month: string; by: string; projectId: string; solo?: SoloState; self?: SelfConfirm }): Promise<{ id: string; completedAt: string }> {
   const period = monthPeriod(input.month);
   const asOf = periodEnd(period);
   if (!monthEnded(period)) throw new LedgerError("refused", `${monthName(period)} has not ended yet. A month is reconciled once the bank's statement for it is complete.`);
@@ -510,6 +534,15 @@ export async function completeReconciliation(input: { organizationId: string; ba
     const difference = fromCents(toCents(statement) - toCents(book));
     if (toCents(difference) !== BigInt(0))
       throw new LedgerError("refused", `The difference is ${difference} ${bank.currency}. A reconciliation is completed only at zero: match the lines, record what is missing, or check the closing balance.`);
+    // The person who enters payments does not reconcile the account they paid from (review round 1, ISS-04).
+    // In solo mode a small team's one finance person may, confirming it each time; the entry is marked.
+    const own = await ownEntries(tx, bank, period, input.by);
+    let selfDetail: Record<string, unknown> = {};
+    if (own > 0) {
+      const ok = selfApproval(input.solo ?? { on: false, blocked: null }, input.self, ownEntriesRefusal(own, bank.name, monthName(period)));
+      if (!ok.ok) throw new LedgerError("refused", ok.why);
+      selfDetail = { ...ok.detail, ownEntries: own };
+    }
     const now = new Date();
     const [done] = await tx
       .update(s.reconciliations)
@@ -525,7 +558,7 @@ export async function completeReconciliation(input: { organizationId: string; ba
       entityId: done.id,
       action: "ledger_reconciled",
       by: input.by,
-      detail: { bankAccount: bank.name, currency: bank.currency, period, statementBalance: statement, bookBalance: book, statementLines: n, matched: m },
+      detail: { bankAccount: bank.name, currency: bank.currency, period, statementBalance: statement, bookBalance: book, statementLines: n, matched: m, ...selfDetail },
     });
     return { id: done.id, completedAt: now.toISOString() };
   });

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { realToday } from "@/lib/clock";
 import { stampHistory } from "@/lib/history";
 import { EMPTY_VOUCHER_SETUP, VOUCHER_SETUP_KEY, type VoucherSetup } from "@/lib/voucher-setup";
 import { loadProjectState } from "@/server/project-state";
@@ -7,7 +8,7 @@ import { z } from "zod";
 import type { Procurement } from "@/lib/procurement";
 import { requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
-import { loadProcurements, saveProcurements } from "@/server/procurement-store";
+import { claimNewProcurements, loadProcurements, procurementIdsOfOrg, releaseNewProcurements, saveProcurements } from "@/server/procurement-store";
 import { db } from "@/db";
 import { logAudit } from "@/server/audit";
 import { projectByCode, setupOf } from "@/server/field-store";
@@ -45,6 +46,15 @@ export async function PUT(req: Request, { params }: { params: Promise<{ code: st
     const parsed = bodySchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return NextResponse.json({ error: "That procurement could not be saved: the record is incomplete." }, { status: 400 });
     const items = parsed.data.items as unknown as Procurement[];
+    // On a real project a goods received note is never dated after today: a later date would read as
+    // a sample record and switch off the stock-by-date check (code review of ISS-16).
+    const thisProject = await projectByCode(code);
+    if (thisProject.kind === "real") {
+      const now = realToday();
+      const grnDates = (p: Procurement) => [...(p.signatures?.["Goods received note"] ?? []), ...(p.payments ?? []).flatMap((r) => r.signatures?.["Goods received note"] ?? [])].map((x) => (x.date ?? "").slice(0, 10));
+      const ahead = items.find((x) => grnDates(x).some((d) => d > now));
+      if (ahead) return NextResponse.json({ error: `${ahead.id}: a goods received note cannot be dated after today. Date it the day the goods arrived.` }, { status: 400 });
+    }
     // The server decides what is allowed (the same rules as the screen), then records each save.
     // Everything is loaded first; the checks then run with no await in between, so another
     // request cannot swap in its own project's rules while these run.
@@ -56,6 +66,14 @@ export async function PUT(req: Request, { params }: { params: Promise<{ code: st
       // A real project's requests must charge its procurement calendar; the demo keeps its sample lines.
       code === DEMO_PROJECT ? Promise.resolve(undefined) : loadPlan(code),
     ]);
+    // A new request's number must be free across the organization, not only on this project (ISS-11).
+    const fresh = items.filter((x) => !stored.has(x.id));
+    if (fresh.length) {
+      const here = await projectByCode(code);
+      const elsewhere = new Set((await procurementIdsOfOrg(here.organizationId)).filter((r) => r.projectId !== here.id).map((r) => r.id));
+      const clash = fresh.find((x) => elsewhere.has(x.id));
+      if (clash) return NextResponse.json({ error: `${clash.id} is already the number of a purchase on another project. Start the request again: it will take the next free number.` }, { status: 409 });
+    }
     // Someone else saved since this copy was loaded: refuse, and the screen reloads the latest.
     const stale = items.find((x) => stored.has(x.id) && (stored.get(x.id)!.rev ?? 0) !== (x.rev ?? 0));
     if (stale) return NextResponse.json({ error: `${stale.id} was changed by someone else just now. The latest copy is loaded; make your change again.`, stale: true }, { status: 409 });
@@ -81,6 +99,14 @@ export async function PUT(req: Request, { params }: { params: Promise<{ code: st
         if (!g || g.type !== "inKind" || g.status !== "open") return NextResponse.json({ error: `${x.id}: ${x.grant} is not an open in-kind grant on this project.` }, { status: 409 });
       }
     }
+    // Take the new numbers first: of two people saving the same new number at once, the second is
+    // told it is taken instead of overwriting the first request.
+    const claimed = fresh.map((x) => ({ ...x, rev: 1 }));
+    const taken = await claimNewProcurements(code, claimed);
+    if (taken.length) {
+      await releaseNewProcurements(code, claimed.filter((x) => !taken.includes(x.id)).map((x) => x.id));
+      return NextResponse.json({ error: `${taken[0]} was just taken by another request. Start the request again: it will take the next free number.` }, { status: 409 });
+    }
     // A new request made from the calendar starts that calendar item here, with the save: the two
     // never disagree (an item marked started with no request, or a request on an item still open).
     if (calendar)
@@ -88,7 +114,10 @@ export async function PUT(req: Request, { params }: { params: Promise<{ code: st
         const item = calendar.find((i) => i.key === x.plan!.key);
         if (item?.status !== "approved") continue;
         const r = await actOnPlan(code, item.key, { action: "start", procurementKey: x.id }, v.user);
-        if ("error" in r) return NextResponse.json({ error: `${x.id}: ${r.error}` }, { status: 409 });
+        if ("error" in r) {
+          await releaseNewProcurements(code, claimed.map((y) => y.id));
+          return NextResponse.json({ error: `${x.id}: ${r.error}` }, { status: 409 });
+        }
       }
     // Each new history entry gets the time it was saved; older ones keep theirs (lib/history).
     const now = new Date();

@@ -174,13 +174,22 @@ describe("bank reconciliation", { timeout: 60_000 }, () => {
     expect(v.counts.suggested).toBe(2);
     for (const l of v.statementLines.filter((x) => x.suggestion)) await matchLine({ organizationId: org, statementLineId: l.id, journalLineId: l.suggestion!.lineId, by: "yusuf", projectId });
 
-    const done = await call(ACT as Handler, "yusuf", "", { action: "complete", bankAccountId: bank, month: "2026-08" });
+    // Yusuf posted the month's payments, so he does not complete its reconciliation (review round 1, ISS-04).
+    const view = await call(RECON as Handler, "yusuf", `?bank=${bank}&month=2026-08`);
+    expect((view.body as { ownEntries?: number }).ownEntries).toBeGreaterThan(0);
+    const own = await call(ACT as Handler, "yusuf", "", { action: "complete", bankAccountId: bank, month: "2026-08" });
+    expect(own.status).toBeGreaterThanOrEqual(400);
+    expect(own.body.error).toMatch(/You recorded or posted \d+ entries on Reconciliation test bank in August 2026, so someone else in Finance completes/);
+    expect((await reconciliationView(org, bank, "2026-08")).completed).toBeNull();
+    // Omid, who entered none of them, does.
+    const done = await call(ACT as Handler, "omid", "", { action: "complete", bankAccountId: bank, month: "2026-08" });
     expect(done.status).toBe(200);
+    expect((done.body as { ownEntries?: number }).ownEntries).toBe(0);
     v = done.body.view!;
-    expect(v.completed?.by).toBe("yusuf");
+    expect(v.completed?.by).toBe("omid");
     expect(v.counts).toMatchObject({ matched: 5, unmatchedStatement: 0, unmatchedBook: 0 });
     const [row] = await db.select().from(s.reconciliations).where(and(eq(s.reconciliations.bankAccountId, bank), eq(s.reconciliations.period, "2026-08-01")));
-    expect(row).toMatchObject({ statementBalance: "3185.00", bookBalance: "3185.00", difference: "0.00", completedBy: "yusuf" });
+    expect(row).toMatchObject({ statementBalance: "3185.00", bookBalance: "3185.00", difference: "0.00", completedBy: "omid" });
     const [audit] = await db.select().from(s.auditLog).where(eq(s.auditLog.action, "ledger_reconciled"));
     expect(audit).toMatchObject({ projectId, entityId: row.id });
 
@@ -210,7 +219,13 @@ describe("bank reconciliation", { timeout: 60_000 }, () => {
     await doImport("2026-09", csv);
     // The statement's closing balance: August's 3185 less 40.
     await setStatementBalance({ organizationId: org, bankAccountId: bank, month: "2026-09", balance: "3145.00", by: "yusuf" });
-    await completeReconciliation({ organizationId: org, bankAccountId: bank, month: "2026-09", by: "yusuf", projectId });
+    // In solo mode the one finance person completes their own month, but only by confirming it; the entry is marked.
+    const solo = { on: true, blocked: null };
+    expect(await refused(completeReconciliation({ organizationId: org, bankAccountId: bank, month: "2026-09", by: "yusuf", projectId, solo }))).toMatch(/Confirm that you prepared this/);
+    expect(await refused(completeReconciliation({ organizationId: org, bankAccountId: bank, month: "2026-09", by: "yusuf", projectId, solo: { on: true, blocked: "The donor's rules require a second person." }, self: { confirm: true, note: "" } }))).toMatch(/someone else in Finance completes.*The donor's rules require a second person/);
+    const sept = await completeReconciliation({ organizationId: org, bankAccountId: bank, month: "2026-09", by: "yusuf", projectId, solo, self: { confirm: true, note: "One finance person this month." } });
+    const [marked] = await db.select({ detail: s.auditLog.detail }).from(s.auditLog).where(and(eq(s.auditLog.entityId, sept.id), eq(s.auditLog.action, "ledger_reconciled")));
+    expect(marked.detail).toMatchObject({ selfApproved: true, soloNote: "One finance person this month." });
     expect(await reconciliationsStillMatch(org)).toEqual([]);
     await payment("25.00", "2026-09-28", "Posted after the reconciliation");
     const off = await reconciliationsStillMatch(org);
@@ -239,7 +254,7 @@ describe("who may reconcile", { timeout: 60_000 }, () => {
     expect(manager.status).toBe(200);
     expect(manager.body.canReconcile).toBe(false);
     expect(manager.body.view).toMatchObject({ detail: false, statementLines: [], bookLines: [], difference: "0.00" });
-    expect(manager.body.view!.completed?.by).toBe("yusuf");
+    expect(manager.body.view!.completed?.by).toBe("omid");
 
     const act = await call(ACT as Handler, "nadia", "", { action: "balance", bankAccountId: bank, month: "2026-10", balance: "1.00" });
     expect(act.status).toBe(403);

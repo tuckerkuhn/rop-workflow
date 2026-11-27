@@ -10,7 +10,8 @@ import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn, type Tone, StatusPill
 import { Empty, Fig, Figures, LedgerRow, LedgerTable, PageHead, SectionHead, Sheet, StatusBlock } from "@/components/workspace/ledger";
 import type { BudgetLine, WorkplanItem } from "@/lib/budget";
 import { canEditProject, userById, users, type AppUser } from "@/lib/demo";
-import { LEAD_DAYS, METHOD, awaiting, canAsk, isManager, isProcurementManager, procurementManager, toUsd, type PlanItem, type PlanStatus } from "@/lib/procurement-plan";
+import { LEAD_DAYS, METHOD, awaiting, canAsk, isManager, isProcurementManager, lineRoom, procurementManager, splitAsk, toUsd, type PlanItem, type PlanStatus } from "@/lib/procurement-plan";
+import { lineFigureText } from "@/lib/line-money";
 import { levelFor } from "@/lib/procurement";
 import { today } from "@/lib/clock";
 
@@ -147,6 +148,8 @@ export function ProcurementPlanPage() {
       {asking && canAsk(user) && plan.budget && (
         <AskForm
           lines={plan.budget.lines}
+          items={plan.items}
+          committed={plan.committed}
           currency={plan.budget.currency}
           money={money}
           onAsk={plan.ask}
@@ -316,6 +319,11 @@ export function ProcurementPlanPage() {
                   item={current}
                   user={user}
                   line={plan.budget?.lines.find((l) => l.code === current.budgetCode) ?? null}
+                  available={(() => {
+                    const l = plan.budget?.lines.find((x) => x.code === current.budgetCode);
+                    // An ask's own money is not taken off the figure it is measured against.
+                    return l ? lineFigureText(lineRoom(l, plan.items, current.key, plan.committed[l.code] ?? 0).figure, money) : null;
+                  })()}
                   wp={plan.workplan.find((w) => w.code === current.workplanCode && (!w.org || /rop|roots/i.test(w.org))) ?? plan.workplan.find((w) => w.code === current.workplanCode) ?? null}
                   workplan={plan.workplan}
                   money={money}
@@ -356,6 +364,7 @@ function Detail({
   item,
   user,
   line,
+  available,
   wp,
   workplan,
   money,
@@ -366,6 +375,8 @@ function Detail({
   item: PlanItem;
   user: AppUser;
   line: BudgetLine | null;
+  /** The line's one figure in words, as the ask form and the requisition show it (lib/line-money). */
+  available: string | null;
   wp: WorkplanItem | null;
   money: (n: number) => string;
   onAct: ReturnType<typeof usePlan>["act"];
@@ -385,8 +396,10 @@ function Detail({
   const lead = userById(item.techLead ?? "");
   const manager = procurementManager(users);
   // Only the procurement manager approves for procurement; an administrator may sign for them.
-  const asManager = isProcurementManager(user, users) || !!user.admin;
-  const asLead = user.id === item.techLead || !!user.admin;
+  // Nobody approves what they asked for, in either seat (lib/procurement-plan OWN_REQUEST).
+  const mine = item.unplanned?.by === user.id;
+  const asManager = !mine && (isProcurementManager(user, users) || !!user.admin);
+  const asLead = !mine && (user.id === item.techLead || !!user.admin);
   const canChange = (isManager(user) || user.id === item.techLead || !!user.admin) && item.status !== "approved" && item.status !== "started";
   const leads = users.filter((u) => u.leads?.length || u.procurement.includes("holder"));
   const method = METHOD[item.level];
@@ -447,6 +460,7 @@ function Detail({
             Asked for by {item.unplanned.name}, {date(item.unplanned.at)}. It needs both approvals like any other purchase.
           </p>
           {item.unplanned.overPlan && <p className="mt-1 font-semibold text-clay">{item.unplanned.overPlan}</p>}
+          {item.unplanned.split && <p className="mt-1 font-semibold text-clay">{item.unplanned.split}</p>}
         </section>
       )}
 
@@ -497,6 +511,7 @@ function Detail({
             <Row label="Line budget">
               <span className="font-mono tabular-nums">{money(line.total)}</span>
               {line.spent ? <span className="block font-mono text-xs text-muted tabular-nums">{money(line.spent)} already spent</span> : null}
+              {available && <span className="block text-xs text-muted">{available}</span>}
               {line.quantity !== null && (
                 <span className="block text-xs text-muted">
                   {line.quantity} {line.unit ?? ""}
@@ -596,9 +611,9 @@ function Detail({
           </Row>
         </dl>
         {item.status === "approved" && <p className="mt-2 text-sm text-forest">On the Tasks calendar for {lead?.name ?? "the technical lead"} to start on {date(item.startBy)}.</p>}
-        {item.status === "approved" && (user.id === item.techLead || !!user.admin) && (
+        {item.status === "approved" && (user.id === item.techLead || mine || !!user.admin) && (
           <Link href={`/work?source=procurement&new=1&plan=${item.key}`} className={`${primaryBtn} mt-3 inline-block`}>
-            {user.id === item.techLead ? "Start the procurement request" : `Start the request for ${lead?.name ?? "the lead"}`}
+            {user.id === item.techLead || mine ? "Start the procurement request" : `Start the request for ${lead?.name ?? "the lead"}`}
           </Link>
         )}
         {item.status === "started" && item.procurementKey && (
@@ -676,7 +691,12 @@ function Detail({
           )}
         </div>
       )}
-      {user.admin && !isProcurementManager(user, users) && user.id !== item.techLead && item.status !== "approved" && (
+      {mine && item.status !== "approved" && item.status !== "started" && (
+        <p className="mt-2 text-xs text-muted">
+          You asked for this, so someone else approves it: {manager?.name ?? "the procurement manager"} for procurement and {lead && lead.id !== user.id ? lead.name : "a technical lead still to be chosen"} as technical lead.
+        </p>
+      )}
+      {user.admin && !mine && !isProcurementManager(user, users) && user.id !== item.techLead && item.status !== "approved" && (
         <p className="mt-2 text-xs text-muted">You are an admin, so you can approve for others while the app is in draft. It is recorded as you signing for them.</p>
       )}
     </article>
@@ -690,6 +710,8 @@ function Detail({
  */
 function AskForm({
   lines,
+  items,
+  committed,
   currency,
   money,
   onAsk,
@@ -697,6 +719,9 @@ function AskForm({
   onDone,
 }: {
   lines: BudgetLine[];
+  /** The calendar and the commitments of purchases under way, for the line's one figure (lib/line-money). */
+  items: PlanItem[];
+  committed: Record<string, number>;
   currency: string;
   money: (n: number) => string;
   onAsk: ReturnType<typeof usePlan>["ask"];
@@ -712,7 +737,10 @@ function AskForm({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const line = lines.find((l) => l.code === budgetCode);
-  const left = line ? Math.round((line.total - (line.spent ?? 0)) * 100) / 100 : null;
+  // The same figure the requisition and the approver see: budget, less spent, less committed, less other asks.
+  const room = line ? lineRoom(line, items, undefined, committed[line.code] ?? 0) : null;
+  // A possible split is said here, before it is asked for (lib/procurement-plan splitAsk).
+  const split = line && Number(value) > 0 ? splitAsk({ budgetCode: line.code, value: Number(value), currency, at: today() }, items) : null;
   const cost = Number(value) || 0;
   // Sooner than the usual time to buy something this size: it is urgent whether ticked or not.
   const soon = cost > 0 && !!neededBy && new Date(`${neededBy}T00:00:00Z`).getTime() - new Date(`${today()}T00:00:00Z`).getTime() < LEAD_DAYS[levelFor(toUsd(cost, currency))] * 86400000;
@@ -759,11 +787,17 @@ function AskForm({
               </option>
             ))}
           </select>
-          {left !== null && <span className="mt-1 block text-xs text-muted">{money(left)} left on this line.</span>}
+          {room && (
+            <span className={`mt-1 block text-xs ${cost > room.afterAsks ? "text-clay" : "text-muted"}`}>
+              {lineFigureText(room.figure, money)}.
+              {cost > 0 && cost <= room.afterAsks && cost > room.afterPlanned ? ` Planned purchases on the line already use ${money(Math.max(0, room.figure.available - room.afterPlanned))} of it: the approvers will be told.` : ""}
+            </span>
+          )}
         </label>
         <label className="text-sm">
           Estimated cost ({currency})
           <input type="number" min={0} step="any" inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} className={field} />
+          {split && <span className="mt-1 block text-xs font-semibold text-clay">{split.text}</span>}
         </label>
         <label className="text-sm">
           Needed by

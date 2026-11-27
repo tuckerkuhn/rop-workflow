@@ -13,8 +13,9 @@ import { useT } from "@/components/app/i18n";
 import { SelfConfirmSheet, useSolo } from "@/components/app/self-confirm";
 import { useDonors, usePlan, useProcurements } from "@/components/app/use-project-data";
 import type { BudgetLine as ProjectBudgetLine, WorkplanItem } from "@/lib/budget";
-import { METHOD, toUsd, type PlanItem } from "@/lib/procurement-plan";
+import { METHOD, openAsks, toUsd, type PlanItem } from "@/lib/procurement-plan";
 import { activityHref, resultHref, workplanOfProcurement } from "@/lib/connections";
+import { isProcurementManager } from "@/lib/procurement-plan";
 import { AiCheck, DraftPanel, RoutePicker, SoleFacts, SupplierField, VoucherPanel, type DraftKind } from "@/components/procurement/route-panels";
 import { useSupplierRegister, type SupplierRow } from "@/components/procurement/suppliers-page";
 import { BidsPanel, DistributionPanel } from "@/components/procurement/bid-panels";
@@ -77,6 +78,7 @@ import {
   maySign,
   procRolesFor,
   typeFor,
+  setLineMoney,
   setProcurementSet,
   setSupplierRegister,
   receivedQty,
@@ -123,7 +125,9 @@ export function procurementComingTo(items: Procurement[], role: string) {
           via: `${lowerFirst(stepById[path[0].step].title)} with ${holderFor(p, path[0].owner as Role)?.name ?? roleLabel(path[0].owner as Role)}`,
           basis: path
             .slice(0, path.indexOf(hit))
-            .map((x) => `${stepById[x.step].title}: median ${stepHistory[x.step]?.median} days (${stepHistory[x.step]?.n} cases)`)
+            // A step with no past cases has no median to quote: left out, never shown as "undefined" (review round 1, ISS-26).
+            .filter((x) => stepHistory[x.step])
+            .map((x) => `${stepById[x.step].title}: median ${stepHistory[x.step].median} days (${stepHistory[x.step].n} cases)`)
             .join(" · "),
         },
       ];
@@ -319,6 +323,7 @@ function NewRequest({ onCancel, onCreate, from, grant }: { onCancel: () => void;
                   currency: item.currency,
                   requestedBy: user?.name ?? "Technical lead",
                   requestedById: user?.id,
+                  ...(item.unplanned ? { unplanned: { by: item.unplanned.name, at: item.unplanned.at, reason: item.unplanned.reason, urgent: item.unplanned.urgent } } : {}),
                   approvedBy: [item.approvals.manager, item.approvals.lead].filter((a): a is NonNullable<typeof a> => !!a).map((a) => (a.for ? `${a.name} for ${a.for}` : a.name)),
                 },
               }
@@ -783,6 +788,23 @@ function Detail({
                       }}
                     />
                   </ul>
+                  {/* An override a second person confirms (ISS-17): the procurement manager, not whoever recorded it. */}
+                  {(() => {
+                    const key = `fix.${p.step}.${c.id}`;
+                    const o = p.overrides?.[key];
+                    if (!c.second || !p.checks[key] || !o || o.confirmedBy) return null;
+                    const may = !!user && user.name !== o.by && (!!user.admin || isProcurementManager(user));
+                    return (
+                      <div className="mt-1 flex flex-wrap items-center gap-2 bg-ochre-soft px-3 py-2 text-sm">
+                        <span className="min-w-0 flex-1">{`Waiting for ${c.second} to confirm: ${o.why} (${o.by}).`}</span>
+                        {may && (
+                          <button type="button" className={`${quietBtn} min-h-11`} onClick={() => update((q) => log({ ...q, overrides: { ...q.overrides, [key]: { ...o, confirmedBy: { name: user!.name, date: today() } } } }, `${c.resolve}: confirmed by ${user!.name}`))}>
+                            Confirm: {c.resolve?.toLowerCase()}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </LedgerRow>
               ))}
               {step.signs && (
@@ -910,6 +932,17 @@ export function ProcurementWorkspace() {
 
   // Checks that look across procurements (split purchases) read the whole project's list.
   setProcurementSet(items);
+  // The budget lines' live money and the calendar's open asks: the one figure for what is left on a line (lib/line-money).
+  setLineMoney(
+    plan.budget?.lines.length
+      ? plan.budget.lines.map((l) => ({
+          code: l.code,
+          budgetUsd: toUsd(l.total, plan.budget!.currency),
+          spentUsd: toUsd(l.spent ?? 0, plan.budget!.currency),
+          asks: openAsks(plan.items).filter((a) => a.code === l.code).map((a) => ({ key: a.key, usd: toUsd(a.value, a.currency) })),
+        }))
+      : null,
+  );
   // On a real project the supplier checks read the supplier register.
   const register = useSupplierRegister(!!project.saved && project.id !== "A-2027", user?.id);
   setSupplierRegister(register);
@@ -1124,11 +1157,23 @@ export function ProcurementWorkspace() {
               setForGrant(null);
               setMobileDetail(false);
             }}
-            onCreate={(draft) => {
-              // Next free number this year, so two people never get the same ID.
-              const year = today().slice(0, 4);
-              const used = items.map((x) => x.id.match(new RegExp(`^PR-${year}-(\\d+)$`))?.[1]).filter(Boolean).map(Number);
-              const p = { ...draft, id: `PR-${year}-${String(Math.max(0, ...used) + 1).padStart(3, "0")}` };
+            onCreate={async (draft) => {
+              // The project's next free number, with its code in it (PR-A2027-004), asked of the server
+              // (review round 1, ISS-11). A project not saved yet numbers its own the same way.
+              const tag = project.id.toUpperCase().replace(/[^A-Z0-9]/g, "");
+              const num = (x: string) => Number(x.match(new RegExp(`^PR-${tag}-(\\d+)$`))?.[1] ?? 0);
+              let id = `PR-${tag}-${String(Math.max(0, ...items.map((x) => num(x.id))) + 1).padStart(3, "0")}`;
+              if (project.saved && user) {
+                try {
+                  const r = await fetch(`/api/projects/${encodeURIComponent(project.id)}/procurements/next-id`, { cache: "no-store", headers: { "x-demo-user": user.id } });
+                  const next = r.ok ? ((await r.json()) as { id?: string }).id : undefined;
+                  // Never a number below one already on this screen (a request made a moment ago, not saved yet).
+                  if (next && !items.some((x) => x.id === next) && num(next) > num(id)) id = next;
+                } catch {
+                  // Offline or the server is busy: the save takes the number and says so if it is taken.
+                }
+              }
+              const p = { ...draft, id };
               setItems((all) => [p, ...all]);
               setSelected(p.id);
               setCreating(false);

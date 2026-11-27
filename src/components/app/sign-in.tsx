@@ -71,9 +71,8 @@ export function SignIn() {
           </p>
         </div>
         <p className="relative text-xs opacity-60">
-          {mode === "demo"
-            ? tx("Demo mode with fictional people and records.")
-            : tx("Pilot for Roots of Peace staff.")}{" "}
+          {/* One label, set by how the app is running; nothing while that is still being read (review round 1, ISS-30). */}
+          {mode === "demo" ? tx("Demo mode with fictional people and records.") : mode === "live" ? tx("Pilot for Roots of Peace staff.") : ""}{" "}
           <Link href="/about" className="underline underline-offset-2">
             {tx("About this project")}
           </Link>

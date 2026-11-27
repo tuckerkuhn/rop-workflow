@@ -1,8 +1,9 @@
 import { z } from "zod";
 import { workplanFor, type BudgetLine, type WorkplanItem } from "@/lib/budget";
 import { AFN_PER_USD, users, type AppUser } from "@/lib/demo";
-import { levelFor, rulesInForce, type Level } from "@/lib/procurement";
+import { LEAD_DAYS, levelFor, rulesInForce, type Level } from "@/lib/procurement";
 import { isDay } from "@/lib/clock";
+import { lineFigure, lineFigureText } from "@/lib/line-money";
 
 /**
  * The procurement calendar: one planned purchase per budget line marked to procure, built from
@@ -60,14 +61,16 @@ export type Unplanned = {
   urgent: boolean;
   /** Set when the line's planned purchases already use what is left on it: says how much is left after them, for the approvers. */
   overPlan?: string;
+  /** Set when, with other asks on the same line in the same month, it reaches a higher procurement level: a possible split, for the approvers. */
+  split?: string;
 };
 
 /** Rough USD value, for choosing the policy level. */
 export const USD_PER: Record<string, number> = { USD: 1, AFN: 1 / AFN_PER_USD };
 export const toUsd = (value: number, currency: string) => value * (USD_PER[currency] ?? 1);
 
-/** Typical days from starting a procurement to having the goods, per level. A starting guess; change it per item. */
-export const LEAD_DAYS: Record<Level, number> = { Micro: 7, Small: 21, Medium: 45, Large: 90 };
+/** Typical days from starting a procurement to having the goods, per level (kept in lib/procurement, which its checks read too). */
+export { LEAD_DAYS };
 
 /** A threshold from the rules in force (the organization's policy with the donor's layered on), as "$5,000". */
 const dollars = (key: string, fallback: number) => {
@@ -116,6 +119,20 @@ export function leadFor(line: Pick<BudgetLine, "activityCode" | "kind">, people:
     for (const p of u.leads ?? []) if (p !== "operations" && code.startsWith(p) && (!best || p.length > best.len)) best = { id: u.id, len: p.length };
   return best?.id ?? null;
 }
+
+/**
+ * Who approves a purchase as technical lead when the line's own lead is the person asking for it
+ * (review round 1, ISS-03): nobody approves what they proposed. In order: another lead of the
+ * same line, then the requester's line manager. Null when there is neither: the procurement
+ * manager or an administrator then names someone.
+ */
+export function leadOtherThan(line: Pick<BudgetLine, "activityCode" | "kind">, people: AppUser[], requester: AppUser): string | null {
+  const others = people.filter((p) => p.id !== requester.id);
+  const boss = others.find((p) => p.id === requester.reportsTo && p.kind === "employee");
+  return leadFor(line, others) ?? boss?.id ?? null;
+}
+/** The words for it, wherever the requester meets the rule. */
+export const OWN_REQUEST = "You asked for this purchase, so someone else approves it. Nobody approves what they asked for.";
 
 const pad = (n: number) => String(n).padStart(3, "0");
 
@@ -231,11 +248,40 @@ const money = (v: number, currency: string) => `${v.toLocaleString("en-US", { ma
  *   line's whole remainder by construction (an estimate of what is still to buy), so going past
  *   it is allowed but marked for the approvers rather than refused.
  */
-export function lineRoom(line: BudgetLine, items: PlanItem[], exceptKey?: string) {
-  const open = items.filter((i) => i.budgetCode === line.code && i.status !== "started" && i.key !== exceptKey);
+export function lineRoom(line: BudgetLine, items: PlanItem[], exceptKey?: string, committed = 0) {
+  // A returned item holds nothing until it is sent again (code review of ISS-07): nobody may be
+  // working on it, and it would hold the line's money for ever.
+  const open = items.filter((i) => i.budgetCode === line.code && i.status !== "started" && i.status !== "returned" && i.key !== exceptKey);
   const sum = (xs: PlanItem[]) => xs.reduce((t, i) => t + (i.value || 0), 0);
-  const afterAsks = round2(line.total - (line.spent ?? 0) - sum(open.filter((i) => i.unplanned)));
-  return { afterAsks, afterPlanned: round2(afterAsks - sum(open.filter((i) => !i.unplanned))) };
+  // The one figure for the line (lib/line-money): budget, less spent, less what purchases under way
+  // are committed to and have not paid (`committed`, in the budget's currency), less other open asks.
+  const figure = lineFigure(line.code, line.total, line.spent ?? 0, committed, sum(open.filter((i) => i.unplanned)));
+  return { figure, afterAsks: figure.available, afterPlanned: round2(figure.available - sum(open.filter((i) => !i.unplanned))) };
+}
+/** Open asks made outside the calendar, by budget line: what `lineFigure` takes off as "asked". */
+export const openAsks = (items: PlanItem[]) => items.filter((i) => i.unplanned && i.status !== "started" && i.status !== "returned").map((i) => ({ key: i.key, code: i.budgetCode ?? "", value: i.value, currency: i.currency }));
+
+/** How many days apart two asks on one budget line still count as one need (the same window the requisition's split check uses). */
+export const SPLIT_ASK_DAYS = 30;
+/**
+ * A possible split purchase, seen when it is asked for and not only when the requisition reaches
+ * the approver (review round 1, ISS-17): other asks on the same budget line within the window
+ * that, added to this one, reach a higher procurement level than this one alone. Null when none.
+ * Splitting a purchase to stay under a threshold is not allowed, so the people approving the
+ * calendar item are told.
+ */
+export function splitAsk(ask: { key?: string; budgetCode: string; value: number; currency: string; at: string }, items: PlanItem[]): { others: PlanItem[]; combinedUsd: number; alone: Level; together: Level; text: string } | null {
+  const near = (a: string, b: string) => Math.abs(Date.parse(`${a}T00:00:00Z`) - Date.parse(`${b}T00:00:00Z`)) <= SPLIT_ASK_DAYS * 86400000;
+  const others = items.filter((i) => i.unplanned && i.key !== ask.key && i.budgetCode === ask.budgetCode && i.status !== "returned" && near(i.unplanned.at, ask.at));
+  if (!others.length) return null;
+  const own = toUsd(ask.value, ask.currency);
+  const combinedUsd = own + others.reduce((t, i) => t + toUsd(i.value, i.currency), 0);
+  const alone = levelFor(own);
+  const together = levelFor(combinedUsd);
+  if (alone === together) return null;
+  const list = others.map((i) => `${i.key} (${money(i.value, i.currency)})`).join(", ");
+  const text = `Possible split purchase. With ${list} asked for on budget line ${ask.budgetCode} within ${SPLIT_ASK_DAYS} days, this makes $${Math.round(combinedUsd).toLocaleString("en-US")} together: a ${together} purchase, not ${alone}. Combine them and buy at the ${together} level, or be ready to say why they are separate needs.`;
+  return { others, combinedUsd, alone, together, text };
 }
 
 /**
@@ -245,24 +291,21 @@ export function lineRoom(line: BudgetLine, items: PlanItem[], exceptKey?: string
  * exactly as they approve a planned item, before anyone can start a request.
  * `items`: what is on the calendar already, so the line is not promised twice (lineRoom).
  */
-export function unplannedItem(a: AskInput, o: { line: BudgetLine | undefined; currency: string; workplan: WorkplanItem[]; people: AppUser[]; user: AppUser; today: string; key: string; items?: PlanItem[] }): PlanItem | string {
-  const { line, currency, workplan, people, user, today: now, key, items = [] } = o;
+export function unplannedItem(a: AskInput, o: { line: BudgetLine | undefined; currency: string; workplan: WorkplanItem[]; people: AppUser[]; user: AppUser; today: string; key: string; items?: PlanItem[]; /** Unpaid commitments of purchases under way on this line, in the budget's currency. */ committed?: number }): PlanItem | string {
+  const { line, currency, workplan, people, user, today: now, key, items = [], committed = 0 } = o;
   if (!canAsk(user)) return "You can view Procurement but not ask for purchases.";
   if (!line) return "That budget line is not in this project's budget. Choose one from the list.";
   if (a.neededBy < now) return "The needed-by date has passed. Choose today or a later date.";
-  const room = lineRoom(line, items, key);
-  const spentLeft = round2(line.total - (line.spent ?? 0));
-  if (a.value > room.afterAsks) {
-    const asked = round2(spentLeft - room.afterAsks);
-    const why = asked > 0 ? ` after ${money(asked, currency)} already asked for outside the calendar` : "";
-    return `That is more than the ${money(Math.max(0, room.afterAsks), currency)} left on budget line ${line.code}${why}. Choose another line or ask Finance about moving money first.`;
-  }
+  const room = lineRoom(line, items, key, committed);
+  if (a.value > room.afterAsks) return `That is more than the ${lineFigureText(room.figure, (n) => money(n, currency))}. Choose another line or ask Finance about moving money first.`;
   const overPlan =
     a.value > room.afterPlanned
       ? `Budget line ${line.code} has ${money(Math.max(0, room.afterPlanned), currency)} left after the purchases already planned on it, and this asks for ${money(a.value, currency)}. Approving it means buying less of what is planned on the line, or moving money first.`
       : undefined;
   const usd = toUsd(a.value, currency);
   const level = levelFor(usd);
+  // Told to the approvers now, not first to whoever approves the requisition.
+  const split = splitAsk({ key, budgetCode: line.code, value: a.value, currency, at: now }, items);
   const leadDays = LEAD_DAYS[level];
   const due = addDays(a.neededBy, -leadDays);
   const urgent = !!a.urgent || due < now;
@@ -283,13 +326,14 @@ export function unplannedItem(a: AskInput, o: { line: BudgetLine | undefined; cu
     leadDays,
     // Never in the past: it is asked for today.
     startBy: due < now ? now : due,
-    techLead: leadFor(line, people),
+    // The line's lead approves it, unless they are the one asking: then another lead, or their line manager.
+    techLead: leadFor(line, people) === user.id ? leadOtherThan(line, people, user) : leadFor(line, people),
     status: "draft",
     approvals: {},
     returnNote: null,
     edited: true,
     procurementKey: null,
-    unplanned: { by: user.id, name: user.name, at: now, reason: a.reason, urgent, ...(overPlan ? { overPlan } : {}) },
+    unplanned: { by: user.id, name: user.name, at: now, reason: a.reason, urgent, ...(overPlan ? { overPlan } : {}), ...(split ? { split: split.text } : {}) },
   };
 }
 
@@ -323,6 +367,9 @@ export const procurementManager = (people: AppUser[]) => people.find((u) => isMa
  */
 export const isProcurementManager = (u: AppUser, people: AppUser[] = users) => procurementManager(people)?.id === u.id;
 
+/** Why one person cannot approve in both seats. */
+export const BOTH_SEATS = "You approved this in the other seat. A second person approves here, so two people have looked at it.";
+
 /** Applies an action, or returns why the person cannot. */
 /**
  * `rows`: the workplan's row codes, when the project has a workplan. With one, a purchase must
@@ -335,6 +382,12 @@ export function applyAction(item: PlanItem, a: PlanAction, u: AppUser, people: A
   switch (a.action) {
     case "approve": {
       if (item.status === "approved") return "Already approved.";
+      // In either seat, and for an administrator too: the person who asked does not approve it.
+      if (item.unplanned?.by === u.id) return OWN_REQUEST;
+      // Two seats, two people (code review of D-13): whoever signed one seat does not sign the other,
+      // an administrator or a line manager standing in as technical lead included.
+      const other = a.as === "manager" ? item.approvals?.lead : item.approvals?.manager;
+      if (other?.by === u.id) return BOTH_SEATS;
       if (a.as === "manager") {
         const holder = procurementManager(people);
         if (!isProcurementManager(u, people) && !u.admin) return `Only the procurement manager${holder ? ` (${holder.name})` : ""} approves for procurement.`;
@@ -351,7 +404,7 @@ export function applyAction(item: PlanItem, a: PlanAction, u: AppUser, people: A
       if (!isManager(u) && u.id !== item.techLead && !u.admin) return "Only the procurement manager or the technical lead can send it back.";
       return { ...item, status: "returned", approvals: {}, returnNote: `${a.note} (${u.name}, ${today})` };
     case "start":
-      if (u.id !== item.techLead && !u.admin) return "Only this line's technical lead starts the request.";
+      if (u.id !== item.techLead && u.id !== item.unplanned?.by && !u.admin) return "Only this line's technical lead, or the person who asked for it, starts the request.";
       if (item.status !== "approved") return "It needs both approvals before the request starts.";
       return { ...item, status: "started", procurementKey: a.procurementKey };
     case "reopen":
@@ -361,6 +414,7 @@ export function applyAction(item: PlanItem, a: PlanAction, u: AppUser, people: A
       if (!isManager(u) && u.id !== item.techLead && !u.admin) return "Only the procurement manager or the technical lead can change it.";
       if (item.status === "approved") return "Reopen it before changing it.";
       if (a.workplanCode && rows && !rows.includes(a.workplanCode)) return "That row is not in this project's workplan. Choose one from the list.";
+      if (a.techLead && a.techLead === item.unplanned?.by) return "The person who asked for a purchase cannot be the one who approves it as technical lead. Choose someone else.";
       const neededBy = a.neededBy ?? item.neededBy;
       const leadDays = a.leadDays ?? item.leadDays;
       // A change needs both approvals again.
@@ -386,6 +440,6 @@ const settle = (i: PlanItem): PlanItem => ({ ...i, status: i.approvals.manager &
 
 /** What a person still has to approve. */
 export const awaiting = (items: PlanItem[], u: AppUser) => ({
-  asManager: isProcurementManager(u) ? items.filter((i) => i.status === "draft" && !i.approvals.manager) : [],
-  asLead: items.filter((i) => i.status === "draft" && i.techLead === u.id && !i.approvals.lead),
+  asManager: isProcurementManager(u) ? items.filter((i) => i.status === "draft" && !i.approvals.manager && i.unplanned?.by !== u.id) : [],
+  asLead: items.filter((i) => i.status === "draft" && i.techLead === u.id && !i.approvals.lead && i.unplanned?.by !== u.id),
 });
