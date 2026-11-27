@@ -34,3 +34,16 @@ describe("a new purchase number is taken once", { timeout: 60_000 }, () => {
     expect(await nextProcurementId(code)).toBe(id);
   });
 });
+
+describe("a goods received note dated after today (code review of ISS-16)", { timeout: 60_000 }, () => {
+  it("is refused on a real project, so it cannot switch off the stock-by-date check", async () => {
+    process.env.DEMO_SIGN_IN = "1";
+    const { PUT } = await import("@/app/api/projects/[code]/procurements/route");
+    const p = (await loadProcurements(code)).find((x) => (x.signatures?.["Goods received note"] ?? []).length)!;
+    const signed = (p.signatures!["Goods received note"] ?? []).map((x) => ({ ...x, date: "2099-01-01" }));
+    const body = { items: [{ ...p, signatures: { ...p.signatures, "Goods received note": signed } }] };
+    const res = await PUT(new Request(`http://test/api/projects/${code}/procurements`, { method: "PUT", headers: { "x-demo-user": "hamid", "content-type": "application/json" }, body: JSON.stringify(body) }), { params: Promise.resolve({ code }) });
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { error: string }).error).toContain("cannot be dated after today");
+  });
+});

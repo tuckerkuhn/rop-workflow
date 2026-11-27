@@ -154,9 +154,19 @@ async function context(project: Project, opts: { excluding?: string; countPendin
     const day = dayOf(r);
     const then: Given = {};
     for (const o of counted) if (dayOf(o) <= day) addGiven(then, st.byId[o.id]?.items ?? itemsFor(setup), setup);
-    return { day, given: then, today: today() };
+    return { day, given: then, today: today(), later: laterDays(counted.filter((o) => o.id !== (r as { id?: string }).id), day, (o) => st.byId[o.id]?.items ?? itemsFor(setup), setup) };
   };
   return { setup, procs, given, onDay, others: othersThan(rows, opts.excluding), st, rows };
+}
+
+/** For each hand-out day after `day`, what the given hand-outs had taken by then (cumulative). */
+function laterDays<R extends { payload: unknown; completedAt: Date | null; createdAt?: Date | null }>(rows: R[], day: string, itemsOf: (r: R) => Parameters<typeof addGiven>[1], setup: Parameters<typeof addGiven>[2]): { day: string; given: Given }[] {
+  const days = [...new Set(rows.map((r) => dayOf(r)).filter((d) => d > day))].sort();
+  return days.map((d) => {
+    const g: Given = {};
+    for (const r of rows) if (dayOf(r) <= d) addGiven(g, itemsOf(r), setup);
+    return { day: d, given: g };
+  });
 }
 
 /** The farmers of every other distribution that still stands (not removed, not sent back), for the "same farmer twice" check. */
@@ -501,6 +511,7 @@ export async function listDistributions(code: string): Promise<DistView[]> {
   const approved: Given = {};
   for (const r of rows) if (r.reviewStatus === "accepted" && !r.koboRemovedAt) addGiven(approved, st.byId[r.id]?.items ?? itemsFor(setup), setup);
   /** What approved hand-outs dated on or before a day had taken, leaving out the one being looked at. */
+  const laterFor = (day: string, except: string) => laterDays(rows.filter((r) => r.id !== except && r.reviewStatus === "accepted" && !r.koboRemovedAt), day, (r) => st.byId[r.id]?.items ?? itemsFor(setup), setup);
   const approvedBy = (day: string, except: string): Given => {
     const then: Given = {};
     for (const r of rows) if (r.id !== except && r.reviewStatus === "accepted" && !r.koboRemovedAt && dayOf(r) <= day) addGiven(then, st.byId[r.id]?.items ?? itemsFor(setup), setup);
@@ -531,7 +542,7 @@ export async function listDistributions(code: string): Promise<DistView[]> {
         condition: m.conditionOk ? null : badCondition(conditionOf(r)),
         // While it waits, the checks are worked out now, as approving will: a goods received note
         // signed since the record was made shows at once. Once decided, they stay as they were then.
-        gate: r.reviewStatus === "pending" ? gate(m.items, procs, approved, setup, { day: dayOf(r), given: approvedBy(dayOf(r), r.id), today: today() }) : m.gate,
+        gate: r.reviewStatus === "pending" ? gate(m.items, procs, approved, setup, { day: dayOf(r), given: approvedBy(dayOf(r), r.id), today: today(), later: laterFor(dayOf(r), r.id) }) : m.gate,
         flags: m.flags,
         status: r.reviewStatus,
         waitingSince: [r.createdAt.toISOString(), ...(m.history ?? []).map((h) => h.fixed.at)].sort().at(-1)!.slice(0, 10),

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { realToday } from "@/lib/clock";
 import { stampHistory } from "@/lib/history";
 import { EMPTY_VOUCHER_SETUP, VOUCHER_SETUP_KEY, type VoucherSetup } from "@/lib/voucher-setup";
 import { loadProjectState } from "@/server/project-state";
@@ -45,6 +46,15 @@ export async function PUT(req: Request, { params }: { params: Promise<{ code: st
     const parsed = bodySchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return NextResponse.json({ error: "That procurement could not be saved: the record is incomplete." }, { status: 400 });
     const items = parsed.data.items as unknown as Procurement[];
+    // On a real project a goods received note is never dated after today: a later date would read as
+    // a sample record and switch off the stock-by-date check (code review of ISS-16).
+    const thisProject = await projectByCode(code);
+    if (thisProject.kind === "real") {
+      const now = realToday();
+      const grnDates = (p: Procurement) => [...(p.signatures?.["Goods received note"] ?? []), ...(p.payments ?? []).flatMap((r) => r.signatures?.["Goods received note"] ?? [])].map((x) => (x.date ?? "").slice(0, 10));
+      const ahead = items.find((x) => grnDates(x).some((d) => d > now));
+      if (ahead) return NextResponse.json({ error: `${ahead.id}: a goods received note cannot be dated after today. Date it the day the goods arrived.` }, { status: 400 });
+    }
     // The server decides what is allowed (the same rules as the screen), then records each save.
     // Everything is loaded first; the checks then run with no await in between, so another
     // request cannot swap in its own project's rules while these run.

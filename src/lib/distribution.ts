@@ -57,6 +57,12 @@ export type OnDay = {
    * records run on its own calendar): it is counted whatever the hand-out's date, as before.
    */
   today?: string;
+  /**
+   * What other hand-outs had taken by each later hand-out day (cumulative, this one left out). A
+   * hand-out dated before others already counted must leave each of them covered too (code review
+   * of ISS-16): otherwise more goes out by a later day than had arrived by it.
+   */
+  later?: { day: string; given: Given }[];
 };
 
 export type GateLine = { key: string; item: string; unit: string; procurements: string[]; received: number; given: number; thisQty: number; ok: boolean; detail: string };
@@ -84,6 +90,17 @@ export function gate(items: DistItem[], procs: Procurement[], given: Given, setu
     const odd = done.filter((p) => receivedIn(p, unit) === null);
     if (odd.length) return { ...base, received: 0, ok: false, detail: `${it.item}: ${odd.map((p) => `${p.id} was bought in ${p.unit}`).join("; ")}, but the package gives ${unit}. Use the same unit in the package and the purchase.` };
     const got = done.reduce((s, p) => s + (receivedIn(p, unit) ?? 0), 0);
+    /** Whether this hand-out leaves a later hand-out day with more gone out than had arrived by then. */
+    const laterShort = (key: string, qty: number): string | null => {
+      if (!on?.later?.length) return null;
+      for (const l of on.later) {
+        if (l.day <= on.day) continue;
+        const by = done.filter((p) => { const d = receivedOn(p); return !d || d <= l.day || (!!on.today && d > on.today); }).reduce((s, p) => s + (receivedIn(p, unit) ?? 0), 0);
+        const out = (l.given[key] ?? 0) + qty;
+        if (out > by + 1e-9) return `this hand-out is dated ${on.day}, before hand-outs already counted. By ${l.day} ${qtyUnit(out, unit)} would have gone out, but only ${qtyUnit(by, unit)} had been received by then. Check the hand-out date.`;
+      }
+      return null;
+    };
     if (already + thisQty > got + 1e-9) {
       // Say what would unblock it: a delivery that has arrived but whose received note is not signed yet.
       const coming = sources.filter((p) => !received(p) && stepById[p.step]?.id === "receive");
@@ -104,7 +121,8 @@ export function gate(items: DistItem[], procs: Procurement[], given: Given, setu
     if (on && late.length) {
       const early = done.filter((p) => !late.includes(p));
       const gotThen = early.reduce((s, p) => s + (receivedIn(p, unit) ?? 0), 0);
-      const takenThen = on.given?.[it.key] ?? already;
+      // What had gone out by this day: none of an item nobody had handed out by then, not everything since.
+      const takenThen = on.given ? (on.given[it.key] ?? 0) : already;
       const after = late.map((p) => `${p.id} on ${receivedOn(p)}`).join(", ");
       if (takenThen + thisQty > gotThen + 1e-9)
         return {
@@ -113,8 +131,12 @@ export function gate(items: DistItem[], procs: Procurement[], given: Given, setu
           ok: false,
           detail: `${it.item}: this hand-out is dated ${on.day}, when only ${qtyUnit(Math.max(0, gotThen - takenThen), unit)} of the ${qtyUnit(gotThen, unit)} received by then was left, and it needs ${qtyUnit(thisQty, unit)}. More arrived later (${after}). Check the hand-out date.`,
         };
+      const short = laterShort(it.key, thisQty);
+      if (short) return { ...base, received: gotThen, ok: false, detail: `${it.item}: ${short}` };
       return { ...base, received: gotThen, ok: true, detail: `${it.item}: ${fmt(takenThen + thisQty)} of ${fmt(gotThen)} ${unit} received by ${on.day} will have gone out (${early.map((p) => p.id).join(", ")}).` };
     }
+    const short = laterShort(it.key, thisQty);
+    if (short) return { ...base, received: got, ok: false, detail: `${it.item}: ${short}` };
     return { ...base, received: got, ok: true, detail: `${it.item}: ${fmt(already + thisQty)} of ${fmt(got)} ${unit} received will have gone out (${done.map((p) => p.id).join(", ")}).` };
   });
   // Nothing recorded as given is not a distribution: approving it would count the farmer as

@@ -328,6 +328,20 @@ describe("a hand-out draws only on what had arrived by its own day", () => {
     expect(gateFor(pack(50), [first, second], { [npk.key]: 80 }, DEMO_SETUP, { day: "2026-11-27", given: { [npk.key]: 80 } }).ok).toBe(true);
   });
 
+  // Code review of ISS-16: 100 arrived on 10 Nov and 600 on 26 Nov. A hand-out of 100 dated 15 Nov is approved.
+  // Another of 50, backdated to 12 Nov, fits on its own day but leaves 150 gone out by 15 Nov against 100 received.
+  it("a backdated hand-out must leave every later hand-out day covered too", () => {
+    const later = [{ day: "2026-11-15", given: { [npk.key]: 100 } }];
+    const g = gateFor(pack(50), [first, second], { [npk.key]: 100 }, DEMO_SETUP, { day: "2026-11-12", given: {}, later });
+    expect(g.ok).toBe(false);
+    expect(g.block).toContain("By 2026-11-15");
+    expect(g.block).toContain("only 100 kg had been received by then");
+    // Dated after the second lot arrived, it is fine.
+    expect(gateFor(pack(50), [first, second], { [npk.key]: 100 }, DEMO_SETUP, { day: "2026-11-27", given: { [npk.key]: 100 }, later: [] }).ok).toBe(true);
+    // And with room on the later day too, a backdated one is fine.
+    expect(gateFor(pack(20), [first, second], { [npk.key]: 60 }, DEMO_SETUP, { day: "2026-11-12", given: {}, later: [{ day: "2026-11-15", given: { [npk.key]: 60 } }] }).ok).toBe(true);
+  });
+
   it("a receipt dated after today is a sample record on its own calendar, and counts as before", () => {
     const sample = proc({ id: "PR-SAMPLE", unit: npk.unit, budgetLine: "2.2", step: "done", grn: { qty: 600, place: "Village B" }, signatures: signedOn("2027-01-27") });
     const g = gateFor(pack(50), [sample], {}, DEMO_SETUP, { day: "2026-11-27", given: {}, today: "2026-11-27" });
