@@ -446,7 +446,16 @@ export type PlanLink = {
   /** The technical lead who made the request: name, and person id. */
   requestedBy: string;
   requestedById?: string;
+  /** Asked for outside the procurement calendar: who asked, when, why, and whether it was urgent. The approver reads it on the requisition. */
+  unplanned?: { by: string; at: string; reason: string; urgent: boolean };
 };
+
+/** How a purchase came about, as the requisition prints it: planned, or not on the calendar and why (review round 1, ISS-10). */
+export function plannedOrUrgent(p: Pick<Procurement, "urgent" | "plan">): string {
+  const u = p.plan?.unplanned;
+  if (u) return `${u.urgent ? "Urgent, not" : "Not"} on the procurement calendar. Asked for by ${u.by} on ${u.at}: ${u.reason}`;
+  return p.urgent ? "Urgent (not in the procurement plan)" : "Planned";
+}
 
 /**
  * The person holding a role on this procurement. Requests started from the procurement calendar

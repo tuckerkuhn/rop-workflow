@@ -5,7 +5,7 @@
 
 import { acct, storeNames } from "@/lib/file-store";
 import { PROJECT, holderOf } from "@/lib/demo";
-import { bidUsd, byHand, distributionState, documentsOf, levelFor, lineOf, receivedQty, registered, roleLabel, stepsFor, valueOf, vendbillOf, type Money, type Procurement } from "@/lib/procurement";
+import { bidUsd, byHand, distributionState, plannedOrUrgent, documentsOf, levelFor, lineOf, receivedQty, registered, roleLabel, stepsFor, valueOf, vendbillOf, type Money, type Procurement } from "@/lib/procurement";
 import { lastScreening } from "@/lib/suppliers";
 import { currentInstalment, expectedAfn, expectedUsd, invoiceUsd, orderUsd, receivedBefore, voucherBook, withholding } from "@/lib/payments";
 import { DEPARTMENTS, GL_EXPENSE, LOCATIONS, codeLabel } from "@/lib/voucher-codes";
@@ -130,7 +130,7 @@ export function documentFor(p: Procurement, doc: string, money: Money, other: Mo
           ["Procurement level", level],
           ["Needed by", p.neededBy],
           ["Delivery place", p.place],
-          ["Planned or urgent", p.urgent ? "Urgent (not in the procurement plan)" : "Planned"],
+          ["Planned or urgent", plannedOrUrgent(p)],
           ["Environmental or social risk", p.esRisk || "—"],
           ["Price basis", p.priceBasis || "—"],
         ],

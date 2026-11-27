@@ -123,7 +123,9 @@ export function procurementComingTo(items: Procurement[], role: string) {
           via: `${lowerFirst(stepById[path[0].step].title)} with ${holderFor(p, path[0].owner as Role)?.name ?? roleLabel(path[0].owner as Role)}`,
           basis: path
             .slice(0, path.indexOf(hit))
-            .map((x) => `${stepById[x.step].title}: median ${stepHistory[x.step]?.median} days (${stepHistory[x.step]?.n} cases)`)
+            // A step with no past cases has no median to quote: left out, never shown as "undefined" (review round 1, ISS-26).
+            .filter((x) => stepHistory[x.step])
+            .map((x) => `${stepById[x.step].title}: median ${stepHistory[x.step].median} days (${stepHistory[x.step].n} cases)`)
             .join(" · "),
         },
       ];
@@ -319,6 +321,7 @@ function NewRequest({ onCancel, onCreate, from, grant }: { onCancel: () => void;
                   currency: item.currency,
                   requestedBy: user?.name ?? "Technical lead",
                   requestedById: user?.id,
+                  ...(item.unplanned ? { unplanned: { by: item.unplanned.name, at: item.unplanned.at, reason: item.unplanned.reason, urgent: item.unplanned.urgent } } : {}),
                   approvedBy: [item.approvals.manager, item.approvals.lead].filter((a): a is NonNullable<typeof a> => !!a).map((a) => (a.for ? `${a.name} for ${a.for}` : a.name)),
                 },
               }

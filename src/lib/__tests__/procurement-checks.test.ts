@@ -53,6 +53,18 @@ describe("procurement checks that cannot be ticked on trust", () => {
     expect(checkState(exception, c, usd).detail).toContain("Village blacksmith");
   });
 
+  // Review round 1, ISS-10: a purchase asked for outside the calendar printed "Planned" on its requisition.
+  it("the requisition says when a purchase was not on the calendar, and why", () => {
+    const row = (p: Procurement) => documentFor(p, "Purchase requisition", usd, usd).rows.find(([k]) => k === "Planned or urgent")?.[1];
+    expect(row(at("approveReq", { urgent: false, plan: undefined }))).toBe("Planned");
+    const plan = { key: "UP-001", project: "Demo", budgetCode: "2.2", budgetName: "Fertilizer", leftUsd: 4800, left: 4800, currency: "USD", approvedBy: [], requestedBy: "Laila Haidari" };
+    const asked = { by: "Laila Haidari", at: "2026-11-26", reason: "Twenty more farmers passed the readiness check.", urgent: false };
+    expect(row(at("approveReq", { urgent: false, plan: { ...plan, unplanned: asked } }))).toBe("Not on the procurement calendar. Asked for by Laila Haidari on 2026-11-26: Twenty more farmers passed the readiness check.");
+    expect(row(at("approveReq", { urgent: true, plan: { ...plan, unplanned: { ...asked, urgent: true } } }))).toMatch(/^Urgent, not on the procurement calendar\./);
+    // A calendar item that was planned stays "Planned".
+    expect(row(at("approveReq", { urgent: false, plan }))).toBe("Planned");
+  });
+
   it("a drafted document counts as read only once a person corrected or confirmed it", () => {
     const c = check("rfq", "read");
     const draft = { sections: [], questions: [], model: "m", at: "2026-11-19", by: "Hamid", edited: false };
