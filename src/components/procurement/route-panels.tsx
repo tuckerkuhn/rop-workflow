@@ -162,9 +162,23 @@ export function SupplierField({ p, editable, update, register }: { p: Procuremen
       <input
         id={`supplier-${p.id}`}
         value={name}
-        onChange={(e) => update((q) => ({ ...q, supplier: e.target.value.trim() ? { name: e.target.value, screenedOn: today() } : undefined }))}
+        onChange={(e) => update((q) => ({ ...q, supplier: e.target.value.trim() ? { ...q.supplier, name: e.target.value, screenedOn: q.supplier?.screenedOn || today() } : undefined }))}
         className={`mt-2 ${field}`}
       />
+      {/* The licence is on file before the award, not first asked for at payment (review round 1, ISS-08). */}
+      {name.trim() && (
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <label className="text-sm">
+            <span className="font-semibold">Business licence number</span>
+            <input value={p.supplier?.licenceNo ?? ""} onChange={(e) => update((q) => (q.supplier ? { ...q, supplier: { ...q.supplier, licenceNo: e.target.value } } : q))} className={`mt-1 ${field}`} />
+          </label>
+          <label className="text-sm">
+            <span className="font-semibold">Valid until</span>
+            <input type="date" value={p.supplier?.licenceExpiry ?? ""} onChange={(e) => update((q) => (q.supplier ? { ...q, supplier: { ...q.supplier, licenceExpiry: e.target.value || undefined } } : q))} className={`mt-1 ${field}`} />
+          </label>
+          <p className="text-xs text-muted sm:col-span-2">From the licence copy on file. A supplier with no licence goes ahead only as an exception, with the reason recorded on the check below.</p>
+        </div>
+      )}
     </fieldset>
   );
 }

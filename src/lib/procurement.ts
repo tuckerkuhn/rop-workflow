@@ -1145,8 +1145,20 @@ export const steps: Step[] = [
           return rules.dueDiligenceAllLevels === true ? "Vendor documents at every level, including Micro." : "Due diligence at Medium and above, from evidence submitted with the bid.";
         },
         tag: "ROP April 2025 checklists p26–39",
+        // A missing document stops the award, not just the tax rate at payment (review round 1, ISS-08).
+        // It goes ahead without one only as an exception, with the reason kept on the record.
+        fix: "A vendor document is missing or out of date: get it on file, or record why this purchase goes ahead without it.",
+        resolve: "Exception recorded, with the reason",
         auto: (p) => {
-          if (!supplierRegister) return null;
+          if (!supplierRegister) {
+            // No supplier register on this project: the licence is on the purchase itself. The ID, the
+            // bank details and the declaration are still confirmed by a person (the tick below).
+            const s = p.supplier;
+            if (!s?.name?.trim()) return { ok: false, detail: "Name the supplier above" };
+            if (!s.licenceNo?.trim() || !s.licenceExpiry) return { ok: false, detail: `No business licence is recorded for ${s.name}. Record its number and the date it is valid until, above` };
+            if (!licenceValid(s.licenceExpiry, today())) return { ok: false, detail: `${s.name}'s licence expired on ${s.licenceExpiry}. Record the renewed licence above` };
+            return null;
+          }
           const r = registered(p);
           if (!r) return { ok: false, detail: "Pick the supplier from the supplier register" };
           const gaps = supplierGaps(r, today(), rule("rescreenMonths", 6)).filter((g) => !/screen/i.test(g));
@@ -1869,7 +1881,8 @@ export function seedProcurements(): Procurement[] {
       place: "Village B collection point",
       urgent: false,
       step: "payReady",
-      supplier: { name: "FarmTools Co. (fictional)", screenedOn: "2026-08-20" },
+      // Its licence was on file before the award, as the screening step requires (review round 1, ISS-08).
+      supplier: { name: "FarmTools Co. (fictional)", screenedOn: "2026-08-20", licenceNo: "D-04-1187 (fictional)", licenceExpiry: "2027-09-30" },
       advertisedDays: 10,
       closingDate: "2026-12-10",
       grn: { qty: 60, place: "Village B collection point" },

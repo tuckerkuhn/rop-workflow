@@ -33,6 +33,26 @@ describe("procurement checks that cannot be ticked on trust", () => {
     expect(doc.rows.find(([k]) => k === "Why fewer than three quotations")?.[1]).toContain("Only two halls in the district");
   });
 
+  // Review round 1, ISS-08: PR-2027-009 was awarded, contracted and received with no licence on file.
+  it("a supplier with no licence on file does not pass screening, except as a recorded exception", () => {
+    const c = check("screen", "dd");
+    const named = { name: "FarmTools Co. (fictional)", screenedOn: "2026-08-20" };
+    expect(checkState(at("screen", { supplier: undefined }), c, usd)).toMatchObject({ ok: false, auto: true, detail: "Name the supplier above" });
+    expect(checkState(at("screen", { supplier: named }), c, usd)).toMatchObject({ ok: false, auto: true });
+    expect(checkState(at("screen", { supplier: named }), c, usd).detail).toContain("No business licence is recorded for FarmTools Co.");
+    // Ticking it on trust does not get past a missing or expired licence.
+    expect(checkState(at("screen", { supplier: named, checks: { "screen.dd": true } }), c, usd)).toMatchObject({ ok: false });
+    expect(checkState(at("screen", { supplier: { ...named, licenceNo: "D-1", licenceExpiry: "2020-01-01" }, checks: { "screen.dd": true } }), c, usd).detail).toContain("licence expired on 2020-01-01");
+    // With a licence in date, a person still confirms the ID, the bank details and the declaration.
+    const licensed = { ...named, licenceNo: "D-04-1187", licenceExpiry: "2099-12-31" };
+    expect(checkState(at("screen", { supplier: licensed }), c, usd)).toMatchObject({ ok: false, auto: false });
+    expect(checkState(at("screen", { supplier: licensed, checks: { "screen.dd": true } }), c, usd)).toMatchObject({ ok: true });
+    // The exception: allowed, and the reason shows on the check for whoever approves the award.
+    const exception = at("screen", { supplier: named, checks: { "fix.screen.dd": true }, overrides: { "fix.screen.dd": { why: "Village blacksmith, no licence exists; cleared by the country director", by: "Hamid", date: "2026-11-27" } } });
+    expect(checkState(exception, c, usd)).toMatchObject({ ok: true });
+    expect(checkState(exception, c, usd).detail).toContain("Village blacksmith");
+  });
+
   it("a drafted document counts as read only once a person corrected or confirmed it", () => {
     const c = check("rfq", "read");
     const draft = { sections: [], questions: [], model: "m", at: "2026-11-19", by: "Hamid", edited: false };
