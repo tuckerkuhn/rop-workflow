@@ -89,6 +89,14 @@ export async function PUT(req: Request, { params }: { params: Promise<{ code: st
         if (!g || g.type !== "inKind" || g.status !== "open") return NextResponse.json({ error: `${x.id}: ${x.grant} is not an open in-kind grant on this project.` }, { status: 409 });
       }
     }
+    // Take the new numbers first: of two people saving the same new number at once, the second is
+    // told it is taken instead of overwriting the first request.
+    const claimed = fresh.map((x) => ({ ...x, rev: 1 }));
+    const taken = await claimNewProcurements(code, claimed);
+    if (taken.length) {
+      await releaseNewProcurements(code, claimed.filter((x) => !taken.includes(x.id)).map((x) => x.id));
+      return NextResponse.json({ error: `${taken[0]} was just taken by another request. Start the request again: it will take the next free number.` }, { status: 409 });
+    }
     // A new request made from the calendar starts that calendar item here, with the save: the two
     // never disagree (an item marked started with no request, or a request on an item still open).
     if (calendar)
@@ -96,7 +104,10 @@ export async function PUT(req: Request, { params }: { params: Promise<{ code: st
         const item = calendar.find((i) => i.key === x.plan!.key);
         if (item?.status !== "approved") continue;
         const r = await actOnPlan(code, item.key, { action: "start", procurementKey: x.id }, v.user);
-        if ("error" in r) return NextResponse.json({ error: `${x.id}: ${r.error}` }, { status: 409 });
+        if ("error" in r) {
+          await releaseNewProcurements(code, claimed.map((y) => y.id));
+          return NextResponse.json({ error: `${x.id}: ${r.error}` }, { status: 409 });
+        }
       }
     // Each new history entry gets the time it was saved; older ones keep theirs (lib/history).
     const now = new Date();
