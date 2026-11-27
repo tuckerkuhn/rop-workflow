@@ -125,7 +125,11 @@ export function HealthPage() {
                   {h.errors.map((e, i) => (
                     <LedgerRow key={i} cols={ERRS} className="text-sm">
                       <Fig className="text-start text-muted">{e.at.replace("T", " ").slice(0, 16)}</Fig>
-                      <p className="min-w-0 break-words">{e.message}</p>
+                      <div className="min-w-0 break-words">
+                        {e.why && <p className="font-medium">{e.why}</p>}
+                        <p>{e.message}</p>
+                        {e.cause && <p className="mt-1 text-xs text-muted">Reason given by the database: {e.cause}</p>}
+                      </div>
                     </LedgerRow>
                   ))}
                 </LedgerTable>

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { and, gte, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { db, schema as s } from "@/db";
+import { causeOf, plainCause } from "@/lib/error-cause";
 
 /**
  * Limits and error records for running the app day to day.
@@ -36,7 +37,7 @@ export async function aiAllowed(personId: string): Promise<NextResponse | null> 
 export async function recordError(where: string, e: unknown) {
   try {
     const msg = e instanceof Error ? e.message : String(e);
-    await db.insert(s.auditLog).values({ projectId: null, entity: "system", entityId: randomUUID(), action: "server_error", detail: { where, message: msg.slice(0, 500), stack: e instanceof Error ? (e.stack ?? "").split("\n").slice(0, 4).join(" | ").slice(0, 600) : null } });
+    await db.insert(s.auditLog).values({ projectId: null, entity: "system", entityId: randomUUID(), action: "server_error", detail: { where, message: msg.slice(0, 500), cause: causeOf(e), stack: e instanceof Error ? (e.stack ?? "").split("\n").slice(0, 4).join(" | ").slice(0, 600) : null } });
   } catch {
     // Nothing more to do: the console log stays in the host's logs.
   }
@@ -54,7 +55,11 @@ export async function health() {
     .limit(50);
   const [ai] = await db.select({ n: sql<number>`count(*)::int` }).from(s.auditLog).where(and(sql`${s.auditLog.action} = ${AI_STARTED}`, gte(s.auditLog.at, day)));
   return {
-    errors: errors.map((r) => ({ at: r.at.toISOString(), ...(r.detail as { where: string; message: string; stack: string | null }) })),
+    // The reason under each error (lib/error-cause): kept since 27 Nov 2026, so older rows have none.
+    errors: errors.map((r) => {
+      const d = r.detail as { where: string; message: string; stack: string | null; cause?: string | null };
+      return { at: r.at.toISOString(), ...d, cause: d.cause ?? null, why: plainCause(d.cause) };
+    }),
     errorsToday: (await db.select({ n: sql<number>`count(*)::int` }).from(s.auditLog).where(and(sql`${s.auditLog.action} = 'server_error'`, gte(s.auditLog.at, day))))[0]?.n ?? 0,
     ai: { lastDay: ai?.n ?? 0, perDay: AI_PER_DAY, perPersonHour: AI_PER_PERSON_HOUR },
     email: { configured: !!process.env.RESEND_API_KEY && !!process.env.CRON_SECRET },
