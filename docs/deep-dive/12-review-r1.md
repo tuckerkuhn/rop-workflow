@@ -37,6 +37,35 @@ reviewed 26 Nov 2026 for Daniel Sandoval and Tucker Kuhn. Branch:
 - Loose ends: ISS-17 second person (the procurement manager confirms "separate needs") and both
   sanctions lists by default (OFAC SDN and UN 1267). Built.
 
+## The other 22 decisions: Tucker, 27 Nov, "a for all" (the review's recommendation)
+
+Recorded as decided; each is built with the batch named, or is a document change outside the app.
+
+| Decision | Decided | Where it lands |
+|---|---|---|
+| D-01 Governing policy | Per country in Settings: AF 2025 for Afghanistan, 2022 elsewhere; Draft 1.0 rules marked proposed and off until approved | Settings, next fixes batch |
+| D-02 Withholding article | Art. 72 stays, as a setting with its source; Kabul finance or a tax adviser confirms | Accountant question |
+| D-04 Advance settlement | Per donor and country: 15 days UN, GT travel policy for Guatemala, 30 days otherwise | Money batch (MF-02) |
+| D-06 Advertising period | 14 days a hard stop for large purchases; shorter only with the executive head's written exception, logged | Next fixes batch |
+| D-07 Solicitation release | The Country Director; the CEO comes in at award for large purchases; in the authority table | Authority table |
+| D-08 Contract signature | CEO above $25,000, Country Director up to $25,000 | Authority table |
+| D-09 Payment approval | Programme management up to $25,000, the executive head above | Authority table |
+| D-10 Second verification | Kept at $25,000; written into the Finance Manual | Policy document |
+| D-11 Checklist | The app's step checks are the checklist; VSU approval dropped unless someone can say what it is | Policy document |
+| D-12 Bid scoring | A setting; 100 points, 70 to pass by default | Next fixes batch |
+| D-13 Delegation | The board approves the app's authority table as ROP's written delegation, with backups (MF-01) | Screening and approvals batch |
+| D-14 Compliance review | In the policy, with the real holder named | Policy document; Tucker names the holder |
+| D-15 Contract closeout | Vendor evaluation stays mandatory above $5,000; tell the team | Already built |
+| D-16 to D-18 Hiring | Panel of 3 to 4 at or above the post's level, HR does not score; references after interviews, finalists only; CVs always graded | Hiring batch (MF-05) |
+| D-19 Staff contracts | The CEO signs; the Hiring Procedure is updated | Policy document |
+| D-20 Afghan salary basis | One table chosen before payroll goes live | Finance and HR |
+| D-21, D-22 Eligibility | Per intervention, as structured rules; a women's contribution rate allowed | Field batch (MF-12) |
+| D-23 Hiring screening | Finalist screened before the offer, result filed, yearly re-screen | Screening batch (MF-03) |
+| D-25 Retention | The longest period that applies, per donor profile | Next fixes batch |
+| D-26 Bulk acceptance | Only records with no flags, after a random sample is opened; monthly verification sample | MEL batch (MF-10) |
+| D-27 GRN signature | The requester or a named delegate in the same department (taken earlier) | ISS-12 |
+| D-28 Distribution form | The app's rule is the written standard | Policy document |
+
 ## Code review of this branch (27 Nov): nine problems, all fixed
 
 | Finding | Fix | Commit |
