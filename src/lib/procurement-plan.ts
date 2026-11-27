@@ -61,6 +61,8 @@ export type Unplanned = {
   urgent: boolean;
   /** Set when the line's planned purchases already use what is left on it: says how much is left after them, for the approvers. */
   overPlan?: string;
+  /** Set when, with other asks on the same line in the same month, it reaches a higher procurement level: a possible split, for the approvers. */
+  split?: string;
 };
 
 /** Rough USD value, for choosing the policy level. */
@@ -257,6 +259,29 @@ export function lineRoom(line: BudgetLine, items: PlanItem[], exceptKey?: string
 /** Open asks made outside the calendar, by budget line: what `lineFigure` takes off as "asked". */
 export const openAsks = (items: PlanItem[]) => items.filter((i) => i.unplanned && i.status !== "started").map((i) => ({ key: i.key, code: i.budgetCode ?? "", value: i.value, currency: i.currency }));
 
+/** How many days apart two asks on one budget line still count as one need (the same window the requisition's split check uses). */
+export const SPLIT_ASK_DAYS = 30;
+/**
+ * A possible split purchase, seen when it is asked for and not only when the requisition reaches
+ * the approver (review round 1, ISS-17): other asks on the same budget line within the window
+ * that, added to this one, reach a higher procurement level than this one alone. Null when none.
+ * Splitting a purchase to stay under a threshold is not allowed, so the people approving the
+ * calendar item are told.
+ */
+export function splitAsk(ask: { key?: string; budgetCode: string; value: number; currency: string; at: string }, items: PlanItem[]): { others: PlanItem[]; combinedUsd: number; alone: Level; together: Level; text: string } | null {
+  const near = (a: string, b: string) => Math.abs(Date.parse(`${a}T00:00:00Z`) - Date.parse(`${b}T00:00:00Z`)) <= SPLIT_ASK_DAYS * 86400000;
+  const others = items.filter((i) => i.unplanned && i.key !== ask.key && i.budgetCode === ask.budgetCode && i.status !== "returned" && near(i.unplanned.at, ask.at));
+  if (!others.length) return null;
+  const own = toUsd(ask.value, ask.currency);
+  const combinedUsd = own + others.reduce((t, i) => t + toUsd(i.value, i.currency), 0);
+  const alone = levelFor(own);
+  const together = levelFor(combinedUsd);
+  if (alone === together) return null;
+  const list = others.map((i) => `${i.key} (${money(i.value, i.currency)})`).join(", ");
+  const text = `Possible split purchase. With ${list} asked for on budget line ${ask.budgetCode} within ${SPLIT_ASK_DAYS} days, this makes $${Math.round(combinedUsd).toLocaleString("en-US")} together: a ${together} purchase, not ${alone}. Combine them and buy at the ${together} level, or be ready to say why they are separate needs.`;
+  return { others, combinedUsd, alone, together, text };
+}
+
 /**
  * A calendar item for a purchase asked for outside the calendar, or the reason it cannot be made.
  * It is urgent when the person says so or when it is needed sooner than the usual lead time for
@@ -277,6 +302,8 @@ export function unplannedItem(a: AskInput, o: { line: BudgetLine | undefined; cu
       : undefined;
   const usd = toUsd(a.value, currency);
   const level = levelFor(usd);
+  // Told to the approvers now, not first to whoever approves the requisition.
+  const split = splitAsk({ key, budgetCode: line.code, value: a.value, currency, at: now }, items);
   const leadDays = LEAD_DAYS[level];
   const due = addDays(a.neededBy, -leadDays);
   const urgent = !!a.urgent || due < now;
@@ -304,7 +331,7 @@ export function unplannedItem(a: AskInput, o: { line: BudgetLine | undefined; cu
     returnNote: null,
     edited: true,
     procurementKey: null,
-    unplanned: { by: user.id, name: user.name, at: now, reason: a.reason, urgent, ...(overPlan ? { overPlan } : {}) },
+    unplanned: { by: user.id, name: user.name, at: now, reason: a.reason, urgent, ...(overPlan ? { overPlan } : {}), ...(split ? { split: split.text } : {}) },
   };
 }
 

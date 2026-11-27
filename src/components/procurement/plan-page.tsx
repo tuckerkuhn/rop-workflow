@@ -10,7 +10,7 @@ import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn, type Tone, StatusPill
 import { Empty, Fig, Figures, LedgerRow, LedgerTable, PageHead, SectionHead, Sheet, StatusBlock } from "@/components/workspace/ledger";
 import type { BudgetLine, WorkplanItem } from "@/lib/budget";
 import { canEditProject, userById, users, type AppUser } from "@/lib/demo";
-import { LEAD_DAYS, METHOD, awaiting, canAsk, isManager, isProcurementManager, lineRoom, procurementManager, toUsd, type PlanItem, type PlanStatus } from "@/lib/procurement-plan";
+import { LEAD_DAYS, METHOD, awaiting, canAsk, isManager, isProcurementManager, lineRoom, procurementManager, splitAsk, toUsd, type PlanItem, type PlanStatus } from "@/lib/procurement-plan";
 import { lineFigureText } from "@/lib/line-money";
 import { levelFor } from "@/lib/procurement";
 import { today } from "@/lib/clock";
@@ -460,6 +460,7 @@ function Detail({
             Asked for by {item.unplanned.name}, {date(item.unplanned.at)}. It needs both approvals like any other purchase.
           </p>
           {item.unplanned.overPlan && <p className="mt-1 font-semibold text-clay">{item.unplanned.overPlan}</p>}
+          {item.unplanned.split && <p className="mt-1 font-semibold text-clay">{item.unplanned.split}</p>}
         </section>
       )}
 
@@ -738,6 +739,8 @@ function AskForm({
   const line = lines.find((l) => l.code === budgetCode);
   // The same figure the requisition and the approver see: budget, less spent, less committed, less other asks.
   const room = line ? lineRoom(line, items, undefined, committed[line.code] ?? 0) : null;
+  // A possible split is said here, before it is asked for (lib/procurement-plan splitAsk).
+  const split = line && Number(value) > 0 ? splitAsk({ budgetCode: line.code, value: Number(value), currency, at: today() }, items) : null;
   const cost = Number(value) || 0;
   // Sooner than the usual time to buy something this size: it is urgent whether ticked or not.
   const soon = cost > 0 && !!neededBy && new Date(`${neededBy}T00:00:00Z`).getTime() - new Date(`${today()}T00:00:00Z`).getTime() < LEAD_DAYS[levelFor(toUsd(cost, currency))] * 86400000;
@@ -794,6 +797,7 @@ function AskForm({
         <label className="text-sm">
           Estimated cost ({currency})
           <input type="number" min={0} step="any" inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} className={field} />
+          {split && <span className="mt-1 block text-xs font-semibold text-clay">{split.text}</span>}
         </label>
         <label className="text-sm">
           Needed by

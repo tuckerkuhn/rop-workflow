@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { users } from "@/lib/demo";
 import { demoBudget, demoWorkplan } from "@/lib/demo-design";
-import { OWN_REQUEST, addDays, applyAction, askSchema, awaiting, buildPlan, canAsk, leadFor, leadOtherThan, unplannedItem, type AskInput, type PlanItem } from "@/lib/procurement-plan";
+import { OWN_REQUEST, splitAsk, addDays, applyAction, askSchema, awaiting, buildPlan, canAsk, leadFor, leadOtherThan, unplannedItem, type AskInput, type PlanItem } from "@/lib/procurement-plan";
 
 /** Asking for a purchase that is not on the procurement calendar: an added path, never a shortcut past the approvals. */
 const TODAY = "2026-11-15";
@@ -92,6 +92,20 @@ describe("asking for something not on the calendar", () => {
     expect(approved.status).toBe("approved");
     expect(approved.approvals.lead?.by).not.toBe("laila");
     expect(applyAction(approved, { action: "start", procurementKey: "PR-2027-901" }, laila, users, TODAY, rows)).toMatchObject({ status: "started" });
+  });
+
+  // Review round 1, ISS-17: two $3,000 asks on one line were caught only at the approver's step.
+  it("a possible split is said when it is asked for, and kept for the calendar's approvers", () => {
+    const first = unplannedItem(ask({ title: "Sprayer spare parts A", value: 3000 }), { line, currency: budget.currency, workplan, people: users, user: nadia, today: TODAY, key: "UP-008" }) as PlanItem;
+    expect(first.unplanned?.split).toBeUndefined();
+    const second = unplannedItem(ask({ title: "Sprayer spare parts B", value: 3000 }), { line, currency: budget.currency, workplan, people: users, user: nadia, today: TODAY, key: "UP-009", items: [first] }) as PlanItem;
+    expect(second.unplanned?.split).toMatch(/^Possible split purchase\. With UP-008 \(3,000 USD\) asked for on budget line 2\.1 within 30 days, this makes \$6,000 together: a Medium purchase, not Small\./);
+    // Small asks that stay in the same level together are not flagged; nor is one made long after.
+    expect(splitAsk({ budgetCode: "2.1", value: 100, currency: "USD", at: TODAY }, [{ ...first, value: 200, usd: 200 }])).toBeNull();
+    expect(splitAsk({ budgetCode: "2.1", value: 3000, currency: "USD", at: addDays(TODAY, 45) }, [first])).toBeNull();
+    // One on another line, or one that was sent back, does not count.
+    expect(splitAsk({ budgetCode: "2.2", value: 3000, currency: "USD", at: TODAY }, [first])).toBeNull();
+    expect(splitAsk({ budgetCode: "2.1", value: 3000, currency: "USD", at: TODAY }, [{ ...first, status: "returned" }])).toBeNull();
   });
 
   it("stays on the calendar when the calendar is rebuilt from the budget, beside the line's planned item", () => {
