@@ -13,10 +13,12 @@ import {
   mayReadReconciliation,
   mayReconcile,
   monthPeriod,
+  ownEntriesOn,
   reconciliationView,
   setStatementBalance,
   unmatchLine,
 } from "@/server/reconciliation";
+import { selfSchema, soloFor } from "@/server/solo";
 import { refusal } from "./http";
 
 type Ctx = { params: Promise<{ code: string }> };
@@ -30,7 +32,7 @@ function lastMonth(): string {
   return d.toISOString().slice(0, 7);
 }
 
-async function answer(orgId: string, bank: string | null, month: string, finance: boolean, extra: Record<string, unknown> = {}) {
+async function answer(orgId: string, bank: string | null, month: string, finance: boolean, extra: Record<string, unknown> = {}, viewer?: string) {
   const banks = await bankAccountsOf(orgId);
   const chosen = banks.find((b) => b.id === bank) ?? banks.find((b) => b.active) ?? null;
   const view = chosen ? await reconciliationView(orgId, chosen.id, month, { detail: finance }) : null;
@@ -42,6 +44,8 @@ async function answer(orgId: string, bank: string | null, month: string, finance
     bankAccounts: banks.filter((b) => b.active || b.id === chosen?.id).map((b) => ({ id: b.id, name: b.name, currency: b.currency })),
     month: monthPeriod(month).slice(0, 7),
     canReconcile: finance,
+    // Entries on this account this month that the viewer recorded or posted: with any, someone else completes it (ISS-04).
+    ownEntries: finance && viewer && chosen && view && !view.completed ? await ownEntriesOn(orgId, chosen.id, month, viewer) : 0,
     view,
     names,
     ...extra,
@@ -58,7 +62,7 @@ export async function GET(req: Request, { params }: Ctx) {
     const url = new URL(req.url);
     const month = url.searchParams.get("month") || lastMonth();
     try {
-      return await answer(project.organizationId, url.searchParams.get("bank"), month, await mayReconcile(v.user));
+      return await answer(project.organizationId, url.searchParams.get("bank"), month, await mayReconcile(v.user), {}, v.user.id);
     } catch (e) {
       return refusal(e);
     }
@@ -72,7 +76,7 @@ const action = z.discriminatedUnion("action", [
   z.object({ action: z.literal("match"), bankAccountId: uuid, month, statementLineId: uuid, journalLineId: uuid }),
   z.object({ action: z.literal("unmatch"), bankAccountId: uuid, month, statementLineId: uuid }),
   z.object({ action: z.literal("match_suggested"), bankAccountId: uuid, month }),
-  z.object({ action: z.literal("complete"), bankAccountId: uuid, month }),
+  z.object({ action: z.literal("complete"), bankAccountId: uuid, month, self: selfSchema.optional() }),
   z.object({ action: z.literal("lock"), bankAccountId: uuid, month }),
 ]);
 
@@ -95,9 +99,9 @@ export async function POST(req: Request, { params }: Ctx) {
       else if (a.action === "match") await matchLine({ organizationId: orgId, statementLineId: a.statementLineId, journalLineId: a.journalLineId, by, projectId: project.id });
       else if (a.action === "unmatch") await unmatchLine({ organizationId: orgId, statementLineId: a.statementLineId, by, projectId: project.id });
       else if (a.action === "match_suggested") extra.matched = await matchSuggested({ organizationId: orgId, bankAccountId: a.bankAccountId, month: a.month, by, projectId: project.id });
-      else if (a.action === "complete") extra.completed = await completeReconciliation({ organizationId: orgId, bankAccountId: a.bankAccountId, month: a.month, by, projectId: project.id });
+      else if (a.action === "complete") extra.completed = await completeReconciliation({ organizationId: orgId, bankAccountId: a.bankAccountId, month: a.month, by, projectId: project.id, solo: await soloFor(decodeURIComponent(code)), self: a.self });
       else extra.lock = await lockMonth({ organizationId: orgId, bankAccountId: a.bankAccountId, month: a.month, by });
-      return await answer(orgId, a.bankAccountId, a.month, true, extra);
+      return await answer(orgId, a.bankAccountId, a.month, true, extra, by);
     } catch (e) {
       return refusal(e);
     }
