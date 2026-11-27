@@ -32,6 +32,23 @@ export async function soloFor(code: string): Promise<SoloState> {
 }
 
 /**
+ * Solo mode for something that belongs to the whole organization, such as a bank account's
+ * reconciliation (code review of ISS-04): on for the organization, and blocked when any of its
+ * projects has a donor or project rule requiring a second person. Not decided by whichever
+ * project a request happens to go through.
+ */
+export async function soloForOrganization(organizationId: string): Promise<SoloState> {
+  const codes = (await db.select({ code: sch.projects.code }).from(sch.projects).where(eq(sch.projects.organizationId, organizationId))).map((r) => r.code).filter((c): c is string => !!c);
+  if (!codes.length) return { on: !!(await loadOrgSettings(organizationId)).solo?.on, blocked: null };
+  return soloAcross(await Promise.all(codes.map((c) => soloFor(c).catch((): SoloState => ({ on: false, blocked: "The project's rules could not be read." })))));
+}
+
+/** Solo mode across several projects: on only where it is on for all, blocked when any one blocks it. Pure. */
+export function soloAcross(states: SoloState[]): SoloState {
+  return { on: states.length > 0 && states.every((x) => x.on), blocked: states.find((x) => x.blocked)?.blocked ?? null };
+}
+
+/**
  * The check for one self-approval. `refusal` is the usual two-person message, given when solo mode
  * is off. On success, the audit detail that marks the entry.
  */

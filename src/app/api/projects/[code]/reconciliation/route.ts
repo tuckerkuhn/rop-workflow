@@ -18,7 +18,7 @@ import {
   setStatementBalance,
   unmatchLine,
 } from "@/server/reconciliation";
-import { selfSchema, soloFor } from "@/server/solo";
+import { selfSchema, soloForOrganization } from "@/server/solo";
 import { refusal } from "./http";
 
 type Ctx = { params: Promise<{ code: string }> };
@@ -99,7 +99,7 @@ export async function POST(req: Request, { params }: Ctx) {
       else if (a.action === "match") await matchLine({ organizationId: orgId, statementLineId: a.statementLineId, journalLineId: a.journalLineId, by, projectId: project.id });
       else if (a.action === "unmatch") await unmatchLine({ organizationId: orgId, statementLineId: a.statementLineId, by, projectId: project.id });
       else if (a.action === "match_suggested") extra.matched = await matchSuggested({ organizationId: orgId, bankAccountId: a.bankAccountId, month: a.month, by, projectId: project.id });
-      else if (a.action === "complete") extra.completed = await completeReconciliation({ organizationId: orgId, bankAccountId: a.bankAccountId, month: a.month, by, projectId: project.id, solo: await soloFor(decodeURIComponent(code)), self: a.self });
+      else if (a.action === "complete") extra.completed = await completeReconciliation({ organizationId: orgId, bankAccountId: a.bankAccountId, month: a.month, by, projectId: project.id, solo: await soloForOrganization(orgId), self: a.self });
       else extra.lock = await lockMonth({ organizationId: orgId, bankAccountId: a.bankAccountId, month: a.month, by });
       return await answer(orgId, a.bankAccountId, a.month, true, extra, by);
     } catch (e) {
