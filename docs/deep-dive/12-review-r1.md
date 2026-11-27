@@ -24,6 +24,33 @@ reviewed 26 Nov 2026 for Daniel Sandoval and Tucker Kuhn. Branch:
 - **Pace:** steady and continuous. Every fix has a test before it is committed.
 - **Build target:** built and reviewed once by 4 Dec; fixes only from then to the 10 Jan demo.
 
+## Tucker's answers, 27 Nov (second session)
+
+- Kobo out and all 13 missing features: confirmed.
+- D-13, D-05 (third party), solo reconciliation, "left on a line", the licence exception: kept as built.
+- D-24: kept as a warning, **plus a hard daily cap** when a donor or the personnel policy sets one
+  (Settings, People, "No one may record more than this many worked hours in a day"). Built.
+- D-03: USD 500 kept for the demo organization. A USD 0 default is for larger organizations: small
+  offices often have no second person.
+- Purchase numbers: **numbered per project**, with the project's code in the number
+  (PR-A2027-004), so each is still one of a kind. Built.
+- Loose ends: ISS-17 second person (the procurement manager confirms "separate needs") and both
+  sanctions lists by default (OFAC SDN and UN 1267). Built.
+
+## Code review of this branch (27 Nov): nine problems, all fixed
+
+| Finding | Fix | Commit |
+|---|---|---|
+| Two saves of the same new purchase number: the second overwrote the first | The save takes the new number first; the second is told it is taken | `cc19072`, `e454743` |
+| "Left on a line" differed: a direct purchase was missed at the requisition | Counted the same everywhere | `9dfbbb6` |
+| A sent-back ask held the line's money | A returned item holds nothing until sent again | `9dfbbb6` |
+| Budget failed to load: the approver's money check passed | The save stops with a plain reason | `9dfbbb6` |
+| Reconciliation solo mode came from whichever project the request used | Decided for the whole organization | `bac9ea9` |
+| One person could sign both calendar approval seats | Two seats, two people | `ed7bfe4` |
+| A backdated hand-out could over-draw a later day; a future GRN date switched the check off | Every later day is checked; a real project's GRN is never dated after today | `3038008` |
+| Record a payment: screening age vs today; other projects' numbers; lost declaration on retry | Measured to the day paid; any number of the organization; written once on a retry | `f375aa2` |
+| Timesheets used the UTC day; a week across two months was cut | The office's own day; last month's days of the week count | `fa8b947` |
+
 ## Decisions taken at the review's recommendation (overrule any of them)
 
 Each is built as a rule with a default, so changing it is a setting, not a rewrite.
@@ -37,7 +64,7 @@ Each is built as a rule with a default, so changing it is a setting, not a rewri
 | Solo mode and reconciliation | A one-finance-person team may complete its own bank reconciliation by confirming each time; the entry is marked self-approved like every other solo sign-off. | `server/reconciliation.ts` |
 | What "left on a budget line" means | One figure: budget, less spending posted, less the unpaid part of purchases under way, less asks made outside the calendar and not started. A planned calendar item is **not** taken off: it is the line's own remainder and becomes a commitment when its request starts. A request past the figure is refused unless a funder-approved revision is recorded. | `lib/line-money.ts` |
 | A supplier with no licence | Stops at screening. Going ahead without one is an exception with its reason on the record, not a block with no way through. | `lib/procurement.ts` (check `screen.dd`) |
-| Purchase numbers | One sequence per year across the whole organization (`PR-2026-004`), not per project. The project code is not in the number. | `server/procurement-store.ts` |
+| Purchase numbers | Replaced 27 Nov: per project, with the project's code in the number (`PR-A2027-004`). | `server/procurement-store.ts` |
 
 ## Done (16 of 30 issues fixed; ISS-09 and ISS-17 partly; 12 not started)
 
@@ -71,8 +98,6 @@ Each is built as a rule with a default, so changing it is a setting, not a rewri
   rule tests, not seen. Screens touched: procurement draft panel, Record a payment, procurement
   calendar (ask form and item), bank reconciliation, timesheet, supplier field at screening,
   Settings Health, results (place), sign-in.
-- **ISS-17:** the approver alone can still record "separate needs" on the requisition.
-- **D-05:** which sanctions lists are checked (OFAC and UN 1267 both, by the review) is not enforced anywhere yet.
 
 ## Checks run
 
