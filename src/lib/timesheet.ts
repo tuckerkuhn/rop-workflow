@@ -164,6 +164,19 @@ export const limitsFor = (office: string) => HOUR_LIMITS[office] ?? HOUR_LIMITS.
 /** The shortest note that says why. */
 export const OVER_NOTE_MIN = 5;
 
+/**
+ * Each office's own time zone: "today" for a timesheet is the office's day, not the server's UTC
+ * day (code review of ISS-05: in Kabul before 04:30 the last working day was still "tomorrow").
+ */
+export const OFFICE_TZ: Record<string, string> = { Afghanistan: "Asia/Kabul", Guatemala: "America/Guatemala", "Home Office": "America/Los_Angeles" };
+export function todayIn(office: string, now: Date = new Date()): string {
+  const tz = OFFICE_TZ[office];
+  if (!tz) return now.toISOString().slice(0, 10);
+  const p = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now);
+  const v = (k: string) => p.find((x) => x.type === k)?.value ?? "";
+  return `${v("year")}-${v("month")}-${v("day")}`;
+}
+
 const worked = (d: Day | undefined) => Object.values(d?.hours ?? {}).reduce((a, b) => a + b, 0);
 const longDate = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "long", timeZone: "UTC" });
 
@@ -180,21 +193,34 @@ export type OverWeek = { from: string; to: string; hours: number; limit: number;
  * working day; only days of this month are counted. Each carries the note that explains it, if any:
  * for a week, a note on any of its worked days that is not already over the daily limit, else any.
  */
-export function overLimits(sheet: Sheet, office: string): { days: OverDay[]; weeks: OverWeek[] } {
+export function overLimits(sheet: Sheet, office: string, before: Record<string, Day> = {}): { days: OverDay[]; weeks: OverWeek[] } {
   const lim = limitsFor(office);
   const first = (WORK_WEEK[office] ?? WORK_WEEK["Home Office"])[0] ?? 1;
   const days: OverDay[] = [];
   const weeks: OverWeek[] = [];
   let week: string[] = [];
   const close = () => {
-    const hours = week.reduce((a, d) => a + worked(sheet.days[d]), 0);
+    const hours = week.reduce((a, d) => a + workedOn(d), 0);
     if (hours > lim.week) {
-      const workedDays = week.filter((d) => worked(sheet.days[d]) > 0);
+      const workedDays = week.filter((d) => d >= start && worked(sheet.days[d]) > 0);
       const noted = workedDays.find((d) => (sheet.days[d]?.note ?? "").trim().length >= OVER_NOTE_MIN);
       weeks.push({ from: week[0], to: week[week.length - 1], hours, limit: lim.week, note: noted ? (sheet.days[noted]?.note ?? "").trim() : "", noteOn: noted ?? workedDays[workedDays.length - 1] ?? week[week.length - 1] });
     }
     week = [];
   };
+  // A week that began last month counts last month's days of it too (code review of ISS-06: 30
+  // hours either side of the month's start was never a 60-hour week). Only this month's days are
+  // flagged for a note.
+  const start = daysIn(sheet.month)[0];
+  let k = start;
+  const tail: string[] = [];
+  while (weekday(k) !== first && tail.length < 7) {
+    k = new Date(Date.parse(`${k}T00:00:00Z`) - 86400000).toISOString().slice(0, 10);
+    tail.unshift(k);
+  }
+  const all = { ...before, ...sheet.days };
+  const workedOn = (d: string) => worked(all[d]);
+  for (const d of tail) if (before[d]) week.push(d);
   for (const d of daysIn(sheet.month)) {
     if (weekday(d) === first && week.length) close();
     week.push(d);
@@ -212,13 +238,18 @@ export function overLimits(sheet: Sheet, office: string): { days: OverDay[]; wee
  * why, which the supervisor sees when approving: refusing long days outright teaches people to
  * write 8 when they worked 12.
  */
-export function submitProblem(sheet: Sheet, office: string, today: string): string | null {
+export function submitProblem(sheet: Sheet, office: string, today: string, opts: { cap?: number | null; before?: Record<string, Day> } = {}): string | null {
   const opens = lastWorkday(sheet.month, office);
   const monthName = new Date(`${sheet.month}-01T00:00:00Z`).toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" });
   if (today < opens) return `The timesheet for ${monthName} can be submitted from ${longDate(opens)}, its last working day. A timesheet records time after it is worked, never before.`;
   const ahead = Object.keys(sheet.days).filter((d) => d > today && worked(sheet.days[d]) > 0).sort();
   if (ahead.length) return `${longDate(ahead[0])} has not happened yet, so it cannot carry worked hours. Remove them, or submit once the day is worked.`;
-  const over = overLimits(sheet, office);
+  // A hard limit a donor or a personnel policy sets (Settings, People): refused, not just noted.
+  if (opts.cap && opts.cap > 0) {
+    const long = Object.keys(sheet.days).sort().find((d) => worked(sheet.days[d]) > opts.cap!);
+    if (long) return `${longDate(long)} has ${worked(sheet.days[long])} hours. No one may record more than ${opts.cap} hours in a day here: a donor's or the personnel policy's limit. Correct the day, and speak to your supervisor about the extra time.`;
+  }
+  const over = overLimits(sheet, office, opts.before);
   const day = over.days.find((d) => d.note.length < OVER_NOTE_MIN);
   if (day) return `${longDate(day.date)} has ${day.hours} hours, over the ${day.limit}-hour day. Add a note on that day saying why: your supervisor sees it when approving.`;
   const week = over.weeks.find((w) => w.note.length < OVER_NOTE_MIN);

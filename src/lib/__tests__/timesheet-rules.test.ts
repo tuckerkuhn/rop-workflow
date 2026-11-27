@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { lastWorkday, overLimits, prefill, submitProblem, type Sheet } from "@/lib/timesheet";
+import { lastWorkday, overLimits, prefill, submitProblem, todayIn, type Sheet } from "@/lib/timesheet";
 
 /**
  * Review round 1, ISS-05 and ISS-06: Omid submitted November on the 26th with the 27th and 30th
@@ -60,5 +60,34 @@ describe("long days and weeks need a reason the supervisor can read", () => {
 
   it("an ordinary month has nothing over", () => {
     expect(overLimits(november(), HO)).toEqual({ days: [], weeks: [] });
+  });
+});
+
+describe("code review of ISS-05 and ISS-06", () => {
+  it("today is the office's own day, not the server's", () => {
+    // 22:00 UTC on 29 Nov is already 30 Nov in Kabul, still 29 Nov in Guatemala and California.
+    const late = new Date("2026-11-29T22:00:00Z");
+    expect(todayIn("Afghanistan", late)).toBe("2026-11-30");
+    expect(todayIn("Guatemala", late)).toBe("2026-11-29");
+    expect(todayIn("Home Office", late)).toBe("2026-11-29");
+    // 03:00 UTC on 1 Dec is still 30 Nov in Guatemala.
+    expect(todayIn("Guatemala", new Date("2026-12-01T03:00:00Z"))).toBe("2026-11-30");
+  });
+
+  it("a week that began last month counts last month's days of it", () => {
+    // December 2026 starts on a Tuesday: Mon 30 Nov belongs to the same week.
+    const dec = prefill("2026-12", HO, { "non-contract": 1 });
+    for (const d of ["2026-12-01", "2026-12-02", "2026-12-03", "2026-12-04"]) dec.days[d] = { hours: { "non-contract": 9 } };
+    expect(overLimits(dec, HO).weeks).toHaveLength(0);
+    const before = { "2026-11-30": { hours: { "non-contract": 8 } } };
+    const w = overLimits(dec, HO, before).weeks;
+    expect(w[0]).toMatchObject({ from: "2026-11-30", hours: 44 });
+  });
+
+  it("a hard daily cap set by a donor or the personnel policy refuses a longer day outright", () => {
+    const s = november();
+    s.days["2026-11-10"] = { hours: { "non-contract": 10 }, note: "Field trip ran late" };
+    expect(submitProblem(s, HO, "2026-11-30")).toBeNull();
+    expect(submitProblem(s, HO, "2026-11-30", { cap: 8 })).toContain("No one may record more than 8 hours in a day");
   });
 });

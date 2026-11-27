@@ -296,7 +296,7 @@ function CurrentSheet({ v, monthName, onApprove, onReturn, onRevise }: { v: Time
           </ul>
         </div>
       )}
-      <OverHours sheet={t.sheet} office={v.office} />
+      <OverHours sheet={t.sheet} office={v.office} before={v.before} />
       <Summary sheet={t.sheet} v={v} />
       <DayList sheet={t.sheet} v={v} />
       {t.cannotApprove && <p className="text-sm text-muted">{tr("ts.cannotApprove", { reason: t.cannotApprove })}</p>}
@@ -340,9 +340,9 @@ function CurrentSheet({ v, monthName, onApprove, onReturn, onRevise }: { v: Time
 /* ---------------- Long days and weeks, with the reason given ---------------- */
 
 /** What the supervisor reads before approving: each day or week over the usual hours, and why (lib/timesheet overLimits). */
-function OverHours({ sheet, office }: { sheet: Sheet; office: string }) {
+function OverHours({ sheet, office, before }: { sheet: Sheet; office: string; before?: Record<string, Sheet["days"][string]> }) {
   const { date } = useT();
-  const over = useMemo(() => overLimits(sheet, office), [sheet, office]);
+  const over = useMemo(() => overLimits(sheet, office, before), [sheet, office, before]);
   if (!over.days.length && !over.weeks.length) return null;
   const day = (d: string) => date(d, { day: "numeric", month: "long" });
   return (
@@ -518,7 +518,7 @@ function Editor({
   const [certify, setCertify] = useState(false);
   const [busy, setBusy] = useState(false);
   // After the fact, never before; long days and weeks only with a note (lib/timesheet submitProblem). The server checks again.
-  const problem = submitProblem(sheet, v.office, v.today);
+  const problem = submitProblem(sheet, v.office, v.today, { cap: v.dayCap, before: v.before });
   const [fill, setFill] = useState(v.sources.find((s) => sheet && Object.values(sheet.days).some((d) => d.hours?.[s.id]))?.id ?? v.sources[0]?.id ?? "");
   const [leave, setLeave] = useState<{ from: string; to: string; type: LeaveType }>({ from: `${sheet.month}-01`, to: `${sheet.month}-01`, type: "vacation" });
   const work = WORK_WEEK[v.office] ?? WORK_WEEK["Home Office"];

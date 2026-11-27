@@ -26,9 +26,9 @@ export type Cited = { value: Value; source: string; confidence?: "documented" | 
 export type Merge = "min" | "max" | "any" | "union" | "common" | "same" | "donor";
 
 /** The department a rule belongs to, for grouping in settings. */
-export type Area = "Procurement" | "Finance" | "Travel" | "Grants" | "Reporting" | "Records";
-export const DEPARTMENTS: Area[] = ["Procurement", "Finance", "Travel", "Grants", "Reporting", "Records"];
-export type ParamDef = { key: string; label: string; area: Area; unit?: "USD" | "AFN" | "days" | "years" | "%" | "count" | "months"; merge: Merge; help: string };
+export type Area = "Procurement" | "Finance" | "Travel" | "Grants" | "Reporting" | "Records" | "People";
+export const DEPARTMENTS: Area[] = ["Procurement", "Finance", "Travel", "Grants", "Reporting", "Records", "People"];
+export type ParamDef = { key: string; label: string; area: Area; unit?: "USD" | "AFN" | "days" | "years" | "%" | "count" | "months" | "hours"; merge: Merge; help: string };
 
 export const PARAMS: ParamDef[] = [
   { key: "microMaxUsd", label: "Micro purchases up to", area: "Procurement", unit: "USD", merge: "min", help: "Bought after checking prices, without written quotations." },
@@ -75,6 +75,14 @@ export const PARAMS: ParamDef[] = [
   { key: "taxLicensedPct", label: "Tax withheld from contractors with a valid business licence", area: "Finance", unit: "%", merge: "same", help: "Checked on the payment date." },
   { key: "taxUnlicensedPct", label: "Tax withheld from contractors without a valid licence", area: "Finance", unit: "%", merge: "same", help: "Including a licence that expired before the payment date." },
   { key: "taxThresholdAfn", label: "No contractor tax withheld on contracts under", area: "Finance", unit: "AFN", merge: "same", help: "Unless the supplier's payments in the year pass it." },
+  {
+    key: "timesheetDayCapHours",
+    label: "No one may record more than this many worked hours in a day",
+    area: "People",
+    unit: "hours",
+    merge: "min",
+    help: "A hard limit, for a donor or a personnel policy that sets one: a timesheet with a longer day is refused. Not set: a day over 8 hours only needs a note for the supervisor.",
+  },
   { key: "advanceSettlementDays", label: "Settle travel advances within", area: "Travel", unit: "days", merge: "min", help: "" },
   {
     key: "budgetRevisionPct",

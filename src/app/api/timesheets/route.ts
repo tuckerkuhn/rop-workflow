@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { db, schema as s } from "@/db";
 import { seesAll, toYou, conflictOf, type HrState } from "@/lib/hr";
-import { BASIC_LEAVE, LEAVE_TYPES, NON_CONTRACT, approversFor, foldTimesheets, lastShares, leaveMismatch, prefill, submitProblem, tsActionSchema, type FundingSource, type Timesheet } from "@/lib/timesheet";
+import { BASIC_LEAVE, LEAVE_TYPES, NON_CONTRACT, approversFor, foldTimesheets, lastShares, leaveMismatch, prefill, submitProblem, todayIn, tsActionSchema, type FundingSource, type Sheet, type Timesheet } from "@/lib/timesheet";
+import { orgIdForPerson, orgProfile } from "@/server/org-settings-store";
+import { projectRules } from "@/server/policy-store";
 import { ON_TIMESHEET, RULES, foldLeave, groupOf, leaveDays } from "@/lib/leave";
 import { people, requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
@@ -18,6 +20,33 @@ async function sources(): Promise<FundingSource[]> {
 }
 
 const officeOf = (hr: HrState, id: string) => String(hr.people[id]?.current.office ?? "Home Office");
+
+/**
+ * The hard limit on worked hours a day, when one is set (Settings, People, timesheetDayCapHours):
+ * the organization's personnel policy, and the rules of each project the sheet charges hours to
+ * (a donor's limit). The lowest one binds. Null when none is set.
+ */
+async function dayCapFor(me: string, sheet?: Sheet): Promise<number | null> {
+  const caps: number[] = [];
+  const org = await orgIdForPerson(me).catch(() => null);
+  const own = org ? (await orgProfile(org)).values[DAY_CAP]?.value : undefined;
+  if (typeof own === "number" && own > 0) caps.push(own);
+  const codes = [...new Set(Object.values(sheet?.days ?? {}).flatMap((d) => Object.keys(d.hours ?? {})))].filter((c) => c !== NON_CONTRACT);
+  for (const c of codes) {
+    const v = await projectRules(c).then((r) => r.values[DAY_CAP]).catch(() => undefined);
+    if (typeof v === "number" && v > 0) caps.push(v);
+  }
+  return caps.length ? Math.min(...caps) : null;
+}
+const DAY_CAP = "timesheetDayCapHours";
+
+/** The person's days of last month, from their latest timesheet for it: a week that began then counts them. */
+function daysBefore(sheets: Timesheet[], person: string, month: string): Record<string, Sheet["days"][string]> {
+  const [y, m] = month.split("-").map(Number);
+  const prev = m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`;
+  const t = sheets.filter((x) => x.person === person && x.month === prev).sort((a, b) => b.n - a.n)[0];
+  return t?.sheet.days ?? {};
+}
 
 function visibleTo(me: string, hr: HrState): string[] {
   if (seesAll(me, hr)) return Object.keys(hr.people);
@@ -47,7 +76,12 @@ async function view(me: string, month: string, person: string | null) {
     isHr,
     seesAll: seesAll(me, hr),
     month,
-    today: todayIso(),
+    // The office's own day, not the server's (code review of ISS-05).
+    today: todayIn(office),
+    /** The hard daily limit in force, if any (Settings, People). */
+    dayCap: await dayCapFor(me),
+    /** Last month's days, for a week that began then. */
+    before: who ? daysBefore(sheets, who, month) : {},
     intact: integrity.ok,
     sources: src,
     names,
@@ -115,7 +149,8 @@ export async function POST(req: Request) {
       if (a.person !== me && !hr.rules?.holders.hr.includes(me)) return fail("You can submit your own timesheet. HR enters timesheets for others.");
       if (!hr.people[a.person]) return fail("This person has no HR record yet.");
       // After the fact, never before; long days and weeks only with a reason (lib/timesheet submitProblem).
-      const problem = submitProblem(a.sheet, officeOf(hr, a.person), todayIso());
+      const office = officeOf(hr, a.person);
+      const problem = submitProblem(a.sheet, office, todayIn(office), { cap: await dayCapFor(me, a.sheet), before: daysBefore(sheets, a.person, a.sheet.month) });
       if (problem) return fail(problem, 400);
       n = await append(me, "timesheet", a.person, a.sheet);
       month = a.sheet.month;
