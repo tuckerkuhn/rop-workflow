@@ -666,10 +666,15 @@ function declareCheck(p: Procurement) {
  * contract value once recorded, or the estimate, less instalments already paid. Without it two
  * requests could each pass against the same money.
  */
+/**
+ * What other purchases under way on this purchase's budget line are committed to: every one on the
+ * line, started from the calendar or not, as `committedByLine` counts them for the ask form and the
+ * calendar (code review of ISS-07: a direct purchase was left out here and counted there).
+ */
 export function committedOn(p: Procurement) {
   const line = p.plan?.budgetCode ?? p.budgetLine;
   const others = everyProcurement
-    .filter((q) => q.id !== p.id && q.step !== DONE && (q.plan?.budgetCode ?? q.budgetLine) === line && (!p.plan || q.plan?.project === p.plan.project))
+    .filter((q) => q.id !== p.id && q.step !== DONE && (q.plan?.budgetCode ?? q.budgetLine) === line && (!p.plan || !q.plan || q.plan.project === p.plan.project))
     .map((q) => ({ id: q.id, open: openValueOf(q) }))
     .filter((o) => o.open > 0);
   return { others, total: others.reduce((s, o) => s + o.open, 0) };

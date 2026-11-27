@@ -14,6 +14,7 @@ import { projectRules } from "@/server/policy-store";
 import { soloFor, type SoloState } from "@/server/solo";
 import { loadBudget } from "@/server/plan-store";
 import { lineMoneyOf, loadPlan } from "@/server/procurement-plan-store";
+import { HttpError } from "@/server/guard";
 
 /**
  * Server-side enforcement of the procurement workflow. The screen builds each change, but the
@@ -35,9 +36,14 @@ export type ProcurementContext = { rules: Record<string, Value>; holders: Author
 export async function loadProcurementContext(code: string, orgId: string | null | undefined, set: Procurement[]): Promise<ProcurementContext> {
   const [eff, hr, reg, solo] = await Promise.all([projectRules(code), loadHr().catch(() => null), code !== DEMO_PROJECT && orgId ? loadSuppliers(orgId) : Promise.resolve(null), code !== DEMO_PROJECT ? soloFor(code) : Promise.resolve({ on: false, blocked: null })]);
   // The budget and the calendar's open asks, for the one figure of what is left on a line. A project with no budget has none.
+  // A budget that cannot be read stops the save, rather than letting the money checks pass unseen
+  // (code review of ISS-07). The demo project keeps its sample lines.
   const lineMoney = await Promise.all([loadBudget(code), loadPlan(code)])
     .then(([budget, items]) => (budget.lines.length ? lineMoneyOf(budget, items) : null))
-    .catch(() => null);
+    .catch(() => {
+      if (code === DEMO_PROJECT) return null;
+      throw new HttpError(503, "The project's budget could not be read just now, so the money checks cannot run. Try again in a moment.");
+    });
   // An undecided conflict leaves that rule at the organization's own value, as on screen.
   return { rules: Object.fromEntries(eff.lines.filter((l) => !l.conflict || l.decision).map((l) => [l.key, l.value as Value])), holders: hr?.state.rules?.holders ?? {}, register: reg?.suppliers ?? null, set, solo, lineMoney };
 }

@@ -89,3 +89,23 @@ describe("asking for a purchase outside the calendar", () => {
     expect((make(left - 7800, 7800) as PlanItem).status).toBe("draft");
   });
 });
+
+describe("code review of ISS-07: the same figure on every screen", () => {
+  it("a calendar-started request counts a direct purchase on its line, as the ask form does", () => {
+    const direct = proc({ id: "PR-2026-020", title: "Direct pump order", budgetLine: "2.3", qty: 1, unitPrice: 3000, step: "requisition" });
+    const fromCalendar = proc({ id: "PR-2026-021", budgetLine: "2.3", qty: 1, unitPrice: 2000, step: "requisition", plan: { key: "UP-002", project: "Demo", budgetCode: "2.3", budgetName: "Crop protection", leftUsd: 12000, left: 12000, currency: "USD", approvedBy: [], requestedBy: "Laila" } });
+    setProcurementSet([direct, fromCalendar]);
+    setLineMoney([{ code: "2.3", budgetUsd: 12000, spentUsd: 0, asks: [] }]);
+    expect(committedByLine([direct, fromCalendar])).toEqual({ "2.3": 5000 });
+    expect(checkState(fromCalendar, check("requisition", "budgetValue"), usd).detail).toBe("Needs $2,000 · $9,000 available on 2.3: budget $12,000, less $3,000 committed to PR-2026-020");
+  });
+
+  it("a request sent back holds no money on its line until it is sent again", () => {
+    const line = demoBudget(TODAY).lines.find((l) => l.code === "2.1")!;
+    const nadia = users.find((u) => u.id === "nadia")!;
+    const ask = unplannedItem({ title: "Pump", budgetCode: "2.1", value: 1000, neededBy: addDays(TODAY, 90), reason: "The old pump broke and seedlings need water." }, { line, currency: "USD", workplan: demoWorkplan(TODAY), people: users, user: nadia, today: TODAY, key: "UP-005", committed: 0 }) as PlanItem;
+    const free = lineRoom(line, []).afterAsks;
+    expect(lineRoom(line, [ask]).afterAsks).toBe(free - 1000);
+    expect(lineRoom(line, [{ ...ask, status: "returned" }]).afterAsks).toBe(free);
+  });
+});

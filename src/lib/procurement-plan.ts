@@ -249,7 +249,9 @@ const money = (v: number, currency: string) => `${v.toLocaleString("en-US", { ma
  *   it is allowed but marked for the approvers rather than refused.
  */
 export function lineRoom(line: BudgetLine, items: PlanItem[], exceptKey?: string, committed = 0) {
-  const open = items.filter((i) => i.budgetCode === line.code && i.status !== "started" && i.key !== exceptKey);
+  // A returned item holds nothing until it is sent again (code review of ISS-07): nobody may be
+  // working on it, and it would hold the line's money for ever.
+  const open = items.filter((i) => i.budgetCode === line.code && i.status !== "started" && i.status !== "returned" && i.key !== exceptKey);
   const sum = (xs: PlanItem[]) => xs.reduce((t, i) => t + (i.value || 0), 0);
   // The one figure for the line (lib/line-money): budget, less spent, less what purchases under way
   // are committed to and have not paid (`committed`, in the budget's currency), less other open asks.
@@ -257,7 +259,7 @@ export function lineRoom(line: BudgetLine, items: PlanItem[], exceptKey?: string
   return { figure, afterAsks: figure.available, afterPlanned: round2(figure.available - sum(open.filter((i) => !i.unplanned))) };
 }
 /** Open asks made outside the calendar, by budget line: what `lineFigure` takes off as "asked". */
-export const openAsks = (items: PlanItem[]) => items.filter((i) => i.unplanned && i.status !== "started").map((i) => ({ key: i.key, code: i.budgetCode ?? "", value: i.value, currency: i.currency }));
+export const openAsks = (items: PlanItem[]) => items.filter((i) => i.unplanned && i.status !== "started" && i.status !== "returned").map((i) => ({ key: i.key, code: i.budgetCode ?? "", value: i.value, currency: i.currency }));
 
 /** How many days apart two asks on one budget line still count as one need (the same window the requisition's split check uses). */
 export const SPLIT_ASK_DAYS = 30;
