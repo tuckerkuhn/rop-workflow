@@ -8,7 +8,7 @@ import { localeOf, type MessageKey } from "@/lib/i18n";
 import { useRequireUser, useSession } from "@/components/app/session";
 import { Pill, SectionLabel, TopBar, dangerBtn, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { Empty, Fig, Figures, LedgerRow, LedgerTable, PageHead, SectionHead, Sheet as RuledSheet, StatusBlock } from "@/components/workspace/ledger";
-import { ALLOWANCE_TYPES, HOLIDAYS, HOURS_PER_DAY, LEAVE_TYPES, USUAL_PLACE, WORK_WEEK, daysIn, splitOf, weekday, type Allowance, type Day, type LeaveType, type Sheet, type TsAction } from "@/lib/timesheet";
+import { ALLOWANCE_TYPES, HOLIDAYS, HOURS_PER_DAY, LEAVE_TYPES, USUAL_PLACE, WORK_WEEK, daysIn, splitOf, weekday, type Allowance, type Day, type LeaveType, type Sheet, type TsAction, overLimits, submitProblem } from "@/lib/timesheet";
 import type { TimesheetView } from "@/app/api/timesheets/route";
 
 /**
@@ -296,6 +296,7 @@ function CurrentSheet({ v, monthName, onApprove, onReturn, onRevise }: { v: Time
           </ul>
         </div>
       )}
+      <OverHours sheet={t.sheet} office={v.office} />
       <Summary sheet={t.sheet} v={v} />
       <DayList sheet={t.sheet} v={v} />
       {t.cannotApprove && <p className="text-sm text-muted">{tr("ts.cannotApprove", { reason: t.cannotApprove })}</p>}
@@ -333,6 +334,33 @@ function CurrentSheet({ v, monthName, onApprove, onReturn, onRevise }: { v: Time
         </RuledSheet>
       )}
     </section>
+  );
+}
+
+/* ---------------- Long days and weeks, with the reason given ---------------- */
+
+/** What the supervisor reads before approving: each day or week over the usual hours, and why (lib/timesheet overLimits). */
+function OverHours({ sheet, office }: { sheet: Sheet; office: string }) {
+  const { date } = useT();
+  const over = useMemo(() => overLimits(sheet, office), [sheet, office]);
+  if (!over.days.length && !over.weeks.length) return null;
+  const day = (d: string) => date(d, { day: "numeric", month: "long" });
+  return (
+    <div className="bg-ochre-soft px-4 py-3 text-sm text-warn">
+      <p className="font-semibold">Over the usual hours</p>
+      <ul className="mt-1 list-disc ps-5">
+        {over.days.map((d) => (
+          <li key={d.date}>
+            {day(d.date)}: {d.hours} hours, over the {d.limit}-hour day. {d.note ? `Reason given: ${d.note}` : "No reason given."}
+          </li>
+        ))}
+        {over.weeks.map((w) => (
+          <li key={w.from}>
+            Week of {day(w.from)}: {w.hours} hours, over the {w.limit}-hour week. {w.note ? `Reason given: ${w.note}` : "No reason given."}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -489,6 +517,8 @@ function Editor({
   const [open, setOpen] = useState<string | null>(null);
   const [certify, setCertify] = useState(false);
   const [busy, setBusy] = useState(false);
+  // After the fact, never before; long days and weeks only with a note (lib/timesheet submitProblem). The server checks again.
+  const problem = submitProblem(sheet, v.office, v.today);
   const [fill, setFill] = useState(v.sources.find((s) => sheet && Object.values(sheet.days).some((d) => d.hours?.[s.id]))?.id ?? v.sources[0]?.id ?? "");
   const [leave, setLeave] = useState<{ from: string; to: string; type: LeaveType }>({ from: `${sheet.month}-01`, to: `${sheet.month}-01`, type: "vacation" });
   const work = WORK_WEEK[v.office] ?? WORK_WEEK["Home Office"];
@@ -580,10 +610,11 @@ function Editor({
           <span>{own ? t("ts.certifyOwn") : t("ts.certifyHr")}</span>
         </label>
       </RuledSheet>
+      {problem && <p className="bg-ochre-soft px-4 py-3 text-sm text-warn">{problem}</p>}
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
-          disabled={!certify || busy}
+          disabled={!certify || busy || !!problem}
           className={primaryBtn}
           onClick={async () => {
             setBusy(true);

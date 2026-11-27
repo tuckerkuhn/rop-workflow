@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db, schema as s } from "@/db";
 import { seesAll, toYou, conflictOf, type HrState } from "@/lib/hr";
-import { BASIC_LEAVE, LEAVE_TYPES, NON_CONTRACT, approversFor, foldTimesheets, lastShares, leaveMismatch, prefill, tsActionSchema, type FundingSource, type Timesheet } from "@/lib/timesheet";
+import { BASIC_LEAVE, LEAVE_TYPES, NON_CONTRACT, approversFor, foldTimesheets, lastShares, leaveMismatch, prefill, submitProblem, tsActionSchema, type FundingSource, type Timesheet } from "@/lib/timesheet";
 import { ON_TIMESHEET, RULES, foldLeave, groupOf, leaveDays } from "@/lib/leave";
 import { people, requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
@@ -114,7 +114,9 @@ export async function POST(req: Request) {
     if (a.action === "submit") {
       if (a.person !== me && !hr.rules?.holders.hr.includes(me)) return fail("You can submit your own timesheet. HR enters timesheets for others.");
       if (!hr.people[a.person]) return fail("This person has no HR record yet.");
-      if (a.sheet.month > todayIso().slice(0, 7)) return fail("A timesheet can be submitted once its month has started.", 400);
+      // After the fact, never before; long days and weeks only with a reason (lib/timesheet submitProblem).
+      const problem = submitProblem(a.sheet, officeOf(hr, a.person), todayIso());
+      if (problem) return fail(problem, 400);
       n = await append(me, "timesheet", a.person, a.sheet);
       month = a.sheet.month;
       person = a.person;
