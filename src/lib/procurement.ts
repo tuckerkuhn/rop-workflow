@@ -423,6 +423,16 @@ export type Draft = {
   asIs?: boolean;
 };
 
+/** What a draft's `model` says when a person wrote it from the app's template instead of AI (lib/hand-draft). */
+export const HAND_WRITTEN = "written by hand";
+export const byHand = (d: Draft | undefined | null) => d?.model === HAND_WRITTEN;
+/** The blanks a hand-written document still has: each "[what is wanted]" left in its text. */
+export function openBlanks(d: Draft | undefined | null): string[] {
+  if (!d) return [];
+  const found = d.sections.flatMap((x) => x.body.match(/\[[^\[\]\n]{2,160}\]/g) ?? []);
+  return [...new Set(found)];
+}
+
 export type PlanLink = {
   key: string;
   project: string;
@@ -716,7 +726,10 @@ const fmt = (n: number) => n.toLocaleString("en-US");
 function draftRead(p: Procurement, doc: string) {
   const d = p.drafts?.[doc];
   if (!d) return { ok: false, detail: "Draft it above first" };
-  return d.edited ? { ok: true, detail: d.asIs ? "Read: no changes needed" : "Corrected" } : { ok: false, detail: "Read it above: correct it, or confirm no changes are needed" };
+  // Written by hand from the template: it is finished only when every blank is filled.
+  const blanks = byHand(d) ? openBlanks(d).length : 0;
+  if (blanks) return { ok: false, detail: `Fill in the ${blanks === 1 ? "part" : `${blanks} parts`} still in [square brackets] above` };
+  return d.edited ? { ok: true, detail: d.asIs ? "Read: no changes needed" : byHand(d) ? "Written by hand" : "Corrected" } : { ok: false, detail: "Read it above: correct it, or confirm no changes are needed" };
 }
 
 const AI_GATE = {
@@ -883,7 +896,7 @@ export const steps: Step[] = [
     produces: ["Request for quotation"],
     signs: { doc: "Request for quotation", as: "Prepared by (procurement)" },
     checks: [
-      { id: "draft", label: "Request for quotation drafted", why: "Drafted from the approved request so nothing is typed twice.", tag: "TS", auto: (p) => ({ ok: !!p.drafts?.["Request for quotation"], detail: p.drafts?.["Request for quotation"] ? `Drafted ${p.drafts["Request for quotation"].at}` : "Draft it above" }) },
+      { id: "draft", label: "Request for quotation drafted", why: "Drafted from the approved request so nothing is typed twice.", tag: "TS", auto: (p) => ({ ok: !!p.drafts?.["Request for quotation"], detail: p.drafts?.["Request for quotation"] ? `${byHand(p.drafts["Request for quotation"]) ? "Written by hand" : "Drafted"} ${p.drafts["Request for quotation"].at}` : "Draft it above, with AI or by hand" }) },
       { id: "read", label: "Draft read and corrected by a person", why: "AI drafts; procurement decides what goes to suppliers.", tag: "TS", auto: (p) => draftRead(p, "Request for quotation") },
       { id: "terms", label: "Deadline, validity and lowest-compliant-price basis stated once", why: "A quotation is only rejected on grounds the request stated.", tag: "D1 §4.4, §5.2" },
     ],
@@ -901,7 +914,7 @@ export const steps: Step[] = [
     signs: { doc: "Sole source justification", as: "Prepared by (procurement)" },
     checks: [
       { id: "facts", label: "Supplier named and the reason only they can supply it recorded", why: "The justification rests on facts procurement can show.", tag: "D1 §5.5", auto: (p) => ({ ok: !!p.sole?.supplier.trim() && (p.sole?.reason.trim().length ?? 0) > 20, detail: p.sole?.supplier ? `${p.sole.supplier}` : "Add them above" }) },
-      { id: "draft", label: "Justification drafted", why: "Drafted from the request and the facts above.", tag: "TS", auto: (p) => ({ ok: !!p.drafts?.["Sole source justification"], detail: p.drafts?.["Sole source justification"] ? `Drafted ${p.drafts["Sole source justification"].at}` : "Draft it above" }) },
+      { id: "draft", label: "Justification drafted", why: "Drafted from the request and the facts above.", tag: "TS", auto: (p) => ({ ok: !!p.drafts?.["Sole source justification"], detail: p.drafts?.["Sole source justification"] ? `${byHand(p.drafts["Sole source justification"]) ? "Written by hand" : "Drafted"} ${p.drafts["Sole source justification"].at}` : "Draft it above, with AI or by hand" }) },
       { id: "read", label: "Draft read and corrected by a person", why: "AI drafts; procurement stands behind every statement in it.", tag: "TS", auto: (p) => draftRead(p, "Sole source justification") },
       { id: "price", label: "Price shown to be reasonable without competition", why: "Past prices, market data or a cost breakdown. Without competition, this is the only price check.", tag: "D1 §4.2, §5.5" },
     ],
@@ -1259,7 +1272,7 @@ export const steps: Step[] = [
         label: "Cover memo drafted and corrected",
         why: "Summarises what was bought, how, from whom, for how much, and anything outstanding.",
         tag: "TS",
-        auto: (p) => ({ ok: !!p.drafts?.["Procurement package"]?.edited, detail: !p.drafts?.["Procurement package"] ? "Draft it above" : p.drafts["Procurement package"].edited ? (p.drafts["Procurement package"].asIs ? "Read: no changes needed" : "Corrected") : "Drafted: read and correct it" }),
+        auto: (p) => (p.drafts?.["Procurement package"] ? draftRead(p, "Procurement package") : { ok: false, detail: "Draft it above" }),
       },
       { id: "aiPackage", label: "AI completeness check reviewed", why: "Missing documents, approvals out of order and figures that do not match. AI flags; procurement decides.", tag: "D1 §4.17; TS", ai: true, ...AI_GATE },
       { id: "filed", label: "Every document filed under the procurement ID", why: "Finance and auditors find the whole record in one place.", tag: "D1 §4.16" },

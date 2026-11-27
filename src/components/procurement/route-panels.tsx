@@ -7,7 +7,8 @@ import { acct, isRecordedFileLink, storeNames, opening } from "@/lib/file-store"
 import { LookedAt } from "@/components/app/ai-why";
 import { primaryBtn } from "@/components/workspace/ui";
 import { voucherGaps, withholding } from "@/lib/payments";
-import { ROUTES, committeeNeeded, levelFor, reviewKey, routesFor, rulesInForce, valueOf, vendbillOf, type Draft, type Procurement, type Voucher } from "@/lib/procurement";
+import { ROUTES, byHand, committeeNeeded, levelFor, openBlanks, reviewKey, routesFor, rulesInForce, valueOf, vendbillOf, type Draft, type Procurement, type Voucher } from "@/lib/procurement";
+import { handDraft } from "@/lib/hand-draft";
 import { DEPARTMENTS, GL_EXPENSE, LOCATIONS, type Code } from "@/lib/voucher-codes";
 import { codingFor, type VoucherSetup } from "@/lib/voucher-setup";
 import { today } from "@/lib/clock";
@@ -213,7 +214,15 @@ export function DraftPanel({
   const draft = p.drafts?.[doc];
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const { user } = useSession();
   const missingFacts = kind === "sole" && (!p.sole?.supplier.trim() || (p.sole?.reason.trim().length ?? 0) <= 20);
+  const hand = byHand(draft);
+  const blanks = hand ? openBlanks(draft) : [];
+  // The same document without AI: what the record holds is filled in, the rest is left as blanks to fill.
+  const writeMyself = () => {
+    setError("");
+    update((q) => ({ ...q, drafts: { ...q.drafts, [doc]: handDraft(q, kind, user?.name ?? "Procurement", today()) }, checks: unreview(q) }));
+  };
 
   const run = async () => {
     setBusy(true);
@@ -234,13 +243,13 @@ export function DraftPanel({
         <p className="text-sm font-semibold">{doc}</p>
         {draft && (
           <p className="text-xs text-muted">
-            AI draft ({draft.model}), {draft.at}
-            {draft.edited ? (draft.asIs ? " · read, no changes needed" : " · corrected") : " · not yet read"}
+            {hand ? `Written by hand, ${draft.at}` : `AI draft (${draft.model}), ${draft.at}`}
+            {hand ? (blanks.length ? ` · ${blanks.length} still to fill in` : draft.edited ? " · filled in" : " · not yet read") : draft.edited ? (draft.asIs ? " · read, no changes needed" : " · corrected") : " · not yet read"}
           </p>
         )}
       </div>
       {/* A draft that is right as it stands: the person says they read it, rather than making a token edit. */}
-      {draft && editable && !draft.edited && (
+      {draft && editable && !draft.edited && blanks.length === 0 && (
         <button
           type="button"
           onClick={() => update((q) => ({ ...q, drafts: { ...q.drafts, [doc]: { ...draft, edited: true, asIs: true } }, checks: unreview(q) }))}
@@ -251,10 +260,21 @@ export function DraftPanel({
       )}
       {!draft ? (
         <p className="mt-1 text-sm text-muted">
-          {editable ? "Draft it from the approved request with AI, then read and correct every section. Takes about a minute." : "Procurement drafts this from the request."}
+          {editable ? "Draft it from the approved request with AI, then read and correct every section. Takes about a minute. Or write it yourself: the same document opens with the record filled in." : "Procurement drafts this from the request."}
         </p>
       ) : (
         <>
+          {blanks.length > 0 && (
+            <div className="mt-3 rounded-xl bg-ochre-soft px-3 py-2 text-sm">
+              <p className="font-medium">Still to fill in</p>
+              <p className="mt-1 text-xs">Replace each part in [square brackets] with the fact it asks for.</p>
+              <ul className="mt-1 list-disc ps-5 text-xs">
+                {blanks.map((b) => (
+                  <li key={b}>{b.slice(1, -1)}</li>
+                ))}
+              </ul>
+            </div>
+          )}
           {draft.questions.length > 0 && (
             <div className="mt-3 rounded-xl bg-ochre-soft px-3 py-2 text-sm">
               <p className="font-medium">Still to confirm</p>
@@ -284,13 +304,19 @@ export function DraftPanel({
       {error && (
         <p role="alert" className="mt-3 rounded-xl bg-clay-soft px-3 py-2 text-sm text-clay">
           {error}
+          {editable && !draft && " The purchase does not have to wait: choose Write it myself below."}
         </p>
       )}
       {editable && (
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <button type="button" onClick={() => void run()} disabled={busy || missingFacts} className={draft ? "rounded-full border border-line px-4 py-2 text-sm font-medium" : primaryBtn}>
-            {busy ? "Drafting… about a minute" : draft ? (draft.edited && !draft.asIs ? "Draft again (replaces your corrections)" : "Draft again") : "Draft with AI"}
+            {busy ? "Drafting… about a minute" : draft ? (hand ? "Draft with AI instead (replaces what you wrote)" : draft.edited && !draft.asIs ? "Draft again (replaces your corrections)" : "Draft again") : "Draft with AI"}
           </button>
+          {!draft && (
+            <button type="button" onClick={writeMyself} disabled={busy || missingFacts} className="rounded-full border border-line px-4 py-2 text-sm font-medium hover:bg-sunken">
+              Write it myself
+            </button>
+          )}
           {missingFacts && <span className="text-xs text-muted">Add the supplier and the reason first.</span>}
         </div>
       )}

@@ -5,7 +5,7 @@
 
 import { acct, storeNames } from "@/lib/file-store";
 import { PROJECT, holderOf } from "@/lib/demo";
-import { bidUsd, distributionState, documentsOf, levelFor, lineOf, receivedQty, registered, roleLabel, stepsFor, valueOf, vendbillOf, type Money, type Procurement } from "@/lib/procurement";
+import { bidUsd, byHand, distributionState, documentsOf, levelFor, lineOf, receivedQty, registered, roleLabel, stepsFor, valueOf, vendbillOf, type Money, type Procurement } from "@/lib/procurement";
 import { lastScreening } from "@/lib/suppliers";
 import { currentInstalment, expectedAfn, expectedUsd, invoiceUsd, orderUsd, receivedBefore, voucherBook, withholding } from "@/lib/payments";
 import { DEPARTMENTS, GL_EXPENSE, LOCATIONS, codeLabel } from "@/lib/voucher-codes";
@@ -60,7 +60,9 @@ export function documentFor(p: Procurement, doc: string, money: Money, other: Mo
       number,
       rows: [...base, ...drafted.sections.map((s): [string, string] => [s.heading, s.body])],
       notes: [
-        `Drafted with AI (${drafted.model}) on ${drafted.at} at ${drafted.by}'s request${drafted.edited ? ", then corrected by procurement" : ""}. Procurement is responsible for every statement in it.`,
+        byHand(drafted)
+          ? `Written by ${drafted.by} on ${drafted.at}, without AI. Procurement is responsible for every statement in it.`
+          : `Drafted with AI (${drafted.model}) on ${drafted.at} at ${drafted.by}'s request${drafted.edited ? ", then corrected by procurement" : ""}. Procurement is responsible for every statement in it.`,
         ...drafted.questions.map((q) => `Still to confirm: ${q}`),
       ],
     };
