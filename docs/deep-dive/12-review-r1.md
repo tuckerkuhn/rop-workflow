@@ -95,7 +95,7 @@ Each is built as a rule with a default, so changing it is a setting, not a rewri
 | A supplier with no licence | Stops at screening. Going ahead without one is an exception with its reason on the record, not a block with no way through. | `lib/procurement.ts` (check `screen.dd`) |
 | Purchase numbers | Replaced 27 Nov: per project, with the project's code in the number (`PR-A2027-004`). | `server/procurement-store.ts` |
 
-## Done (16 of 30 issues fixed; ISS-09 and ISS-17 partly; 12 not started)
+## Done (21 of 30 issues; the 9 left are listed under "Not done yet")
 
 | Issue | What changed | Commit |
 |---|---|---|
@@ -106,48 +106,47 @@ Each is built as a rule with a default, so changing it is a setting, not a rewri
 | ISS-05, ISS-06 (high) | See D-24. | `8d5d9c1` |
 | ISS-07 (high) | One figure for what is left on a budget line, in the same words on the ask form, the calendar item, the requisition check, the printed requisition and a new check on the approver's step. | `efdf543` |
 | ISS-08 (high) | A missing or expired licence fails the screening check; the licence is recorded at screening on a project with no supplier register. | `bf1d361` |
-| ISS-09 (high), part 1 | The health page records and shows why a query failed, not only which one. **The fault itself is not fixed**: see "Open". | `e096fbf` |
+| ISS-09 (high) | The health page records and shows why a query failed. One database connection per live server instance, so the 15 shared connections are not used up (`36e10b0`, to revisit before the demo). **Not yet confirmed on the live site**: see "Open". | `e096fbf`, `36e10b0` |
 | ISS-10, ISS-26 | The requisition says when a purchase was not on the calendar and why. No "median undefined days". | `c0548d9` |
-| ISS-11 | Purchase numbers are one of a kind across the organization: the screen asks the server for the next one and the save refuses a clash. | `37f65b9` |
+| ISS-11 | Purchase numbers are one of a kind: per project with the project's code in them (`PR-A2027-004`), taken first at the save. | `37f65b9`, `cc19072` |
 | ISS-13 | One screening date for a purchase's supplier wherever it is shown. | `da5306f` |
 | ISS-16 | A hand-out draws only on stock received by its own day. A receipt dated after today (a sample project on its own calendar) counts as before. | `a97e264`, `9dc0314` |
-| ISS-17, part | A possible split is said on the ask form and kept on the calendar item for its two approvers. A second person for the approver's "separate needs" override is **not** built. | `34fd597` |
+| ISS-17 | A possible split is said on the ask form and kept on the calendar item for its two approvers; the approver's "separate needs" waits for the procurement manager to confirm it. | `34fd597`, `11db6e9` |
+| ISS-12 | The goods received note is signed by the requester or the one person they name in their own department, never procurement or the storekeeper; it records the day the goods arrived, the supplier's delivery note and their condition, and prints the real requester and inspector. | `c4a0940` |
+| ISS-19 | The authority table shows anyone with a role's right on their own record and what it lets them do; the sample organization names Omar under MEL. | `d9a457e` |
+| ISS-28 | Results and proof says its target is the whole project's; Progress shows the year's. | this commit's parent |
 | ISS-21 | A request from the calendar is not asked for its activity or lead time again: both are worked out and shown. | `f78e16d` |
 | ISS-29, ISS-30 | Places follow the project's country (Afghanistan, Guatemala, typed otherwise). One sign-in label. | `f78e16d` |
 
 ## Open
 
-- **ISS-09, the fault itself.** "Draft with AI" still fails. The health screenshot shows the
-  failure is a database read that dies before the AI is called (the "AI run started" row is
-  never written). Best guess, unconfirmed: the session pooler's 15-connection limit
-  (`src/db/index.ts`), held by suspended server instances. **Next step needs the live site:**
-  deploy this branch, click Draft with AI once, read Settings, Health for the reason now recorded.
-  Do not change the pooling blind.
+- **ISS-09: confirm on the live site.** The connection change (`36e10b0`) is live. Click Draft with
+  AI on a purchase at "Prepare the request for quotation", then read Settings, Health: either no
+  new error, or the reason the database gave, which is now recorded.
 - **Not looked at in a browser.** Every screen change here was typechecked, linted and covered by
   rule tests, not seen. Screens touched: procurement draft panel, Record a payment, procurement
   calendar (ask form and item), bank reconciliation, timesheet, supplier field at screening,
-  Settings Health, results (place), sign-in.
+  goods received panel, Settings Health, People (authority table), results (place and target), sign-in.
+- **ISS-12, small gap:** when the requester is away and named nobody, only an administrator can
+  name who receives the goods, and there is no screen for the administrator to do it yet.
 
 ## Checks run
 
 - Typecheck and lint: clean on every commit.
-- The whole test suite, run on a Linux copy with its own install: 90 rule test files (869 tests)
-  and 75 database test files (470 tests), all passing at `9dc0314`. The wider database run caught
-  one fault in the ISS-16 change, fixed in `9dc0314`.
+- The whole test suite, run on a Linux copy with its own install: 172 test files, 1,364 tests,
+  all passing at `d9a457e`.
 
 ## Not done yet, and why
 
 | Issue | Why it waits |
 |---|---|
-| ISS-12 (who signs the goods received note, delivery date and note number) | Next in line. Decision D-27 taken as: the requester or a named delegate in the same department. |
+| ISS-18 (selection rule before training), ISS-20 (one report calendar) | Next in line. Each is a separate fix. |
 | ISS-14 (the receipt photo's date, farmer and quantities compared with the record) | Belongs with the in-app distribution form, where the receipt is captured. |
 | ISS-15, ISS-22, ISS-27 | Settled by taking Kobo out: the labels, the outside dependency, and renaming the farmer's signed receipt "distribution receipt" all change in that rewrite. |
-| ISS-18 (selection rule before training), ISS-19 (MEL holder in the authority table), ISS-20 (one report calendar), ISS-28 (label targets as year or life of project) | Not started. Each is a small, separate fix. |
 | ISS-23, ISS-24, ISS-25 (SharePoint, backups, "posted in NetSuite") | The wording already follows the organization's settings; the demo organization is set to SharePoint and NetSuite. The real change is month close using the app's own books when no outside system is named: with the money batch. |
 
 ## Next (in order)
 
-1. ISS-12, then ISS-18, ISS-19, ISS-20, ISS-28.
+1. ISS-18, then ISS-20.
 2. Kobo out and the five in-app forms, with batch 1 of the missing features (and ISS-14, ISS-15, ISS-22, ISS-27).
 3. Batches 2 to 5. Local currency (MF-11) first in the money batch, with ISS-23 to ISS-25.
-4. ISS-09 once the live site has recorded the reason.
