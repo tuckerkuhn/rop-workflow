@@ -35,6 +35,28 @@ export const PROJECT_ROLE_TYPES: Record<"plan-approver" | "monthly-review" | "re
   "mel-owner": ["mel"],
   "finance-import": ["finance", "cfo"],
 };
+/** What each project right lets its holder do, for the authority table. */
+export const PROJECT_ROLE_DOES: Record<keyof typeof PROJECT_ROLE_TYPES, string> = {
+  "plan-approver": "approves the project plan",
+  "monthly-review": "runs the monthly review",
+  "report-release": "releases reports",
+  "mel-owner": "accepts or queries results",
+  "finance-import": "imports spending",
+};
+/**
+ * People who have a role type's project right as a grant on their own record without holding the
+ * role type in the table (review round 1, ISS-19: the table said nobody held MEL while Omar was
+ * accepting results). The table is the written delegation, so it shows them and where the right
+ * comes from, and the person reading it can add them to the role.
+ */
+export function namedGrants(role: HrRole, holders: Authority, people: readonly { id: string; name: string; project: readonly string[] }[]): { id: string; name: string; does: string[] }[] {
+  const rights = (Object.entries(PROJECT_ROLE_TYPES) as [keyof typeof PROJECT_ROLE_TYPES, HrRole[]][]).filter(([, types]) => types.includes(role)).map(([r]) => r);
+  return people
+    .filter((p) => !holders[role]?.includes(p.id))
+    .map((p) => ({ id: p.id, name: p.name, does: rights.filter((r) => p.project.includes(r)).map((r) => PROJECT_ROLE_DOES[r]) }))
+    .filter((p) => p.does.length);
+}
+
 /** The project roles a person has from the role types they hold. */
 export function projectRolesFromTypes(person: string, holders: Authority) {
   return (Object.entries(PROJECT_ROLE_TYPES) as [keyof typeof PROJECT_ROLE_TYPES, HrRole[]][]).filter(([, types]) => types.some((t) => holders[t]?.includes(person))).map(([r]) => r);

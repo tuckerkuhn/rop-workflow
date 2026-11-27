@@ -251,7 +251,8 @@ export async function seedSample(write: typeof append = append, file: typeof sto
       technical: ["farid", "laila", "javed", "shabnam", "nadia"],
       compliance: ["sarah"],
       bills: ["shabnam"],
-      mel: [],
+      // Omar accepts results as MEL: the table names him, so the written delegation matches what he can do (ISS-19).
+      mel: ["omar"],
       board: ["arthur"],
     },
   };

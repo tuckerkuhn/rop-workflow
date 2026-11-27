@@ -32,7 +32,8 @@ import {
 } from "@/lib/hr";
 import type { HrView, PersonView, ProposalView } from "@/server/hr-view";
 import { readBamboo, type BambooRow } from "@/lib/bamboo-import";
-import { ROLE_HELP, SIGNATURES, SIGNER_LABEL } from "@/lib/authority";
+import { ROLE_HELP, SIGNATURES, SIGNER_LABEL, namedGrants } from "@/lib/authority";
+import { users } from "@/lib/demo";
 
 /**
  * People: the HR record. Every change is proposed, signed by the people the rules name, and
@@ -985,6 +986,16 @@ function RulesView({ rules, names, onPropose, compact }: { rules: Rules; names: 
                   <span className="font-bold">{ROLE_LABEL[r]}</span>
                   <div className="min-w-0">
                     <p>{rules.holders[r].map((x) => names[x] ?? x).join(", ") || <span className="text-clay">Nobody named yet</span>}</p>
+                    {/* A right given on someone's own record, outside the table: shown here so the table is the whole delegation. */}
+                    {namedGrants(r, rules.holders, users).length > 0 && (
+                      <p className="mt-1 text-warn">
+                        Not in this table, but with the right on their own record:{" "}
+                        {namedGrants(r, rules.holders, users)
+                          .map((g) => `${g.name} (${g.does.join(", ")})`)
+                          .join("; ")}
+                        . Add them to this role to make it part of the written delegation.
+                      </p>
+                    )}
                     <p className="mt-1 text-muted">{ROLE_HELP[r]}</p>
                     {SIGNATURES.some((g) => g.by.includes(r)) && (
                       <ul className="mt-2 list-disc ps-5">
