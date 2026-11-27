@@ -265,7 +265,7 @@ export function ResultsPage() {
                           ) : (
                             <span className="font-mono text-xl font-bold tabular-nums">{num(range ? shown.value : all.value)}</span>
                           )}
-                          <span className="block text-xs text-muted">{range ? `${quarter ? "in" : "from"} ${rangeLabel}` : `of ${num(i.target)} ${i.unit}`}</span>
+                          <span className="block text-xs text-muted">{range ? `${quarter ? "in" : "from"} ${rangeLabel}` : `of ${num(i.target)} ${i.unit}, whole project`}</span>
                         </span>
                       </button>
                       <p className="flex flex-wrap gap-x-3 px-3 pb-2.5 ps-[5.5rem] text-xs text-muted">
