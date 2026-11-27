@@ -7,7 +7,7 @@ import { z } from "zod";
 import type { Procurement } from "@/lib/procurement";
 import { requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
-import { loadProcurements, procurementIdsOfOrg, saveProcurements } from "@/server/procurement-store";
+import { claimNewProcurements, loadProcurements, procurementIdsOfOrg, releaseNewProcurements, saveProcurements } from "@/server/procurement-store";
 import { db } from "@/db";
 import { logAudit } from "@/server/audit";
 import { projectByCode, setupOf } from "@/server/field-store";
