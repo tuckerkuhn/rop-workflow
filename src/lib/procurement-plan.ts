@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { workplanFor, type BudgetLine, type WorkplanItem } from "@/lib/budget";
 import { AFN_PER_USD, users, type AppUser } from "@/lib/demo";
-import { levelFor, rulesInForce, type Level } from "@/lib/procurement";
+import { LEAD_DAYS, levelFor, rulesInForce, type Level } from "@/lib/procurement";
 import { isDay } from "@/lib/clock";
 import { lineFigure, lineFigureText } from "@/lib/line-money";
 
@@ -67,8 +67,8 @@ export type Unplanned = {
 export const USD_PER: Record<string, number> = { USD: 1, AFN: 1 / AFN_PER_USD };
 export const toUsd = (value: number, currency: string) => value * (USD_PER[currency] ?? 1);
 
-/** Typical days from starting a procurement to having the goods, per level. A starting guess; change it per item. */
-export const LEAD_DAYS: Record<Level, number> = { Micro: 7, Small: 21, Medium: 45, Large: 90 };
+/** Typical days from starting a procurement to having the goods, per level (kept in lib/procurement, which its checks read too). */
+export { LEAD_DAYS };
 
 /** A threshold from the rules in force (the organization's policy with the donor's layered on), as "$5,000". */
 const dollars = (key: string, fallback: number) => {

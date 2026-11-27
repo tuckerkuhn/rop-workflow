@@ -75,6 +75,9 @@ const rule = (k: string, fallback: number) => (typeof rules[k] === "number" ? (r
 const ruleList = (k: string) => (Array.isArray(rules[k]) ? (rules[k] as string[]) : []);
 
 /** The level a value falls in, by the thresholds in force (ROP: $500 / $5,000 / $25,000, April 2025 Table 1). */
+/** Typical days from starting a procurement to having the goods, per level. A starting guess; the calendar lets each item change it. */
+export const LEAD_DAYS: Record<Level, number> = { Micro: 7, Small: 21, Medium: 45, Large: 90 };
+
 export function levelFor(value: number): Level {
   if (value <= rule("microMaxUsd", 500)) return "Micro";
   if (value <= rule("smallMaxUsd", 5000)) return "Small";
@@ -807,9 +810,32 @@ export const steps: Step[] = [
     done: "Need confirmed",
     produces: [],
     checks: [
-      { id: "activity", label: "Tied to an activity in the approved workplan", why: "A purchase that cannot be tied to a workplan activity and its result is not procured.", tag: "D1 §2.7" },
+      {
+        id: "activity",
+        label: "Tied to an activity in the approved workplan",
+        why: "A purchase that cannot be tied to a workplan activity and its result is not procured.",
+        tag: "D1 §2.7",
+        // A request made from the procurement calendar already names its activity: the app says so
+        // instead of asking again (review round 1, ISS-21). Any other request is confirmed by a person.
+        auto: (p) => (p.plan && p.activity.trim() ? { ok: true, detail: `${p.activity.trim()}, from calendar item ${p.plan.key}` } : null),
+      },
       { id: "spec", label: "Specification confirmed with technical staff", why: "Specifications describe what is needed without restricting competition. Brand names only with equivalents accepted.", tag: "D1 §2.7, §4.1" },
-      { id: "leadtime", label: "Lead time fits the activity date", why: "If the market cannot deliver in time, re-plan the activity. Do not shorten the procurement.", tag: "D1 §2.7" },
+      {
+        id: "leadtime",
+        label: "Lead time fits the activity date",
+        why: "If the market cannot deliver in time, re-plan the activity. Do not shorten the procurement.",
+        tag: "D1 §2.7",
+        fix: "The usual time to buy something this size does not fit the date it is needed: re-plan the activity, or record why this one can be delivered sooner.",
+        resolve: "Reason recorded",
+        // From the calendar the app knows the date needed and the usual time for a purchase this size.
+        auto: (p) => {
+          if (!p.plan || !p.neededBy) return null;
+          const level = levelFor(valueOf(p));
+          const lead = LEAD_DAYS[level];
+          const have = daysBetween(madeOn(p), p.neededBy);
+          return { ok: have >= lead, detail: `Needed by ${p.neededBy}, ${have} days after the request. A ${level} purchase usually takes ${lead} days` };
+        },
+      },
     ],
   },
   {

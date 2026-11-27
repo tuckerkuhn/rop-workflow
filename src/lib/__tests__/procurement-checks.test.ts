@@ -65,6 +65,23 @@ describe("procurement checks that cannot be ticked on trust", () => {
     expect(row(at("approveReq", { urgent: false, plan }))).toBe("Planned");
   });
 
+  // Review round 1, ISS-21: the user ticked two things the app already knew.
+  it("a request from the calendar is not asked for its activity or its lead time again", () => {
+    const plan = { key: "UP-001", project: "Demo", budgetCode: "2.2", budgetName: "Fertilizer", leftUsd: 4800, left: 4800, currency: "USD", approvedBy: [], requestedBy: "Laila Haidari" };
+    const made = [{ date: "2026-11-26", who: "holder" as const, what: "Request created from procurement calendar UP-001" }];
+    const p = at("need", { plan, activity: "1.2.1 Buy and distribute the farm input package", qty: 40, unitPrice: 120, neededBy: "2027-01-15", timeline: made });
+    expect(checkState(p, check("need", "activity"), usd)).toMatchObject({ ok: true, auto: true, detail: "1.2.1 Buy and distribute the farm input package, from calendar item UP-001" });
+    expect(checkState(p, check("need", "leadtime"), usd)).toMatchObject({ ok: true, auto: true, detail: "Needed by 2027-01-15, 50 days after the request. A Small purchase usually takes 21 days" });
+    // Too soon for a purchase this size: it does not pass on a tick, only with a recorded reason.
+    const soon = { ...p, neededBy: "2026-12-05", checks: { "need.leadtime": true } };
+    expect(checkState(soon, check("need", "leadtime"), usd)).toMatchObject({ ok: false, auto: true });
+    expect(checkState({ ...soon, checks: { "fix.need.leadtime": true }, overrides: { "fix.need.leadtime": { why: "Supplier holds stock in Kandahar", by: "Laila", date: "2026-11-26" } } }, check("need", "leadtime"), usd)).toMatchObject({ ok: true });
+    // The specification is still a person's to confirm, and a request made off the calendar is asked as before.
+    expect(checkState(p, check("need", "spec"), usd)).toMatchObject({ ok: false, auto: false });
+    expect(checkState(at("need", { plan: undefined }), check("need", "activity"), usd)).toMatchObject({ auto: false });
+    expect(checkState(at("need", { plan: undefined }), check("need", "leadtime"), usd)).toMatchObject({ auto: false });
+  });
+
   it("a drafted document counts as read only once a person corrected or confirmed it", () => {
     const c = check("rfq", "read");
     const draft = { sections: [], questions: [], model: "m", at: "2026-11-19", by: "Hamid", edited: false };

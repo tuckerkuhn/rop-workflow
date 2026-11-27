@@ -21,7 +21,7 @@ import { Empty, Fig, Figures, LedgerRow, LedgerTable, PageHead, SectionHead, She
 import type { Receipt } from "@/lib/expense";
 import { readWorkbook } from "@/lib/read-sheet";
 import { TEMPLATE_CSV, parseCsv, readResults, type ImportRow } from "@/lib/results-import";
-import { PROVINCES, YOUTH, proofCount, proofLinkSchema, quarterOf, quarterRange, type ProofLink, type ResultAction, type ResultInput, type UpdateInput } from "@/lib/results";
+import { YOUTH, placesFor, proofCount, proofLinkSchema, quarterOf, quarterRange, type ProofLink, type ResultAction, type ResultInput, type UpdateInput } from "@/lib/results";
 import type { ResultsView } from "@/app/api/projects/[code]/results/route";
 import { measured } from "@/lib/measure";
 import { NamesWarning } from "@/components/progress/names-warning";
@@ -669,15 +669,7 @@ function CorrectForm({ r, act, onClose }: { r: Res; act: (a: ResultAction, msg: 
             </label>
           </>
         ) : null}
-        <label className="text-xs text-muted">
-          Province
-          <select className={box} value={f.province} onChange={set("province")}>
-            <option value="">—</option>
-            {PROVINCES.map((p) => (
-              <option key={p}>{p}</option>
-            ))}
-          </select>
-        </label>
+        <PlaceField className="text-xs text-muted" control={box} value={f.province} onChange={set("province")} />
         <label className="text-xs text-muted">
           District
           <input className={box} value={f.district} onChange={set("district")} />
@@ -700,6 +692,33 @@ function CorrectForm({ r, act, onClose }: { r: Res; act: (a: ResultAction, msg: 
         </button>
       </div>
     </Sheet>
+  );
+}
+
+/**
+ * Where a result happened, one level below the country: a list for the project's own country
+ * (provinces in Afghanistan, departments in Guatemala), typed in for a country with no list.
+ */
+function PlaceField({ className, control, value, onChange, help }: { className: string; control: string; value: string; onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void; help?: boolean }) {
+  const { project } = useCurrentProject();
+  const places = placesFor(project.country);
+  return (
+    <label className={className}>
+      {places?.label ?? "Province or region"}
+      {help && <FieldHelp field="result.place" />}
+      {places ? (
+        <select className={control} value={value} onChange={onChange}>
+          <option value="">—</option>
+          {/* A place recorded before the list changed stays choosable. */}
+          {value && !places.names.includes(value) && <option>{value}</option>}
+          {places.names.map((p) => (
+            <option key={p}>{p}</option>
+          ))}
+        </select>
+      ) : (
+        <input className={control} value={value} onChange={onChange} maxLength={60} />
+      )}
+    </label>
   );
 }
 
@@ -965,6 +984,8 @@ function ResultRows({ list, v, ind, act, label, oldestFirst }: { list: Res[]; v:
 type Prefill = { from: string; fields: Partial<Record<"date" | "value" | "female" | "male" | "womenLed" | "menLed" | "province" | "note", string>> };
 
 function RecordForm({ ind, add, onClose, prefill }: { ind: Ind; add: (r: ResultInput) => Promise<void>; onClose: () => void; prefill?: Prefill | null }) {
+  // The places on offer follow the project's country (lib/results placesFor).
+  const { project: placeProject } = useCurrentProject();
   const d = ind.disaggregation ?? [];
   const bySex = d.includes("sex");
   const byLead = d.includes("women-led or men-led");
@@ -983,7 +1004,7 @@ function RecordForm({ ind, add, onClose, prefill }: { ind: Ind; add: (r: ResultI
     noFile: "",
     ...prefill?.fields,
     // Only a province on the list: anything else is left for the person to pick.
-    province: prefill?.fields.province && (PROVINCES as readonly string[]).includes(prefill.fields.province) ? prefill.fields.province : "",
+    province: prefill?.fields.province && (placesFor(placeProject.country)?.names ?? [prefill.fields.province]).includes(prefill.fields.province) ? prefill.fields.province : "",
   });
   const [files, setFiles] = useState<Receipt[]>([]);
   const [captions, setCaptions] = useState<Record<string, string>>({});
@@ -1041,16 +1062,7 @@ function RecordForm({ ind, add, onClose, prefill }: { ind: Ind; add: (r: ResultI
           {ind.measure === "change" && <span className="mt-1 block text-xs text-muted">The survey&apos;s own figure, e.g. the average income, in the same unit as the baseline ({ind.baseline ?? "not set yet"}). The app works out the change. Attach the survey file as proof.</span>}
           {ind.measure === "latest" && <span className="mt-1 block text-xs text-muted">The survey&apos;s figure, e.g. a share or an average. Attach the survey file as proof.</span>}
         </label>
-        <label className="text-sm">
-          Province
-          <FieldHelp field="result.place" />
-          <select className={input} value={f.province} onChange={set("province")}>
-            <option value="">—</option>
-            {PROVINCES.map((p) => (
-              <option key={p}>{p}</option>
-            ))}
-          </select>
-        </label>
+        <PlaceField className="text-sm" control={input} value={f.province} onChange={set("province")} help />
         <label className="text-sm">
           District
           <input className={input} value={f.district} onChange={set("district")} />
