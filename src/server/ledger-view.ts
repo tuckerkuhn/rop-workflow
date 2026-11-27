@@ -10,6 +10,9 @@ import { hrBook, loadHr } from "@/server/hr-store";
 import { accounts, budgetLineEntries, budgetVsActual, expenseAccountFor, ledgerSettings, LedgerError, type EntryWithLines, type JournalEntry } from "@/server/ledger";
 import { ensureChart, moneyAccounts } from "@/server/ledger-setup";
 import { sourceOf } from "@/server/books-posting";
+import type { OpenPurchase } from "@/lib/ledger/payment-guard";
+import { DONE, lineOf, valueOf, type Procurement } from "@/lib/procurement";
+import { loadProcurements } from "@/server/procurement-store";
 
 /**
  * What the ledger screens read and who may do what on them: Record a payment (/work/payments)
@@ -201,6 +204,10 @@ async function withLines(entries: JournalEntry[]): Promise<EntryWithLines[]> {
 
 /* ---------------- Record a payment ---------------- */
 
+/** A purchase a payment could still be for: any that is not paid and closed out. */
+export const openPurchases = (all: readonly Procurement[]): OpenPurchase[] =>
+  all.filter((p) => p.step !== DONE && p.step !== "close").map((p) => ({ id: p.id, title: p.title, lineCode: lineOf(p)?.code ?? p.budgetLine, supplier: p.supplier?.name ?? null, usd: valueOf(p) }));
+
 export async function paymentsView(code: string, u: AppUser) {
   const project = await ledgerProject(code);
   const org = project.organizationId;
@@ -241,6 +248,8 @@ export async function paymentsView(code: string, u: AppUser) {
     balancingRule: BALANCING_RULE,
     drafts: draftViews,
     recent: recent.map((e) => rowOf(e, ctx)),
+    /** Purchases not yet closed, so the form can ask about the ones on the chosen budget line (lib/ledger/payment-guard). */
+    openPurchases: openPurchases(await loadProcurements(code)),
   };
 }
 export type PaymentsView = Awaited<ReturnType<typeof paymentsView>>;

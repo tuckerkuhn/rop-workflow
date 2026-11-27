@@ -47,6 +47,8 @@ const form = (amount: string, extra: Record<string, unknown> = {}) => ({
   paidFrom,
   date: new Date().toISOString().slice(0, 10),
   receipt,
+  // The demo project has purchases open on its lines: a payment there says why it is not one of them (lib/ledger/payment-guard).
+  notAPurchase: "Seed bought at the market for the demonstration plot: no purchase record exists for it.",
   ...extra,
 });
 const actualOn = (v: BudgetActualView, id: string) => v.rows.filter((r) => r.budgetLineId === id).reduce((a, r) => a + Number(r.actual), 0);
@@ -171,5 +173,48 @@ describe("the ledger screens", { timeout: 60_000 }, () => {
     expect((await pay("yusuf", form("10.00", { budgetLineId: "00000000-0000-4000-8000-000000000000" }))).status).toBe(400);
     expect((await pay("yusuf", form("10.00", { paidFrom: "00000000-0000-4000-8000-000000000000" }))).status).toBe(400);
     expect((await pay("yusuf", form("10.00", { receipt: { ...receipt, hash: "a".repeat(64) } }))).status).toBe(400);
+  });
+
+  // Review round 1, ISS-02: the review posted a purchase's payment here, to a third party, with no warning.
+  it("is not a way around a purchase's checks: a named purchase, an open one on the line, a third-party receiver", async () => {
+    const v = (await view("yusuf")).body;
+    const line = v.budgetLines.find((l) => l.id === lineId)!;
+    const entries = async () => (await db.select({ id: s.journalEntries.id }).from(s.journalEntries)).length;
+    const before = await entries();
+
+    // The form is told which purchases are still open, so it can ask before anything is sent.
+    expect(v.openPurchases.length).toBeGreaterThan(0);
+    const open = v.openPurchases[0];
+
+    // 1. Naming a purchase of the project: refused, whatever else is said.
+    const named = await pay("yusuf", form("1560.00", { what: `NPK second lot, ${open.id}` }));
+    expect(named.status).toBe(409);
+    expect(named.body.error).toContain(`${open.id} is a purchase on this project`);
+
+    // 2. A line with an open purchase and no reason: refused, and the purchases are named.
+    const onLine = v.openPurchases.filter((p) => p.lineCode.split(/\s+/)[0] === line.code.split(/\s+/)[0]);
+    const silent = await pay("yusuf", form("20.00", { notAPurchase: null }));
+    if (onLine.length) {
+      expect(silent.status).toBe(409);
+      expect(silent.body.error).toContain(onLine[0].id);
+    } else expect(silent.status).toBe(200);
+
+    // 3. Money handed to someone else: refused without the authorization and the screening date.
+    const third = await pay("yusuf", form("30.00", { payee: "Ahmad Noori, on behalf of Green Valley Agro Ltd (fictional)" }));
+    expect(third.status).toBe(400);
+    expect(third.body.error).toContain("written authorization");
+    const never = await pay("yusuf", form("30.00", { payee: "Green Valley Agro Ltd (fictional)", thirdParty: { receivedBy: "Ahmad Noori", authorization: { ...receipt, hash: "b".repeat(64) }, screenedOn: new Date().toISOString().slice(0, 10) } }));
+    expect(never.status).toBe(400);
+    expect(never.body.error).toContain("did not finish uploading");
+    expect(await entries()).toBe(before + (onLine.length ? 0 : 1));
+
+    // With both on file it is recorded, and what was declared is kept with the entry.
+    const ok = await pay("yusuf", form("30.00", { payee: "Green Valley Agro Ltd (fictional)", thirdParty: { receivedBy: "Ahmad Noori", authorization: receipt, screenedOn: new Date().toISOString().slice(0, 10) } }));
+    expect(ok.status).toBe(200);
+    const declared = (await db.select().from(s.auditLog).where(eq(s.auditLog.entityId, ok.body.entryId))).find((r) => r.action === "payment_declared");
+    expect(declared).toBeDefined();
+    expect(declared!.detail).toMatchObject({ thirdParty: { receivedBy: "Ahmad Noori" } });
+    const [row] = await db.select({ memo: s.journalEntries.memo }).from(s.journalEntries).where(eq(s.journalEntries.id, ok.body.entryId));
+    expect(row.memo).toContain("handed to Ahmad Noori; authorization on file");
   });
 });

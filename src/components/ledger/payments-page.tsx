@@ -12,6 +12,7 @@ import { Loading, TopBar, dangerBtn, primaryBtn, quietBtn } from "@/components/w
 import { Empty, Fig, LedgerTable, PageHead, SectionHead, Sheet } from "@/components/workspace/ledger";
 import type { Receipt } from "@/lib/expense";
 import { payment } from "@/lib/ledger/rules";
+import { REASON_MIN, openOnLine } from "@/lib/ledger/payment-guard";
 import { newKey, type SaveOutcome } from "@/lib/ledger/screens";
 import type { EntryRow, PaymentsView } from "@/server/ledger-view";
 
@@ -145,12 +146,12 @@ function SetUp({ v, code, user, onDone }: { v: PaymentsView; code: string; user:
   );
 }
 
-type Form = { payee: string; what: string; budgetLineId: string; donorId: string; amount: string; currency: string; fxRate: string; paidFrom: string; date: string };
+type Form = { payee: string; what: string; budgetLineId: string; donorId: string; amount: string; currency: string; fxRate: string; paidFrom: string; date: string; notAPurchase: string; third: boolean; receivedBy: string; screenedOn: string };
 
 function PaymentForm({ v, code, user, onSaved }: { v: PaymentsView; code: string; user: string; onSaved: (message: string) => void }) {
   const currencies = useMemo(() => [...new Set(v.money.map((m) => m.currency))], [v.money]);
   const blank = useCallback(
-    (): Form => ({ payee: "", what: "", budgetLineId: "", donorId: v.donors.length === 1 ? v.donors[0].id : "", amount: "", currency: currencies.includes(v.currency) ? v.currency : (currencies[0] ?? v.currency), fxRate: "1", paidFrom: "", date: today() }),
+    (): Form => ({ payee: "", what: "", budgetLineId: "", donorId: v.donors.length === 1 ? v.donors[0].id : "", amount: "", currency: currencies.includes(v.currency) ? v.currency : (currencies[0] ?? v.currency), fxRate: "1", paidFrom: "", date: today(), notAPurchase: "", third: false, receivedBy: "", screenedOn: "" }),
     [v.donors, v.currency, currencies],
   );
   // Opened from a bank statement line (Month close › Bank reconciliation): the date, amount, what it
@@ -173,6 +174,8 @@ function PaymentForm({ v, code, user, onSaved }: { v: PaymentsView; code: string
     };
   });
   const [file, setFile] = useState<Receipt | null>(null);
+  // The payee's written authorization, when the money was handed to someone else.
+  const [authFile, setAuthFile] = useState<Receipt | null>(null);
   // One key per form: a double click, or a retry after a lost answer, never posts the payment twice.
   const [key, setKey] = useState(() => newKey("pay"));
   const [busy, setBusy] = useState(false);
@@ -200,7 +203,15 @@ function PaymentForm({ v, code, user, onSaved }: { v: PaymentsView; code: string
   }, [line, paidFrom, f.amount, f.currency, f.date, f.what, f.donorId, own, rate, v.currency, v.chart, v.donors]);
   const overLimit = preview && "total" in preview && Number(preview.total) > Number(v.selfPostLimit);
 
-  const missing = [!file && "the receipt", f.payee.trim().length < 2 && "who was paid", f.what.trim().length < 3 && "what it was for", !line && "the budget line", !(Number(f.amount) > 0) && "the amount", !own && !(Number(rate) > 0) && "the rate", !paidFrom && "the account it was paid from", !f.date && "the date"].filter(Boolean) as string[];
+  // Purchases not yet closed on the chosen line: a payment for one of them belongs on the purchase.
+  const openHere = line ? openOnLine(line.code, v.openPurchases) : [];
+  const upload = async (x: File): Promise<Receipt> => {
+    const body = new FormData();
+    body.append("file", await shrink(x));
+    return ledgerCall<Receipt>("/api/files", user, { method: "POST", body });
+  };
+
+  const missing = [!file && "the receipt", openHere.length > 0 && f.notAPurchase.trim().length < REASON_MIN && "why this is not one of the open purchases", f.third && f.receivedBy.trim().length < 2 && "who received the money", f.third && !authFile && "the payee's written authorization", f.third && !f.screenedOn && "the date the receiver was screened", f.payee.trim().length < 2 && "who was paid", f.what.trim().length < 3 && "what it was for", !line && "the budget line", !(Number(f.amount) > 0) && "the amount", !own && !(Number(rate) > 0) && "the rate", !paidFrom && "the account it was paid from", !f.date && "the date"].filter(Boolean) as string[];
 
   const save = async () => {
     setBusy(true);
@@ -208,10 +219,11 @@ function PaymentForm({ v, code, user, onSaved }: { v: PaymentsView; code: string
     try {
       const r = await ledgerCall<SaveOutcome>(`/api/projects/${code}/ledger/payments`, user, {
         method: "POST",
-        body: JSON.stringify({ idempotencyKey: key, payee: f.payee, what: f.what, budgetLineId: f.budgetLineId, donorId: f.donorId || null, amount: f.amount.trim(), currency: f.currency, fxRate: rate, paidFrom, date: f.date, receipt: file }),
+        body: JSON.stringify({ idempotencyKey: key, payee: f.payee, what: f.what, budgetLineId: f.budgetLineId, donorId: f.donorId || null, amount: f.amount.trim(), currency: f.currency, fxRate: rate, paidFrom, date: f.date, receipt: file, notAPurchase: openHere.length ? f.notAPurchase : null, thirdParty: f.third && authFile ? { receivedBy: f.receivedBy, authorization: authFile, screenedOn: f.screenedOn } : null }),
       });
       setF(blank());
       setFile(null);
+      setAuthFile(null);
       setKey(newKey("pay"));
       onSaved(
         r.outcome === "posted"
@@ -244,9 +256,7 @@ function PaymentForm({ v, code, user, onSaved }: { v: PaymentsView; code: string
                   if (!x) return;
                   setError("");
                   try {
-                    const body = new FormData();
-                    body.append("file", await shrink(x));
-                    setFile(await ledgerCall<Receipt>("/api/files", user, { method: "POST", body }));
+                    setFile(await upload(x));
                   } catch (err) {
                     setError(err instanceof Error ? err.message : String(err));
                   }
@@ -260,8 +270,45 @@ function PaymentForm({ v, code, user, onSaved }: { v: PaymentsView; code: string
           </label>
           <label className="text-sm">
             <span className="font-medium">What it was for</span>
-            <input value={f.what} onChange={(e) => set({ what: e.target.value })} placeholder="Wheat seed for the spring planting" className={field} />
+            <input value={f.what} onChange={(e) => set({ what: e.target.value })} placeholder="Bank charges for October" className={field} />
           </label>
+          <div className="text-sm sm:col-span-2">
+            <label className="flex min-h-11 items-center gap-2">
+              <input type="checkbox" checked={f.third} onChange={(e) => set({ third: e.target.checked })} />
+              <span>The money was handed to someone other than the payee</span>
+            </label>
+            {f.third && (
+              <div className="mt-1 grid gap-3 rounded-xl bg-ochre-soft px-3 py-3 sm:grid-cols-2">
+                <p className="text-xs sm:col-span-2">Paying someone else needs the payee&rsquo;s written authorization on file, and the person who received the money screened like any payee.</p>
+                <label>
+                  <span className="font-medium">Who received the money</span>
+                  <input value={f.receivedBy} onChange={(e) => set({ receivedBy: e.target.value })} className={field} />
+                </label>
+                <label>
+                  <span className="font-medium">Date they were screened</span>
+                  <input type="date" value={f.screenedOn} max={today()} onChange={(e) => set({ screenedOn: e.target.value })} className={field} />
+                </label>
+                <label className={`${quietBtn} block cursor-pointer text-center sm:col-span-2`}>
+                  {authFile ? `Attached: ${authFile.name}` : "Attach the payee's written authorization"}
+                  <input
+                    type="file"
+                    accept="image/*,application/pdf"
+                    className="sr-only"
+                    onChange={async (e) => {
+                      const x = e.target.files?.[0];
+                      if (!x) return;
+                      setError("");
+                      try {
+                        setAuthFile(await upload(x));
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : String(err));
+                      }
+                    }}
+                  />
+                </label>
+              </div>
+            )}
+          </div>
           <label className="text-sm sm:col-span-2">
             <span className="font-medium">Budget line</span>
             {v.budgetLines.length ? (
@@ -277,6 +324,26 @@ function PaymentForm({ v, code, user, onSaved }: { v: PaymentsView; code: string
               <span className="mt-1 block text-xs text-muted">This project has no budget loaded yet, so there is no line to choose. Load it in Set up first.</span>
             )}
           </label>
+          {openHere.length > 0 && (
+            <div className="rounded-xl bg-ochre-soft px-3 py-3 text-sm sm:col-span-2">
+              <p className="font-medium">{openHere.length === 1 ? "A purchase on this line is not yet closed" : "Purchases on this line are not yet closed"}</p>
+              <ul className="mt-1 list-disc ps-5 text-xs">
+                {openHere.map((p) => (
+                  <li key={p.id}>
+                    {p.id} {p.title}
+                    {p.supplier ? `, ${p.supplier}` : ""}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-xs">
+                A payment for {openHere.length === 1 ? "it" : "one of them"} is made from the purchase itself (<Link href="/work/procurements" className="underline">Procurement</Link>, its Pay step), which checks the invoice, the goods received, the tax and the supplier&rsquo;s screening. Recorded here it would skip those checks.
+              </p>
+              <label className="mt-2 block">
+                <span className="font-medium">If this is something else, say what it is for instead</span>
+                <input value={f.notAPurchase} onChange={(e) => set({ notAPurchase: e.target.value })} placeholder="Hall hire for the input fair: no purchase record exists for it" className={field} />
+              </label>
+            </div>
+          )}
           {v.donors.length > 1 && (
             <label className="text-sm sm:col-span-2">
               <span className="font-medium">Whose money paid for it</span>
