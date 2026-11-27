@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { users } from "@/lib/demo";
 import { demoBudget, demoWorkplan } from "@/lib/demo-design";
-import { OWN_REQUEST, splitAsk, addDays, applyAction, askSchema, awaiting, buildPlan, canAsk, leadFor, leadOtherThan, unplannedItem, type AskInput, type PlanItem } from "@/lib/procurement-plan";
+import { BOTH_SEATS, OWN_REQUEST, splitAsk, addDays, applyAction, askSchema, awaiting, buildPlan, canAsk, leadFor, leadOtherThan, unplannedItem, type AskInput, type PlanItem } from "@/lib/procurement-plan";
 
 /** Asking for a purchase that is not on the procurement calendar: an added path, never a shortcut past the approvals. */
 const TODAY = "2026-11-15";
@@ -149,5 +149,21 @@ describe("the needed-by date is a real day", () => {
     expect(askSchema.safeParse(ask({ neededBy: "2027-02-31" })).success).toBe(false);
     expect(askSchema.safeParse(ask({ neededBy: "2027-13-01" })).success).toBe(false);
     expect(askSchema.safeParse(ask({ neededBy: "2027-02-28" })).success).toBe(true);
+  });
+});
+
+describe("two seats, two people (code review of D-13)", () => {
+  it("whoever signed one seat cannot sign the other, an administrator included", () => {
+    const item = make() as PlanItem;
+    const tucker = by("tucker"); // an administrator, not the asker
+    const one = applyAction(item, { action: "approve", as: "manager" }, tucker, users, TODAY, rows) as PlanItem;
+    expect(one.approvals?.manager?.by).toBe("tucker");
+    expect(applyAction(one, { action: "approve", as: "lead" }, tucker, users, TODAY, rows)).toBe(BOTH_SEATS);
+    // The other way round too: the technical lead who signed cannot also sign for procurement.
+    const lead = by(item.techLead!);
+    const asLead = applyAction(item, { action: "approve", as: "lead" }, { ...lead, admin: true }, users, TODAY, rows) as PlanItem;
+    expect(applyAction(asLead, { action: "approve", as: "manager" }, { ...lead, admin: true }, users, TODAY, rows)).toBe(BOTH_SEATS);
+    // Two different people approve it.
+    expect((applyAction(one, { action: "approve", as: "lead" }, lead, users, TODAY, rows) as PlanItem).status).toBe("approved");
   });
 });

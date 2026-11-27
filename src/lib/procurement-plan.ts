@@ -367,6 +367,9 @@ export const procurementManager = (people: AppUser[]) => people.find((u) => isMa
  */
 export const isProcurementManager = (u: AppUser, people: AppUser[] = users) => procurementManager(people)?.id === u.id;
 
+/** Why one person cannot approve in both seats. */
+export const BOTH_SEATS = "You approved this in the other seat. A second person approves here, so two people have looked at it.";
+
 /** Applies an action, or returns why the person cannot. */
 /**
  * `rows`: the workplan's row codes, when the project has a workplan. With one, a purchase must
@@ -381,6 +384,10 @@ export function applyAction(item: PlanItem, a: PlanAction, u: AppUser, people: A
       if (item.status === "approved") return "Already approved.";
       // In either seat, and for an administrator too: the person who asked does not approve it.
       if (item.unplanned?.by === u.id) return OWN_REQUEST;
+      // Two seats, two people (code review of D-13): whoever signed one seat does not sign the other,
+      // an administrator or a line manager standing in as technical lead included.
+      const other = a.as === "manager" ? item.approvals?.lead : item.approvals?.manager;
+      if (other?.by === u.id) return BOTH_SEATS;
       if (a.as === "manager") {
         const holder = procurementManager(people);
         if (!isProcurementManager(u, people) && !u.admin) return `Only the procurement manager${holder ? ` (${holder.name})` : ""} approves for procurement.`;
