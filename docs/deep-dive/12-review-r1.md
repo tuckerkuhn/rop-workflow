@@ -39,7 +39,7 @@ Each is built as a rule with a default, so changing it is a setting, not a rewri
 | A supplier with no licence | Stops at screening. Going ahead without one is an exception with its reason on the record, not a block with no way through. | `lib/procurement.ts` (check `screen.dd`) |
 | Purchase numbers | One sequence per year across the whole organization (`PR-2026-004`), not per project. The project code is not in the number. | `server/procurement-store.ts` |
 
-## Done (17 of 30 issues, plus part of ISS-09)
+## Done (16 of 30 issues fixed; ISS-09 and ISS-17 partly; 12 not started)
 
 | Issue | What changed | Commit |
 |---|---|---|
