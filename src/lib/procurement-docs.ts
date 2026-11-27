@@ -5,7 +5,8 @@
 
 import { acct, storeNames } from "@/lib/file-store";
 import { PROJECT, holderOf } from "@/lib/demo";
-import { bidUsd, byHand, distributionState, plannedOrUrgent, documentsOf, levelFor, lineOf, receivedQty, registered, roleLabel, stepsFor, valueOf, vendbillOf, type Money, type Procurement } from "@/lib/procurement";
+import { lineFigureText } from "@/lib/line-money";
+import { availableFor, bidUsd, byHand, distributionState, plannedOrUrgent, documentsOf, levelFor, lineOf, receivedQty, registered, roleLabel, stepsFor, valueOf, vendbillOf, type Money, type Procurement } from "@/lib/procurement";
 import { lastScreening } from "@/lib/suppliers";
 import { currentInstalment, expectedAfn, expectedUsd, invoiceUsd, orderUsd, receivedBefore, voucherBook, withholding } from "@/lib/payments";
 import { DEPARTMENTS, GL_EXPENSE, LOCATIONS, codeLabel } from "@/lib/voucher-codes";
@@ -32,6 +33,7 @@ const slug = (doc: string) =>
 export function documentFor(p: Procurement, doc: string, money: Money, other: Money): GeneratedDoc {
   const value = valueOf(p);
   const line = lineOf(p);
+  const live = availableFor(p);
   const both = (usd: number) => `${money(usd)} (${other(usd)})`;
   const holder = p.plan?.requestedBy ?? holderOf("procurement", "holder")?.name ?? roleLabel("holder");
   const level = levelFor(value);
@@ -122,7 +124,8 @@ export function documentFor(p: Procurement, doc: string, money: Money, other: Mo
           ["Requested by", `${holder} (budget holder)`],
           ["Activity", p.activity],
           ["Funding source", p.funding],
-          ["Budget line", line ? `${line.code} ${line.name} · ${money(line.remainingValue)} left${line.remainingQty !== undefined ? ` · ${line.remainingQty} ${line.unit} left` : ""}` : p.budgetLine],
+          // The one figure every screen shows for the line (lib/line-money), when the project's budget is loaded.
+          ["Budget line", live ? `${line?.name ? `${line.code} ${line.name} · ` : ""}${lineFigureText(live.figure, money, live.others.map((o) => o.id).join(", "))}` : line ? `${line.code} ${line.name} · ${money(line.remainingValue)} left${line.remainingQty !== undefined ? ` · ${line.remainingQty} ${line.unit} left` : ""}` : p.budgetLine],
           ["Specification", p.specification || "—"],
           ["Quantity", `${p.qty.toLocaleString("en-US")} ${p.unit}`],
           ["Estimated unit price", both(p.unitPrice)],

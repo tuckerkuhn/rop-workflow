@@ -12,6 +12,7 @@ import { holdersOfType, holdsType } from "@/lib/authority";
 import type { HrRole } from "@/lib/hr";
 import { ROP, type Value } from "@/lib/policy";
 import { DEMO_DATE, today } from "@/lib/clock";
+import { lineFigure, lineFigureText, type LineFigure } from "@/lib/line-money";
 import { lastScreening, sameSupplierName, supplierGaps, type Supplier, screeningStale } from "@/lib/suppliers";
 import {
   type YearPaid,
@@ -666,13 +667,62 @@ export function committedOn(p: Procurement) {
   const line = p.plan?.budgetCode ?? p.budgetLine;
   const others = everyProcurement
     .filter((q) => q.id !== p.id && q.step !== DONE && (q.plan?.budgetCode ?? q.budgetLine) === line && (!p.plan || q.plan?.project === p.plan.project))
-    .map((q) => {
-      const value = contractCurrency(q) === "USD" && q.contractUsd && q.contractUsd > 0 ? q.contractUsd : valueOf(q);
-      const paid = (q.payments ?? []).reduce((s, r) => s + (r.invoice.currency === "AFN" ? (r.invoice.rate ? r.invoice.amount / r.invoice.rate : 0) : r.invoice.amount), 0);
-      return { id: q.id, open: Math.max(0, value - paid) };
-    })
+    .map((q) => ({ id: q.id, open: openValueOf(q) }))
     .filter((o) => o.open > 0);
   return { others, total: others.reduce((s, o) => s + o.open, 0) };
+}
+/** What a purchase is committed to and has not yet paid, in USD: the contract value once recorded, or the estimate, less instalments paid. */
+export function openValueOf(q: Procurement): number {
+  if (q.step === DONE) return 0;
+  const value = contractCurrency(q) === "USD" && q.contractUsd && q.contractUsd > 0 ? q.contractUsd : valueOf(q);
+  const paid = (q.payments ?? []).reduce((s, r) => s + (r.invoice.currency === "AFN" ? (r.invoice.rate ? r.invoice.amount / r.invoice.rate : 0) : r.invoice.amount), 0);
+  return Math.max(0, value - paid);
+}
+/** The unpaid commitments of every open purchase, by budget line code, in USD. For the calendar and the ask form. */
+export function committedByLine(all: readonly Procurement[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const q of all) {
+    const open = openValueOf(q);
+    if (open > 0) {
+      const code = q.plan?.budgetCode ?? q.budgetLine;
+      out[code] = (out[code] ?? 0) + open;
+    }
+  }
+  return out;
+}
+
+/* ---------- One figure for what is left on a budget line (lib/line-money) ---------- */
+
+/** A budget line's live money in USD, with the asks made outside the calendar that have not started. Set by the workspace and by the server's guard. */
+export type LineMoney = { code: string; budgetUsd: number; spentUsd: number; asks: { key: string; usd: number }[] };
+let lineMoney: LineMoney[] | null = null;
+export function setLineMoney(lines: LineMoney[] | null) {
+  lineMoney = lines;
+}
+/**
+ * What is available on this purchase's budget line for it to use: the line's budget, less
+ * spending posted, less what other purchases are committed to, less other asks made outside the
+ * calendar. Null when the project's budget is not loaded (the demo's sample lines, a test).
+ */
+export function availableFor(p: Procurement): { figure: LineFigure; others: { id: string; open: number }[] } | null {
+  const code = p.plan?.budgetCode ?? p.budgetLine;
+  const line = lineMoney?.find((l) => l.code === code);
+  if (!line) return null;
+  const c = committedOn(p);
+  const asked = line.asks.filter((a) => a.key !== p.plan?.key).reduce((s, a) => s + a.usd, 0);
+  return { figure: lineFigure(code, line.budgetUsd, line.spentUsd, c.total, asked), others: c.others };
+}
+/** The budget check, the same for the requester and the approver. Null when no budget figure is known. */
+function budgetCheck(p: Procurement, money: Money): CheckResult | null {
+  const a = availableFor(p);
+  if (a) return { ok: valueOf(p) <= a.figure.available, detail: `Needs ${money(valueOf(p))} · ${lineFigureText(a.figure, money, a.others.map((o) => o.id).join(", "))}` };
+  const l = lineOf(p);
+  if (!l) return null;
+  // No live budget: the amount the calendar set aside for this request, less other open requests on the line.
+  const c = committedOn(p);
+  const free = l.remainingValue - c.total;
+  const held = c.others.length ? ` less ${money(c.total)} committed to ${c.others.map((o) => o.id).join(", ")}` : "";
+  return { ok: valueOf(p) <= free, detail: `Needs ${money(valueOf(p))} · ${money(l.remainingValue)} left on ${l.code}${held}${held ? ` = ${money(free)} free` : ""}` };
 }
 
 export const lineOf = (p: Procurement): BudgetLine | undefined =>
@@ -780,15 +830,7 @@ export const steps: Step[] = [
         tag: "D1 §4.1",
         fix: "Budget revision needed: agree with the funder before approval.",
         resolve: "Record funder-approved revision",
-        auto: (p, money) => {
-          const l = lineOf(p);
-          if (!l) return null;
-          // Other open requests on the line have a claim on the same money.
-          const c = committedOn(p);
-          const free = l.remainingValue - c.total;
-          const held = c.others.length ? ` less ${money(c.total)} committed to ${c.others.map((o) => o.id).join(", ")}` : "";
-          return { ok: valueOf(p) <= free, detail: `Needs ${money(valueOf(p))} · ${money(l.remainingValue)} left on ${l.code}${held}${held ? ` = ${money(free)} free` : ""}` };
-        },
+        auto: (p, money) => budgetCheck(p, money),
       },
       {
         id: "budgetQty",
@@ -835,6 +877,18 @@ export const steps: Step[] = [
     checks: [
       { id: "noContact", label: "No supplier has been approached yet", why: "Requisition approval comes before any supplier is approached, at every level. Otherwise it is a post-facto action.", tag: "D1 §3.2" },
       { id: "reviewed", label: "Requisition reviewed and complete", why: "The approver relies on the budget, price basis and activity link shown above.", tag: "D1 §3.2" },
+      {
+        // The approver sees the same budget figure as the requester, worked out again as it stands now
+        // (review round 1, ISS-07): another purchase may have been committed on the line since.
+        id: "budgetStill",
+        label: "Budget line still has enough left",
+        why: "The same figure the requester saw, as it stands today: the line's budget, less what is spent, less what other purchases are committed to. A shortfall is agreed with the funder before approval.",
+        tag: "D1 §4.1",
+        fix: "Budget revision needed: agree with the funder before approval.",
+        resolve: "Record funder-approved revision",
+        // With no live budget loaded, the requisition's own check stands: nothing more to confirm here.
+        auto: (p, money) => (availableFor(p) ? budgetCheck(p, money) : { ok: true, detail: "Checked when the requisition was submitted" }),
+      },
       {
         id: "notSplit",
         label: "Not split from a larger need",

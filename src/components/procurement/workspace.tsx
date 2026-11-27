@@ -13,7 +13,7 @@ import { useT } from "@/components/app/i18n";
 import { SelfConfirmSheet, useSolo } from "@/components/app/self-confirm";
 import { useDonors, usePlan, useProcurements } from "@/components/app/use-project-data";
 import type { BudgetLine as ProjectBudgetLine, WorkplanItem } from "@/lib/budget";
-import { METHOD, toUsd, type PlanItem } from "@/lib/procurement-plan";
+import { METHOD, openAsks, toUsd, type PlanItem } from "@/lib/procurement-plan";
 import { activityHref, resultHref, workplanOfProcurement } from "@/lib/connections";
 import { AiCheck, DraftPanel, RoutePicker, SoleFacts, SupplierField, VoucherPanel, type DraftKind } from "@/components/procurement/route-panels";
 import { useSupplierRegister, type SupplierRow } from "@/components/procurement/suppliers-page";
@@ -77,6 +77,7 @@ import {
   maySign,
   procRolesFor,
   typeFor,
+  setLineMoney,
   setProcurementSet,
   setSupplierRegister,
   receivedQty,
@@ -913,6 +914,17 @@ export function ProcurementWorkspace() {
 
   // Checks that look across procurements (split purchases) read the whole project's list.
   setProcurementSet(items);
+  // The budget lines' live money and the calendar's open asks: the one figure for what is left on a line (lib/line-money).
+  setLineMoney(
+    plan.budget?.lines.length
+      ? plan.budget.lines.map((l) => ({
+          code: l.code,
+          budgetUsd: toUsd(l.total, plan.budget!.currency),
+          spentUsd: toUsd(l.spent ?? 0, plan.budget!.currency),
+          asks: openAsks(plan.items).filter((a) => a.code === l.code).map((a) => ({ key: a.key, usd: toUsd(a.value, a.currency) })),
+        }))
+      : null,
+  );
   // On a real project the supplier checks read the supplier register.
   const register = useSupplierRegister(!!project.saved && project.id !== "A-2027", user?.id);
   setSupplierRegister(register);

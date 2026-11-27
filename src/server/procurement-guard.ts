@@ -3,7 +3,7 @@ import { registerAuthority } from "@/lib/authority";
 import { sameHistory } from "@/lib/history";
 import type { AppUser } from "@/lib/demo";
 import type { Value } from "@/lib/policy";
-import { DONE, requesterOf, soloBarred, setProcurementSet, setSupplierRegister, maySign, nextStep, ownerOf, prevStep, procRolesFor, ready, roleLabel, setProcurementRules, stepById, type Procurement, type Role, holdersFor, otherHolder, voucherBarred } from "@/lib/procurement";
+import { DONE, requesterOf, soloBarred, setLineMoney, setProcurementSet, setSupplierRegister, maySign, nextStep, ownerOf, prevStep, procRolesFor, ready, roleLabel, setProcurementRules, stepById, type Procurement, type LineMoney, type Role, holdersFor, otherHolder, voucherBarred } from "@/lib/procurement";
 import { closeInstalment } from "@/lib/payments";
 import type { Authority } from "@/lib/authority";
 import type { PlanItem } from "@/lib/procurement-plan";
@@ -12,6 +12,8 @@ import { loadSuppliers } from "@/server/suppliers-store";
 import type { Supplier } from "@/lib/suppliers";
 import { projectRules } from "@/server/policy-store";
 import { soloFor, type SoloState } from "@/server/solo";
+import { loadBudget } from "@/server/plan-store";
+import { lineMoneyOf, loadPlan } from "@/server/procurement-plan-store";
 
 /**
  * Server-side enforcement of the procurement workflow. The screen builds each change, but the
@@ -29,11 +31,15 @@ import { soloFor, type SoloState } from "@/server/solo";
  */
 
 /** Everything the checks read, loaded first so they can then run without waiting on anything. */
-export type ProcurementContext = { rules: Record<string, Value>; holders: Authority; register: Supplier[] | null; set: Procurement[]; solo: SoloState };
+export type ProcurementContext = { rules: Record<string, Value>; holders: Authority; register: Supplier[] | null; set: Procurement[]; solo: SoloState; /** The budget lines' live money, when the project has a budget (lib/line-money). */ lineMoney: LineMoney[] | null };
 export async function loadProcurementContext(code: string, orgId: string | null | undefined, set: Procurement[]): Promise<ProcurementContext> {
   const [eff, hr, reg, solo] = await Promise.all([projectRules(code), loadHr().catch(() => null), code !== DEMO_PROJECT && orgId ? loadSuppliers(orgId) : Promise.resolve(null), code !== DEMO_PROJECT ? soloFor(code) : Promise.resolve({ on: false, blocked: null })]);
+  // The budget and the calendar's open asks, for the one figure of what is left on a line. A project with no budget has none.
+  const lineMoney = await Promise.all([loadBudget(code), loadPlan(code)])
+    .then(([budget, items]) => (budget.lines.length ? lineMoneyOf(budget, items) : null))
+    .catch(() => null);
   // An undecided conflict leaves that rule at the organization's own value, as on screen.
-  return { rules: Object.fromEntries(eff.lines.filter((l) => !l.conflict || l.decision).map((l) => [l.key, l.value as Value])), holders: hr?.state.rules?.holders ?? {}, register: reg?.suppliers ?? null, set, solo };
+  return { rules: Object.fromEntries(eff.lines.filter((l) => !l.conflict || l.decision).map((l) => [l.key, l.value as Value])), holders: hr?.state.rules?.holders ?? {}, register: reg?.suppliers ?? null, set, solo, lineMoney };
 }
 /**
  * Puts the context into the shared rules. The checks read module state, so call this immediately
@@ -44,6 +50,7 @@ export function applyProcurementContext(c: ProcurementContext) {
   registerAuthority(c.holders);
   setSupplierRegister(c.register);
   setProcurementSet(c.set);
+  setLineMoney(c.lineMoney);
   solo = c.solo;
 }
 let solo: SoloState = { on: false, blocked: null };

@@ -274,7 +274,7 @@ export function useProcurements(code = "A-2027", wanted = true) {
 /** The procurement calendar of a project, with the budget and workplan behind it. */
 export function usePlan(code: string | null) {
   const { user, ready } = useSession();
-  const [data, setData] = useState<{ items: PlanItem[]; budget: Budget; workplan: WorkplanItem[] } | null>(null);
+  const [data, setData] = useState<{ items: PlanItem[]; budget: Budget; workplan: WorkplanItem[]; /** Unpaid commitments of purchases under way, by budget line, in the budget's currency. */ committed?: Record<string, number> } | null>(null);
   const [status, setStatus] = useState<Load>("loading");
   const [error, setError] = useState("");
 
@@ -330,7 +330,7 @@ export function usePlan(code: string | null) {
     [code, user?.id, reload],
   );
 
-  return { items: data?.items ?? [], budget: data?.budget ?? null, workplan: data?.workplan ?? [], status, error, reload, rebuild, act, ask, markProcure };
+  return { items: data?.items ?? [], budget: data?.budget ?? null, workplan: data?.workplan ?? [], committed: data?.committed ?? {}, status, error, reload, rebuild, act, ask, markProcure };
 }
 
 /** Months closed by Finance, and closing one. */

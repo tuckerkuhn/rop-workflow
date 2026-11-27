@@ -37,7 +37,7 @@ describe("asking for something not on the calendar", () => {
     expect(askSchema.safeParse(ask({ value: 0 })).success).toBe(false);
     expect(askSchema.safeParse(ask()).success).toBe(true);
     expect(make({ budgetCode: "9.9" })).toMatch(/not in this project's budget/);
-    expect(make({ value: line.total * 10 })).toMatch(/more than the .* left on budget line 2\.1/);
+    expect(make({ value: line.total * 10 })).toMatch(/more than the .* available on 2\.1: budget /);
     expect(make({ neededBy: addDays(TODAY, -1) })).toMatch(/has passed/);
   });
 
@@ -114,7 +114,7 @@ describe("an ask cannot promise a budget line's money twice", () => {
 
   it("refuses an ask past what is left after other open asks on the line, and says how much is left", () => {
     const asked = other({ value: room - 50 });
-    expect(withItems([asked], { value: 60 })).toMatch(/more than the 50 .* left on budget line 2\.1 after .* already asked for/);
+    expect(withItems([asked], { value: 60 })).toMatch(/more than the 50 USD available on 2\.1: budget .* less .* asked for outside the calendar/);
     expect(withItems([asked], { value: 50 })).toMatchObject({ key: "UP-001" });
   });
 

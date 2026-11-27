@@ -10,7 +10,8 @@ import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn, type Tone, StatusPill
 import { Empty, Fig, Figures, LedgerRow, LedgerTable, PageHead, SectionHead, Sheet, StatusBlock } from "@/components/workspace/ledger";
 import type { BudgetLine, WorkplanItem } from "@/lib/budget";
 import { canEditProject, userById, users, type AppUser } from "@/lib/demo";
-import { LEAD_DAYS, METHOD, awaiting, canAsk, isManager, isProcurementManager, procurementManager, toUsd, type PlanItem, type PlanStatus } from "@/lib/procurement-plan";
+import { LEAD_DAYS, METHOD, awaiting, canAsk, isManager, isProcurementManager, lineRoom, procurementManager, toUsd, type PlanItem, type PlanStatus } from "@/lib/procurement-plan";
+import { lineFigureText } from "@/lib/line-money";
 import { levelFor } from "@/lib/procurement";
 import { today } from "@/lib/clock";
 
@@ -147,6 +148,8 @@ export function ProcurementPlanPage() {
       {asking && canAsk(user) && plan.budget && (
         <AskForm
           lines={plan.budget.lines}
+          items={plan.items}
+          committed={plan.committed}
           currency={plan.budget.currency}
           money={money}
           onAsk={plan.ask}
@@ -316,6 +319,11 @@ export function ProcurementPlanPage() {
                   item={current}
                   user={user}
                   line={plan.budget?.lines.find((l) => l.code === current.budgetCode) ?? null}
+                  available={(() => {
+                    const l = plan.budget?.lines.find((x) => x.code === current.budgetCode);
+                    // An ask's own money is not taken off the figure it is measured against.
+                    return l ? lineFigureText(lineRoom(l, plan.items, current.key, plan.committed[l.code] ?? 0).figure, money) : null;
+                  })()}
                   wp={plan.workplan.find((w) => w.code === current.workplanCode && (!w.org || /rop|roots/i.test(w.org))) ?? plan.workplan.find((w) => w.code === current.workplanCode) ?? null}
                   workplan={plan.workplan}
                   money={money}
@@ -356,6 +364,7 @@ function Detail({
   item,
   user,
   line,
+  available,
   wp,
   workplan,
   money,
@@ -366,6 +375,8 @@ function Detail({
   item: PlanItem;
   user: AppUser;
   line: BudgetLine | null;
+  /** The line's one figure in words, as the ask form and the requisition show it (lib/line-money). */
+  available: string | null;
   wp: WorkplanItem | null;
   money: (n: number) => string;
   onAct: ReturnType<typeof usePlan>["act"];
@@ -499,6 +510,7 @@ function Detail({
             <Row label="Line budget">
               <span className="font-mono tabular-nums">{money(line.total)}</span>
               {line.spent ? <span className="block font-mono text-xs text-muted tabular-nums">{money(line.spent)} already spent</span> : null}
+              {available && <span className="block text-xs text-muted">{available}</span>}
               {line.quantity !== null && (
                 <span className="block text-xs text-muted">
                   {line.quantity} {line.unit ?? ""}
@@ -697,6 +709,8 @@ function Detail({
  */
 function AskForm({
   lines,
+  items,
+  committed,
   currency,
   money,
   onAsk,
@@ -704,6 +718,9 @@ function AskForm({
   onDone,
 }: {
   lines: BudgetLine[];
+  /** The calendar and the commitments of purchases under way, for the line's one figure (lib/line-money). */
+  items: PlanItem[];
+  committed: Record<string, number>;
   currency: string;
   money: (n: number) => string;
   onAsk: ReturnType<typeof usePlan>["ask"];
@@ -719,7 +736,8 @@ function AskForm({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const line = lines.find((l) => l.code === budgetCode);
-  const left = line ? Math.round((line.total - (line.spent ?? 0)) * 100) / 100 : null;
+  // The same figure the requisition and the approver see: budget, less spent, less committed, less other asks.
+  const room = line ? lineRoom(line, items, undefined, committed[line.code] ?? 0) : null;
   const cost = Number(value) || 0;
   // Sooner than the usual time to buy something this size: it is urgent whether ticked or not.
   const soon = cost > 0 && !!neededBy && new Date(`${neededBy}T00:00:00Z`).getTime() - new Date(`${today()}T00:00:00Z`).getTime() < LEAD_DAYS[levelFor(toUsd(cost, currency))] * 86400000;
@@ -766,7 +784,12 @@ function AskForm({
               </option>
             ))}
           </select>
-          {left !== null && <span className="mt-1 block text-xs text-muted">{money(left)} left on this line.</span>}
+          {room && (
+            <span className={`mt-1 block text-xs ${cost > room.afterAsks ? "text-clay" : "text-muted"}`}>
+              {lineFigureText(room.figure, money)}.
+              {cost > 0 && cost <= room.afterAsks && cost > room.afterPlanned ? ` Planned purchases on the line already use ${money(Math.max(0, room.figure.available - room.afterPlanned))} of it: the approvers will be told.` : ""}
+            </span>
+          )}
         </label>
         <label className="text-sm">
           Estimated cost ({currency})

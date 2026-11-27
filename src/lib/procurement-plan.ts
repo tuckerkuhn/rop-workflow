@@ -3,6 +3,7 @@ import { workplanFor, type BudgetLine, type WorkplanItem } from "@/lib/budget";
 import { AFN_PER_USD, users, type AppUser } from "@/lib/demo";
 import { levelFor, rulesInForce, type Level } from "@/lib/procurement";
 import { isDay } from "@/lib/clock";
+import { lineFigure, lineFigureText } from "@/lib/line-money";
 
 /**
  * The procurement calendar: one planned purchase per budget line marked to procure, built from
@@ -245,12 +246,16 @@ const money = (v: number, currency: string) => `${v.toLocaleString("en-US", { ma
  *   line's whole remainder by construction (an estimate of what is still to buy), so going past
  *   it is allowed but marked for the approvers rather than refused.
  */
-export function lineRoom(line: BudgetLine, items: PlanItem[], exceptKey?: string) {
+export function lineRoom(line: BudgetLine, items: PlanItem[], exceptKey?: string, committed = 0) {
   const open = items.filter((i) => i.budgetCode === line.code && i.status !== "started" && i.key !== exceptKey);
   const sum = (xs: PlanItem[]) => xs.reduce((t, i) => t + (i.value || 0), 0);
-  const afterAsks = round2(line.total - (line.spent ?? 0) - sum(open.filter((i) => i.unplanned)));
-  return { afterAsks, afterPlanned: round2(afterAsks - sum(open.filter((i) => !i.unplanned))) };
+  // The one figure for the line (lib/line-money): budget, less spent, less what purchases under way
+  // are committed to and have not paid (`committed`, in the budget's currency), less other open asks.
+  const figure = lineFigure(line.code, line.total, line.spent ?? 0, committed, sum(open.filter((i) => i.unplanned)));
+  return { figure, afterAsks: figure.available, afterPlanned: round2(figure.available - sum(open.filter((i) => !i.unplanned))) };
 }
+/** Open asks made outside the calendar, by budget line: what `lineFigure` takes off as "asked". */
+export const openAsks = (items: PlanItem[]) => items.filter((i) => i.unplanned && i.status !== "started").map((i) => ({ key: i.key, code: i.budgetCode ?? "", value: i.value, currency: i.currency }));
 
 /**
  * A calendar item for a purchase asked for outside the calendar, or the reason it cannot be made.
@@ -259,18 +264,13 @@ export function lineRoom(line: BudgetLine, items: PlanItem[], exceptKey?: string
  * exactly as they approve a planned item, before anyone can start a request.
  * `items`: what is on the calendar already, so the line is not promised twice (lineRoom).
  */
-export function unplannedItem(a: AskInput, o: { line: BudgetLine | undefined; currency: string; workplan: WorkplanItem[]; people: AppUser[]; user: AppUser; today: string; key: string; items?: PlanItem[] }): PlanItem | string {
-  const { line, currency, workplan, people, user, today: now, key, items = [] } = o;
+export function unplannedItem(a: AskInput, o: { line: BudgetLine | undefined; currency: string; workplan: WorkplanItem[]; people: AppUser[]; user: AppUser; today: string; key: string; items?: PlanItem[]; /** Unpaid commitments of purchases under way on this line, in the budget's currency. */ committed?: number }): PlanItem | string {
+  const { line, currency, workplan, people, user, today: now, key, items = [], committed = 0 } = o;
   if (!canAsk(user)) return "You can view Procurement but not ask for purchases.";
   if (!line) return "That budget line is not in this project's budget. Choose one from the list.";
   if (a.neededBy < now) return "The needed-by date has passed. Choose today or a later date.";
-  const room = lineRoom(line, items, key);
-  const spentLeft = round2(line.total - (line.spent ?? 0));
-  if (a.value > room.afterAsks) {
-    const asked = round2(spentLeft - room.afterAsks);
-    const why = asked > 0 ? ` after ${money(asked, currency)} already asked for outside the calendar` : "";
-    return `That is more than the ${money(Math.max(0, room.afterAsks), currency)} left on budget line ${line.code}${why}. Choose another line or ask Finance about moving money first.`;
-  }
+  const room = lineRoom(line, items, key, committed);
+  if (a.value > room.afterAsks) return `That is more than the ${lineFigureText(room.figure, (n) => money(n, currency))}. Choose another line or ask Finance about moving money first.`;
   const overPlan =
     a.value > room.afterPlanned
       ? `Budget line ${line.code} has ${money(Math.max(0, room.afterPlanned), currency)} left after the purchases already planned on it, and this asks for ${money(a.value, currency)}. Approving it means buying less of what is planned on the line, or moving money first.`
