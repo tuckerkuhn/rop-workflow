@@ -1,4 +1,5 @@
 import { storeNames } from "@/lib/file-store";
+import { isProcurementManager } from "@/lib/procurement-plan";
 import { registerAuthority } from "@/lib/authority";
 import { sameHistory } from "@/lib/history";
 import type { AppUser } from "@/lib/demo";
@@ -285,6 +286,15 @@ export function validateProcurementSave(prev: Procurement | undefined, next: Pro
     // A failed automatic check can be overridden only where the step offers it, with its resolution.
     const badFix = checksChanged.find((k) => k.startsWith("fix.") && next.checks?.[k] && !stepById[prev.step]?.checks.find((c) => `fix.${prev.step}.${c.id}` === k)?.resolve);
     if (badFix) return "That check cannot be overridden.";
+  }
+  // A second person's confirmation of an override (ISS-17): someone other than who recorded it, and
+  // the procurement manager or an administrator.
+  for (const [k, o] of Object.entries(next.overrides ?? {})) {
+    const was = prev.overrides?.[k];
+    if (!o.confirmedBy || same(was?.confirmedBy, o.confirmedBy)) continue;
+    if (o.confirmedBy.name !== u.name) return "A confirmation is signed by the person confirming.";
+    if (o.by === u.name || was?.by === u.name) return "You recorded this, so a second person confirms it.";
+    if (!u.admin && !isProcurementManager(u)) return "Only the procurement manager confirms this.";
   }
   // Each part of the record changes only at its own steps.
   const outOfStep = fieldsChanged.find((k) => k in FIELD_STEPS && !FIELD_STEPS[k].includes(prev.step));

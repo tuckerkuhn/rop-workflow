@@ -329,7 +329,7 @@ export type Procurement = {
    * Why an automatic check was overridden (e.g. fewer than three quotations), by check key
    * ("fix.quotes.three"): the reason, and where a memo is filed when there is one.
    */
-  overrides?: Record<string, { why: string; by: string; date: string }>;
+  overrides?: Record<string, { why: string; by: string; date: string; /** A second person's confirmation, where the check asks for one (`Check.second`). */ confirmedBy?: { name: string; date: string } }>;
   timeline: TimelineEvent[];
   /**
    * Started from the procurement calendar: the plan item and the project budget line it buys
@@ -769,6 +769,11 @@ export type Check = {
   fix?: string;
   /** One-click record of the fix that clears a failed automatic check. */
   resolve?: string;
+  /**
+   * The override needs a second person to confirm it before the step can go on (review round 1,
+   * ISS-17: the approver alone could record a possible split purchase as separate needs).
+   */
+  second?: string;
 };
 
 export type Step = {
@@ -941,6 +946,7 @@ export const steps: Step[] = [
         tag: "ROP April 2025 §3.2.2 p14, p26–27",
         fix: "Possible split purchase: combine the requests and buy at the combined level, or record why they are separate needs.",
         resolve: "Separate needs, recorded",
+        second: "the procurement manager",
         auto: (p, money) => {
           const s = splitRequests(p);
           if (!s.others.length) return { ok: true, detail: "No other request for this line and activity nearby" };
@@ -1766,7 +1772,13 @@ export function completeStep(p: Procurement, sig: { name: string; date: string; 
 export function checkState(p: Procurement, c: Check, money: Money = usdFmt): { ok: boolean; auto: boolean; detail?: string } {
   const r = c.auto?.(p, money);
   const key = `fix.${p.step}.${c.id}`;
-  if (r && !r.ok && p.checks[key]) return { ok: true, auto: true, detail: `${r.detail} · ${c.resolve}${p.overrides?.[key] ? `: ${p.overrides[key].why}` : ""}` };
+  if (r && !r.ok && p.checks[key]) {
+    const o = p.overrides?.[key];
+    const said = `${r.detail} · ${c.resolve}${o ? `: ${o.why}` : ""}`;
+    // An override a second person must confirm counts only once they have (ISS-17).
+    if (c.second && !o?.confirmedBy) return { ok: false, auto: true, detail: `${said}${o?.by ? ` (${o.by})` : ""}. Waiting for ${c.second} to confirm it.` };
+    return { ok: true, auto: true, detail: `${said}${o?.confirmedBy ? `. Confirmed by ${o.confirmedBy.name}` : ""}` };
+  }
   if (r) return { ok: r.ok, auto: true, detail: r.detail };
   return { ok: !!p.checks[`${p.step}.${c.id}`], auto: false };
 }

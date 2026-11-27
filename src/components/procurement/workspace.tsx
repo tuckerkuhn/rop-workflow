@@ -15,6 +15,7 @@ import { useDonors, usePlan, useProcurements } from "@/components/app/use-projec
 import type { BudgetLine as ProjectBudgetLine, WorkplanItem } from "@/lib/budget";
 import { METHOD, openAsks, toUsd, type PlanItem } from "@/lib/procurement-plan";
 import { activityHref, resultHref, workplanOfProcurement } from "@/lib/connections";
+import { isProcurementManager } from "@/lib/procurement-plan";
 import { AiCheck, DraftPanel, RoutePicker, SoleFacts, SupplierField, VoucherPanel, type DraftKind } from "@/components/procurement/route-panels";
 import { useSupplierRegister, type SupplierRow } from "@/components/procurement/suppliers-page";
 import { BidsPanel, DistributionPanel } from "@/components/procurement/bid-panels";
@@ -787,6 +788,23 @@ function Detail({
                       }}
                     />
                   </ul>
+                  {/* An override a second person confirms (ISS-17): the procurement manager, not whoever recorded it. */}
+                  {(() => {
+                    const key = `fix.${p.step}.${c.id}`;
+                    const o = p.overrides?.[key];
+                    if (!c.second || !p.checks[key] || !o || o.confirmedBy) return null;
+                    const may = !!user && user.name !== o.by && (!!user.admin || isProcurementManager(user));
+                    return (
+                      <div className="mt-1 flex flex-wrap items-center gap-2 bg-ochre-soft px-3 py-2 text-sm">
+                        <span className="min-w-0 flex-1">{`Waiting for ${c.second} to confirm: ${o.why} (${o.by}).`}</span>
+                        {may && (
+                          <button type="button" className={`${quietBtn} min-h-11`} onClick={() => update((q) => log({ ...q, overrides: { ...q.overrides, [key]: { ...o, confirmedBy: { name: user!.name, date: today() } } } }, `${c.resolve}: confirmed by ${user!.name}`))}>
+                            Confirm: {c.resolve?.toLowerCase()}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </LedgerRow>
               ))}
               {step.signs && (
