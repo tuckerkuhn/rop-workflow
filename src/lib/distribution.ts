@@ -40,6 +40,17 @@ export const suppliersOf = (line: string, procs: Procurement[]) => (line ? procs
 /** What a purchase has received, in another unit; null when the units cannot be compared. */
 const receivedIn = (p: Procurement, unit: string) => convert(receivedQty(p), p.unit, unit);
 
+/**
+ * The day a purchase's goods came into the store: when its goods received note was first signed.
+ * Null when the record does not say (an older record): it is then counted whatever the date.
+ */
+export function receivedOn(p: Procurement): string | null {
+  const signed = [...(p.payments ?? []).flatMap((r) => r.signatures?.["Goods received note"] ?? []), ...(p.signatures?.["Goods received note"] ?? [])];
+  return signed.map((x) => x.date).filter((d) => /^\d{4}-\d{2}-\d{2}/.test(d ?? "")).map((d) => d.slice(0, 10)).sort()[0] ?? null;
+}
+/** The day a hand-out happened, with what hand-outs on or before that day had already taken (in package units). */
+export type OnDay = { day: string; given?: Given };
+
 export type GateLine = { key: string; item: string; unit: string; procurements: string[]; received: number; given: number; thisQty: number; ok: boolean; detail: string };
 export type Gate = { ok: boolean; lines: GateLine[]; block: string | null };
 
@@ -48,7 +59,7 @@ export type Gate = { ok: boolean; lines: GateLine[]; block: string | null };
  * was already given plus this package stays within what was received. `given` is what earlier
  * distributions of each item already took, in the package unit.
  */
-export function gate(items: DistItem[], procs: Procurement[], given: Given, setup: FieldSetup): Gate {
+export function gate(items: DistItem[], procs: Procurement[], given: Given, setup: FieldSetup, on?: OnDay): Gate {
   const lines = items.map((it): GateLine => {
     const line = lineOf(it, setup);
     const unit = unitOf(it, setup);
@@ -78,6 +89,23 @@ export function gate(items: DistItem[], procs: Procurement[], given: Given, setu
           ? `${it.item}: none left in the store; all ${qtyUnit(got, unit)} received have gone out, and this package needs ${qtyUnit(thisQty, unit)}.${next || " More has to be bought and received (goods received note signed) before it can go out."}`
           : `${it.item}: this package needs ${qtyUnit(thisQty, unit)}, but only ${qtyUnit(left, unit)} of the ${qtyUnit(got, unit)} received is left.${next}`,
       };
+    }
+    // A hand-out draws only on what had arrived by its own day (review round 1, ISS-16): goods
+    // received a week later cannot have supplied it, however much is in the store now.
+    const late = on ? done.filter((p) => (receivedOn(p) ?? "") > on.day) : [];
+    if (on && late.length) {
+      const early = done.filter((p) => !late.includes(p));
+      const gotThen = early.reduce((s, p) => s + (receivedIn(p, unit) ?? 0), 0);
+      const takenThen = on.given?.[it.key] ?? already;
+      const after = late.map((p) => `${p.id} on ${receivedOn(p)}`).join(", ");
+      if (takenThen + thisQty > gotThen + 1e-9)
+        return {
+          ...base,
+          received: gotThen,
+          ok: false,
+          detail: `${it.item}: this hand-out is dated ${on.day}, when only ${qtyUnit(Math.max(0, gotThen - takenThen), unit)} of the ${qtyUnit(gotThen, unit)} received by then was left, and it needs ${qtyUnit(thisQty, unit)}. More arrived later (${after}). Check the hand-out date.`,
+        };
+      return { ...base, received: gotThen, ok: true, detail: `${it.item}: ${fmt(takenThen + thisQty)} of ${fmt(gotThen)} ${unit} received by ${on.day} will have gone out (${early.map((p) => p.id).join(", ")}).` };
     }
     return { ...base, received: got, ok: true, detail: `${it.item}: ${fmt(already + thisQty)} of ${fmt(got)} ${unit} received will have gone out (${done.map((p) => p.id).join(", ")}).` };
   });

@@ -301,3 +301,36 @@ describe("the signed note closes a distribution", () => {
     expect(closeBlock({ signed: true, source: "app", photo: true })).toBeNull();
   });
 });
+
+// Review round 1, ISS-16: a hand-out dated 20 Nov was checked against 600 kg that arrived on 26 Nov.
+describe("a hand-out draws only on what had arrived by its own day", () => {
+  const npk = DEMO_SETUP.items.find((i) => i.budgetLine === "2.2")!;
+  const signedOn = (date: string) => ({ "Goods received note": [{ as: "Received and inspected by", name: "Laila Haidari", role: "holder", date }] }) as unknown as Procurement["signatures"];
+  const first = proc({ id: "PR-2027-007", unit: npk.unit, budgetLine: "2.2", step: "done", grn: { qty: 100, place: "Village B" }, signatures: signedOn("2026-11-10") });
+  const second = proc({ id: "PR-2027-011", unit: npk.unit, budgetLine: "2.2", step: "done", grn: { qty: 600, place: "Village B" }, signatures: signedOn("2026-11-26") });
+  const pack = (qty: number) => [{ ...itemsFor(DEMO_SETUP, 1).find((i) => i.key === npk.key)!, qty }];
+
+  it("counts only the first lot for a hand-out before the second arrived", () => {
+    const g = gateFor(pack(50), [first, second], {}, DEMO_SETUP, { day: "2026-11-20", given: {} });
+    expect(g.ok).toBe(true);
+    expect(g.lines[0]).toMatchObject({ received: 100, procurements: ["PR-2027-007", "PR-2027-011"] });
+    expect(g.lines[0].detail).toContain("50 of 100");
+    expect(g.lines[0].detail).toContain("received by 2026-11-20 will have gone out (PR-2027-007)");
+    expect(g.lines[0].detail).not.toContain("700");
+  });
+
+  it("refuses a hand-out the store could not have supplied that day, and says what arrived later", () => {
+    const g = gateFor(pack(50), [first, second], { [npk.key]: 80 }, DEMO_SETUP, { day: "2026-11-20", given: { [npk.key]: 80 } });
+    expect(g.ok).toBe(false);
+    expect(g.block).toContain("dated 2026-11-20");
+    expect(g.block).toContain("More arrived later (PR-2027-011 on 2026-11-26)");
+    // The same hand-out dated after the second lot arrived is fine.
+    expect(gateFor(pack(50), [first, second], { [npk.key]: 80 }, DEMO_SETUP, { day: "2026-11-27", given: { [npk.key]: 80 } }).ok).toBe(true);
+  });
+
+  it("with no day given, or a purchase with no signing date, it counts as before", () => {
+    expect(gateFor(pack(50), [first, second], {}, DEMO_SETUP).lines[0]).toMatchObject({ ok: true, received: 700 });
+    const undated = proc({ id: "PR-OLD", unit: npk.unit, budgetLine: "2.2", step: "done", grn: { qty: 600, place: "Village B" } });
+    expect(gateFor(pack(50), [first, undated], {}, DEMO_SETUP, { day: "2026-11-20", given: {} }).lines[0]).toMatchObject({ ok: true, received: 700 });
+  });
+});

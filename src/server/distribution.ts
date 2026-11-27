@@ -10,6 +10,7 @@ import { koboApprovalFor } from "@/server/kobo-approval";
 import { selectionHold } from "@/lib/selection";
 import { selectionOutcomes } from "@/server/selection-store";
 import { insertResult } from "@/server/results-store";
+import type { OnDay } from "@/lib/distribution";
 import { addGiven, applyFix, approvalRefusal, approverNamesOf, badCondition, approversOf, closeBlock, drawnFrom, fixOwner, flagsFor, gate, inProcUnit, lineOf, paymentDue, resultFor, resultForPlanting, storeStock, type DistItem, type Fix, type Flag, type Gate, type Given } from "@/lib/distribution";
 import { countsAtPlanting, itemsFor, qtyItem, type FieldSetup } from "@/lib/package";
 import { hasSignedNotePhoto, type Farmer } from "@/lib/field";
@@ -144,14 +145,18 @@ async function context(project: Project, opts: { excluding?: string; countPendin
   const [setup, procRows, rows, st] =
     q === db ? await Promise.all([reads[0](), reads[1](), reads[2](), reads[3]()]) : [await reads[0](), await reads[1](), await reads[2](), await reads[3]()] as const;
   const procs = procRows.map((r) => r.data as Procurement);
+  const counted = rows.filter((r) => r.id !== opts.excluding && !r.koboRemovedAt && r.reviewStatus !== "queried" && (r.reviewStatus !== "pending" || opts.countPending));
   const given: Given = {};
-  for (const r of rows) {
-    if (r.id === opts.excluding || r.koboRemovedAt || r.reviewStatus === "queried") continue;
-    if (r.reviewStatus === "pending" && !opts.countPending) continue;
-    // A record with no items stored (made before quantities were kept) is one planned package.
-    addGiven(given, st.byId[r.id]?.items ?? itemsFor(setup), setup);
-  }
-  return { setup, procs, given, others: othersThan(rows, opts.excluding), st, rows };
+  // A record with no items stored (made before quantities were kept) is one planned package.
+  for (const r of counted) addGiven(given, st.byId[r.id]?.items ?? itemsFor(setup), setup);
+  /** The day of a hand-out with what hand-outs on or before it had taken: the gate then counts only stock received by that day. */
+  const onDay = (r: { payload: unknown; completedAt: Date | null; createdAt?: Date | null }): OnDay => {
+    const day = dayOf(r);
+    const then: Given = {};
+    for (const o of counted) if (dayOf(o) <= day) addGiven(then, st.byId[o.id]?.items ?? itemsFor(setup), setup);
+    return { day, given: then };
+  };
+  return { setup, procs, given, onDay, others: othersThan(rows, opts.excluding), st, rows };
 }
 
 /** The farmers of every other distribution that still stands (not removed, not sent back), for the "same farmer twice" check. */
@@ -324,7 +329,7 @@ export async function processPending(code: string, origin = appOrigin()) {
       .filter((i) => f[`${i.key}_given`] !== "no")
       .map((i) => ({ ...i, qty: qtyOf(f[`${i.key}_qty`]) ?? qtyOf(f[`${i.key}_${i.unit}`]) ?? qtyOf(f[`${i.key}_kg`]) ?? i.qty }))
       .filter((i) => i.qty > 0);
-    const g = gate(items, ctx.procs, ctx.given, ctx.setup);
+    const g = gate(items, ctx.procs, ctx.given, ctx.setup, ctx.onDay(r));
     const photo = r.source === "kobo" ? typeof p.list_photo === "string" && !!p.list_photo : !!p.photo;
     const signed = r.source === "kobo" ? p.signed === "yes" : typeof f.signature === "string" && !!f.signature && f.signature !== "Not confirmed";
     const flags = flagsFor({ farmerId: code_, items, photo, signed, step: r.source === "kobo" ? (farmer?.step ?? "unknown") : null }, othersThan(ctx.rows, r.id), planned);
@@ -495,6 +500,12 @@ export async function listDistributions(code: string): Promise<DistView[]> {
   // What approved distributions have taken so far, for the checks of the ones still waiting.
   const approved: Given = {};
   for (const r of rows) if (r.reviewStatus === "accepted" && !r.koboRemovedAt) addGiven(approved, st.byId[r.id]?.items ?? itemsFor(setup), setup);
+  /** What approved hand-outs dated on or before a day had taken, leaving out the one being looked at. */
+  const approvedBy = (day: string, except: string): Given => {
+    const then: Given = {};
+    for (const r of rows) if (r.id !== except && r.reviewStatus === "accepted" && !r.koboRemovedAt && dayOf(r) <= day) addGiven(then, st.byId[r.id]?.items ?? itemsFor(setup), setup);
+    return then;
+  };
   const hectares = new Map(fieldRows.map((r) => [r.key, (r.data as { hectares?: number }).hectares]));
   // Farmers whose record now holds a photo of the signed note: a record still waiting counts it at once.
   const noted = new Set(fieldRows.filter((r) => hasSignedNotePhoto(r.data as Farmer)).map((r) => r.key));
@@ -520,7 +531,7 @@ export async function listDistributions(code: string): Promise<DistView[]> {
         condition: m.conditionOk ? null : badCondition(conditionOf(r)),
         // While it waits, the checks are worked out now, as approving will: a goods received note
         // signed since the record was made shows at once. Once decided, they stay as they were then.
-        gate: r.reviewStatus === "pending" ? gate(m.items, procs, approved, setup) : m.gate,
+        gate: r.reviewStatus === "pending" ? gate(m.items, procs, approved, setup, { day: dayOf(r), given: approvedBy(dayOf(r), r.id) }) : m.gate,
         flags: m.flags,
         status: r.reviewStatus,
         waitingSince: [r.createdAt.toISOString(), ...(m.history ?? []).map((h) => h.fixed.at)].sort().at(-1)!.slice(0, 10),
@@ -642,7 +653,7 @@ export async function decideDistribution(code: string, id: string, decision: "ap
   const refused = by.id === "manager-link" || checkerSendsBack ? null : approvalRefusal(by.id, everyone, recorderOf(row, m, rule, everyone));
   if (refused) throw new HttpError(403, refused);
 
-  const g = gate(m.items, ctx.procs, ctx.given, ctx.setup);
+  const g = gate(m.items, ctx.procs, ctx.given, ctx.setup, ctx.onDay(row));
   if (decision === "approved" && !g.ok) throw new HttpError(409, `Not approved: ${g.block}`);
   // The signed note closes it: no approval while the recipient's signature is not confirmed.
   const unsigned = decision === "approved" ? closeBlock({ signed: m.signed ?? signedOf(row), photo: (m.photo ?? photoOf(row)) || hasSignedNotePhoto(row.farmerCode ? await farmerOf(project.id, row.farmerCode) : null), source: sourceOf(row), condition: m.conditionOk ? null : conditionOf(row) }) : null;
@@ -669,7 +680,7 @@ export async function decideDistribution(code: string, id: string, decision: "ap
       // Checked again under the stock lock: another approval may have just used the stock.
       await lockStock(tx, project.id);
       const now2 = await context(project, { excluding: id, countPending: false }, tx);
-      const again = gate(m.items, now2.procs, now2.given, now2.setup);
+      const again = gate(m.items, now2.procs, now2.given, now2.setup, now2.onDay(row));
       if (!again.ok) throw new HttpError(409, `Not approved: ${again.block}`);
     }
     await tx
@@ -818,7 +829,7 @@ export async function resubmitDistribution(code: string, id: string, by: { id: s
   const history = [...(m.history ?? []), ...(m.decided ? [{ sentBack: m.decided, fixed: { by: by.id, byName: by.name, at: now.toISOString(), note: note.trim() } }] : [])];
   const { decided: _decided, hash: _hash, hashes: _hashes, expires: _expires, notified: _notified, ...kept } = m;
   void [_decided, _hash, _hashes, _expires, _notified];
-  await prepare(code, project, id, { ...kept, items, photo, signed, ...(conditionOk === undefined ? {} : { conditionOk }), gate: gate(items, ctx.procs, ctx.given, ctx.setup), flags, history }, origin, { by: by.name, note: note.trim() }, row.source === "kobo");
+  await prepare(code, project, id, { ...kept, items, photo, signed, ...(conditionOk === undefined ? {} : { conditionOk }), gate: gate(items, ctx.procs, ctx.given, ctx.setup, ctx.onDay(row)), flags, history }, origin, { by: by.name, note: note.trim() }, row.source === "kobo");
   return { ok: true as const };
 }
 
