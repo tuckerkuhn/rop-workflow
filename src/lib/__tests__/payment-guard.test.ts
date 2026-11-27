@@ -18,7 +18,7 @@ describe("what Record a payment refuses", () => {
   it("the review's own payment is refused three ways", () => {
     const reviewed = form({ payee: "TEST R1 - Ahmad Noori, on behalf of Green Valley Agro Ltd (fictional)", what: "TEST R1 - NPK 17-17-17 second lot, PR-2027-011 (procurement package not yet complete)", lineCode: "2.2" });
     expect(paymentGuard(reviewed, all, open, today)).toMatchObject({ status: 409 });
-    expect(paymentGuard(reviewed, all, open, today)!.error).toContain("PR-2027-011 is a purchase on this project");
+    expect(paymentGuard(reviewed, all, open, today)!.error).toContain("PR-2027-011 is a purchase of this organization");
     // With the number left out, the third party is caught.
     const unnamed = { ...reviewed, what: "NPK 17-17-17 second lot" };
     expect(paymentGuard(unnamed, all, open, today)).toMatchObject({ status: 400 });
@@ -54,8 +54,10 @@ describe("what Record a payment refuses", () => {
     const tp = { receivedBy: "Ahmad Noori", authorization: { hash: "a".repeat(64) }, screenedOn: "2026-10-28" };
     expect(paymentGuard({ ...f, thirdParty: tp }, all, open, today)).toBeNull();
     expect(paymentGuard({ ...f, thirdParty: { ...tp, authorization: { hash: "" } } }, all, open, today)!.error).toContain("written authorization");
-    expect(paymentGuard({ ...f, thirdParty: { ...tp, screenedOn: "2026-05-13" } }, all, open, today)!.error).toContain("screened 198 days ago");
+    expect(paymentGuard({ ...f, thirdParty: { ...tp, screenedOn: "2026-05-13" } }, all, open, today)!.error).toContain("screened 198 days before the payment");
     expect(paymentGuard({ ...f, thirdParty: { ...tp, screenedOn: "2026-12-01" } }, all, open, today)!.error).toContain("in the future");
+    // Code review of ISS-02: measured to the day paid, and a screening after the payment did not cover it.
+    expect(paymentGuard({ ...f, date: "2026-10-20", thirdParty: tp }, all, open, today)!.error).toContain("after the payment of 2026-10-20");
     expect(paymentGuard({ ...f, thirdParty: { ...tp, receivedBy: " " } }, all, open, today)!.error).toBe("Say who received the money.");
   });
 });

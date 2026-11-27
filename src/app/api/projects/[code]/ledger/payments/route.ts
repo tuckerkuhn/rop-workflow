@@ -10,7 +10,7 @@ import { asHttp, ledgerMay, ledgerProject, openPurchases, paymentsView, whoCanPo
 import { openOnLine, paymentGuard } from "@/lib/ledger/payment-guard";
 import { realToday } from "@/lib/clock";
 import { logAudit } from "@/server/audit";
-import { loadProcurements } from "@/server/procurement-store";
+import { loadProcurements, procurementIdsOfOrg } from "@/server/procurement-store";
 
 type Ctx = { params: Promise<{ code: string }> };
 
@@ -51,7 +51,9 @@ export async function POST(req: Request, { params }: Ctx) {
     // Not a way around a purchase's checks: a named purchase, an open one on the same line, a third-party receiver.
     const purchases = await loadProcurements(code);
     const open = openPurchases(purchases);
-    const refusal = paymentGuard({ payee: f.payee, what: f.what, lineCode: line.code, date: f.date, notAPurchase: f.notAPurchase, thirdParty: f.thirdParty }, purchases, open, realToday());
+    // Any purchase of the organization: its numbers are one of a kind across it (code review of ISS-02).
+    const everyPurchase = [...purchases, ...(await procurementIdsOfOrg(org)).filter((r) => r.projectId !== project.id)];
+    const refusal = paymentGuard({ payee: f.payee, what: f.what, lineCode: line.code, date: f.date, notAPurchase: f.notAPurchase, thirdParty: f.thirdParty }, everyPurchase, open, realToday());
     if (refusal) throw new HttpError(refusal.status, refusal.error);
     if (f.thirdParty) {
       const [auth] = await db.select({ hash: s.hrFiles.hash }).from(s.hrFiles).where(and(eq(s.hrFiles.book, hrBook()), eq(s.hrFiles.hash, f.thirdParty.authorization.hash))).limit(1);
@@ -82,7 +84,9 @@ export async function POST(req: Request, { params }: Ctx) {
       const draft = r.entry.status === "draft";
       // What the person declared to get past the guard is kept with the entry, for whoever posts or audits it.
       const sameLine = openOnLine(line.code, open).map((p) => p.id);
-      if (!r.replayed && (f.thirdParty || sameLine.length))
+      // Written once per entry: also on a retry whose first try posted but did not get this far.
+      const declared = r.replayed ? (await db.select({ id: s.auditLog.id }).from(s.auditLog).where(and(eq(s.auditLog.entityId, r.entry.id), eq(s.auditLog.action, "payment_declared"))).limit(1)).length > 0 : false;
+      if (!declared && (f.thirdParty || sameLine.length))
         await logAudit(db, project.id, {
           entity: "journal_entry",
           entityId: r.entry.id,

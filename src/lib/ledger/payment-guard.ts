@@ -46,14 +46,15 @@ export const describePurchases = (list: readonly OpenPurchase[]) => list.map((p)
 
 /**
  * Null when the payment may be recorded; otherwise why not, in words a person can act on.
- * `all` is every purchase of the project (open or closed) for rule 1; `open` the ones not yet closed.
+ * `all` is every purchase of the organization (open or closed) for rule 1, since purchase numbers
+ * are one of a kind across it; `open` the ones of this project not yet closed.
  */
 export function paymentGuard(f: GuardForm, all: readonly { id: string }[], open: readonly OpenPurchase[], today: string, screeningDays = SCREENING_DAYS): Refusal | null {
   const named = namedPurchase(`${f.payee} ${f.what}`, all);
   if (named)
     return {
       status: 409,
-      error: `${named} is a purchase on this project. Pay it from the purchase itself (Work, Procurement, its Pay step) or from its approved bill: those check the invoice, the goods received, the tax and the supplier's screening. Recorded here it would skip those checks and could be paid twice.`,
+      error: `${named} is a purchase of this organization. Pay it from the purchase itself (Work, Procurement, its Pay step) or from its approved bill: those check the invoice, the goods received, the tax and the supplier's screening. Recorded here it would skip those checks and could be paid twice.`,
     };
 
   const tp = f.thirdParty ?? null;
@@ -65,10 +66,14 @@ export function paymentGuard(f: GuardForm, all: readonly { id: string }[], open:
   if (tp) {
     if (tp.receivedBy.trim().length < 2) return { status: 400, error: "Say who received the money." };
     if (!tp.authorization?.hash) return { status: 400, error: "Attach the payee's written authorization for someone else to receive the money." };
-    const age = days(tp.screenedOn, today);
-    if (!Number.isFinite(age)) return { status: 400, error: "Enter the date the person who received the money was screened." };
-    if (age < 0) return { status: 400, error: "The screening date is in the future. Check it." };
-    if (age > screeningDays) return { status: 400, error: `The person who received the money was screened ${age} days ago. Screen them again first: a screening counts for ${screeningDays} days.` };
+    if (!Number.isFinite(days(tp.screenedOn, today))) return { status: 400, error: "Enter the date the person who received the money was screened." };
+    if (days(tp.screenedOn, today) < 0) return { status: 400, error: "The screening date is in the future. Check it." };
+    // Measured to the day the money was paid (code review of ISS-02): a screening done after the
+    // payment did not cover it.
+    const paidOn = /^\d{4}-\d{2}-\d{2}$/.test(f.date) ? f.date : today;
+    const age = days(tp.screenedOn, paidOn);
+    if (age < 0) return { status: 400, error: `The receiver was screened on ${tp.screenedOn}, after the payment of ${paidOn}. A screening must come before the money is handed over.` };
+    if (age > screeningDays) return { status: 400, error: `The person who received the money was screened ${age} days before the payment. Screen them again first: a screening counts for ${screeningDays} days.` };
   }
 
   const same = openOnLine(f.lineCode, open);

@@ -189,7 +189,7 @@ describe("the ledger screens", { timeout: 60_000 }, () => {
     // 1. Naming a purchase of the project: refused, whatever else is said.
     const named = await pay("yusuf", form("1560.00", { what: `NPK second lot, ${open.id}` }));
     expect(named.status).toBe(409);
-    expect(named.body.error).toContain(`${open.id} is a purchase on this project`);
+    expect(named.body.error).toContain(`${open.id} is a purchase of this organization`);
 
     // 2. A line with an open purchase and no reason: refused, and the purchases are named.
     const onLine = v.openPurchases.filter((p) => p.lineCode.split(/\s+/)[0] === line.code.split(/\s+/)[0]);
