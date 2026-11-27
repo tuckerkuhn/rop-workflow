@@ -6,7 +6,7 @@
 import { acct, storeNames } from "@/lib/file-store";
 import { PROJECT, holderOf } from "@/lib/demo";
 import { lineFigureText } from "@/lib/line-money";
-import { availableFor, screenedOnOf, bidUsd, byHand, distributionState, plannedOrUrgent, documentsOf, levelFor, lineOf, receivedQty, registered, roleLabel, stepsFor, valueOf, vendbillOf, type Money, type Procurement } from "@/lib/procurement";
+import { availableFor, requesterOf, screenedOnOf, bidUsd, byHand, distributionState, plannedOrUrgent, documentsOf, levelFor, lineOf, receivedQty, registered, roleLabel, stepsFor, valueOf, vendbillOf, type Money, type Procurement } from "@/lib/procurement";
 import { lastScreening } from "@/lib/suppliers";
 import { currentInstalment, expectedAfn, expectedUsd, invoiceUsd, orderUsd, receivedBefore, voucherBook, withholding } from "@/lib/payments";
 import { DEPARTMENTS, GL_EXPENSE, LOCATIONS, codeLabel } from "@/lib/voucher-codes";
@@ -246,12 +246,15 @@ export function documentFor(p: Procurement, doc: string, money: Money, other: Mo
           ["Received", p.grn ? `${p.grn.qty.toLocaleString("en-US")} ${p.unit}${receivedBefore(p) ? ` (${(receivedBefore(p) + p.grn.qty).toLocaleString("en-US")} in all, with earlier payments)` : ""}` : "—"],
           ...(p.grn?.progressPct !== undefined ? ([["Work verified complete", `${p.grn.progressPct}%`]] as [string, string][]) : []),
           ["Place of receipt", p.grn?.place ?? p.place],
-          ["Requesting department", holder],
+          ["Delivered on", p.grn?.date ?? "—"],
+          ["Supplier's delivery note", p.grn?.deliveryNote?.trim() || "—"],
+          ["Condition on arrival", p.grn?.condition?.trim() || "—"],
+          // The real requester, and the person who inspects when the requester named someone else (ISS-12).
+          ["Requested by", requesterOf(p) ?? holder],
+          ...(p.receiver ? ([["Received and inspected for the requester by", `${p.receiver.name}, named by ${p.receiver.by} on ${p.receiver.date}`]] as [string, string][]) : []),
         ],
         notes: [
-          stepsFor(p).some((s) => s.id === "contract")
-            ? "Inspected against the contract, the delivery note and the invoice by the person who requested the goods."
-            : "Inspected against the specification, the chosen quotation and the delivery note by the person who requested the goods (a micro purchase has no contract).",
+          `Inspected against ${stepsFor(p).some((s) => s.id === "contract") ? "the contract, the delivery note and the invoice" : "the specification, the chosen quotation and the delivery note"} by ${p.receiver ? `${p.receiver.name}, whom the requester named to receive the goods` : "the person who requested the goods"}${stepsFor(p).some((s) => s.id === "contract") ? "" : " (a micro purchase has no contract)"}. Procurement does not inspect what it bought.`,
         ],
       };
     case "Checklist pass 2":

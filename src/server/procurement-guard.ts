@@ -2,9 +2,9 @@ import { storeNames } from "@/lib/file-store";
 import { isProcurementManager } from "@/lib/procurement-plan";
 import { registerAuthority } from "@/lib/authority";
 import { sameHistory } from "@/lib/history";
-import type { AppUser } from "@/lib/demo";
+import { users, type AppUser } from "@/lib/demo";
 import type { Value } from "@/lib/policy";
-import { DONE, requesterOf, soloBarred, setLineMoney, setProcurementSet, setSupplierRegister, maySign, nextStep, ownerOf, prevStep, procRolesFor, ready, roleLabel, setProcurementRules, stepById, type Procurement, type LineMoney, type Role, holdersFor, otherHolder, voucherBarred } from "@/lib/procurement";
+import { DONE, receiverProblem, requesterOf, requesterPersonOf, soloBarred, setLineMoney, setProcurementSet, setSupplierRegister, maySign, nextStep, ownerOf, prevStep, procRolesFor, ready, roleLabel, setProcurementRules, stepById, type Procurement, type LineMoney, type Role, holdersFor, otherHolder, voucherBarred } from "@/lib/procurement";
 import { closeInstalment } from "@/lib/payments";
 import type { Authority } from "@/lib/authority";
 import type { PlanItem } from "@/lib/procurement-plan";
@@ -118,7 +118,28 @@ const FIELD_STEPS: Record<string, string[]> = {
   funding: [],
 };
 /** Parts of the record anyone with procurement access may add to at any stage. */
-const FREE = new Set(["timeline", "links", "issues", "signatures", "checks", "step", "payments", "updatedAt", "distribution", "rev", "overrides"]);
+const FREE = new Set(["timeline", "links", "issues", "signatures", "checks", "step", "payments", "updatedAt", "distribution", "rev", "overrides", "receiver"]);
+
+/**
+ * Who receives and inspects the goods (ISS-12, decision D-27): the requester, or one person they
+ * name in their own department; never procurement, never the storekeeper. Only the requester (or
+ * an administrator, when the requester is away) names or withdraws them, while the goods are
+ * being received and before the note is signed.
+ */
+function checkReceiver(prev: Procurement, next: Procurement, u: AppUser): string | null {
+  if (same(prev.receiver, next.receiver)) return null;
+  if (prev.step !== "receive") return "Someone else is named to receive the goods only while they are being received.";
+  if ((prev.signatures["Goods received note"] ?? []).length) return "The goods received note is already signed.";
+  if (!(u.name === requesterOf(prev) || u.id === prev.plan?.requestedById || u.admin)) return `Only the person who requested the goods${requesterOf(prev) ? ` (${requesterOf(prev)})` : ""} names someone else to receive them.`;
+  const r = next.receiver;
+  if (!r) return null;
+  const d = users.find((x) => x.id === r.id);
+  if (!d) return "Choose someone on the organization's staff to receive the goods.";
+  const why = receiverProblem(requesterPersonOf(prev), d);
+  if (why) return why;
+  if (r.name !== d.name || r.by !== u.name) return "The record of who was named is not complete: name them again.";
+  return null;
+}
 
 /**
  * Distribution to participants: lists and checks are added, never changed, each in the name of
@@ -262,6 +283,8 @@ export function validateProcurementSave(prev: Procurement | undefined, next: Pro
 
   const dist = checkDistribution(prev, next, u);
   if (dist) return dist;
+  const receiver = checkReceiver(prev, next, u);
+  if (receiver) return receiver;
 
   // Bids as received are fixed once their step is done: only judging, scoring and choosing follow.
   if (!["quotes", "bids"].includes(prev.step)) {

@@ -1,8 +1,9 @@
 "use client";
 
 import { storeNames } from "@/lib/file-store";
-import { formatMoney } from "@/lib/demo";
-import { reviewKey, type Procurement } from "@/lib/procurement";
+import { formatMoney, users } from "@/lib/demo";
+import { useSession } from "@/components/app/session";
+import { receiverProblem, requesterOf, requesterPersonOf, reviewKey, type Procurement } from "@/lib/procurement";
 import {
   contractCurrency,
   currentInstalment,
@@ -126,10 +127,23 @@ export function SchedulePanel({ p, editable, update }: { p: Procurement; editabl
 
 /** Receipt for the instalment under way: quantity delivered since the last payment, or verified progress for works. */
 export function ReceiptPanel({ p, editable, update }: { p: Procurement; editable: boolean; update: Update }) {
+  const { user } = useSession();
   const g = p.grn ?? { qty: NaN, place: p.place };
+  // The requester receives the goods, or names one person in their own department to (lib/procurement receiverProblem).
+  const requester = requesterPersonOf(p);
+  const iRequested = !!user && (user.name === requesterOf(p) || user.id === p.plan?.requestedById);
+  const noteSigned = (p.signatures["Goods received note"] ?? []).length > 0;
+  const canName = iRequested && p.step === "receive" && !noteSigned;
+  const eligible = users.filter((u) => !receiverProblem(requester, u));
+  const name = (id: string) => {
+    const d = users.find((u) => u.id === id);
+    // The note is read again by whoever signs it. Only the step's holder can clear that mark: the requester is, until someone is named.
+    update((q) => ({ ...q, receiver: d && user ? { id: d.id, name: d.name, by: user.name, date: today() } : undefined, checks: q.receiver ? q.checks : unreview(q) }));
+  };
   const set = (patch: Partial<NonNullable<Procurement["grn"]>>) => update((q) => ({ ...q, grn: { ...g, ...patch }, checks: unreview(q) }));
   const before = receivedBefore(p);
   return (
+    <>
     <fieldset className={box} disabled={!editable}>
       <legend className="sr-only">Goods received</legend>
       <Head p={p} />
@@ -155,8 +169,44 @@ export function ReceiptPanel({ p, editable, update }: { p: Procurement; editable
             className={`mt-1 ${field} tabular-nums`}
           />
         </label>
+        <label>
+          <span className={label}>Day it arrived</span>
+          <input type="date" max={today()} value={g.date ?? ""} onChange={(e) => set({ date: e.target.value || undefined })} className={`mt-1 ${field}`} />
+        </label>
+        <label>
+          <span className={label}>Supplier&rsquo;s delivery note number</span>
+          <input value={g.deliveryNote ?? ""} onChange={(e) => set({ deliveryNote: e.target.value })} placeholder="Or why there is none" className={`mt-1 ${field}`} />
+        </label>
+        <label className="sm:col-span-3">
+          <span className={label}>Condition on arrival</span>
+          <input value={g.condition ?? ""} onChange={(e) => set({ condition: e.target.value })} placeholder="Bags sealed and dry; two torn and replaced by the driver" className={`mt-1 ${field}`} />
+        </label>
       </div>
+      <p className="mt-4 text-sm font-semibold">Who receives and inspects</p>
+      {p.receiver ? (
+        <p className="mt-1 text-sm">
+          {p.receiver.name}, named by {p.receiver.by} on {p.receiver.date} to receive these goods in the requester&rsquo;s place.
+        </p>
+      ) : (
+        <p className="mt-1 text-sm">{requesterOf(p) ?? "The requester"}, who requested them. The requesting department inspects what procurement bought, never procurement.</p>
+      )}
     </fieldset>
+    {/* Outside the step's own fields: the requester names someone even once the step is no longer theirs to act on. */}
+    {canName && (
+      <label className="block px-5 pb-5 text-sm">
+        <span className="font-semibold">{p.receiver ? "Change who receives them" : "Away when they arrive? Name someone in your department to receive them"}</span>
+        <select value={p.receiver?.id ?? ""} onChange={(e) => name(e.target.value)} className={`mt-1 ${field}`}>
+          <option value="">I receive them myself</option>
+          {eligible.map((u) => (
+            <option key={u.id} value={u.id}>
+              {u.name}, {u.title}
+            </option>
+          ))}
+        </select>
+        <span className="mt-1 block text-xs text-muted">Their line manager, someone who reports to them or someone with the same line manager. Never procurement and never the storekeeper.</span>
+      </label>
+    )}
+    </>
   );
 }
 

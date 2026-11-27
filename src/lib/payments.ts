@@ -41,7 +41,7 @@ export type PaymentRecord = {
   n: number;
   label: string;
   pct: number;
-  grn?: { qty: number; place: string; progressPct?: number };
+  grn?: { qty: number; place: string; progressPct?: number; /** The day the goods arrived. */ date?: string; /** The supplier's delivery note number, or why there is none. */ deliveryNote?: string; /** Their condition on arrival, as the person receiving found them. */ condition?: string };
   invoice: Invoice;
   supplier: string;
   /** Its record in the supplier register, when linked. */

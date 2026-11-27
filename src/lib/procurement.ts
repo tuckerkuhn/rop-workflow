@@ -308,7 +308,12 @@ export type Procurement = {
   advertisedDays?: number;
   closingDate?: string;
   /** Received for the instalment under way; for works, the verified progress percentage. */
-  grn?: { qty: number; place: string; progressPct?: number };
+  grn?: { qty: number; place: string; progressPct?: number; /** The day the goods arrived. */ date?: string; /** The supplier's delivery note number, or why there is none. */ deliveryNote?: string; /** Their condition on arrival, as the person receiving found them. */ condition?: string };
+  /**
+   * Someone the requester named to receive and inspect the goods in their place: who, named by whom
+   * and when. Without one, the requester receives them (review round 1, ISS-12; decision D-27).
+   */
+  receiver?: { id: string; name: string; by: string; date: string };
   /** Invoice for the instalment under way. */
   invoice?: Invoice;
   /** Currency the contract is priced and paid in. */
@@ -473,6 +478,11 @@ export function otherHolder(p: Procurement, role: Role, not: string | string[]) 
 }
 
 export function holderFor(p: Procurement, role: Role) {
+  // Receiving is the requester's own, or the person they named: never just any budget holder.
+  if (role === "holder" && p.step === "receive") {
+    const who = p.receiver ? users.find((u) => u.id === p.receiver!.id) : requesterPersonOf(p);
+    if (who) return who;
+  }
   if (p.plan && role === "holder") return users.find((u) => u.id === p.plan!.requestedById) ?? users.find((u) => u.name === p.plan!.requestedBy);
   // The authority table names who holds each role type; the old per-person roles are the fallback.
   const type = typeFor(p, role);
@@ -523,6 +533,30 @@ export function procRolesFor(u: { id: string; procurement: ProcRole[] } | null |
 
 /** The person who asked for the purchase. */
 export const requesterOf = (p: Procurement) => p.plan?.requestedBy ?? p.signatures["Purchase requisition"]?.find((s) => s.role === "holder")?.name ?? null;
+/** The person who requested the purchase, when they can be told from the record. */
+export const requesterPersonOf = (p: Procurement) => users.find((u) => u.id === p.plan?.requestedById) ?? users.find((u) => u.name === requesterOf(p)) ?? null;
+
+/**
+ * Why this person cannot be named to receive goods in the requester's place, or null when they
+ * can (decision D-27): the requesting department inspects, never procurement and never the
+ * storekeeper who issues the stock. "The same department" is read from the reporting lines: the
+ * requester's line manager, someone who reports to the requester, or someone with the same line manager.
+ */
+export function receiverProblem(requester: Pick<(typeof users)[number], "id" | "reportsTo"> | null, d: Pick<(typeof users)[number], "id" | "name" | "kind" | "reportsTo" | "procurement" | "field">): string | null {
+  if (d.kind !== "employee") return `${d.name} is not on the organization's staff.`;
+  if (requester && d.id === requester.id) return "The requester receives the goods themselves unless they name someone else.";
+  if (d.procurement.includes("procurement")) return `${d.name} is in procurement. The requesting department inspects what procurement bought, never procurement itself.`;
+  if (d.field.includes("store")) return `${d.name} is the storekeeper, who issues the stock and so does not certify its receipt.`;
+  if (!d.procurement.includes("holder")) return `${d.name} is not set up to sign for goods received. Choose a budget holder in the requester's department.`;
+  if (requester && !(d.id === requester.reportsTo || d.reportsTo === requester.id || (!!requester.reportsTo && d.reportsTo === requester.reportsTo)))
+    return `${d.name} is not in the requester's department. Choose their line manager, someone who reports to them, or someone with the same line manager.`;
+  return null;
+}
+/** Whether this person receives and inspects this purchase's goods: its requester, or the person the requester named. */
+export function mayReceive(u: { id: string; name?: string } | null | undefined, p: Procurement): boolean {
+  if (!u) return false;
+  return p.receiver ? p.receiver.id === u.id : (!!u.name && u.name === requesterOf(p)) || u.id === p.plan?.requestedById;
+}
 
 /**
  * Why solo mode cannot cover this approval (server/solo.ts), or null when it can: an approval for
@@ -536,8 +570,11 @@ export function soloBarred(p: Procurement): string | null {
 }
 
 /** Whether this person may sign the step for this role on this procurement (an award may need the executive head). */
-export function maySign(u: { id: string; procurement: ProcRole[] } | null | undefined, p: Procurement, role: Role): boolean {
+export function maySign(u: { id: string; name?: string; procurement: ProcRole[] } | null | undefined, p: Procurement, role: Role): boolean {
   if (!u || !procRolesFor(u).includes(role)) return false;
+  // The goods received note is the requester's to sign, or the person they named: not any budget holder's (ISS-12).
+  // A record with no requester on it (an older one) falls to the role's holders, as before.
+  if (role === "holder" && p.step === "receive" && (requesterOf(p) || p.receiver)) return mayReceive(u, p);
   const type = typeFor(p, role);
   if (!type || !holdersOfType(type).length) return true;
   return holdsType(u.id, type) || (role === "holder" && holderFor(p, role)?.id === u.id);
@@ -1376,6 +1413,20 @@ export const steps: Step[] = [
         tag: "D1 §4.12",
         resolve: "Reason and verifier recorded on the note",
         auto: (p) => (p.grn ? { ok: p.grn.place === p.place, detail: `Received at ${p.grn.place}` } : null),
+      },
+      {
+        id: "delivery",
+        label: "Delivery date, the supplier's delivery note and the condition on arrival recorded",
+        why: "An auditor matches the goods received note to the supplier's delivery note and the invoice, by date and number. The condition is written by the person who saw the goods arrive.",
+        tag: "D1 §4.12",
+        auto: (p) => {
+          const g = p.grn;
+          if (!g) return { ok: false, detail: "Record what was received above" };
+          const missing = [!g.date && "the day it arrived", !g.deliveryNote?.trim() && "the supplier's delivery note number (or why there is none)", (g.condition?.trim().length ?? 0) < 3 && "the condition on arrival"].filter(Boolean) as string[];
+          if (missing.length) return { ok: false, detail: `Still to record: ${missing.join("; ")}` };
+          if (g.date! > today()) return { ok: false, detail: `The delivery date ${g.date} is in the future. Check it` };
+          return { ok: true, detail: `Arrived ${g.date} · delivery note ${g.deliveryNote!.trim()} · ${g.condition!.trim()}` };
+        },
       },
       { id: "inspected", label: "Quality inspected against the specification", why: "Once receipt is certified, little remedy is left.", tag: "D1 §4.12" },
     ],
