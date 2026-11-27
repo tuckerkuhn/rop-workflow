@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkState, seedProcurements, stepById, stepsFor, type Procurement } from "@/lib/procurement";
+import { checkState, screenedOnOf, seedProcurements, stepById, stepsFor, type Procurement } from "@/lib/procurement";
 import { documentFor } from "@/lib/procurement-docs";
 
 const usd = (n: number) => `$${n}`;
@@ -80,6 +80,22 @@ describe("procurement checks that cannot be ticked on trust", () => {
     expect(checkState(p, check("need", "spec"), usd)).toMatchObject({ ok: false, auto: false });
     expect(checkState(at("need", { plan: undefined }), check("need", "activity"), usd)).toMatchObject({ auto: false });
     expect(checkState(at("need", { plan: undefined }), check("need", "leadtime"), usd)).toMatchObject({ auto: false });
+  });
+
+  // Review round 1, ISS-13: one screening date, not one on the supplier and another in the purchase's history.
+  it("the supplier's screening date is the same wherever it is shown", () => {
+    const signed = { "Screening record": [{ as: "Reviewed by (procurement)", name: "Hamid Wardak", role: "procurement" as const, date: "2026-10-28" }] };
+    const p = at("payReady", { supplier: { name: "FarmTools Co. (fictional)", screenedOn: "2026-05-13" }, signatures: signed });
+    expect(screenedOnOf(p)).toBe("2026-10-28");
+    expect(checkState(p, check("payReady", "rescreen"), usd).detail).toContain("Last screened 2026-10-28");
+    // The newer of the two, whichever it is; and a purchase with neither says so.
+    expect(screenedOnOf(at("payReady", { supplier: { name: "X", screenedOn: "2026-11-02" }, signatures: signed }))).toBe("2026-11-02");
+    expect(screenedOnOf(at("payReady", { supplier: { name: "X", screenedOn: "" }, signatures: {} }))).toBeNull();
+    // Every demo purchase past its screening step carries that step's date on the supplier.
+    for (const q of seedProcurements()) {
+      const step = q.signatures["Screening record"]?.at(-1)?.date;
+      if (q.supplier && step) expect(q.supplier.screenedOn, q.id).toBe(step);
+    }
   });
 
   it("a drafted document counts as read only once a person corrected or confirmed it", () => {

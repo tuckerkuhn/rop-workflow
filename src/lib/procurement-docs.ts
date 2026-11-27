@@ -6,7 +6,7 @@
 import { acct, storeNames } from "@/lib/file-store";
 import { PROJECT, holderOf } from "@/lib/demo";
 import { lineFigureText } from "@/lib/line-money";
-import { availableFor, bidUsd, byHand, distributionState, plannedOrUrgent, documentsOf, levelFor, lineOf, receivedQty, registered, roleLabel, stepsFor, valueOf, vendbillOf, type Money, type Procurement } from "@/lib/procurement";
+import { availableFor, screenedOnOf, bidUsd, byHand, distributionState, plannedOrUrgent, documentsOf, levelFor, lineOf, receivedQty, registered, roleLabel, stepsFor, valueOf, vendbillOf, type Money, type Procurement } from "@/lib/procurement";
 import { lastScreening } from "@/lib/suppliers";
 import { currentInstalment, expectedAfn, expectedUsd, invoiceUsd, orderUsd, receivedBefore, voucherBook, withholding } from "@/lib/payments";
 import { DEPARTMENTS, GL_EXPENSE, LOCATIONS, codeLabel } from "@/lib/voucher-codes";
@@ -190,7 +190,7 @@ export function documentFor(p: Procurement, doc: string, money: Money, other: Mo
           ["Value", both(chosen ? (bidUsd(chosen) ?? value) : value)],
           ["Supplier", p.supplier?.name ?? chosen?.supplier ?? "Not chosen yet"],
           ...(r ? ([["Supplier register", r.id]] as [string, string][]) : []),
-          ["Screened on", sc?.date ?? p.supplier?.screenedOn ?? "Not screened yet"],
+          ["Screened on", sc?.date ?? screenedOnOf(p) ?? "Not screened yet"],
           ["Lists checked", sc?.lists ?? "—"],
           ["Result", sc ? (sc.result === "clear" ? "Clear: no match on any list" : `Match: ${sc.note || "see the evidence"}`) : "—"],
           ...(sc?.note && sc.result === "clear" ? ([["Note", sc.note]] as [string, string][]) : []),
@@ -264,7 +264,7 @@ export function documentFor(p: Procurement, doc: string, money: Money, other: Mo
           ...instRow,
           ["Invoice", p.invoice ? inCur(p.invoice.amount) : "—"],
           ["Tax withheld", tax ? `${inCur(tax.amount)} (${tax.pct}%)` : "—"],
-          ["Last screening", p.supplier?.screenedOn ?? "—"],
+          ["Last screening", screenedOnOf(p) ?? "—"],
           ["Payee account", "Verified against contract and supplier evidence"],
         ],
         notes: ["No payment without a complete file, a certified receipt and screening evidence. Payment approval follows the Finance Manual."],

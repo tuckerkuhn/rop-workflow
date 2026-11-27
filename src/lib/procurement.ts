@@ -728,6 +728,20 @@ function budgetCheck(p: Procurement, money: Money): CheckResult | null {
   return { ok: valueOf(p) <= free, detail: `Needs ${money(valueOf(p))} · ${money(l.remainingValue)} left on ${l.code}${held}${held ? ` = ${money(free)} free` : ""}` };
 }
 
+/**
+ * The day the purchase's supplier was last screened, one date wherever it is shown (review round
+ * 1, ISS-13: the payment check said 13 May while the purchase's own history said 28 October). The
+ * supplier register's latest screening when the supplier is linked to it; otherwise the later of
+ * the date kept with the supplier and the day this purchase's own screening step was signed.
+ */
+export function screenedOnOf(p: Pick<Procurement, "supplier" | "signatures">): string | null {
+  const r = p.supplier?.id && supplierRegister ? supplierRegister.find((x) => x.id === p.supplier!.id) : null;
+  const inRegister = r ? lastScreening(r)?.date : null;
+  if (inRegister) return inRegister;
+  const own = (p.signatures?.["Screening record"] ?? []).map((x) => x.date);
+  return [p.supplier?.screenedOn ?? "", ...own].filter((d) => /^\d{4}-\d{2}-\d{2}/.test(d)).sort().at(-1) ?? null;
+}
+
 export const lineOf = (p: Procurement): BudgetLine | undefined =>
   p.plan ? { code: p.plan.budgetCode, name: p.plan.budgetName, remainingValue: p.plan.leftUsd } : budgetLines.find((b) => b.code === p.budgetLine);
 
@@ -1479,9 +1493,11 @@ export const steps: Step[] = [
             const d = daysBetween(sc.date, today());
             return { ok: sc.result === "clear" && !screeningStale(sc.date, today(), months), detail: `Last screened ${sc.date} by ${sc.byName}: ${sc.result} (${d} days ago; re-screen after ${months} months)` };
           }
-          const d = daysBetween(p.supplier.screenedOn, today());
+          const on = screenedOnOf(p);
+          if (!on) return { ok: false, detail: `No screening is recorded for ${p.supplier.name}` };
+          const d = daysBetween(on, today());
           const months = rule("rescreenMonths", 6);
-          return { ok: !screeningStale(p.supplier.screenedOn, today(), months), detail: `Last screened ${p.supplier.screenedOn} (${d} days ago; re-screen after ${months} months)` };
+          return { ok: !screeningStale(on, today(), months), detail: `Last screened ${on} (${d} days ago; re-screen after ${months} months)` };
         },
       },
       {
@@ -1844,6 +1860,9 @@ function seed(
   });
   (base.doneChecks ?? []).forEach((c) => (p.checks[`${p.step}.${c}`] = true));
   delete (p as { doneChecks?: string[] }).doneChecks;
+  // The date kept with the supplier is the day this purchase's screening was signed, when it was: one date, not two.
+  const screened = p.signatures["Screening record"]?.at(-1)?.date;
+  if (p.supplier && screened) p.supplier = { ...p.supplier, screenedOn: screened };
   return p as Procurement;
 }
 

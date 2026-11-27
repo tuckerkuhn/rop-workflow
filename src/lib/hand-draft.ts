@@ -1,4 +1,4 @@
-import { HAND_WRITTEN, bidUsd, levelFor, valueOf, type Draft, type Procurement } from "@/lib/procurement";
+import { HAND_WRITTEN, bidUsd, levelFor, screenedOnOf, valueOf, type Draft, type Procurement } from "@/lib/procurement";
 
 /**
  * A procurement document written by a person instead of drafted by AI (review round 1, ISS-01).
@@ -83,7 +83,7 @@ function cover(p: Procurement) {
   return [
     { heading: "What was bought", body: `${or(p.title, "item")}, ${p.qty > 0 ? `${p.qty} ${p.unit}`.trim() : "[quantity and unit]"}, for activity ${or(p.activity, "activity")} on budget line ${or(p.budgetLine, "budget line")}${p.funding ? `, funded by ${p.funding}` : ""}.` },
     { heading: "How it was bought", body: `Level: ${level} (estimated value ${usd(valueOf(p))}). Route: ${route}.\nWhy this route: [reason, or "as the level requires"].` },
-    { heading: "Supplier and screening", body: p.supplier?.name ? `${p.supplier.name}. Screened on ${or(p.supplier.screenedOn, "screening date")}.` : "[supplier name]. Screened on [screening date]." },
+    { heading: "Supplier and screening", body: p.supplier?.name ? `${p.supplier.name}. Screened on ${or(screenedOnOf(p), "screening date")}.` : "[supplier name]. Screened on [screening date]." },
     { heading: "Approvals", body: signed.length ? signed.join("\n") : "[who approved what, and when]" },
     {
       heading: "Order value against the budget line",
