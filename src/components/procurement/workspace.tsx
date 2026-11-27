@@ -1127,11 +1127,24 @@ export function ProcurementWorkspace() {
               setForGrant(null);
               setMobileDetail(false);
             }}
-            onCreate={(draft) => {
-              // Next free number this year, so two people never get the same ID.
+            onCreate={async (draft) => {
+              // The next free number this year across the whole organization, asked of the server so two
+              // projects never share one (review round 1, ISS-11). A project not saved yet numbers its own.
               const year = today().slice(0, 4);
               const used = items.map((x) => x.id.match(new RegExp(`^PR-${year}-(\\d+)$`))?.[1]).filter(Boolean).map(Number);
-              const p = { ...draft, id: `PR-${year}-${String(Math.max(0, ...used) + 1).padStart(3, "0")}` };
+              let id = `PR-${year}-${String(Math.max(0, ...used) + 1).padStart(3, "0")}`;
+              if (project.saved && user) {
+                try {
+                  const r = await fetch(`/api/projects/${encodeURIComponent(project.id)}/procurements/next-id?year=${year}`, { cache: "no-store", headers: { "x-demo-user": user.id } });
+                  const next = r.ok ? ((await r.json()) as { id?: string }).id : undefined;
+                  // Never a number below one already on this screen (a request made a moment ago, not saved yet).
+                  const n = (x: string) => Number(x.split("-")[2] ?? 0);
+                  if (next && !items.some((x) => x.id === next) && n(next) > n(id)) id = next;
+                } catch {
+                  // Offline or the server is busy: the save checks the number again and says so if it is taken.
+                }
+              }
+              const p = { ...draft, id };
               setItems((all) => [p, ...all]);
               setSelected(p.id);
               setCreating(false);

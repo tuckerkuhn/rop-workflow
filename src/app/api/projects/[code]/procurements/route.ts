@@ -7,7 +7,7 @@ import { z } from "zod";
 import type { Procurement } from "@/lib/procurement";
 import { requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
-import { loadProcurements, saveProcurements } from "@/server/procurement-store";
+import { loadProcurements, procurementIdsOfOrg, saveProcurements } from "@/server/procurement-store";
 import { db } from "@/db";
 import { logAudit } from "@/server/audit";
 import { projectByCode, setupOf } from "@/server/field-store";
@@ -56,6 +56,14 @@ export async function PUT(req: Request, { params }: { params: Promise<{ code: st
       // A real project's requests must charge its procurement calendar; the demo keeps its sample lines.
       code === DEMO_PROJECT ? Promise.resolve(undefined) : loadPlan(code),
     ]);
+    // A new request's number must be free across the organization, not only on this project (ISS-11).
+    const fresh = items.filter((x) => !stored.has(x.id));
+    if (fresh.length) {
+      const here = await projectByCode(code);
+      const elsewhere = new Set((await procurementIdsOfOrg(here.organizationId)).filter((r) => r.projectId !== here.id).map((r) => r.id));
+      const clash = fresh.find((x) => elsewhere.has(x.id));
+      if (clash) return NextResponse.json({ error: `${clash.id} is already the number of a purchase on another project. Start the request again: it will take the next free number.` }, { status: 409 });
+    }
     // Someone else saved since this copy was loaded: refuse, and the screen reloads the latest.
     const stale = items.find((x) => stored.has(x.id) && (stored.get(x.id)!.rev ?? 0) !== (x.rev ?? 0));
     if (stale) return NextResponse.json({ error: `${stale.id} was changed by someone else just now. The latest copy is loaded; make your change again.`, stale: true }, { status: 409 });
