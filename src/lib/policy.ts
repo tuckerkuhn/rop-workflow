@@ -146,7 +146,9 @@ export const ROP: Profile = {
     subcontractorApproval: { value: false, source: `${AF25}: no donor step` },
     grantAssetTransfer: { value: "Allowed: assets transferred to the grantee after co-payment, with photos and a signed acceptance", source: `${AF25}, §3.2.20` },
     restrictedGoods: { value: [], source: "Set by the donor" },
-    screeningLists: { value: ["UN Security Council 1267 list"], source: `${AF25}, §3.2.12 p20` },
+    // Both by default (review round 1, D-05): the AF policy names the UN list, ROP's OFAC Compliance
+    // Plan (2023) makes OFAC's SDN list the primary source. A donor's lists are added on its projects.
+    screeningLists: { value: ["OFAC SDN list", "UN Security Council 1267 list"], source: `${AF25}, §3.2.12 p20; ROP OFAC Compliance Plan (2023)` },
     dueDiligenceAllLevels: { value: true, source: `${AF25}, Micro and Small checklists p26–27` },
     splitTrackMonths: { value: 12, source: `${AF25}, p26` },
     methods: { value: ["RFQ, lowest price technically acceptable", "RFP, technically acceptable then lowest cost", "RFP, best value", "Sole source", "BPA and release orders"], source: `${AF25}, §4.2–4.6, §4.4.1 p32` },
