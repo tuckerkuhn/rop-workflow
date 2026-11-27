@@ -35,17 +35,29 @@ Each is built as a rule with a default, so changing it is a setting, not a rewri
 | D-05, screening of a third-party receiver | Money handed to someone other than the payee needs the payee's written authorization on file and a screening date within 183 days. Which lists are checked is not yet enforced: still open. | `lib/ledger/payment-guard.ts` |
 | D-03, posting your own payment | Unchanged. Not set means every payment needs a second person; the demo organization allows up to USD 500. | `lib/policy.ts` |
 | Solo mode and reconciliation | A one-finance-person team may complete its own bank reconciliation by confirming each time; the entry is marked self-approved like every other solo sign-off. | `server/reconciliation.ts` |
+| What "left on a budget line" means | One figure: budget, less spending posted, less the unpaid part of purchases under way, less asks made outside the calendar and not started. A planned calendar item is **not** taken off: it is the line's own remainder and becomes a commitment when its request starts. A request past the figure is refused unless a funder-approved revision is recorded. | `lib/line-money.ts` |
+| A supplier with no licence | Stops at screening. Going ahead without one is an exception with its reason on the record, not a block with no way through. | `lib/procurement.ts` (check `screen.dd`) |
+| Purchase numbers | One sequence per year across the whole organization (`PR-2026-004`), not per project. The project code is not in the number. | `server/procurement-store.ts` |
 
-## Done
+## Done (17 of 30 issues, plus part of ISS-09)
 
 | Issue | What changed | Commit |
 |---|---|---|
 | ISS-01 (critical) | "Write it myself" for the request for quotation, solicitation, sole source justification and package cover memo. The record's facts are filled in; what only a person knows is a blank in [square brackets]; it counts as read only when every blank is filled. | `7539271` |
-| ISS-09 (high), part 1 | The health page records and shows why a query failed, not only which one. **The connection fault itself is not fixed**: see "Open". | `e096fbf` |
 | ISS-02 (critical) | Record a payment refuses a payment that names a purchase, asks why on a line with purchases not yet closed, and requires authorization plus a screening date for a third-party receiver. | `9d3243d` |
 | ISS-03 (high) | See D-13. | `19a2ba5` |
 | ISS-04 (high) | Whoever recorded or posted an entry on a bank account in a month does not complete that month's reconciliation. | `1e7f02e` |
-| ISS-05, ISS-06 (high) | See D-24. | this commit's parent |
+| ISS-05, ISS-06 (high) | See D-24. | `8d5d9c1` |
+| ISS-07 (high) | One figure for what is left on a budget line, in the same words on the ask form, the calendar item, the requisition check, the printed requisition and a new check on the approver's step. | `efdf543` |
+| ISS-08 (high) | A missing or expired licence fails the screening check; the licence is recorded at screening on a project with no supplier register. | `bf1d361` |
+| ISS-09 (high), part 1 | The health page records and shows why a query failed, not only which one. **The fault itself is not fixed**: see "Open". | `e096fbf` |
+| ISS-10, ISS-26 | The requisition says when a purchase was not on the calendar and why. No "median undefined days". | `c0548d9` |
+| ISS-11 | Purchase numbers are one of a kind across the organization: the screen asks the server for the next one and the save refuses a clash. | `37f65b9` |
+| ISS-13 | One screening date for a purchase's supplier wherever it is shown. | `da5306f` |
+| ISS-16 | A hand-out draws only on stock received by its own day. A receipt dated after today (a sample project on its own calendar) counts as before. | `a97e264`, `9dc0314` |
+| ISS-17, part | A possible split is said on the ask form and kept on the calendar item for its two approvers. A second person for the approver's "separate needs" override is **not** built. | `34fd597` |
+| ISS-21 | A request from the calendar is not asked for its activity or lead time again: both are worked out and shown. | `f78e16d` |
+| ISS-29, ISS-30 | Places follow the project's country (Afghanistan, Guatemala, typed otherwise). One sign-in label. | `f78e16d` |
 
 ## Open
 
@@ -55,15 +67,33 @@ Each is built as a rule with a default, so changing it is a setting, not a rewri
   (`src/db/index.ts`), held by suspended server instances. **Next step needs the live site:**
   deploy this branch, click Draft with AI once, read Settings, Health for the reason now recorded.
   Do not change the pooling blind.
-- **Checks not run here:** the whole database test suite (160 files) is too slow in the sandbox
-  this work was done in. Run `npm test` on the Mac before this goes live. Run so far: all 85
-  rule test files, plus the database tests for each area touched.
-- **Not looked at in a browser:** every screen change above was typechecked and linted, not seen.
+- **Not looked at in a browser.** Every screen change here was typechecked, linted and covered by
+  rule tests, not seen. Screens touched: procurement draft panel, Record a payment, procurement
+  calendar (ask form and item), bank reconciliation, timesheet, supplier field at screening,
+  Settings Health, results (place), sign-in.
+- **ISS-17:** the approver alone can still record "separate needs" on the requisition.
+- **D-05:** which sanctions lists are checked (OFAC and UN 1267 both, by the review) is not enforced anywhere yet.
+
+## Checks run
+
+- Typecheck and lint: clean on every commit.
+- The whole test suite, run on a Linux copy with its own install: 90 rule test files (869 tests)
+  and 75 database test files (470 tests), all passing at `9dc0314`. The wider database run caught
+  one fault in the ISS-16 change, fixed in `9dc0314`.
+
+## Not done yet, and why
+
+| Issue | Why it waits |
+|---|---|
+| ISS-12 (who signs the goods received note, delivery date and note number) | Next in line. Decision D-27 taken as: the requester or a named delegate in the same department. |
+| ISS-14 (the receipt photo's date, farmer and quantities compared with the record) | Belongs with the in-app distribution form, where the receipt is captured. |
+| ISS-15, ISS-22, ISS-27 | Settled by taking Kobo out: the labels, the outside dependency, and renaming the farmer's signed receipt "distribution receipt" all change in that rewrite. |
+| ISS-18 (selection rule before training), ISS-19 (MEL holder in the authority table), ISS-20 (one report calendar), ISS-28 (label targets as year or life of project) | Not started. Each is a small, separate fix. |
+| ISS-23, ISS-24, ISS-25 (SharePoint, backups, "posted in NetSuite") | The wording already follows the organization's settings; the demo organization is set to SharePoint and NetSuite. The real change is month close using the app's own books when no outside system is named: with the money batch. |
 
 ## Next (in order)
 
-1. ISS-07: one "money left on the line" figure everywhere (ask form, calendar, requisition, approver).
-2. ISS-08: licence, ID and bank details checked before the award, not at payment.
-3. The mediums and lows: ISS-10 to ISS-30. ISS-15, ISS-22 and the Kobo part of ISS-16 are settled by removing Kobo.
-4. Kobo out and the five in-app forms, with batch 1 of the missing features.
-5. Batches 2 to 5.
+1. ISS-12, then ISS-18, ISS-19, ISS-20, ISS-28.
+2. Kobo out and the five in-app forms, with batch 1 of the missing features (and ISS-14, ISS-15, ISS-22, ISS-27).
+3. Batches 2 to 5. Local currency (MF-11) first in the money batch, with ISS-23 to ISS-25.
+4. ISS-09 once the live site has recorded the reason.
