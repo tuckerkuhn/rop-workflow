@@ -154,7 +154,7 @@ async function context(project: Project, opts: { excluding?: string; countPendin
     const day = dayOf(r);
     const then: Given = {};
     for (const o of counted) if (dayOf(o) <= day) addGiven(then, st.byId[o.id]?.items ?? itemsFor(setup), setup);
-    return { day, given: then };
+    return { day, given: then, today: today() };
   };
   return { setup, procs, given, onDay, others: othersThan(rows, opts.excluding), st, rows };
 }
@@ -531,7 +531,7 @@ export async function listDistributions(code: string): Promise<DistView[]> {
         condition: m.conditionOk ? null : badCondition(conditionOf(r)),
         // While it waits, the checks are worked out now, as approving will: a goods received note
         // signed since the record was made shows at once. Once decided, they stay as they were then.
-        gate: r.reviewStatus === "pending" ? gate(m.items, procs, approved, setup, { day: dayOf(r), given: approvedBy(dayOf(r), r.id) }) : m.gate,
+        gate: r.reviewStatus === "pending" ? gate(m.items, procs, approved, setup, { day: dayOf(r), given: approvedBy(dayOf(r), r.id), today: today() }) : m.gate,
         flags: m.flags,
         status: r.reviewStatus,
         waitingSince: [r.createdAt.toISOString(), ...(m.history ?? []).map((h) => h.fixed.at)].sort().at(-1)!.slice(0, 10),

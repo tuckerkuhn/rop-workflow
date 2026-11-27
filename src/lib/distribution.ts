@@ -49,7 +49,15 @@ export function receivedOn(p: Procurement): string | null {
   return signed.map((x) => x.date).filter((d) => /^\d{4}-\d{2}-\d{2}/.test(d ?? "")).map((d) => d.slice(0, 10)).sort()[0] ?? null;
 }
 /** The day a hand-out happened, with what hand-outs on or before that day had already taken (in package units). */
-export type OnDay = { day: string; given?: Given };
+export type OnDay = {
+  day: string;
+  given?: Given;
+  /**
+   * Today's real date. A receipt dated after today cannot be a real one (a sample project's
+   * records run on its own calendar): it is counted whatever the hand-out's date, as before.
+   */
+  today?: string;
+};
 
 export type GateLine = { key: string; item: string; unit: string; procurements: string[]; received: number; given: number; thisQty: number; ok: boolean; detail: string };
 export type Gate = { ok: boolean; lines: GateLine[]; block: string | null };
@@ -92,7 +100,7 @@ export function gate(items: DistItem[], procs: Procurement[], given: Given, setu
     }
     // A hand-out draws only on what had arrived by its own day (review round 1, ISS-16): goods
     // received a week later cannot have supplied it, however much is in the store now.
-    const late = on ? done.filter((p) => (receivedOn(p) ?? "") > on.day) : [];
+    const late = on ? done.filter((p) => (receivedOn(p) ?? "") > on.day && (!on.today || receivedOn(p)! <= on.today)) : [];
     if (on && late.length) {
       const early = done.filter((p) => !late.includes(p));
       const gotThen = early.reduce((s, p) => s + (receivedIn(p, unit) ?? 0), 0);

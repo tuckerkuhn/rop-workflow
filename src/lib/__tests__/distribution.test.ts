@@ -328,6 +328,12 @@ describe("a hand-out draws only on what had arrived by its own day", () => {
     expect(gateFor(pack(50), [first, second], { [npk.key]: 80 }, DEMO_SETUP, { day: "2026-11-27", given: { [npk.key]: 80 } }).ok).toBe(true);
   });
 
+  it("a receipt dated after today is a sample record on its own calendar, and counts as before", () => {
+    const sample = proc({ id: "PR-SAMPLE", unit: npk.unit, budgetLine: "2.2", step: "done", grn: { qty: 600, place: "Village B" }, signatures: signedOn("2027-01-27") });
+    const g = gateFor(pack(50), [sample], {}, DEMO_SETUP, { day: "2026-11-27", given: {}, today: "2026-11-27" });
+    expect(g.lines[0]).toMatchObject({ ok: true, received: 600 });
+  });
+
   it("with no day given, or a purchase with no signing date, it counts as before", () => {
     expect(gateFor(pack(50), [first, second], {}, DEMO_SETUP).lines[0]).toMatchObject({ ok: true, received: 700 });
     const undated = proc({ id: "PR-OLD", unit: npk.unit, budgetLine: "2.2", step: "done", grn: { qty: 600, place: "Village B" } });
