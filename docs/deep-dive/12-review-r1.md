@@ -142,7 +142,14 @@
     - Part 3 is complete. MF-01 finished `57ab116`: a procurement signature made while acting for
       someone away keeps the signer's own name (so checks by name hold) and records on whose behalf,
       on the document and in the step's history.
-- **Tests:** 199 files, 1,420 tests, all passing (39 tests of removed Kobo features went with them). Typecheck and lint clean.
+- **Part 4** (branch `build/part4-2026-11-28`, cut from part3):
+    - Database connections, code side `11e92c6`: a read refused because the pooler is full waits and
+      tries again twice (300 ms, 900 ms) instead of failing the page; a request that wrote never runs
+      twice. `scripts/load-check.mjs` and `docs/deep-dive/14-db-connections-check.md` give the
+      preview test of the transaction pooler (Needs Tucker 20).
+    - `7efb003` the sample staff carry fictional grades, so the demo can form a hiring panel.
+    - Role-by-role pass on the seven scenarios: under way on the local copy.
+- **Tests:** 200 files, 1,422 tests, all passing (39 tests of removed Kobo features went with them). Typecheck and lint clean.
 - **Seen on screen** (desktop, local throwaway database, never Supabase): the ISS-18 flag as Nadia
   (queue and record), ISS-20 on Project settings and the donor view, ISS-12 as Daniel. Part 2
   step 1: as Farida, a readiness check filled in (the "what needs fixing" question appears on No,
@@ -196,6 +203,8 @@
      NetSuite reference. Confirm the backup plan on Settings, Health once file storage is on.
   19. MF-05: staff grades are not in the HR record yet. Record each person's grade (HR record, Job)
      before a panel can sit; a panel member without one is refused.
+  20. Database connections: run the preview load check in `14-db-connections-check.md` (session
+     pooler, then `DB_POOL_MODE=transaction`), then pick: transaction pooler, or a bigger pool in Supabase.
   13. MF-01: D-13 says the board approves the authority table as the written delegation. That is
      a board step, not the app's: the app only lets a delegate act within the table.
   12. The Dari, Pashto and Spanish wording files still carry some old Kobo sentences that no screen
