@@ -96,7 +96,8 @@ export function foldAdvances(entries: Entry[], hr: HrState, away?: AwayState | n
       if (a.status !== "requested") no(e, "not waiting for approval");
       else if (e.actor === a.person) no(e, "nobody approves their own advance");
       // The supervisor's delegate approves while they are away (R2-16, MF-01).
-      else if (!(e.actor === sup || (!!sup && actedFor(away, e.actor, sup, e.at.slice(0, 10))) || (!sup && hr.rules?.holders.hr.includes(e.actor)))) no(e, "the supervisor approves (HR when there is none), or the person acting for them while they are away");
+      // A delegate's approval carries whom it was for, checked against time away when written (R2-16).
+      else if (!(e.actor === sup || (!!sup && (d.onBehalfOf === sup || (d.onBehalfOf === undefined && actedFor(away, e.actor, sup, e.at.slice(0, 10))))) || (!sup && hr.rules?.holders.hr.includes(e.actor)))) no(e, "the supervisor approves (HR when there is none), or the person acting for them while they are away");
       else if (hr.relations.some((r) => (r.a === e.actor && r.b === a.person) || (r.b === e.actor && r.a === a.person))) no(e, "a declared relation: someone else approves");
       else Object.assign(a, { status: "approved", approvedBy: e.actor });
     } else if (e.kind === "adv-pay") {

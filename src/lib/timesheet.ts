@@ -395,14 +395,19 @@ export function foldTimesheets(entries: Entry[], hr: HrState, away?: AwayState |
       byKey.set(key, t);
       byN.set(e.n, t);
     } else if (e.kind === "ts-approve" || e.kind === "ts-return") {
-      const data = e.data as { timesheet?: number; note?: string };
+      const data = e.data as { timesheet?: number; note?: string; onBehalfOf?: string };
       const t = typeof data?.timesheet === "number" ? byN.get(data.timesheet) : undefined;
       const current = t && byKey.get(`${t.person}|${t.month}`);
       if (!t || current !== t || t.status !== "pending") {
         ignored.push({ n: e.n, kind: e.kind, actor: e.actor, why: "not the current version waiting for approval" });
         continue;
       }
-      if (!approversFor(t, hr, away, e.at.slice(0, 10)).people.includes(e.actor)) {
+      // A delegate's approval carries whom it was for, checked against time away when it was written:
+      // later changes to the time-away list never undo it (code review of R2-16).
+      const forWhom = typeof data.onBehalfOf === "string" ? data.onBehalfOf : null;
+      const asDelegate = !!forWhom && approversFor(t, hr).people.includes(forWhom) && e.actor !== t.person && e.actor !== t.by;
+      void away;
+      if (!approversFor(t, hr).people.includes(e.actor) && !asDelegate) {
         ignored.push({ n: e.n, kind: e.kind, actor: e.actor, why: "not the person who approves this timesheet" });
         continue;
       }

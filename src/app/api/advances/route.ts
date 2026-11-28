@@ -44,7 +44,7 @@ async function view(me: string) {
     const sup = hr.people[a.person]?.current.supervisor;
     const can = {
       approve: a.status === "requested" && a.person !== me && (sup === me || actsFor(sup) || (!sup && !!hr.rules?.holders.hr.includes(me))),
-      pay: a.status === "approved" && isFinance(me, hr),
+      pay: a.status === "approved" && isFinance(me, hr) && a.person !== me,
       settle: a.status === "paid" && a.person === me,
       accept: a.status === "settling" && isFinance(me, hr) && a.person !== me,
       recover: a.status === "settled" && owedOf(a) > 0 && isFinance(me, hr),
@@ -83,6 +83,11 @@ export async function POST(req: Request) {
     const me = v.user.id;
     const [{ state: hr, entries }, away] = await Promise.all([loadHr(), loadAway().catch(() => null)]);
     const fail = (error: string, status = 403) => NextResponse.json({ error }, { status });
+    // Approving for an away supervisor: the entry says for whom, so a later change to time away never undoes it (R2-16).
+    const approvingFor = (person: string) => {
+      const sup = hr.people[person]?.current.supervisor;
+      return typeof sup === "string" && sup !== me && actedFor(away, me, sup, todayIso()) ? { onBehalfOf: sup } : {};
+    };
     let n: number;
     if (a.action === "request") {
       if (!hr.people[me]) return fail("You have no HR record yet, so an advance cannot be paid to you.");
@@ -108,7 +113,7 @@ export async function POST(req: Request) {
       if (a.action === "pay" && a.payment.payee !== adv.person) return fail("An advance is paid only to the person who holds it.", 400);
       if (a.action === "recover" && a.amount > owedOf(adv)) return fail(`Only ${owedOf(adv)} is still owed on this advance.`, 400);
       const kind = { approve: "adv-approve", pay: "adv-pay", settle: "adv-settle", accept: "adv-accept", return: "adv-return", recover: "adv-recover" }[a.action];
-      const data = a.action === "pay" ? a.payment : a.action === "settle" ? a.settlement : a.action === "return" ? { advance: a.advance, note: a.note } : a.action === "recover" ? { advance: a.advance, amount: a.amount } : { advance: a.advance };
+      const data = a.action === "pay" ? a.payment : a.action === "settle" ? a.settlement : a.action === "return" ? { advance: a.advance, note: a.note } : a.action === "recover" ? { advance: a.advance, amount: a.amount } : { advance: a.advance, ...approvingFor(adv.person) };
       const why = wouldNotCount(entries, (x) => foldAdvances(x, hr, away).ignored, me, kind, adv.person, data);
       if (why) return fail(`Not recorded: ${why}.`, 409);
       n = await append(me, kind, adv.person, data);

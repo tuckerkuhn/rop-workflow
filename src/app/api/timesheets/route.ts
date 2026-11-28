@@ -9,6 +9,7 @@ import { people, requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
 import { append, loadHr, todayIso } from "@/server/hr-store";
 import { loadAway } from "@/server/away-store";
+import { actedFor, type AwayState } from "@/lib/delegation";
 
 /**
  * Timesheets, from the HR ledger. Everyone sees their own; a supervisor sees their team's;
@@ -49,9 +50,14 @@ function daysBefore(sheets: Timesheet[], person: string, month: string): Record<
   return t?.sheet.days ?? {};
 }
 
-function visibleTo(me: string, hr: HrState): string[] {
+function visibleTo(me: string, hr: HrState, away?: AwayState | null): string[] {
   if (seesAll(me, hr)) return Object.keys(hr.people);
-  return Object.keys(hr.people).filter((id) => id === me || hr.people[id].current.supervisor === me);
+  // Also the reports of a supervisor this person acts for today (R2-16), so they can open what waits for them.
+  const today = new Date().toISOString().slice(0, 10);
+  return Object.keys(hr.people).filter((id) => {
+    const sup = hr.people[id].current.supervisor;
+    return id === me || sup === me || (typeof sup === "string" && actedFor(away, me, sup, today));
+  });
 }
 
 async function view(me: string, month: string, person: string | null) {
@@ -61,7 +67,7 @@ async function view(me: string, month: string, person: string | null) {
   const { requests } = foldLeave(entries, hr);
   const names = Object.fromEntries((await people()).map((u) => [u.id, u.name]));
   for (const p of Object.values(hr.people)) if (typeof p.current.name === "string") names[p.id] = p.current.name;
-  const visible = visibleTo(me, hr).filter((id) => !hr.people[id].separated || hr.people[id].separated!.effective >= `${month}-01`);
+  const visible = visibleTo(me, hr, awayNow).filter((id) => !hr.people[id].separated || hr.people[id].separated!.effective >= `${month}-01`);
   const isHr = !!hr.rules?.holders.hr.includes(me);
   const who = person && visible.includes(person) ? person : visible.includes(me) ? me : (visible[0] ?? null);
   const withApprovers = (t: Timesheet) => {
@@ -167,7 +173,10 @@ export async function POST(req: Request) {
         const c = conflictOf(me, { subject: t.person, by: t.by, signatures: [], type: "timesheet" }, hr);
         return fail(c ? `You cannot approve this: ${toYou(c).replace("proposed", "submitted")}.` : "This timesheet goes to the person's supervisor.");
       }
-      n = a.action === "approve" ? await append(me, "ts-approve", t.person, { timesheet: t.n }) : await append(me, "ts-return", t.person, { timesheet: t.n, note: a.note });
+      // Acting for an away supervisor: the entry says for whom (lib/timesheet reads it, R2-16).
+      const sup = hr.people[t.person]?.current.supervisor;
+      const forWhom = !approversFor(t, hr).people.includes(me) && typeof sup === "string" ? { onBehalfOf: sup } : {};
+      n = a.action === "approve" ? await append(me, "ts-approve", t.person, { timesheet: t.n, ...forWhom }) : await append(me, "ts-return", t.person, { timesheet: t.n, note: a.note, ...forWhom });
       month = t.month;
       person = t.person;
     }

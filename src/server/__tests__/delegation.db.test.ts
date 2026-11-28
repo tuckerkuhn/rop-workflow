@@ -80,5 +80,8 @@ describe("backup approvers in procurement and HR (review round 2, R2-13, R2-16)"
     expect(foldAdvances(entries, hr).advances[0].status).toBe("requested");
     const away = { entries: [{ id: "a", person: "karim", from: "2026-11-27", to: "2026-11-30", delegate: "tucker", by: "karim", at: "" }] };
     expect(foldAdvances(entries, hr, away).advances[0].status).toBe("approved");
+    // Written with whom it was for, it stands whatever the time-away list says later (code review).
+    const stamped = [(entries as object[])[0], { ...(entries as Record<string, unknown>[])[1], data: { advance: 1, onBehalfOf: "karim" } }] as never;
+    expect(foldAdvances(stamped, hr, null).advances[0].status).toBe("approved");
   });
 });
