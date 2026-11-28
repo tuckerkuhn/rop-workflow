@@ -124,7 +124,14 @@
       (Organization settings, Where files are kept); a weekly export runs every Sunday 04:00 UTC
       (`/api/cron/records-export`, kept in file storage when it is on, else Health says it was not
       kept), and Settings, Health asks an administrator to confirm the backup plan every 90 days.
-- **Tests:** 196 files, 1,414 tests, all passing (39 tests of removed Kobo features went with them). Typecheck and lint clean.
+    - MF-10 `30f24de` verification (D-26): "Accept all" on Results opens only after a random sample
+      of the batch (10%, one to five) has been opened and ticked; for typed-in results the server
+      checks it too. Each month MEL or the project manager draws a repeatable random 3% (a project
+      setting, 2 to 5%) of farmers for a visit by someone who did not collect their records; the
+      visit is recorded as matching or not, and the share visited shows month by month (Results).
+      Field forms accepted at once are gated on the screen only: they are accepted one by one on
+      the server.
+- **Tests:** 198 files, 1,417 tests, all passing (39 tests of removed Kobo features went with them). Typecheck and lint clean.
 - **Seen on screen** (desktop, local throwaway database, never Supabase): the ISS-18 flag as Nadia
   (queue and record), ISS-20 on Project settings and the donor view, ISS-12 as Daniel. Part 2
   step 1: as Farida, a readiness check filled in (the "what needs fixing" question appears on No,
