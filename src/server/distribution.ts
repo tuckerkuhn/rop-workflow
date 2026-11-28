@@ -29,6 +29,7 @@ import { receiptIncomplete, receiptMismatches, type ReceiptCheck, type ReceiptCh
 export const RECEIPT_KEY = "_rop_receipt";
 import { loadProjectState, type Reader } from "@/server/project-state";
 import { oncePerRequest, requestWrote } from "@/server/request-memo";
+import { screeningHold } from "@/lib/farmer-screening";
 
 /**
  * One input distribution, field to finance (strategy brief, example 3):
@@ -193,7 +194,7 @@ export async function stockFor(code: string) {
 }
 
 /** Changes a farmer's Field activities record inside a transaction; `change` returns null to leave it. */
-async function changeFarmer(tx: Tx, projectId: string, farmerCode: string, change: (f: Farmer) => Farmer | null) {
+export async function changeFarmer(tx: Tx, projectId: string, farmerCode: string, change: (f: Farmer) => Farmer | null) {
   // Held until the transaction commits, as addFarmerPhoto does: a save to the same farmer at the same moment waits instead of being overwritten.
   const [item] = await tx.select().from(s.fieldItems).where(and(eq(s.fieldItems.projectId, projectId), eq(s.fieldItems.itemKey, farmerCode))).limit(1).for("update");
   if (!item) return;
@@ -459,6 +460,8 @@ export type DistView = {
   approverNames: string;
   /** Why it cannot close yet apart from the goods received checks (the recipient's signed note); null when it may. */
   closeBlock: string | null;
+  /** MF-04: the farmer is still to be screened (a package above the limit); null when nothing waits. */
+  screeningHold: string | null;
   /**
    * From KoboCollect: which of its photos can be opened in the app (fetched from the project's
    * KoboToolbox account when asked for), so the checker and the approver see the proof itself.
@@ -527,6 +530,7 @@ export async function listDistributions(code: string): Promise<DistView[]> {
   };
   const hectares = new Map(fieldRows.map((r) => [r.key, (r.data as { hectares?: number }).hectares]));
   const chosen = new Map(fieldRows.map((r) => [r.key, (r.data as { package?: string }).package]));
+  const farmerData = new Map(fieldRows.filter((r) => (r.data as { kind?: string }).kind === "farmer").map((r) => [r.key, r.data as Farmer]));
   // Farmers whose record now holds a photo of the signed note: a record still waiting counts it at once.
   const noted = new Set(fieldRows.filter((r) => hasSignedNotePhoto(r.data as Farmer)).map((r) => r.key));
   const photoNow = (r: { source: string; payload: unknown; farmerCode: string | null; reviewStatus: string }, m: DistMeta) => (m.photo ?? photoOf(r)) || (r.reviewStatus === "pending" && noted.has(r.farmerCode ?? ""));
@@ -566,6 +570,10 @@ export async function listDistributions(code: string): Promise<DistView[]> {
         approvers: approversOf(team, recorderOf(r, m, rule, team)).map((p) => p.id),
         approverNames: approverNamesOf(team, recorderOf(r, m, rule, team)),
         closeBlock: closeBlock({ signed: m.signed ?? signedOf(r), photo: photoNow(r, m), source: sourceOf(r), condition: m.conditionOk ? null : conditionOf(r) }),
+        screeningHold: (() => {
+          const fd = farmerData.get(r.farmerCode ?? "");
+          return fd ? screeningHold(fd, setup) : null;
+        })(),
         koboPhotos: r.source === "kobo" ? (["note", "handover"] as const).filter((w) => !!koboAttachment(r.payload as Record<string, unknown>, w === "note" ? "list_photo" : "handover_photo", "distribution")) : [],
         hasPlace: r.source === "kobo" && !!koboPlace(r.payload as Record<string, unknown>),
         unmatchedAccount: r.source === "kobo" && !who ? (r.completedBy ?? null) : null,
@@ -685,6 +693,11 @@ export async function decideDistribution(code: string, id: string, decision: "ap
   // The signed note closes it: no approval while the recipient's signature is not confirmed.
   const unsigned = decision === "approved" ? closeBlock({ signed: m.signed ?? signedOf(row), photo: (m.photo ?? photoOf(row)) || hasSignedNotePhoto(row.farmerCode ? await farmerOf(project.id, row.farmerCode) : null), source: sourceOf(row), condition: m.conditionOk ? null : conditionOf(row) }) : null;
   if (unsigned) throw new HttpError(409, `Not approved: ${unsigned}`);
+  // MF-04: a package above the limit waits for the farmer's clear screening.
+  if (decision === "approved" && row.farmerCode) {
+    const held = screeningHold((await farmerOf(project.id, row.farmerCode)) ?? { id: row.farmerCode, hectares: 0 }, ctx.setup);
+    if (held) throw new HttpError(409, `Not approved yet: ${held}`);
+  }
   // ISS-14: the receipt is read against the record, one line at a time, before anything is approved.
   const recorded = { date: dayOf(row), farmerId: row.farmerCode ?? "", items: m.items };
   const receiptChecked: ReceiptChecked | null = receipt ? { ...receipt, by: by.id, byName: by.name, at: new Date().toISOString(), mismatches: receiptMismatches(receipt, recorded) } : null;

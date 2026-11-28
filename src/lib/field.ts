@@ -11,6 +11,7 @@ import { ORG_ID, PROJECT, TODAY, holderOf, projectPath, stepHistory, type AppUse
 import { today } from "@/lib/clock";
 import { msg } from "@/lib/i18n/text";
 import { DEMO_SETUP, itemsFor, packageUsd, qtyUnit, type FieldSetup } from "@/lib/package";
+import type { FarmerScreening } from "@/lib/farmer-screening";
 
 export type { FieldRole };
 
@@ -160,6 +161,8 @@ export type Farmer = {
   household?: HouseholdMember[];
   /** What the farmer grows now, as they said it at registration: checked by a crop eligibility rule (lib/eligibility). */
   crops?: string[];
+  /** Sanctions screenings (MF-04), newest last: needed before a package worth more than the limit goes out. */
+  screenings?: FarmerScreening[];
   /** The package the farmer chose, when the project offers more than one (lib/package PackageOption). */
   package?: string;
   /** Each training session attended, with what was taught and the test scores (MF-09). */

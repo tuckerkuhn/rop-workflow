@@ -49,6 +49,7 @@ const farmer = z.looseObject({
   householdSize: z.number().int().min(0).max(100),
   crops: z.array(z.string().trim().min(1).max(80)).max(20).optional(),
   package: z.string().regex(/^[a-z][a-z0-9_]{0,29}$/).optional(),
+  screenings: z.array(z.looseObject({ date: z.string().max(10), lists: z.string().max(400), result: z.enum(["clear", "possible_match"]), by: z.string().max(60), byName: z.string().max(200) })).max(50).optional(),
   household: z.array(z.object({ sex: z.enum(["Female", "Male"]), age: z.number().int().min(0).max(120) })).max(100).optional(),
   community: short,
   hectares: z.number().min(0).max(100000),

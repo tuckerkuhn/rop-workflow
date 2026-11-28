@@ -323,6 +323,16 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
           </section>
 
           {/* The signed note closes a distribution: say so before the tap, with what to do instead. */}
+          {/* MF-04: a package above the limit waits for the farmer's screening. */}
+          {pending && d.screeningHold && (
+            <section className="mt-4 rounded-xl border border-ochre/40 bg-ochre-soft px-4 py-3 text-sm" aria-live="polite">
+              <p className="font-semibold">{tx("Waiting for the farmer's screening")}</p>
+              <p className="mt-1">{d.screeningHold}</p>
+              <Link href={`/work?source=field&open=${encodeURIComponent(d.farmerId)}`} className="mt-1 inline-block font-semibold text-forest underline">
+                {tx("Open the farmer")}
+              </Link>
+            </section>
+          )}
           {pending && d.closeBlock && (
             <section className="mt-4 rounded-xl border border-clay/40 bg-clay-soft px-4 py-3 text-sm text-clay" aria-live="polite">
               <p className="font-semibold">{tx("This cannot be approved yet")}</p>
@@ -390,7 +400,7 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
               </label>
               <textarea id="note" value={note} onChange={(e) => setNote(e.target.value)} rows={3} className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm" placeholder={tx("What needs fixing")} />
               <div className="mt-3 flex flex-wrap gap-2">
-                <button type="button" className={primaryBtn} disabled={busy || !d.gate.ok || !!d.closeBlock || !!d.koboCheck?.needed || !receiptMatches(read, d)} onClick={() => decide("approved")}>
+                <button type="button" className={primaryBtn} disabled={busy || !d.gate.ok || !!d.closeBlock || !!d.screeningHold || !!d.koboCheck?.needed || !receiptMatches(read, d)} onClick={() => decide("approved")}>
                   {busy ? tx("Saving…") : tx("Approve")}
                 </button>
                 <button type="button" className={quietBtn} disabled={busy || !note.trim()} onClick={() => decide("sent_back")}>

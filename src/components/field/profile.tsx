@@ -1,5 +1,9 @@
 "use client";
 
+import { FARMER_LISTS, screeningHold } from "@/lib/farmer-screening";
+import type { FieldSetup } from "@/lib/package";
+import type { AppUser } from "@/lib/demo";
+import { plainError } from "@/lib/plain-error";
 import { DocLinks } from "@/components/app/doc-links";
 import { FieldHelp } from "@/components/app/field-help";
 import { useT } from "@/components/app/i18n";
@@ -257,6 +261,8 @@ export function FarmerProfile({ id }: { id: string }) {
             </section>
 
             {/* Summary */}
+            {/* MF-04: the sanctions screening a package above the limit waits for. */}
+            <FarmerScreeningPanel farmer={farmer} setup={setup} code={project.id} user={user} />
             {farmer.planting && (
               <p className="bg-mist px-4 py-3 text-base">
                 <span className="font-extrabold">{tx("Planted {date}", { date: farmer.planting.date })}</span> · {tx("{planted} of {total} ha", { planted: farmer.planting.hectares, total: farmer.hectares })}
@@ -519,3 +525,76 @@ export function FarmerProfile({ id }: { id: string }) {
   );
 }
 
+
+/**
+ * MF-04: the farmer's sanctions screening. Shown when their package is above the limit or a
+ * screening is on file. Recorded by someone who may see names (the check is made by name).
+ */
+function FarmerScreeningPanel({ farmer, setup, code, user }: { farmer: Farmer; setup: FieldSetup; code: string; user: AppUser }) {
+  const { tx } = useT();
+  const hold = screeningHold(farmer, setup);
+  const last = farmer.screenings?.at(-1);
+  const today = new Date().toISOString().slice(0, 10);
+  const [open, setOpen] = useState(false);
+  const [f, setF] = useState({ date: today, lists: FARMER_LISTS, result: "clear" as "clear" | "possible_match", note: "" });
+  const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
+  if (!hold && !last) return null;
+  const may = user.kind === "employee" && user.pii && (user.fieldAccess === "edit" || user.project.includes("mel-owner"));
+  const save = async () => {
+    setBusy(true);
+    setMsg("");
+    const res = await fetch(`/api/projects/${encodeURIComponent(code)}/field/screening`, { method: "POST", headers: { "Content-Type": "application/json", "x-demo-user": user.id }, body: JSON.stringify({ farmer: farmer.id, date: f.date, lists: f.lists, result: f.result, ...(f.note.trim() ? { note: f.note.trim() } : {}) }) });
+    const body = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) return setMsg(body.error ?? plainError(res.status));
+    setOpen(false);
+    setMsg(tx("Recorded. Reload to see it on the record."));
+  };
+  return (
+    <section className={`px-4 py-3 text-base ${hold ? "bg-ochre-soft" : "bg-mist"}`} aria-labelledby="screening-heading">
+      <p id="screening-heading" className="font-extrabold">
+        {tx("Sanctions screening")}
+      </p>
+      <p className="mt-1 text-sm">{hold ?? tx("Clear on {date} ({lists}), checked by {name}.", { date: last!.date, lists: last!.lists, name: last!.byName })}</p>
+      {may && !open && (
+        <button type="button" className={`${quietBtn} mt-2`} onClick={() => setOpen(true)}>
+          {tx("Record a screening")}
+        </button>
+      )}
+      {!may && hold && <p className="mt-1 text-xs text-muted">{tx("Someone who may see farmers' names records it.")}</p>}
+      {open && (
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          <label className="block text-sm font-medium">
+            {tx("Date checked")}
+            <input type="date" value={f.date} max={today} onChange={(e) => setF({ ...f, date: e.target.value })} className="mt-1 w-full border border-line bg-surface px-2 py-1.5" />
+          </label>
+          <label className="block text-sm font-medium">
+            {tx("Result")}
+            <select value={f.result} onChange={(e) => setF({ ...f, result: e.target.value as typeof f.result })} className="mt-1 w-full border border-line bg-surface px-2 py-1.5">
+              <option value="clear">{tx("Clear: not on the lists")}</option>
+              <option value="possible_match">{tx("Possible match: a person reviews it")}</option>
+            </select>
+          </label>
+          <label className="block text-sm font-medium sm:col-span-2">
+            {tx("Lists checked")}
+            <input value={f.lists} maxLength={400} onChange={(e) => setF({ ...f, lists: e.target.value })} className="mt-1 w-full border border-line bg-surface px-2 py-1.5" />
+          </label>
+          <label className="block text-sm font-medium sm:col-span-2">
+            {tx("Note (optional)")}
+            <input value={f.note} maxLength={1000} onChange={(e) => setF({ ...f, note: e.target.value })} className="mt-1 w-full border border-line bg-surface px-2 py-1.5" />
+          </label>
+          <div className="flex gap-2 sm:col-span-2">
+            <button type="button" disabled={busy} className={primaryBtn} onClick={() => void save()}>
+              {tx("Save the screening")}
+            </button>
+            <button type="button" className={quietBtn} onClick={() => setOpen(false)}>
+              {tx("Cancel")}
+            </button>
+          </div>
+        </div>
+      )}
+      {msg && <p className="mt-2 text-sm">{msg}</p>}
+    </section>
+  );
+}
