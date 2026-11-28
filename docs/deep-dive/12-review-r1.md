@@ -1,5 +1,59 @@
 # Review round 1: progress and decisions (started 27 Nov 2026)
 
+## For Tucker: end of the 12-hour push (28 Nov, stopped 21:00 UTC, plan done)
+
+**Where it is.** Parts 2, 3 and 4 are built, each on its own branch, all pushed, none on main:
+`build/field-forms-2026-11-27` → `build/field-rules-2026-11-28` → (Kobo out, steps 3 to 7) →
+`build/part3-2026-11-28` → `build/part4-2026-11-28` (the newest; it holds everything). 201 test
+files, 1,446 tests, all passing; typecheck and lint clean. Nothing touched the live site,
+Supabase or an outside account; no migration was run.
+
+**What Part 4 added.** Database connections, code side (reads retry when the pool is full; a
+preview load check). A role-by-role round 2 review by a separate reviewer: 26 issues
+(`15-review-r2.md`), 25 fixed with tests, then a code review of those fixes: 10 more problems, all
+fixed. Details under "Part 4" below.
+
+**Decisions (answer by number and letter; my pick is marked).**
+
+1. R2-15, advances in the books. (a) Post them: paying debits 1200 Staff advances and credits the
+   registered account it came from; the settlement moves the spending to budget lines **(my pick)**.
+   (b) Keep them in the HR record only, as now.
+2. R2-23, hires outside Recruitment. (a) Allowed with a reason the signers read, as built **(my
+   pick)**. (b) Refused: every hire comes through a vacancy.
+3. R2-21, who may be a delegate. (a) The line manager or someone holding the same role, as built
+   **(my pick)**. (b) Anyone, as before.
+4. R2-05, the demo project. (a) New requests follow its calendar; the supplier register is not
+   enforced there, as built **(my pick)**. (b) Enforce the supplier register too.
+5. R2-12, the third-party receiver's screening. (a) The date typed, as now. (b) Taken from a
+   recorded screening of the receiver **(my pick)**.
+6. MF-06, a payment from an account not in the register. (a) Flagged, as now, until the accounts
+   are entered **(my pick)**. (b) Refused.
+7. MF-04, the $50 screening limit (the demo package is about $207, so every demo hand-out waits for
+   a screening). (a) Keep $50 **(my pick)**. (b) Raise it for the demo project in Set up.
+8. Database connections, after the preview load check (`14-db-connections-check.md`).
+   (a) Transaction pooler, if the check shows no failures **(my pick)**. (b) A bigger session pool in
+   Supabase.
+9. Model setting. (a) Keep the AI model fixed until it is refused **(my pick)**. (b) An
+   organization setting now.
+
+**Only you can do these.**
+
+10. Run the phone test (`13-offline-phone-test.md`) on a real Android; Kobo's removal merges after it.
+11. Say "save" for any branch to go to main, newest first: `build/part4-2026-11-28` holds it all.
+12. In Vercel: `PROOF_FILE_STORE=supabase` to move photos to file storage, then `npm run photos:move`.
+13. OK the Kobo drop migration (`migrations-pending/0029_drop_kobo.sql`), or leave the empty tables.
+14. Enter November's afghani and quetzal rates (Organization settings, Exchange rates) and
+    Guatemala's advance settlement days (its project rules).
+15. Record each real person's grade in the HR record (the demo's are fictional), so hiring panels
+    can sit.
+16. D-13: the board approves the authority table as the written delegation (a board step).
+
+**Not done, and why.** Accepting many field forms at once still checks the random sample only on
+the page (results are checked on the server too); it needs a batch route (round 3). Translations of
+new sentences (Dari, Pashto, Spanish). Screens not yet seen at 380px: the payment draft notices, the
+contract value check, the advance pages after this round.
+
+
 ## Where it stands (27 Nov, evening session, following `docs/CURSOR-PROMPT-2026-11-27.md`)
 
 - **Landed** (branches `build/ai-fault-2026-11-27`, then `build/review-r1-part1-2026-11-27`, cut from
