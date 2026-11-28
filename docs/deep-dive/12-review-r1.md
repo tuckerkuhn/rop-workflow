@@ -13,7 +13,7 @@
     donor's Home, Project settings and Progress, named by its months.
   - ISS-12 gap, `1a2159a`: an administrator names who receives the goods on the same panel when
     the requester is away (`lib/procurement` `mayNameReceiver`, read by the screen and the save).
-- **Tests:** 175 files, 1,377 tests, all passing. Typecheck and lint clean.
+- **Tests:** 176 files, 1,377 tests, all passing. Typecheck and lint clean.
 - **Seen on screen** (desktop, local throwaway database, never Supabase): the ISS-18 flag as Nadia
   (queue and record), ISS-20 on Project settings and the donor view, ISS-12 as Daniel.
   **Not seen:** 380px width (this browser's window would not narrow), Settings Health's AI lines
