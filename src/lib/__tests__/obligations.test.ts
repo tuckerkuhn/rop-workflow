@@ -76,7 +76,7 @@ describe("a donor's report period", () => {
 
   it("follows the agreement's quarters: the report due next, with its deadline", () => {
     expect(reportPeriod(donor([quarterly(10)]), "2027-01-20", "2026-10-01", "2028-09-30")).toEqual({ from: "2026-10-01", to: "2026-12-31", deadline: { id: "m1", title: "Quarterly progress report (period to 2026-12-31)", date: "2027-01-30" } });
-    expect(reportPeriod(donor([quarterly(10)]), "2027-02-05", "2026-10-01", "2028-09-30")).toEqual({ from: "2027-01-01", to: "2027-03-31", deadline: { id: "", title: "Quarterly progress report (period to 2027-03-31)", date: "2027-04-30" } });
+    expect(reportPeriod(donor([quarterly(10)]), "2027-02-05", "2026-10-01", "2028-09-30")).toEqual({ from: "2027-01-01", to: "2027-03-31", deadline: { id: "", title: "Quarterly progress report, January to March 2027", date: "2027-04-30" } });
     expect(nextPeriod(quarterly(11), "2027-02-05", "2026-11-01", "2027-10-31")).toMatchObject({ from: "2026-11-01", to: "2027-01-31" });
   });
 

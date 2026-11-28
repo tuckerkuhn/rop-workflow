@@ -148,6 +148,15 @@ export const missingData = (i: IndicatorProgress) => i.frequency !== "end_of_sea
 /** Sources the built-in forms count from; any other source needs a KoboToolbox mapping. */
 export const BUILT_IN_SOURCES = ["training", "readiness", "distribution", "visit", "survey"];
 
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+/** A report period in words: "October to December 2026", "November 2026 to January 2027", "March 2027". */
+export function periodWords(from: string, to: string): string {
+  const m = (d: string) => MONTHS[Number(d.slice(5, 7)) - 1];
+  const [fy, ty] = [from.slice(0, 4), to.slice(0, 4)];
+  if (from.slice(0, 7) === to.slice(0, 7)) return `${m(to)} ${ty}`;
+  return fy === ty ? `${m(from)} to ${m(to)} ${ty}` : `${m(from)} ${fy} to ${m(to)} ${ty}`;
+}
+
 /**
  * The period a donor report covers. With the donor's obligations from the agreement: the period of
  * its main report due next, on the agreement's own months (a project whose agreement runs October
@@ -159,7 +168,7 @@ export function reportPeriod(donor: DonorInfo | null, today: string, projectStar
   const main = mainObligation(donor?.obligations ?? []);
   const p = main ? nextPeriod(main, today, projectStart, projectEnd) : null;
   if (main && p) {
-    const deadline = p.due ? (donor!.deadlines.find((d) => d.date === p.due) ?? { id: "", title: `${main.name} (period to ${p.to})`, date: p.due }) : null;
+    const deadline = p.due ? (donor!.deadlines.find((d) => d.date === p.due) ?? { id: "", title: `${main.name}, ${periodWords(p.from, p.to)}`, date: p.due }) : null;
     return { from: p.from, to: p.to, deadline };
   }
   const dates = [...(donor?.deadlines ?? [])].sort((a, b) => a.date.localeCompare(b.date));
