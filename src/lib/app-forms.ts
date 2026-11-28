@@ -183,6 +183,16 @@ export function appForm(kind: AppFormKind, code: string, o: { setup?: FieldSetup
 
 export type Answers = Record<string, string>;
 
+/**
+ * Part 2 step 6: saving without signal is built, and is tested on a real phone (50 distributions in
+ * airplane mode, a restart, a sync on weak signal) before field use. Until that passes, forms say
+ * to save with signal. Set to true once Tucker's checklist (docs/deep-dive/13-offline-phone-test.md) passes.
+ */
+export const OFFLINE_PHONE_TEST_PASSED = false;
+
+/** Where this phone keeps a form for opening without signal: per person, project and form. */
+export const formCacheKey = (user: string, code: string, kind: string) => `rop-form:${user}:${code}:${kind}`;
+
 /** Where the form is: every question's value (answered, defaulted or worked out) and which are shown. */
 export function formState(form: AppForm, answers: Answers, lists: FormLists, today: string) {
   const values: Record<string, string> = {};

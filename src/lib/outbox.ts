@@ -42,6 +42,18 @@ export const onOutboxChange = (fn: () => void) => {
 /** A stand-in fingerprint for a photo picked without a connection. */
 export const localHash = () => Array.from(crypto.getRandomValues(new Uint8Array(32)), (b) => b.toString(16).padStart(2, "0")).join("");
 
+/**
+ * What a reply means for a waiting entry: sent (remove it), refused by the server for a reason the
+ * person must see (keep it, with the reason), or try again later. A server that is down, busy or
+ * slow (5xx, 408, 429) is not a refusal: the entry waits and is sent again, never marked refused.
+ * The same entry sent twice is kept once (its id was made on the phone).
+ */
+export function replyMeans(status: number): "sent" | "refused" | "retry" {
+  if (status >= 200 && status < 300) return "sent";
+  if (status >= 500 || status === 408 || status === 429) return "retry";
+  return "refused";
+}
+
 /** Whether a failed request means "no connection" (try later) rather than a refusal. */
 export const isOffline = (e: unknown) => !navigator.onLine || e instanceof TypeError;
 
@@ -76,12 +88,12 @@ export async function sendOutbox(user: string): Promise<{ sent: number; left: nu
           const body = new FormData();
           body.append("file", new File([p.blob], p.name, { type: p.type }));
           const r = await fetch("/api/files", { method: "POST", body, headers: { "x-demo-user": user } });
-          if (!r.ok) throw Object.assign(new Error((await r.json().catch(() => ({}))).error ?? `Photo refused (${r.status})`), { refused: true });
+          if (!r.ok) throw Object.assign(new Error((await r.json().catch(() => ({}))).error ?? `Photo refused (${r.status})`), { refused: replyMeans(r.status) === "refused" });
           const { hash } = (await r.json()) as { hash: string };
           json = json.split(p.local).join(hash);
         }
         const r = await fetch(e.url, { method: "POST", headers: { "Content-Type": "application/json", "x-demo-user": user }, body: json });
-        if (!r.ok) throw Object.assign(new Error((await r.json().catch(() => ({}))).error ?? `Refused (${r.status})`), { refused: true });
+        if (!r.ok) throw Object.assign(new Error((await r.json().catch(() => ({}))).error ?? `Refused (${r.status})`), { refused: replyMeans(r.status) === "refused" });
         await removeFromOutbox(e.id);
         sent++;
       } catch (err) {

@@ -8,6 +8,8 @@ import { useCurrentProject } from "@/components/app/current-project";
 import { TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { today } from "@/lib/clock";
 import { plainError } from "@/lib/plain-error";
+import { addToOutbox, isOffline } from "@/lib/outbox";
+import { formCacheKey, OFFLINE_PHONE_TEST_PASSED } from "@/lib/app-forms";
 import { householdCounts, parseHousehold, type HouseholdMember } from "@/lib/household";
 import { parseScores, type Score } from "@/lib/field-training";
 import { APP_FORM_TEXT, fillText, formProblems, formState, type Answers, type AppForm, type AppFormKind, type FormLists, type Problem, type Question } from "@/lib/app-forms";
@@ -72,7 +74,9 @@ export function FormRunner({ kind }: { kind: AppFormKind }) {
   const [saveError, setSaveError] = useState("");
   // Register a farmer: the server found someone who may be this farmer (lib/duplicates).
   const [maybeDuplicate, setMaybeDuplicate] = useState(false);
-  const [saved, setSaved] = useState<null | { again: boolean; farmer?: string }>(null);
+  const [saved, setSaved] = useState<null | { again: boolean; farmer?: string; /** Kept on the phone until there is signal (lib/outbox). */ queued?: boolean }>(null);
+  // Opened from the copy kept on this phone, when there was no signal: the day it was kept.
+  const [fromPhone, setFromPhone] = useState("");
   const [placeNote, setPlaceNote] = useState("");
   const url = `/api/projects/${encodeURIComponent(code)}/field/entries?kind=${kind}`;
   const headers = useMemo(() => ({ "x-demo-user": user?.id ?? "" }), [user?.id]);
@@ -84,16 +88,32 @@ export function FormRunner({ kind }: { kind: AppFormKind }) {
       try {
         const res = await fetch(url, { cache: "no-store", headers });
         const body = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(body.error ?? plainError(res.status));
+        if (!res.ok) throw Object.assign(new Error(body.error ?? plainError(res.status)), { refused: true });
         if (!gone) setData(body);
+        // Kept on this phone, so the form opens next time without signal (farmer IDs only, no names).
+        try {
+          localStorage.setItem(formCacheKey(user.id, code, kind), JSON.stringify({ at: new Date().toISOString(), data: body }));
+        } catch {
+          // A full or blocked store: the form still works with signal.
+        }
       } catch (e) {
-        if (!gone) setLoadError(e instanceof Error ? e.message : String(e));
+        const kept = (() => {
+          try {
+            return JSON.parse(localStorage.getItem(formCacheKey(user.id, code, kind)) ?? "null") as { at: string; data: { form: AppForm; lists: FormLists } } | null;
+          } catch {
+            return null;
+          }
+        })();
+        if (!gone && kept && !(e as { refused?: boolean }).refused && isOffline(e)) {
+          setData(kept.data);
+          setFromPhone(kept.at.slice(0, 10));
+        } else if (!gone) setLoadError(e instanceof Error ? e.message : String(e));
       }
     })();
     return () => {
       gone = true;
     };
-  }, [url, headers, user]);
+  }, [url, headers, user, code, kind]);
 
   // The phone's place, taken once when the form opens: nothing to tap.
   const asked = useRef("");
@@ -119,14 +139,29 @@ export function FormRunner({ kind }: { kind: AppFormKind }) {
     if (formProblems(data.form, answers, data.lists, day).length) return;
     setSaving(true);
     setSaveError("");
+    const sent = { entryId, answers, photos, ...(duplicatesChecked ? { duplicatesChecked } : {}) };
     try {
-      const res = await fetch(url, { method: "POST", headers: { ...headers, "Content-Type": "application/json" }, body: JSON.stringify({ entryId, answers, photos, ...(duplicatesChecked ? { duplicatesChecked } : {}) }) });
+      const res = await fetch(url, { method: "POST", headers: { ...headers, "Content-Type": "application/json" }, body: JSON.stringify(sent) });
       const body = await res.json().catch(() => ({}));
       setMaybeDuplicate(res.status === 409 && Array.isArray(body.duplicates));
       if (!res.ok) throw new Error(body.error ?? plainError(res.status));
       setSaved({ again: !!body.again, farmer: body.farmer?.id });
       window.scrollTo(0, 0);
     } catch (e) {
+      // No signal: kept on the phone with its photos and sent when signal is back. Its id, made on
+      // the phone, means the server keeps one record however many times it arrives.
+      if (isOffline(e) && user) {
+        try {
+          const who = answers.farmer || answers.farmer_id || (answers.farmers ?? "").split(" ").filter(Boolean).length + " farmers";
+          await addToOutbox({ user: user.id, project: code, url, label: `${tx(text.title)} · ${who}`, action: sent, photos: [] });
+          setSaved({ again: false, queued: true });
+          window.scrollTo(0, 0);
+          return;
+        } catch {
+          setSaveError(tx("No signal, and this phone could not keep the form. Keep this page open and try again when there is signal."));
+          return;
+        }
+      }
       setSaveError(e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
@@ -162,12 +197,17 @@ export function FormRunner({ kind }: { kind: AppFormKind }) {
           </p>
         )}
         {!data && !loadError && <p className="mt-10 text-center text-lg font-bold text-muted">{tx("Loading…")}</p>}
+        {data && fromPhone && <p className="mt-4 border-s-[6px] border-ochre bg-ochre-soft px-3 py-2 text-sm">{tx("No signal: this form opened from the copy kept on this phone on {date}. A farmer added since then is not on its list yet.", { date: fromPhone })}</p>}
+        {/* Part 2 step 6: until the phone test passes, the form says it needs signal. */}
+        {data && !saved && !OFFLINE_PHONE_TEST_PASSED && <p className="mt-4 text-sm text-muted">{tx("Save with signal when you can. Saving without signal works, but has not yet passed its test on a real phone.")}</p>}
 
         {saved && (
           <section role="status" className="mt-6 border-s-[6px] border-forest bg-surface px-4 py-4">
-            <p className="text-xl font-extrabold">{saved.farmer ? tx("{id} is registered.", { id: saved.farmer }) : saved.again ? tx("This form was already saved. Nothing was saved twice.") : tx("Saved.")}</p>
+            <p className="text-xl font-extrabold">{saved.queued ? tx("Kept on this phone.") : saved.farmer ? tx("{id} is registered.", { id: saved.farmer }) : saved.again ? tx("This form was already saved. Nothing was saved twice.") : tx("Saved.")}</p>
             <p className="mt-1 text-base">
-              {kind === "register"
+              {saved.queued
+                ? tx("There is no signal. It is sent by itself when there is, and the bar at the top says how many are waiting. Keep using this phone until then.")
+                : kind === "register"
                 ? tx("They are on the farmer list in Field activities, at Train.")
                 : kind === "distribution"
                   ? tx("It goes to the project manager to approve, with its checks.")
