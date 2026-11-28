@@ -529,6 +529,13 @@ export async function completeReconciliation(input: { organizationId: string; ba
       .limit(1);
     if (!r) throw new LedgerError("invalid", "Enter the statement's closing balance first.");
     if (r.completedAt) return { id: r.id, completedAt: r.completedAt.toISOString() };
+    // R2-24: a reconciliation compares the books with the bank's statement, not with a typed balance.
+    // A month with entries on the account needs the statement's lines imported first.
+    const [lines] = rowsOf<{ n: number }>(await tx.execute(sql`SELECT count(*)::int AS n FROM bank_statement_lines WHERE bank_account_id = ${bank.id} AND date BETWEEN ${period}::date AND ${asOf}::date`));
+    const [moved] = rowsOf<{ n: number }>(
+      await tx.execute(sql`SELECT count(DISTINCT e.id)::int AS n FROM journal_entries e JOIN journal_lines l ON l.entry_id = e.id WHERE e.status = 'posted' AND l.account_id = ${bank.ledgerAccountId} AND e.entry_date BETWEEN ${period}::date AND ${asOf}::date`),
+    );
+    if ((moved?.n ?? 0) > 0 && (lines?.n ?? 0) === 0) throw new LedgerError("refused", `Import ${bank.name}'s statement for ${monthName(period)} first: the books have ${moved!.n} ${moved!.n === 1 ? "entry" : "entries"} on it that month, and a reconciliation checks them against the bank's own lines.`);
     const book = await bookBalance(tx, bank, asOf);
     const statement = cents(r.statementBalance);
     const difference = fromCents(toCents(statement) - toCents(book));

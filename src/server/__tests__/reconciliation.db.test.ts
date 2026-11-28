@@ -215,6 +215,9 @@ describe("bank reconciliation", { timeout: 60_000 }, () => {
   it("the nightly check names a reconciled month the ledger no longer agrees with", async () => {
     // September: reconciled at zero but not locked, then an entry is posted later dated into it.
     await payment("40.00", "2026-09-04", "September payment");
+    // R2-24: a typed balance equal to the books is not a reconciliation; the statement's lines come first.
+    await setStatementBalance({ organizationId: org, bankAccountId: bank, month: "2026-09", balance: "3145.00", by: "yusuf" });
+    expect(await refused(completeReconciliation({ organizationId: org, bankAccountId: bank, month: "2026-09", by: "peter", projectId }))).toMatch(/Import .*statement for September 2026 first/);
     const csv = csvOf([["2026-09-05", "Cheque 102", "-40.00"]]);
     await doImport("2026-09", csv);
     // The statement's closing balance: August's 3185 less 40.
