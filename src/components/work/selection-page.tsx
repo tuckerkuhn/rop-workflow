@@ -381,7 +381,7 @@ export function SelectionPage() {
                                       {String(k + 1).padStart(2, "0")}
                                     </span>
                                     <span className="font-mono text-sm font-bold">{f.id}</span>
-                                    <span className="min-w-0 flex-1 text-sm">
+                                    <span className="min-w-0 flex-1 basis-40 text-sm">
                                       {f.name ? `${f.name} · ` : ""}
                                       {f.gender}, {f.community}, {f.hectares} ha
                                     </span>
@@ -405,8 +405,8 @@ export function SelectionPage() {
                                     </p>
                                   )}
                                   {d && exception && !d.confirmed && (
-                                    <p className="mx-2 mb-3 ms-11 flex flex-wrap items-center gap-2 bg-ochre-soft px-3 py-2 text-sm">
-                                      <span className="min-w-0 flex-1">An exception to the written rules: not served until someone else who decides selection confirms it.</span>
+                                    <p className="mx-2 mb-3 flex flex-col gap-2 bg-ochre-soft px-3 py-2 text-sm sm:ms-11 sm:flex-row sm:items-center">
+                                      <span className="min-w-0 sm:flex-1">An exception to the written rules: not served until someone else who decides selection confirms it.</span>
                                       {v.can.decide && d.by !== user.id && (
                                         <button type="button" className={quietBtn} onClick={() => void act({ action: "confirm", farmer: f.id }).catch(() => undefined)}>
                                           Confirm the exception
