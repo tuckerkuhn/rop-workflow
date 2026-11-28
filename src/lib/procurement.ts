@@ -14,6 +14,7 @@ import { ROP, type Value } from "@/lib/policy";
 import { DEMO_DATE, today } from "@/lib/clock";
 import { lineFigure, lineFigureText, type LineFigure } from "@/lib/line-money";
 import { lastScreening, sameSupplierName, supplierGaps, type Supplier, screeningStale } from "@/lib/suppliers";
+import { toUsdAt } from "@/lib/fx";
 import {
   type YearPaid,
   solarYear,
@@ -788,14 +789,16 @@ function budgetCheck(p: Procurement, money: Money): CheckResult | null {
  * amendment is recorded and Finance confirms it.
  */
 export function contractValueCheck(p: Procurement, money: Money): CheckResult | null {
-  if (contractCurrency(p) !== "USD" || !(p.contractUsd && p.contractUsd > 0)) return null;
+  // An afghani contract is compared at this month's rate (code review of R2-04); with no rate yet, it is not checked.
+  const signedUsd = contractCurrency(p) === "AFN" ? (p.contractAfn && p.contractAfn > 0 ? toUsdAt(p.contractAfn, "AFN") : null) : p.contractUsd && p.contractUsd > 0 ? p.contractUsd : null;
+  if (signedUsd === null) return null;
   const chosen = (p.bids ?? []).find((b) => b.id === p.selectedBid);
   const approved = Math.max(valueOf(p), (chosen && bidUsd(chosen)) || 0);
   const a = availableFor(p);
   const l = lineOf(p);
   const left = a ? a.figure.available : l ? l.remainingValue - committedOn(p).total : null;
-  const over = p.contractUsd > approved + 0.5 ? `above the ${money(approved)} approved` : left !== null && p.contractUsd > left + 0.5 ? `above the ${money(left)} left on the line` : "";
-  return { ok: !over, detail: `Contract ${money(p.contractUsd)}${over ? `, ${over}` : `, within the ${money(approved)} approved`}` };
+  const over = signedUsd > approved + 0.5 ? `above the ${money(approved)} approved` : left !== null && signedUsd > left + 0.5 ? `above the ${money(left)} left on the line` : "";
+  return { ok: !over, detail: `Contract ${money(signedUsd)}${over ? `, ${over}` : `, within the ${money(approved)} approved`}` };
 }
 
 /**
@@ -1398,7 +1401,7 @@ export const steps: Step[] = [
         resolve: "Record the approved amendment",
         second: "Finance",
         secondBy: "finance",
-        auto: (p, money) => contractValueCheck(p, money) ?? { ok: true, detail: "Checked once the contract value is entered in USD" },
+        auto: (p, money) => contractValueCheck(p, money) ?? { ok: true, detail: "Checked once the contract value is entered (an afghani contract needs this month's rate)" },
       },
       {
         id: "schedule",

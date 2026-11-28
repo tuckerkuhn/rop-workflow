@@ -68,5 +68,7 @@ describe("a contract above what was approved (review round 2, R2-04)", async () 
     expect(contractValueCheck(c, usd)!.detail).toContain("above the $3000 approved");
     expect(contractValueCheck({ ...c, contractUsd: 2_900 } as Procurement, usd)).toMatchObject({ ok: true });
     expect(stepById.contract.checks.find((x) => x.id === "contractValue")?.secondBy).toBe("finance");
+    // An afghani contract is checked too, at the month's rate (code review).
+    expect(contractValueCheck({ ...c, contractCurrency: "AFN", contractUsd: undefined, contractAfn: 9_500 * 70 } as unknown as Procurement, usd)).toMatchObject({ ok: false });
   });
 });
