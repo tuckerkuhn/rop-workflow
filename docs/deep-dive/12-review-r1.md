@@ -13,9 +13,23 @@
     donor's Home, Project settings and Progress, named by its months.
   - ISS-12 gap, `1a2159a`: an administrator names who receives the goods on the same panel when
     the requester is away (`lib/procurement` `mayNameReceiver`, read by the screen and the save).
-- **Tests:** 176 files, 1,377 tests, all passing. Typecheck and lint clean.
+  - Part 2 step 1, `046b4a7` (branch `build/field-forms-2026-11-27`, cut from part1): the five
+    field forms filled in inside the app at `/field/forms/<kind>`, opened from "Fill in a form" on
+    Field activities. One screen reads every form from the KoboCollect form definitions
+    (`lib/app-forms`, rules in `lib/form-expr`, checked again on the server). A saved form is the
+    same `evidence` record a KoboCollect submission was (source "manual", key `_rop_app_form`; no
+    migration), so the review queue, Field activities and the distribution approval read it
+    unchanged (`lib/form-record` `hasAnswers`). Register a farmer goes through `importFarmers`.
+    Photos are made smaller on the phone and kept, with their fingerprint, inside the record for
+    now: step 4 moves them to file storage.
+- **Tests:** 178 files, 1,391 tests, all passing. Typecheck and lint clean.
 - **Seen on screen** (desktop, local throwaway database, never Supabase): the ISS-18 flag as Nadia
-  (queue and record), ISS-20 on Project settings and the donor view, ISS-12 as Daniel.
+  (queue and record), ISS-20 on Project settings and the donor view, ISS-12 as Daniel. Part 2
+  step 1: as Farida, a readiness check filled in (the "what needs fixing" question appears on No,
+  missing answers are refused and named, a photo taken and previewed), saved, then accepted by
+  Omar in the review queue, which moved the farmer to distribution. As Daniel, only "Register a
+  farmer" shows. Not yet seen: the distribution, training, farm visit and register forms on screen
+  (covered by tests), and a phone's real GPS.
   **Not seen:** 380px width (this browser's window would not narrow), Settings Health's AI lines
   (no AI failure on the local copy), Progress's own next-report line, and the eleven screens listed under "Open".
 - **How the screens were looked at:** a local PGlite Postgres served on 127.0.0.1:54329 (script in
@@ -28,7 +42,14 @@
      fixed). Add one as an organization setting? Easiest to undo: leave it fixed until a 403 shows.
   3. Part 2 step 7 asks for a migration that drops the Kobo tables; your standing rule is no
      migrations. The plan: stop reading and writing them, leave the tables, and ask before dropping.
-- **Next:** Part 2 (Kobo out, the five in-app forms, MF-07/08/09/12/13, ISS-14/15/22/27).
+  4. Who registers a farmer: the project manager, plan approvers and extension agents (the
+     narrowest group that does it; easy to widen). Add the MEL officer or the storekeeper?
+  5. A distribution filled in inside the app goes straight to the project manager, like one
+     recorded on the farmer today. The extra KoboCollect check (a stand-in checks records from a
+     KoboCollect account first) is not applied, because the app knows who filled it in. Keep that?
+- **Half done:** nothing. Kobo still works beside the in-app forms until step 7.
+- **Next:** Part 2 step 2 (MF-07 household roster, MF-08 duplicate check, MF-12 eligibility rules,
+  MF-09 training details, ISS-14, ISS-15, ISS-27), then steps 3 to 7.
 
 Source: `ROP_Workflow_Review_Round_1.xlsx` (30 issues, 28 decisions, 13 missing features),
 reviewed 26 Nov 2026 for Daniel Sandoval and Tucker Kuhn. Branch:
