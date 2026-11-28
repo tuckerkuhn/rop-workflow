@@ -44,7 +44,7 @@ export const reverseSchema = z.object({
 });
 
 /** What a save did: posted to the books, or kept as a draft for someone else to post (with their names). */
-export type SaveOutcome = { outcome: "posted" | "draft"; entryId: string; replayed: boolean; whoCanPost: string[] };
+export type SaveOutcome = { outcome: "posted" | "draft"; entryId: string; replayed: boolean; whoCanPost: string[]; /** MF-06: what to watch on the account it was paid from (cash, or not in the register). */ warnings?: string[] };
 
 /** A fresh key for one form. */
 export function newKey(prefix: string): string {

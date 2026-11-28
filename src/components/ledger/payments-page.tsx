@@ -226,9 +226,11 @@ function PaymentForm({ v, code, user, onSaved }: { v: PaymentsView; code: string
       setAuthFile(null);
       setKey(newKey("pay"));
       onSaved(
-        r.outcome === "posted"
+        (r.outcome === "posted"
           ? "Recorded and posted to the books. It counts in budget vs actual now."
-          : `Saved as a draft. It is over ${money(v.selfPostLimit, v.currency)}, so someone else in Finance posts it${r.whoCanPost.length ? `: ${r.whoCanPost.join(" or ")}` : ""}. They see it under Drafts to post on this page.`,
+          : `Saved as a draft. It is over ${money(v.selfPostLimit, v.currency)}, so someone else in Finance posts it${r.whoCanPost.length ? `: ${r.whoCanPost.join(" or ")}` : ""}. They see it under Drafts to post on this page.`) +
+          // MF-06: cash, or an account not in the payment accounts register.
+          (r.warnings?.length ? ` Note: ${r.warnings.join(" ")}` : ""),
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

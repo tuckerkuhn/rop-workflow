@@ -11,6 +11,8 @@ import { openOnLine, paymentGuard } from "@/lib/ledger/payment-guard";
 import { realToday } from "@/lib/clock";
 import { logAudit } from "@/server/audit";
 import { loadProcurements, procurementIdsOfOrg } from "@/server/procurement-store";
+import { accountFlags } from "@/lib/payment-accounts";
+import { loadAccounts } from "@/server/payment-accounts-store";
 
 type Ctx = { params: Promise<{ code: string }> };
 
@@ -94,7 +96,10 @@ export async function POST(req: Request, { params }: Ctx) {
           by: u.id,
           detail: { notAPurchase: f.notAPurchase ?? null, openPurchasesOnLine: sameLine, thirdParty: f.thirdParty ? { receivedBy: f.thirdParty.receivedBy, authorization: f.thirdParty.authorization.hash, screenedOn: f.thirdParty.screenedOn } : null },
         });
-      const out: SaveOutcome = { outcome: draft ? "draft" : "posted", entryId: r.entry.id, replayed: r.replayed, whoCanPost: draft ? await whoCanPost(code, u.id) : [] };
+      // MF-06: paid in cash, or from an account not in the payment accounts register, is flagged.
+      const from = (await moneyAccounts(org)).find((m) => m.ledgerAccountId === f.paidFrom);
+      const warnings = from ? accountFlags((await loadAccounts(org)).accounts[from.bankAccountId]) : [];
+      const out: SaveOutcome = { outcome: draft ? "draft" : "posted", entryId: r.entry.id, replayed: r.replayed, whoCanPost: draft ? await whoCanPost(code, u.id) : [], ...(warnings.length ? { warnings } : {}) };
       return NextResponse.json(out);
     } catch (e) {
       throw asHttp(e);

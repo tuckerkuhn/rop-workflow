@@ -2,6 +2,7 @@
 
 import { FilesPanel } from "@/components/settings/files-panel";
 import { FxSection } from "@/components/settings/fx-section";
+import { PaymentAccountsSection } from "@/components/settings/payment-accounts-section";
 import { ReasonNeeded, reasonMissing } from "@/components/settings/reason-needed";
 import { STORES } from "@/lib/file-store";
 import { plainError } from "@/lib/plain-error";
@@ -261,6 +262,9 @@ export function OrgSettingsPage() {
                 </SetupItem>
                 <SetupItem id="fx" title="Exchange rates" now="Afghani and quetzal, by month" open={openSetup === "fx"} onToggle={(o) => setOpenSetup(o ? "fx" : null)}>
                   <FxSection />
+                </SetupItem>
+                <SetupItem id="accounts" title="Payment accounts" now="Bank, mobile money and cash, in the organization's name" open={openSetup === "accounts"} onToggle={(o) => setOpenSetup(o ? "accounts" : null)}>
+                  <PaymentAccountsSection />
                 </SetupItem>
                 <SetupItem id="solo" title="Solo mode" now={v.solo?.on ? "On" : "Off"} open={openSetup === "solo"} onToggle={(o) => setOpenSetup(o ? "solo" : null)}>
                   <SoloPanel v={v} post={post} />
