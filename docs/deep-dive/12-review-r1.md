@@ -100,7 +100,14 @@
       farmer's name records a clear check on the farmer's page; a possible match waits for review.
       The approval screen says what it waits for. Every demo package is about $207, so each demo
       farmer at "distribute" now needs a screening before approval.
-- **Tests:** 189 files, 1,402 tests, all passing (39 tests of removed Kobo features went with them). Typecheck and lint clean.
+    - MF-11 `11b966f` local currency: finance records each month's AFN and GTQ rate with its
+      source (Organization settings, Exchange rates; `lib/fx`). Money shown in afghanis or
+      quetzales, bills, the procurement plan's conversions and payments (the ledger's rate when
+      none is typed) use the rate for their month; Guatemala projects get a USD/Q switch once a
+      quetzal rate exists. Without a month's rate the afghani falls back to 70 and says so; the
+      quetzal has none, so nothing converts until finance enters one. Not reworked yet: older
+      finance screens that store USD only (budget lines, month close) still show dollars.
+- **Tests:** 191 files, 1,406 tests, all passing (39 tests of removed Kobo features went with them). Typecheck and lint clean.
 - **Seen on screen** (desktop, local throwaway database, never Supabase): the ISS-18 flag as Nadia
   (queue and record), ISS-20 on Project settings and the donor view, ISS-12 as Daniel. Part 2
   step 1: as Farida, a readiness check filled in (the "what needs fixing" question appears on No,
@@ -143,6 +150,8 @@
      counted from any data yet" until switched to "results recorded in the app" in Set up.
   14. MF-04: the demo package (~$207) is above $50, so every demo distribution now waits for a
      farmer screening. Keep $50, or raise the limit for this project in Set up?
+  15. MF-11: enter November's afghani and quetzal rates (Organization settings, Exchange rates),
+     with the source you want used (for example the central bank's rate on the first working day).
   13. MF-01: D-13 says the board approves the authority table as the written delegation. That is
      a board step, not the app's: the app only lets a delegate act within the table.
   12. The Dari, Pashto and Spanish wording files still carry some old Kobo sentences that no screen
