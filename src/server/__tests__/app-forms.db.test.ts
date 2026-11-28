@@ -97,6 +97,14 @@ describe("field forms filled in inside the app", { timeout: 60_000 }, () => {
     expect(d.signed).toBe(true);
     expect(d.items.length).toBeGreaterThan(0);
     expect(d.approvers).not.toContain("bilal");
+    // Part 2 step 3: every distribution needs the recipient's signed receipt and its photo, from the app too.
+    const g = (await farmers()).find((x) => x.step === "distribute" && x.id !== f.id);
+    expect(g).toBeDefined();
+    {
+      const { id: unsigned } = (await saveForm(code, "distribution", entry({ farmer: g!.id, ...given, condition: "good", signed: "no", list_photo: "x" }, { list_photo: PIC }), bilal)) as { id: string };
+      expect((await listDistributions(code)).find((x) => x.id === unsigned)!.closeBlock).toMatch(/signature or thumbprint on the distribution receipt is not confirmed/);
+    }
+    await expect(saveForm(code, "distribution", entry({ farmer: f.id, ...given, condition: "good", signed: "yes", list_photo: "x" }), bilal)).rejects.toThrow(/the photo did not arrive/);
   });
 
   it("registering a farmer adds them to the farmer list, once", async () => {
