@@ -1,7 +1,7 @@
 import { and, asc, eq, like } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import type { AppUser } from "@/lib/demo";
-import type { DonorInfo } from "@/lib/progress";
+import { nextReportDue, type DonorInfo } from "@/lib/progress";
 import { DONOR_FUNDING_KEY, donorMoney, fundingFor, grantTotal, type DonorFunding, type DonorFundingBook, type DonorMoney, type LineInfo } from "@/lib/donor-funding";
 import { periodLabel, periodOfKey, periodOfSlug, periodSlug } from "@/lib/period-report";
 import { quarterRange } from "@/lib/results";
@@ -117,9 +117,9 @@ export async function donorView(code: string, user: AppUser, asked?: string | nu
   const [{ donor, count, preview }, list, periods] = await Promise.all([donorFor(code, user, asked), releases(project.id), periodReleases(project.id)]);
   const latest = list[0] ?? null;
   const { money, moneyNote } = latest ? await moneyFrom(project, donor, count, latest) : { money: null, moneyNote: (donor ? null : "noDonor") as MoneyNote };
-  // The next report: this donor's own next date where one is set, else the project's rule for the quarter being written.
+  // The next report: the one Progress and Project settings name (lib/progress nextReportDue, ISS-20), else the project's rule for the quarter being written.
   const today = new Date().toISOString().slice(0, 10);
-  const own = donor?.deadlines.find((x) => x.date >= today);
+  const own = nextReportDue(donor, today, project.startDate ?? null, project.endDate ?? null);
   const quarter = own ? null : await reportQuarter(code).catch(() => null);
   const due = quarter && !list.some((r) => r.quarter === quarter) ? ((await reportDeadline(code, quarterRange(quarter).to, 60, "quarterlyReportDays").catch(() => null))?.due ?? null) : null;
   const next = own ? { title: own.title as string | null, date: own.date } : due && due >= today ? { title: null, date: due } : null;

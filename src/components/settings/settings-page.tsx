@@ -16,7 +16,7 @@ import { TwoStepSettings } from "@/components/app/two-step";
 import { TopBar, dangerBtn, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { Empty, LedgerRow, LedgerTable, PageHead, SectionHead } from "@/components/workspace/ledger";
 import { canEditProject } from "@/lib/demo";
-import type { DonorInfo, DonorInput, IndicatorProgress } from "@/lib/progress";
+import { nextReportDue, type DonorInfo, type DonorInput, type IndicatorProgress } from "@/lib/progress";
 import { FORMATS, formatById } from "@/lib/report-formats";
 import { today } from "@/lib/clock";
 
@@ -103,7 +103,8 @@ export function SettingsPage() {
           {!!data?.donors.length && (
             <LedgerTable cols={DONOR} head={[t("settings.name"), t("settings.format")]} label={t("settings.donors")}>
               {data.donors.map((d) => {
-                const next = d.deadlines.find((x) => x.date >= today());
+                // The same next report as the donor's Home and Progress (lib/progress nextReportDue, ISS-20).
+                const next = nextReportDue(d, today(), data.project.startDate, data.project.endDate);
                 return (
                   <LedgerRow key={d.id} cols={DONOR} onClick={canEdit ? () => setEditing(d) : undefined} className="text-sm">
                     <span className="min-w-0">

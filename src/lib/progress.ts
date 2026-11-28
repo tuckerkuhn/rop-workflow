@@ -171,6 +171,17 @@ export function reportPeriod(donor: DonorInfo | null, today: string, projectStar
   return { from, to: next?.date ?? today, deadline: next };
 }
 
+/**
+ * Review round 1, ISS-20: the donor's next report, the same on the donor's Home, Project settings
+ * and Progress. It is the report `reportPeriod` works out (the agreement's main report first, else
+ * the donor's own next deadline), so the three screens never name different reports. Null when
+ * neither gives a date still to come.
+ */
+export function nextReportDue(donor: DonorInfo | null, today: string, projectStart: string | null, projectEnd: string | null = null): Deadline | null {
+  const d = reportPeriod(donor, today, projectStart, projectEnd).deadline;
+  return d && d.date >= today ? d : null;
+}
+
 /* ---------- donor settings ---------- */
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);

@@ -7,6 +7,7 @@ import { DONOR_FUNDING_KEY } from "@/lib/donor-funding";
 import { saveProjectState } from "@/server/project-state";
 import { db, schema as s } from "@/db";
 import { userById, type AppUser } from "@/lib/demo";
+import { nextReportDue } from "@/lib/progress";
 import { seedDatabase } from "@/server/demo-seed";
 import { donorReport, donorView, fundingSetup, releasedPhoto, saveDonorFunding } from "@/server/donor-view-store";
 import { projectByCode } from "@/server/field-store";
@@ -170,9 +171,11 @@ describe("after a release", { timeout: 60_000 }, () => {
     expect(await actions("donor_report_viewed")).toBe(before + 1);
   });
 
-  it("names the donor's own next report date when one is set", async () => {
+  // ISS-20: the same next report as Progress and Project settings (lib/progress nextReportDue).
+  it("names the same next report as Progress and Project settings", async () => {
     const today = new Date().toISOString().slice(0, 10);
-    const own = (await listDonors(code, elena))[0].deadlines.find((d) => d.date >= today);
+    const project = await projectByCode(code);
+    const own = nextReportDue((await listDonors(code, elena))[0], today, project.startDate ?? null, project.endDate ?? null);
     const next = (await donorView(code, elena)).next;
     if (own) expect(next).toEqual({ title: own.title, date: own.date });
     else expect(next === null || next.title === null).toBe(true);
