@@ -182,7 +182,8 @@ function VacancyCard({ x, v, act }: { x: V; v: RecruitmentView; act: (a: RecActi
       </ul>
       {v.isHr && !x.selected && (
         <div className="mt-3 space-y-3">
-          {x.shortlist.length === 0 && x.candidates.length >= 3 && (
+          {x.shortlist.length === 0 && x.candidates.length >= 3 && v.today < x.closes && <p className="text-muted">Shortlisting opens on {x.closes}, when the advertisement closes.</p>}
+          {x.shortlist.length === 0 && x.candidates.length >= 3 && v.today >= x.closes && (
             <button type="button" className={quietBtn} disabled={short.length < 3 || short.length > 5} onClick={() => void act({ action: "shortlist", vacancy: x.n, candidates: short }, "Shortlist recorded: the panel scores the interviews.")}>
               Shortlist the {short.length} ticked (3 to 5)
             </button>
