@@ -139,9 +139,10 @@
       chosen person is not the top score; then the hire goes through the HR record's approval by
       grade and onboarding, as before. Each rule held by the ledger fold (`lib/recruitment`).
     - MF-13 (in-app forms for registration and distribution, from the review sheet) is Part 2 step 1.
-    - Part 3 is complete. Left from MF-01: procurement signatures still carry the delegate's own
-      name, without "on behalf of".
-- **Tests:** 199 files, 1,419 tests, all passing (39 tests of removed Kobo features went with them). Typecheck and lint clean.
+    - Part 3 is complete. MF-01 finished `57ab116`: a procurement signature made while acting for
+      someone away keeps the signer's own name (so checks by name hold) and records on whose behalf,
+      on the document and in the step's history.
+- **Tests:** 199 files, 1,420 tests, all passing (39 tests of removed Kobo features went with them). Typecheck and lint clean.
 - **Seen on screen** (desktop, local throwaway database, never Supabase): the ISS-18 flag as Nadia
   (queue and record), ISS-20 on Project settings and the donor view, ISS-12 as Daniel. Part 2
   step 1: as Farida, a readiness check filled in (the "what needs fixing" question appears on No,
