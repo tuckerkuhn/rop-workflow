@@ -41,6 +41,8 @@ export type Decision = {
   on: string;
   of?: number;
   exception?: boolean;
+  /** R2-20: an exception confirmed by a second person who may decide; until then the farmer is not served. */
+  confirmed?: { by: string; byName: string; on: string };
   earlier?: { decision: Omit<Decision, "earlier">; why: string; by: string; byName: string; on: string }[];
 };
 export type Selection = {
@@ -71,6 +73,7 @@ export const selectionAction = z.discriminatedUnion("action", [
   /** `change`: needed when the farmer already has a decision: why it is being changed. */
   z.object({ action: z.literal("decide"), farmer: z.string().trim().min(1).max(40), outcome: z.enum(["selected", "waitlisted", "not_qualified"], "Choose Selected, Waitlisted or Did not qualify."), met: z.array(z.string()).max(12), reason: z.string().trim().max(1000).default(""), change: z.string().trim().max(600).default("") }),
   z.object({ action: z.literal("undo"), farmer: z.string().trim().min(1).max(40), reason: text(10, 600, "Say why the decision is being reopened.") }),
+  z.object({ action: z.literal("confirm"), farmer: z.string().trim().min(1).max(40) }),
 ]);
 export type SelectionAction = z.infer<typeof selectionAction>;
 
@@ -117,9 +120,13 @@ export function outcomeOf(s: Selection, d: Decision): Shown {
 }
 
 /** Farmer id to outcome, for projects that use selection (rules written); null for those that do not. */
+/** An exception still waiting for a second person (R2-20). */
+export const waitingConfirmation = (s: Selection, d: Decision) => isException(s, d) && !d.confirmed;
+
+/** Outcomes for the rest of the app: an exception not yet confirmed waits, as if waitlisted (R2-20). */
 export function outcomesById(s: Selection): Record<string, Shown> | null {
   if (!s.criteria.length) return null;
-  return Object.fromEntries(Object.entries(s.decisions).map(([id, d]) => [id, outcomeOf(s, d)]));
+  return Object.fromEntries(Object.entries(s.decisions).map(([id, d]) => [id, waitingConfirmation(s, d) ? "waitlisted" : outcomeOf(s, d)]));
 }
 /**
  * Review round 1, ISS-18: farmers are trained and given inputs while no selection rule is saved.
@@ -150,10 +157,10 @@ export function selectionHold(outcomes: Record<string, Shown> | null, farmer: st
   return !o || inFieldQueue(o) ? null : `${farmer} is ${held[o as Exclude<Shown, "selected">]} in Farmer selection`;
 }
 
-export type SelectionCounts = { total: number; selected: number; waitlisted: number; notQualified: number; notSelected: number; undecided: number; women: number; womenSelected: number; exceptions: number };
+export type SelectionCounts = { total: number; selected: number; waitlisted: number; notQualified: number; notSelected: number; undecided: number; women: number; womenSelected: number; exceptions: number; exceptionsWaiting: number };
 /** The counts a report asks for. `farmers` is the project's list; a decision for someone no longer on it is not counted. `notSelected`: older decisions not placed (outcomeOf). */
 export function selectionCounts(s: Selection, farmers: { id: string; gender: string }[]): SelectionCounts {
-  const c: SelectionCounts = { total: farmers.length, selected: 0, waitlisted: 0, notQualified: 0, notSelected: 0, undecided: 0, women: 0, womenSelected: 0, exceptions: 0 };
+  const c: SelectionCounts = { total: farmers.length, selected: 0, waitlisted: 0, notQualified: 0, notSelected: 0, undecided: 0, women: 0, womenSelected: 0, exceptions: 0, exceptionsWaiting: 0 };
   for (const f of farmers) {
     const d = s.decisions[f.id];
     const woman = f.gender === "Female";
@@ -167,6 +174,7 @@ export function selectionCounts(s: Selection, farmers: { id: string; gender: str
       c.selected++;
       if (woman) c.womenSelected++;
       if (isException(s, d)) c.exceptions++;
+      if (waitingConfirmation(s, d)) c.exceptionsWaiting++;
     } else if (o === "waitlisted") c.waitlisted++;
     else if (o === "not_qualified") c.notQualified++;
     else c.notSelected++;

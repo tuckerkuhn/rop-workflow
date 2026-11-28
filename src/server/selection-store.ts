@@ -5,7 +5,7 @@ import { stampHistory } from "@/lib/history";
 import { mirrorFarmer } from "@/server/farmer-mirror";
 import { and, eq } from "drizzle-orm";
 import { db, schema as t } from "@/db";
-import { EMPTY_SELECTION, decisionProblem, selectionHold, outcomeLabel, outcomeOf, outcomesById, rulesFrom, sameRules, selectionCounts, type Criterion, type Selection, type SelectionAction, type Shown } from "@/lib/selection";
+import { isException, EMPTY_SELECTION, decisionProblem, selectionHold, outcomeLabel, outcomeOf, outcomesById, rulesFrom, sameRules, selectionCounts, type Criterion, type Selection, type SelectionAction, type Shown } from "@/lib/selection";
 import { logAudit } from "@/server/audit";
 import { loadField, projectByCode, setupFor } from "@/server/field-store";
 import { ruleCheck, type RuleCheck } from "@/lib/eligibility";
@@ -113,6 +113,14 @@ export async function actOnSelection(code: string, a: SelectionAction, u: AppUse
       next = { ...s, decisions: { ...s.decisions, [a.farmer]: { selected, outcome: a.outcome, met: a.met, reason: a.reason.trim(), version: s.version, of: s.criteria.length, exception, ...me, ...(earlier ? { earlier } : {}) } } };
       action = prior ? "selection_changed" : `selection_${a.outcome}`;
       detail = { farmer: a.farmer, outcome: a.outcome, met: a.met.length, of: s.criteria.length, ...(a.reason.trim() ? { reason: a.reason.trim() } : {}), ...(prior ? { was: outcomeLabel[outcomeOf(s, prior)], wasReason: prior.reason, why: a.change.trim() } : {}) };
+    } else if (a.action === "confirm") {
+      const d = s.decisions[a.farmer];
+      if (!d || !isException(s, d)) return { data: null, result: "Only a farmer selected as an exception waits for a second person." };
+      if (d.confirmed) return { data: null, result: "This exception is already confirmed." };
+      if (d.by === u.id) return { data: null, result: "You made this exception, so someone else who decides selection confirms it." };
+      next = { ...s, decisions: { ...s.decisions, [a.farmer]: { ...d, confirmed: me } } };
+      action = "selection_exception_confirmed";
+      detail = { farmer: a.farmer, decidedBy: d.by, reason: d.reason };
     } else {
       if (!s.decisions[a.farmer]) return { data: null, result: "This farmer has no decision to reopen." };
       const rest = { ...s.decisions };

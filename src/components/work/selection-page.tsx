@@ -342,7 +342,7 @@ export function SelectionPage() {
                 </dl>
                 <p className="mt-2 font-mono text-xs text-muted">
                   Women: {c.womenSelected} selected of {c.women} on the list
-                  {c.exceptions ? ` · ${c.exceptions} selected as ${c.exceptions === 1 ? "an exception" : "exceptions"}` : ""}
+                  {c.exceptions ? ` · ${c.exceptions} selected as ${c.exceptions === 1 ? "an exception" : "exceptions"}${c.exceptionsWaiting ? `, ${c.exceptionsWaiting} waiting for a second person` : ""}` : ""}
                   {c.notSelected ? ` · ${c.notSelected} not selected before waitlists` : ""}
                 </p>
 
@@ -401,6 +401,17 @@ export function SelectionPage() {
                                       {d.reason ? ` · ${d.reason}` : ""}
                                       {stale ? " · decided under an earlier version of the rules" : ""}
                                       {d.earlier?.length ? ` · changed ${d.earlier.length === 1 ? "once" : `${d.earlier.length} times`}, last because: ${d.earlier[d.earlier.length - 1].why}` : ""}
+                                      {exception && d.confirmed ? ` · exception confirmed by ${d.confirmed.byName}, ${d.confirmed.on}` : ""}
+                                    </p>
+                                  )}
+                                  {d && exception && !d.confirmed && (
+                                    <p className="mx-2 mb-3 ms-11 flex flex-wrap items-center gap-2 bg-ochre-soft px-3 py-2 text-sm">
+                                      <span className="min-w-0 flex-1">An exception to the written rules: not served until someone else who decides selection confirms it.</span>
+                                      {v.can.decide && d.by !== user.id && (
+                                        <button type="button" className={quietBtn} onClick={() => void act({ action: "confirm", farmer: f.id }).catch(() => undefined)}>
+                                          Confirm the exception
+                                        </button>
+                                      )}
                                     </p>
                                   )}
                                   {open === f.id && <Decide v={v} f={f} act={act} onClose={() => setOpen(null)} />}

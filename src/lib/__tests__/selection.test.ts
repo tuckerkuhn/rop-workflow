@@ -31,7 +31,7 @@ describe("farmer selection", () => {
   it("counts what a report asks for, for farmers on the list only", () => {
     const s: Selection = { ...rules, decisions: { F1: { selected: true, outcome: "selected", met: ["a", "b"], reason: "", version: 1, ...who }, F2: { selected: true, met: ["a"], reason: "Council confirmed residence.", version: 1, ...who }, F3: { selected: false, outcome: "not_qualified", met: [], reason: "Above the land limit.", version: 1, ...who }, F5: { selected: false, outcome: "waitlisted", met: ["a", "b"], reason: "Places are full.", version: 1, ...who }, GONE: { selected: true, met: ["a", "b"], reason: "", version: 1, ...who } } };
     const farmers = [{ id: "F1", gender: "Female" }, { id: "F2", gender: "Male" }, { id: "F3", gender: "Female" }, { id: "F4", gender: "Female" }, { id: "F5", gender: "Male" }];
-    expect(selectionCounts(s, farmers)).toEqual({ total: 5, selected: 2, waitlisted: 1, notQualified: 1, notSelected: 0, undecided: 1, women: 3, womenSelected: 1, exceptions: 1 });
+    expect(selectionCounts(s, farmers)).toEqual({ total: 5, selected: 2, waitlisted: 1, notQualified: 1, notSelected: 0, undecided: 1, women: 3, womenSelected: 1, exceptions: 1, exceptionsWaiting: 1 });
     expect(isException(s, s.decisions.F2)).toBe(true);
     expect(isException(s, s.decisions.F1)).toBe(false);
   });
@@ -59,5 +59,17 @@ describe("farmer selection", () => {
     expect([inFieldQueue(o.F1), inFieldQueue(o.F2), inFieldQueue(o.F9)]).toEqual([true, false, true]);
     expect(inFieldQueue("not_qualified")).toBe(false);
     expect(outcomesById(EMPTY_SELECTION)).toBeNull();
+  });
+});
+
+
+describe("an exception waits for a second person (review round 2, R2-20)", async () => {
+  const { outcomesById, waitingConfirmation } = await import("@/lib/selection");
+  it("is not served until someone else confirms it", () => {
+    const s = { outreach: "", version: 1, criteria: [{ id: "ha", text: "Farms at least 1 hectare" }], decisions: { "F-0002": { selected: true, outcome: "selected", met: [], reason: "Known to the team", version: 1, of: 1, exception: true, by: "nadia", byName: "Nadia", on: "2026-11-28" } } } as never;
+    expect(outcomesById(s)!["F-0002"]).toBe("waitlisted");
+    const confirmed = { ...(s as object), decisions: { "F-0002": { ...(s as { decisions: Record<string, object> }).decisions["F-0002"], confirmed: { by: "karim", byName: "Karim", on: "2026-11-28" } } } } as never;
+    expect(waitingConfirmation(confirmed, (confirmed as { decisions: Record<string, never> }).decisions["F-0002"])).toBe(false);
+    expect(outcomesById(confirmed)!["F-0002"]).toBe("selected");
   });
 });

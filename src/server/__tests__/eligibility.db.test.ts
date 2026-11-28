@@ -37,3 +37,19 @@ describe("eligibility rules in Farmer selection", { timeout: 60_000 }, () => {
     expect(await actOnSelection(code, { action: "criteria", outreach: "Announced at the village meeting.", criteria: ["Lives in the area for three years"], checks: [{ kind: "land", max }, { kind: "contribution", rate: 20, womenRate: 10 }], reason: "" }, marcus)).toBe("Nothing has changed.");
   });
 });
+
+describe("an exception is confirmed by someone else (review round 2, R2-20)", { timeout: 60_000 }, () => {
+  it("the person who made it cannot confirm it; another decider can, and only then is the farmer served", async () => {
+    const { selectionOutcomes } = await import("@/server/selection-store");
+    const { projectByCode } = await import("@/server/field-store");
+    const v = await loadSelection(code, marcus);
+    const f = v.farmers.find((x) => !v.selection.decisions[x.id])!;
+    expect(await actOnSelection(code, { action: "decide", farmer: f.id, outcome: "selected", met: [], reason: "Known to the team as a careful farmer.", change: "" }, marcus)).toBeNull();
+    const pid = (await projectByCode(code)).id;
+    expect((await selectionOutcomes(pid))![f.id]).toBe("waitlisted");
+    expect(await actOnSelection(code, { action: "confirm", farmer: f.id }, marcus)).toMatch(/someone else who decides selection confirms it/);
+    const other = userById("nadia")!;
+    expect(await actOnSelection(code, { action: "confirm", farmer: f.id }, other)).toBeNull();
+    expect((await selectionOutcomes(pid))![f.id]).toBe("selected");
+  });
+});
