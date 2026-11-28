@@ -136,7 +136,7 @@ export async function actOnSelection(code: string, a: SelectionAction, u: AppUse
     if (a.action !== "criteria" && !selectionHold(outcomesById(next), a.farmer)) {
       const [item] = await tx.select().from(t.fieldItems).where(and(eq(t.fieldItems.projectId, project.id), eq(t.fieldItems.itemKey, a.farmer))).limit(1);
       const f = item?.data as Farmer | undefined;
-      const moved = f?.kind === "farmer" ? leaveTrain(f, today(), a.action === "decide" ? `Selected in Farmer selection by ${u.name}` : `Selection decision reopened by ${u.name}`) : f;
+      const moved = f?.kind === "farmer" ? leaveTrain(f, today(), a.action === "decide" ? `Selected in Farmer selection by ${u.name}` : a.action === "confirm" ? `Selected as an exception, confirmed by ${u.name}` : `Selection decision reopened by ${u.name}`) : f;
       if (item && f && moved && moved !== f) {
         const saved = { ...moved, timeline: stampHistory(f.timeline, moved.timeline) };
         await tx.update(t.fieldItems).set({ data: saved, updatedAt: new Date() }).where(eq(t.fieldItems.id, item.id));
