@@ -44,9 +44,16 @@
       from KoboCollect by <name>" (`lib/form-record` `sourceText`); the queue heading is "Field forms".
     - ISS-27 `e61b005`: the farmer's signed receipt is a "distribution receipt" everywhere;
       "goods received note" is left only for the supplier's delivery.
+    - Packages `d561bf8` (Tucker's answer 2b): Set up may list packages farmers choose from (a
+      name, who it is for, which items). Each farmer records one at registration or on the farmer
+      list; planned amounts, stock checks and the distribution form follow it (an item outside the
+      farmer's package is not asked). No package set up: unchanged, every farmer gets every item.
+    - Rules per package `a607f13`: each checked eligibility rule is for all farmers or for one
+      package, and binds only the farmers who chose it; the contribution is worked out on the
+      farmer's own package.
     - Screen fixes `d2cb9a9`: one "(optional)" per label, a household member on one line at
       380px, receipt mismatches under "To look at".
-- **Tests:** 182 files, 1,410 tests, all passing. Typecheck and lint clean.
+- **Tests:** 184 files, 1,418 tests, all passing. Typecheck and lint clean.
 - **Seen on screen** (desktop, local throwaway database, never Supabase): the ISS-18 flag as Nadia
   (queue and record), ISS-20 on Project settings and the donor view, ISS-12 as Daniel. Part 2
   step 1: as Farida, a readiness check filled in (the "what needs fixing" question appears on No,
@@ -57,8 +64,10 @@
   Part 2 step 2 (28 Nov): the register form at 380px (inside a 380px frame, since the window
   would not narrow) as Farida, with the household roster; the receipt check as Nadia at desktop
   width, with a receipt dated 2027-02-27 and a wrong seed amount both flagged and Approve held.
-  Not seen yet: Farmer selection's new rule fields, the training scores and the duplicate warning
-  on screen (each covered by tests).
+  Farmer selection's rule fields and the per-package buttons as Nadia (two fictional packages
+  added to the local copy). Not seen yet: the package editor in Set up, the training scores and
+  the duplicate warning on screen (each covered by tests). Farmers already loaded have no
+  package: they are planned with every item until one is recorded.
   **Not seen:** 380px for the other screens, Settings Health's AI lines
   (no AI failure on the local copy), Progress's own next-report line, and the eleven screens listed under "Open".
 - **How the screens were looked at:** a local PGlite Postgres served on 127.0.0.1:54329 (script in
@@ -74,10 +83,9 @@
   4. Answered 28 Nov: the project manager, plan approvers and extension agents register farmers (1a).
   5. Answered 28 Nov: an in-app distribution goes straight to the project manager, with no extra
      KoboCollect check (2a).
-  6. ISS-14: a receipt that does not match the record blocks approval and is sent back. The
-     easiest to undo would be a flag that asks for a note instead. Keep the block?
-  7. "Set per intervention" is read as per project (one project is one input package). A project
-     running two packages with different rules would need rules per package. Leave it per project?
+  6. Answered 28 Nov: a receipt that does not match the record blocks approval (1a).
+  7. Answered 28 Nov: rules per package (2b). A project may offer several packages for farmers to
+     choose from, for example by climate risk.
 - **Half done:** nothing. Kobo still works beside the in-app forms until step 7.
 - **Next:** Part 2 step 3, the rules that carry over (nobody approves data they collected; the named
   MEL approver checks field data before it flows on; every distribution needs its signed receipt
