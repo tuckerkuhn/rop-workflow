@@ -65,6 +65,15 @@ export async function keepPhoto(project: string, src: string): Promise<{ src: st
   return { src: fileRef(hash), sha256: hash };
 }
 
+/** Keeps any file (an export, for example) at a path in the bucket. File storage must be switched on. */
+export async function keepFile(path: string, bytes: Buffer, type: string) {
+  if (storeMode() !== "supabase") throw new Error("File storage is not switched on (PROOF_FILE_STORE).");
+  await ensureBucket();
+  const { url, headers } = config();
+  const res = await fetch(`${url}/storage/v1/object/${bucket()}/${path}`, { method: "POST", headers: { ...headers, "Content-Type": type, "x-upsert": "true" }, body: new Uint8Array(bytes) });
+  if (!res.ok) throw new Error(`The file could not be kept (${res.status}).`);
+}
+
 export type Fetched = { bytes: Buffer; type: string; intact: boolean };
 
 /**

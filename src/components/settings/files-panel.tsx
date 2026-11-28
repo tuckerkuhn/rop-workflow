@@ -26,12 +26,14 @@ export function FilesPanel({ v, post }: { v: OrgSettingsView; post: (body: objec
   const { refresh } = useSession();
   const [stores, setStores] = useState<StoreId[]>(v.files.stores);
   const [accounting, setAccounting] = useState(v.files.accounting);
+  // ISS-24: links to filed vouchers are optional at month close unless the organization asks for them.
+  const [linksRequired, setLinksRequired] = useState(!!v.files.linksRequired);
   const [payroll, setPayroll] = useState(v.files.payroll);
   const [acceptRisk, setAcceptRisk] = useState(false);
   const [why, setWhy] = useState("");
   const [busy, setBusy] = useState(false);
   const any = stores.includes("any");
-  const changed = stores.slice().sort().join() !== v.files.stores.slice().sort().join() || accounting.trim() !== v.files.accounting || payroll.trim() !== v.files.payroll;
+  const changed = stores.slice().sort().join() !== v.files.stores.slice().sort().join() || accounting.trim() !== v.files.accounting || payroll.trim() !== v.files.payroll || linksRequired !== !!v.files.linksRequired;
   const toggle = (id: StoreId, on: boolean) => {
     setStores((s) => (on ? [...new Set([...s, id])] : s.filter((x) => x !== id)));
     if (id === "any" && !on) setAcceptRisk(false);
@@ -39,7 +41,7 @@ export function FilesPanel({ v, post }: { v: OrgSettingsView; post: (body: objec
   const save = async () => {
     setBusy(true);
     try {
-      await post({ action: "files", stores, accounting, payroll, acceptRisk, reason: why }, "Saved. Evidence links are now checked against these.");
+      await post({ action: "files", stores, accounting, payroll, linksRequired, acceptRisk, reason: why }, "Saved. Evidence links are now checked against these.");
       setWhy("");
       setAcceptRisk(false);
       // The session carries the stores to every screen that checks a link.
@@ -95,6 +97,13 @@ export function FilesPanel({ v, post }: { v: OrgSettingsView; post: (body: objec
           <input className={field} value={payroll} maxLength={40} disabled={!v.admin} placeholder="For example a bank file, a payroll service" onChange={(e) => setPayroll(e.target.value)} />
         </label>
       </div>
+      <label className="mt-3 flex items-start gap-2 text-sm">
+        <input type="checkbox" className="mt-0.5" checked={linksRequired} disabled={!v.admin} onChange={(e) => setLinksRequired(e.target.checked)} />
+        <span>
+          Month close needs a link to each filed voucher in the file store
+          <span className="block text-xs text-muted">Off: the link is asked for but a month can close without it. Leave the accounting system empty to use the app&apos;s own books at month close.</span>
+        </span>
+      </label>
       {v.admin && changed && (
         <div className="mt-4 border-s-[6px] border-ochre ps-3">
           {any && !v.files.stores.includes("any") && (

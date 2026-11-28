@@ -34,7 +34,7 @@ export function cleanStores(input: unknown): StoreId[] {
  * under an earlier setting stays proof, so changing the setting never undoes finished work.
  */
 /** `accounting` and `payroll`: what the organization calls those systems, when it has said (Organization settings). */
-export type StoreSet = { now: StoreId[]; ever: StoreId[]; accounting?: string; payroll?: string };
+export type StoreSet = { now: StoreId[]; ever: StoreId[]; accounting?: string; payroll?: string; /** ISS-24: links to filed vouchers are required at month close (off by default). */ linksRequired?: boolean };
 const NAMED: StoreId[] = STORE_IDS.filter((id) => id !== "any");
 export function storeSet(now: unknown, earlier: unknown[] = []): StoreSet {
   const n = cleanStores(now);
@@ -73,6 +73,10 @@ export function storeNames(stores: StoreId[] = currentStores()): string {
   return names.length <= 1 ? (names[0] ?? "SharePoint") : `${names.slice(0, -1).join(", ")} or ${names[names.length - 1]}`;
 }
 
+/** Whether the organization has named an outside accounting system (Organization settings). With none, the app's own books are the books (ISS-23). */
+export const namesAccounting = (): boolean => !!resolver().accounting?.trim();
+/** ISS-24: whether month close needs a link to each filed voucher; optional unless the organization says so. */
+export const keepsFiles = (): boolean => !!resolver().linksRequired;
 /** The organization's accounting system by name, for a sentence: "NetSuite", or "your accounting system" until it is named. */
 export const acct = (): string => resolver().accounting?.trim() || "your accounting system";
 /** A tool's name at the start of a label or sentence: "Your accounting system reference". */

@@ -1,4 +1,4 @@
-import { acct, storeNames } from "@/lib/file-store";
+import { acct, keepsFiles, namesAccounting, storeNames } from "@/lib/file-store";
 import { DONE, valueOf, type Procurement, type Voucher } from "@/lib/procurement";
 import type { Bill } from "@/lib/bills";
 import { invoiceUsd } from "@/lib/payments";
@@ -61,13 +61,18 @@ export function monthsOf(items: VoucherItem[]) {
   return [...months.entries()].sort((a, b) => b[0].localeCompare(a[0]));
 }
 
-/** What still stops a month from closing. */
+/**
+ * What still stops a month from closing. A link to the filed voucher is needed only when the
+ * organization keeps its files somewhere (ISS-24), and a posting reference only when it names an
+ * outside accounting system: with none, the app's own books are the books and the voucher's
+ * payment is already in them (ISS-23).
+ */
 export function blockers(list: VoucherItem[]) {
   const out: string[] = [];
   for (const v of list) {
     if (!v.filed) out.push(`${v.id}: voucher not finished`);
-    else if (!v.voucher!.sharepointUrl) out.push(`${v.id}: not filed in ${storeNames()}`);
-    else if (!v.voucher!.netsuiteRef.trim()) out.push(`${v.id}: not posted in ${acct()}`);
+    else if (keepsFiles() && !v.voucher!.sharepointUrl) out.push(`${v.id}: not filed in ${storeNames()}`);
+    else if (namesAccounting() && !v.voucher!.netsuiteRef.trim()) out.push(`${v.id}: not posted in ${acct()}`);
   }
   return out;
 }

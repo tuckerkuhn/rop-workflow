@@ -5,6 +5,7 @@ import { useRequireUser } from "@/components/app/session";
 import { TopBar, Loading, primaryBtn } from "@/components/workspace/ui";
 import { Empty, Fig, Figures, LedgerRow, LedgerTable, PageHead, SectionHead, StatusBlock } from "@/components/workspace/ledger";
 import type { health } from "@/server/limits";
+import { BackupPlanSection } from "@/components/settings/backup-plan-section";
 
 type Health = Awaited<ReturnType<typeof health>>;
 
@@ -114,7 +115,7 @@ export function HealthPage() {
               <SectionHead>Copy of the records</SectionHead>
               <p className="mt-1 text-sm text-muted">
                 The database service keeps backups; daily backups need its paid plan. Ask your technical administrator to confirm they are on, and keep the records export below as your own copy. The
-                button downloads the project records as one file to keep in SharePoint; participants&rsquo; names, the HR book and KoboToolbox access keys are left out.
+                button downloads the project records as one file to keep in SharePoint; participants&rsquo; names and the HR book are left out.
               </p>
               <details className="mt-2 text-xs text-muted">
                 <summary className="cursor-pointer">For your technical administrator</summary>
@@ -137,6 +138,7 @@ export function HealthPage() {
               >
                 Download the records
               </button>
+              <BackupPlanSection userId={user.id} />
             </section>
           </>
         )}

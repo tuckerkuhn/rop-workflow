@@ -16,7 +16,7 @@ export type SoloChange = { on: boolean; by: string; name: string; at: string; re
 /** The sample project (C5): shown to everyone unless an administrator hides it. */
 export type SampleChange = { hidden: boolean; by: string; name: string; at: string; reason: string };
 /** Where the organization keeps its files, and the names of its other tools (lib/file-store): who set them, when and why. */
-export type FilesChange = { stores: StoreId[]; accounting: string; payroll: string; by: string; name: string; at: string; reason: string };
+export type FilesChange = { stores: StoreId[]; accounting: string; payroll: string; /** ISS-24: month close needs a link to each filed voucher. Off unless chosen. */ linksRequired?: boolean; by: string; name: string; at: string; reason: string };
 export type OrgSettings = { values: Record<string, OrgChange>; history: OrgChange[]; solo?: SoloChange; soloHistory?: SoloChange[]; sample?: SampleChange; sampleHistory?: SampleChange[]; files?: FilesChange; filesHistory?: FilesChange[] };
 
 const EMPTY: OrgSettings = { values: {}, history: [] };
@@ -98,7 +98,7 @@ export async function fileStoresOf(orgId: string | null): Promise<StoreSet> {
 
 /** The file stores named in settings already read (server/auth reuses the read it made at sign-in). */
 export function storesFromSettings(settings: OrgSettings): StoreSet {
-  return { ...storeSet(settings.files?.stores, (settings.filesHistory ?? []).map((c) => c.stores)), accounting: settings.files?.accounting ?? "", payroll: settings.files?.payroll ?? "" };
+  return { ...storeSet(settings.files?.stores, (settings.filesHistory ?? []).map((c) => c.stores)), accounting: settings.files?.accounting ?? "", payroll: settings.files?.payroll ?? "", linksRequired: settings.files?.linksRequired ?? false };
 }
 
 /** For a signed-in person: their organization's stores. The sample team has no staff row and sees the only organization there is. */

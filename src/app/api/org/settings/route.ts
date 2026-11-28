@@ -29,7 +29,7 @@ function view(settings: OrgSettings, admin: boolean, sample: { code: string; nam
     history: [...settings.history].reverse(),
     /** Solo mode (server/solo.ts): who turned it on or off, when and why. */
     /** Where files are kept and what the other tools are called (lib/file-store): in force, and who set them. */
-    files: { stores: cleanStores(settings.files?.stores), accounting: settings.files?.accounting ?? "", payroll: settings.files?.payroll ?? "" },
+    files: { stores: cleanStores(settings.files?.stores), accounting: settings.files?.accounting ?? "", payroll: settings.files?.payroll ?? "", linksRequired: settings.files?.linksRequired ?? false },
     filesChange: settings.files ?? null,
     filesHistory: [...(settings.filesHistory ?? [])].reverse(),
     solo: settings.solo ?? null,
@@ -71,7 +71,7 @@ const bodySchema = z.discriminatedUnion("action", [
   /** Solo mode for a small team: one person may prepare and approve, confirming it each time. */
   z.object({ action: z.literal("solo"), on: z.boolean(), reason }),
   /** Where the organization keeps its files and what it calls its accounting and payroll systems. "Any secure link" needs the risk accepted. */
-  z.object({ action: z.literal("files"), stores: z.array(z.enum(STORE_IDS)).min(1, "Choose at least one place files are kept."), accounting: z.string().trim().max(40).default(""), payroll: z.string().trim().max(40).default(""), acceptRisk: z.boolean().default(false), reason }),
+  z.object({ action: z.literal("files"), stores: z.array(z.enum(STORE_IDS)).min(1, "Choose at least one place files are kept."), accounting: z.string().trim().max(40).default(""), payroll: z.string().trim().max(40).default(""), linksRequired: z.boolean().optional(), acceptRisk: z.boolean().default(false), reason }),
   /** Hide the sample project from everyone's project picker and Getting started, or show it again. Fictional data, so no reason is asked; who and when are still kept. */
   z.object({ action: z.literal("sample"), hidden: z.boolean(), reason: z.string().trim().max(1000).default("") }),
 ]);
@@ -98,7 +98,7 @@ export async function POST(req: Request) {
       // The risk is accepted when "any secure link" is turned on; later changes to other settings keep it on without asking again.
       const anyWasOn = cleanStores(settings.files?.stores).includes("any");
       if (stores.includes("any") && !anyWasOn && !a.acceptRisk) return fail(`Any secure link: ${ANY_LINK_RISK} Tick the box to accept this, or choose your file store by name.`);
-      const change: FilesChange = { stores, accounting: a.accounting, payroll: a.payroll, ...who };
+      const change: FilesChange = { stores, accounting: a.accounting, payroll: a.payroll, linksRequired: a.linksRequired ?? settings.files?.linksRequired ?? false, ...who };
       const next: OrgSettings = { ...settings, files: change, filesHistory: [...(settings.filesHistory ?? []), change] };
       await saveOrgSettings(orgId, next);
       await db.insert(schema.auditLog).values({ projectId: null, entity: "org_settings", entityId: orgId, action: "file_stores_set", detail: { by: v.user.id, stores, anyLink: stores.includes("any"), accounting: a.accounting, payroll: a.payroll, reason: a.reason } });
