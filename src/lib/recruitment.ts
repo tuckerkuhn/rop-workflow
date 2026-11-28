@@ -93,7 +93,8 @@ export function foldRecruitment(entries: Entry[], hr: HrState): { vacancies: Vac
       if (!isHr(e.actor, hr)) no(e, "HR opens a vacancy");
       else if (days(a.opened, a.closes) < MIN_OPEN_DAYS) no(e, `a vacancy is open at least ${MIN_OPEN_DAYS} days`);
       // R2-22: the advertisement starts no earlier than the day it is recorded, so the 14 days are real.
-      else if (a.opened < e.at.slice(0, 10)) no(e, "a vacancy is advertised from the day it is opened here, not from an earlier date")
+      // A day's leeway for time zones: the entry's time is UTC, the person's date is local (code review).
+      else if (days(a.opened, e.at.slice(0, 10)) > 1) no(e, "a vacancy is advertised from the day it is opened here, not from an earlier date")
       else if (panelProblem(a.panel, a.grade, hr)) no(e, panelProblem(a.panel, a.grade, hr)!);
       else vacancies.set(e.n, { n: e.n, title: a.title, grade: a.grade, office: a.office, opened: a.opened, closes: a.closes, panel: a.panel, by: e.actor, candidates: [], shortlist: [] });
       continue;
