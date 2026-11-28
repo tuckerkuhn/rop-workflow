@@ -21,6 +21,7 @@
     "park": "tsx --env-file=.env.local src/db/park-cli.ts",
     "ledger:post-expenditures": "tsx --env-file=.env.local src/db/ledger-post-cli.ts",
     "farmers:sync": "tsx --env-file=.env.local src/db/farmers-sync-cli.ts",
+    "photos:move": "tsx --env-file=.env.local src/db/photos-move-cli.ts",
     "kobo:reconcile": "tsx --env-file=.env.local src/db/kobo-reconcile-cli.ts",
     "i18n:catalog": "tsx scripts/i18n-catalog.ts"
   },
