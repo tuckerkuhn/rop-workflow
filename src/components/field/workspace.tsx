@@ -313,7 +313,7 @@ function KoboCheck({ label, why, tag, ok }: { label: string; why: string; tag?: 
         )}
         <div className="min-w-0 flex-1">
           <p className="font-bold leading-snug">{tx(label)}</p>
-          <p className={`mt-0.5 text-sm font-bold ${ok ? "text-forest" : "text-muted"}`}>{ok ? tx("From KoboCollect") : tx("From KoboCollect: not yet")}</p>
+          <p className={`mt-0.5 text-sm font-bold ${ok ? "text-forest" : "text-muted"}`}>{ok ? tx("From a field form") : tx("From a field form: not yet")}</p>
           {open && (
             <p className="mt-1.5 text-sm leading-relaxed text-muted">
               {tx(why)}
@@ -663,7 +663,7 @@ function KoboPanel({ farmer, ctx, canRaise, onRaise }: { farmer: Farmer; ctx: Ct
   return (
     <div className="space-y-2 bg-sunken px-5 py-4 text-base">
       <p>
-        <span className="font-extrabold">{tx("Recorded in KoboCollect.")}</span>
+        <span className="font-extrabold">{tx("Recorded on a field form.")}</span>
         {form && (
           <>
             {" "}
@@ -687,7 +687,7 @@ function KoboPanel({ farmer, ctx, canRaise, onRaise }: { farmer: Farmer; ctx: Ct
           ))}
         </ul>
       ) : (
-        <p className="text-muted">{tx("No KoboCollect form accepted for this farmer yet.")}</p>
+        <p className="text-muted">{tx("No field form accepted for this farmer yet.")}</p>
       )}
       <div className="flex flex-wrap items-center gap-x-5">
         <Link href="/progress/results#field-records" className={bandLink}>
@@ -1022,7 +1022,7 @@ export function FieldWorkspace() {
           />
           <FarmerTableLink code={project.id} userId={user?.id ?? ""} />
           <QueueFooter
-            note={mode === "demo" && isDemo ? tx("Fictional records, saved in the project database. Resetting keeps real Kobo submissions.") : tx("Saved in the project database.")}
+            note={mode === "demo" && isDemo ? tx("Fictional records, saved in the project database. Resetting keeps real field records.") : tx("Saved in the project database.")}
             onReset={
               mode === "demo" && isDemo
                 ? () => {

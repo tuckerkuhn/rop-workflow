@@ -64,7 +64,7 @@ export function RecordProof({ code, id, userId, photo }: { code: string; id: str
   const photos: (ProofPhoto | null)[] = proof ? proof.photos : photo ? [null] : [];
   return (
     <div className="mt-3 rounded-lg border border-line bg-surface px-3 py-3">
-      {proof?.photos.length === 0 && <p className="text-sm text-muted">{tx("KoboToolbox holds no photo for this record yet. If the phone is still uploading, sync again in a few minutes.")}</p>}
+      {proof?.photos.length === 0 && <p className="text-sm text-muted">{tx("This record has no photo yet. If the phone is still sending, look again in a few minutes.")}</p>}
       <div className="grid gap-3 sm:grid-cols-2">
         {photos.map((p, i) => (
           <figure key={p?.question ?? i}>
