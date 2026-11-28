@@ -75,7 +75,7 @@
   `next dev -p 3100` started with DATABASE_URL and every outside key overridden. An old dev server
   started 12 Nov was still running against Supabase from `.env.local`; it was stopped.
 - **Needs Tucker:**
-  1. Replace the AI key (Part 0 step 2), then say "done" so Draft with AI can be checked on the live site.
+  1. Done 28 Nov: the AI key replaced and checked on the live site (a draft arrived as Hamid).
   2. "Change the model in Settings" in the prompt: there is no model setting yet (`DRAFT_MODEL` is
      fixed). Add one as an organization setting? Easiest to undo: leave it fixed until a 403 shows.
   3. Part 2 step 7 asks for a migration that drops the Kobo tables; your standing rule is no
@@ -96,6 +96,37 @@ reviewed 26 Nov 2026 for Daniel Sandoval and Tucker Kuhn. Branch:
 `build/review-r1-critical-2026-11-27`. Nothing here is pushed until Tucker says "save".
 
 **Anyone picking this up (a person, another model, a later session): start at "Next", below.**
+
+## The 12-hour push (Tucker, 28 Nov, from about 17:40 UTC to 05:40 UTC on 29 Nov)
+
+Tucker asked for one long session, then a review of the changes and decision points together.
+Part 0 is closed: the new AI key works on the live site (a draft arrived on PR-2026-001 as Hamid,
+AI runs 2 to 3, no new error).
+
+**Order of work.** One branch per part, cut from the one before; commit per fix with its number;
+a test before each commit; typecheck, lint and tests before each commit; screens looked at on the
+local copy only (desktop, and 380px inside a 380px frame).
+1. Part 2 step 3, the rest: a visitor's photo is a picture of the work, not proof (check and test);
+   every distribution needs its receipt and photo (already enforced: add the test that proves it
+   for in-app records).
+2. Part 2 step 4: photos out of the database into file storage, with a fingerprint kept, no paid
+   service. Built behind a setting with the database as the default, so nothing changes on the
+   live site until Tucker switches it on.
+3. Part 2 step 5: offline. Forms open and save with no signal, kept on the phone until the server
+   confirms, a count of what waits, never sent twice.
+4. Part 2 step 6: the phone checklist for Tucker (written, not run).
+5. Part 2 step 7: Kobo out of the screens, the sync, the nightly job and the words. The migration
+   that drops the tables is written and NOT run (needs Tucker's "save" and his OK on the rule).
+6. Part 3 in the prompt's order: MF-01, 03, 04, 11, 02, 06, ISS-23/24/25, MF-10, MF-05.
+7. Part 4: database connections (code side only), then the role-by-role pass for a round 2 list.
+
+**Never, during the push.** Nothing pushed or merged to main. No change to the live site or
+Supabase, no migration run, no outside account touched, nothing saved in the live app. Real names
+and emails stay out. A question for Tucker gets the choice easiest to undo, built as a setting
+with a default, and goes under "Needs Tucker" with the choice made.
+
+**Where to read the result.** The top of this file, kept true as each piece lands, and one list
+of decision points at the end of the push.
 
 ## Direction set by Tucker, 27 Nov
 
