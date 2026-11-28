@@ -4,7 +4,7 @@ import type { z } from "zod";
 import type { AppUser } from "@/lib/demo";
 import type { AuditEvent } from "@/server/audit";
 import type { Viewer } from "@/server/auth";
-import { withRequestMemo } from "@/server/request-memo";
+import { requestIsReadOnly, withRequestMemo } from "@/server/request-memo";
 
 /**
  * The one guard for API routes. A route does four things, in this order, and each has one helper
@@ -42,12 +42,41 @@ function written(e: unknown): e is Error {
   return !/^Failed query|ENOTFOUND|ECONNREFUSED|ECONNRESET|ETIMEDOUT|getaddrinfo|password authentication|relation .* does not exist|Unexpected token|is not a function|Cannot read prop|undefined/i.test(e.message);
 }
 
+/**
+ * The database's pooler refused a new connection because every one it allows is in use. Part 4:
+ * a read-only request waits a moment and tries again (twice), so a busy minute queues a page's reads
+ * instead of failing them. A request that has written anything is never run twice.
+ */
+export const POOL_FULL = /max clients reached|EMAXCONNSESSION|too many clients|remaining connection slots are reserved/i;
+export const RETRY_WAITS_MS = [300, 900];
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 /** Turns failures into a readable JSON error. Refusals keep their status; anything unexpected is recorded for Settings → Health. */
 export async function handle(fn: () => Promise<Response>, where = "api"): Promise<Response> {
-  try {
-    // The route runs with its own short memory for repeated reads (server/request-memo).
-    return await withRequestMemo(fn);
-  } catch (e) {
+  for (let attempt = 0; ; attempt++) {
+    let readOnly = false;
+    try {
+      // The route runs with its own short memory for repeated reads (server/request-memo).
+      return await withRequestMemo(async () => {
+        try {
+          return await fn();
+        } finally {
+          readOnly = requestIsReadOnly();
+        }
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? `${e.message} ${(e as { cause?: { message?: string } }).cause?.message ?? ""}` : String(e);
+      if (readOnly && attempt < RETRY_WAITS_MS.length && POOL_FULL.test(msg)) {
+        await wait(RETRY_WAITS_MS[attempt]);
+        continue;
+      }
+      return failed(e, where);
+    }
+  }
+}
+
+async function failed(e: unknown, where: string): Promise<Response> {
+  {
     if (e instanceof HttpError) return NextResponse.json({ error: e.message, ...e.extra }, { status: e.status });
     const msg = e instanceof Error ? e.message : String(e);
     const setup = msg.startsWith("DATABASE_URL") || /ENOTFOUND|ECONNREFUSED|password authentication|getaddrinfo|relation .* does not exist/i.test(msg);

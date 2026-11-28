@@ -17,6 +17,9 @@ const als = new AsyncLocalStorage<Store>();
 /** Wraps a route (server/guard `handle`). The memory starts switched off. */
 export const withRequestMemo = <T>(route: () => Promise<T>): Promise<T> => als.run({ reads: false, kept: new Map() }, route);
 
+/** Whether the request under way has only read so far (a GET that has written nothing). */
+export const requestIsReadOnly = () => !!als.getStore()?.reads;
+
 /** Called once the request is known only to read (server/auth `requireViewer`, for GET). */
 export function requestOnlyReads() {
   const store = als.getStore();
