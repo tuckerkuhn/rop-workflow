@@ -406,6 +406,7 @@ export function applyAction(item: PlanItem, a: PlanAction, u: AppUser, people: A
       if (u.id !== item.techLead && !u.admin) return "Only this line's technical lead approves it.";
       if (!item.techLead) return "Choose the technical lead first.";
       const lead = people.find((p) => p.id === item.techLead);
+      if (lead && isManager(lead)) return "The technical lead is from the programme side, not procurement: the procurement manager names someone else.";
       return settle({ ...item, approvals: { ...item.approvals, lead: sign("Technical lead", lead) }, returnNote: null });
     }
     case "return":
@@ -423,6 +424,15 @@ export function applyAction(item: PlanItem, a: PlanAction, u: AppUser, people: A
       if (item.status === "approved") return "Reopen it before changing it.";
       if (a.workplanCode && rows && !rows.includes(a.workplanCode)) return "That row is not in this project's workplan. Choose one from the list.";
       if (a.techLead && a.techLead === item.unplanned?.by) return "The person who asked for a purchase cannot be the one who approves it as technical lead. Choose someone else.";
+      // R2-02: the technical lead is the programme side's check of the need. Only the procurement
+      // manager or an administrator changes who it is, never to a procurement person or to themselves.
+      if (a.techLead !== undefined && a.techLead !== item.techLead) {
+        if (!isProcurementManager(u, people) && !u.admin) return "Only the procurement manager changes the technical lead.";
+        const next = a.techLead ? people.find((p) => p.id === a.techLead) : null;
+        if (a.techLead && !next) return "Choose the technical lead from the staff list.";
+        if (next && isManager(next)) return "The technical lead is from the programme side, not procurement: choose someone else.";
+        if (a.techLead === u.id) return "You cannot name yourself technical lead: choose someone else.";
+      }
       const neededBy = a.neededBy ?? item.neededBy;
       const leadDays = a.leadDays ?? item.leadDays;
       // A change needs both approvals again.

@@ -167,3 +167,22 @@ describe("two seats, two people (code review of D-13)", () => {
     expect((applyAction(one, { action: "approve", as: "lead" }, lead, users, TODAY, rows) as PlanItem).status).toBe("approved");
   });
 });
+
+describe("who may change a calendar item's technical lead (review round 2, R2-02)", () => {
+  const people = users;
+  const u = (id: string) => people.find((p) => p.id === id)!;
+  const budget = demoBudget("2026-11-28");
+  const plan = buildPlan({ lines: budget.lines, currency: budget.currency, workplan: demoWorkplan("2026-11-28"), projectStart: "2026-10-01", people, existing: [] });
+  const item = { ...plan.items.find((i) => i.techLead && i.techLead !== "zahra")!, status: "draft" as const, approvals: {} };
+  it("a procurement officer cannot make herself technical lead and approve both seats from procurement", () => {
+    expect(applyAction(item, { action: "edit", techLead: "zahra" }, u("zahra"), people, "2026-11-28")).toBe("Only the procurement manager changes the technical lead.");
+    expect(applyAction(item, { action: "edit", techLead: "zahra" }, u("hamid"), people, "2026-11-28")).toMatch(/programme side, not procurement/);
+    expect(applyAction(item, { action: "edit", techLead: "hamid" }, u("hamid"), people, "2026-11-28")).toMatch(/programme side, not procurement|cannot name yourself/);
+    expect(applyAction({ ...item, techLead: "zahra" }, { action: "approve", as: "lead" }, u("zahra"), people, "2026-11-28")).toMatch(/programme side, not procurement/);
+  });
+  it("the procurement manager can still name another programme lead", () => {
+    const other = people.find((p) => p.kind === "employee" && !p.procurement.includes("procurement") && p.id !== item.techLead && p.id !== "hamid")!;
+    const r = applyAction(item, { action: "edit", techLead: other.id }, u("hamid"), people, "2026-11-28");
+    expect(typeof r === "string" ? r : r.techLead).toBe(other.id);
+  });
+});
