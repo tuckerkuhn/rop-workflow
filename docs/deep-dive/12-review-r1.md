@@ -62,7 +62,17 @@
     Supabase Storage (its free plan includes file storage), with only the fingerprint in the
     record, checked again each time a photo is read (`server/file-store`). Off by default
     (`PROOF_FILE_STORE=inline`): nothing changes on the live site until it is switched on.
-- **Tests:** 185 files, 1,423 tests, all passing. Typecheck and lint clean.
+    `8dfcbf3`: `npm run photos:move` counts the photos still inside records and, with `--apply`,
+    moves them, keeping each fingerprint; refused while file storage is off.
+  - Part 2 step 5, `45903ba` (branch `build/offline-2026-11-28`): field forms open with no signal
+    (from the copy kept on the phone when last opened with signal) and save into the phone's
+    outbox, which already served weekly items; the bar at the top counts what waits; sent by
+    itself when signal returns; one record however often it arrives. A server that is down is now
+    retried instead of marked refused (`lib/outbox` `replyMeans`). Seen on the local copy: a
+    farmer registered with no signal, kept, then sent once when signal came back.
+  - Part 2 step 6, `aca8bea`: `docs/deep-dive/13-offline-phone-test.md`, the checklist for Tucker's
+    phone. Until it passes the forms say to save with signal (`OFFLINE_PHONE_TEST_PASSED`).
+- **Tests:** 187 files, 1,426 tests, all passing. Typecheck and lint clean.
 - **Seen on screen** (desktop, local throwaway database, never Supabase): the ISS-18 flag as Nadia
   (queue and record), ISS-20 on Project settings and the donor view, ISS-12 as Daniel. Part 2
   step 1: as Farida, a readiness check filled in (the "what needs fixing" question appears on No,
@@ -97,6 +107,8 @@
      choose from, for example by climate risk.
   8. Switch photos to file storage? Set `PROOF_FILE_STORE=supabase` in Vercel and redeploy; the
      bucket is made on first use. Until then photos stay in the database (about 1,000 fit).
+  9. The phone test (`13-offline-phone-test.md`), on a real Android. Removing Kobo (step 7) is
+     built on its own branch and should be merged only after it passes.
 - **Half done:** step 4: photos already in the database stay there until a move script runs (to
   write); a donor's share link does not yet show a photo kept in file storage. Kobo still works
   beside the in-app forms until step 7.
