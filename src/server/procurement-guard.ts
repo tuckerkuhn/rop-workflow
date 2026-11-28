@@ -16,6 +16,7 @@ import { soloFor, type SoloState } from "@/server/solo";
 import { loadBudget } from "@/server/plan-store";
 import { lineMoneyOf, loadPlan } from "@/server/procurement-plan-store";
 import { HttpError } from "@/server/guard";
+import { realToday } from "@/lib/clock";
 
 /**
  * Server-side enforcement of the procurement workflow. The screen builds each change, but the
@@ -46,7 +47,10 @@ export async function loadProcurementContext(code: string, orgId: string | null 
       throw new HttpError(503, "The project's budget could not be read just now, so the money checks cannot run. Try again in a moment.");
     });
   // The authority table with today's delegates (R2-13): someone acting for a person away signs as they would.
-  const delegated = hr ? await (await import("@/server/auth")).roleHolders().catch(() => hr.state.rules?.holders ?? {}) : {};
+  // An authority table that cannot be read stops the save: an empty one would let anyone sign (code review).
+  if (!hr) throw new HttpError(503, "The approval rules could not be read just now, so signatures cannot be checked. Try again in a moment.");
+  const [{ holdersWithDelegation }, { loadAway }, { people }] = await Promise.all([import("@/lib/delegation"), import("@/server/away-store"), import("@/server/auth")]);
+  const delegated = holdersWithDelegation((hr.state.rules?.holders ?? {}) as Record<string, string[]>, await loadAway().catch(() => ({ entries: [] })), await people().catch(() => []), realToday());
   // An undecided conflict leaves that rule at the organization's own value, as on screen.
   return { rules: Object.fromEntries(eff.lines.filter((l) => !l.conflict || l.decision).map((l) => [l.key, l.value as Value])), holders: delegated, register: reg?.suppliers ?? null, set, solo, lineMoney };
 }
