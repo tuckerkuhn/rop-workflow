@@ -233,7 +233,15 @@ contract value check, the advance pages after this round.
         a selection exception waits for a second person.
       - Not fixed: R2-15 (advances are not yet in the books; Needs Tucker 21) and the second half
         of R2-12 (the receiver's screening date is typed, not looked up; Needs Tucker 24).
-- **Tests:** 200 files, 1,443 tests, all passing (39 tests of removed Kobo features went with them). Typecheck and lint clean.
+    - Code review of the round 2 fixes (10 found, all fixed, `eae2daf` to `458c685`): a delegate's
+      approval records whom it was for, so later changes to time away never undo it; a delegate can
+      open the timesheets waiting for them; a held payment is never posted by its recorder; a cash
+      box reconciles without a bank statement; an afghani contract is checked at the month's rate;
+      "via" sends a payment to a second person instead of refusing it; a payee matches a supplier
+      on whole words; a form's farmer ID is matched without case; the confirmation's timeline text;
+      the procurement check refuses when the approval rules cannot be read (it used to run on an
+      empty table, which let anyone sign).
+- **Tests:** 201 files, 1,446 tests, all passing (39 tests of removed Kobo features went with them). Typecheck and lint clean.
 - **Seen on screen** (desktop, local throwaway database, never Supabase): the ISS-18 flag as Nadia
   (queue and record), ISS-20 on Project settings and the donor view, ISS-12 as Daniel. Part 2
   step 1: as Farida, a readiness check filled in (the "what needs fixing" question appears on No,
