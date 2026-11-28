@@ -4,7 +4,7 @@ import { registerAuthority } from "@/lib/authority";
 import { sameHistory } from "@/lib/history";
 import { users, type AppUser } from "@/lib/demo";
 import type { Value } from "@/lib/policy";
-import { DONE, receiverProblem, requesterOf, requesterPersonOf, soloBarred, setLineMoney, setProcurementSet, setSupplierRegister, maySign, nextStep, ownerOf, prevStep, procRolesFor, ready, roleLabel, setProcurementRules, stepById, type Procurement, type LineMoney, type Role, holdersFor, otherHolder, voucherBarred } from "@/lib/procurement";
+import { DONE, mayNameReceiver, receiverProblem, requesterOf, requesterPersonOf, soloBarred, setLineMoney, setProcurementSet, setSupplierRegister, maySign, nextStep, ownerOf, prevStep, procRolesFor, ready, roleLabel, setProcurementRules, stepById, type Procurement, type LineMoney, type Role, holdersFor, otherHolder, voucherBarred } from "@/lib/procurement";
 import { closeInstalment } from "@/lib/payments";
 import type { Authority } from "@/lib/authority";
 import type { PlanItem } from "@/lib/procurement-plan";
@@ -130,7 +130,8 @@ function checkReceiver(prev: Procurement, next: Procurement, u: AppUser): string
   if (same(prev.receiver, next.receiver)) return null;
   if (prev.step !== "receive") return "Someone else is named to receive the goods only while they are being received.";
   if ((prev.signatures["Goods received note"] ?? []).length) return "The goods received note is already signed.";
-  if (!(u.name === requesterOf(prev) || u.id === prev.plan?.requestedById || u.admin)) return `Only the person who requested the goods${requesterOf(prev) ? ` (${requesterOf(prev)})` : ""} names someone else to receive them.`;
+  // The same rule as the screen (lib/procurement mayNameReceiver): the requester, or an administrator.
+  if (!mayNameReceiver(prev, u)) return `Only the person who requested the goods${requesterOf(prev) ? ` (${requesterOf(prev)})` : ""} names someone else to receive them.`;
   const r = next.receiver;
   if (!r) return null;
   const d = users.find((x) => x.id === r.id);

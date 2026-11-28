@@ -537,6 +537,18 @@ export const requesterOf = (p: Procurement) => p.plan?.requestedBy ?? p.signatur
 export const requesterPersonOf = (p: Procurement) => users.find((u) => u.id === p.plan?.requestedById) ?? users.find((u) => u.name === requesterOf(p)) ?? null;
 
 /**
+ * Who may name (or withdraw) the person who receives the goods in the requester's place: the
+ * requester, or an administrator when the requester is away and named nobody (review R1, ISS-12).
+ * Only while the goods are being received and before the note is signed. "requester" or "admin"
+ * says which, so the screen can word it; null when this person may not.
+ */
+export function mayNameReceiver(p: Procurement, u: { id: string; name: string; admin?: boolean } | null | undefined): "requester" | "admin" | null {
+  if (!u || p.step !== "receive" || (p.signatures["Goods received note"] ?? []).length) return null;
+  if (u.name === requesterOf(p) || u.id === p.plan?.requestedById) return "requester";
+  return u.admin ? "admin" : null;
+}
+
+/**
  * Why this person cannot be named to receive goods in the requester's place, or null when they
  * can (decision D-27): the requesting department inspects, never procurement and never the
  * storekeeper who issues the stock. "The same department" is read from the reporting lines: the

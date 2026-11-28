@@ -3,7 +3,7 @@
 import { storeNames } from "@/lib/file-store";
 import { formatMoney, users } from "@/lib/demo";
 import { useSession } from "@/components/app/session";
-import { receiverProblem, requesterOf, requesterPersonOf, reviewKey, type Procurement } from "@/lib/procurement";
+import { mayNameReceiver, receiverProblem, requesterOf, requesterPersonOf, reviewKey, type Procurement } from "@/lib/procurement";
 import {
   contractCurrency,
   currentInstalment,
@@ -131,9 +131,10 @@ export function ReceiptPanel({ p, editable, update }: { p: Procurement; editable
   const g = p.grn ?? { qty: NaN, place: p.place };
   // The requester receives the goods, or names one person in their own department to (lib/procurement receiverProblem).
   const requester = requesterPersonOf(p);
-  const iRequested = !!user && (user.name === requesterOf(p) || user.id === p.plan?.requestedById);
-  const noteSigned = (p.signatures["Goods received note"] ?? []).length > 0;
-  const canName = iRequested && p.step === "receive" && !noteSigned;
+  // The requester names them; when the requester is away and named nobody, an administrator can (ISS-12).
+  const naming = mayNameReceiver(p, user);
+  const canName = !!naming;
+  const asAdmin = naming === "admin";
   const eligible = users.filter((u) => !receiverProblem(requester, u));
   const name = (id: string) => {
     const d = users.find((u) => u.id === id);
@@ -194,16 +195,27 @@ export function ReceiptPanel({ p, editable, update }: { p: Procurement; editable
     {/* Outside the step's own fields: the requester names someone even once the step is no longer theirs to act on. */}
     {canName && (
       <label className="block px-5 pb-5 text-sm">
-        <span className="font-semibold">{p.receiver ? "Change who receives them" : "Away when they arrive? Name someone in your department to receive them"}</span>
+        <span className="font-semibold">
+          {asAdmin
+            ? p.receiver
+              ? "As administrator: change who receives them in the requester's place"
+              : `As administrator: ${requesterOf(p) ?? "the requester"} is away and named nobody? Name someone in their department to receive them`
+            : p.receiver
+              ? "Change who receives them"
+              : "Away when they arrive? Name someone in your department to receive them"}
+        </span>
         <select value={p.receiver?.id ?? ""} onChange={(e) => name(e.target.value)} className={`mt-1 ${field}`}>
-          <option value="">I receive them myself</option>
+          <option value="">{asAdmin ? `${requesterOf(p) ?? "The requester"} receives them` : "I receive them myself"}</option>
           {eligible.map((u) => (
             <option key={u.id} value={u.id}>
               {u.name}, {u.title}
             </option>
           ))}
         </select>
-        <span className="mt-1 block text-xs text-muted">Their line manager, someone who reports to them or someone with the same line manager. Never procurement and never the storekeeper.</span>
+        <span className="mt-1 block text-xs text-muted">
+          {asAdmin ? "The requester's" : "Their"} line manager, someone who reports to {asAdmin ? "the requester" : "them"} or someone with the same line manager. Never procurement and never the storekeeper.
+          {asAdmin && " The record says you named them."}
+        </span>
       </label>
     )}
     </>
