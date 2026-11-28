@@ -6,7 +6,7 @@ import type { FarmerRow } from "@/lib/farmer-import";
 import { afterTrainInputs, type Farmer } from "@/lib/field";
 import { selectionHold } from "@/lib/selection";
 import { selectionOutcomes } from "@/server/selection-store";
-import { projectByCode } from "@/server/field-store";
+import { projectByCode, setupFor } from "@/server/field-store";
 import { HttpError } from "@/server/guard";
 import { duplicatesText, possibleDuplicates, type Duplicate } from "@/lib/duplicates";
 
@@ -48,6 +48,17 @@ export async function farmerDuplicates(projectId: string, rows: FarmerRow[]): Pr
  */
 export async function importFarmers(code: string, rows: FarmerRow[], by: { id: string; name: string }, o: { duplicatesChecked?: boolean } = {}) {
   const project = await projectByCode(code);
+  // A package named by its short id or its name becomes its short id; one the project does not offer is refused.
+  const setup = await setupFor(code);
+  const offered = setup?.packages ?? [];
+  const bad: string[] = [];
+  rows = rows.map((r) => {
+    if (!r.package) return r;
+    const o = offered.find((p) => p.key === r.package || p.name.trim().toLowerCase() === r.package!.trim().toLowerCase());
+    if (!o) bad.push(`${r.id} ("${r.package}")`);
+    return o ? { ...r, package: o.key } : r;
+  });
+  if (bad.length) throw new HttpError(400, `${offered.length ? `These farmers name a package this project does not offer: ${bad.slice(0, 10).join(", ")}. The packages are ${offered.map((p) => p.name).join(", ")}.` : `This project has one package, so the Package column is not used: ${bad.slice(0, 10).join(", ")}. Remove it, or set up the packages first.`}`);
   const duplicates = await farmerDuplicates(project.id, rows);
   if (duplicates.length && !o.duplicatesChecked)
     throw new HttpError(409, `${duplicates.length === 1 ? "One farmer" : `${duplicates.length} farmers`} may already be registered: ${duplicatesText(duplicates)} Check with the field team. If they are different people, confirm and save again.`, { duplicates });
@@ -94,7 +105,7 @@ export async function importFarmers(code: string, rows: FarmerRow[], by: { id: s
         const f = item.data as Farmer;
         // Progress is kept; details are corrected only before any step has been recorded.
         const fresh = f.step === "train" && f.timeline.length <= 1;
-        const changed: Farmer = { ...f, community: r.village, ...(fresh ? { gender: r.gender, hectares: r.hectares } : {}), ...(r.ageBand ? { ageBand: r.ageBand } : {}), ...(r.householdSize !== undefined ? { householdSize: r.householdSize } : {}), ...(r.household ? { household: r.household } : {}), ...(r.crops ? { crops: r.crops } : {}), ...(r.contributionPaid !== undefined ? { contributionPaid: r.contributionPaid } : {}) };
+        const changed: Farmer = { ...f, community: r.village, ...(fresh ? { gender: r.gender, hectares: r.hectares } : {}), ...(r.ageBand ? { ageBand: r.ageBand } : {}), ...(r.householdSize !== undefined ? { householdSize: r.householdSize } : {}), ...(r.household ? { household: r.household } : {}), ...(r.crops ? { crops: r.crops } : {}), ...(r.package ? { package: r.package } : {}), ...(r.contributionPaid !== undefined ? { contributionPaid: r.contributionPaid } : {}) };
         // A contribution marked paid on the list moves on a farmer whose training is already recorded.
         const next = afterTrainInputs(f, changed, day, selectionHold(outcomes, r.id)) as Farmer;
         await tx.update(s.fieldItems).set({ data: next, updatedAt: new Date() }).where(eq(s.fieldItems.id, item.id));
@@ -111,6 +122,7 @@ export async function importFarmers(code: string, rows: FarmerRow[], by: { id: s
         householdSize: r.householdSize ?? 0,
         ...(r.household ? { household: r.household } : {}),
         ...(r.crops ? { crops: r.crops } : {}),
+        ...(r.package ? { package: r.package } : {}),
         community: r.village,
         hectares: r.hectares,
         enrolled: true,

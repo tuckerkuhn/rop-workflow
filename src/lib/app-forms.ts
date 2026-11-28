@@ -6,7 +6,7 @@ import { FARMER_ID } from "@/lib/farmer-import";
 import { parseHousehold } from "@/lib/household";
 import { curriculumText, parseScores } from "@/lib/field-training";
 import type { CropPlan } from "@/lib/crops";
-import type { FieldSetup } from "@/lib/package";
+import type { FieldSetup, PackageOption } from "@/lib/package";
 import { canEditProject, type AppUser } from "@/lib/demo";
 
 /**
@@ -73,7 +73,7 @@ export type AppForm = { kind: AppFormKind; title: string; questions: Question[];
 
 /** The farmer list and package a form looks things up in (pulldata), as KoboCollect had them in farmers.csv and package.csv. */
 export type FormLists = {
-  farmers: { name: string; label: string; hectares: number | null }[];
+  farmers: { name: string; label: string; hectares: number | null; /** The package the farmer chose ("" for none). */ package?: string }[];
   package: { name: string; label: string; qty: number; unit: string; per: string }[];
 };
 
@@ -132,7 +132,7 @@ export function readForm(kind: AppFormKind, x: XlsForm): AppForm {
  * The name is asked only of someone who may see names (`names`); everyone else records the farmer
  * by ID only, as the list import does.
  */
-export function registerForm(names: boolean): XlsForm {
+export function registerForm(names: boolean, packages: PackageOption[] = []): XlsForm {
   const rows: string[][] = [
     ["type", "name", "label", "hint", "required", "relevant", "appearance", "calculation", "default", "parameters", "constraint", "constraint_message"],
     ["start-geopoint", "start_geopoint", "", "", "", "", "", "", "", "", "", ""],
@@ -151,6 +151,8 @@ export function registerForm(names: boolean): XlsForm {
     ["household", "household", "Who lives in the household", "Everyone, the farmer included: sex and age. No names.", "", "", "", "", "", "", "", ""],
     // Asked only when the roster is left empty: the roster's length is the household's size.
     ["integer", "household_size", "People in the household", "", "", "string-length(${household}) = 0", "", "", "", "", ". >= 1 and . <= 100", "Enter the number of people, between 1 and 100."],
+    // Several packages: the farmer chooses one, and only its items are handed out.
+    ...(packages.length > 1 ? [["select_one package", "package", "Package the farmer chose", "Each package has its own items and rules.", "yes", "", "", "", "", "", "", ""]] : []),
     ["text", "crops", "Crops the farmer grows now", "Separate them with commas, like: wheat, maize.", "", "", "", "", "", "", "", ""],
     ["select_one yes_no", "contribution_paid", "Has the farmer paid their contribution?", "", "", "", "", "", "", "", "", ""],
   ];
@@ -163,6 +165,7 @@ export function registerForm(names: boolean): XlsForm {
       ...AGE_BANDS.map((b) => ["age_band", b, b]),
       ["yes_no", "yes", "Yes"],
       ["yes_no", "no", "No"],
+      ...(packages.length > 1 ? packages.map((p) => ["package", p.key, p.why ? `${p.name}: ${p.why}` : p.name]) : []),
     ],
     settings: [["form_title", "form_id", "version", "instance_name"], ["Register a farmer", "register_farmer", "1", ""]],
   };
@@ -170,7 +173,7 @@ export function registerForm(names: boolean): XlsForm {
 
 /** The form of this kind for a project, from what it saved in Set up (the package, the crop plan). */
 export function appForm(kind: AppFormKind, code: string, o: { setup?: FieldSetup | null; plan?: CropPlan | null; names?: boolean }): AppForm {
-  if (kind === "register") return readForm(kind, registerForm(!!o.names));
+  if (kind === "register") return readForm(kind, registerForm(!!o.names, o.setup?.packages ?? []));
   if (kind === "distribution") {
     if (!o.setup?.items.length) throw new Error("Save the input package first: the distribution form is made from it.");
     return readForm(kind, distributionForm(code, `${code} input distribution`, o.setup, "app"));

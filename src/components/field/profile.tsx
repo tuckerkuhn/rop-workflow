@@ -19,6 +19,7 @@ import { today } from "@/lib/clock";
 import { DEMO_SETUP, packageUsd } from "@/lib/package";
 import { holderOf } from "@/lib/demo";
 import { householdCounts } from "@/lib/household";
+import { packageOption } from "@/lib/package";
 import {
   farmerStages,
   fieldPerson,
@@ -243,6 +244,7 @@ export function FarmerProfile({ id }: { id: string }) {
                   <br />
                   {farmer.gender} · {farmer.ageBand} · {tx("household of {n}", { n: farmer.householdSize })}
                   {farmer.household?.length ? ` (${tx("{women} women, {men} men, {girls} girls, {boys} boys", householdCounts(farmer.household))})` : ""}
+                  {packageOption(setup, farmer.package) ? ` · ${tx("Package: {name}", { name: packageOption(setup, farmer.package)!.name })}` : ""}
                 </p>
               </div>
               <Link

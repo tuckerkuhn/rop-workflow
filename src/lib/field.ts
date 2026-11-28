@@ -160,6 +160,8 @@ export type Farmer = {
   household?: HouseholdMember[];
   /** What the farmer grows now, as they said it at registration: checked by a crop eligibility rule (lib/eligibility). */
   crops?: string[];
+  /** The package the farmer chose, when the project offers more than one (lib/package PackageOption). */
+  package?: string;
   /** Each training session attended, with what was taught and the test scores (MF-09). */
   trainings?: FarmerTraining[];
   community: string;
@@ -381,7 +383,7 @@ export const fieldSteps: Record<string, SStep> = {
         why: msg("Inputs come from procurement, on the package's budget lines. Stock falls as packages go out."),
         tag: "TS",
         auto: (i, ctx) => {
-          const need = itemsFor(ctx.setup, asFarmer(i).hectares);
+          const need = itemsFor(ctx.setup, asFarmer(i).hectares, asFarmer(i).package);
           const ok = need.every((p) => (ctx.stock[p.key] ?? 0) + 1e-9 >= p.qty);
           return {
             ok,
@@ -402,7 +404,7 @@ export const fieldSteps: Record<string, SStep> = {
         tone: "primary",
         effect: (i, _, ctx) => ({
           item: i,
-          stock: { ...ctx.stock, ...Object.fromEntries(itemsFor(ctx.setup, asFarmer(i).hectares).map((p) => [p.key, Math.max(0, (ctx.stock[p.key] ?? 0) - p.qty)])) },
+          stock: { ...ctx.stock, ...Object.fromEntries(itemsFor(ctx.setup, asFarmer(i).hectares, asFarmer(i).package).map((p) => [p.key, Math.max(0, (ctx.stock[p.key] ?? 0) - p.qty)])) },
         }),
       },
     ],

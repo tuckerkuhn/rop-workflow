@@ -467,8 +467,9 @@ export async function farmerListRows(code: string) {
   const hectares = new Map(active.filter((r) => (r.data as FieldItem).kind === "farmer").map((r) => [r.key, (r.data as { hectares?: number }).hectares ?? null]));
   // The village comes from the working record (server/farmer-mirror): it is the one kept up to date.
   const village = new Map(active.map((r) => [r.key, (r.data as { community?: string }).community || null]));
+  const chosen = new Map(active.map((r) => [r.key, (r.data as { package?: string }).package ?? ""]));
   return farmers
     .filter((f) => !removed.has(f.code) && f.status !== "removed")
     .sort((a, b) => a.code.localeCompare(b.code))
-    .map((f) => ({ name: f.code, label: [f.code, village.get(f.code) ?? f.village, f.householdHeadInitials].filter(Boolean).join(" · "), hectares: hectares.get(f.code) ?? null }));
+    .map((f) => ({ name: f.code, label: [f.code, village.get(f.code) ?? f.village, f.householdHeadInitials].filter(Boolean).join(" · "), hectares: hectares.get(f.code) ?? null, package: chosen.get(f.code) ?? "" }));
 }

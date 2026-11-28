@@ -23,6 +23,8 @@ export type FarmerRow = {
   household?: HouseholdMember[];
   /** What the farmer grows now, as "wheat, maize". */
   crops?: string[];
+  /** The package the farmer chose, by its short id or its name (checked against the project's packages when loaded). */
+  package?: string;
   contributionPaid?: boolean;
   step?: StartStep;
 };
@@ -42,6 +44,7 @@ const HEADERS: Record<keyof FarmerRow, string[]> = {
   householdSize: ["household", "household size", "hh size"],
   household: ["household members", "members", "roster"],
   crops: ["crops", "crops grown", "grows"],
+  package: ["package", "package chosen"],
   contributionPaid: ["contribution", "contribution paid"],
   step: ["step", "start step", "stage"],
 };
@@ -151,6 +154,7 @@ export function parseFarmers(text: string): { rows: FarmerRow[]; problems: strin
       ...(ageBand(get("ageBand")) ? { ageBand: ageBand(get("ageBand"))! } : {}),
       ...(hh ? { householdSize: Number(hh) } : {}),
       ...(roster.members.length ? { household: roster.members, householdSize: roster.members.length } : {}),
+      ...(get("package") ? { package: get("package") } : {}),
       ...(splitNames(get("crops")).length ? { crops: splitNames(get("crops")).slice(0, 20) } : {}),
       ...(get("contributionPaid") ? { contributionPaid: yes(get("contributionPaid")) } : {}),
       ...(step ? { step: step as StartStep } : {}),

@@ -44,10 +44,15 @@ export function distributionForm(code: string, title: string, setup: FieldSetup,
     { type: "start-geopoint", name: "start_geopoint" },
     { type: "select_one_from_file farmers.csv", name: "farmer", label: "Farmer receiving the inputs", hint: "Search by farmer ID or village", required: true, appearance: "autocomplete" },
     { type: "calculate", name: "farmer_ha", calculation: "pulldata('farmers', 'hectares', 'name', ${farmer})" },
+    // The package the farmer chose, when the project offers several: only its items are asked.
+    ...((setup.packages?.length ?? 0) > 1 ? [{ type: "calculate", name: "farmer_package", calculation: "pulldata('farmers', 'package', 'name', ${farmer})" }] : []),
     { type: "date", name: "distribution_date", label: "Distribution date", hint: "Today, unless you are entering a paper list from another day.", required: true, default: "today()", ...NOT_AFTER_TODAY },
   ];
   for (const it of setup.items) {
     const k = it.key;
+    // In some packages only: asked when the farmer's package has it (or no package is recorded).
+    const inPkgs = (setup.packages?.length ?? 0) > 1 ? setup.packages!.filter((p) => p.items.includes(k)).map((p) => p.key) : null;
+    const mine = inPkgs && inPkgs.length < setup.packages!.length ? `(string-length(\${farmer_package}) = 0${inPkgs.map((p) => ` or \${farmer_package} = '${p}'`).join("")})` : "";
     const qty = `pulldata('package', 'qty', 'name', '${k}')`;
     const per = `pulldata('package', 'per', 'name', '${k}')`;
     rows.push(
@@ -56,8 +61,8 @@ export function distributionForm(code: string, title: string, setup: FieldSetup,
       { type: "calculate", name: `${k}_unit`, calculation: `pulldata('package', 'unit', 'name', '${k}')` },
       // One tap in the usual case: the planned amount was handed over. The amount is typed only when it differed.
       // The app reads an item answered "no" as not given, and an item with no amount as the planned amount.
-      { type: "select_one given", name: `${k}_given`, label: `${it.item}: given to this farmer?`, hint: `Planned for this farmer: \${${k}_plan} \${${k}_unit}`, required: true },
-      { type: "decimal", name: `${k}_qty`, label: `${it.item}: amount given (\${${k}_unit})`, hint: `Planned: \${${k}_plan} \${${k}_unit}. Enter what was handed over.`, required: true, relevant: `\${${k}_given} = 'other'` },
+      { type: "select_one given", name: `${k}_given`, label: `${it.item}: given to this farmer?`, hint: `Planned for this farmer: \${${k}_plan} \${${k}_unit}`, required: true, ...(mine ? { relevant: mine } : {}) },
+      { type: "decimal", name: `${k}_qty`, label: `${it.item}: amount given (\${${k}_unit})`, hint: `Planned: \${${k}_plan} \${${k}_unit}. Enter what was handed over.`, required: true, relevant: `${mine ? `${mine} and ` : ""}\${${k}_given} = 'other'` },
     );
   }
   rows.push(

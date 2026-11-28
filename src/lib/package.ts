@@ -24,8 +24,18 @@ export type PackageItem = {
   unitUsd?: number;
 };
 
+/**
+ * One package a farmer can choose (Tucker, 28 Nov: a project may offer several, for example by
+ * the climate risk on the farmer's plot). It names items from the project's list; each item is
+ * still bought on its own budget line, so stock and purchases are unchanged.
+ */
+export type PackageOption = { key: string; name: string; /** Who it is for, in a few words. */ why?: string; items: string[] };
+
 export type FieldSetup = {
+  /** Every item the project hands out. With no `packages`, every farmer gets all of them. */
   items: PackageItem[];
+  /** The packages farmers choose between; none or one means everyone gets the same package. */
+  packages?: PackageOption[];
   /** Season name shown on records, e.g. "2027 spring planting". */
   season?: string;
   /** Where the store is and distributions happen. Farmers keep their own village. */
@@ -74,13 +84,22 @@ export type DistItem = { key: string; item: string; unit: string; qty: number; b
 
 const round = (n: number) => Math.round(n * 1000) / 1000;
 
-/** The package one farmer receives: per-hectare items scaled by the farmer's hectares. */
-export function itemsFor(setup: FieldSetup, hectares = 1): DistItem[] {
-  return setup.items.map((p) => ({ key: p.key, item: p.item, unit: p.unit, qty: round(p.per === "hectare" ? p.qty * (hectares > 0 ? hectares : 0) : p.qty), budgetLine: p.budgetLine }));
+/** The package option with this key, or null (none chosen, or the project has one package). */
+export const packageOption = (setup: Pick<FieldSetup, "packages"> | null | undefined, key: string | null | undefined): PackageOption | null => (key ? (setup?.packages?.find((p) => p.key === key) ?? null) : null);
+/** Whether farmers choose between packages on this project. */
+export const choosesPackage = (setup: Pick<FieldSetup, "packages"> | null | undefined) => (setup?.packages?.length ?? 0) > 1;
+
+/**
+ * The package one farmer receives: per-hectare items scaled by the farmer's hectares. `pkg`: the
+ * package they chose; with none chosen (or a project with one package) every item.
+ */
+export function itemsFor(setup: FieldSetup, hectares = 1, pkg?: string | null): DistItem[] {
+  const opt = packageOption(setup, pkg);
+  return setup.items.filter((p) => !opt || opt.items.includes(p.key)).map((p) => ({ key: p.key, item: p.item, unit: p.unit, qty: round(p.per === "hectare" ? p.qty * (hectares > 0 ? hectares : 0) : p.qty), budgetLine: p.budgetLine }));
 }
 
 /** What one farmer's package is worth in USD, when the items have a unit cost. */
-export const packageUsd = (setup: FieldSetup, hectares = 1) => itemsFor(setup, hectares).reduce((t, i) => t + i.qty * (setup.items.find((p) => p.key === i.key)?.unitUsd ?? 0), 0);
+export const packageUsd = (setup: FieldSetup, hectares = 1, pkg?: string | null) => itemsFor(setup, hectares, pkg).reduce((t, i) => t + i.qty * (setup.items.find((p) => p.key === i.key)?.unitUsd ?? 0), 0);
 
 /** "10 kg certified maize seed and 50 kg NPK 17-17-17" (per-hectare items say so). */
 export const describePackage = (setup: FieldSetup) =>
@@ -161,6 +180,17 @@ export function setupProblem(s: FieldSetup): string | null {
     if (!p.unit.trim()) return `${which} needs a unit (kg, cuttings, metres...).`;
     if (!(p.qty > 0)) return `${which} needs an amount above zero.`;
     if (!p.budgetLine.trim()) return `${which} needs the budget line it is bought on.`;
+  }
+  const pkgKeys = new Set<string>();
+  for (const [n, o] of (s.packages ?? []).entries()) {
+    const which = o.name.trim() || `Package ${n + 1}`;
+    if (!o.name.trim()) return `Package ${n + 1} needs a name.`;
+    if (!KEY_RE.test(o.key)) return `${which}: its short id can use only lowercase letters, digits and _.`;
+    if (pkgKeys.has(o.key)) return `Two packages share the short id "${o.key}". Give each package its own name.`;
+    pkgKeys.add(o.key);
+    if (!o.items.length) return `${which} has no items. Tick at least one.`;
+    const unknown = o.items.find((k) => !keys.has(k));
+    if (unknown) return `${which} names an item that is not in the list above ("${unknown}").`;
   }
   if (s.windowEnd && !/^\d{4}-\d{2}-\d{2}$/.test(s.windowEnd)) return "The planting window's last day must be a date.";
   if (s.target && !/^IND-\d+$/.test(s.target)) return "Choose the target from the list.";

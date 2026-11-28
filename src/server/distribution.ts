@@ -265,7 +265,7 @@ export async function recordFromApp(code: string, farmer: Farmer, user: AppUser,
     await lockStock(tx, project.id);
     const ctx = await context(project, { countPending: true }, tx);
     if (!ctx.setup.items.length) throw new HttpError(409, `${code} has no input package set up yet. The project manager sets it up in Field activities.`);
-    const items = itemsFor(ctx.setup, farmer.hectares);
+    const items = itemsFor(ctx.setup, farmer.hectares, farmer.package);
     const g = gate(items, ctx.procs, ctx.given, ctx.setup);
     if (!g.ok) throw new HttpError(409, `${farmer.id}'s input package can't be recorded as handed out yet. ${g.block}`);
     // Saved twice (a retry, a double tap, a lost connection): the distribution already waiting for
@@ -338,7 +338,7 @@ export async function processPending(code: string, origin = appOrigin()) {
     const code_ = r.farmerCode ?? String(p.farmer ?? p.farmerId ?? "");
     const [farmer, recordedBy] = await Promise.all([code_ ? farmerOf(project.id, code_) : null, recorderName(r.completedBy)]);
     // The Kobo form answers "<item>_qty" in the package unit ("seed_kg" on the demo form).
-    const planned = itemsFor(ctx.setup, farmer?.hectares);
+    const planned = itemsFor(ctx.setup, farmer?.hectares, farmer?.package);
     // A partial package: an item answered "not given" is left out (nothing counted, checked or charged).
     const items = planned
       .filter((i) => f[`${i.key}_given`] !== "no")
@@ -524,6 +524,7 @@ export async function listDistributions(code: string): Promise<DistView[]> {
     return then;
   };
   const hectares = new Map(fieldRows.map((r) => [r.key, (r.data as { hectares?: number }).hectares]));
+  const chosen = new Map(fieldRows.map((r) => [r.key, (r.data as { package?: string }).package]));
   // Farmers whose record now holds a photo of the signed note: a record still waiting counts it at once.
   const noted = new Set(fieldRows.filter((r) => hasSignedNotePhoto(r.data as Farmer)).map((r) => r.key));
   const photoNow = (r: { source: string; payload: unknown; farmerCode: string | null; reviewStatus: string }, m: DistMeta) => (m.photo ?? photoOf(r)) || (r.reviewStatus === "pending" && noted.has(r.farmerCode ?? ""));
@@ -559,7 +560,7 @@ export async function listDistributions(code: string): Promise<DistView[]> {
         })(),
         decided: m.decided ?? null,
         history: m.history ?? [],
-        planned: itemsFor(setup, hectares.get(r.farmerCode ?? "")),
+        planned: itemsFor(setup, hectares.get(r.farmerCode ?? ""), chosen.get(r.farmerCode ?? "")),
         approvers: approversOf(team, recorderOf(r, m, rule, team)).map((p) => p.id),
         approverNames: approverNamesOf(team, recorderOf(r, m, rule, team)),
         closeBlock: closeBlock({ signed: m.signed ?? signedOf(r), photo: photoNow(r, m), source: sourceOf(r), condition: m.conditionOk ? null : conditionOf(r) }),
@@ -853,7 +854,7 @@ export async function resubmitDistribution(code: string, id: string, by: { id: s
   });
   if (!row || !m) throw new HttpError(409, "Only a distribution the project manager sent back can be fixed and sent again. Reload to see where it stands.");
   const farmer = row.farmerCode ? await farmerOf(project.id, row.farmerCode) : null;
-  const planned = itemsFor(ctx.setup, farmer?.hectares);
+  const planned = itemsFor(ctx.setup, farmer?.hectares, farmer?.package);
   const items = applyFix(m.items, fix, planned);
   // From the app the photo is the one on the farmer's record, looked at again now: a tick is not
   // a document. From KoboCollect the image came with the form; a fix can say it has since been added.

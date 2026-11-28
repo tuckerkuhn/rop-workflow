@@ -48,6 +48,7 @@ const farmer = z.looseObject({
   ageBand: z.enum(AGE_BANDS),
   householdSize: z.number().int().min(0).max(100),
   crops: z.array(z.string().trim().min(1).max(80)).max(20).optional(),
+  package: z.string().regex(/^[a-z][a-z0-9_]{0,29}$/).optional(),
   household: z.array(z.object({ sex: z.enum(["Female", "Male"]), age: z.number().int().min(0).max(120) })).max(100).optional(),
   community: short,
   hectares: z.number().min(0).max(100000),

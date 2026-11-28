@@ -39,6 +39,8 @@ export function PackageSetup({ code, onSaved, onCancel }: { code: string; onSave
   const [village, setVillage] = useState("");
   const [crop, setCrop] = useState("");
   const [windowEnd, setWindowEnd] = useState("");
+  // The packages farmers choose between (Tucker, 28 Nov): none means every farmer gets every item.
+  const [packages, setPackages] = useState<{ name: string; why: string; items: string[] }[]>([]);
   // The farmer training curriculum and its version (MF-09).
   const [curriculum, setCurriculum] = useState({ name: "", version: "" });
   // The target an approved distribution adds a farmer to, and the targets to choose from.
@@ -89,6 +91,7 @@ export function PackageSetup({ code, onSaved, onCancel }: { code: string; onSave
           setWindowEnd(s.windowEnd ?? "");
           setCurriculum({ name: s.curriculum?.name ?? "", version: s.curriculum?.version ?? "" });
           setTarget(s.target ?? "");
+          setPackages((s.packages ?? []).map((p) => ({ name: p.name, why: p.why ?? "", items: p.items })));
           setTargetAt(s.targetAt ?? "distribution");
         }
       })
@@ -114,6 +117,7 @@ export function PackageSetup({ code, onSaved, onCancel }: { code: string; onSave
   const built: FieldSetup = {
     items: items.map((d) => ({ key: d.key || keyFrom(d.item), item: d.item.trim(), unit: d.unit.trim(), qty: Number(d.qty), per: d.per, budgetLine: d.budgetLine, ...(d.unitUsd.trim() ? { unitUsd: Number(d.unitUsd) } : {}) })),
     ...(season.trim() ? { season: season.trim() } : {}),
+    ...(packages.length ? { packages: packages.map((p) => ({ key: keyFrom(p.name), name: p.name.trim(), ...(p.why.trim() ? { why: p.why.trim() } : {}), items: p.items.filter((k) => items.some((d) => (d.key || keyFrom(d.item)) === k)) })) } : {}),
     ...(village.trim() ? { village: village.trim() } : {}),
     ...(windowEnd ? { windowEnd } : {}),
     ...(curriculum.name.trim() ? { curriculum: { name: curriculum.name.trim(), version: curriculum.version.trim() } } : {}),
@@ -258,6 +262,45 @@ export function PackageSetup({ code, onSaved, onCancel }: { code: string; onSave
           </button>
         )}
       </div>
+      <fieldset disabled={!editable} className="rounded-2xl border border-line bg-surface p-4">
+        <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-muted">Packages farmers choose from (optional)</legend>
+        <p className="text-sm text-muted">Leave this empty and every farmer gets every item above. Add two or more when farmers choose, for example by the climate risk on their plot. Each farmer then records one package, gets only its items, and may have its own eligibility rules.</p>
+        {packages.map((p, k) => (
+          <div key={k} className="mt-3 rounded-xl border border-line p-3">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block text-sm font-medium">
+                Package name
+                <input value={p.name} maxLength={80} onChange={(e) => setPackages((all) => all.map((x, j) => (j === k ? { ...x, name: e.target.value } : x)))} placeholder="For example: Drought-tolerant" className={`mt-1 ${field}`} />
+              </label>
+              <label className="block text-sm font-medium">
+                Who it is for
+                <input value={p.why} maxLength={160} onChange={(e) => setPackages((all) => all.map((x, j) => (j === k ? { ...x, why: e.target.value } : x)))} placeholder="For example: plots with no irrigation" className={`mt-1 ${field}`} />
+              </label>
+            </div>
+            <p className="mt-2 text-sm font-medium">Items in this package</p>
+            <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+              {items.filter((d) => d.item.trim()).map((d) => {
+                const key = d.key || keyFrom(d.item);
+                return (
+                  <label key={key} className="flex min-h-11 items-center gap-2 text-sm">
+                    <input type="checkbox" className="h-5 w-5" checked={p.items.includes(key)} onChange={(e) => setPackages((all) => all.map((x, j) => (j === k ? { ...x, items: e.target.checked ? [...x.items, key] : x.items.filter((i) => i !== key) } : x)))} />
+                    {d.item}
+                  </label>
+                );
+              })}
+            </div>
+            <button type="button" onClick={() => setPackages((all) => all.filter((_, j) => j !== k))} className="mt-2 text-sm text-muted hover:text-clay">
+              Remove this package
+            </button>
+          </div>
+        ))}
+        {editable && (
+          <button type="button" onClick={() => setPackages((all) => [...all, { name: "", why: "", items: [] }])} className={`${quietBtn} mt-3`}>
+            + Add a package
+          </button>
+        )}
+        {packages.length === 1 && <p className="mt-2 text-sm text-muted">One package is the same as none: add a second, or remove this one.</p>}
+      </fieldset>
       <fieldset disabled={!editable} className="grid gap-3 rounded-2xl border border-line bg-surface p-4 sm:grid-cols-2">
         <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-muted">Season (optional)</legend>
         <label className="block text-sm font-medium">

@@ -136,6 +136,7 @@ async function register(code: string, a: Answers, user: AppUser, duplicatesCheck
         ...(a.age_band ? { ageBand: a.age_band as never } : {}),
         ...(a.household_size ? { householdSize: Number(a.household_size) } : {}),
         ...(household.length ? { household, householdSize: household.length } : {}),
+        ...(a.package ? { package: a.package } : {}),
         ...(splitNames(a.crops ?? "").length ? { crops: splitNames(a.crops ?? "").slice(0, 20) } : {}),
         ...(a.contribution_paid ? { contributionPaid: a.contribution_paid === "yes" } : {}),
       },
