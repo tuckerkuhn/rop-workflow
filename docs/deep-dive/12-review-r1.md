@@ -91,7 +91,16 @@
       manager steps in after 3 days (an organization setting). Administrator rights are never
       passed on. Seen on the local copy as Nadia. Procurement signatures carry the delegate's own
       name for now (the authority table already lets them sign); "on behalf of" there is next.
-- **Tests:** 185 files, 1,396 tests, all passing (39 tests of removed Kobo features went with them). Typecheck and lint clean.
+    - MF-03 `90ff49d` staff screening (D-23, D-05): HR records each sanctions check (date, lists,
+      result, printout link) in the HR record; a hire cannot be signed until the finalist has a
+      clear screening from the last 12 months; a possible match waits for a person's review; HR's
+      Home has a "Sanctions screening" tile listing staff not screened within the year.
+    - MF-04 `46501e0` farmer screening above $50: a package worth more than the limit (a project
+      setting, `screenAboveUsd`, $50 by default) is not approved until someone who may see the
+      farmer's name records a clear check on the farmer's page; a possible match waits for review.
+      The approval screen says what it waits for. Every demo package is about $207, so each demo
+      farmer at "distribute" now needs a screening before approval.
+- **Tests:** 189 files, 1,402 tests, all passing (39 tests of removed Kobo features went with them). Typecheck and lint clean.
 - **Seen on screen** (desktop, local throwaway database, never Supabase): the ISS-18 flag as Nadia
   (queue and record), ISS-20 on Project settings and the donor view, ISS-12 as Daniel. Part 2
   step 1: as Farida, a readiness check filled in (the "what needs fixing" question appears on No,
@@ -132,6 +141,8 @@
      rule, so it waits for your OK. Until then the empty tables do no harm.
   11. Targets that were counted from a KoboToolbox question (none on the demo project) now show "Not
      counted from any data yet" until switched to "results recorded in the app" in Set up.
+  14. MF-04: the demo package (~$207) is above $50, so every demo distribution now waits for a
+     farmer screening. Keep $50, or raise the limit for this project in Set up?
   13. MF-01: D-13 says the board approves the authority table as the written delegation. That is
      a board step, not the app's: the app only lets a delegate act within the table.
   12. The Dari, Pashto and Spanish wording files still carry some old Kobo sentences that no screen
