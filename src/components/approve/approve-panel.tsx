@@ -15,6 +15,7 @@ import type { DistFacts } from "@/server/distribution-photo";
 import { WhereWhen } from "@/components/field/where-when";
 import { qtyItem } from "@/lib/package";
 import { longDate } from "@/lib/weekly";
+import { receiptIncomplete, receiptMismatches, type ReceiptCheck } from "@/lib/receipt-check";
 
 /** A timestamp as the day it was for the person reading it (their own time zone), in words. */
 const dayOfStamp = (at: string) => {
@@ -52,6 +53,8 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
   const [fix, setFix] = useState<{ qty: Record<string, string>; signed: boolean; photo: boolean; conditionOk: boolean }>({ qty: {}, signed: false, photo: false, conditionOk: false });
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
+  // ISS-14: what the approver reads on the distribution receipt, line by line, before approving.
+  const [read, setRead] = useState<{ date: string; farmer?: boolean; qty: Record<string, string> }>({ date: "", qty: {} });
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<"" | "approved" | "sent_back" | "resubmit" | "checked">("");
   // The photo of the signed note, added on this page while fixing a record that was sent back.
@@ -127,7 +130,8 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
 
   async function decide(decision: "approved" | "sent_back") {
     setBusy(true);
-    const res = await fetch(url, { method: "POST", headers, body: JSON.stringify({ decision, note: note.trim() || undefined, token: token || undefined }) });
+    const receipt = d ? receiptOf(read, d) : null;
+    const res = await fetch(url, { method: "POST", headers, body: JSON.stringify({ decision, note: note.trim() || undefined, token: token || undefined, ...(receipt && !receiptIncomplete(receipt, d!.items) ? { receipt } : {}) }) });
     const body = await res.json().catch(() => ({}));
     setBusy(false);
     if (!res.ok) return setError(body.error ?? plainError(res.status));
@@ -371,6 +375,7 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
             </section>
           )}
           {d.koboCheck?.done && pending && !done && <p className="mt-6 text-sm text-muted">{tx("KoboCollect record checked by {name}.", { name: d.koboCheck.done.byName })}</p>}
+          {pending && canDecide && !done && !d.koboCheck?.needed && <ReceiptRead d={d} read={read} setRead={setRead} />}
           {pending && canDecide && !done && (
             <section className="mt-6">
               <label className="block text-sm font-medium" htmlFor="note">
@@ -378,13 +383,14 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
               </label>
               <textarea id="note" value={note} onChange={(e) => setNote(e.target.value)} rows={3} className="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm" placeholder={tx("What needs fixing")} />
               <div className="mt-3 flex flex-wrap gap-2">
-                <button type="button" className={primaryBtn} disabled={busy || !d.gate.ok || !!d.closeBlock || !!d.koboCheck?.needed} onClick={() => decide("approved")}>
+                <button type="button" className={primaryBtn} disabled={busy || !d.gate.ok || !!d.closeBlock || !!d.koboCheck?.needed || !receiptMatches(read, d)} onClick={() => decide("approved")}>
                   {busy ? tx("Saving…") : tx("Approve")}
                 </button>
                 <button type="button" className={quietBtn} disabled={busy || !note.trim()} onClick={() => decide("sent_back")}>
                   {tx("Send back")}
                 </button>
               </div>
+              {d.gate.ok && !d.closeBlock && !d.koboCheck?.needed && !receiptMatches(read, d) && <p className="mt-2 text-xs text-muted">{tx("Approve opens once the distribution receipt is read above and matches the record.")}</p>}
             </section>
           )}
           {sentBack && canFix && !done && (
@@ -505,5 +511,71 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
         </>
       )}
     </main>
+  );
+}
+
+type Read = { date: string; farmer?: boolean; qty: Record<string, string> };
+/** The receipt as read, once every line has an answer; null while one is missing or not a number. */
+function receiptOf(r: Read, d: DistView): ReceiptCheck | null {
+  if (!r.date || r.farmer === undefined) return null;
+  const qty: Record<string, number> = {};
+  for (const i of d.items) {
+    const v = (r.qty[i.key] ?? "").trim().replace(",", ".");
+    if (v === "" || !Number.isFinite(Number(v))) return null;
+    qty[i.key] = Number(v);
+  }
+  return { date: r.date, farmer: r.farmer, qty };
+}
+const receiptMatches = (r: Read, d: DistView) => {
+  const c = receiptOf(r, d);
+  return !!c && receiptMismatches(c, d).length === 0;
+};
+
+/** ISS-14: the distribution receipt read against the record, one line at a time. */
+function ReceiptRead({ d, read, setRead }: { d: DistView; read: Read; setRead: (r: Read) => void }) {
+  const { tx } = useT();
+  const c = receiptOf(read, d);
+  const off = c ? receiptMismatches(c, d) : [];
+  const input = "mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm";
+  return (
+    <section className="mt-4 rounded-xl border border-line bg-surface px-4 py-3" aria-labelledby="receipt-read">
+      <h2 id="receipt-read" className="font-medium">
+        {tx("Read the distribution receipt")}
+      </h2>
+      <p className="mt-1 text-sm text-muted">{tx("Type what the farmer's signed receipt shows, not what the record says. Any difference is flagged, and the distribution goes back to be put right.")}</p>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <label className="block text-sm font-medium">
+          {tx("Date written on the receipt")}
+          <input type="date" value={read.date} onChange={(e) => setRead({ ...read, date: e.target.value })} className={input} />
+        </label>
+        <fieldset className="text-sm">
+          <legend className="font-medium">{tx("Does it name farmer {id}?", { id: d.farmerId })}</legend>
+          <div className="mt-1 flex gap-2">
+            {([true, false] as const).map((v) => (
+              <button key={String(v)} type="button" aria-pressed={read.farmer === v} onClick={() => setRead({ ...read, farmer: v })} className={read.farmer === v ? primaryBtn : quietBtn}>
+                {v ? tx("Yes") : tx("No")}
+              </button>
+            ))}
+          </div>
+        </fieldset>
+        {d.items.map((i) => (
+          <label key={i.key} className="block text-sm font-medium">
+            {tx("{item} on the receipt ({unit})", { item: i.item, unit: i.unit })}
+            <input type="text" inputMode="decimal" value={read.qty[i.key] ?? ""} onChange={(e) => setRead({ ...read, qty: { ...read.qty, [i.key]: e.target.value } })} className={input} />
+          </label>
+        ))}
+      </div>
+      {c && off.length === 0 && <p className="mt-3 text-sm text-leaf">✓ {tx("The receipt matches the record.")}</p>}
+      {off.length > 0 && (
+        <div role="alert" className="mt-3 rounded-lg border border-clay/40 bg-clay-soft px-3 py-2 text-sm text-clay">
+          <p className="font-semibold">{tx("The receipt does not match the record. Send it back:")}</p>
+          <ul className="mt-1 list-disc ps-5">
+            {off.map((m) => (
+              <li key={m}>{m}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </section>
   );
 }

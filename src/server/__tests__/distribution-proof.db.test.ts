@@ -29,6 +29,7 @@ import { loadField } from "@/server/field-store";
 import { saveKoboApproval } from "@/server/kobo-approval";
 import { loadResults } from "@/server/results-store";
 import { submissionPhoto, submissionProof } from "@/server/submission-proof";
+import { approveAs } from "@/server/__tests__/receipt-helper";
 import { ready } from "@/server/__tests__/test-db";
 
 /**
@@ -144,7 +145,7 @@ describe("whoever checks a KoboCollect record can return it to the person who co
     expect(task.assignee).toBe("bilal");
     // The checker still cannot approve.
     const again = await koboRow("proof-2", farmerId, { farmer: farmerId, distribution_date: "2026-11-24", seed_kg: "10", npk_kg: "50", condition: "good", signed: "yes", list_photo: "note.jpg", _attachments: attachments });
-    expect(await refusal(() => decideDistribution(code, again, "approved", rahima))).toMatch(/KoboCollect/);
+    expect(await refusal(() => approveAs(code, again, rahima))).toMatch(/KoboCollect/);
     await db.delete(s.evidence).where(eq(s.evidence.id, again));
   });
 
@@ -178,7 +179,7 @@ describe("whoever checks a KoboCollect record can return it to the person who co
   it("once checked and approved, the result is counted on the day the goods were handed out", async () => {
     const bare = (await listDistributions(code)).find((x) => x.status === "pending" && x.source === "kobo")!;
     await checkKoboDistribution(code, bare.id, { id: rahima.id, name: rahima.name }, "http://test");
-    const res = await decideDistribution(code, bare.id, "approved", nadia);
+    const res = await approveAs(code, bare.id, nadia);
     expect(res.target).toBeTruthy();
     // What finance was asked is said exactly: a task per purchase with a payment waiting, or none.
     expect(Array.isArray(res.payments)).toBe(true);

@@ -21,6 +21,10 @@ import type { Submission } from "@/lib/project";
 import { demoMode, onProject, people, toAppUser } from "@/server/auth";
 import { projectByCode, setupOf } from "@/server/field-store";
 import { HttpError } from "@/server/guard";
+import { receiptIncomplete, receiptMismatches, type ReceiptCheck, type ReceiptChecked } from "@/lib/receipt-check";
+
+/** Where the receipt check is kept on a distribution record (ISS-14). */
+export const RECEIPT_KEY = "_rop_receipt";
 import { loadProjectState, type Reader } from "@/server/project-state";
 import { oncePerRequest, requestWrote } from "@/server/request-memo";
 
@@ -637,7 +641,11 @@ export const mayApprove = (u: AppUser, code: string) => u.kind === "employee" &&
  * one transaction: the record counts (MEL, donor report), the purchase's distribution list grows,
  * finance gets a ready-to-pay task, and the audit log has it all.
  */
-export async function decideDistribution(code: string, id: string, decision: "approved" | "sent_back", by: { id: string; name: string }, note?: string) {
+/**
+ * `receipt`: what the person approving read on the distribution receipt (ISS-14). Needed to approve,
+ * and every line must match the record; with "sent_back" it is kept with the reason when given.
+ */
+export async function decideDistribution(code: string, id: string, decision: "approved" | "sent_back", by: { id: string; name: string }, note?: string, receipt?: ReceiptCheck) {
   const project = await projectByCode(code);
   const [row] = await db.select().from(s.evidence).where(and(eq(s.evidence.id, id), eq(s.evidence.projectId, project.id), eq(s.evidence.form, "distribution"))).limit(1);
   if (!row) throw new HttpError(404, "That distribution is not on this project.");
@@ -671,6 +679,14 @@ export async function decideDistribution(code: string, id: string, decision: "ap
   // The signed note closes it: no approval while the recipient's signature is not confirmed.
   const unsigned = decision === "approved" ? closeBlock({ signed: m.signed ?? signedOf(row), photo: (m.photo ?? photoOf(row)) || hasSignedNotePhoto(row.farmerCode ? await farmerOf(project.id, row.farmerCode) : null), source: sourceOf(row), condition: m.conditionOk ? null : conditionOf(row) }) : null;
   if (unsigned) throw new HttpError(409, `Not approved: ${unsigned}`);
+  // ISS-14: the receipt is read against the record, one line at a time, before anything is approved.
+  const recorded = { date: dayOf(row), farmerId: row.farmerCode ?? "", items: m.items };
+  const receiptChecked: ReceiptChecked | null = receipt ? { ...receipt, by: by.id, byName: by.name, at: new Date().toISOString(), mismatches: receiptMismatches(receipt, recorded) } : null;
+  if (decision === "approved") {
+    const incomplete = receiptIncomplete(receipt, m.items);
+    if (incomplete) throw new HttpError(400, `Not approved yet: ${incomplete}`);
+    if (receiptChecked!.mismatches.length) throw new HttpError(409, `Not approved: the distribution receipt does not match the record. ${receiptChecked!.mismatches.join(" ")} Send it back so it is put right.`);
+  }
 
   const finance = decision === "approved" ? (await people()).filter((u) => u.procurement.includes("finance") && onProject(u, code))[0] : undefined;
   // Sent back to the person who recorded it; to the storekeeper or extension agent when that was a phone in the field.
@@ -698,7 +714,15 @@ export async function decideDistribution(code: string, id: string, decision: "ap
     }
     await tx
       .update(s.evidence)
-      .set({ reviewStatus: decision === "approved" ? "accepted" : "queried", reviewedBy: by.id, reviewedAt: now, queryNote: decision === "sent_back" ? note!.trim() : null, updatedAt: now })
+      .set({
+        reviewStatus: decision === "approved" ? "accepted" : "queried",
+        reviewedBy: by.id,
+        reviewedAt: now,
+        // A mismatch found on the receipt goes back with the reason, so the person fixing it sees it.
+        queryNote: decision === "sent_back" ? `${note!.trim()}${receiptChecked?.mismatches.length ? ` ${receiptChecked.mismatches.join(" ")}` : ""}` : null,
+        ...(receiptChecked ? { payload: { ...((row.payload ?? {}) as Record<string, unknown>), [RECEIPT_KEY]: receiptChecked } } : {}),
+        updatedAt: now,
+      })
       .where(eq(s.evidence.id, id));
 
     if (decision === "approved") {

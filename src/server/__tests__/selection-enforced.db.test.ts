@@ -14,6 +14,7 @@ import { saveProjectState } from "@/server/project-state";
 import { decide } from "@/server/review";
 import { actOnSelection, loadSelection } from "@/server/selection-store";
 import { PUT } from "@/app/api/projects/[code]/field/route";
+import { approveAs } from "@/server/__tests__/receipt-helper";
 import { ready } from "@/server/__tests__/test-db";
 
 /**
@@ -92,7 +93,7 @@ describe("selection enforced on the server", { timeout: 60_000 }, () => {
   it("refuses to approve a distribution for a waitlisted farmer; sending it back stays open", async () => {
     const d = (await listDistributions(code)).find((x) => x.status === "pending")!;
     expect(await outcome(d.farmerId, "waitlisted")).toBeNull();
-    expect(await refusal(() => decideDistribution(code, d.id, "approved", nadia))).toBe(`Not approved: ${d.farmerId} is waitlisted in Farmer selection. Select them first, or send this distribution back.`);
+    expect(await refusal(() => approveAs(code, d.id, nadia))).toBe(`Not approved: ${d.farmerId} is waitlisted in Farmer selection. Select them first, or send this distribution back.`);
     expect(await status(d.id)).toBe("pending");
     expect((await decideDistribution(code, d.id, "sent_back", nadia, "Farmer is waitlisted")).decision).toBe("sent_back");
   });

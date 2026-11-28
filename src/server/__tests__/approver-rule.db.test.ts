@@ -13,6 +13,7 @@ import { loadField, saveItems } from "@/server/field-store";
 import { loadHome } from "@/server/home-store";
 import { loadProcurements, saveProcurements } from "@/server/procurement-store";
 import { decide } from "@/server/review";
+import { approveAs } from "@/server/__tests__/receipt-helper";
 import { ready } from "@/server/__tests__/test-db";
 
 /**
@@ -53,9 +54,9 @@ describe("who approves an input distribution", { timeout: 60_000 }, () => {
   });
 
   it("refuses her approval and her send-back, with who decides instead", async () => {
-    expect(await refusal(() => decideDistribution(code, own, "approved", nadia))).toBe("You recorded this distribution, so someone else approves it: Karim Ahmadi.");
+    expect(await refusal(() => approveAs(code, own, nadia))).toBe("You recorded this distribution, so someone else approves it: Karim Ahmadi.");
     expect(await refusal(() => decideDistribution(code, own, "sent_back", nadia, "Wrong amount"))).toMatch(/^You recorded this distribution/);
-    expect(await refusal(() => decideDistribution(code, own, "approved", bilal))).toBe("Only Karim Ahmadi can approve this distribution or send it back.");
+    expect(await refusal(() => approveAs(code, own, bilal))).toBe("Only Karim Ahmadi can approve this distribution or send it back.");
   });
 
   it("puts it on his Home, not hers, and lets him approve", async () => {
@@ -63,7 +64,7 @@ describe("who approves an input distribution", { timeout: 60_000 }, () => {
     // Names come first for people allowed to see them (Nadia); Karim may not, so he sees the number only.
     expect(await homeRow(nadia)).toBe("Approve the input distribution to Rahmatullah Sharifi (F-0002)");
     expect(await homeRow(karim)).toBe("Approve the input distribution to F-0007");
-    const res = await decideDistribution(code, own, "approved", karim);
+    const res = await approveAs(code, own, karim);
     expect(res.decision).toBe("approved");
     expect(await farmer("F-0007")).toMatchObject({ step: "plant" });
     expect((await row(own)).decided).toMatchObject({ by: "karim", decision: "approved" });
@@ -79,8 +80,8 @@ describe("who approves an input distribution", { timeout: 60_000 }, () => {
     await listDistributions(code);
     await checkKoboDistribution(code, r.id, { id: omar.id, name: omar.name }, "http://test");
     expect((await row(r.id)).approvers).toEqual(["karim"]);
-    expect(await refusal(() => decideDistribution(code, r.id, "approved", nadia))).toMatch(/^You recorded this distribution/);
-    expect((await decideDistribution(code, r.id, "approved", karim)).decision).toBe("approved");
+    expect(await refusal(() => approveAs(code, r.id, nadia))).toMatch(/^You recorded this distribution/);
+    expect((await approveAs(code, r.id, karim)).decision).toBe("approved");
   });
 });
 
@@ -99,7 +100,7 @@ describe("the signed note closes a distribution", { timeout: 60_000 }, () => {
     const d = await row(unsigned);
     expect(d.signed).toBe(false);
     expect(d.closeBlock).toMatch(/not confirmed/);
-    expect(await refusal(() => decideDistribution(code, unsigned, "approved", nadia))).toMatch(/^Not approved: The recipient's signature or thumbprint on the goods received note is not confirmed/);
+    expect(await refusal(() => approveAs(code, unsigned, nadia))).toMatch(/^Not approved: The recipient's signature or thumbprint on the goods received note is not confirmed/);
     expect((await row(unsigned)).status).toBe("pending");
   });
 
@@ -108,7 +109,7 @@ describe("the signed note closes a distribution", { timeout: 60_000 }, () => {
     await resubmitDistribution(code, unsigned, { id: bilal.id, name: bilal.name }, { signed: true }, "Thumbprint taken on the note", "http://test");
     const d = await row(unsigned);
     expect(d.closeBlock).toBeNull();
-    expect((await decideDistribution(code, unsigned, "approved", nadia)).decision).toBe("approved");
+    expect((await approveAs(code, unsigned, nadia)).decision).toBe("approved");
   });
 });
 
@@ -145,7 +146,7 @@ describe("a readiness No goes back to the agent who made the visit", { timeout: 
     await listDistributions(code);
     await checkKoboDistribution(code, r.id, { id: omar.id, name: omar.name }, "http://test");
     expect((await row(r.id)).condition).toBe("some_damaged");
-    expect(await refusal(() => decideDistribution(code, r.id, "approved", nadia))).toMatch(/damaged at handover/);
+    expect(await refusal(() => approveAs(code, r.id, nadia))).toMatch(/damaged at handover/);
     await decideDistribution(code, r.id, "sent_back", nadia, "Replace the damaged bags.");
     await resubmitDistribution(code, r.id, { id: bilal.id, name: bilal.name }, { conditionOk: true }, "Damaged bags replaced; recipient accepted", "http://test");
     expect((await row(r.id)).closeBlock).toBeNull();
@@ -156,10 +157,10 @@ describe("a readiness No goes back to the agent who made the visit", { timeout: 
     await saveItems(code, [f]);
     const id = await recordFromApp(code, { ...f, checks: { ...f.checks, "distribute.recipient": true }, step: "plant" }, bilal, "http://test");
     expect((await row(id)).photo).toBe(false);
-    expect(await refusal(() => decideDistribution(code, id, "approved", nadia))).toMatch(/no photo of the signed goods received note/);
+    expect(await refusal(() => approveAs(code, id, nadia))).toMatch(/no photo of the signed goods received note/);
     // The storekeeper adds the photo on the farmer's record: the waiting distribution counts it at once.
     await saveItems(code, [{ ...f, photos: [...f.photos, { id: "note-5", activity: "distribution", date: "2027-01-01", caption: "Signed goods received note", src: "data:image/png;base64,AA==", signedNote: true }] }]);
     expect((await row(id)).closeBlock).toBeNull();
-    expect((await decideDistribution(code, id, "approved", nadia)).decision).toBe("approved");
+    expect((await approveAs(code, id, nadia)).decision).toBe("approved");
   });
 });

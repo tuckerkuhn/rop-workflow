@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { receiptCheckSchema } from "@/lib/receipt-check";
 import { people, requireViewer } from "@/server/auth";
 import { checkKoboDistribution, decideDistribution, listDistributions, mayApprove, mayFix, resubmitDistribution, signedNotePhoto, tokenOpens } from "@/server/distribution";
 import { farmerNameOf, projectByCode } from "@/server/field-store";
@@ -61,6 +62,8 @@ const body = z.object({
   decision: z.enum(["approved", "sent_back", "resubmit", "kobo_checked"]),
   note: z.string().max(2000).optional(),
   token: z.string().max(200).optional(),
+  /** With "approved" (needed) or "sent_back": what the distribution receipt shows (lib/receipt-check). */
+  receipt: receiptCheckSchema.optional(),
   /** With "resubmit": what was corrected. */
   fix: z.object({ qty: z.record(z.string().regex(/^[a-z][a-z0-9_]{0,29}$/), z.number().min(0).max(1e6)).optional(), signed: z.boolean().optional(), photo: z.boolean().optional(), conditionOk: z.boolean().optional() }).optional(),
 });
@@ -98,7 +101,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
       if (v instanceof NextResponse) return v;
       by = { id: v.user.id, name: v.user.name };
     }
-    const r = await decideDistribution(code, id, b.decision, by, b.note);
+    const r = await decideDistribution(code, id, b.decision, by, b.note, b.receipt);
     return NextResponse.json({ ok: true, ...r, distribution: await view(code, id) });
   });
 }

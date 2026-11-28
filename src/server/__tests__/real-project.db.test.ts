@@ -15,6 +15,7 @@ import { importFarmers } from "@/server/farmers";
 import { loadField, projectsWithField, saveItems, saveSetup, setupFor } from "@/server/field-store";
 import { loadHome } from "@/server/home-store";
 import { loadProcurements, saveProcurements } from "@/server/procurement-store";
+import { approveAs } from "@/server/__tests__/receipt-helper";
 import { ready } from "@/server/__tests__/test-db";
 
 // As the screen and the field route require before a distribution is recorded: the recipient's
@@ -126,7 +127,7 @@ describe("Field activities on a real project", { timeout: 60_000 }, () => {
   });
 
   it("on approval charges each purchase in its own unit and asks finance to pay each", async () => {
-    const res = await decideDistribution(code, first, "approved", nadia);
+    const res = await approveAs(code, first, nadia);
     expect([...res.procurements].sort()).toEqual(["PR-T-1", "PR-T-2", "PR-T-3"]);
     const procs = await loadProcurements(code);
     const listed = (id: string) => procs.find((p) => p.id === id)!.distribution!.lists.reduce((n, l) => n + l.qty, 0);
@@ -156,7 +157,7 @@ describe("Field activities on a real project", { timeout: 60_000 }, () => {
     expect(d1.koboCheck).toMatchObject({ needed: true, by: "Omar Sadiq", done: null });
     // Not sent to the project manager yet: no email, no link, and the record says why.
     expect(d1.notified).toMatchObject({ to: [], emailed: false, why: "Waiting for Omar Sadiq to check the KoboCollect record first" });
-    expect(await refusal(() => decideDistribution(code, part, "approved", nadia))).toMatch(/^Not approved yet: this record came from KoboCollect, and Omar Sadiq checks KoboCollect data/);
+    expect(await refusal(() => approveAs(code, part, nadia))).toMatch(/^Not approved yet: this record came from KoboCollect, and Omar Sadiq checks KoboCollect data/);
     expect((await loadHome(code, omar)).actions.find((a) => a.key === "kobo-check")?.text).toBe("Check 2 KoboCollect distributions before they go to the project manager");
     expect((await loadHome(code, nadia)).actions.find((a) => a.key === "distributions")).toBeUndefined();
     // One recorded in the app by a named person never needs it.
@@ -172,7 +173,7 @@ describe("Field activities on a real project", { timeout: 60_000 }, () => {
     expect((await loadHome(code, omar)).actions.find((a) => a.key === "kobo-check")).toBeUndefined();
     expect((await loadHome(code, nadia)).actions.find((a) => a.key === "distributions")?.text).toBe("Approve 2 input distributions");
 
-    expect(await refusal(() => decideDistribution(code, none, "approved", nadia))).toMatch(/Not approved: No item is recorded as given/);
+    expect(await refusal(() => approveAs(code, none, nadia))).toMatch(/Not approved: No item is recorded as given/);
     // The farmer has not moved on and nothing was counted.
     expect((await farmer("T-002")).step).toBe("distribute");
 
@@ -184,7 +185,7 @@ describe("Field activities on a real project", { timeout: 60_000 }, () => {
     const fixed = (await listDistributions(code)).find((x) => x.id === none)!;
     expect(fixed.items.map((i) => [i.key, i.qty])).toEqual([["cuttings", 500], ["trellis", 1]]);
     expect(fixed.gate.ok).toBe(true);
-    await decideDistribution(code, none, "approved", nadia);
+    await approveAs(code, none, nadia);
     expect((await farmer("T-002")).step).toBe("plant");
   });
 });

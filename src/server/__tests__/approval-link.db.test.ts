@@ -10,9 +10,10 @@ import { db, schema as s } from "@/db";
 import { userById } from "@/lib/demo";
 import type { Farmer } from "@/lib/field";
 import { seedDatabase } from "@/server/demo-seed";
-import { decideDistribution, recordFromApp, tokenOpens } from "@/server/distribution";
+import { recordFromApp, tokenOpens } from "@/server/distribution";
 import { loadField } from "@/server/field-store";
 import { loadProcurements, saveProcurements } from "@/server/procurement-store";
+import { approveAs } from "@/server/__tests__/receipt-helper";
 import { ready } from "@/server/__tests__/test-db";
 
 // As the screen and the field route require before a distribution is recorded: the recipient's
@@ -63,7 +64,7 @@ describe("the emailed approval link", { timeout: 60_000 }, () => {
   });
 
   it("stops working once the distribution is decided", async () => {
-    await decideDistribution(code, id, "approved", { id: nadia.id, name: nadia.name });
+    await approveAs(code, id, { id: nadia.id, name: nadia.name });
     expect(await tokenOpens(code, id, tokenIn(sent[0].text))).toBeNull();
   });
 });

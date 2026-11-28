@@ -16,6 +16,7 @@ import { loadHome } from "@/server/home-store";
 import { loadProcurements, saveProcurements } from "@/server/procurement-store";
 import { loadProgress } from "@/server/progress-store";
 import { loadResults, reviewResult } from "@/server/results-store";
+import { approveAs, matchingReceipt } from "@/server/__tests__/receipt-helper";
 import { ready } from "@/server/__tests__/test-db";
 
 // As the screen and the field route require before a distribution is recorded: the recipient's
@@ -144,7 +145,7 @@ describe("input distribution, field to finance (demo project)", { timeout: 60_00
     expect(row?.href).toBe(`/approve/A-2027/${first}`);
     // Sent back, it no longer takes stock and cannot be approved.
     expect(await stock()).toEqual({ seed: 360, npk: 500 });
-    expect(await refusal(() => decideDistribution(code, first, "approved", nadia))).toMatch(/already sent back/);
+    expect(await refusal(() => approveAs(code, first, nadia))).toMatch(/already sent back/);
   });
 
   it("returns to the manager once fixed, with the corrections and the history", async () => {
@@ -175,7 +176,13 @@ describe("input distribution, field to finance (demo project)", { timeout: 60_00
   it("on approval: counts toward the target, grows the right purchase's list, and is in the audit log", async () => {
     const target = async () => (await loadProgress(code, nadia)).indicators.find((i) => i.code === "IND-2")!;
     const before = await target();
-    const res = await decideDistribution(code, first, "approved", nadia);
+    // ISS-14: no approval without the receipt read, and none while it does not match the record.
+    expect(await refusal(() => decideDistribution(code, first, "approved", nadia))).toMatch(/Enter the date written on the distribution receipt/);
+    const good = (await matchingReceipt(code, first))!;
+    expect(await refusal(() => decideDistribution(code, first, "approved", nadia, undefined, { ...good, date: "2027-02-27" }))).toMatch(/^Not approved: the distribution receipt does not match the record\. The receipt is dated 2027-02-27/);
+    const res = await approveAs(code, first, nadia);
+    const [kept] = await db.select().from(s.evidence).where(eq(s.evidence.id, first));
+    expect((kept.payload as Record<string, unknown>)._rop_receipt).toMatchObject({ by: "nadia", mismatches: [] });
     // Approval is what moves the farmer on to planting.
     const moved = await farmer("F-0007");
     expect(moved.step).toBe("plant");
@@ -210,7 +217,7 @@ describe("input distribution, field to finance (demo project)", { timeout: 60_00
     const setup = (await setupFor(code))!;
     await saveSetup(code, { ...setup, target: undefined });
     const before = (await loadResults(code)).length;
-    const res = await decideDistribution(code, second, "approved", nadia);
+    const res = await approveAs(code, second, nadia);
     expect(res.result).toBeNull();
     expect((await loadResults(code)).length).toBe(before);
     await saveSetup(code, setup);
@@ -225,7 +232,7 @@ describe("input distribution, field to finance (demo project)", { timeout: 60_00
   });
 
   it("asks finance to pay once, for the purchase that still has a payment to make", async () => {
-    await decideDistribution(code, third, "approved", nadia);
+    await approveAs(code, third, nadia);
     const pay = await tasks("pay-ready:%");
     expect(pay.map((t) => [t.sourceKey, t.assignee])).toEqual([["pay-ready:PR-2027-011", "yusuf"]]);
     const row = (await loadHome(code, yusuf)).actions.find((a) => a.key === `task:${pay[0].id}`);
@@ -257,9 +264,9 @@ describe("input distribution, field to finance (demo project)", { timeout: 60_00
       .returning({ id: s.evidence.id });
     await listDistributions(code);
     // Not before the KoboCollect check.
-    expect(await refusal(() => decideDistribution(code, row.id, "approved", nadia))).toMatch(/came from KoboCollect/);
+    expect(await refusal(() => approveAs(code, row.id, nadia))).toMatch(/came from KoboCollect/);
     await checkKoboDistribution(code, row.id, { id: omar.id, name: omar.name }, "http://test");
-    const res = await decideDistribution(code, row.id, "approved", nadia);
+    const res = await approveAs(code, row.id, nadia);
     expect(res.target).toBe("IND-2");
     const made = (await loadResults(code)).filter((r) => r.distribution === row.id);
     expect(made).toHaveLength(1);
