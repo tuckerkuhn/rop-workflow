@@ -30,14 +30,45 @@ const usd = (n: number) => "$" + Math.round(n).toLocaleString("en-US");
 export const lineCodeOf = (line: string) => line.trim().split(/\s+/)[0] ?? "";
 const days = (from: string, to: string) => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400000);
 
-/** The purchase a text names by its number ("PR-2027-011"), if any. */
+/**
+ * The purchase a text names by its number ("PR-2027-011"), if any: written with or without its
+ * dashes or spaces, and with or without leading zeros ("PR2027-11", "pr 2027 011"; R2-07).
+ */
 export function namedPurchase(text: string, purchases: readonly { id: string }[]): string | null {
-  const flat = text.toUpperCase().replace(/[^A-Z0-9]+/g, " ");
-  return purchases.find((p) => p.id && ` ${flat} `.includes(` ${p.id.toUpperCase().replace(/[^A-Z0-9]+/g, " ")} `))?.id ?? null;
+  const flat = text.toUpperCase();
+  return (
+    purchases.find((p) => {
+      const parts = (p.id ?? "").toUpperCase().match(/[A-Z]+|\d+/g);
+      if (!parts?.length) return false;
+      const pattern = parts.map((x) => (/^\d+$/.test(x) ? `0*${x.replace(/^0+(?=\d)/, "")}` : x)).join("[^A-Z0-9]*");
+      return new RegExp(`(?<![A-Z0-9])${pattern}(?![0-9])`).test(flat);
+    })?.id ?? null
+  );
+}
+
+/** A name reduced for comparison: lower case, without "(fictional)", company endings and punctuation. */
+const nameKey = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/\(.*?\)/g, " ")
+    .replace(/\b(ltd|limited|llc|inc|co|company|plc|group)\b\.?/g, " ")
+    .replace(/[^a-z0-9\u0600-\u06ff]+/g, " ")
+    .trim();
+/** The open purchases on this line whose supplier is the payee (R2-06). */
+export function payeeSupplies(payee: string, onLine: readonly OpenPurchase[]): OpenPurchase[] {
+  const k = nameKey(payee);
+  if (k.length < 3) return [];
+  return onLine.filter((p) => {
+    const s = p.supplier ? nameKey(p.supplier) : "";
+    return s.length >= 3 && (k.includes(s) || s.includes(k));
+  });
 }
 
 /** Wording that says the money went to someone other than the payee. */
-export const saysThirdParty = (text: string) => /\b(on behalf of|c\/o|care of|for (the )?account of|collected by|received by|handed to|paid to .+ for)\b/i.test(text);
+export const saysThirdParty = (text: string) =>
+  /\b(on behalf of|c\/o|care of|for (the )?account of|collected by|received by|handed to|paid to .+ for)\b/i.test(text) ||
+  // "paid via Ahmad" (R2-11), not "via bank transfer" or another way of paying.
+  /\bvia\s+(?!(the\s+)?(bank|transfer|wire|mobile|cheque|check|cash|card|hawala|m-?paisa|swift|ach|online|app|wallet)\b)[a-z]/i.test(text);
 
 /** The purchases still open on a budget line: the ones a payment on that line could be for. */
 export const openOnLine = (lineCode: string, purchases: readonly OpenPurchase[]) => purchases.filter((p) => lineCodeOf(p.lineCode) === lineCodeOf(lineCode));

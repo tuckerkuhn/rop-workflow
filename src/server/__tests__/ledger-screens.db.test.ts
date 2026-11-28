@@ -35,9 +35,11 @@ const rev = (as: string, id: string, body: unknown) => call<SaveOutcome>(REVERSE
 let lineId = "";
 let paidFrom = "";
 let receipt: { hash: string; name: string; type: string; size: number };
+const receipts: (typeof receipt)[] = [];
 let n = 0;
 const form = (amount: string, extra: Record<string, unknown> = {}) => ({
   idempotencyKey: `form-key-${++n}`,
+  receipt: receipts[n] ?? receipt,
   payee: "Kabul Seed Company (fictional)",
   what: "Wheat seed for the spring planting",
   budgetLineId: lineId,
@@ -46,7 +48,6 @@ const form = (amount: string, extra: Record<string, unknown> = {}) => ({
   fxRate: "1",
   paidFrom,
   date: new Date().toISOString().slice(0, 10),
-  receipt,
   // The demo project has purchases open on its lines: a payment there says why it is not one of them (lib/ledger/payment-guard).
   notAPurchase: "Seed bought at the market for the demonstration plot: no purchase record exists for it.",
   ...extra,
@@ -62,6 +63,8 @@ beforeAll(async () => {
   const line = (await db.select().from(s.budgetLines).where(eq(s.budgetLines.projectId, project.id))).find((l) => l.kind === "program");
   lineId = line?.id ?? (await db.insert(s.budgetLines).values({ projectId: project.id, code: "T-1", description: "Seed", amount: "10000.00", currency: "USD", kind: "program" }).returning())[0].id;
   receipt = await saveFile(Buffer.from("%PDF-1.4 a fictional receipt"), "receipt.pdf", "application/pdf", "yusuf");
+  // One receipt is paid once (R2-17): each test payment has its own.
+  for (let i = 0; i < 60; i++) receipts.push(await saveFile(Buffer.from(`%PDF-1.4 fictional receipt ${i}`), `receipt-${i}.pdf`, "application/pdf", "yusuf"));
 }, 120_000);
 
 describe("the ledger screens", { timeout: 60_000 }, () => {
@@ -156,7 +159,7 @@ describe("the ledger screens", { timeout: 60_000 }, () => {
   });
 
   it("reversing an entry takes it back out of budget vs actual, once", async () => {
-    const r = await pay("yusuf", form("75.25"));
+    const r = await pay("yusuf", form("75.25", { payee: "Herat Tools Market (fictional)" }));
     const before = actualOn((await bva()).body, lineId);
     const x = await rev("yusuf", r.body.entryId, { idempotencyKey: "rev-key-1", reason: "Paid twice by mistake" });
     expect(x.status).toBe(200);
@@ -173,6 +176,25 @@ describe("the ledger screens", { timeout: 60_000 }, () => {
     expect((await pay("yusuf", form("10.00", { budgetLineId: "00000000-0000-4000-8000-000000000000" }))).status).toBe(400);
     expect((await pay("yusuf", form("10.00", { paidFrom: "00000000-0000-4000-8000-000000000000" }))).status).toBe(400);
     expect((await pay("yusuf", form("10.00", { receipt: { ...receipt, hash: "a".repeat(64) } }))).status).toBe(400);
+  });
+
+  // Review round 2, R2-17 and R2-08.
+  it("one receipt is paid once; someone without the right to post never posts", async () => {
+    const one = form("12.00", { payee: "Mazar Stationery (fictional)" });
+    expect((await pay("yusuf", one)).status).toBe(200);
+    const twice = await pay("yusuf", { ...form("12.00", { payee: "Mazar Stationery (fictional)" }), receipt: one.receipt });
+    expect(twice.status).toBe(409);
+    expect((twice.body as unknown as { error: string }).error).toContain("This receipt is already on a payment");
+    const { ledgerMay } = await import("@/server/ledger-view");
+    const { users } = await import("@/lib/demo");
+    for (const u of users.filter((x) => x.kind === "employee")) {
+      const may = await ledgerMay(u);
+      if (!may.record || may.post) continue;
+      const r = await pay(u.id, form("5.00", { payee: "Jalalabad Fuel (fictional)" }));
+      expect(r.status).toBe(200);
+      expect(r.body.outcome).toBe("draft");
+      break;
+    }
   });
 
   // Review round 1, ISS-02: the review posted a purchase's payment here, to a third party, with no warning.

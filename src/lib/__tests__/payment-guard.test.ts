@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { lineCodeOf, namedPurchase, openOnLine, paymentGuard, saysThirdParty, type GuardForm, type OpenPurchase } from "@/lib/ledger/payment-guard";
+import { lineCodeOf, namedPurchase, openOnLine, payeeSupplies, paymentGuard, saysThirdParty, type GuardForm, type OpenPurchase } from "@/lib/ledger/payment-guard";
 
 /**
  * Review round 1, ISS-02: Record a payment is not a way around a purchase's checks. The review
@@ -59,5 +59,26 @@ describe("what Record a payment refuses", () => {
     // Code review of ISS-02: measured to the day paid, and a screening after the payment did not cover it.
     expect(paymentGuard({ ...f, date: "2026-10-20", thirdParty: tp }, all, open, today)!.error).toContain("after the payment of 2026-10-20");
     expect(paymentGuard({ ...f, thirdParty: { ...tp, receivedBy: " " } }, all, open, today)!.error).toBe("Say who received the money.");
+  });
+});
+
+describe("review round 2 (R2-06, R2-07, R2-11)", () => {
+  it("a purchase number is found however it is written", () => {
+    const list = [{ id: "PR-2027-011" }, { id: "PR-A2027-002" }];
+    expect(namedPurchase("Balance for PR2027-011", list)).toBe("PR-2027-011");
+    expect(namedPurchase("balance for pr 2027 11", list)).toBe("PR-2027-011");
+    expect(namedPurchase("PR-A2027-2 second lot", list)).toBe("PR-A2027-002");
+    expect(namedPurchase("PR-2027-0110 is another number", list)).toBeNull();
+    expect(namedPurchase("Monthly fee 2027-011", list)).toBeNull();
+  });
+  it("the payee is recognised as the supplier of an open purchase on the line", () => {
+    const onLine: OpenPurchase[] = [{ id: "PR-2027-015", title: "NPK", lineCode: "2.2", supplier: "Green Valley Agro", usd: 31200 }];
+    expect(payeeSupplies("Green Valley Agro Ltd (fictional)", onLine).map((p) => p.id)).toEqual(["PR-2027-015"]);
+    expect(payeeSupplies("Kabul Fuel Station", onLine)).toEqual([]);
+  });
+  it('"paid via" a person is a third-party payment; "via bank transfer" is not', () => {
+    expect(saysThirdParty("Green Valley Agro NPK paid via Ahmad")).toBe(true);
+    expect(saysThirdParty("Paid via bank transfer")).toBe(false);
+    expect(saysThirdParty("sent via mobile wallet")).toBe(false);
   });
 });
