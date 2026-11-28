@@ -1,6 +1,7 @@
 "use client";
 
 import { FilesPanel } from "@/components/settings/files-panel";
+import { FxSection } from "@/components/settings/fx-section";
 import { ReasonNeeded, reasonMissing } from "@/components/settings/reason-needed";
 import { STORES } from "@/lib/file-store";
 import { plainError } from "@/lib/plain-error";
@@ -257,6 +258,9 @@ export function OrgSettingsPage() {
               <div className="mt-3 border-t border-ink [&>details:last-child]:border-ink">
                 <SetupItem id="files" title="Where files are kept" now={v.files.stores.map((x) => STORES.find((st) => st.id === x)?.name ?? x).join(", ") || "Not chosen yet"} open={openSetup === "files"} onToggle={(o) => setOpenSetup(o ? "files" : null)}>
                   <FilesPanel v={v} post={post} />
+                </SetupItem>
+                <SetupItem id="fx" title="Exchange rates" now="Afghani and quetzal, by month" open={openSetup === "fx"} onToggle={(o) => setOpenSetup(o ? "fx" : null)}>
+                  <FxSection />
                 </SetupItem>
                 <SetupItem id="solo" title="Solo mode" now={v.solo?.on ? "On" : "Off"} open={openSetup === "solo"} onToggle={(o) => setOpenSetup(o ? "solo" : null)}>
                   <SoloPanel v={v} post={post} />

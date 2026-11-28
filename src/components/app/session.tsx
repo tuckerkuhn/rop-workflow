@@ -5,6 +5,7 @@ import { createBrowserClient } from "@supabase/ssr";
 import { TwoStepGate } from "@/components/app/two-step";
 import { useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { rateText, registerRates, type FxRate } from "@/lib/fx";
 import { formatMoney, registerPeople, userById, type AppUser, type Currency } from "@/lib/demo";
 import { registerAuthority, type Authority } from "@/lib/authority";
 import { registerProposalAccess } from "@/lib/org-areas";
@@ -55,7 +56,7 @@ export function supabaseBrowser() {
   return createBrowserClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 }
 
-type ServerSession = { mode: "demo" | "live"; configured: boolean; user: AppUser | null; actor: AppUser | null; viewingAs: boolean; people: AppUser[]; plan: Plan; fileStores?: StoreSet; trialEndsAt?: string | null; authority?: Authority; proposalAccess?: Record<string, "core" | "team">; twoStep?: "verify" | "enroll" };
+type ServerSession = { mode: "demo" | "live"; configured: boolean; user: AppUser | null; actor: AppUser | null; viewingAs: boolean; people: AppUser[]; plan: Plan; fileStores?: StoreSet; trialEndsAt?: string | null; authority?: Authority; proposalAccess?: Record<string, "core" | "team">; twoStep?: "verify" | "enroll"; fxRates?: FxRate[] };
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [mode, setMode] = useState<Mode>("loading");
@@ -76,6 +77,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       const s = (await (await fetch("/api/session", { cache: "no-store" })).json()) as ServerSession;
       // Who holds each role type, before any screen asks who signs what.
       registerAuthority(s.authority);
+      // This month's exchange rates, before any amount is shown (lib/fx, MF-11).
+      registerRates(s.fxRates);
       registerProposalAccess(s.proposalAccess);
       setTwoStep(s.mode === "live" ? (s.twoStep ?? null) : null);
       // The people as the server has them today, with anyone acting for an away colleague holding
@@ -186,11 +189,12 @@ export function useRequireUser() {
   return s;
 }
 
-export function CurrencyToggle() {
+/** USD and the project's local currency, at this month's rate (lib/fx, MF-11). */
+export function CurrencyToggle({ local = "AFN" }: { local?: "AFN" | "GTQ" }) {
   const { currency, setCurrency } = useSession();
   return (
-    <div role="radiogroup" aria-label="Currency" className="flex rounded-full border border-line bg-surface p-0.5 text-xs font-semibold" title="Afs at a demo rate of 70 per USD">
-      {(["USD", "AFN"] as Currency[]).map((c) => (
+    <div role="radiogroup" aria-label="Currency" className="flex rounded-full border border-line bg-surface p-0.5 text-xs font-semibold" title={rateText(local)}>
+      {(["USD", local] as Currency[]).map((c) => (
         <button
           key={c}
           type="button"
@@ -199,7 +203,7 @@ export function CurrencyToggle() {
           onClick={() => setCurrency(c)}
           className={`rounded-full px-2.5 py-1 transition ${currency === c ? "bg-ink text-paper" : "text-muted hover:text-ink"}`}
         >
-          {c === "USD" ? "USD" : "Afs"}
+          {c === "USD" ? "USD" : c === "GTQ" ? "Q" : "Afs"}
         </button>
       ))}
     </div>

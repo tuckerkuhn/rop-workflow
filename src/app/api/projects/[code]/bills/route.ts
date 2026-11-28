@@ -17,6 +17,7 @@ import { projectRules } from "@/server/policy-store";
 import { logAudit } from "@/server/audit";
 import { projectByCode } from "@/server/field-store";
 import { selfApproval, soloFor, type SoloState } from "@/server/solo";
+import { perUsd } from "@/lib/fx";
 
 type Ctx = { params: Promise<{ code: string }> };
 
@@ -119,7 +120,8 @@ export async function POST(req: Request, { params }: Ctx) {
         if (redoneAs(old, book.items)) return fail(`${old.id} was already recorded again.`, 400);
       }
 
-      const usd = Math.round((a.currency === "AFN" ? a.amount / AFN_PER_USD : a.amount) * 100) / 100;
+      // At the month's rate (lib/fx, MF-11).
+      const usd = Math.round((a.currency === "USD" ? a.amount : a.amount / (perUsd(a.currency, a.invoiceDate) ?? AFN_PER_USD)) * 100) / 100;
       const bill: Bill = {
         id: "",
         payee: a.payee,

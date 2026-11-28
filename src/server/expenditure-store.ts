@@ -5,6 +5,7 @@ import { db, schema as s } from "@/db";
 import { DONOR_FUNDING_KEY, fundingFor, roleOf, type DonorFundingBook } from "@/lib/donor-funding";
 import { convertCents, fromCents, periodOf, toCents } from "@/lib/ledger/rules";
 import { accountByCode, entry as entryById, expenseAccountFor, isLocked, ledgerSettings, LedgerError, postDraft, postPayment, reverse, seedChart, type PostResult } from "@/server/ledger";
+import { ledgerRate } from "@/lib/fx";
 
 /**
  * Spending in the `expenditures` table goes through the grant ledger: each expenditure is the source
@@ -148,8 +149,10 @@ export async function recordExpenditure(input: ExpenditureInput): Promise<{ expe
   if (toCents(amount) <= BigInt(0)) throw new LedgerError("invalid", "The amount must be more than zero.");
   const currency = (input.currency ?? "USD").trim().toUpperCase();
   const settings = await ledgerSettings(org);
-  if (currency !== settings.functionalCurrency && input.fxRate === undefined) throw new LedgerError("invalid", `Give the rate from ${currency} to ${settings.functionalCurrency} on the day.`);
-  const rate = currency === settings.functionalCurrency ? "1" : String(input.fxRate);
+  // MF-11: a payment in afghanis or quetzales takes the month's rate unless one is given.
+  const monthRate = currency !== settings.functionalCurrency && input.fxRate === undefined && settings.functionalCurrency === "USD" ? ledgerRate(currency, input.spentOn) : null;
+  if (currency !== settings.functionalCurrency && input.fxRate === undefined && !monthRate) throw new LedgerError("invalid", `Give the rate from ${currency} to ${settings.functionalCurrency} on the day: finance has entered no ${currency} rate for the month.`);
+  const rate = currency === settings.functionalCurrency ? "1" : String(input.fxRate ?? monthRate);
   const { paidFrom, expense } = await accountsFor(org, line.kind, input.paidFromCode ?? DEFAULT_PAID_FROM_CODE);
   const donorId = input.donorId === undefined ? await donorForLine(line.projectId, line.code) : input.donorId;
   const id = input.source ? expenditureIdFor(input.source.key) : randomUUID();

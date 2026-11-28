@@ -245,6 +245,8 @@ export async function requireViewer(req: Request, opts: { write?: boolean; allow
     if (!HR_ACCESS_ROLES.some((r) => holders[r]?.includes(v.actor.id))) return deny(403, "View as does not open HR records, pay or personal files.");
   }
   if (opts.allow && !opts.allow(v.user)) return deny(403, opts.why ?? "Your role does not allow this.");
+  // This month's exchange rates for every money helper in the request (lib/fx, MF-11).
+  await (await import("@/server/fx-store")).ratesNow();
   // Per-project access: a person listed on projects has their roles only there.
   if (code && !onProject(v.user, decodeURIComponent(code))) return deny(403, "You do not work on this project. An administrator can add it to your projects in Settings, People.");
   // A donor opens only the projects their organization funds; any other answers as if it were not there.

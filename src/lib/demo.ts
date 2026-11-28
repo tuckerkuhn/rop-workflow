@@ -1,3 +1,4 @@
+import { perUsd } from "@/lib/fx";
 /**
  * Demo people, projects, currency and work-time history.
  * Everything here is fictional and exists only to drive the prototype.
@@ -187,11 +188,15 @@ export const projects: ProjectInfo[] = [
 ];
 
 /** Demo exchange rate. Stands in for the ROP monthly rate kept in NetSuite. */
+/** The old fixed afghani rate, now only the fallback while finance has entered no month's rate (lib/fx, MF-11). */
 export const AFN_PER_USD = 70;
-export type Currency = "USD" | "AFN";
+export type Currency = "USD" | "AFN" | "GTQ";
 
+/** A dollar amount shown in the chosen currency at this month's rate (lib/fx); dollars when there is no rate. */
 export function formatMoney(usd: number, currency: Currency) {
-  if (currency === "AFN") return `Afs ${Math.round(usd * AFN_PER_USD).toLocaleString("en-US")}`;
+  const rate = currency === "USD" ? 1 : perUsd(currency);
+  if (currency === "AFN") return `Afs ${Math.round(usd * (rate ?? AFN_PER_USD)).toLocaleString("en-US")}`;
+  if (currency === "GTQ" && rate) return `Q ${Math.round(usd * rate).toLocaleString("en-US")}`;
   return `$${usd.toLocaleString("en-US", { maximumFractionDigits: usd < 100 ? 2 : 0 })}`;
 }
 

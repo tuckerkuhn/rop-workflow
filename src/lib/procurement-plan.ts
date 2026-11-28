@@ -4,6 +4,7 @@ import { AFN_PER_USD, users, type AppUser } from "@/lib/demo";
 import { LEAD_DAYS, levelFor, rulesInForce, type Level } from "@/lib/procurement";
 import { isDay } from "@/lib/clock";
 import { lineFigure, lineFigureText } from "@/lib/line-money";
+import { perUsd } from "@/lib/fx";
 
 /**
  * The procurement calendar: one planned purchase per budget line marked to procure, built from
@@ -66,7 +67,14 @@ export type Unplanned = {
 };
 
 /** Rough USD value, for choosing the policy level. */
-export const USD_PER: Record<string, number> = { USD: 1, AFN: 1 / AFN_PER_USD };
+/** Dollars per one unit of each currency, at this month's rate (lib/fx, MF-11). */
+export const USD_PER: Record<string, number> = new Proxy({} as Record<string, number>, {
+  get: (_t, c: string) => {
+    if (c === "USD") return 1;
+    const r = perUsd(c);
+    return r ? 1 / r : c === "AFN" ? 1 / AFN_PER_USD : undefined;
+  },
+});
 export const toUsd = (value: number, currency: string) => value * (USD_PER[currency] ?? 1);
 
 /** Typical days from starting a procurement to having the goods, per level (kept in lib/procurement, which its checks read too). */

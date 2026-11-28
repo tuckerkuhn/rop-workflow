@@ -17,6 +17,7 @@ import { LogoMark } from "@/components/logo";
 import { canEditProject, langLabel, users } from "@/lib/demo";
 import { LANGS, isLang, localeOf } from "@/lib/i18n";
 import { plainSources } from "@/components/status-tag";
+import { perUsd } from "@/lib/fx";
 
 /** Shared building blocks for the Field activities and Procurement workspaces. */
 
@@ -534,10 +535,13 @@ function ProjectCurrency() {
   const { currency, setCurrency } = useSession();
   const { lang } = useT();
   const afghan = inAfghanistan(project.country, localeOf(lang));
+  // MF-11: quetzales on a Guatemala project, once finance has entered a quetzal rate.
+  const guatemala = ["gt", "guatemala"].includes((project.country ?? "").trim().toLowerCase()) && !!perUsd("GTQ");
+  const local = afghan ? "AFN" : guatemala ? "GTQ" : null;
   useEffect(() => {
-    if (!afghan && currency !== "USD") setCurrency("USD");
-  }, [afghan, currency, setCurrency]);
-  return afghan ? <CurrencyToggle /> : null;
+    if (currency !== "USD" && currency !== local) setCurrency("USD");
+  }, [local, currency, setCurrency]);
+  return local ? <CurrencyToggle local={local} /> : null;
 }
 
 /** Which project Home, Tasks and Progress show; managers can also start a new one. */

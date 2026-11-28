@@ -46,6 +46,7 @@ import {
   StatusPill,
 } from "@/components/workspace/ui";
 import { AFN_PER_USD, projectPath, stepHistory, userById } from "@/lib/demo";
+import { perUsd } from "@/lib/fx";
 import {
   DONE,
   blockingIssues,
@@ -139,8 +140,10 @@ export function procurementComingTo(items: Procurement[], role: string) {
 
 function RequisitionForm({ p, editable, update }: { p: Procurement; editable: boolean; update: (fn: (p: Procurement) => Procurement) => void }) {
   const { money, currency } = useSession();
-  const toUsd = (v: number) => (currency === "AFN" ? v / AFN_PER_USD : v);
-  const fromUsd = (v: number) => (currency === "AFN" ? Math.round(v * AFN_PER_USD) : v);
+  // At this month's rate (lib/fx, MF-11).
+  const localRate = currency === "USD" ? 1 : (perUsd(currency) ?? AFN_PER_USD);
+  const toUsd = (v: number) => v / localRate;
+  const fromUsd = (v: number) => (currency === "USD" ? v : Math.round(v * localRate));
   // Any edit after review means the document must be reviewed again before signing.
   const set = (patch: Partial<Procurement>) =>
     update((q) => {
@@ -269,7 +272,7 @@ function NewRequest({ onCancel, onCreate, from, grant }: { onCancel: () => void;
   const startQty = item ? (item.quantity && item.quantity > 0 ? item.quantity : 1) : 0;
   // From the exact amount in the budget currency, not the rounded USD figure.
   const startUnitUsd = item ? toUsd(item.value, item.currency) / startQty : 0;
-  const shown = (usd: number) => (currency === "AFN" ? Math.round(usd * AFN_PER_USD) : Math.round(usd * 100) / 100);
+  const shown = (usd: number) => (currency === "USD" ? Math.round(usd * 100) / 100 : Math.round(usd * (perUsd(currency) ?? AFN_PER_USD)));
   const [title, setTitle] = useState(grant ? grant.purpose || `Equipment for ${grant.business}` : (item?.title ?? ""));
   const [spec, setSpec] = useState("");
   // A grant's equipment is one lot at the grant's value, until the specification says otherwise.
@@ -280,7 +283,7 @@ function NewRequest({ onCancel, onCreate, from, grant }: { onCancel: () => void;
   const [neededBy, setNeededBy] = useState(item?.neededBy ?? "2027-04-30");
   const [place, setPlace] = useState("");
   const [urgent, setUrgent] = useState(false);
-  const unitUsd = (Number(price) || 0) / (currency === "AFN" ? AFN_PER_USD : 1);
+  const unitUsd = (Number(price) || 0) / (currency === "USD" ? 1 : (perUsd(currency) ?? AFN_PER_USD));
   const value = (Number(qty) || 0) * unitUsd;
   const bl = item ? { code: item.budgetCode ?? "", name: item.title, remainingValue: toUsd(item.value, item.currency) } : budgetLines.find((b) => b.code === line)!;
   const valid = title.trim() && Number(qty) > 0 && Number(price) > 0 && (!item || (spec.trim() && place.trim()));
