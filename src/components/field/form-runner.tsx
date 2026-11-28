@@ -9,6 +9,7 @@ import { TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { today } from "@/lib/clock";
 import { plainError } from "@/lib/plain-error";
 import { householdCounts, parseHousehold, type HouseholdMember } from "@/lib/household";
+import { parseScores, type Score } from "@/lib/field-training";
 import { APP_FORM_TEXT, fillText, formProblems, formState, type Answers, type AppForm, type AppFormKind, type FormLists, type Problem, type Question } from "@/lib/app-forms";
 
 /**
@@ -247,7 +248,11 @@ function Ask({ q, form, lists, values, value, photo, problem, day, onChange, onP
       </legend>
       {hint && <p className="mt-0.5 text-sm text-muted">{hint}</p>}
       <div className="mt-2">
-        <Input q={q} form={form} lists={lists} value={value} photo={photo} day={day} onChange={onChange} onPhoto={onPhoto} label={label} />
+        {q.kind === "scores" ? (
+          <Scores value={value} ticked={(values.farmers ?? "").split(" ").filter(Boolean)} outOf={values.score_max ? Number(values.score_max) : undefined} onChange={onChange} />
+        ) : (
+          <Input q={q} form={form} lists={lists} value={value} photo={photo} day={day} onChange={onChange} onPhoto={onPhoto} label={label} />
+        )}
       </div>
       {problem && <p className="mt-1 text-sm font-bold text-clay">{problem}</p>}
     </fieldset>
@@ -408,6 +413,37 @@ function Household({ value, label, onChange }: { value: string; label: string; o
         </button>
         {!read.problem && c.size > 0 && <span className="text-sm text-muted">{tx("{size} people: {women} women, {men} men, {girls} girls, {boys} boys", c)}</span>}
       </div>
+    </div>
+  );
+}
+
+/** Pre-test and post-test scores (MF-09): one line per farmer ticked as attending. */
+function Scores({ value, ticked, outOf, onChange }: { value: string; ticked: string[]; outOf?: number; onChange: (v: string) => void }) {
+  const { tx } = useT();
+  // Read loosely so a score being typed is kept; the form's check says what is wrong.
+  const typed = new Map(value.split(",").map((p) => p.trim()).filter(Boolean).map((p) => { const [farmer, pre = "", post = ""] = p.split(":"); return [farmer, { pre, post }] as const; }));
+  const put = (farmer: string, k: "pre" | "post", v: string) => {
+    const next = new Map(typed);
+    next.set(farmer, { ...(next.get(farmer) ?? { pre: "", post: "" }), [k]: v.replace(/[^\d.]/g, "").slice(0, 7) });
+    onChange(ticked.filter((f) => next.get(f)?.pre || next.get(f)?.post).map((f) => `${f}:${next.get(f)!.pre}:${next.get(f)!.post}`).join(", "));
+  };
+  const read = parseScores(value, ticked, outOf);
+  const improved = read.problem ? [] : read.scores.filter((s: Score) => s.pre !== undefined && s.post !== undefined && s.post > s.pre);
+  return (
+    <div className="grid gap-1">
+      <div className="grid grid-cols-[1fr_5rem_5rem] gap-2 text-xs font-bold text-muted">
+        <span>{tx("Farmer")}</span>
+        <span>{tx("Before")}</span>
+        <span>{tx("After")}</span>
+      </div>
+      {ticked.map((f) => (
+        <div key={f} className="grid grid-cols-[1fr_5rem_5rem] items-center gap-2">
+          <span className="font-mono text-sm">{f}</span>
+          <input type="text" inputMode="decimal" value={typed.get(f)?.pre ?? ""} aria-label={tx("{farmer}: pre-test score", { farmer: f })} onChange={(e) => put(f, "pre", e.target.value)} className={field} />
+          <input type="text" inputMode="decimal" value={typed.get(f)?.post ?? ""} aria-label={tx("{farmer}: post-test score", { farmer: f })} onChange={(e) => put(f, "post", e.target.value)} className={field} />
+        </div>
+      ))}
+      {!read.problem && read.scores.length > 0 && <p className="text-sm text-muted">{tx("{n} scored; {up} did better after the training.", { n: read.scores.length, up: improved.length })}</p>}
     </div>
   );
 }

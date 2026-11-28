@@ -22,7 +22,7 @@ describe("the app makes a project's readiness, training and farm visit forms", (
 
   it("training: one record per session, every farmer who attended ticked", () => {
     const f = trainingForm("GT-2027", V);
-    expect(names(f)).toEqual(["project_code", "start_geopoint", "training_date", "session", "farmers", "register_ref", "photo", "location", "notes"]);
+    expect(names(f)).toEqual(["project_code", "start_geopoint", "training_date", "session", "farmers", "curriculum", "register_ref", "photo", "location", "notes"]);
     expect(row(f, "farmers")).toMatchObject({ type: "select_multiple_from_file farmers.csv", required: "yes" });
     // No question per farmer: a farmer who is not ticked did not attend.
     expect(names(f)).not.toContain("farmer");

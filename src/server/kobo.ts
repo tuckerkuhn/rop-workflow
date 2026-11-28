@@ -131,6 +131,9 @@ export function toSubmission(row: EvidenceRow): Submission {
     // One record per session with its farmers ticked, or (the earlier form) one record per farmer.
     if (ticked) Object.assign(fields, { session: label(str(p.session)), attended: ticked.join(", "), register: str(p.register_ref) });
     else Object.assign(fields, { session: label(str(p.session)), attended: yn(p.attended), register: str(p.register_ref) });
+    // MF-09: what was taught, and how many farmers were tested.
+    if (str(p.curriculum)) fields.curriculum = str(p.curriculum);
+    if (str(p.scores)) fields.tested = `${str(p.scores).split(",").filter((x) => x.trim()).length} farmers, marked out of ${str(p.score_max) || "?"}`;
   }
   if (row.form === "visit") {
     // kobo/build_field_forms.py, farm visit after planting.

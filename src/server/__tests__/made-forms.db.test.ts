@@ -82,11 +82,11 @@ describe("a project's field forms, made by the app", () => {
 
   it("the app reads back what its training form asks", async () => {
     const asked = questions((await sheets("training")).survey);
-    const answers: Record<string, unknown> = { _id: 502, project_code: code, start_geopoint: "34.562 69.21 1790 6", training_date: "2026-11-23", session: "crop_care", farmers: "F-0004 F-0005", register_ref: "Book 2 page 14", photo: "register.jpg", location: "", notes: "" };
+    const answers: Record<string, unknown> = { _id: 502, project_code: code, start_geopoint: "34.562 69.21 1790 6", training_date: "2026-11-23", session: "crop_care", farmers: "F-0004 F-0005", curriculum: "Wheat farmer field school, version 2.1", register_ref: "Book 2 page 14", photo: "register.jpg", location: "", notes: "" };
     expect(Object.keys(answers)).toEqual(expect.arrayContaining(asked));
     const sub = await stored("training", answers);
     expect(sub).toMatchObject({ form: "training", farmers: ["F-0004", "F-0005"], date: "2026-11-23", photo: true });
-    expect(sub.fields).toEqual({ session: "Crop care", attended: "F-0004, F-0005", register: "Book 2 page 14" });
+    expect(sub.fields).toEqual({ session: "Crop care", attended: "F-0004, F-0005", register: "Book 2 page 14", curriculum: "Wheat farmer field school, version 2.1" });
   });
 
   it("the app reads back what its farm visit form asks, by area and by count", async () => {

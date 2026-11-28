@@ -4,6 +4,7 @@ import { asText, evaluate, truthy, type ExprContext } from "@/lib/form-expr";
 import { AGE_BANDS } from "@/lib/field";
 import { FARMER_ID } from "@/lib/farmer-import";
 import { parseHousehold } from "@/lib/household";
+import { curriculumText, parseScores } from "@/lib/field-training";
 import type { CropPlan } from "@/lib/crops";
 import type { FieldSetup } from "@/lib/package";
 import { canEditProject, type AppUser } from "@/lib/demo";
@@ -49,7 +50,7 @@ export const mayOpenForms = (u: AppUser) => mayFillForms(u) || mayRegister(u);
  */
 export const mayRegister = (u: AppUser) => u.kind === "employee" && (canEditProject(u) || (u.fieldAccess === "edit" && (u.field.includes("manager") || u.field.includes("extension"))));
 
-export type QuestionKind = "calculate" | "here" | "farmer" | "farmers" | "date" | "one" | "decimal" | "integer" | "text" | "image" | "place" | "household";
+export type QuestionKind = "calculate" | "here" | "farmer" | "farmers" | "date" | "one" | "decimal" | "integer" | "text" | "image" | "place" | "household" | "scores";
 
 export type Question = {
   kind: QuestionKind;
@@ -87,6 +88,8 @@ const KIND_OF: Record<string, QuestionKind> = {
   geopoint: "place",
   // The household roster (lib/household): an app question with no KoboCollect type.
   household: "household",
+  // Pre and post test scores, one line per farmer ticked (lib/field-training): app only.
+  scores: "scores",
 };
 
 /** Reads a made form's rows into questions. A question type the app cannot show is refused, never skipped. */
@@ -172,7 +175,7 @@ export function appForm(kind: AppFormKind, code: string, o: { setup?: FieldSetup
     if (!o.setup?.items.length) throw new Error("Save the input package first: the distribution form is made from it.");
     return readForm(kind, distributionForm(code, `${code} input distribution`, o.setup, "app"));
   }
-  return readForm(kind, fieldForm(kind as FieldFormKind, code, "app", o.plan ?? null));
+  return readForm(kind, fieldForm(kind as FieldFormKind, code, "app", o.plan ?? null, { curriculum: curriculumText(o.setup?.curriculum), app: true }));
 }
 
 export type Answers = Record<string, string>;
@@ -234,6 +237,8 @@ export function formProblems(form: AppForm, answers: Answers, lists: FormLists, 
     else if (form.kind === "register" && q.name === "farmer_id" && !FARMER_ID.test(v)) out.push({ name: q.name, text: about(label, `use letters, digits, . _ and - only, up to 40.`) });
     else if (q.kind === "decimal" && !NUMBER.test(v)) out.push({ name: q.name, text: about(label, `enter a number.`) });
     else if (q.kind === "integer" && !/^-?\d+$/.test(v)) out.push({ name: q.name, text: about(label, `enter a whole number.`) });
+    else if (q.kind === "scores" && parseScores(v, (values.farmers ?? "").split(" ").filter(Boolean), values.score_max ? Number(values.score_max) : undefined).problem)
+      out.push({ name: q.name, text: about(label, parseScores(v, (values.farmers ?? "").split(" ").filter(Boolean), values.score_max ? Number(values.score_max) : undefined).problem!) });
     else if (q.kind === "household" && parseHousehold(v).problem) out.push({ name: q.name, text: about(label, parseHousehold(v).problem!) });
     else if (q.kind === "date" && !/^\d{4}-\d{2}-\d{2}$/.test(v)) out.push({ name: q.name, text: about(label, `enter a date.`) });
     else if (q.kind === "one" && !(form.choices[q.list!] ?? []).some((c) => c.name === v)) out.push({ name: q.name, text: about(label, `choose one of the answers.`) });

@@ -43,7 +43,7 @@ describe("field forms filled in inside the app", { timeout: 60_000 }, () => {
   it("a training session waits in the queue, then moves every farmer ticked once MEL accepts it", async () => {
     const [a, b] = (await farmers()).filter((x) => x.step === "train");
     await saveItems(code, [{ ...a, enrolled: true, contributionPaid: true }, { ...b, enrolled: true, contributionPaid: true }]);
-    const { id } = (await saveForm(code, "training", entry({ session: "land_prep", farmers: `${a.id} ${b.id}`, register_ref: "Book 3 p. 2", photo: "x" }, { photo: PIC }), farida)) as { id: string };
+    const { id } = (await saveForm(code, "training", entry({ session: "land_prep", farmers: `${a.id} ${b.id}`, curriculum: "Wheat farmer field school, version 2.1", score_max: "10", scores: `${a.id}:4:8`, register_ref: "Book 3 p. 2", photo: "x" }, { photo: PIC }), farida)) as { id: string };
     const sub = (await listSubmissions(code)).submissions.find((x) => x.dbId === id)!;
     expect(sub.source).toBe("form");
     expect(sub.farmers).toEqual([a.id, b.id]);
@@ -56,6 +56,10 @@ describe("field forms filled in inside the app", { timeout: 60_000 }, () => {
     expect(applied).toBeTruthy();
     expect((await farmer(a.id)).step).toBe("prepare");
     expect((await farmer(b.id)).timeline.at(-1)!.what).toMatch(/\(Form AF-[0-9a-f]{8}, accepted by Omar Sadiq\)/);
+    // MF-09: the curriculum and each farmer's scores go on their record.
+    expect((await farmer(a.id)).trainings?.at(-1)).toMatchObject({ session: "Land prep", curriculum: "Wheat farmer field school, version 2.1", pre: 4, post: 8, outOf: 10 });
+    expect((await farmer(a.id)).timeline.at(-1)!.what).toContain("pre-test 4/10, post-test 8/10");
+    expect((await farmer(b.id)).trainings?.at(-1)).not.toHaveProperty("pre");
     // The audit log says who filled it in, and keeps the photo's fingerprint, never the photo.
     const [log] = await db.select().from(s.auditLog).where(and(eq(s.auditLog.entityId, id), eq(s.auditLog.action, "form_filled")));
     expect(log.detail).toMatchObject({ by: "farida", form: "training", farmers: [a.id, b.id] });

@@ -1,4 +1,5 @@
 import type { HouseholdMember } from "@/lib/household";
+import type { FarmerTraining } from "@/lib/field-training";
 /**
  * Field activities: roles, steps, checks, farmer profiles and synthetic records.
  * Steps follow docs/ROP-END-TO-END-WORKFLOW-DRAFT.md §2 (farm preparation to MEL follow-up).
@@ -159,6 +160,8 @@ export type Farmer = {
   household?: HouseholdMember[];
   /** What the farmer grows now, as they said it at registration: checked by a crop eligibility rule (lib/eligibility). */
   crops?: string[];
+  /** Each training session attended, with what was taught and the test scores (MF-09). */
+  trainings?: FarmerTraining[];
   community: string;
   hectares: number;
   enrolled: boolean;

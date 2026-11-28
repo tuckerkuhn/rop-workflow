@@ -1,4 +1,5 @@
 import type { CropPlan } from "@/lib/crops";
+import type { Curriculum } from "@/lib/field-training";
 import { PROJECT } from "@/lib/demo";
 
 /**
@@ -44,6 +45,8 @@ export type FieldSetup = {
    * installed" that is met in the field rather than at the store.
    */
   targetAt?: "distribution" | "planting";
+  /** The farmer training curriculum and its version (MF-09): every training record carries it. */
+  curriculum?: Curriculum;
   /** The project's crop plan (lib/crops), from the project design. Read only here; set in Set up → Crop. */
   plan?: CropPlan;
 };

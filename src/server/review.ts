@@ -10,6 +10,7 @@ import { selectionOutcomes } from "@/server/selection-store";
 import { toSubmission } from "@/server/kobo";
 import { hasAnswers } from "@/lib/form-record";
 import { today } from "@/lib/clock";
+import { parseScores, scoreLine } from "@/lib/field-training";
 import { projectByCode, setupFor } from "@/server/field-store";
 import { HttpError } from "@/server/guard";
 import { correctionOwner, correctionTask, countPlantingIn, plantingTarget } from "@/server/distribution";
@@ -135,7 +136,7 @@ export async function settleHeld(code: string, evidenceId: string, farmer: strin
       const ticked = typeof p.farmers === "string" ? p.farmers.split(/\s+/).filter(Boolean) : [];
       const payload = { ...p, farmers: [...new Set([...ticked, farmer])].join(" "), [HELD_KEY]: rest };
       await tx.update(s.evidence).set({ payload, updatedAt: new Date() }).where(eq(s.evidence.id, row.id));
-      const out = await trainOne(tx, row.projectId, toSubmission({ ...row, payload }), farmer, true, user);
+      const out = await trainOne(tx, row.projectId, toSubmission({ ...row, payload }), farmer, true, user, payload);
       applied = `${farmer}: ${out.summary}`;
     } else {
       const left = typeof p[LEFT_OUT_KEY] === "string" ? `${p[LEFT_OUT_KEY]} ${farmer}` : farmer;
@@ -232,10 +233,10 @@ async function saveFarmer(tx: Tx, id: string, f: Farmer, date: string, what: str
  */
 async function applyTraining(tx: Tx, row: typeof s.evidence.$inferSelect, user: AppUser): Promise<string> {
   const sub = toSubmission(row);
-  if (!sub.farmers) return (await trainOne(tx, row.projectId, sub, sub.farmerId, sub.fields.attended === "Yes", user)).summary;
+  if (!sub.farmers) return (await trainOne(tx, row.projectId, sub, sub.farmerId, sub.fields.attended === "Yes", user, row.payload)).summary;
   if (!sub.farmers.length) return "No farmer is ticked on this record; nothing recorded.";
   const got: { id: string; out: Trained }[] = [];
-  for (const id of sub.farmers) got.push({ id, out: await trainOne(tx, row.projectId, sub, id, true, user) });
+  for (const id of sub.farmers) got.push({ id, out: await trainOne(tx, row.projectId, sub, id, true, user, row.payload) });
   const of = (kind: Trained["kind"]) => got.filter((g) => g.out.kind === kind);
   const list = (ids: string[]) => `${ids.slice(0, 6).join(", ")}${ids.length > 6 ? ` and ${ids.length - 6} more` : ""}`;
   const [moved, stays, noted, missing] = [of("moved"), of("stays"), of("noted"), of("missing")];
@@ -254,7 +255,7 @@ async function applyTraining(tx: Tx, row: typeof s.evidence.$inferSelect, user: 
 /** What accepting attendance did for one farmer. `why`: what keeps a farmer at Train. */
 type Trained = { kind: "missing" | "absent" | "noted" | "stays" | "moved"; summary: string; why?: string };
 
-async function trainOne(tx: Tx, projectId: string, sub: ReturnType<typeof toSubmission>, code: string, attended: boolean, user: AppUser): Promise<Trained> {
+async function trainOne(tx: Tx, projectId: string, sub: ReturnType<typeof toSubmission>, code: string, attended: boolean, user: AppUser, payload: unknown): Promise<Trained> {
   const item = await farmerItem(tx, projectId, code);
   if (!item) return { kind: "missing", summary: `Farmer ${code} is not on the farmer list; attendance kept on the submission only` };
   const f = item.data as Farmer;
@@ -266,18 +267,26 @@ async function trainOne(tx: Tx, projectId: string, sub: ReturnType<typeof toSubm
     return { kind: "absent", summary: "Not attended: noted on the farmer's record; the step did not move." };
   }
   const register = sub.fields.register ? `, register ${sub.fields.register}` : "";
+  // MF-09: the session, its curriculum and this farmer's scores go on their record.
+  const p = (payload ?? {}) as Record<string, unknown>;
+  const outOf = typeof p.score_max === "string" && p.score_max ? Number(p.score_max) : undefined;
+  const score = parseScores(typeof p.scores === "string" ? p.scores : "", [code], outOf).scores[0];
+  const curriculum = typeof p.curriculum === "string" && p.curriculum ? p.curriculum : undefined;
+  const scored = score ? `; ${scoreLine(score, outOf)}` : "";
+  const trainings = [...(f.trainings ?? []), { date, session, ...(curriculum ? { curriculum } : {}), ...(score?.pre !== undefined ? { pre: score.pre } : {}), ...(score?.post !== undefined ? { post: score.post } : {}), ...(score && outOf ? { outOf } : {}), ref: refOf(sub) }];
+  const withTraining = (x: Farmer): Farmer => ({ ...x, trainings });
   if (f.step !== "train") {
-    await saveFarmer(tx, item.id, f, date, `Attended ${session.toLowerCase()}${register} (${kbo})`);
+    await saveFarmer(tx, item.id, withTraining(f), date, `Attended ${session.toLowerCase()}${register}${scored} (${kbo})`);
     return { kind: "noted", summary: `Attendance recorded; farmer was at "${fieldSteps[f.step]?.title ?? f.step}", so the step did not move.` };
   }
   const checks = { ...f.checks, "train.attended": true, "train.register": true };
   // The Train rule shared with enrolment, the contribution and selection (lib/field leaveTrain).
   const blocked = trainBlock(f);
   if (blocked) {
-    await saveFarmer(tx, item.id, { ...f, checks }, date, `Attended ${session.toLowerCase()}${register}; stays at Train: ${blocked} (${kbo})`);
+    await saveFarmer(tx, item.id, withTraining({ ...f, checks }), date, `Attended ${session.toLowerCase()}${register}${scored}; stays at Train: ${blocked} (${kbo})`);
     return { kind: "stays", summary: `Attendance recorded. Stays at Train: ${blocked}.`, why: blocked };
   }
-  await saveFarmer(tx, item.id, { ...f, checks, step: "prepare" }, date, `Training recorded: ${session.toLowerCase()}${register} (${kbo})`);
+  await saveFarmer(tx, item.id, withTraining({ ...f, checks, step: "prepare" }), date, `Training recorded: ${session.toLowerCase()}${register}${scored} (${kbo})`);
   return { kind: "moved", summary: "Training recorded. Moved to Prepare the plot." };
 }
 

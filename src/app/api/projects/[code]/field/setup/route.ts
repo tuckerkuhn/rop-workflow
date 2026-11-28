@@ -62,6 +62,7 @@ const body = z.object({
   windowEnd: z.union([z.string().regex(/^\d{4}-\d{2}-\d{2}$/), z.literal("")]).optional(),
   target: z.union([z.string().regex(/^IND-\d+$/), z.literal("")]).optional(),
   targetAt: z.enum(["distribution", "planting"]).optional(),
+  curriculum: z.object({ name: z.string().trim().min(1).max(160), version: z.string().trim().max(40) }).optional(),
 });
 
 /** Saves the package. From then on the project has Field activities. */

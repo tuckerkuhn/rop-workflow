@@ -131,3 +131,24 @@ describe("the household roster (MF-07)", async () => {
     expect(bad.problems[0]).toContain("household size 5 but 1 household members listed");
   });
 });
+
+describe("training details (MF-09)", async () => {
+  const { parseScores, scoreLine } = await import("@/lib/field-training");
+
+  it("scores are read for farmers ticked, and never above the top mark", () => {
+    expect(parseScores("F-1001:4:8, F-1002::9", ["F-1001", "F-1002"], 10)).toEqual({ scores: [{ farmer: "F-1001", pre: 4, post: 8 }, { farmer: "F-1002", post: 9 }] });
+    expect(parseScores("F-7:4:8", ["F-1001"]).problem).toContain("not ticked as attending");
+    expect(parseScores("F-1001:4:12", ["F-1001"], 10).problem).toContain("more than the 10");
+    expect(scoreLine({ pre: 4, post: 8 }, 10)).toBe("pre-test 4/10, post-test 8/10");
+  });
+
+  it("the training form carries the project's curriculum, and asks scores once a top mark is given", () => {
+    const f = appForm("training", "A2027", { setup: { ...setup, curriculum: { name: "Wheat farmer field school", version: "2.1" } } });
+    const a = { session: "land_prep", farmers: "F-1001 F-1002", register_ref: "Book 2 p. 14", photo: "r.jpg", start_geopoint: "34.5 69.1" };
+    expect(formState(f, a, lists, TODAY).values.curriculum).toBe("Wheat farmer field school, version 2.1");
+    expect(formState(f, a, lists, TODAY).shown.has("scores")).toBe(false);
+    expect(formState(f, { ...a, score_max: "10" }, lists, TODAY).shown.has("scores")).toBe(true);
+    expect(formProblems(f, { ...a, score_max: "10", scores: "F-1001:4:11" }, lists, TODAY).map((p) => p.name)).toEqual(["scores"]);
+    expect(formProblems(f, { ...a, score_max: "10", scores: "F-1001:4:9" }, lists, TODAY)).toEqual([]);
+  });
+});

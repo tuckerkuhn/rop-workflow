@@ -39,6 +39,8 @@ export function PackageSetup({ code, onSaved, onCancel }: { code: string; onSave
   const [village, setVillage] = useState("");
   const [crop, setCrop] = useState("");
   const [windowEnd, setWindowEnd] = useState("");
+  // The farmer training curriculum and its version (MF-09).
+  const [curriculum, setCurriculum] = useState({ name: "", version: "" });
   // The target an approved distribution adds a farmer to, and the targets to choose from.
   const [target, setTarget] = useState("");
   // When a farmer counts toward it: at the approved distribution, or when planting is recorded.
@@ -85,6 +87,7 @@ export function PackageSetup({ code, onSaved, onCancel }: { code: string; onSave
           setSeason(s.season ?? "");
           setVillage(s.village ?? "");
           setWindowEnd(s.windowEnd ?? "");
+          setCurriculum({ name: s.curriculum?.name ?? "", version: s.curriculum?.version ?? "" });
           setTarget(s.target ?? "");
           setTargetAt(s.targetAt ?? "distribution");
         }
@@ -113,6 +116,7 @@ export function PackageSetup({ code, onSaved, onCancel }: { code: string; onSave
     ...(season.trim() ? { season: season.trim() } : {}),
     ...(village.trim() ? { village: village.trim() } : {}),
     ...(windowEnd ? { windowEnd } : {}),
+    ...(curriculum.name.trim() ? { curriculum: { name: curriculum.name.trim(), version: curriculum.version.trim() } } : {}),
     ...(target ? { target } : {}),
     ...(target && targetAt === "planting" ? { targetAt } : {}),
   };
@@ -272,6 +276,15 @@ export function PackageSetup({ code, onSaved, onCancel }: { code: string; onSave
         <label className="block text-sm font-medium">
           Planting window ends
           <input type="date" value={windowEnd} onChange={(e) => setWindowEnd(e.target.value)} className={`mt-1 ${field}`} />
+        </label>
+        <label className="block text-sm font-medium">
+          Training curriculum
+          <input value={curriculum.name} onChange={(e) => setCurriculum({ ...curriculum, name: e.target.value })} placeholder="The farmer training manual used" className={`mt-1 ${field}`} />
+          <span className="mt-0.5 block text-xs font-normal text-muted">Each training record says which curriculum was taught.</span>
+        </label>
+        <label className="block text-sm font-medium">
+          Curriculum version
+          <input value={curriculum.version} onChange={(e) => setCurriculum({ ...curriculum, version: e.target.value })} placeholder="For example 2.1" className={`mt-1 ${field}`} />
         </label>
       </fieldset>
       <fieldset disabled={!editable} className="rounded-2xl border border-line bg-surface p-4">

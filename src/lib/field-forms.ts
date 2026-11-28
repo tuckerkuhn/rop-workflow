@@ -82,7 +82,7 @@ export function readinessForm(code: string, version: string): XlsForm {
 }
 
 /** One record per training session: the session and its register once, every farmer who attended ticked. */
-export function trainingForm(code: string, version: string): XlsForm {
+export function trainingForm(code: string, version: string, o: { curriculum?: string; app?: boolean } = {}): XlsForm {
   return form(
     code,
     "training",
@@ -93,6 +93,14 @@ export function trainingForm(code: string, version: string): XlsForm {
       { type: "select_one session", name: "session", label: "Training session", required: true },
       // A farmer who is not ticked did not attend.
       { type: "select_multiple_from_file farmers.csv", name: "farmers", label: "Farmers who attended the classroom and field parts of the session", hint: "Tick every farmer who signed the register. Search by farmer ID or village.", required: true, appearance: "autocomplete" },
+      // MF-09: what was taught, from Set up, and (in the app) each farmer's test scores.
+      { type: "text", name: "curriculum", label: "Curriculum taught, and its version", hint: "As set for the project. Change it only if another one was used.", ...(o.curriculum ? { default: `'${o.curriculum.replace(/'/g, "")}'` } : {}) },
+      ...(o.app
+        ? [
+            { type: "integer", name: "score_max", label: "The test is marked out of (optional)", hint: "Leave empty if no test was given.", constraint: ". >= 1 and . <= 1000", constraint_message: "Enter the top mark, between 1 and 1000." },
+            { type: "scores", name: "scores", label: "Pre-test and post-test scores (optional)", hint: "For each farmer who took the test.", relevant: "string-length(${farmers}) > 0 and string-length(${score_max}) > 0" },
+          ]
+        : []),
       { type: "text", name: "register_ref", label: "Attendance register reference", hint: "Book and page of the signed register, and where the original is kept", required: true },
       { type: "image", name: "photo", label: "Photo of the signed register page", hint: "Fill the frame: every signature or thumbprint must be readable.", required: true, parameters: PHOTO },
       // Asked only when the phone found no place by itself.
@@ -170,8 +178,8 @@ export function visitForm(code: string, version: string, plan: CropPlan | null |
   );
 }
 
-export function fieldForm(kind: FieldFormKind, code: string, version: string, plan: CropPlan | null | undefined): XlsForm {
-  return kind === "readiness" ? readinessForm(code, version) : kind === "training" ? trainingForm(code, version) : visitForm(code, version, plan);
+export function fieldForm(kind: FieldFormKind, code: string, version: string, plan: CropPlan | null | undefined, o: { curriculum?: string; app?: boolean } = {}): XlsForm {
+  return kind === "readiness" ? readinessForm(code, version) : kind === "training" ? trainingForm(code, version, o) : visitForm(code, version, plan);
 }
 
 /** What to do with a downloaded file, in order: shown beside the download so nobody needs a developer. */
