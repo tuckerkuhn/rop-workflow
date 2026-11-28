@@ -72,7 +72,18 @@
     farmer registered with no signal, kept, then sent once when signal came back.
   - Part 2 step 6, `aca8bea`: `docs/deep-dive/13-offline-phone-test.md`, the checklist for Tucker's
     phone. Until it passes the forms say to save with signal (`OFFLINE_PHONE_TEST_PASSED`).
-- **Tests:** 187 files, 1,426 tests, all passing. Typecheck and lint clean.
+  - Part 2 step 7, Kobo out (branch `build/kobo-out-2026-11-28`; merge only after the phone test
+    passes): `c96ee24` and `2b1b4e9` the KoboToolbox routes, sync, webhook, nightly check, CLI,
+    setup steps and `kobo/` builders removed, setup now ends "Who checks field data?"; `8cf77da`
+    nothing reads the three Kobo tables (targets take results in the app; Home and Health lose
+    their Kobo rows; a photo left in KoboToolbox says where it is); `5e23017` and `3c30e30` the
+    screens and words (Progress sync, the queue's sync and farmer-list buttons, "+ New" now "Fill
+    in a field form", the Kobo-only Home, the phone form download, `KOBO_TOKEN_KEY`); `317f385` the
+    migration dropping the three tables and two unused columns, written in
+    `docs/deep-dive/migrations-pending/` and NOT run. Old KoboCollect records stay readable.
+    Seen on the local copy: Results and the review queue with no Kobo wording, "+ New" with
+    "Fill in a field form".
+- **Tests:** 183 files, 1,390 tests, all passing (39 tests of removed Kobo features went with them). Typecheck and lint clean.
 - **Seen on screen** (desktop, local throwaway database, never Supabase): the ISS-18 flag as Nadia
   (queue and record), ISS-20 on Project settings and the donor view, ISS-12 as Daniel. Part 2
   step 1: as Farida, a readiness check filled in (the "what needs fixing" question appears on No,
@@ -109,6 +120,12 @@
      bucket is made on first use. Until then photos stay in the database (about 1,000 fit).
   9. The phone test (`13-offline-phone-test.md`), on a real Android. Removing Kobo (step 7) is
      built on its own branch and should be merged only after it passes.
+  10. Run the Kobo drop migration (`migrations-pending/0029_drop_kobo.sql`)? It breaks the no-migration
+     rule, so it waits for your OK. Until then the empty tables do no harm.
+  11. Targets that were counted from a KoboToolbox question (none on the demo project) now show "Not
+     counted from any data yet" until switched to "results recorded in the app" in Set up.
+  12. The Dari, Pashto and Spanish wording files still carry some old Kobo sentences that no screen
+     shows; the new sentences are English only until translated.
 - **Half done:** step 4: photos already in the database stay there until a move script runs (to
   write); a donor's share link does not yet show a photo kept in file storage. Kobo still works
   beside the in-app forms until step 7.
