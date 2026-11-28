@@ -53,7 +53,16 @@
       farmer's own package.
     - Screen fixes `d2cb9a9`: one "(optional)" per label, a household member on one line at
       380px, receipt mismatches under "To look at".
-- **Tests:** 184 files, 1,418 tests, all passing. Typecheck and lint clean.
+  - Part 2 step 3, `27f0e1e` and `87ff071`: a field form filled in inside the app is field data,
+    so the project's named approver checks it before it flows on, exactly as a KoboCollect form
+    (`lib/kobo-approval` `fieldRec`); nobody approves what they collected, and with one approver it
+    goes to the person they report to. Tested: an in-app distribution needs its signed receipt and
+    photo. A visitor's photo was already marked as such and is never proof (unchanged, tested).
+  - Part 2 step 4, `6c660b9` (branch `build/photo-storage-2026-11-28`): proof photos can be kept in
+    Supabase Storage (its free plan includes file storage), with only the fingerprint in the
+    record, checked again each time a photo is read (`server/file-store`). Off by default
+    (`PROOF_FILE_STORE=inline`): nothing changes on the live site until it is switched on.
+- **Tests:** 185 files, 1,423 tests, all passing. Typecheck and lint clean.
 - **Seen on screen** (desktop, local throwaway database, never Supabase): the ISS-18 flag as Nadia
   (queue and record), ISS-20 on Project settings and the donor view, ISS-12 as Daniel. Part 2
   step 1: as Farida, a readiness check filled in (the "what needs fixing" question appears on No,
@@ -86,7 +95,11 @@
   6. Answered 28 Nov: a receipt that does not match the record blocks approval (1a).
   7. Answered 28 Nov: rules per package (2b). A project may offer several packages for farmers to
      choose from, for example by climate risk.
-- **Half done:** nothing. Kobo still works beside the in-app forms until step 7.
+  8. Switch photos to file storage? Set `PROOF_FILE_STORE=supabase` in Vercel and redeploy; the
+     bucket is made on first use. Until then photos stay in the database (about 1,000 fit).
+- **Half done:** step 4: photos already in the database stay there until a move script runs (to
+  write); a donor's share link does not yet show a photo kept in file storage. Kobo still works
+  beside the in-app forms until step 7.
 - **Next:** Part 2 step 3, the rules that carry over (nobody approves data they collected; the named
   MEL approver checks field data before it flows on; every distribution needs its signed receipt
   and photo; a visitor's photo is a picture of the work, not proof), then steps 4 to 7.
