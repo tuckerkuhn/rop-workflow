@@ -4,6 +4,7 @@ import { balanceOf, foldLeave, type LeaveKind } from "@/lib/leave";
 import { foldOnboarding, progress } from "@/lib/onboarding";
 import { foldTimesheets } from "@/lib/timesheet";
 import { loadHr, todayIso } from "@/server/hr-store";
+import { loadAway } from "@/server/away-store";
 
 /**
  * The person's own HR admin for the Home card, in one answer: what the four `?summary=1` answers
@@ -33,7 +34,7 @@ export async function hrSummary(me: string): Promise<HrSummary> {
   const month = today.slice(0, 7);
   const hasRecord = !!hr.people[me];
 
-  const { sheets } = foldTimesheets(entries, hr);
+  const { sheets } = foldTimesheets(entries, hr, await loadAway().catch(() => null));
   const sheet = sheets.find((t) => t.person === me && t.month === month);
 
   const { reports } = foldExpenses(entries, hr);

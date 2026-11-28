@@ -8,6 +8,7 @@ import { foldExpenses, toPayroll, unpaid, type ExpenseReport } from "@/lib/expen
 import { people, requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
 import { append, loadHr, todayIso } from "@/server/hr-store";
+import { loadAway } from "@/server/away-store";
 
 /**
  * Monthly payroll per pay group. The server works out every line from the HR record and the
@@ -31,7 +32,7 @@ function owed(hr: HrState, reports: ExpenseReport[], people: string[]) {
 
 async function view(me: string, month: string, group: Group) {
   const { state: hr, entries } = await loadHr();
-  const { sheets } = foldTimesheets(entries, hr);
+  const { sheets } = foldTimesheets(entries, hr, await loadAway().catch(() => null));
   const { reports } = foldExpenses(entries, hr);
   const projects = await db.select({ code: s.projects.code, name: s.projects.name }).from(s.projects);
   const sources: Record<string, string> = { [NON_CONTRACT]: "General and admin (non-contract)" };
@@ -117,7 +118,7 @@ export async function POST(req: Request) {
     const { state: hr, entries } = await loadHr();
     const { reports } = foldExpenses(entries, hr);
     if (!gate(hr, me)) return NextResponse.json({ error: "Payroll is open to people holding an HR role." }, { status: 403 });
-    const { sheets } = foldTimesheets(entries, hr);
+    const { sheets } = foldTimesheets(entries, hr, await loadAway().catch(() => null));
     if (a.month > todayIso().slice(0, 7)) return NextResponse.json({ error: "A payroll can be prepared once its month has started." }, { status: 400 });
     // The server works out every amount; only the adjustments come from the preparer.
     const groupPeople = Object.keys(hr.people).filter((id) => String(hr.people[id].current.office) === a.group);

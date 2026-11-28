@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { conflictOf, type Entry, type HrState, type Relation } from "@/lib/hr";
+import type { AwayState } from "@/lib/delegation";
 
 /**
  * Monthly timesheets: hours per day per funding source, inside or outside the program country,
@@ -348,15 +349,16 @@ export type Timesheet = {
 export type TsIgnored = { n: number; kind: string; actor: string; why: string };
 
 /** Who may approve a timesheet: the person's supervisor, or HR when the supervisor has a conflict or there is none. */
-export function approversFor(t: Pick<Timesheet, "person" | "by">, hr: Pick<HrState, "people" | "relations" | "rules">): { people: string[]; via: "supervisor" | "hr" } {
+export function approversFor(t: Pick<Timesheet, "person" | "by">, hr: Pick<HrState, "people" | "relations" | "rules">, away?: AwayState | null, day = new Date().toISOString().slice(0, 10)): { people: string[]; via: "supervisor" | "hr" } {
   const ok = (u: string) => !conflictOf(u, { subject: t.person, by: t.by, signatures: [], type: "timesheet" }, hr as { people: HrState["people"]; relations: Relation[] });
   const sup = hr.people[t.person]?.current.supervisor;
-  if (typeof sup === "string" && ok(sup)) return { people: [sup], via: "supervisor" };
+  // The supervisor, and whoever acts for them while they are away (R2-16, MF-01).
+  if (typeof sup === "string" && ok(sup)) return { people: [sup, ...(away?.entries.filter((a) => a.person === sup && a.delegate && day >= a.from && day <= a.to && a.delegate !== t.person && ok(a.delegate)).map((a) => a.delegate as string) ?? [])], via: "supervisor" };
   return { people: (hr.rules?.holders.hr ?? []).filter(ok), via: "hr" };
 }
 
 /** Every timesheet's current version, checked as it is read. Superseded versions stay in the ledger. */
-export function foldTimesheets(entries: Entry[], hr: HrState): { sheets: Timesheet[]; ignored: TsIgnored[] } {
+export function foldTimesheets(entries: Entry[], hr: HrState, away?: AwayState | null): { sheets: Timesheet[]; ignored: TsIgnored[] } {
   const byKey = new Map<string, Timesheet>();
   const byN = new Map<number, Timesheet>();
   const ignored: TsIgnored[] = [];
@@ -400,7 +402,7 @@ export function foldTimesheets(entries: Entry[], hr: HrState): { sheets: Timeshe
         ignored.push({ n: e.n, kind: e.kind, actor: e.actor, why: "not the current version waiting for approval" });
         continue;
       }
-      if (!approversFor(t, hr).people.includes(e.actor)) {
+      if (!approversFor(t, hr, away, e.at.slice(0, 10)).people.includes(e.actor)) {
         ignored.push({ n: e.n, kind: e.kind, actor: e.actor, why: "not the person who approves this timesheet" });
         continue;
       }

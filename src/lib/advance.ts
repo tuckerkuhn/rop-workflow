@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { Entry, HrState } from "@/lib/hr";
+import { actedFor, type AwayState } from "@/lib/delegation";
 import { receiptSchema } from "@/lib/expense";
 
 /**
@@ -69,7 +70,7 @@ export const spentOf = (a: Advance) => r2((a.settlement?.lines ?? []).reduce((t,
 /** Still owed back: the advance less what was spent, returned and recovered. Never below zero. */
 export const owedOf = (a: Advance) => (a.status === "settled" || a.status === "settling" ? Math.max(0, r2(a.request.amount - spentOf(a) - (a.settlement?.returned ?? 0) - a.recovered)) : 0);
 
-export function foldAdvances(entries: Entry[], hr: HrState): { advances: Advance[]; ignored: AdvIgnored[] } {
+export function foldAdvances(entries: Entry[], hr: HrState, away?: AwayState | null): { advances: Advance[]; ignored: AdvIgnored[] } {
   const advances = new Map<number, Advance>();
   const ignored: AdvIgnored[] = [];
   const no = (e: Entry, why: string) => ignored.push({ n: e.n, kind: e.kind, why });
@@ -94,7 +95,8 @@ export function foldAdvances(entries: Entry[], hr: HrState): { advances: Advance
       const sup = supervisorOf(a.person, hr);
       if (a.status !== "requested") no(e, "not waiting for approval");
       else if (e.actor === a.person) no(e, "nobody approves their own advance");
-      else if (!(e.actor === sup || (!sup && hr.rules?.holders.hr.includes(e.actor)))) no(e, "the supervisor approves (HR when there is none)");
+      // The supervisor's delegate approves while they are away (R2-16, MF-01).
+      else if (!(e.actor === sup || (!!sup && actedFor(away, e.actor, sup, e.at.slice(0, 10))) || (!sup && hr.rules?.holders.hr.includes(e.actor)))) no(e, "the supervisor approves (HR when there is none), or the person acting for them while they are away");
       else if (hr.relations.some((r) => (r.a === e.actor && r.b === a.person) || (r.b === e.actor && r.a === a.person))) no(e, "a declared relation: someone else approves");
       else Object.assign(a, { status: "approved", approvedBy: e.actor });
     } else if (e.kind === "adv-pay") {

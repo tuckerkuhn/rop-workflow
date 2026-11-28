@@ -47,6 +47,9 @@ export function actingMap(state: AwayState, people: Pick<AppUser, "id" | "report
 }
 
 /** Whether this person is away today, and the entry saying so. */
+/** Whether `actor` was acting for `person` on `day` (named as their delegate for time away covering it). */
+export const actedFor = (state: AwayState | null | undefined, actor: string, person: string, day: string) => !!state?.entries.some((a) => a.person === person && a.delegate === actor && day >= a.from && day <= a.to);
+
 export const awayToday = (state: AwayState, person: string, today: string) => state.entries.find((a) => a.person === person && today >= a.from && today <= a.to) ?? null;
 
 const union = <T,>(a: T[], b: T[]) => [...new Set([...a, ...b])];

@@ -7,6 +7,7 @@ import { waitingFor } from "@/server/hr-view";
 import { loadHr, todayIso } from "@/server/hr-store";
 import { offboardingView } from "@/server/offboarding-view";
 import { foldScreening, screeningProblem } from "@/lib/staff-screening";
+import { loadAway } from "@/server/away-store";
 
 /**
  * Home for HR staff: are our people set up, paid and covered? Staff on record, this month's
@@ -23,7 +24,7 @@ export async function loadHrHome(me: string) {
   const active = Object.values(hr.people).filter((p) => !p.separated || p.separated.effective >= today);
 
   // Timesheets this month: who has not submitted, and who is waiting for approval.
-  const { sheets } = foldTimesheets(entries, hr);
+  const { sheets } = foldTimesheets(entries, hr, await loadAway().catch(() => null));
   const thisMonth = sheets.filter((t) => t.month === month);
   const missing = active.filter((p) => !thisMonth.some((t) => t.person === p.id)).map((p) => names[p.id] ?? p.id);
   const pendingSheets = thisMonth.filter((t) => t.status === "pending").length;

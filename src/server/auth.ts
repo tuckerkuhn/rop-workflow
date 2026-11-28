@@ -102,6 +102,10 @@ async function twoStepState(supabase: Supabase, settings: Promise<OrgSettings>, 
 
 /** Who holds each role type, read from the HR record at most once a minute per server. */
 let holdersCache: { at: number; holders: Authority } | null = null;
+/** Forgets the kept table on this server, so time away just recorded counts at once (R2-13). */
+export function forgetRoleHolders() {
+  holdersCache = null;
+}
 /** A read under way, shared by everyone who asks meanwhile (sign-in reads it ahead; see viewerAsStored). */
 let holdersReading: Promise<Authority> | null = null;
 /** Who holds each role type, with today's delegates beside them (MF-01). */

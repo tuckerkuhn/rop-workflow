@@ -45,8 +45,10 @@ export async function loadProcurementContext(code: string, orgId: string | null 
       if (code === DEMO_PROJECT) return null;
       throw new HttpError(503, "The project's budget could not be read just now, so the money checks cannot run. Try again in a moment.");
     });
+  // The authority table with today's delegates (R2-13): someone acting for a person away signs as they would.
+  const delegated = hr ? await (await import("@/server/auth")).roleHolders().catch(() => hr.state.rules?.holders ?? {}) : {};
   // An undecided conflict leaves that rule at the organization's own value, as on screen.
-  return { rules: Object.fromEntries(eff.lines.filter((l) => !l.conflict || l.decision).map((l) => [l.key, l.value as Value])), holders: hr?.state.rules?.holders ?? {}, register: reg?.suppliers ?? null, set, solo, lineMoney };
+  return { rules: Object.fromEntries(eff.lines.filter((l) => !l.conflict || l.decision).map((l) => [l.key, l.value as Value])), holders: delegated, register: reg?.suppliers ?? null, set, solo, lineMoney };
 }
 /**
  * Puts the context into the shared rules. The checks read module state, so call this immediately

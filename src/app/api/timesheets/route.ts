@@ -8,6 +8,7 @@ import { ON_TIMESHEET, RULES, foldLeave, groupOf, leaveDays } from "@/lib/leave"
 import { people, requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
 import { append, loadHr, todayIso } from "@/server/hr-store";
+import { loadAway } from "@/server/away-store";
 
 /**
  * Timesheets, from the HR ledger. Everyone sees their own; a supervisor sees their team's;
@@ -55,7 +56,8 @@ function visibleTo(me: string, hr: HrState): string[] {
 
 async function view(me: string, month: string, person: string | null) {
   const { state: hr, entries, integrity } = await loadHr();
-  const { sheets, ignored } = foldTimesheets(entries, hr);
+  const awayNow = await loadAway().catch(() => null);
+  const { sheets, ignored } = foldTimesheets(entries, hr, awayNow);
   const { requests } = foldLeave(entries, hr);
   const names = Object.fromEntries((await people()).map((u) => [u.id, u.name]));
   for (const p of Object.values(hr.people)) if (typeof p.current.name === "string") names[p.id] = p.current.name;
@@ -63,7 +65,7 @@ async function view(me: string, month: string, person: string | null) {
   const isHr = !!hr.rules?.holders.hr.includes(me);
   const who = person && visible.includes(person) ? person : visible.includes(me) ? me : (visible[0] ?? null);
   const withApprovers = (t: Timesheet) => {
-    const a = approversFor(t, hr);
+    const a = approversFor(t, hr, awayNow);
     const conflict = a.people.includes(me) ? null : conflictOf(me, { subject: t.person, by: t.by, signatures: [], type: "timesheet" }, hr);
     return { ...t, leaveCheck: leaveMismatch(t.sheet, leaveDays(requests, t.person, t.month)), approvers: a.people, via: a.via, canApprove: t.status === "pending" && a.people.includes(me), cannotApprove: conflict ? toYou(conflict).replace("proposed", "submitted") : null };
   };
@@ -101,7 +103,7 @@ async function view(me: string, month: string, person: string | null) {
       const t = sheets.find((x) => x.person === id && x.month === month);
       return { person: id, status: t?.status ?? "missing", n: t?.n ?? null, by: t?.by ?? null, revised: t?.revisedAfterApproval ?? false };
     }),
-    waiting: sheets.filter((t) => t.status === "pending" && approversFor(t, hr).people.includes(me)).map((t) => ({ n: t.n, person: t.person, month: t.month, revised: t.revisedAfterApproval })),
+    waiting: sheets.filter((t) => t.status === "pending" && approversFor(t, hr, awayNow).people.includes(me)).map((t) => ({ n: t.n, person: t.person, month: t.month, revised: t.revisedAfterApproval })),
     ignored: seesAll(me, hr) ? ignored : [],
   };
 }
@@ -117,14 +119,15 @@ export async function GET(req: Request) {
     const q = new URL(req.url).searchParams;
     if (q.has("summary")) {
       const { state: hr, entries } = await loadHr();
-      const { sheets } = foldTimesheets(entries, hr);
+      const awayNow = await loadAway().catch(() => null);
+      const { sheets } = foldTimesheets(entries, hr, awayNow);
       const month = todayIso().slice(0, 7);
       const mine = sheets.find((t) => t.person === v.user.id && t.month === month);
       return NextResponse.json({
         hasRecord: !!hr.people[v.user.id],
         month,
         status: mine?.status ?? "missing",
-        waiting: sheets.filter((t) => t.status === "pending" && approversFor(t, hr).people.includes(v.user.id)).length,
+        waiting: sheets.filter((t) => t.status === "pending" && approversFor(t, hr, awayNow).people.includes(v.user.id)).length,
       });
     }
     return NextResponse.json(await view(v.user.id, monthOk(q.get("month")), q.get("person")));
@@ -140,7 +143,8 @@ export async function POST(req: Request) {
     const a = parsed.data;
     const me = v.user.id;
     const { state: hr, entries } = await loadHr();
-    const { sheets } = foldTimesheets(entries, hr);
+    const awayNow = await loadAway().catch(() => null);
+    const { sheets } = foldTimesheets(entries, hr, awayNow);
     const fail = (error: string, status = 403) => NextResponse.json({ error }, { status });
     let n: number;
     let month: string;
@@ -158,7 +162,7 @@ export async function POST(req: Request) {
     } else {
       const t = sheets.find((x) => x.n === a.timesheet);
       if (!t || t.status !== "pending") return fail("This timesheet is no longer waiting for approval.", 409);
-      const ap = approversFor(t, hr);
+      const ap = approversFor(t, hr, awayNow);
       if (!ap.people.includes(me)) {
         const c = conflictOf(me, { subject: t.person, by: t.by, signatures: [], type: "timesheet" }, hr);
         return fail(c ? `You cannot approve this: ${toYou(c).replace("proposed", "submitted")}.` : "This timesheet goes to the person's supervisor.");
@@ -168,7 +172,7 @@ export async function POST(req: Request) {
       person = t.person;
     }
     const after = await loadHr();
-    const bad = foldTimesheets(after.entries, after.state).ignored.find((x) => x.n === n);
+    const bad = foldTimesheets(after.entries, after.state, awayNow).ignored.find((x) => x.n === n);
     if (bad) return fail(`Recorded as entry ${n} but it does not count: ${bad.why}.`, 409);
     return NextResponse.json({ n, view: await view(me, month, person) });
   });

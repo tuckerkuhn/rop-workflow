@@ -6,6 +6,8 @@ import { seesAll, type HrState } from "@/lib/hr";
 import { people, requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
 import { append, hrBook, loadHr, todayIso, wouldNotCount } from "@/server/hr-store";
+import { loadAway } from "@/server/away-store";
+import { actedFor } from "@/lib/delegation";
 import { projectRules } from "@/server/policy-store";
 
 /**
@@ -29,10 +31,11 @@ async function settleDays(sources: string[]) {
 }
 
 async function view(me: string) {
-  const { state: hr, entries } = await loadHr();
-  const { advances } = foldAdvances(entries, hr);
+  const [{ state: hr, entries }, away] = await Promise.all([loadHr(), loadAway().catch(() => null)]);
+  const { advances } = foldAdvances(entries, hr, away);
   const all = seesAll(me, hr) || isFinance(me, hr);
-  const visible = advances.filter((a) => all || a.person === me || hr.people[a.person]?.current.supervisor === me);
+  const actsFor = (sup: unknown) => typeof sup === "string" && actedFor(away, me, sup, todayIso());
+  const visible = advances.filter((a) => all || a.person === me || hr.people[a.person]?.current.supervisor === me || actsFor(hr.people[a.person]?.current.supervisor));
   const limits = await settleDays(visible.map((a) => a.request.source));
   const names = Object.fromEntries((await people()).map((u) => [u.id, u.name]));
   const today = todayIso();
@@ -40,7 +43,7 @@ async function view(me: string) {
     const days = limits[a.request.source] ?? DEFAULT_SETTLE_DAYS;
     const sup = hr.people[a.person]?.current.supervisor;
     const can = {
-      approve: a.status === "requested" && a.person !== me && (sup === me || (!sup && !!hr.rules?.holders.hr.includes(me))),
+      approve: a.status === "requested" && a.person !== me && (sup === me || actsFor(sup) || (!sup && !!hr.rules?.holders.hr.includes(me))),
       pay: a.status === "approved" && isFinance(me, hr),
       settle: a.status === "paid" && a.person === me,
       accept: a.status === "settling" && isFinance(me, hr) && a.person !== me,
@@ -78,20 +81,20 @@ export async function POST(req: Request) {
     if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "That is not complete." }, { status: 400 });
     const a = parsed.data;
     const me = v.user.id;
-    const { state: hr, entries } = await loadHr();
+    const [{ state: hr, entries }, away] = await Promise.all([loadHr(), loadAway().catch(() => null)]);
     const fail = (error: string, status = 403) => NextResponse.json({ error }, { status });
     let n: number;
     if (a.action === "request") {
       if (!hr.people[me]) return fail("You have no HR record yet, so an advance cannot be paid to you.");
       // One open advance at a time: the last is settled before the next is paid.
-      const open = foldAdvances(entries, hr).advances.find((x) => x.person === me && x.status !== "settled");
+      const open = foldAdvances(entries, hr, away).advances.find((x) => x.person === me && x.status !== "settled");
       if (open) return fail(`Settle advance #${open.n} (${open.request.purpose}) before asking for another.`, 409);
-      const why = wouldNotCount(entries, (x) => foldAdvances(x, hr).ignored, me, "adv-request", me, a.request);
+      const why = wouldNotCount(entries, (x) => foldAdvances(x, hr, away).ignored, me, "adv-request", me, a.request);
       if (why) return fail(`Not recorded: ${why}.`, 409);
       n = await append(me, "adv-request", me, a.request);
     } else {
       const id = a.action === "pay" ? a.payment.advance : a.action === "settle" ? a.settlement.advance : a.advance;
-      const adv = foldAdvances(entries, hr).advances.find((x) => x.n === id);
+      const adv = foldAdvances(entries, hr, away).advances.find((x) => x.n === id);
       if (!adv) return fail("No such advance.", 404);
       if (a.action === "settle") {
         const problem = settlementProblem(adv, a.settlement);
@@ -106,12 +109,12 @@ export async function POST(req: Request) {
       if (a.action === "recover" && a.amount > owedOf(adv)) return fail(`Only ${owedOf(adv)} is still owed on this advance.`, 400);
       const kind = { approve: "adv-approve", pay: "adv-pay", settle: "adv-settle", accept: "adv-accept", return: "adv-return", recover: "adv-recover" }[a.action];
       const data = a.action === "pay" ? a.payment : a.action === "settle" ? a.settlement : a.action === "return" ? { advance: a.advance, note: a.note } : a.action === "recover" ? { advance: a.advance, amount: a.amount } : { advance: a.advance };
-      const why = wouldNotCount(entries, (x) => foldAdvances(x, hr).ignored, me, kind, adv.person, data);
+      const why = wouldNotCount(entries, (x) => foldAdvances(x, hr, away).ignored, me, kind, adv.person, data);
       if (why) return fail(`Not recorded: ${why}.`, 409);
       n = await append(me, kind, adv.person, data);
     }
     const after = await loadHr();
-    const bad = foldAdvances(after.entries, after.state).ignored.find((x) => x.n === n);
+    const bad = foldAdvances(after.entries, after.state, away).ignored.find((x) => x.n === n);
     if (bad) return fail(`Recorded as entry ${n} but it does not count: ${bad.why}.`, 409);
     return NextResponse.json({ n, view: await view(me) });
   });
