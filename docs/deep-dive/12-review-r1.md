@@ -118,7 +118,13 @@
       own name; a person's name is refused), type, provider, last four digits, signatories. Adding
       or changing one takes effect only when a second person confirms. Each payment says when it
       was paid from cash or from an account not in the register (a flag, not a block).
-- **Tests:** 194 files, 1,410 tests, all passing (39 tests of removed Kobo features went with them). Typecheck and lint clean.
+    - ISS-23/24/25 `42fd5d8`: month close asks for an outside posting reference only when the
+      organization names an accounting system (else the app's own books are the books); a link
+      to each filed voucher is optional unless the organization ticks "Month close needs a link"
+      (Organization settings, Where files are kept); a weekly export runs every Sunday 04:00 UTC
+      (`/api/cron/records-export`, kept in file storage when it is on, else Health says it was not
+      kept), and Settings, Health asks an administrator to confirm the backup plan every 90 days.
+- **Tests:** 196 files, 1,414 tests, all passing (39 tests of removed Kobo features went with them). Typecheck and lint clean.
 - **Seen on screen** (desktop, local throwaway database, never Supabase): the ISS-18 flag as Nadia
   (queue and record), ISS-20 on Project settings and the donor view, ISS-12 as Daniel. Part 2
   step 1: as Farida, a readiness check filled in (the "what needs fixing" question appears on No,
@@ -167,6 +173,9 @@
      project's rule (30 days unless set); enter Guatemala's number in its project rules.
   17. MF-06: a payment from an account not yet in the register is flagged, not refused. Make it a
      block once the accounts are entered?
+  18. ISS-24: links to filed vouchers are now optional at month close by default (the review's
+     direction). The demo organization names NetSuite, so its month close still asks for the
+     NetSuite reference. Confirm the backup plan on Settings, Health once file storage is on.
   13. MF-01: D-13 says the board approves the authority table as the written delegation. That is
      a board step, not the app's: the app only lets a delegate act within the table.
   12. The Dari, Pashto and Spanish wording files still carry some old Kobo sentences that no screen
