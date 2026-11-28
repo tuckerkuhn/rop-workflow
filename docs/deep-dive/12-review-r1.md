@@ -194,6 +194,11 @@
   added to the local copy). Not seen yet: the package editor in Set up, the training scores and
   the duplicate warning on screen (each covered by tests). Farmers already loaded have no
   package: they are planned with every item until one is recorded.
+  Part 4 (28 Nov, 380px frame, local copy): Recruitment as Sima (a fictional vacancy, three
+  applications, a backdated vacancy and an early shortlist both refused); Farmer selection as
+  Marcus, confirming Nadia's exception (now reads "exception confirmed by Marcus Bell"); two
+  narrow-screen fixes made from what was seen. Not seen on screen: the hire form's new reason
+  field, the payment draft notices, the contract value check and the advance rules (tests only).
   **Not seen:** 380px for the other screens, Settings Health's AI lines
   (no AI failure on the local copy), Progress's own next-report line, and the eleven screens listed under "Open".
 - **How the screens were looked at:** a local PGlite Postgres served on 127.0.0.1:54329 (script in
