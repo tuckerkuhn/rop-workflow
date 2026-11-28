@@ -7,7 +7,7 @@ import { hrBook } from "@/server/hr-store";
 import { expenseAccountFor, LedgerError, ledgerSettings, postPayment } from "@/server/ledger";
 import { moneyAccounts } from "@/server/ledger-setup";
 import { asHttp, ledgerMay, ledgerProject, openPurchases, paymentsView, whoCanPost } from "@/server/ledger-view";
-import { openOnLine, payeeSupplies, paymentGuard } from "@/lib/ledger/payment-guard";
+import { mentionsVia, openOnLine, payeeSupplies, paymentGuard } from "@/lib/ledger/payment-guard";
 import { realToday } from "@/lib/clock";
 import { logAudit } from "@/server/audit";
 import { loadProcurements, procurementIdsOfOrg } from "@/server/procurement-store";
@@ -79,6 +79,7 @@ export async function POST(req: Request, { params }: Ctx) {
     const secondWhy: string[] = [];
     if (!may.post) secondWhy.push("you record payments and Finance posts them");
     const supplies = payeeSupplies(f.payee, openOnLine(line.code, open));
+    if (mentionsVia(`${f.payee} ${f.what}`) && !f.thirdParty) secondWhy.push("it says the money went via someone or something: check who received it");
     if (supplies.length) secondWhy.push(`${f.payee} is the supplier of ${supplies.map((p) => p.id).join(", ")}, still open on this line`);
     const payeeMemo = `${f.payee.replace(/[\\%_]/g, "\\$&")}:%`;
     // Payments to one payee on one day are added up against the limit for posting one's own, so it is not split around (R2-17).

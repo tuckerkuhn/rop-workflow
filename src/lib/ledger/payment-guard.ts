@@ -54,21 +54,27 @@ const nameKey = (s: string) =>
     .replace(/\b(ltd|limited|llc|inc|co|company|plc|group)\b\.?/g, " ")
     .replace(/[^a-z0-9\u0600-\u06ff]+/g, " ")
     .trim();
-/** The open purchases on this line whose supplier is the payee (R2-06). */
+/** The open purchases on this line whose supplier is the payee (R2-06): every word of the shorter name is a whole word of the other. */
 export function payeeSupplies(payee: string, onLine: readonly OpenPurchase[]): OpenPurchase[] {
-  const k = nameKey(payee);
-  if (k.length < 3) return [];
+  const words = (s: string) => nameKey(s).split(" ").filter(Boolean);
+  const k = words(payee);
+  if (k.join("").length < 3) return [];
   return onLine.filter((p) => {
-    const s = p.supplier ? nameKey(p.supplier) : "";
-    return s.length >= 3 && (k.includes(s) || s.includes(k));
+    const s = p.supplier ? words(p.supplier) : [];
+    if (s.join("").length < 3) return false;
+    const [short, long] = k.length <= s.length ? [k, new Set(s)] : [s, new Set(k)];
+    return short.every((w) => long.has(w));
   });
 }
 
 /** Wording that says the money went to someone other than the payee. */
-export const saysThirdParty = (text: string) =>
-  /\b(on behalf of|c\/o|care of|for (the )?account of|collected by|received by|handed to|paid to .+ for)\b/i.test(text) ||
-  // "paid via Ahmad" (R2-11), not "via bank transfer" or another way of paying.
-  /\bvia\s+(?!(the\s+)?(bank|transfer|wire|mobile|cheque|check|cash|card|hawala|m-?paisa|swift|ach|online|app|wallet)\b)[a-z]/i.test(text);
+export const saysThirdParty = (text: string) => /\b(on behalf of|c\/o|care of|for (the )?account of|collected by|received by|handed to|paid to .+ for)\b/i.test(text);
+
+/**
+ * "Paid via ..." (R2-11): via a bank or a money service, or via a person. The words cannot tell
+ * which, so it is not refused; a second person checks who received the money (code review).
+ */
+export const mentionsVia = (text: string) => /\bvia\s+\S/i.test(text);
 
 /** The purchases still open on a budget line: the ones a payment on that line could be for. */
 export const openOnLine = (lineCode: string, purchases: readonly OpenPurchase[]) => purchases.filter((p) => lineCodeOf(p.lineCode) === lineCodeOf(lineCode));

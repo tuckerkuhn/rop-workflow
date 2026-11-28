@@ -76,9 +76,13 @@ describe("review round 2 (R2-06, R2-07, R2-11)", () => {
     expect(payeeSupplies("Green Valley Agro Ltd (fictional)", onLine).map((p) => p.id)).toEqual(["PR-2027-015"]);
     expect(payeeSupplies("Kabul Fuel Station", onLine)).toEqual([]);
   });
-  it('"paid via" a person is a third-party payment; "via bank transfer" is not', () => {
-    expect(saysThirdParty("Green Valley Agro NPK paid via Ahmad")).toBe(true);
-    expect(saysThirdParty("Paid via bank transfer")).toBe(false);
-    expect(saysThirdParty("sent via mobile wallet")).toBe(false);
+  it('"paid via" is not refused, but goes to a second person; a short name is not a supplier by accident', async () => {
+    const { mentionsVia } = await import("@/lib/ledger/payment-guard");
+    expect(saysThirdParty("Seed purchase paid via Azizi Bank")).toBe(false);
+    expect(mentionsVia("Green Valley Agro NPK paid via Ahmad")).toBe(true);
+    expect(mentionsVia("Monthly account fee")).toBe(false);
+    const natalie: OpenPurchase[] = [{ id: "PR-2027-020", title: "Seed", lineCode: "2.2", supplier: "Natalie Farms", usd: 900 }];
+    expect(payeeSupplies("Ali", natalie)).toEqual([]);
+    expect(payeeSupplies("Natalie Farms Ltd", natalie).map((p) => p.id)).toEqual(["PR-2027-020"]);
   });
 });
