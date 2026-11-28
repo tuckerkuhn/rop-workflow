@@ -287,3 +287,17 @@ describe("who may reconcile", { timeout: 60_000 }, () => {
     expect((e as LedgerError).code).toBe("not_found");
   });
 });
+
+describe("a cash box has no bank statement (code review of R2-24)", { timeout: 60_000 }, () => {
+  it("completes on the counted balance, with no statement lines", async () => {
+    const [{ id: cashLedger }] = await db.insert(s.ledgerAccounts).values({ organizationId: org, code: "1095", name: "Test cash box", type: "asset" }).returning();
+    const [{ id: cash }] = await db.insert(s.bankAccounts).values({ organizationId: org, ledgerAccountId: cashLedger, name: "Test cash box", currency: "USD" }).returning();
+    await postDonorReceipt({ organizationId: org, recordedBy: "yusuf", idempotencyKey: key() }, { date: "2026-10-02", memo: "Cash drawn", depositedTo: cashLedger, donorId: donor, projectId, currency: "USD", fxRate: "1", amount: "100.00" });
+    await setStatementBalance({ organizationId: org, bankAccountId: cash, month: "2026-10", balance: "100.00", by: "yusuf" });
+    expect(await refused(completeReconciliation({ organizationId: org, bankAccountId: cash, month: "2026-10", by: "peter", projectId }))).toMatch(/Import .*statement/);
+    const { ACCOUNTS_KEY } = await import("@/lib/payment-accounts");
+    await db.insert(s.organizationState).values({ organizationId: org, key: ACCOUNTS_KEY, data: { accounts: { [cash]: { type: "cash", owner: "ROP", signatories: ["yusuf"] } }, pending: [], history: [] } }).onConflictDoUpdate({ target: [s.organizationState.organizationId, s.organizationState.key], set: { data: { accounts: { [cash]: { type: "cash", owner: "ROP", signatories: ["yusuf"] } }, pending: [], history: [] } } });
+    const done = await completeReconciliation({ organizationId: org, bankAccountId: cash, month: "2026-10", by: "peter", projectId });
+    expect(done.completedAt).toBeTruthy();
+  });
+});

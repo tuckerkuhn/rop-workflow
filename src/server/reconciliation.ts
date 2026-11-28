@@ -8,6 +8,7 @@ import { closingBalanceOf, parseAmount, parseCsv, readStatement, withOccurrence,
 import { logAudit } from "@/server/audit";
 import { LedgerError, lockPeriod, periodEnd } from "@/server/ledger";
 import { selfApproval, type SelfConfirm, type SoloState } from "@/server/solo";
+import { ACCOUNTS_KEY } from "@/lib/payment-accounts";
 
 /**
  * Bank reconciliation, the step of Month close where Finance shows that the bank's statement and the
@@ -535,7 +536,12 @@ export async function completeReconciliation(input: { organizationId: string; ba
     const [moved] = rowsOf<{ n: number }>(
       await tx.execute(sql`SELECT count(DISTINCT e.id)::int AS n FROM journal_entries e JOIN journal_lines l ON l.entry_id = e.id WHERE e.status = 'posted' AND l.account_id = ${bank.ledgerAccountId} AND e.entry_date BETWEEN ${period}::date AND ${asOf}::date`),
     );
-    if ((moved?.n ?? 0) > 0 && (lines?.n ?? 0) === 0) throw new LedgerError("refused", `Import ${bank.name}'s statement for ${monthName(period)} first: the books have ${moved!.n} ${moved!.n === 1 ? "entry" : "entries"} on it that month, and a reconciliation checks them against the bank's own lines.`);
+    // A cash box has no bank statement: it is counted, and its closing balance is the count (code review of R2-24).
+    const [acct] = rowsOf<{ code: string }>(await tx.execute(sql`SELECT code FROM ledger_accounts WHERE id = ${bank.ledgerAccountId}`));
+    // The register is read in this same transaction: a second connection here could wait on this one's lock.
+    const [reg] = rowsOf<{ type: string | null }>(await tx.execute(sql`SELECT data->'accounts'->${bank.id}->>'type' AS type FROM organization_state WHERE organization_id = ${input.organizationId} AND key = ${ACCOUNTS_KEY}`));
+    const cash = acct?.code === "1000" || reg?.type === "cash";
+    if (!cash && (moved?.n ?? 0) > 0 && (lines?.n ?? 0) === 0) throw new LedgerError("refused", `Import ${bank.name}'s statement for ${monthName(period)} first: the books have ${moved!.n} ${moved!.n === 1 ? "entry" : "entries"} on it that month, and a reconciliation checks them against the bank's own lines.`);
     const book = await bookBalance(tx, bank, asOf);
     const statement = cents(r.statementBalance);
     const difference = fromCents(toCents(statement) - toCents(book));
