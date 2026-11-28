@@ -42,11 +42,9 @@
      fixed). Add one as an organization setting? Easiest to undo: leave it fixed until a 403 shows.
   3. Part 2 step 7 asks for a migration that drops the Kobo tables; your standing rule is no
      migrations. The plan: stop reading and writing them, leave the tables, and ask before dropping.
-  4. Who registers a farmer: the project manager, plan approvers and extension agents (the
-     narrowest group that does it; easy to widen). Add the MEL officer or the storekeeper?
-  5. A distribution filled in inside the app goes straight to the project manager, like one
-     recorded on the farmer today. The extra KoboCollect check (a stand-in checks records from a
-     KoboCollect account first) is not applied, because the app knows who filled it in. Keep that?
+  4. Answered 28 Nov: the project manager, plan approvers and extension agents register farmers (1a).
+  5. Answered 28 Nov: an in-app distribution goes straight to the project manager, with no extra
+     KoboCollect check (2a).
 - **Half done:** nothing. Kobo still works beside the in-app forms until step 7.
 - **Next:** Part 2 step 2 (MF-07 household roster, MF-08 duplicate check, MF-12 eligibility rules,
   MF-09 training details, ISS-14, ISS-15, ISS-27), then steps 3 to 7.
