@@ -1,5 +1,7 @@
 "use client";
 
+import { APP_FORM_KINDS, APP_FORM_TEXT, mayFillForms, mayOpenForms, mayRegister } from "@/lib/app-forms";
+
 import { Arrow } from "@/components/app/arrow";
 import { plainSources } from "@/components/status-tag";
 import Link from "next/link";
@@ -744,6 +746,28 @@ function FarmerTableLink({ code, userId }: { code: string; userId: string }) {
   );
 }
 
+/** The field forms this person may fill in, each one tap away (components/field/form-runner). */
+function FormLinks({ hasPackage }: { hasPackage: boolean }) {
+  const { user } = useSession();
+  const { tx } = useT();
+  if (!user || !mayOpenForms(user)) return null;
+  const kinds = APP_FORM_KINDS.filter((k) => (k === "register" ? mayRegister(user) : mayFillForms(user)) && (k !== "distribution" || hasPackage));
+  return (
+    <nav aria-labelledby="fill-in" className="mx-3 mt-4 font-bands sm:mx-4">
+      <h2 id="fill-in" className="text-base font-extrabold">{tx("Fill in a form")}</h2>
+      <ul className="mt-1.5 flex flex-wrap gap-1.5">
+        {kinds.map((k) => (
+          <li key={k}>
+            <Link href={`/field/forms/${k}`} className={`inline-flex min-h-12 items-center border-2 border-forest bg-surface px-3 text-sm font-bold text-forest hover:bg-ochre-soft ${focusRing}`}>
+              {tx(APP_FORM_TEXT[k].title)}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  );
+}
+
 export function FieldWorkspace() {
   const { user, mode } = useRequireUser();
   const { tx } = useT();
@@ -855,7 +879,8 @@ export function FieldWorkspace() {
       mobileDetail={mobileDetail}
       queue={
         <>
-          <p className="mx-3 mt-4 font-bands text-base font-medium sm:mx-4">{tx("Record visits in KoboCollect. This page shows where each farmer stands and what needs approving.")}</p>
+          <FormLinks hasPackage={!!setup?.items.length} />
+          <p className="mx-3 mt-3 font-bands text-base font-medium sm:mx-4">{tx("This page shows where each farmer stands and what needs approving.")}</p>
           <DataBanner status={status} error={error} />
           {/* Season counts as bands: one big number per stage. Three across in a narrow column, six when there is room; labels may take two lines. */}
           <section aria-labelledby="season-counts" className="@container mx-3 mt-4 font-bands sm:mx-4">

@@ -53,7 +53,7 @@ async function recordsFile(code: string, by: string) {
       form: r.form ?? "",
       farmerId: r.farmerCode ?? sub.farmerId ?? "",
       date: sub.date || (r.completedAt ?? r.createdAt).toISOString().slice(0, 10),
-      source: fromKobo ? "KoboCollect" : sub.source === "app" ? "App" : "Sample",
+      source: fromKobo ? "KoboCollect" : sub.source === "app" || sub.source === "form" ? "App" : "Sample",
       // The person when the KoboCollect account is matched to one; otherwise the account as sent.
       collector: (fromKobo ? collectorOf(r.completedBy, rule, team) : null) ?? r.completedBy ?? "",
       status: r.reviewStatus,

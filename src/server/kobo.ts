@@ -6,6 +6,7 @@ import type { Submission, SubmissionForm } from "@/lib/project";
 import { farmerListRows, projectByCode, setupFor } from "@/server/field-store";
 import { readinessForms } from "@/server/kobo-link";
 import { heldFarmers, sessionFarmers } from "@/lib/kobo-setup";
+import { hasAnswers } from "@/lib/form-record";
 
 /**
  * Readiness checks from KoboToolbox: the farmer list pushed to the project's readiness form as
@@ -102,8 +103,8 @@ export function toSubmission(row: EvidenceRow): Submission {
   const p = (row.payload ?? {}) as Record<string, unknown>;
   const status = row.reviewStatus;
   const decided = { decidedBy: row.reviewedBy ?? undefined, decidedOn: row.reviewedAt ? row.reviewedAt.toISOString().slice(0, 10) : undefined, note: row.queryNote ?? undefined };
-  if (row.source !== "kobo") {
-    // Seeded demo record, or one recorded in the app: the payload is already a review-queue entry.
+  if (!hasAnswers(row)) {
+    // Seeded demo record, or a distribution recorded on the farmer: the payload is already a review-queue entry.
     return { ...(p as unknown as Submission), dbId: row.id, source: (p as { source?: string }).source === "app" ? "app" : "sample", status, ...decided };
   }
   const ready = str(p.ready);
@@ -144,17 +145,20 @@ export function toSubmission(row: EvidenceRow): Submission {
     }
     if (str(p.planted) === "no" || str(p.spacing_ok) === "no") fields.issue = str(p.issue);
   }
+  const kobo = row.source === "kobo";
   return {
-    id: `KB-${p._id ?? row.koboSubmissionUuid?.slice(0, 8)}`,
+    // A form filled in here has no KoboToolbox number: its own id, shortened.
+    id: kobo ? `KB-${p._id ?? row.koboSubmissionUuid?.slice(0, 8)}` : `AF-${row.id.slice(0, 8)}`,
     dbId: row.id,
-    source: "kobo",
+    source: kobo ? "kobo" : "form",
     orgId: row.organizationId ?? "",
     form: (row.form as SubmissionForm) ?? "readiness",
     farmerId: ticked ? "" : (row.farmerCode ?? str(p.farmer)),
     ...(ticked ? { farmers: ticked } : {}),
     ...(ticked && heldFarmers(p).length ? { held: heldFarmers(p).map((id) => ({ id })) } : {}),
     date: str(p.visit_date) || str(p.training_date) || (row.completedAt ? row.completedAt.toISOString().slice(0, 10) : ""),
-    enumerator: row.completedBy ?? "kobo",
+    // KoboCollect: the account that sent it. Filled in here: the person signed in (their id).
+    enumerator: row.completedBy ?? (kobo ? "kobo" : ""),
     gps: gpsOf(p),
     fields,
     photo: !!str(p.photo) || !!str(p.list_photo),

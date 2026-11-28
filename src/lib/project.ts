@@ -127,12 +127,15 @@ export const formLabel: Record<SubmissionForm, string> = {
   visit: "Farm visit",
 };
 
+/** A real field form, with answers to check: from KoboCollect or filled in inside the app. */
+export const fromForm = (s: Pick<Submission, "source">) => s.source === "kobo" || s.source === "form";
+
 export type Submission = {
   id: string;
   /** Database row id, for decisions sent to the server. */
   dbId?: string;
-  /** "kobo" for real submissions, "app" for ones recorded in the app, "sample" for the seeded demo records. */
-  source?: "kobo" | "sample" | "app";
+  /** "kobo" from KoboCollect, "form" from a field form filled in inside the app, "app" for a distribution recorded on the farmer in Field activities, "sample" for the seeded demo records. */
+  source?: "kobo" | "sample" | "app" | "form";
   orgId: string;
   form: SubmissionForm;
   /** The farmer the record is about. Empty on a training session record, which names its farmers in `farmers`. */
@@ -211,22 +214,22 @@ export function dataFlags(s: Submission, all: Submission[], roster?: Roster): st
   const where = s.gpsCheck ?? gpsCheck(s.gps);
   if (where === "missing") f.push("No GPS point recorded");
   else if (where === "outside") f.push(s.gps ? `GPS ${s.gps[0].toFixed(3)}, ${s.gps[1].toFixed(3)} is outside the project area` : "The GPS point is outside the project area");
-  // Intake checks apply to real Kobo submissions; the sample records are past history.
-  if (roster && s.source === "kobo" && s.farmers) {
+  // Intake checks apply to real field forms (KoboCollect, or filled in here); the sample records are past history.
+  if (roster && fromForm(s) && s.farmers) {
     const unknown = s.farmers.filter((id) => roster[id] === undefined);
     const past = s.farmers.filter((id) => roster[id] !== undefined && roster[id] !== "train");
     if (unknown.length) f.push(`Not on the project roster: ${some(unknown)}. Their attendance stays on this record only`);
     if (past.length) f.push(`Past training: ${some(past)}. Attendance will be recorded but their step will not move`);
-  } else if (roster && s.source === "kobo") {
+  } else if (roster && fromForm(s)) {
     const step = roster[s.farmerId];
     if (step === undefined) f.push(`Farmer ${s.farmerId || "(blank)"} is not on the project roster`);
     else if (s.form === "readiness" && !["verify", "correct"].includes(step)) f.push(`Farmer ${s.farmerId} is not at a readiness step (now: ${step}); the result will be recorded but the step will not move`);
     else if (s.form === "training" && step !== "train") f.push(`Farmer ${s.farmerId} is past training (now: ${step}); attendance will be recorded but the step will not move`);
     else if (s.form === "visit" && step !== "plant") f.push(`Farmer ${s.farmerId} is not at planting (now: ${step}); the visit will be recorded but the step will not move`);
   }
-  if (s.source === "kobo" && s.form === "readiness" && s.fields.result === "No" && !s.fields.issue) f.push("Result is No but nothing is recorded under what needs fixing");
-  if (s.source === "kobo" && s.form === "training" && s.fields.attended === "No") f.push("Marked as not attended: accepting it records the absence only");
-  if (s.source === "kobo" && s.date > new Date().toISOString().slice(0, 10)) f.push(`Visit date ${s.date} is in the future`);
+  if (fromForm(s) && s.form === "readiness" && s.fields.result === "No" && !s.fields.issue) f.push("Result is No but nothing is recorded under what needs fixing");
+  if (fromForm(s) && s.form === "training" && s.fields.attended === "No") f.push("Marked as not attended: accepting it records the absence only");
+  if (fromForm(s) && s.date > new Date().toISOString().slice(0, 10)) f.push(`Visit date ${s.date} is in the future`);
   const missing = Object.entries(s.fields)
     .filter(([, v]) => !v)
     .map(([k]) => k);

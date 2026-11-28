@@ -1,4 +1,5 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { hasAnswers } from "@/lib/form-record";
 import { stampHistory } from "@/lib/history";
 import { mirrorFarmer } from "@/server/farmer-mirror";
 import { and, eq, inArray, sql } from "drizzle-orm";
@@ -340,10 +341,11 @@ export async function processPending(code: string, origin = appOrigin()) {
       .map((i) => ({ ...i, qty: qtyOf(f[`${i.key}_qty`]) ?? qtyOf(f[`${i.key}_${i.unit}`]) ?? qtyOf(f[`${i.key}_kg`]) ?? i.qty }))
       .filter((i) => i.qty > 0);
     const g = gate(items, ctx.procs, ctx.given, ctx.setup, ctx.onDay(r));
-    const photo = r.source === "kobo" ? typeof p.list_photo === "string" && !!p.list_photo : !!p.photo;
-    const signed = r.source === "kobo" ? p.signed === "yes" : typeof f.signature === "string" && !!f.signature && f.signature !== "Not confirmed";
-    const flags = flagsFor({ farmerId: code_, items, photo, signed, step: r.source === "kobo" ? (farmer?.step ?? "unknown") : null }, othersThan(ctx.rows, r.id), planned);
-    if (farmer && r.source === "kobo") await db.update(s.evidence).set({ payload: { ...p, _rop_gender: farmer.gender }, updatedAt: new Date() }).where(eq(s.evidence.id, r.id));
+    const answers = hasAnswers(r);
+    const photo = answers ? typeof p.list_photo === "string" && !!p.list_photo : !!p.photo;
+    const signed = answers ? p.signed === "yes" : typeof f.signature === "string" && !!f.signature && f.signature !== "Not confirmed";
+    const flags = flagsFor({ farmerId: code_, items, photo, signed, step: answers ? (farmer?.step ?? "unknown") : null }, othersThan(ctx.rows, r.id), planned);
+    if (farmer && answers) await db.update(s.evidence).set({ payload: { ...p, _rop_gender: farmer.gender }, updatedAt: new Date() }).where(eq(s.evidence.id, r.id));
     const gender = farmer?.gender ?? (f.gender === "Female" || f.gender === "Male" ? f.gender : null);
     await prepare(code, project, r.id, { farmerId: code_, items, gender, village: farmer?.community ?? (typeof p.village === "string" ? p.village : ""), recordedBy, recorderId: r.source === "kobo" ? null : r.completedBy, photo, signed, gate: g, flags }, origin, undefined, r.source === "kobo");
     done++;
@@ -468,12 +470,12 @@ export type DistView = {
 
 const photoOf = (r: { source: string; payload: unknown }) => {
   const p = (r.payload ?? {}) as Record<string, unknown>;
-  return r.source === "kobo" ? typeof p.list_photo === "string" && !!p.list_photo : !!p.photo;
+  return hasAnswers(r) ? typeof p.list_photo === "string" && !!p.list_photo : !!p.photo;
 };
-/** The condition at handover as the KoboCollect form recorded it; null from the app, where the recipient's tick covers it. */
+/** The condition at handover as the form recorded it (KoboCollect or the in-app form); null for a distribution recorded on the farmer, where the recipient's tick covers it. */
 const conditionOf = (r: { source: string; payload: unknown }) => {
   const c = ((r.payload ?? {}) as Record<string, unknown>).condition;
-  return r.source === "kobo" && typeof c === "string" && c ? c : null;
+  return hasAnswers(r) && typeof c === "string" && c ? c : null;
 };
 const sourceOf = (r: { source: string }) => (r.source === "kobo" ? ("kobo" as const) : ("app" as const));
 
@@ -494,7 +496,7 @@ export const dayOf = (r: { payload: unknown; completedAt: Date | null; createdAt
 const signedOf = (r: { source: string; payload: unknown }) => {
   const p = (r.payload ?? {}) as Record<string, unknown>;
   const f = (typeof p.fields === "object" && p.fields ? p.fields : p) as Record<string, unknown>;
-  return r.source === "kobo" ? p.signed === "yes" : typeof f.signature === "string" && !!f.signature && f.signature !== "Not confirmed";
+  return hasAnswers(r) ? p.signed === "yes" : typeof f.signature === "string" && !!f.signature && f.signature !== "Not confirmed";
 };
 
 export async function listDistributions(code: string): Promise<DistView[]> {
@@ -833,10 +835,10 @@ export async function resubmitDistribution(code: string, id: string, by: { id: s
   // a document. From KoboCollect the image came with the form; a fix can say it has since been added.
   // The same for a KoboCollect record: the image that came with the form, or one added to the
   // farmer's record since (addSignedNote). A tick saying "there is a photo" is not accepted.
-  const photo = row.source === "kobo" ? (m.photo ?? photoOf(row)) || hasSignedNotePhoto(farmer) : hasSignedNotePhoto(farmer) || !!m.photo;
+  const photo = hasAnswers(row) ? (m.photo ?? photoOf(row)) || hasSignedNotePhoto(farmer) : hasSignedNotePhoto(farmer) || !!m.photo;
   const signed = fix.signed ?? m.signed ?? signedOf(row);
   const conditionOk = fix.conditionOk ?? m.conditionOk;
-  const flags = flagsFor({ farmerId: row.farmerCode ?? m.farmerId, items, photo, signed, step: row.source === "kobo" ? (farmer?.step ?? "unknown") : null }, ctx.others, planned);
+  const flags = flagsFor({ farmerId: row.farmerCode ?? m.farmerId, items, photo, signed, step: hasAnswers(row) ? (farmer?.step ?? "unknown") : null }, ctx.others, planned);
   const history = [...(m.history ?? []), ...(m.decided ? [{ sentBack: m.decided, fixed: { by: by.id, byName: by.name, at: now.toISOString(), note: note.trim() } }] : [])];
   const { decided: _decided, hash: _hash, hashes: _hashes, expires: _expires, notified: _notified, ...kept } = m;
   void [_decided, _hash, _hashes, _expires, _notified];

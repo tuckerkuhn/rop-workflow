@@ -8,6 +8,7 @@ import { selectionHold } from "@/lib/selection";
 import { HELD_KEY, LEFT_OUT_KEY, TICKED_KEY, heldFarmers } from "@/lib/kobo-setup";
 import { selectionOutcomes } from "@/server/selection-store";
 import { toSubmission } from "@/server/kobo";
+import { hasAnswers } from "@/lib/form-record";
 import { today } from "@/lib/clock";
 import { projectByCode, setupFor } from "@/server/field-store";
 import { HttpError } from "@/server/guard";
@@ -20,6 +21,9 @@ import { correctionOwner, correctionTask, countPlantingIn, plantingTarget } from
  */
 
 const later = (a: string, b: string) => (a > b ? a : b);
+
+/** How a farmer's history names the record: "Kobo KB-12" from KoboCollect, "Form AF-1a2b3c4d" from a form filled in here. */
+const refOf = (sub: { id: string; source?: string }) => `${sub.source === "kobo" ? "Kobo" : "Form"} ${sub.id}`;
 
 /** `refusal(fromKobo, by, form)`: why this person may not decide this record (`by`: who sent or recorded it), or null when they may. */
 export async function decide(code: string, evidenceId: string, status: "accepted" | "queried", user: AppUser, note?: string, refusal?: (fromKobo: boolean, by: string | null, form: string | null) => string | null) {
@@ -47,7 +51,7 @@ export async function decide(code: string, evidenceId: string, status: "accepted
     // receipt and quantity checks run.
     if (row.form === "distribution") throw new HttpError(409, "The project manager approves input distributions, from the email or from Home, where the goods received and quantity checks are shown.");
 
-    const moves = status === "accepted" && row.source === "kobo" && (row.form === "readiness" || row.form === "training" || row.form === "visit");
+    const moves = status === "accepted" && hasAnswers(row) && (row.form === "readiness" || row.form === "training" || row.form === "visit");
     // What holds each farmer left open on a session record accepted for everyone else.
     let heldNow: string[] = [];
     // A farmer waitlisted or left out in Farmer selection is not moved along by a field form:
@@ -171,7 +175,7 @@ async function applyReadiness(tx: Tx, row: typeof s.evidence.$inferSelect, user:
   // Move the farmer through Field activities.
   const f = item.data as Farmer;
   const from = f.step;
-  const kbo = `${sub.id}, accepted by ${user.name}`;
+  const kbo = `${refOf(sub)}, accepted by ${user.name}`;
   // The app runs on a fixed demo date; real visits are dated today. Count the 7 days from
   // whichever is later so a real No isn't overdue the moment it arrives.
   const deadline = addDays(later(sub.date || today(), today()), 7);
@@ -198,7 +202,7 @@ async function applyReadiness(tx: Tx, row: typeof s.evidence.$inferSelect, user:
 
   next = {
     ...next,
-    timeline: [...f.timeline, { date: sub.date || today(), who: "mel", what: `${summary.split(".")[0]}${issue && !ready ? `: ${issue}` : ""} (Kobo ${kbo})`, at: new Date().toISOString() }],
+    timeline: [...f.timeline, { date: sub.date || today(), who: "mel", what: `${summary.split(".")[0]}${issue && !ready ? `: ${issue}` : ""} (${kbo})`, at: new Date().toISOString() }],
   };
   await tx.update(s.fieldItems).set({ data: next, updatedAt: new Date() }).where(eq(s.fieldItems.id, item.id));
   await mirrorFarmer(tx, row.projectId, next);
@@ -255,7 +259,7 @@ async function trainOne(tx: Tx, projectId: string, sub: ReturnType<typeof toSubm
   if (!item) return { kind: "missing", summary: `Farmer ${code} is not on the farmer list; attendance kept on the submission only` };
   const f = item.data as Farmer;
   const date = sub.date || today();
-  const kbo = `Kobo ${sub.id}, accepted by ${user.name}`;
+  const kbo = `${refOf(sub)}, accepted by ${user.name}`;
   const session = sub.fields.session || "training";
   if (!attended) {
     await saveFarmer(tx, item.id, f, date, `Did not attend ${session.toLowerCase()} (${kbo})`);
@@ -317,7 +321,7 @@ async function applyVisit(tx: Tx, row: typeof s.evidence.$inferSelect, user: App
   if (!item) return { summary: `Farmer ${code} is not on the farmer list; visit kept on the submission only`, planted: null };
   const f = item.data as Farmer;
   const date = sub.date || today();
-  const kbo = `Kobo ${sub.id}, accepted by ${user.name}`;
+  const kbo = `${refOf(sub)}, accepted by ${user.name}`;
   const purpose = (sub.fields.purpose || "Farm visit").toLowerCase();
   const issue = sub.fields.issue;
   const ok = sub.fields.planted === "Yes" && sub.fields.spacing === "Yes";
@@ -333,7 +337,7 @@ async function applyVisit(tx: Tx, row: typeof s.evidence.$inferSelect, user: App
   }
   const from = plantingFromVisit(sub.fields, date, f.hectares, plan);
   if ("problem" in from) {
-    await saveFarmer(tx, item.id, { ...f, checks }, date, `Farm visit, ${purpose}: planted at the trained spacing, but the planting record was not saved: ${from.problem} Send a corrected farm visit from KoboCollect (${kbo})`);
+    await saveFarmer(tx, item.id, { ...f, checks }, date, `Farm visit, ${purpose}: planted at the trained spacing, but the planting record was not saved: ${from.problem} Send a corrected farm visit (${kbo})`);
     return { summary: `Visit recorded. Planting not recorded: ${from.problem} Stays at Plant.`, planted: null };
   }
   const { planting, assumed } = from;
@@ -343,7 +347,7 @@ async function applyVisit(tx: Tx, row: typeof s.evidence.$inferSelect, user: App
   // against the app's fixed demo date.
   const problem = plantingProblem({ ...f, planting, photos: [], timeline: [] }, later(date, today()));
   if (problem) {
-    await saveFarmer(tx, item.id, { ...f, checks }, date, `Farm visit, ${purpose}: planted at the trained spacing, but the planting record was not saved: ${problem} Send a corrected farm visit from KoboCollect (${kbo})`);
+    await saveFarmer(tx, item.id, { ...f, checks }, date, `Farm visit, ${purpose}: planted at the trained spacing, but the planting record was not saved: ${problem} Send a corrected farm visit (${kbo})`);
     return { summary: `Visit recorded. Planting not recorded: ${problem} Stays at Plant.`, planted: null };
   }
   const area = `${planting.count !== undefined ? `${planting.count.toLocaleString("en-US")} ${plan?.unit ?? "plants"}, ` : ""}${planting.hectares} of ${f.hectares} ha${assumed ? " (area not on the form: the farmer's plot)" : ""}`;

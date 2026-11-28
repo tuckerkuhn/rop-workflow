@@ -165,7 +165,7 @@ export function FieldRecords({ f, open, onToggle }: { f: FieldForms; open: boole
                 <div className="min-w-0 flex-1">
                   <p className="text-sm">
                     <span className="font-medium">{formLabel[s.form]}</span> · {whoOf(s)}{" "}
-                    <Pill tone={s.source === "kobo" ? "sky" : "muted"}>{s.source === "kobo" ? "KoboCollect" : "Sample"}</Pill>
+                    <Pill tone={s.source === "kobo" || s.source === "form" ? "sky" : "muted"}>{s.source === "kobo" ? "KoboCollect" : s.source === "form" ? "Filled in here" : "Sample"}</Pill>
                   </p>
                   <p className="mt-0.5 text-xs text-muted">
                     {/^\d{4}-\d{2}-\d{2}$/.test(s.date) ? longDate(s.date) : s.date} · collected by {s.collectorName ?? name(s.enumerator)}
