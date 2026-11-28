@@ -1,5 +1,35 @@
 # Review round 1: progress and decisions (started 27 Nov 2026)
 
+## Where it stands (27 Nov, evening session, following `docs/CURSOR-PROMPT-2026-11-27.md`)
+
+- **Landed** (branches `build/ai-fault-2026-11-27`, then `build/review-r1-part1-2026-11-27`, cut from
+  `build/review-r1-next-2026-11-27`; not on main):
+  - Part 0 step 1, `afcf133`: a wrong key (401) and a key that may not use the model (403) now get
+    two sentences. The AI service's own status and message are kept on the `ai_run_failed` audit
+    row (anything shaped like a key is taken out) and listed on Settings, Health under "Errors this week".
+  - ISS-18, `7abd1c4`: Field activities flags, on the queue and on a farmer at Train or the
+    hand-out, that no selection rule is saved. A flag, not a block.
+  - ISS-20, `8ed37ec` and `f08b011`: one next report (`lib/progress` `nextReportDue`) for the
+    donor's Home, Project settings and Progress, named by its months.
+  - ISS-12 gap, `1a2159a`: an administrator names who receives the goods on the same panel when
+    the requester is away (`lib/procurement` `mayNameReceiver`, read by the screen and the save).
+- **Tests:** 175 files, 1,377 tests, all passing. Typecheck and lint clean.
+- **Seen on screen** (desktop, local throwaway database, never Supabase): the ISS-18 flag as Nadia
+  (queue and record), ISS-20 on Project settings and the donor view, ISS-12 as Daniel.
+  **Not seen:** 380px width (this browser's window would not narrow), Settings Health's AI lines
+  (no AI failure on the local copy), Progress's own next-report line, and the eleven screens listed under "Open".
+- **How the screens were looked at:** a local PGlite Postgres served on 127.0.0.1:54329 (script in
+  the session scratchpad: migrations applied, `src/db/seed.ts` run with only local variables) and
+  `next dev -p 3100` started with DATABASE_URL and every outside key overridden. An old dev server
+  started 12 Nov was still running against Supabase from `.env.local`; it was stopped.
+- **Needs Tucker:**
+  1. Replace the AI key (Part 0 step 2), then say "done" so Draft with AI can be checked on the live site.
+  2. "Change the model in Settings" in the prompt: there is no model setting yet (`DRAFT_MODEL` is
+     fixed). Add one as an organization setting? Easiest to undo: leave it fixed until a 403 shows.
+  3. Part 2 step 7 asks for a migration that drops the Kobo tables; your standing rule is no
+     migrations. The plan: stop reading and writing them, leave the tables, and ask before dropping.
+- **Next:** Part 2 (Kobo out, the five in-app forms, MF-07/08/09/12/13, ISS-14/15/22/27).
+
 Source: `ROP_Workflow_Review_Round_1.xlsx` (30 issues, 28 decisions, 13 missing features),
 reviewed 26 Nov 2026 for Daniel Sandoval and Tucker Kuhn. Branch:
 `build/review-r1-critical-2026-11-27`. Nothing here is pushed until Tucker says "save".
@@ -114,6 +144,8 @@ Each is built as a rule with a default, so changing it is a setting, not a rewri
 | ISS-17 | A possible split is said on the ask form and kept on the calendar item for its two approvers; the approver's "separate needs" waits for the procurement manager to confirm it. | `34fd597`, `11db6e9` |
 | ISS-12 | The goods received note is signed by the requester or the one person they name in their own department, never procurement or the storekeeper; it records the day the goods arrived, the supplier's delivery note and their condition, and prints the real requester and inspector. | `c4a0940` |
 | ISS-19 | The authority table shows anyone with a role's right on their own record and what it lets them do; the sample organization names Omar under MEL. | `d9a457e` |
+| ISS-18 | Field activities flags training and inputs while no selection rule is saved. | `7abd1c4` |
+| ISS-20 | One next report for a donor on Home, Project settings and Progress. | `8ed37ec`, `f08b011` |
 | ISS-28 | Results and proof says its target is the whole project's; Progress shows the year's. | this commit's parent |
 | ISS-21 | A request from the calendar is not asked for its activity or lead time again: both are worked out and shown. | `f78e16d` |
 | ISS-29, ISS-30 | Places follow the project's country (Afghanistan, Guatemala, typed otherwise). One sign-in label. | `f78e16d` |
@@ -127,8 +159,7 @@ Each is built as a rule with a default, so changing it is a setting, not a rewri
   rule tests, not seen. Screens touched: procurement draft panel, Record a payment, procurement
   calendar (ask form and item), bank reconciliation, timesheet, supplier field at screening,
   goods received panel, Settings Health, People (authority table), results (place and target), sign-in.
-- **ISS-12, small gap:** when the requester is away and named nobody, only an administrator can
-  name who receives the goods, and there is no screen for the administrator to do it yet.
+- ~~ISS-12, small gap~~: done, `1a2159a`.
 
 ## Checks run
 
@@ -140,13 +171,12 @@ Each is built as a rule with a default, so changing it is a setting, not a rewri
 
 | Issue | Why it waits |
 |---|---|
-| ISS-18 (selection rule before training), ISS-20 (one report calendar) | Next in line. Each is a separate fix. |
 | ISS-14 (the receipt photo's date, farmer and quantities compared with the record) | Belongs with the in-app distribution form, where the receipt is captured. |
 | ISS-15, ISS-22, ISS-27 | Settled by taking Kobo out: the labels, the outside dependency, and renaming the farmer's signed receipt "distribution receipt" all change in that rewrite. |
 | ISS-23, ISS-24, ISS-25 (SharePoint, backups, "posted in NetSuite") | The wording already follows the organization's settings; the demo organization is set to SharePoint and NetSuite. The real change is month close using the app's own books when no outside system is named: with the money batch. |
 
 ## Next (in order)
 
-1. ISS-18, then ISS-20.
+1. ~~ISS-18, then ISS-20~~ (done, see the top).
 2. Kobo out and the five in-app forms, with batch 1 of the missing features (and ISS-14, ISS-15, ISS-22, ISS-27).
 3. Batches 2 to 5. Local currency (MF-11) first in the money batch, with ISS-23 to ISS-25.
