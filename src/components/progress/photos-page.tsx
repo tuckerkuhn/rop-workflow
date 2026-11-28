@@ -1,6 +1,7 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element -- photos come from the app's own store as blob URLs */
+import { useStoredPhoto } from "@/components/field/stored-photo";
 import { EVIDENCE_TABS, PlaceTabs } from "@/components/progress/report-checks";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
@@ -38,9 +39,11 @@ function useBlob(hash: string, user: string) {
   return src;
 }
 
-function Photo({ hash, user, alt, className, inline }: { hash: string; user: string; alt: string; className: string; /** A farmer's photo, kept in the farmer's record rather than as a file. */ inline?: string }) {
+function Photo({ hash, user, alt, className, inline }: { hash: string; user: string; alt: string; className: string; /** A farmer's photo, kept in the farmer's record (or in file storage, server/file-store) rather than as a file here. */ inline?: string }) {
+  const { project } = useCurrentProject();
   const blob = useBlob(inline ? "" : hash, user);
-  const src = inline ?? blob;
+  const stored = useStoredPhoto(project.id, inline, user);
+  const src = inline ? stored : blob;
   return src ? <img src={src} alt={alt} className={`${className} object-cover`} /> : <div className={`${className} bg-sunken`} />;
 }
 

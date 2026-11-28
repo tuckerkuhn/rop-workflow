@@ -13,6 +13,7 @@ import { primaryBtn, quietBtn } from "@/components/workspace/ui";
 import type { DistView } from "@/server/distribution";
 import type { DistFacts } from "@/server/distribution-photo";
 import { WhereWhen } from "@/components/field/where-when";
+import { StoredPhoto } from "@/components/field/stored-photo";
 import { qtyItem } from "@/lib/package";
 import { longDate } from "@/lib/weekly";
 import { receiptIncomplete, receiptMismatches, type ReceiptCheck } from "@/lib/receipt-check";
@@ -285,8 +286,7 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
             )}
             {notePhoto && (
               <figure className="mt-3">
-                {/* eslint-disable-next-line @next/next/no-img-element -- a stored data URL, not a static asset */}
-                <img src={notePhoto.src} alt={tx("Signed distribution receipt for {id}", { id: d.farmerId })} className="max-h-96 w-full rounded-lg border border-line bg-mist object-contain" />
+                <StoredPhoto code={code} src={notePhoto.src} user={user?.id} alt={tx("Signed distribution receipt for {id}", { id: d.farmerId })} className="max-h-96 w-full rounded-lg border border-line bg-mist object-contain" />
                 <figcaption className="mt-1 text-xs text-muted">
                   {tx("Signed distribution receipt, photographed {date}. Check the signature or thumbprint and the quantities before approving.", { date: /^\d{4}-\d{2}-\d{2}$/.test(notePhoto.date) ? longDate(notePhoto.date) : notePhoto.date })}
                 </figcaption>

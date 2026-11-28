@@ -93,7 +93,7 @@ async function allPhotos(code: string): Promise<{ items: PhotoItem[]; stories: S
   for (const f of field.items)
     if (f.kind === "farmer")
       for (const ph of f.photos ?? []) {
-        if (ph.signedNote || !ph.src || !/^data:image\/(jpeg|png|webp);base64,/.test(ph.src)) continue;
+        if (ph.signedNote || !ph.src || !/^(data:image\/(jpeg|png|webp);base64,|file:[0-9a-f]{64}$)/.test(ph.src)) continue;
         const h = photoFingerprint(ph.src);
         if (h) add({ hash: h, name: `${f.id}.jpg`, by: ph.by ?? "", date: ph.date, caption: "", province: "", district: "", activity: ph.activity, source: { kind: "farmer", id: f.id, title: `Farmer ${f.id}`, status: "recorded" }, storyUses: null, src: ph.src });
       }

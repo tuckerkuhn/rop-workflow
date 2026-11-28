@@ -336,6 +336,9 @@ function forOutside(f: Farmer, cleared: (src: string) => boolean): Farmer {
  * picture's own bytes. A photo with no picture of its own has none.
  */
 export function photoFingerprint(src: string): string | null {
+  // A photo in file storage: the record keeps only its fingerprint (server/file-store).
+  const ref = /^file:([0-9a-f]{64})$/.exec(src);
+  if (ref) return ref[1];
   const m = /^data:[^;,]+;base64,(.+)$/.exec(src);
   return m ? createHash("sha256").update(Buffer.from(m[1], "base64")).digest("hex") : null;
 }

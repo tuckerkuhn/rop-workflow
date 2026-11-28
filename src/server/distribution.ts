@@ -21,6 +21,7 @@ import type { Submission } from "@/lib/project";
 import { demoMode, onProject, people, toAppUser } from "@/server/auth";
 import { projectByCode, setupOf } from "@/server/field-store";
 import { HttpError } from "@/server/guard";
+import { keepPhoto } from "@/server/file-store";
 import { receiptIncomplete, receiptMismatches, type ReceiptCheck, type ReceiptChecked } from "@/lib/receipt-check";
 
 /** Where the receipt check is kept on a distribution record (ISS-14). */
@@ -886,11 +887,13 @@ export async function addSignedNote(code: string, id: string, by: { id: string; 
   if (!row?.farmerCode) throw new HttpError(404, "That distribution is not on this project.");
   if (row.reviewStatus === "accepted") throw new HttpError(409, "This distribution is already approved. Its photo is on file and is not replaced.");
   const day = photo.taken?.date && /^\d{4}-\d{2}-\d{2}$/.test(photo.taken.date) ? photo.taken.date : today();
+  // Inside the record, or in file storage with its fingerprint (server/file-store).
+  const kept = await keepPhoto(code, photo.src);
   let added = false;
   await db.transaction(async (tx) => {
     await changeFarmer(tx, project.id, row.farmerCode!, (f) => {
       added = true;
-      const entry = { id: `${f.id}-note-${Date.now()}`, activity: "distribution" as const, date: day, caption: `Signed distribution receipt · ${f.id}`, src: photo.src, signedNote: true, tag: "signed-note", ...(photo.taken?.date ? { taken: { date: photo.taken.date, time: photo.taken.time ?? null } } : {}), ...(photo.gps ? { gps: photo.gps } : {}) };
+      const entry = { id: `${f.id}-note-${Date.now()}`, activity: "distribution" as const, date: day, caption: `Signed distribution receipt · ${f.id}`, src: kept.src, signedNote: true, tag: "signed-note", ...(photo.taken?.date ? { taken: { date: photo.taken.date, time: photo.taken.time ?? null } } : {}), ...(photo.gps ? { gps: photo.gps } : {}) };
       return { ...f, photos: [...(f.photos ?? []), entry], timeline: [...f.timeline, { date: today(), who: "system", what: `Photo of the signed distribution receipt added by ${by.name}` }] };
     });
     if (added) await tx.insert(s.auditLog).values({ projectId: project.id, entity: "distribution", entityId: id, action: "distribution_note_photo_added", detail: { by: by.id, farmer: row.farmerCode, taken: photo.taken?.date ?? null, hasPlace: !!photo.gps } });

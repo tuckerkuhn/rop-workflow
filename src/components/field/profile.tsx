@@ -15,6 +15,7 @@ import { Initials, useFeature, useRequireUser, useSession } from "@/components/a
 import { PHOTO_QUALITY } from "@/lib/plans";
 import { Pill, TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { useCurrentProject } from "@/components/app/current-project";
+import { StoredPhoto } from "@/components/field/stored-photo";
 import { today } from "@/lib/clock";
 import { DEMO_SETUP, packageUsd } from "@/lib/package";
 import { holderOf } from "@/lib/demo";
@@ -378,8 +379,7 @@ export function FarmerProfile({ id }: { id: string }) {
                   <li key={p.id} className="overflow-hidden bg-sunken">
                     <div className="relative aspect-[16/11]">
                       {p.src ? (
-                        // eslint-disable-next-line @next/next/no-img-element -- user-uploaded data URL
-                        <img src={p.src} alt={maskName(p.caption, farmer, user)} className="h-full w-full object-cover" />
+                        <StoredPhoto code={project.id} src={p.src} user={user?.id} alt={maskName(p.caption, farmer, user)} className="h-full w-full object-cover" />
                       ) : (
                         <>
                           <PhotoArt kind={p.activity} />

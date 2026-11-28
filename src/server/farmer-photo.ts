@@ -9,6 +9,7 @@ import { onProject } from "@/server/auth";
 import { mirrorFarmer } from "@/server/farmer-mirror";
 import { projectByCode } from "@/server/field-store";
 import { HttpError } from "@/server/guard";
+import { keepPhoto } from "@/server/file-store";
 import { requestWrote } from "@/server/request-memo";
 
 /**
@@ -44,6 +45,8 @@ export async function addFarmerPhoto(
   if (!mayAddPhoto(by, code)) throw new HttpError(403, "Only staff on this project who can open Field activities can add a photo to a farmer.");
   if (!tagsFor(by).includes(photo.tag)) throw new HttpError(403, "The photo of the signed distribution receipt is added by the people who record the distribution, so that nobody who approves it also supplies its proof. Choose another tag, or ask the storekeeper to add it.");
   const project = await projectByCode(code);
+  // Inside the record, or in file storage with its fingerprint (server/file-store).
+  const kept = await keepPhoto(code, photo.src);
   const visitor = !recordsField(by);
   const day = photo.taken?.date && /^\d{4}-\d{2}-\d{2}$/.test(photo.taken.date) ? photo.taken.date : today();
   const entry: Photo = {
@@ -52,7 +55,7 @@ export async function addFarmerPhoto(
     tag: photo.tag,
     date: day,
     caption: `${tagLabels[photo.tag]} · ${farmerId}`,
-    src: photo.src,
+    src: kept.src,
     ...(photo.taken?.date ? { taken: { date: photo.taken.date, time: photo.taken.time ?? null } } : {}),
     ...(photo.gps ? { gps: photo.gps } : {}),
     by: by.id,

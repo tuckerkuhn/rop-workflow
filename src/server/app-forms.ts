@@ -4,10 +4,11 @@ import { canSeePII, type AppUser } from "@/lib/demo";
 import { APP_FORM_KEY, RECORDED_BY_KEY } from "@/lib/form-record";
 import { appForm, farmerOfAnswers, mayFillForms, mayRegister, formProblems, savedAnswers, type Answers, type AppForm, type AppFormKind, type FormLists } from "@/lib/app-forms";
 import { today } from "@/lib/clock";
-import { farmerListRows, photoFingerprint, projectByCode, setupFor } from "@/server/field-store";
+import { farmerListRows, projectByCode, setupFor } from "@/server/field-store";
 import { importFarmers } from "@/server/farmers";
 import { HttpError } from "@/server/guard";
 import { logAudit } from "@/server/audit";
+import { keepPhoto } from "@/server/file-store";
 import { parseHousehold } from "@/lib/household";
 import { splitNames } from "@/lib/eligibility";
 
@@ -70,7 +71,8 @@ export async function saveForm(code: string, kind: AppFormKind, entry: FormEntry
     const src = entry.photos?.[q.name];
     if (!src || !PHOTO.test(src)) throw new HttpError(422, `${q.label}: the photo did not arrive. Take it again.`);
     if (src.length > PHOTO_MAX) throw new HttpError(413, `${q.label}: the photo is too large. Take it again.`);
-    photos[q.name] = { src, sha256: photoFingerprint(src)! };
+    // Kept inside the record, or in file storage with only its fingerprint here (server/file-store).
+    photos[q.name] = await keepPhoto(code, src);
     // The answer is the photo's name, as KoboToolbox kept it: its fingerprint.
     answers[q.name] = `${photos[q.name].sha256.slice(0, 16)}.jpg`;
   }
