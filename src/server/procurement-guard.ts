@@ -310,6 +310,9 @@ export function validateProcurementSave(prev: Procurement | undefined, next: Pro
     // A failed automatic check can be overridden only where the step offers it, with its resolution.
     const badFix = checksChanged.find((k) => k.startsWith("fix.") && next.checks?.[k] && !stepById[prev.step]?.checks.find((c) => `fix.${prev.step}.${c.id}` === k)?.resolve);
     if (badFix) return "That check cannot be overridden.";
+    // R2-03: an override is recorded with its reason, in the name of whoever ticks it.
+    const bare = checksChanged.find((k) => k.startsWith("fix.") && next.checks?.[k] && !prev.checks?.[k] && ((next.overrides?.[k]?.why ?? "").trim().length < 10 || next.overrides?.[k]?.by !== u.name));
+    if (bare) return "Record why the check is overridden (a reason of at least a few words, in your own name).";
   }
   // A second person's confirmation of an override (ISS-17): someone other than who recorded it, and
   // the procurement manager or an administrator.
@@ -318,7 +321,10 @@ export function validateProcurementSave(prev: Procurement | undefined, next: Pro
     if (!o.confirmedBy || same(was?.confirmedBy, o.confirmedBy)) continue;
     if (o.confirmedBy.name !== u.name) return "A confirmation is signed by the person confirming.";
     if (o.by === u.name || was?.by === u.name) return "You recorded this, so a second person confirms it.";
-    if (!u.admin && !isProcurementManager(u)) return "Only the procurement manager confirms this.";
+    const check = stepById[k.split(".")[1]]?.checks.find((c) => `fix.${k.split(".")[1]}.${c.id}` === k);
+    if (check?.secondBy === "finance") {
+      if (!u.admin && !procRolesFor(u).includes("finance")) return "Only Finance confirms a budget revision.";
+    } else if (!u.admin && !isProcurementManager(u)) return "Only the procurement manager confirms this.";
   }
   // Each part of the record changes only at its own steps.
   const outOfStep = fieldsChanged.find((k) => k in FIELD_STEPS && !FIELD_STEPS[k].includes(prev.step));

@@ -39,3 +39,34 @@ describe("separate needs, recorded and confirmed by a second person", () => {
     expect(validateProcurementSave(recorded, confirm(hamid), hamid)).toBeNull();
   });
 });
+
+describe("a budget shortfall overridden (review round 2, R2-03)", () => {
+  const laila = userById("laila")!;
+  const yusuf = userById("yusuf")!; // Finance
+  const BKEY = "fix.requisition.budgetValue";
+  const budget = stepById.requisition.checks.find((c) => c.id === "budgetValue")!;
+  const at = { ...req("PR-A2027-009", 10_000_000), step: "requisition" } as Procurement;
+  it("needs a reason in the ticker's own name, and then Finance's confirmation", () => {
+    expect(budget.secondBy).toBe("finance");
+    const bare = { ...at, checks: { [BKEY]: true } } as Procurement;
+    expect(validateProcurementSave(at, bare, laila)).toMatch(/Record why the check is overridden/);
+    const recorded = { ...at, checks: { [BKEY]: true }, overrides: { [BKEY]: { why: "Funder revision 4 approved by email on 20 Nov.", by: laila.name, date: "2026-11-28" } } } as Procurement;
+    expect(validateProcurementSave(at, recorded, laila) ?? "").not.toMatch(/Record why/);
+    expect(checkState(recorded, budget, usd).ok).toBe(false);
+    const confirmed = (u: { name: string }) => ({ ...recorded, overrides: { [BKEY]: { ...recorded.overrides![BKEY], confirmedBy: { name: u.name, date: "2026-11-28" } } } }) as Procurement;
+    expect(validateProcurementSave(recorded, confirmed(hamid), hamid)).toBe("Only Finance confirms a budget revision.");
+    expect(validateProcurementSave(recorded, confirmed(yusuf), yusuf)).toBeNull();
+    expect(checkState(confirmed(yusuf), budget, usd).ok).toBe(true);
+  });
+});
+
+describe("a contract above what was approved (review round 2, R2-04)", async () => {
+  const { contractValueCheck } = await import("@/lib/procurement");
+  const c = { ...req("PR-A2027-010", 3_000), step: "contract", contractCurrency: "USD", contractUsd: 9_500, bids: [], selectedBid: undefined } as unknown as Procurement;
+  it("stops at the contract step until an amendment is recorded", () => {
+    expect(contractValueCheck(c, usd)).toMatchObject({ ok: false });
+    expect(contractValueCheck(c, usd)!.detail).toContain("above the $3000 approved");
+    expect(contractValueCheck({ ...c, contractUsd: 2_900 } as Procurement, usd)).toMatchObject({ ok: true });
+    expect(stepById.contract.checks.find((x) => x.id === "contractValue")?.secondBy).toBe("finance");
+  });
+});

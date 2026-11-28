@@ -783,6 +783,22 @@ function budgetCheck(p: Procurement, money: Money): CheckResult | null {
 }
 
 /**
+ * R2-04: the contract as signed is not above what was approved (the requisition, or the chosen bid
+ * when that is higher) nor above what is left on the budget line. Above either, an approved
+ * amendment is recorded and Finance confirms it.
+ */
+export function contractValueCheck(p: Procurement, money: Money): CheckResult | null {
+  if (contractCurrency(p) !== "USD" || !(p.contractUsd && p.contractUsd > 0)) return null;
+  const chosen = (p.bids ?? []).find((b) => b.id === p.selectedBid);
+  const approved = Math.max(valueOf(p), (chosen && bidUsd(chosen)) || 0);
+  const a = availableFor(p);
+  const l = lineOf(p);
+  const left = a ? a.figure.available : l ? l.remainingValue - committedOn(p).total : null;
+  const over = p.contractUsd > approved + 0.5 ? `above the ${money(approved)} approved` : left !== null && p.contractUsd > left + 0.5 ? `above the ${money(left)} left on the line` : "";
+  return { ok: !over, detail: `Contract ${money(p.contractUsd)}${over ? `, ${over}` : `, within the ${money(approved)} approved`}` };
+}
+
+/**
  * The day the purchase's supplier was last screened, one date wherever it is shown (review round
  * 1, ISS-13: the payment check said 13 May while the purchase's own history said 28 October). The
  * supplier register's latest screening when the supplier is linked to it; otherwise the later of
@@ -823,6 +839,8 @@ export type Check = {
    * ISS-17: the approver alone could record a possible split purchase as separate needs).
    */
   second?: string;
+  /** Who that second person is: the procurement manager (default) or Finance (R2-03, a budget shortfall). */
+  secondBy?: "manager" | "finance";
 };
 
 export type Step = {
@@ -929,6 +947,9 @@ export const steps: Step[] = [
         tag: "D1 §4.1",
         fix: "Budget revision needed: agree with the funder before approval.",
         resolve: "Record funder-approved revision",
+        // R2-03: the requester's own tick is not a recorded revision: Finance confirms it.
+        second: "Finance",
+        secondBy: "finance",
         auto: (p, money) => budgetCheck(p, money),
       },
       {
@@ -938,6 +959,9 @@ export const steps: Step[] = [
         tag: "D1 §4.1; OPEN scope",
         fix: "Quantity exceeds what the funder approved: agree a revision before approval.",
         resolve: "Record funder-approved revision",
+        // R2-03: the requester's own tick is not a recorded revision: Finance confirms it.
+        second: "Finance",
+        secondBy: "finance",
         auto: (p) => {
           const l = lineOf(p);
           if (!l || l.remainingQty === undefined) return { ok: true, detail: "Funder does not budget quantity on this line" };
@@ -985,6 +1009,9 @@ export const steps: Step[] = [
         tag: "D1 §4.1",
         fix: "Budget revision needed: agree with the funder before approval.",
         resolve: "Record funder-approved revision",
+        // R2-03: the requester's own tick is not a recorded revision: Finance confirms it.
+        second: "Finance",
+        secondBy: "finance",
         // With no live budget loaded, the requisition's own check stands: nothing more to confirm here.
         auto: (p, money) => (availableFor(p) ? budgetCheck(p, money) : { ok: true, detail: "Checked when the requisition was submitted" }),
       },
@@ -1362,6 +1389,17 @@ export const steps: Step[] = [
       { id: "clauses", label: "Required clauses present", why: "Audit, records, anti-corruption, safeguarding, labor, E&S, data, IP, termination, subcontracting.", tag: "D1 §4.11" },
       { id: "aiConform", label: "AI conformity check reviewed", why: "Contract compared with the solicitation, winning bid and donor annex before signature. AI flags; a person records the check.", tag: "D1 §4.11; TS", ai: true, ...AI_GATE },
       { id: "pass1", label: "Checklist pass 1 complete", why: "The first of two points where a procurement can still be stopped.", tag: "D1 §4.17" },
+      {
+        id: "contractValue",
+        label: "Contract value within what was approved and the budget line",
+        why: "A contract above its approved value or its budget line needs an approved amendment first (review round 2, R2-04).",
+        tag: "D1 §4.1, §4.11",
+        fix: "Contract above what was approved: record the approved amendment, or correct the value.",
+        resolve: "Record the approved amendment",
+        second: "Finance",
+        secondBy: "finance",
+        auto: (p, money) => contractValueCheck(p, money) ?? { ok: true, detail: "Checked once the contract value is entered in USD" },
+      },
       {
         id: "schedule",
         label: "Payment schedule matches the contract and adds up to 100%",

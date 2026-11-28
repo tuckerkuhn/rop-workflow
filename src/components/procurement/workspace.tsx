@@ -799,7 +799,7 @@ function Detail({
                     const key = `fix.${p.step}.${c.id}`;
                     const o = p.overrides?.[key];
                     if (!c.second || !p.checks[key] || !o || o.confirmedBy) return null;
-                    const may = !!user && user.name !== o.by && (!!user.admin || isProcurementManager(user));
+                    const may = !!user && user.name !== o.by && (!!user.admin || (c.secondBy === "finance" ? procRolesFor(user).includes("finance") : isProcurementManager(user)));
                     return (
                       <div className="mt-1 flex flex-wrap items-center gap-2 bg-ochre-soft px-3 py-2 text-sm">
                         <span className="min-w-0 flex-1">{`Waiting for ${c.second} to confirm: ${o.why} (${o.by}).`}</span>
