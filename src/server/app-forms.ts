@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { canSeePII, type AppUser } from "@/lib/demo";
 import { APP_FORM_KEY, RECORDED_BY_KEY } from "@/lib/form-record";
@@ -122,9 +122,10 @@ export async function saveForm(code: string, kind: AppFormKind, entry: FormEntry
 
 async function register(code: string, a: Answers, user: AppUser, duplicatesChecked: boolean) {
   const project = await projectByCode(code);
-  const id = a.farmer_id!;
+  // R2-18: an ID is the same ID in capitals or not ("f-r2-01" is "F-R2-01"): kept in capitals, compared without case.
+  const id = a.farmer_id!.trim().toUpperCase();
   const household = parseHousehold(a.household ?? "").members;
-  const [known] = await db.select({ projectId: s.farmers.projectId }).from(s.farmers).where(eq(s.farmers.code, id)).limit(1);
+  const [known] = await db.select({ projectId: s.farmers.projectId }).from(s.farmers).where(sql`upper(${s.farmers.code}) = ${id}`).limit(1);
   if (known) throw new HttpError(409, known.projectId === project.id ? `${id} is already registered on this project. Open them in Field activities to change their details.` : `${id} is already used on another project. Farmer IDs must be unique: give this farmer a new ID.`);
   const r = await importFarmers(
     code,

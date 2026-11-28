@@ -113,6 +113,8 @@ describe("field forms filled in inside the app", { timeout: 60_000 }, () => {
     const f = await farmer("F-APP-001");
     expect(f).toMatchObject({ gender: "Female", hectares: 0.4, community: "Qala-e-Nau", householdSize: 3, household: [{ sex: "Female", age: 31 }, { sex: "Male", age: 35 }, { sex: "Female", age: 6 }] });
     await expect(saveForm(code, "register", entry({ farmer_id: "F-APP-001", village: "Qala", sex: "Male", hectares: "1" }), farida)).rejects.toThrow(/already registered on this project/);
+    // R2-18: the same ID in small letters is the same ID.
+    await expect(saveForm(code, "register", entry({ farmer_id: "f-app-001", village: "Qala", sex: "Male", hectares: "1" }), farida)).rejects.toThrow(/F-APP-001 is already registered on this project/);
     // MF-08: the same person registered again under a new ID is caught by the phone, and saved once checked.
     await saveForm(code, "register", entry({ farmer_id: "F-APP-003", farmer_name: "Zainab Fictional", phone: "070 111 2222", village: "Qala", sex: "Female", hectares: "1" }), farida);
     const again = entry({ farmer_id: "F-APP-004", farmer_name: "Zaynab Fictionel", phone: "+93 70 111 2222", village: "Qala", sex: "Female", hectares: "1" });
