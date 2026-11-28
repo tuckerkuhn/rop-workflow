@@ -332,10 +332,16 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
 
           <section className="mt-4 rounded-xl border border-line bg-surface px-4 py-3">
             <h2 className="font-medium">{tx("To look at")}</h2>
-            {d.flags.length ? (
+            {/* ISS-14: what the receipt read below shows against the record is flagged here too. */}
+            {d.flags.length || readOff(read, d).length ? (
               <ul className="mt-1 list-disc space-y-1 ps-5 text-sm">
                 {d.flags.map((f) => (
                   <li key={f.id}>{f.text}</li>
+                ))}
+                {readOff(read, d).map((m) => (
+                  <li key={m} className="text-clay">
+                    {m}
+                  </li>
                 ))}
               </ul>
             ) : (
@@ -527,6 +533,11 @@ function receiptOf(r: Read, d: DistView): ReceiptCheck | null {
   }
   return { date: r.date, farmer: r.farmer, qty };
 }
+/** What the receipt read so far shows against the record; empty until every line is read. */
+const readOff = (r: Read, d: DistView) => {
+  const c = receiptOf(r, d);
+  return c ? receiptMismatches(c, d) : [];
+};
 const receiptMatches = (r: Read, d: DistView) => {
   const c = receiptOf(r, d);
   return !!c && receiptMismatches(c, d).length === 0;

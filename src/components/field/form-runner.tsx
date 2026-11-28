@@ -244,7 +244,7 @@ function Ask({ q, form, lists, values, value, photo, problem, day, onChange, onP
     <fieldset id={id} className={`scroll-mt-24 ${problem ? "border-s-4 border-clay ps-3" : ""}`}>
       <legend className="text-lg font-extrabold leading-snug">
         {label}
-        {!q.required && <span className="ms-1 text-sm font-semibold text-muted">{tx("(optional)")}</span>}
+        {!q.required && !/\(optional\)$/.test(label) && <span className="ms-1 text-sm font-semibold text-muted">{tx("(optional)")}</span>}
       </legend>
       {hint && <p className="mt-0.5 text-sm text-muted">{hint}</p>}
       <div className="mt-2">
@@ -395,14 +395,15 @@ function Household({ value, label, onChange }: { value: string; label: string; o
     <div className="grid gap-2">
       {rows.map((r, i) => (
         <div key={i} className="flex flex-wrap items-center gap-2">
-          <span className="w-8 font-mono text-sm text-muted">{i + 1}.</span>
+          <span className="w-5 font-mono text-sm text-muted">{i + 1}.</span>
           {(["Female", "Male"] as const).map((s) => (
             <button key={s} type="button" aria-pressed={r.sex === s} onClick={() => put(rows.map((x, k) => (k === i ? { ...x, sex: s } : x)))} className={`${choiceBtn(r.sex === s)} !w-auto`}>
               {tx(s)}
             </button>
           ))}
-          <input type="text" inputMode="numeric" value={r.age} placeholder={tx("Age")} aria-label={tx("{label}: age of person {n}", { label, n: i + 1 })} onChange={(e) => put(rows.map((x, k) => (k === i ? { ...x, age: e.target.value.replace(/\D/g, "").slice(0, 3) } : x)))} className={`${field} !w-24`} />
-          <button type="button" onClick={() => put(rows.filter((_, k) => k !== i))} className={quietBtn}>
+          <input type="text" inputMode="numeric" value={r.age} placeholder={tx("Age")} aria-label={tx("{label}: age of person {n}", { label, n: i + 1 })} onChange={(e) => put(rows.map((x, k) => (k === i ? { ...x, age: e.target.value.replace(/\D/g, "").slice(0, 3) } : x)))} className={`${field} !w-16`} />
+          {/* A text button, so a person stays on one line on a phone. */}
+          <button type="button" onClick={() => put(rows.filter((_, k) => k !== i))} className={`min-h-12 px-1 text-sm font-semibold text-muted underline ${focusRing}`}>
             {tx("Remove")}
           </button>
         </div>

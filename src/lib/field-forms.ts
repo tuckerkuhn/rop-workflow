@@ -97,8 +97,8 @@ export function trainingForm(code: string, version: string, o: { curriculum?: st
       { type: "text", name: "curriculum", label: "Curriculum taught, and its version", hint: "As set for the project. Change it only if another one was used.", ...(o.curriculum ? { default: `'${o.curriculum.replace(/'/g, "")}'` } : {}) },
       ...(o.app
         ? [
-            { type: "integer", name: "score_max", label: "The test is marked out of (optional)", hint: "Leave empty if no test was given.", constraint: ". >= 1 and . <= 1000", constraint_message: "Enter the top mark, between 1 and 1000." },
-            { type: "scores", name: "scores", label: "Pre-test and post-test scores (optional)", hint: "For each farmer who took the test.", relevant: "string-length(${farmers}) > 0 and string-length(${score_max}) > 0" },
+            { type: "integer", name: "score_max", label: "The test is marked out of", hint: "Leave empty if no test was given.", constraint: ". >= 1 and . <= 1000", constraint_message: "Enter the top mark, between 1 and 1000." },
+            { type: "scores", name: "scores", label: "Pre-test and post-test scores", hint: "For each farmer who took the test.", relevant: "string-length(${farmers}) > 0 and string-length(${score_max}) > 0" },
           ]
         : []),
       { type: "text", name: "register_ref", label: "Attendance register reference", hint: "Book and page of the signed register, and where the original is kept", required: true },

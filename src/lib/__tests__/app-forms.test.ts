@@ -163,3 +163,9 @@ describe("where a record came from (ISS-15)", async () => {
     expect(sourceText("sample", "x")).toBe("Sample record, made up for the demo");
   });
 });
+
+describe("what the form screen shows", () => {
+  it("a label never says (optional) itself on the app's own forms: the screen adds it once", () => {
+    for (const k of ["register", "training"] as const) expect(appForm(k, "A2027", { setup, names: true }).questions.filter((q) => /\(optional\)$/.test(q.label)).map((q) => q.name)).toEqual([]);
+  });
+});

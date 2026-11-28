@@ -139,9 +139,9 @@ export function registerForm(names: boolean): XlsForm {
     ["text", "farmer_id", "Farmer ID", "As written on the farmer's card. Letters, digits, . _ and - only.", "yes", "", "", "", "", "", "", ""],
     ...(names
       ? [
-          ["text", "farmer_name", "Farmer's name (optional)", "Kept in the app only. It never goes to donors, reports or the AI.", "", "", "", "", "", "", "", ""],
+          ["text", "farmer_name", "Farmer's name", "Kept in the app only. It never goes to donors, reports or the AI.", "", "", "", "", "", "", "", ""],
           // Kept with the name; used to find a farmer registered twice (lib/duplicates).
-          ["text", "phone", "Phone number (optional)", "Kept with the name, for the same people.", "", "string-length(${farmer_name}) > 0", "", "", "", "", "", ""],
+          ["text", "phone", "Phone number", "Kept with the name, for the same people.", "", "string-length(${farmer_name}) > 0", "", "", "", "", "", ""],
         ]
       : []),
     ["text", "village", "Village", "", "yes", "", "", "", "", "", "", ""],
@@ -151,7 +151,7 @@ export function registerForm(names: boolean): XlsForm {
     ["household", "household", "Who lives in the household", "Everyone, the farmer included: sex and age. No names.", "", "", "", "", "", "", "", ""],
     // Asked only when the roster is left empty: the roster's length is the household's size.
     ["integer", "household_size", "People in the household", "", "", "string-length(${household}) = 0", "", "", "", "", ". >= 1 and . <= 100", "Enter the number of people, between 1 and 100."],
-    ["text", "crops", "Crops the farmer grows now (optional)", "Separate them with commas, like: wheat, maize.", "", "", "", "", "", "", "", ""],
+    ["text", "crops", "Crops the farmer grows now", "Separate them with commas, like: wheat, maize.", "", "", "", "", "", "", "", ""],
     ["select_one yes_no", "contribution_paid", "Has the farmer paid their contribution?", "", "", "", "", "", "", "", "", ""],
   ];
   return {
