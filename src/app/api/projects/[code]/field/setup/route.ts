@@ -63,6 +63,7 @@ const body = z.object({
   target: z.union([z.string().regex(/^IND-\d+$/), z.literal("")]).optional(),
   targetAt: z.enum(["distribution", "planting"]).optional(),
   packages: z.array(z.object({ key: z.string().regex(/^[a-z][a-z0-9_]{0,29}$/), name: z.string().trim().min(1).max(80), why: z.string().trim().max(160).optional(), items: z.array(z.string()).min(1).max(20) })).max(10).optional(),
+  verifyRate: z.number().min(0.02).max(0.05).optional(),
   screenAboveUsd: z.number().min(0).max(100000).optional(),
   curriculum: z.object({ name: z.string().trim().min(1).max(160), version: z.string().trim().max(40) }).optional(),
 });

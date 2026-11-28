@@ -21,6 +21,7 @@ import { dataChecks } from "@/lib/data-checks";
 import { coachNew } from "@/server/photos-store";
 import { RESULT_SOURCES } from "@/lib/measure";
 import { measuresFor } from "@/server/measures";
+import { bulkProblem } from "@/lib/verification";
 
 type Ctx = { params: Promise<{ code: string }> };
 
@@ -132,6 +133,9 @@ export async function POST(req: Request, { params }: Ctx) {
       return NextResponse.json(await view(code, u));
     }
     if (a.action === "accept-many") {
+      // MF-10 (D-26): a batch is accepted at once only after a random sample of it was opened.
+      const unsampled = bulkProblem(a.ids, a.opened);
+      if (unsampled) return NextResponse.json({ error: unsampled }, { status: 409 });
       const project = await projectByCode(code);
       const all = await loadResults(code);
       const rule = await koboApprovalFor(code);

@@ -201,7 +201,8 @@ export const resultActionSchema = z.discriminatedUnion("action", [
   /** `self`: solo mode, the MEL owner accepts a result they recorded, confirming that (server/solo.ts). */
   z.object({ action: z.literal("accept"), id: z.string().uuid(), self: selfSchema.optional() }),
   /** MEL accepts many at once: only those waiting, not their own, and with nothing flagged by the data checker. */
-  z.object({ action: z.literal("accept-many"), ids: z.array(z.string().uuid()).min(1).max(300) }),
+  /** `opened`: the records of the batch the person opened first (D-26): a random sample of it is needed. */
+  z.object({ action: z.literal("accept-many"), ids: z.array(z.string().uuid()).min(1).max(300), opened: z.array(z.string().uuid()).max(300).default([]) }),
   /** Adds proof to a recorded result, at any stage: it never changes the figure. */
   z
     .object({

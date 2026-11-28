@@ -29,6 +29,9 @@ import { LookedAt } from "@/components/app/ai-why";
 import { FieldHelp } from "@/components/app/field-help";
 import { ErrorNote } from "@/components/app/error-note";
 import { FieldRecords, useFieldForms, type FieldForms } from "@/components/progress/field-records";
+import { pickSample } from "@/lib/verification";
+import { SampleGate } from "@/components/progress/sample-gate";
+import { VerificationPanel } from "@/components/progress/verification-panel";
 
 /**
  * Results recorded with their proof. Field staff record what was achieved (10 ha of drip
@@ -190,7 +193,7 @@ export function ResultsPage() {
           </div>
         )}
 
-        {/* One place for everything waiting to be checked: typed-in results, then KoboCollect field forms. */}
+        {/* One place for everything waiting to be checked: typed-in results, then field forms. */}
         {project.saved && !range && !reviewing && (fieldForms.show || waiting.length > 0) && (
           <ToCheck
             v={v}
@@ -203,6 +206,9 @@ export function ResultsPage() {
             }}
           />
         )}
+
+        {/* MF-10: this month's verification visits. */}
+        {project.saved && !range && !reviewing && <VerificationPanel code={project.id} />}
 
         {v && v.indicators.length > 0 && !range && !reviewing && (
           <WhatNeedsDoing
@@ -1267,6 +1273,11 @@ function ToCheck({ v, waiting, f, act, onReview }: { v: ResultsView | null; wait
   const mine = waiting.length + forms;
   const others = (v?.results.filter((r) => r.status === "pending" && !r.canReview && !r.canSelfAccept).length ?? 0) + (f.show ? f.pending.length - f.forMe : 0);
   const bulk = clean.length > 0 || flagged.length > 0 || (f.show && f.clean.length > 1);
+  // MF-10 (D-26): a random sample of each batch is opened before it is accepted at once.
+  const resultSample = pickSample(clean.map((r) => r.id), `results:${new Date().toISOString().slice(0, 10)}`);
+  const formSample = pickSample(f.clean.map((s) => s.id), `forms:${new Date().toISOString().slice(0, 10)}`);
+  const [resultsOpened, setResultsOpened] = useState<string[] | null>(null);
+  const [formsOpened, setFormsOpened] = useState<string[] | null>(null);
   return (
     <section id="to-check" className="mt-8 scroll-mt-24">
       <SectionHead
@@ -1303,7 +1314,8 @@ function ToCheck({ v, waiting, f, act, onReview }: { v: ResultsView | null; wait
                   <button
                     type="button"
                     className={`${primaryBtn} min-h-12`}
-                    onClick={() => void askConfirm({ message: t("rq.confirm", { n: clean.length }), confirm: t("rq.accept", { n: clean.length }) }).then((ok) => (ok ? act({ action: "accept-many", ids: clean.map((r) => r.id) }, t("rq.accepted", { n: clean.length })).catch(() => undefined) : undefined))}
+                    disabled={clean.length > 1 && !resultsOpened}
+                    onClick={() => void askConfirm({ message: t("rq.confirm", { n: clean.length }), confirm: t("rq.accept", { n: clean.length }) }).then((ok) => (ok ? act({ action: "accept-many", ids: clean.map((r) => r.id), opened: resultsOpened ?? clean.map((r) => r.id) }, t("rq.accepted", { n: clean.length })).catch(() => undefined) : undefined))}
                   >
                     {t("rq.accept", { n: clean.length })}
                   </button>
@@ -1314,12 +1326,14 @@ function ToCheck({ v, waiting, f, act, onReview }: { v: ResultsView | null; wait
                   </button>
                 )}
               </span>
+              {clean.length > 1 && <SampleGate items={resultSample.map((id) => ({ id, label: (() => { const r = clean.find((x) => x.id === id)!; return `${r.indicator}: ${r.value} on ${r.date}`; })() }))} open={(id) => onReview([id])} onReady={setResultsOpened} />}
             </div>
           )}
           {f.show && f.clean.length > 1 && (
             <div className={`flex flex-wrap items-center gap-x-3 gap-y-2 bg-mist px-3 py-2 text-sm ${clean.length + flagged.length > 0 ? "border-t border-line" : ""}`}>
               <span className="font-semibold">Field forms: {f.clean.length} have no problems flagged.</span>
-              <button type="button" disabled={!!f.busy} onClick={() => void f.decide(f.clean, "accepted")} className={`${primaryBtn} min-h-12 sm:ms-auto`}>
+              <SampleGate items={formSample.map((id) => ({ id, label: (() => { const s = f.clean.find((x) => x.id === id)!; return `${s.id}: ${s.farmerId || (s.farmers ?? []).join(", ")} on ${s.date}`; })() }))} onReady={setFormsOpened} />
+              <button type="button" disabled={!!f.busy || !formsOpened} onClick={() => void f.decide(f.clean, "accepted")} className={`${primaryBtn} min-h-12 sm:ms-auto`}>
                 Accept all {f.clean.length}
               </button>
             </div>

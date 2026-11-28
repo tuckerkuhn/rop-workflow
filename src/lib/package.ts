@@ -55,6 +55,8 @@ export type FieldSetup = {
    * installed" that is met in the field rather than at the store.
    */
   targetAt?: "distribution" | "planting";
+  /** MF-10: the share of farmers drawn each month for a verification visit, 0.02 to 0.05 (0.03 when not set). */
+  verifyRate?: number;
   /** MF-04: a farmer whose package is worth more than this (USD) is screened before it goes out; $50 when not set. */
   screenAboveUsd?: number;
   /** The farmer training curriculum and its version (MF-09): every training record carries it. */
