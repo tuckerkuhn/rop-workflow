@@ -83,7 +83,10 @@ export async function saveForm(code: string, kind: AppFormKind, entry: FormEntry
   const key = `app:${entry.entryId}`;
   const [already] = await db.select({ id: s.evidence.id }).from(s.evidence).where(and(eq(s.evidence.projectId, project.id), eq(s.evidence.koboSubmissionUuid, key))).limit(1);
   if (already) return { id: already.id, again: true };
-  const farmer = farmerOfAnswers(kind, answers);
+  const typed = farmerOfAnswers(kind, answers);
+  // The farmer's ID as stored, whatever the case it was typed in (code review of R2-18).
+  const [stored] = typed ? await db.select({ code: s.farmers.code }).from(s.farmers).where(and(eq(s.farmers.projectId, project.id), sql`upper(${s.farmers.code}) = ${typed.trim().toUpperCase()}`)).limit(1) : [];
+  const farmer = stored?.code ?? typed;
   // The record and its audit line are saved together, or not at all.
   const row = await db.transaction(async (tx) => {
     const [r] = await tx
