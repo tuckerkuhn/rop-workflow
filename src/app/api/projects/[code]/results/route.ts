@@ -134,7 +134,8 @@ export async function POST(req: Request, { params }: Ctx) {
     }
     if (a.action === "accept-many") {
       // MF-10 (D-26): a batch is accepted at once only after a random sample of it was opened.
-      const unsampled = bulkProblem(a.ids, a.opened);
+      // The sample is drawn on the page with the day's seed (results-page); the server draws it again.
+      const unsampled = bulkProblem(a.ids, a.opened, `results:${new Date().toISOString().slice(0, 10)}`);
       if (unsampled) return NextResponse.json({ error: unsampled }, { status: 409 });
       const project = await projectByCode(code);
       const all = await loadResults(code);

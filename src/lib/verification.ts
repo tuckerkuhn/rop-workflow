@@ -49,11 +49,20 @@ export const sampleSize = (batch: number) => (batch <= 0 ? 0 : Math.min(5, Math.
 /** The records to open before accepting a batch: chosen afresh each time the batch changes. */
 export const pickSample = (ids: string[], seed: string) => pick([...ids].sort(), sampleSize(ids.length), `${seed}:${[...ids].sort().join(",")}`);
 
-/** Why a batch may not be accepted at once yet, or null: the opened records must include a full sample of it. */
-export function bulkProblem(ids: string[], opened: string[]): string | null {
+/**
+ * Why a batch may not be accepted at once yet, or null. With `seed` (R2-19) the records opened must be
+ * the ones drawn at random for this batch, which the server draws again itself: a person cannot pick
+ * convenient ones. Without it, any full sample of the batch counts.
+ */
+export function bulkProblem(ids: string[], opened: string[], seed?: string): string | null {
   const need = sampleSize(ids.length);
+  const ask = `Open ${need === 1 ? "one record" : `${need} records`} of the batch first, chosen at random, and check them; then accept the rest at once.`;
+  if (seed) {
+    const drawn = pickSample(ids, seed);
+    return drawn.every((id) => opened.includes(id)) ? null : `${ask} The records to open are the ones drawn for this batch: reload the page to see them.`;
+  }
   const seen = opened.filter((id) => ids.includes(id));
-  return seen.length >= need ? null : `Open ${need === 1 ? "one record" : `${need} records`} of the batch first, chosen at random, and check them; then accept the rest at once.`;
+  return seen.length >= need ? null : ask;
 }
 
 export const clampRate = (r: number | undefined) => Math.min(MAX_RATE, Math.max(MIN_RATE, r ?? DEFAULT_RATE));

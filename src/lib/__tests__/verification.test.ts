@@ -25,3 +25,15 @@ describe("verification", () => {
     expect(pick([1, 2, 3], 5, "x")).toHaveLength(3);
   });
 });
+
+describe("the server draws the sample itself (review round 2, R2-19)", async () => {
+  const { bulkProblem, pickSample } = await import("@/lib/verification");
+  const ids = Array.from({ length: 11 }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`);
+  it("opening the first two of the batch is not the random sample", () => {
+    const drawn = pickSample(ids, "results:2026-11-28");
+    const firstTwo = ids.slice(0, 2);
+    expect(bulkProblem(ids, firstTwo)).toBeNull();
+    if (!drawn.every((id) => firstTwo.includes(id))) expect(bulkProblem(ids, firstTwo, "results:2026-11-28")).toMatch(/drawn for this batch/);
+    expect(bulkProblem(ids, drawn, "results:2026-11-28")).toBeNull();
+  });
+});
