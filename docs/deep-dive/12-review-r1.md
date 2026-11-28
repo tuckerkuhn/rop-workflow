@@ -131,7 +131,17 @@
       visit is recorded as matching or not, and the share visited shows month by month (Results).
       Field forms accepted at once are gated on the screen only: they are accepted one by one on
       the server.
-- **Tests:** 198 files, 1,417 tests, all passing (39 tests of removed Kobo features went with them). Typecheck and lint clean.
+    - MF-05 `6ea89b9` recruitment (D-16 to D-18), kept light: `/recruitment` (linked from HR's
+      Home). A vacancy open at least 14 days with a panel of 3 or 4 at or above its grade (a new
+      optional "Grade" on the HR record) and no HR on it; every application declares any relation
+      to staff; every CV graded; 3 to 5 shortlisted after the closing date; the panel scores;
+      references after the interviews, finalists only; a selection memo with the reason when the
+      chosen person is not the top score; then the hire goes through the HR record's approval by
+      grade and onboarding, as before. Each rule held by the ledger fold (`lib/recruitment`).
+    - MF-13 (in-app forms for registration and distribution, from the review sheet) is Part 2 step 1.
+    - Part 3 is complete. Left from MF-01: procurement signatures still carry the delegate's own
+      name, without "on behalf of".
+- **Tests:** 199 files, 1,419 tests, all passing (39 tests of removed Kobo features went with them). Typecheck and lint clean.
 - **Seen on screen** (desktop, local throwaway database, never Supabase): the ISS-18 flag as Nadia
   (queue and record), ISS-20 on Project settings and the donor view, ISS-12 as Daniel. Part 2
   step 1: as Farida, a readiness check filled in (the "what needs fixing" question appears on No,
@@ -183,6 +193,8 @@
   18. ISS-24: links to filed vouchers are now optional at month close by default (the review's
      direction). The demo organization names NetSuite, so its month close still asks for the
      NetSuite reference. Confirm the backup plan on Settings, Health once file storage is on.
+  19. MF-05: staff grades are not in the HR record yet. Record each person's grade (HR record, Job)
+     before a panel can sit; a panel member without one is refused.
   13. MF-01: D-13 says the board approves the authority table as the written delegation. That is
      a board step, not the app's: the app only lets a delegate act within the table.
   12. The Dari, Pashto and Spanish wording files still carry some old Kobo sentences that no screen
