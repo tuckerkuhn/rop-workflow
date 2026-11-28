@@ -113,7 +113,12 @@
       (`advanceSettlementDays`: 15 on UN-funded projects, 30 otherwise); settled with receipts;
       Finance accepts or sends back; what was not spent is returned or recorded as recovered from
       pay. One open advance per person. All in the HR ledger (`lib/advance`). Seen on the local copy.
-- **Tests:** 193 files, 1,409 tests, all passing (39 tests of removed Kobo features went with them). Typecheck and lint clean.
+    - MF-06 `46260a1` payment accounts register (Q3 audit finding 2): Organization settings,
+      Payment accounts. Each bank, mobile money or cash account: owner (only the organization's
+      own name; a person's name is refused), type, provider, last four digits, signatories. Adding
+      or changing one takes effect only when a second person confirms. Each payment says when it
+      was paid from cash or from an account not in the register (a flag, not a block).
+- **Tests:** 194 files, 1,410 tests, all passing (39 tests of removed Kobo features went with them). Typecheck and lint clean.
 - **Seen on screen** (desktop, local throwaway database, never Supabase): the ISS-18 flag as Nadia
   (queue and record), ISS-20 on Project settings and the donor view, ISS-12 as Daniel. Part 2
   step 1: as Farida, a readiness check filled in (the "what needs fixing" question appears on No,
@@ -160,6 +165,8 @@
      with the source you want used (for example the central bank's rate on the first working day).
   16. MF-02: D-04 says Guatemala follows its travel policy for settling advances. The app uses each
      project's rule (30 days unless set); enter Guatemala's number in its project rules.
+  17. MF-06: a payment from an account not yet in the register is flagged, not refused. Make it a
+     block once the accounts are entered?
   13. MF-01: D-13 says the board approves the authority table as the written delegation. That is
      a board step, not the app's: the app only lets a delegate act within the table.
   12. The Dari, Pashto and Spanish wording files still carry some old Kobo sentences that no screen
