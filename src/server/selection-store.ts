@@ -5,9 +5,10 @@ import { stampHistory } from "@/lib/history";
 import { mirrorFarmer } from "@/server/farmer-mirror";
 import { and, eq } from "drizzle-orm";
 import { db, schema as t } from "@/db";
-import { EMPTY_SELECTION, decisionProblem, selectionHold, outcomeLabel, outcomeOf, outcomesById, sameRules, selectionCounts, type Criterion, type Selection, type SelectionAction, type Shown } from "@/lib/selection";
+import { EMPTY_SELECTION, decisionProblem, selectionHold, outcomeLabel, outcomeOf, outcomesById, rulesFrom, sameRules, selectionCounts, type Criterion, type Selection, type SelectionAction, type Shown } from "@/lib/selection";
 import { logAudit } from "@/server/audit";
-import { loadField, projectByCode } from "@/server/field-store";
+import { loadField, projectByCode, setupFor } from "@/server/field-store";
+import { ruleCheck, type RuleCheck } from "@/lib/eligibility";
 import { loadProjectState, updateProjectState, type Reader } from "@/server/project-state";
 
 const KEY = "selection";
@@ -23,10 +24,19 @@ export const maySeeSelection = (u: AppUser) => u.kind === "employee" && (u.field
 
 export async function loadSelection(code: string, u: AppUser) {
   const project = await projectByCode(code);
-  const [s, field] = await Promise.all([loadProjectState<Selection>(project.id, KEY, EMPTY_SELECTION), loadField(code, u)]);
+  const [s, field, setup] = await Promise.all([loadProjectState<Selection>(project.id, KEY, EMPTY_SELECTION), loadField(code, u), setupFor(code)]);
   // Names come already withheld for people who may not see them (server/field-store).
   const farmers = (field.items.filter((i) => i.kind === "farmer") as Farmer[])
-    .map((f) => ({ id: f.id, name: f.name, gender: f.gender, community: f.community, hectares: f.hectares, enrolled: f.enrolled }))
+    .map((f) => ({
+      id: f.id,
+      name: f.name,
+      gender: f.gender,
+      community: f.community,
+      hectares: f.hectares,
+      enrolled: f.enrolled,
+      // What the record says for each rule the app checks (MF-12), by rule id.
+      checks: Object.fromEntries(s.criteria.filter((c) => c.rule).map((c) => [c.id, ruleCheck(c.rule!, f, setup)])) as Record<string, RuleCheck>,
+    }))
     .sort((a, b) => a.id.localeCompare(b.id));
   return { project: { code, name: project.name }, selection: s, farmers, counts: selectionCounts(s, farmers), can: { rules: mayDecide(u), decide: mayDecide(u) } };
 }
@@ -52,6 +62,14 @@ export async function actOnSelection(code: string, a: SelectionAction, u: AppUse
       .limit(1);
     if (!known) return "No such farmer on this project's list.";
   }
+  // The farmer's record and the package, read before the rules are opened for writing (MF-12 checks).
+  const record =
+    a.action === "decide"
+      ? await Promise.all([loadField(code, u), setupFor(code)]).then(([field, setup]) => {
+          const f = field.items.find((i) => i.kind === "farmer" && i.id === a.farmer) as Farmer | undefined;
+          return f ? { f, setup } : null;
+        })
+      : null;
   const me = { by: u.id, byName: u.name, on: today() };
   return updateProjectState<Selection, string | null>(project.id, KEY, EMPTY_SELECTION, async (s, tx) => {
     let next: Selection;
@@ -60,16 +78,19 @@ export async function actOnSelection(code: string, a: SelectionAction, u: AppUse
     if (a.action === "criteria") {
       const decided = Object.keys(s.decisions).length;
       // Putting the same rules in another order is not a change of rules.
-      const rulesChanged = !sameRules(s.criteria.map((c) => c.text), a.criteria);
-      const orderChanged = s.criteria.map((c) => c.text).join("\n") !== a.criteria.join("\n");
+      const made = rulesFrom(a.criteria, a.checks);
+      if ("problem" in made) return { data: null, result: made.problem };
+      const texts = made.list.map((r) => r.text);
+      const rulesChanged = !sameRules(s.criteria.map((c) => c.text), texts);
+      const orderChanged = s.criteria.map((c) => c.text).join("\n") !== texts.join("\n");
       if (!rulesChanged && !orderChanged && s.outreach === a.outreach) return { data: null, result: "Nothing has changed." };
       if (decided && rulesChanged && a.reason.trim().length < 10) return { data: null, result: `${decided} ${decided === 1 ? "farmer has" : "farmers have"} already been decided under these rules. Say why the rules are changing.` };
       // A rule kept word for word keeps its id, so ticks made against it still stand.
       const used = new Set<string>();
-      const criteria = a.criteria.map((text): Criterion => {
+      const criteria = made.list.map(({ text, rule }): Criterion => {
         const kept = s.criteria.find((c) => c.text === text && !used.has(c.id));
         if (kept) used.add(kept.id);
-        return kept ?? { id: randomUUID().slice(0, 8), text };
+        return { ...(kept ?? { id: randomUUID().slice(0, 8), text }), ...(rule ? { rule } : {}) };
       });
       next = { ...s, outreach: a.outreach, criteria, version: rulesChanged ? s.version + 1 : s.version, criteriaBy: me };
       action = "selection_rules_set";
@@ -77,6 +98,10 @@ export async function actOnSelection(code: string, a: SelectionAction, u: AppUse
     } else if (a.action === "decide") {
       const problem = decisionProblem(s, a);
       if (problem) return { data: null, result: problem };
+      // A rule the record shows is not met cannot be ticked: the record is corrected first (MF-12).
+      const checked = s.criteria.filter((c) => c.rule && a.met.includes(c.id));
+      const failed = record ? checked.find((c) => ruleCheck(c.rule!, record.f, record.setup).ok === false) : undefined;
+      if (failed && record) return { data: null, result: `"${failed.text}" is not met: ${ruleCheck(failed.rule!, record.f, record.setup).detail} Correct the farmer's record first, or leave the rule unticked.` };
       const prior = s.decisions[a.farmer];
       const selected = a.outcome === "selected";
       const exception = selected && !s.criteria.every((c) => a.met.includes(c.id));

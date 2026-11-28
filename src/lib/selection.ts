@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ruleSchema, ruleText, type Rule } from "@/lib/eligibility";
 
 /**
  * Farmer selection: the written rule for who takes part, and for each farmer the decision, the
@@ -8,7 +9,8 @@ import { z } from "zod";
  * under, so a later change to the rule never rewrites why someone was chosen.
  */
 
-export type Criterion = { id: string; text: string };
+/** `rule`: a rule the app checks against the farmer's record (lib/eligibility); its text is written from it. */
+export type Criterion = { id: string; text: string; rule?: Rule };
 /**
  * What was decided for a farmer. Selected: takes part. Waitlisted: meets every rule but there is
  * no place now (places full); can be selected later. Did not qualify: fails at least one rule.
@@ -56,11 +58,13 @@ export const selectionAction = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("criteria"),
     outreach: text(10, 1000, "Say how people heard they could apply."),
-    criteria: z
-      .array(text(5, 300, "Write each rule in a few words."))
-      .min(1, "Write at least one rule.")
-      .max(12)
-      .refine((l) => new Set(l.map((t) => t.toLowerCase())).size === l.length, "Each rule is written once."),
+    criteria: z.array(text(5, 300, "Write each rule in a few words.")).max(12),
+    /** Rules checked against each farmer's record (lib/eligibility), at most one of each kind. */
+    checks: z
+      .array(ruleSchema)
+      .max(4)
+      .refine((l) => new Set(l.map((r) => r.kind)).size === l.length, "Each kind of checked rule is set once.")
+      .optional(),
     /** Needed once any farmer has been decided: why the rule is changing. */
     reason: z.string().trim().max(600).default(""),
   }),
@@ -172,6 +176,18 @@ export function selectionCounts(s: Selection, farmers: { id: string; gender: str
 
 /** Selected without meeting every rule in force when the decision was made (fixed then; worked out for older records). */
 export const isException = (s: Selection, d: Decision) => d.selected && (d.exception ?? (d.version === s.version && !s.criteria.every((c) => d.met.includes(c.id))));
+/**
+ * The rules as saved: the written ones, then the checked ones in words (lib/eligibility). Null and
+ * a reason when they cannot be saved.
+ */
+export function rulesFrom(criteria: string[], checks: Rule[] = []): { list: { text: string; rule?: Rule }[] } | { problem: string } {
+  const list = [...criteria.map((text) => ({ text })), ...checks.map((rule) => ({ text: ruleText(rule), rule }))];
+  if (!list.length) return { problem: "Write at least one rule." };
+  if (list.length > 12) return { problem: "Twelve rules at most." };
+  if (new Set(list.map((r) => r.text.toLowerCase())).size !== list.length) return { problem: "Each rule is written once." };
+  return { list };
+}
+
 /** Whether two lists hold the same rules, in any order. */
 export const sameRules = (a: string[], b: string[]) => a.length === b.length && [...a].sort().join("\n") === [...b].sort().join("\n");
 /** Decided under an earlier version of the rules: worth a second look, never changed silently. */

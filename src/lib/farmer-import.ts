@@ -1,5 +1,6 @@
 import type { AgeBand, Gender } from "@/lib/field";
 import { parseHousehold, type HouseholdMember } from "@/lib/household";
+import { splitNames } from "@/lib/eligibility";
 
 /**
  * Reading a farmer list (CSV, as saved from Excel) into Field activities. One row per farmer:
@@ -20,6 +21,8 @@ export type FarmerRow = {
   householdSize?: number;
   /** Who lives in the household by sex and age, as "Female 34, Male 12" (MF-07). */
   household?: HouseholdMember[];
+  /** What the farmer grows now, as "wheat, maize". */
+  crops?: string[];
   contributionPaid?: boolean;
   step?: StartStep;
 };
@@ -38,6 +41,7 @@ const HEADERS: Record<keyof FarmerRow, string[]> = {
   ageBand: ["age", "age band", "age group"],
   householdSize: ["household", "household size", "hh size"],
   household: ["household members", "members", "roster"],
+  crops: ["crops", "crops grown", "grows"],
   contributionPaid: ["contribution", "contribution paid"],
   step: ["step", "start step", "stage"],
 };
@@ -147,6 +151,7 @@ export function parseFarmers(text: string): { rows: FarmerRow[]; problems: strin
       ...(ageBand(get("ageBand")) ? { ageBand: ageBand(get("ageBand"))! } : {}),
       ...(hh ? { householdSize: Number(hh) } : {}),
       ...(roster.members.length ? { household: roster.members, householdSize: roster.members.length } : {}),
+      ...(splitNames(get("crops")).length ? { crops: splitNames(get("crops")).slice(0, 20) } : {}),
       ...(get("contributionPaid") ? { contributionPaid: yes(get("contributionPaid")) } : {}),
       ...(step ? { step: step as StartStep } : {}),
     });

@@ -94,7 +94,7 @@ export async function importFarmers(code: string, rows: FarmerRow[], by: { id: s
         const f = item.data as Farmer;
         // Progress is kept; details are corrected only before any step has been recorded.
         const fresh = f.step === "train" && f.timeline.length <= 1;
-        const changed: Farmer = { ...f, community: r.village, ...(fresh ? { gender: r.gender, hectares: r.hectares } : {}), ...(r.ageBand ? { ageBand: r.ageBand } : {}), ...(r.householdSize !== undefined ? { householdSize: r.householdSize } : {}), ...(r.household ? { household: r.household } : {}), ...(r.contributionPaid !== undefined ? { contributionPaid: r.contributionPaid } : {}) };
+        const changed: Farmer = { ...f, community: r.village, ...(fresh ? { gender: r.gender, hectares: r.hectares } : {}), ...(r.ageBand ? { ageBand: r.ageBand } : {}), ...(r.householdSize !== undefined ? { householdSize: r.householdSize } : {}), ...(r.household ? { household: r.household } : {}), ...(r.crops ? { crops: r.crops } : {}), ...(r.contributionPaid !== undefined ? { contributionPaid: r.contributionPaid } : {}) };
         // A contribution marked paid on the list moves on a farmer whose training is already recorded.
         const next = afterTrainInputs(f, changed, day, selectionHold(outcomes, r.id)) as Farmer;
         await tx.update(s.fieldItems).set({ data: next, updatedAt: new Date() }).where(eq(s.fieldItems.id, item.id));
@@ -110,6 +110,7 @@ export async function importFarmers(code: string, rows: FarmerRow[], by: { id: s
         ageBand: r.ageBand ?? "36–49",
         householdSize: r.householdSize ?? 0,
         ...(r.household ? { household: r.household } : {}),
+        ...(r.crops ? { crops: r.crops } : {}),
         community: r.village,
         hectares: r.hectares,
         enrolled: true,

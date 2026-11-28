@@ -9,6 +9,7 @@ import { TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { plainError } from "@/lib/plain-error";
 import { decisionProblem, failedRules, isException, isStale, outcomeLabel, outcomeOf, type Outcome, type SelectionAction, type Shown } from "@/lib/selection";
 import type { SelectionView } from "@/server/selection-store";
+import { splitNames, type Rule } from "@/lib/eligibility";
 
 /**
  * Farmer selection: the rules at the top, then the farmers in lists: To decide, Selected,
@@ -30,10 +31,27 @@ function Rules({ v, act }: { v: SelectionView; act: (a: SelectionAction) => Prom
   const s = v.selection;
   const [editing, setEditing] = useState(!s.criteria.length);
   const [outreach, setOutreach] = useState(s.outreach);
-  const [rules, setRules] = useState<string[]>(s.criteria.length ? s.criteria.map((c) => c.text) : ["", "", ""]);
+  const written = s.criteria.filter((c) => !c.rule);
+  const [rules, setRules] = useState<string[]>(written.length ? written.map((c) => c.text) : s.criteria.length ? [""] : ["", "", ""]);
   const [reason, setReason] = useState("");
+  // Rules the app checks against each farmer's record (MF-12): kept as typed, made into rules on save.
+  const ruleOf = <K extends Rule["kind"]>(k: K) => s.criteria.find((c) => c.rule?.kind === k)?.rule as Extract<Rule, { kind: K }> | undefined;
+  const num = (n?: number) => (n === undefined ? "" : String(n));
+  const [land, setLand] = useState({ min: num(ruleOf("land")?.min), max: num(ruleOf("land")?.max) });
+  const [villages, setVillages] = useState((ruleOf("location")?.villages ?? []).join(", "));
+  const [crops, setCrops] = useState((ruleOf("crop")?.crops ?? []).join(", "));
+  const [share, setShare] = useState({ rate: num(ruleOf("contribution")?.rate), women: num(ruleOf("contribution")?.womenRate) });
   const decided = Object.keys(s.decisions).length;
   const clean = rules.map((r) => r.trim()).filter(Boolean);
+  const n = (x: string) => (x.trim() === "" ? undefined : Number(x.replace(",", ".")));
+  const checks: Rule[] = [
+    ...(n(land.min) !== undefined || n(land.max) !== undefined ? [{ kind: "land" as const, ...(n(land.min) !== undefined ? { min: n(land.min) } : {}), ...(n(land.max) !== undefined ? { max: n(land.max) } : {}) }] : []),
+    ...(splitNames(villages).length ? [{ kind: "location" as const, villages: splitNames(villages) }] : []),
+    ...(splitNames(crops).length ? [{ kind: "crop" as const, crops: splitNames(crops) }] : []),
+    ...(n(share.rate) !== undefined ? [{ kind: "contribution" as const, rate: n(share.rate)!, ...(n(share.women) !== undefined ? { womenRate: n(share.women) } : {}) }] : []),
+  ];
+  const badNumber = [land.min, land.max, share.rate, share.women].some((x) => x.trim() !== "" && !Number.isFinite(Number(x.replace(",", "."))));
+  const anyRule = clean.length + checks.length > 0;
   if (!editing)
     return (
       <section className="mt-6" aria-labelledby="rules-heading">
@@ -53,7 +71,8 @@ function Rules({ v, act }: { v: SelectionView; act: (a: SelectionAction) => Prom
               <span aria-hidden className="w-6 shrink-0 font-mono text-xs text-muted">
                 {String(k + 1).padStart(2, "0")}
               </span>
-              {c.text}
+              <span className="min-w-0 flex-1">{c.text}</span>
+              {c.rule && <span className="shrink-0 text-xs text-muted">checked against the record</span>}
             </li>
           ))}
         </ol>
@@ -73,7 +92,7 @@ function Rules({ v, act }: { v: SelectionView; act: (a: SelectionAction) => Prom
       className="mt-6 border-s-[6px] border-forest bg-surface p-4"
       onSubmit={(e) => {
         e.preventDefault();
-        void act({ action: "criteria", outreach, criteria: clean, reason }).then(() => setEditing(false), () => undefined);
+        void act({ action: "criteria", outreach, criteria: clean, checks, reason }).then(() => setEditing(false), () => undefined);
       }}
     >
       <h2 className="font-ledger text-lg font-bold">Write the rules before anyone is chosen</h2>
@@ -89,6 +108,36 @@ function Rules({ v, act }: { v: SelectionView; act: (a: SelectionAction) => Prom
           + Another rule
         </button>
       )}
+      <fieldset className="mt-5 border-t border-line pt-3">
+        <legend className="text-sm font-semibold">Rules the app checks against each farmer&apos;s record</legend>
+        <p className="mt-1 text-xs text-muted">Leave a box empty for no rule. Each one filled becomes a rule above, and the app shows for each farmer whether their record meets it.</p>
+        <div className="mt-2 grid gap-3 sm:grid-cols-2">
+          <label className="block text-sm">
+            Smallest plot (hectares)
+            <input className={input} inputMode="decimal" value={land.min} onChange={(e) => setLand({ ...land, min: e.target.value })} />
+          </label>
+          <label className="block text-sm">
+            Largest plot (hectares)
+            <input className={input} inputMode="decimal" value={land.max} onChange={(e) => setLand({ ...land, max: e.target.value })} />
+          </label>
+          <label className="block text-sm">
+            Villages (separate with commas)
+            <input className={input} value={villages} maxLength={2000} onChange={(e) => setVillages(e.target.value)} />
+          </label>
+          <label className="block text-sm">
+            Grows now (separate with commas)
+            <input className={input} value={crops} maxLength={500} onChange={(e) => setCrops(e.target.value)} />
+          </label>
+          <label className="block text-sm">
+            Contribution (% of the package&apos;s value)
+            <input className={input} inputMode="decimal" value={share.rate} onChange={(e) => setShare({ ...share, rate: e.target.value })} />
+          </label>
+          <label className="block text-sm">
+            Contribution for women (%, if different)
+            <input className={input} inputMode="decimal" value={share.women} disabled={!share.rate.trim()} onChange={(e) => setShare({ ...share, women: e.target.value })} />
+          </label>
+        </div>
+      </fieldset>
       <label className="mt-4 block text-sm">
         How people heard they could apply
         <textarea className={input} rows={2} value={outreach} maxLength={1000} placeholder="For example: announced at the community meeting in each village and through the farmer association, with two weeks to apply" onChange={(e) => setOutreach(e.target.value)} />
@@ -102,10 +151,10 @@ function Rules({ v, act }: { v: SelectionView; act: (a: SelectionAction) => Prom
       )}
       <div className="mt-4 flex flex-wrap gap-2">
         {/* A greyed button says what it is waiting for (the examples above are only placeholders). */}
-        {(!clean.length || outreach.trim().length < 10) && (
-          <p className="w-full text-sm text-muted">{!clean.length ? "Write at least one rule" : "Say how people heard they could apply"} to save. The grey text is only an example.</p>
+        {(!anyRule || outreach.trim().length < 10 || badNumber) && (
+          <p className="w-full text-sm text-muted">{badNumber ? "A plot size or contribution is not a number" : !anyRule ? "Write at least one rule" : "Say how people heard they could apply"} to save. The grey text is only an example.</p>
         )}
-        <button type="submit" className={primaryBtn} disabled={!clean.length || outreach.trim().length < 10}>
+        <button type="submit" className={primaryBtn} disabled={!anyRule || outreach.trim().length < 10 || badNumber}>
           Save the rules
         </button>
         {s.criteria.length > 0 && (
@@ -121,7 +170,8 @@ function Rules({ v, act }: { v: SelectionView; act: (a: SelectionAction) => Prom
 function Decide({ v, f, act, onClose }: { v: SelectionView; f: Farmer; act: (a: SelectionAction) => Promise<void>; onClose: () => void }) {
   const s = v.selection;
   const d = s.decisions[f.id];
-  const [met, setMet] = useState<string[]>(d && !isStale(s, d) ? d.met : []);
+  // A first decision starts with the rules the record shows are met already ticked (MF-12).
+  const [met, setMet] = useState<string[]>(d && !isStale(s, d) ? d.met : s.criteria.filter((c) => f.checks[c.id]?.ok === true).map((c) => c.id));
   const [reason, setReason] = useState("");
   const [change, setChange] = useState("");
   const all = s.criteria.every((c) => met.includes(c.id));
@@ -134,8 +184,16 @@ function Decide({ v, f, act, onClose }: { v: SelectionView; f: Farmer; act: (a: 
         {s.criteria.map((c) => (
           <li key={c.id}>
             <label className="flex min-h-11 cursor-pointer items-start gap-3 py-1.5 text-sm hover:bg-ochre-soft">
-              <input type="checkbox" className="mt-0.5 h-5 w-5 shrink-0" checked={met.includes(c.id)} onChange={(e) => setMet(e.target.checked ? [...met, c.id] : met.filter((x) => x !== c.id))} />
-              {c.text}
+              <input type="checkbox" className="mt-0.5 h-5 w-5 shrink-0" checked={met.includes(c.id)} disabled={f.checks[c.id]?.ok === false} onChange={(e) => setMet(e.target.checked ? [...met, c.id] : met.filter((x) => x !== c.id))} />
+              <span>
+                {c.text}
+                {f.checks[c.id] && (
+                  <span className={`block text-xs ${f.checks[c.id].ok === false ? "font-semibold text-clay" : "text-muted"}`}>
+                    {f.checks[c.id].ok === false ? "Not met. " : ""}
+                    {f.checks[c.id].detail}
+                  </span>
+                )}
+              </span>
             </label>
           </li>
         ))}

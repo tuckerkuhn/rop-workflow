@@ -148,6 +148,7 @@ export function registerForm(names: boolean): XlsForm {
     ["household", "household", "Who lives in the household", "Everyone, the farmer included: sex and age. No names.", "", "", "", "", "", "", "", ""],
     // Asked only when the roster is left empty: the roster's length is the household's size.
     ["integer", "household_size", "People in the household", "", "", "string-length(${household}) = 0", "", "", "", "", ". >= 1 and . <= 100", "Enter the number of people, between 1 and 100."],
+    ["text", "crops", "Crops the farmer grows now (optional)", "Separate them with commas, like: wheat, maize.", "", "", "", "", "", "", "", ""],
     ["select_one yes_no", "contribution_paid", "Has the farmer paid their contribution?", "", "", "", "", "", "", "", "", ""],
   ];
   return {

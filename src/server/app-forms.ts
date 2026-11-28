@@ -9,6 +9,7 @@ import { importFarmers } from "@/server/farmers";
 import { HttpError } from "@/server/guard";
 import { logAudit } from "@/server/audit";
 import { parseHousehold } from "@/lib/household";
+import { splitNames } from "@/lib/eligibility";
 
 export { mayFillForms, mayRegister };
 
@@ -135,6 +136,7 @@ async function register(code: string, a: Answers, user: AppUser, duplicatesCheck
         ...(a.age_band ? { ageBand: a.age_band as never } : {}),
         ...(a.household_size ? { householdSize: Number(a.household_size) } : {}),
         ...(household.length ? { household, householdSize: household.length } : {}),
+        ...(splitNames(a.crops ?? "").length ? { crops: splitNames(a.crops ?? "").slice(0, 20) } : {}),
         ...(a.contribution_paid ? { contributionPaid: a.contribution_paid === "yes" } : {}),
       },
     ],

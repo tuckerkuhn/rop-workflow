@@ -157,6 +157,8 @@ export type Farmer = {
   householdSize: number;
   /** Who lives in the household, by sex and age (MF-07). The size above is its length when it is kept. */
   household?: HouseholdMember[];
+  /** What the farmer grows now, as they said it at registration: checked by a crop eligibility rule (lib/eligibility). */
+  crops?: string[];
   community: string;
   hectares: number;
   enrolled: boolean;

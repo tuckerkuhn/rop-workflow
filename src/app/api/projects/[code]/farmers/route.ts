@@ -16,6 +16,7 @@ const row = z.object({
   phone: z.string().trim().regex(/^\+?[\d\s().-]{7,20}$/).optional(),
   ageBand: z.enum(AGE_BANDS).optional(),
   householdSize: z.number().int().min(0).max(100).optional(),
+  crops: z.array(z.string().trim().min(1).max(80)).max(20).optional(),
   household: z.array(z.object({ sex: z.enum(["Female", "Male"]), age: z.number().int().min(0).max(120) })).max(100).optional(),
   contributionPaid: z.boolean().optional(),
   step: z.enum(START_STEPS).optional(),
