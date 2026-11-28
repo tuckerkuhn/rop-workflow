@@ -25,7 +25,10 @@ describe("screening before the offer", { timeout: 60_000 }, () => {
   it("refuses to sign a hire until a clear screening is filed, then lets it through", async () => {
     // HR proposes a new hire, a fictional finalist.
     const start = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
-    const proposed = await post("sima", { action: "propose", proposal: { type: "hire", subject: "test-finalist", effective: start, fields: { name: "Test Finalist", title: "M&E Assistant", office: "Afghanistan", employment: "National staff", supervisor: "nadia", startDate: start, contractEnd: "2027-12-31", payBasis: "Month", pay: 50000, currency: "AFN" }, reason: "A fictional finalist for the screening test." } });
+    const proposed = await post("sima", { action: "propose", proposal: { type: "hire", subject: "test-finalist", effective: start, fields: { name: "Test Finalist", title: "M&E Assistant", office: "Afghanistan", employment: "National staff", supervisor: "nadia", startDate: start, contractEnd: "2027-12-31", payBasis: "Month", pay: 50000, currency: "AFN" }, reason: "A fictional finalist for the screening test.", noRecruitment: "A fictional hire for the screening test, outside recruitment." } });
+    // R2-23: without a vacancy in Recruitment, a hire says why.
+    const bare = await post("sima", { action: "propose", proposal: { type: "hire", subject: "test-other", effective: start, fields: { name: "Test Other", title: "M&E Assistant", office: "Afghanistan", employment: "National staff", supervisor: "nadia", startDate: start, payBasis: "Month", pay: 50000, currency: "AFN" }, reason: "A fictional hire." } });
+    expect(bare.status).toBe(409);
     expect(proposed.body.error ?? "").toBe("");
     const { state } = await loadHr();
     const hire = state.proposals.find((p) => p.type === "hire" && p.status === "pending");

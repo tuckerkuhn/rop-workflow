@@ -174,7 +174,8 @@ const rulesSchema = z.object({
 
 /** A proposed change, as written in the ledger. Its id is the entry number. */
 export const proposalSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("hire"), subject: personId, effective: isoDate, fields, reason: z.string().trim().min(3).max(2000) }),
+  /** `noRecruitment`: why this hire did not come through a vacancy in Recruitment (R2-23); added to the reason the signers read. */
+  z.object({ type: z.literal("hire"), subject: personId, effective: isoDate, fields, reason: z.string().trim().min(3).max(2000), noRecruitment: z.string().trim().max(1000).optional() }),
   z.object({ type: z.literal("update"), subject: personId, effective: isoDate, fields, reason: z.string().trim().min(3).max(2000), corrects: z.number().int().positive().optional() }),
   z.object({ type: z.literal("separate"), subject: personId, effective: isoDate, reason: z.string().trim().min(3).max(2000) }),
   z.object({ type: z.literal("unrelate"), subject: personId, other: personId, effective: isoDate, reason: z.string().trim().min(3).max(2000) }),

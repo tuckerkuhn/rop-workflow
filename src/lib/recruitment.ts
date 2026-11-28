@@ -55,6 +55,13 @@ const gradeOf = (p: string, hr: HrState) => {
   return typeof g === "number" ? g : null;
 };
 
+const personKey = (s: string) => s.toLowerCase().replace(/\(.*?\)/g, " ").replace(/[^a-z0-9\u0600-\u06ff]+/g, " ").trim();
+/** The filled vacancy whose chosen candidate is this person, by name (R2-23), or null. */
+export function vacancyFilledBy(vacancies: Vacancy[], name: string): Vacancy | null {
+  const k = personKey(name);
+  return vacancies.find((v) => v.selected && personKey(v.candidates.find((c) => c.n === v.selected!.candidate)?.name ?? "") === k) ?? null;
+}
+
 /** The average panel score of a shortlisted candidate, once every panel member has scored. */
 export const panelScore = (v: Vacancy, c: Candidate) => (v.panel.every((m) => typeof c.scores[m] === "number") ? Math.round((v.panel.reduce((t, m) => t + c.scores[m], 0) / v.panel.length) * 10) / 10 : null);
 

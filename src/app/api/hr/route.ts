@@ -7,6 +7,7 @@ import { handle } from "@/server/guard";
 import { append, isSampleBook, loadHr } from "@/server/hr-store";
 import { viewFor, waitingFor } from "@/server/hr-view";
 import { foldScreening, hireBlock, reviewProblem } from "@/lib/staff-screening";
+import { foldRecruitment, vacancyFilledBy } from "@/lib/recruitment";
 
 /** The HR record as this person may see it. */
 export async function GET(req: Request) {
@@ -49,7 +50,15 @@ export async function POST(req: Request) {
     let n: number;
     switch (a.action) {
       case "propose": {
-        const p = a.proposal.type === "hire" ? { ...a.proposal, subject: slug(String(a.proposal.fields.name ?? "")) } : a.proposal;
+        let p = a.proposal.type === "hire" ? { ...a.proposal, subject: slug(String(a.proposal.fields.name ?? "")) } : a.proposal;
+        // R2-23: a hire comes through Recruitment (a filled vacancy whose chosen candidate this is), or says why not.
+        if (p.type === "hire") {
+          const { entries } = await loadHr();
+          const filled = vacancyFilledBy(foldRecruitment(entries, state).vacancies, String(p.fields.name ?? ""));
+          if (filled) p = { ...p, reason: `${p.reason} · Chosen in Recruitment: vacancy #${filled.n}, ${filled.title}`.slice(0, 2000) };
+          else if ((p.noRecruitment ?? "").trim().length < 20) return fail(`${String(p.fields.name ?? "This person")} was not chosen through a vacancy in Recruitment. Run the vacancy there, or say why this hire does not need one (at least a sentence, for the signers).`, 409);
+          else p = { ...p, reason: `${p.reason} · Not through Recruitment: ${p.noRecruitment}`.slice(0, 2000) };
+        }
         const why = mayPropose(me, p, state);
         if (why) return fail(why);
         n = await append(me, "propose", p.subject, p);

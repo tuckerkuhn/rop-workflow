@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Entry, HrState } from "@/lib/hr";
-import { foldRecruitment, panelProblem } from "@/lib/recruitment";
+import { foldRecruitment, panelProblem, vacancyFilledBy } from "@/lib/recruitment";
 
 /** MF-05 (D-16 to D-18): recruitment, kept light. */
 const person = (id: string, grade?: number) => ({ id, current: { name: id, ...(grade !== undefined ? { grade } : {}) } });
@@ -47,5 +47,8 @@ describe("recruitment", () => {
     ]);
     expect(foldRecruitment([e("sima", "rec-open", OPEN, "2026-11-20T08:00:00Z")], hr).ignored[0]?.why).toMatch(/advertised from the day it is opened here/);
     expect(vacancies[0].selected).toMatchObject({ candidate: 3, deviation: expect.stringMatching(/no Dari/) });
+    // R2-23: the hire is matched to the vacancy by the chosen candidate's name.
+    expect(vacancyFilledBy(vacancies, "candidate a")?.n).toBe(2);
+    expect(vacancyFilledBy(vacancies, "Candidate B")).toBeNull();
   });
 });

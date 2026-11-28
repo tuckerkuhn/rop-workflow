@@ -749,6 +749,7 @@ function ChangeForm({ state, view, onClose, submit }: { state: FormState; view: 
   const [values, setValues] = useState<Fields>(() => (corrected?.fields ? { ...corrected.fields } : {}));
   const [effective, setEffective] = useState(corrected?.effective ?? today());
   const [reason, setReason] = useState("");
+  const [noRecruitment, setNoRecruitment] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const own = state.type === "update" && !!state.own;
@@ -763,7 +764,7 @@ function ChangeForm({ state, view, onClose, submit }: { state: FormState; view: 
     setError("");
     try {
       const fields = Object.fromEntries(changed.map((k) => [k, values[k] ?? null])) as Fields;
-      if (state.type === "hire") await submit({ type: "hire", subject: "new", effective: String(fields.startDate ?? effective), fields, reason });
+      if (state.type === "hire") await submit({ type: "hire", subject: "new", effective: String(fields.startDate ?? effective), fields, reason, ...(noRecruitment.trim() ? { noRecruitment: noRecruitment.trim() } : {}) });
       else if (state.type === "separate") await submit({ type: "separate", subject: state.subject, effective, reason });
       else await submit({ type: "update", subject: state.subject, effective, fields, reason, ...(state.corrects ? { corrects: state.corrects } : {}) });
     } catch (e) {
@@ -794,6 +795,13 @@ function ChangeForm({ state, view, onClose, submit }: { state: FormState; view: 
               </div>
             </fieldset>
           ))}
+        {state.type === "hire" && (
+          <label className="block text-sm">
+            <span className="font-medium">Not chosen through Recruitment? Say why</span>
+            <span className="block text-muted">A person chosen for a vacancy in Recruitment is matched by name. Anyone else needs a reason the signers can read.</span>
+            <input value={noRecruitment} onChange={(e) => setNoRecruitment(e.target.value)} className="mt-1 block min-h-11 w-full border border-line bg-paper px-3 py-2.5 text-base" />
+          </label>
+        )}
         {state.type !== "hire" && (
           <label className="block text-sm">
             <span className="font-medium">{state.type === "separate" ? "Last day" : "Takes effect"}</span>
