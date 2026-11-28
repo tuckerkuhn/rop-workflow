@@ -12,12 +12,8 @@ import { actualFor, dataFlags, perFarmer, whoOf, type Indicator } from "@/lib/pr
 import { seedDatabase } from "@/server/demo-seed";
 import { loadField, roster, saveItems } from "@/server/field-store";
 import { listSubmissions } from "@/server/kobo";
-import { mappedInputs, mappedValue, saveMappings } from "@/server/kobo-link";
-import { koboToResults } from "@/server/kobo-results";
-import { loadResults } from "@/server/results-store";
 import { decide, settleHeld } from "@/server/review";
 import { actOnSelection, loadSelection } from "@/server/selection-store";
-import { encryptSecret } from "@/server/secrets";
 import { GET as exportFile } from "@/app/api/projects/[code]/field/export/route";
 import { ready } from "@/server/__tests__/test-db";
 
@@ -82,24 +78,6 @@ describe("the pure rules", () => {
     expect(farmerQuestion("farmer_sex")).toBeNull();
   });
 
-  it("counts each ticked farmer once as a different answer", () => {
-    const rows = [
-      { date: "2026-11-10", payload: { farmers: "F-0001 F-0002 F-0003" } },
-      { date: "2026-11-12", payload: { farmers: "F-0003 F-0004" } },
-      // A record from the earlier form, as mappedInputs reads it beside the tick list.
-      { date: "2026-11-13", payload: { farmer: "F-0005" } },
-      { date: "2026-11-13", payload: { farmer: "F-0001" } },
-    ];
-    expect(mappedValue({ method: "count_unique", question: "farmers", value: null }, rows).value).toBe(5);
-    // A link made on the earlier form's question counts the session records too.
-    expect(mappedValue({ method: "count_unique", question: "farmer", value: null }, rows).value).toBe(5);
-    // On any other form the farmer question still counts whole answers, one each.
-    expect(mappedValue({ method: "count_unique", question: "farmer", value: null }, [{ date: "", payload: { farmer: "F-0001" } }, { date: "", payload: { farmer: "F-0001" } }, { date: "", payload: { farmer: "F-0002" } }]).value).toBe(2);
-    // Each record that answers the tick list: two sessions held.
-    expect(mappedValue({ method: "count_answered", question: "farmers", value: null }, rows).value).toBe(2);
-    // Any other question still counts whole answers.
-    expect(mappedValue({ method: "count_unique", question: "village", value: null }, [{ date: "", payload: { village: "North Hill" } }, { date: "", payload: { village: "North Hill" } }]).value).toBe(1);
-  });
 });
 
 describe("one training record per session", { timeout: 90_000 }, () => {
@@ -273,61 +251,6 @@ describe("one training record per session", { timeout: 90_000 }, () => {
     // Four from the two sessions (F-8003 once) and one from the earlier form. The absence is kept, not counted.
     expect(now.value).toBe(before + 5);
     expect(perFarmer([await queue(first)]).map((x) => [x.farmerId, x.fields.attended])).toEqual([["F-8001", "Yes"], ["F-8002", "Yes"], ["F-8003", "Yes"]]);
-  });
-
-  it("makes one result for MEL per session, counting only farmers not counted before, with women and men from their records", async () => {
-    await db.delete(s.evidence).where(and(eq(s.evidence.projectId, projectId), eq(s.evidence.koboAssetUid, ASSET)));
-    await db.insert(s.koboConnections).values({ projectId, serverUrl: "https://kobo.invalid", tokenEncrypted: encryptSecret("not-a-real-token"), tokenHint: "oken" }).onConflictDoNothing();
-    await db.insert(s.koboForms).values({ projectId, assetUid: ASSET, name: "Training attendance", purpose: "training" });
-    await db.insert(s.indicators).values({ projectId, unit: "farmers", target: "100", level: "output", source: "results", frequency: "monthly", disaggregation: ["sex"], code: "IND-21", name: "Farmers trained", position: 21 });
-    await saveMappings(code, [{ indicatorCode: "IND-21", assetUid: ASSET, question: "farmers", method: "count_unique", value: null }], "nadia");
-
-    const all = await farmers();
-    const [w, x, y, z] = all.slice(0, 4);
-    const women = (list: Farmer[]) => list.filter((f) => f.gender === "Female").length;
-    const first = await session([w.id, x.id, y.id]);
-    const second = await session([y.id, z.id], { training_date: "2026-11-12" });
-    const old = await single(all[4].id, "yes");
-    const absent = await single(all[5].id, "no");
-    const mine = async () => (await loadResults(code)).filter((r) => r.kobo?.asset === ASSET);
-
-    // Waiting for MEL: nothing counted yet.
-    await koboToResults(code);
-    expect(await mine()).toHaveLength(0);
-
-    await db.update(s.evidence).set({ reviewStatus: "accepted" }).where(and(eq(s.evidence.projectId, projectId), eq(s.evidence.koboAssetUid, ASSET)));
-    const counts = await koboToResults(code);
-    expect(counts.added).toBe(3);
-    const rows = await mine();
-    const of = async (id: string) => {
-      const [e] = await db.select({ num: s.evidence.koboSubmissionId }).from(s.evidence).where(eq(s.evidence.id, id));
-      return rows.find((r) => r.kobo?.id === e.num);
-    };
-    expect(await of(first)).toMatchObject({ value: 3, female: women([w, x, y]), male: 3 - women([w, x, y]), date: "2026-11-10" });
-    // The farmer ticked at both sessions is counted at the first only.
-    expect(await of(second)).toMatchObject({ value: 1, female: women([z]), male: 1 - women([z]), date: "2026-11-12" });
-    // A record from the earlier form still counts its one farmer; an absence makes no result.
-    expect(await of(old)).toMatchObject({ value: 1 });
-    expect(await of(absent)).toBeUndefined();
-    // Running it again adds nothing.
-    expect((await koboToResults(code)).added).toBe(0);
-    expect(await mine()).toHaveLength(3);
-
-    // The same figure on the linked-question path Progress reads: five different farmers.
-    const m = (await mappedInputs(projectId)).get("IND-21")!;
-    expect(mappedValue(m.mapping, m.counted).value).toBe(5);
-
-    // A project that linked the earlier form's `farmer` question keeps counting when the form changes:
-    // the session records count their ticked farmers under that link too. Here the absence counts as
-    // it always did under that link, which is what the project chose.
-    await saveMappings(code, [{ indicatorCode: "IND-21", assetUid: ASSET, question: "farmer", method: "count_unique", value: null }], "nadia");
-    const viaOld = (await mappedInputs(projectId)).get("IND-21")!;
-    expect(mappedValue(viaOld.mapping, viaOld.counted).value).toBe(6);
-    await koboToResults(code);
-    const relinked = await mine();
-    const sessionResult = relinked.find((r) => r.value === 3);
-    expect(sessionResult).toMatchObject({ value: 3, date: "2026-11-10" });
-    expect(relinked.reduce((t, r) => t + r.value, 0)).toBe(6);
   });
 
   it("gives the records table one row per ticked farmer, so it still joins to the farmer table", async () => {

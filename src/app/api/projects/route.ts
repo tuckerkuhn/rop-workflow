@@ -4,7 +4,7 @@ import { originChoice } from "@/lib/project-origin";
 import { projectDesignSchema } from "@/lib/project-setup";
 import { fundedBy, onProject, requireViewer } from "@/server/auth";
 import { audit, handle } from "@/server/guard";
-import { handRecordedCounts } from "@/server/kobo-fed";
+import { handRecordedCounts } from "@/server/target-counts";
 import { orgIdForPerson, sampleOf } from "@/server/org-settings-store";
 import { createProject, listProjects } from "@/server/project-store";
 import { checkOrigin, linkOrigin } from "@/server/project-origin";

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useT } from "@/components/app/i18n";
 import { useRequireUser } from "@/components/app/session";
 import { TopBar, Loading, primaryBtn } from "@/components/workspace/ui";
 import { Empty, Fig, Figures, LedgerRow, LedgerTable, PageHead, SectionHead, StatusBlock } from "@/components/workspace/ledger";
@@ -9,14 +8,12 @@ import type { health } from "@/server/limits";
 
 type Health = Awaited<ReturnType<typeof health>>;
 
-const KOBO = "10rem 9rem 1fr";
 const ERRS = "9rem 1fr";
 const MORE = "9rem 1fr";
 
 /** Administrators: is the app healthy? Errors this week, AI use, email, and the records export. */
 export function HealthPage() {
   const { user } = useRequireUser();
-  const { t } = useT();
   const [h, setH] = useState<Health | null>(null);
   const [error, setError] = useState("");
   useEffect(() => {
@@ -94,28 +91,6 @@ export function HealthPage() {
                 </span>
               </LedgerRow>
             </LedgerTable>
-            <section>
-              <SectionHead>{t("health.kobo.title")}</SectionHead>
-              <p className="mt-1 text-sm text-muted">{t("health.kobo.help")}</p>
-              {h.kobo.length === 0 ? (
-                <Empty>{t("health.kobo.none")}</Empty>
-              ) : (
-                <div className="overflow-x-auto">
-                <LedgerTable cols={KOBO} head={["Project", "Last run (UTC)", "Result"]} label={t("health.kobo.title")} className="mt-3 min-w-[36rem]">
-                  {h.kobo.map((r) => (
-                    <LedgerRow key={r.project} cols={KOBO} className="text-sm">
-                      <span className="font-semibold">{r.project}</span>
-                      <Fig className="text-start text-muted">{r.at.replace("T", " ").slice(0, 16)}</Fig>
-                      <p className={`break-words ${r.ok ? "" : "text-clay"}`}>
-                        {r.ok ? t(r.added + r.updated + r.removed ? "health.kobo.changed" : "health.kobo.same", { fetched: r.fetched, added: r.added, updated: r.updated, removed: r.removed }) : t("health.kobo.failed", { error: r.error ?? "" })}
-                        {r.ok && r.results.flagged > 0 && <span className="font-semibold text-warn"> {t("health.kobo.flagged", { n: r.results.flagged })}</span>}
-                      </p>
-                    </LedgerRow>
-                  ))}
-                </LedgerTable>
-                </div>
-              )}
-            </section>
             <section>
               <SectionHead>Errors this week</SectionHead>
               {h.errors.length === 0 ? (

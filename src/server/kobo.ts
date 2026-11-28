@@ -3,83 +3,14 @@ import { koboPlace } from "@/lib/kobo-photo";
 import { desc, eq } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import type { Submission, SubmissionForm } from "@/lib/project";
-import { farmerListRows, projectByCode, setupFor } from "@/server/field-store";
-import { readinessForms } from "@/server/kobo-link";
+import { projectByCode } from "@/server/field-store";
 import { heldFarmers, sessionFarmers } from "@/lib/kobo-setup";
 import { hasAnswers, recordedByOf } from "@/lib/form-record";
 
 /**
- * Readiness checks from KoboToolbox: the farmer list pushed to the project's readiness form as
- * media, and stored rows mapped into review-queue entries. Submissions come in through the
- * project's own Kobo link (server/kobo-link.ts), by sync or automatic sync.
+ * Field records into review-queue entries: those filled in inside the app, and those that came from
+ * KoboToolbox before it was removed (28 Nov 2026), which stay readable.
  */
-
-export async function farmersCsv(code: string) {
-  const rows = await farmerListRows(code);
-  const esc = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
-  // hectares: a distribution form works out each farmer's per-hectare amounts from it (pulldata).
-  return ["name,label,hectares", ...rows.map((r) => `${esc(r.name)},${esc(r.label)},${r.hectares ?? ""}`)].join("\n") + "\n";
-}
-
-/**
- * package.csv for distribution forms: each package item's amount, unit and whether it is per farmer
- * or per hectare, from the package saved in Field activities. Null when the project has none.
- */
-export async function packageCsv(code: string) {
-  const setup = await setupFor(code);
-  if (!setup) return null;
-  const esc = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
-  return ["name,label,qty,unit,per", ...setup.items.map((i) => [i.key, i.item, String(i.qty), i.unit, i.per].map(esc).join(","))].join("\n") + "\n";
-}
-
-/**
- * Replaces farmers.csv on the project's readiness form(s) and redeploys so devices and the web
- * form get it. Uses the project's own Kobo link and Kobo's asset files API (form_media).
- */
-export async function pushFarmerList(code: string) {
-  const k = await readinessForms(code);
-  const headers = { Authorization: `Token ${k.token}`, Accept: "application/json" };
-  const csv = await farmersCsv(code);
-  const pkg = await packageCsv(code);
-  let redeployed = true;
-  for (const form of k.forms) {
-    const files: [string, string][] = [["farmers.csv", csv], ...(form.purpose === "distribution" && pkg ? ([["package.csv", pkg]] as [string, string][]) : [])];
-    const asset = `${k.server}/api/v2/assets/${encodeURIComponent(form.assetUid)}`;
-    const filesUrl = `${asset}/files/`;
-
-    const existing = await fetch(`${filesUrl}?file_type=form_media`, { headers, cache: "no-store" });
-    if (!existing.ok) throw new Error(`Kobo returned ${existing.status} listing form media on ${form.name}.`);
-    const list = (await existing.json()) as { results: { uid: string; metadata?: { filename?: string } }[] };
-    for (const [filename, body] of files) {
-      for (const f of list.results.filter((x) => x.metadata?.filename === filename)) {
-        await fetch(`${filesUrl}${f.uid}/`, { method: "DELETE", headers });
-      }
-      // Kobo accepts media as base64 JSON; its multipart upload returned a server error in testing.
-      const upload = await fetch(filesUrl, {
-        method: "POST",
-        headers: { ...headers, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          description: "default",
-          file_type: "form_media",
-          metadata: { filename },
-          base64Encoded: `data:text/csv;base64,${Buffer.from(body).toString("base64")}`,
-        }),
-      });
-      if (!upload.ok) throw new Error(`Kobo rejected ${filename} on ${form.name} (${upload.status}): ${(await upload.text()).slice(0, 200)}`);
-    }
-
-    // Redeploy so the new media reaches the web form and phones.
-    const current = await fetch(`${asset}/`, { headers, cache: "no-store" });
-    const { version_id } = (await current.json()) as { version_id?: string };
-    const redeploy = await fetch(`${asset}/deployment/`, {
-      method: "PATCH",
-      headers: { ...headers, "Content-Type": "application/json" },
-      body: JSON.stringify({ active: true, version_id }),
-    });
-    redeployed &&= redeploy.ok;
-  }
-  return { farmers: csv.trim().split("\n").length - 1, forms: k.forms.length, redeployed };
-}
 
 /* ---------- stored rows → review queue entries ---------- */
 

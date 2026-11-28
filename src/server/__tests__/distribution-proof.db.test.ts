@@ -1,27 +1,10 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/db", () => import("@/server/__tests__/test-db"));
-// KoboToolbox is not called in tests: the project's account and its photo come from here.
-const photo = vi.hoisted(() => ({ bytes: null as Buffer | null, calls: [] as string[] }));
-vi.mock("@/server/kobo-link", async (orig) => ({ ...(await orig<typeof import("@/server/kobo-link")>()), credentials: async () => ({ server: "https://kf.example.org", token: "t" }) }));
-vi.mock("@/server/kobo-client", async (orig) => ({
-  ...(await orig<typeof import("@/server/kobo-client")>()),
-  attachmentBytes: async (_s: string, _t: string, url: string) => {
-    photo.calls.push(url);
-    return photo.bytes ? { bytes: photo.bytes, type: "image/jpeg" } : null;
-  },
-  // Where and when reads only the start of the original photo.
-  attachmentHead: async (_s: string, _t: string, url: string, bytes = 131_072) => {
-    photo.calls.push(url);
-    return photo.bytes ? photo.bytes.subarray(0, bytes) : null;
-  },
-}));
-
 import { eq, like } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { userById } from "@/lib/demo";
 import { hasSignedNotePhoto, type Farmer } from "@/lib/field";
-import { exifJpeg } from "@/lib/__tests__/exif-fixture";
 import { seedDatabase } from "@/server/demo-seed";
 import { addSignedNote, checkKoboDistribution, dayOf, decideDistribution, listDistributions, resubmitDistribution } from "@/server/distribution";
 import { distributionFacts, koboPhoto } from "@/server/distribution-photo";
@@ -90,47 +73,15 @@ describe("a KoboCollect distribution carries its own proof", () => {
     expect(JSON.stringify(d)).not.toContain("34.562");
   });
 
-  it("hands the signed note's photo to the page from the project's own KoboToolbox account", async () => {
-    photo.bytes = Buffer.from(exifJpeg({ taken: "2026:11:24 09:58:11", gps: { lat: 34.5623, lon: 69.2101 } }));
-    photo.calls.length = 0;
-    const got = await koboPhoto(code, id, "note");
-    expect(got.type).toBe("image/jpeg");
-    expect(photo.calls[0]).toContain("/attachments/1/");
-    photo.bytes = null;
-    expect(await refusal(() => koboPhoto(code, id, "note"))).toMatch(/did not hand over the photo/);
-  });
-
-  it("says where and when from the phone and the photo, with coordinates only for people who may see them", async () => {
-    photo.bytes = Buffer.from(exifJpeg({ taken: "2026:11:24 09:58:11", gps: { lat: 34.5623, lon: 69.2101 } }));
+  it("a photo left in KoboToolbox says where it is: the app no longer connects to KoboToolbox (Part 2 step 7)", async () => {
+    expect(await refusal(() => koboPhoto(code, id, "note"))).toMatch(/kept in KoboToolbox, which the app no longer connects to/);
+    // Where and when still come from the record: the phone's point when the form was opened.
     const precise = await distributionFacts(code, id, true);
     expect(precise.place).toMatchObject({ lat: 34.562, lon: 69.21, from: "device" });
-    expect(precise.photo).toEqual({ date: "2026-11-24", time: "09:58", hasPlace: true });
-    expect(precise.apart!.metres).toBeGreaterThan(20);
-    expect(precise.apart!.metres).toBeLessThan(50);
-    expect(precise.apart!.far).toBe(false);
-    expect(precise.dayDiffers).toBeNull();
-
+    expect(precise.photo).toBeNull();
+    expect(precise.missing.join(" ")).toMatch(/stayed in KoboToolbox/);
     const plain = await distributionFacts(code, id, false);
     expect(plain.place).toEqual({ from: "device", fromText: "the phone's GPS when the form was opened" });
-    expect(plain.apart!.text).toBe(precise.apart!.text);
-  });
-
-  it("flags a photo taken somewhere else or on another day, and never fails because a photo holds no place", async () => {
-    photo.bytes = Buffer.from(exifJpeg({ taken: "2026:11:20 16:00:00", gps: { lat: 34.9, lon: 69.6 } }));
-    const off = await distributionFacts(code, id, false);
-    expect(off.apart!.far).toBe(true);
-    expect(off.dayDiffers).toEqual({ form: "2026-11-24", photo: "2026-11-20" });
-
-    photo.bytes = Buffer.from(exifJpeg({ taken: "2026:11:24 09:58:11", gps: null }));
-    const bare = await distributionFacts(code, id, false);
-    expect(bare.apart).toBeNull();
-    expect(bare.place?.from).toBe("device");
-    expect(bare.missing.join(" ")).toMatch(/holds no place of its own/);
-
-    photo.bytes = null;
-    const unread = await distributionFacts(code, id, false);
-    expect(unread.photo).toBeNull();
-    expect(unread.missing.join(" ")).toMatch(/could not be read from KoboToolbox/);
   });
 });
 
@@ -203,19 +154,17 @@ describe("every KoboCollect form in the review queue carries its proof", () => {
       .values({ organizationId: project.organizationId, projectId: project.id, source: "kobo", form: "readiness", farmerCode: farmerId, reviewStatus: "pending", completedBy: "farida.kobo", completedAt: new Date(), koboAssetUid: "aReady", koboSubmissionUuid: "proof-ready", koboSubmissionId: 7, payload: { farmer: farmerId, visit_date: "2026-11-24", ready: "yes", photo: "plot.jpg", location: "34.5621 69.2103 1790 5", start_geopoint: "34.5 69.1 0 9", notes: "Ridges redone since the first visit", _attachments: [{ download_url: `${base}/9/`, mimetype: "image/jpeg", filename: "rop/attachments/aReady/u/plot.jpg" }] } })
       .returning({ id: s.evidence.id });
     visit = row.id;
-    photo.bytes = Buffer.from(exifJpeg({ taken: "2026:11:24 11:20:00", gps: { lat: 34.5622, lon: 69.2104 } }));
     const proof = await submissionProof(code, visit, true);
     expect(proof.photos).toEqual([{ question: "photo", tag: "visit", label: "Photo of the plot" }]);
     // Standing at the plot: the GPS question the agent answered is the place, not where the form was opened.
     expect(proof.facts.place).toMatchObject({ lat: 34.5621, lon: 69.2103, from: "question" });
-    expect(proof.facts.photo).toEqual({ date: "2026-11-24", time: "11:20", hasPlace: true });
-    expect(proof.facts.apart!.far).toBe(false);
+    expect(proof.facts.photo).toBeNull();
     expect(proof.facts.note).toBe("Ridges redone since the first visit");
     expect((await submissionProof(code, visit, false)).facts.place).toEqual({ from: "question", fromText: "the GPS question on the form" });
   });
 
   it("hands over the photo by its question, and refuses a question with no photo or a record typed in the app", async () => {
-    expect((await submissionPhoto(code, visit, "photo")).type).toBe("image/jpeg");
+    expect(await refusal(() => submissionPhoto(code, visit, "photo"))).toMatch(/no longer connects to/);
     expect(await refusal(() => submissionPhoto(code, visit, "list_photo"))).toMatch(/no photo for this question/);
     const typed = (await db.select().from(s.evidence).where(eq(s.evidence.source, "manual")))[0];
     expect(await refusal(() => submissionProof(code, typed.id, true))).toMatch(/not on this project/);

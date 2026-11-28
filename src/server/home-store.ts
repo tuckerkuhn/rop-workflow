@@ -4,13 +4,12 @@ import { quarterRange } from "@/lib/results";
 import { quartersDue } from "@/lib/period-report";
 import { reportDeadline } from "@/server/preflight";
 import { ourWork } from "@/lib/budget";
-import { and, asc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { fieldRows, purchaseRows, taskRow } from "@/lib/home-buckets";
 import { loadLineReasons } from "@/server/overspend-store";
 import { onProject, people } from "@/server/auth";
 import { collectorOf, fieldRec, mayApproveKobo, mayDecideRecord, maySendBack } from "@/lib/kobo-approval";
 import { koboApprovalFor } from "@/server/kobo-approval";
-import { koboState } from "@/server/kobo-link";
 import { loadProcurements } from "@/server/procurement-store";
 import { billRoles, loadBills } from "@/server/bills-store";
 import { billBooksProblem, toCorrect } from "@/lib/bills";
@@ -29,7 +28,6 @@ import { countTargetWords } from "@/lib/target-status";
 import { procRolesFor } from "@/lib/procurement";
 import { farmerNames, projectByCode, setupFor } from "@/server/field-store";
 import { DONE, stepById } from "@/lib/procurement";
-import { handRecordedCounts } from "@/server/kobo-fed";
 import { loadReview, rawReview } from "@/server/monthly-review-store";
 import { loadPlan } from "@/server/procurement-plan-store";
 import { awaiting as awaitingPlan } from "@/lib/procurement-plan";
@@ -194,8 +192,6 @@ const melCounts = (results: Review["results"], u: AppUser) => ({
  * a row sits under; unmatched KoboCollect accounts; forms that count toward no target).
  */
 function waitingReads(code: string, u: AppUser, project: Project, full: boolean) {
-  // For the people who can match a KoboCollect account to a person (the project manager, plan approvers, administrators).
-  const matchesAccounts = u.kind === "employee" && (canEditProject(u) || !!u.admin);
   return {
     hrRole: full ? early(holdsHrRole(u.id)) : null,
     koboRule: early(koboApprovalFor(code)),
@@ -217,8 +213,6 @@ function waitingReads(code: string, u: AppUser, project: Project, full: boolean)
         .where(and(eq(s.evidence.projectId, project.id), eq(s.evidence.form, "training"), eq(s.evidence.reviewStatus, "accepted"), isNull(s.evidence.koboRemovedAt), sql`coalesce(${s.evidence.payload}->>'_rop_held', '') <> ''`)),
     ),
     // For the people who can link a form to a target: the same, and the MEL owner.
-    formsState: full && (matchesAccounts || u.project.includes("mel-owner")) ? early(koboState(code).catch(() => null)) : null,
-    accounts: full && matchesAccounts ? early(db.selectDistinct({ account: s.evidence.completedBy }).from(s.evidence).where(and(eq(s.evidence.projectId, project.id), eq(s.evidence.source, "kobo"), isNotNull(s.evidence.completedBy)))) : null,
     proposals: project.organizationId ? early(proposalWork(project.organizationId, u).catch(() => [])) : null,
     procurements: u.procurementAccess === "none" ? null : early(loadProcurements(code).catch(() => [])),
     // Bills paid directly, read with the rest rather than after them.
@@ -240,8 +234,6 @@ async function readHome(code: string, u: AppUser) {
   // Not started early: listing distributions first deals with records that have just arrived
   // (server/distribution processPending), which writes. It runs in homeActions, where it always did,
   // and the reads that must see its writes (open tasks, the field records) start once it is done.
-  const connLater = early(db.select({ at: s.koboConnections.lastSyncedAt }).from(s.koboConnections).where(eq(s.koboConnections.projectId, project.id)).limit(1));
-  const byHandLater = early(handRecordedCounts());
   // One full load (results, statuses, budget, this quarter's report checks); the rest only what they decide.
   // Of last quarter's report only whether it is released (releasedOf).
   const [review, last, lastReleased, plan, allPlan, acts] = await Promise.all([
@@ -306,20 +298,9 @@ async function readHome(code: string, u: AppUser) {
   const { actions, lenses } = await homeActions({ code, u, project, today, month, lastQ, review, last, lastReleased, allPlan, budget, reads, full: true });
   const myQueried = allResults.filter((r) => r.status === "queried" && r.by === u.id);
 
-  // Field staff who only use KoboCollect: is this project's data all collected there, and what has arrived lately.
-  const [conn] = await connLater;
-  const byHand = (await byHandLater).get(code) ?? 0;
-  const kobo = {
-    connected: !!conn,
-    // Every target is counted from a form: nobody on this project records results by hand.
-    only: !!conn && byHand === 0,
-    lastSyncedAt: conn?.at?.toISOString() ?? null,
-    recent: allResults
-      .filter((r) => !!r.kobo)
-      .sort((a, b2) => b2.at.localeCompare(a.at))
-      .slice(0, 5)
-      .map((r) => ({ id: r.id, date: r.date, value: r.value, status: r.status, target: review.indicators.find((i) => i.code === r.indicator)?.name ?? r.indicator, unit: review.indicators.find((i) => i.code === r.indicator)?.unit ?? "" })),
-  };
+  // KoboToolbox was removed on 28 Nov 2026: field data comes from the app's own forms, so there is
+  // no connection or sync to report. Kept, empty, for the screens that still read it.
+  const kobo = { connected: false, only: false, lastSyncedAt: null as string | null, recent: [] as { id: string; date: string; value: number; status: "pending" | "accepted" | "queried"; target: string; unit: string }[] };
   // Accepted this quarter with no file or link behind it.
   const proof = report.results.filter((r) => r.status === "accepted" && r.date >= thisQ && !(r.files.length + (r.links?.length ?? 0))).length;
   return {
@@ -457,31 +438,6 @@ async function homeActions(c: ActionsInput): Promise<{ actions: HomeAction[]; le
       const k = readable.length;
       if (k) actions.push({ key: "field-forms-send-back", for: lenses[0] ?? "field", bucket: "fix", urgent: false, text: `${k} field ${k === 1 ? "form is" : "forms are"} waiting for MEL: send back any that need fixing, with a note`, msg: { key: k === 1 ? "ha.sendBack1" : "ha.sendBack", vars: { n: k } }, href: "/progress/results#field-records" });
     }
-  }
-  // KoboCollect accounts that have sent records and are not matched to a person. Until they are,
-  // the app cannot tell who collected those records, so the rule that nobody approves what they
-  // collected cannot hold for them (lib/kobo-approval collectorOf).
-  if (reads.accounts) {
-    const sent = [...new Set((await reads.accounts).map((x) => (x.account ?? "").trim()).filter(Boolean))];
-    const n = sent.filter((account) => !collectorOf(account, koboRule, team)).length;
-    if (n) actions.push({ key: "kobo-accounts", for: lenses[0] ?? "lead", bucket: "fix", urgent: false, text: `Match ${n} KoboCollect ${n === 1 ? "account" : "accounts"} to the ${n === 1 ? "person who uses it" : "people who use them"}: until then the app cannot tell who collected ${n === 1 ? "its" : "their"} records`, href: "/setup?step=kobo-connect" });
-  }
-  // Linked KoboCollect forms that count toward no target: their records arrive, move farmers and
-  // are kept, but add to no result, so the work never shows on Progress or in a report. A form
-  // counts through a question linked to a target in setup, through a target counted straight from
-  // that kind of form, or (a distribution form) through the input package's target.
-  if (reads.formsState) {
-    const state = await reads.formsState;
-    const linked = new Set((state?.mappings ?? []).map((m) => m.assetUid));
-    let loose = (state?.forms ?? []).filter((f) => !linked.has(f.uid));
-    if (loose.length) {
-      // A target can also be counted straight from one kind of form (its source is "training", "readiness", "visit" or "distribution").
-      const direct = new Set((await db.selectDistinct({ source: s.indicators.source }).from(s.indicators).where(eq(s.indicators.projectId, project.id))).map((r) => r.source));
-      loose = loose.filter((f) => !f.purpose || !direct.has(f.purpose));
-    }
-    if (loose.some((f) => f.purpose === "distribution") && (await setupFor(code).catch(() => null))?.target) loose = loose.filter((f) => f.purpose !== "distribution");
-    const n = loose.length;
-    if (n) actions.push({ key: "kobo-forms-loose", for: lenses[0] ?? "lead", bucket: "fix", urgent: false, text: `${n} linked KoboCollect ${n === 1 ? "form counts" : "forms count"} toward no target (${loose.map((f) => f.name).slice(0, 3).join(", ")}${n > 3 ? "…" : ""}): link ${n === 1 ? "it" : "each"} to a target, or ${n === 1 ? "its" : "their"} records add to no result`, href: "/setup?step=kobo-map" });
   }
   // Read once for both rows below.
   const dists = await listDistributions(code).catch(() => []);

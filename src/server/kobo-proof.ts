@@ -1,8 +1,6 @@
-import { distanceText, metresBetween, photoFacts, type PhotoFacts } from "@/lib/exif";
+import { distanceText, metresBetween, type PhotoFacts } from "@/lib/exif";
 import { placeSourceText, type Place } from "@/lib/kobo-photo";
 import { HttpError } from "@/server/guard";
-import { attachmentBytes, attachmentHead } from "@/server/kobo-client";
-import { credentials } from "@/server/kobo-link";
 
 /**
  * What every field record's proof shares (server/distribution-photo for an input distribution's
@@ -25,35 +23,25 @@ export type DistFacts = {
   note?: string;
 };
 
-const IMAGE = /^image\/(jpeg|png|webp)$/;
 /** More than this between the form's point and the photo's is worth a look (a village is small; a district is not). */
 export const FAR_METRES = 2000;
-export const PHOTO_UNREAD = "The photo could not be read from KoboToolbox just now, so its own date and place are not shown.";
+export const PHOTO_UNREAD = "The photo stayed in KoboToolbox, which the app no longer connects to, so its own date and place are not shown.";
 export const NO_FORM_POINT = "No GPS point came with this record. The phone may have had location switched off, or the form is an older version.";
 
-/** One photo from the project's KoboToolbox account, as bytes. `att`: the attachment the record names. */
-export async function fetchKoboPhoto(code: string, att: { url: string; type: string } | null): Promise<{ bytes: Buffer; type: string }> {
-  if (!att) throw new HttpError(404, "KoboToolbox has no photo for this question yet. If the phone is still uploading, sync again in a few minutes.");
-  const c = await credentials(code);
-  const got = await attachmentBytes(c.server, c.token, att.url);
-  const type = got?.type && IMAGE.test(got.type) ? got.type : att.type;
-  if (!got || !IMAGE.test(type)) throw new HttpError(502, "KoboToolbox did not hand over the photo. Open the record in KoboToolbox to see it, or try again.");
-  return { bytes: got.bytes, type };
-}
-
 /**
- * The photo's own date, time and place, from the start of the original file only (EXIF is not in
- * KoboToolbox's resized copies, and sits in the first few kilobytes). Null, with the reason in
- * `missing`, when it cannot be read.
+ * A photo kept in KoboToolbox. The app no longer connects to KoboToolbox (removed 28 Nov 2026), so
+ * a photo that stayed there is not fetched: the person is told where it is.
  */
-export async function koboPhotoFacts(code: string, originalUrl: string, missing: string[]): Promise<PhotoFacts | null> {
-  try {
-    const c = await credentials(code);
-    const head = await attachmentHead(c.server, c.token, originalUrl);
-    if (head) return photoFacts(head);
-  } catch {
-    /* reported below */
-  }
+export async function fetchKoboPhoto(_code: string, _att: { url: string; type: string } | null): Promise<{ bytes: Buffer; type: string }> {
+  void _code;
+  if (!_att) throw new HttpError(404, "The record has no photo for this question.");
+  throw new HttpError(410, KOBO_PHOTO_GONE);
+}
+export const KOBO_PHOTO_GONE = "This photo was kept in KoboToolbox, which the app no longer connects to. Open the record in the project's KoboToolbox account to see it.";
+
+/** The photo's own date and place: not readable for a photo left in KoboToolbox (see fetchKoboPhoto). */
+export async function koboPhotoFacts(_code: string, _originalUrl: string, missing: string[]): Promise<PhotoFacts | null> {
+  void [_code, _originalUrl];
   missing.push(PHOTO_UNREAD);
   return null;
 }

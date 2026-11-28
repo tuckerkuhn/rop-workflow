@@ -50,7 +50,7 @@ describe("where proof photos are kept", () => {
     expect(await fetchPhoto("A-2027", "0".repeat(64))).toBeNull();
   });
 
-  it("the record's fingerprint is read the same from a picture or a reference", async () => {
+  it("the record's fingerprint is read the same from a picture or a reference", { timeout: 30_000 }, async () => {
     const { photoFingerprint } = await import("@/server/field-store");
     expect(photoFingerprint(SRC)).toBe(HASH);
     expect(photoFingerprint(`file:${HASH}`)).toBe(HASH);

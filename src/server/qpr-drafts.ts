@@ -3,7 +3,6 @@ import { quarterRange } from "@/lib/results";
 import { STATUS_LABEL } from "@/lib/qpr";
 import { askAi, scrubbed } from "@/server/ai";
 import { winThemesContext } from "@/server/project-origin";
-import { koboFieldFacts } from "@/server/kobo-activities";
 import type { QprData } from "@/server/qpr-store";
 import { ROP_VOICE } from "@/lib/voice";
 import { withoutNames } from "@/lib/personal-text";
@@ -77,7 +76,7 @@ export function qprFacts(d: QprData) {
 export async function draftQpr(d: QprData, keys: string[], by: string): Promise<{ sections: { key: string; text: string }[]; questions: string[] }> {
   // The won proposal's win themes, as context only (server/project-origin).
   // Field evidence: KoboCollect submission counts of the forms linked to each activity (server/kobo-activities).
-  const facts = { ...qprFacts(d), ...(await winThemesContext(d.project.code)), ...(await koboFieldFacts(d.project.code, d.period, d.activities.map((a) => a.code))) };
+  const facts = { ...qprFacts(d), ...(await winThemesContext(d.project.code)) };
   // Notes and lessons are scrubbed above as before; the door also replaces names in update titles and row comments.
   const { out } = await askAi({
     job: "qprDraft",

@@ -13,7 +13,6 @@ import { fieldItemRows, listDistributions, stockFor } from "@/server/distributio
 import { loadField, projectByCode, projectsWithField, setupFor } from "@/server/field-store";
 import { loadHome } from "@/server/home-store";
 import { koboApprovalFor, saveKoboApproval } from "@/server/kobo-approval";
-import { koboState } from "@/server/kobo-link";
 import { loadProjectState, loadProjectStates, saveProjectState } from "@/server/project-state";
 import { rawQpr, rawQprReleased } from "@/server/qpr-store";
 import { requestOnlyReads, withRequestMemo } from "@/server/request-memo";
@@ -125,10 +124,6 @@ describe("Home and the distribution list in a read-only request", { timeout: 120
     expect(sent.filter((q) => /from "evidence"/.test(q))).toHaveLength(2);
   });
 
-  it("gives the KoboToolbox link of a project, and an empty one for a code that names none", async () => {
-    expect((await readOnly(() => koboState(code))).forms).toEqual((await koboState(code)).forms);
-    expect(await koboState("NO-SUCH-PROJECT")).toEqual({ connection: null, forms: [], mappings: [] });
-  });
 });
 
 describe("what is read without the whole document", { timeout: 60_000 }, () => {

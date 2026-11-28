@@ -17,7 +17,6 @@ import { proposalMenuMap } from "@/server/funding-proposals-store";
 import { loadHome } from "@/server/home-store";
 import { loadReview } from "@/server/monthly-review-store";
 import { countTargetWords } from "@/lib/target-status";
-import { koboApprovalFor, saveKoboApproval } from "@/server/kobo-approval";
 import { actOnOpportunity, loadOpportunities } from "@/server/opportunities-store";
 import { loadPortfolio } from "@/server/portfolio-store";
 import { nextReport } from "@/server/next-report";
@@ -30,7 +29,7 @@ import { ready } from "@/server/__tests__/test-db";
  * what a manager's portfolio lists in demo mode, and that the match call is in the audit log.
  */
 const code = "A-2027";
-const [tucker, nadia, elena, farida, omar] = ["tucker", "nadia", "elena", "farida", "omar"].map((id) => userById(id)!);
+const [tucker, nadia, elena, omar] = ["tucker", "nadia", "elena", "omar"].map((id) => userById(id)!);
 let orgId = "";
 
 beforeAll(async () => {
@@ -113,38 +112,13 @@ describe("opportunities in the audit log", { timeout: 60_000 }, () => {
   });
 });
 
-describe("KoboCollect accounts nobody has matched to a person", { timeout: 60_000 }, () => {
-  const row = async (u: typeof nadia) => (await loadHome(code, u)).actions.find((a) => a.key === "kobo-accounts");
-  it("are on the Home of the people who can match them, until they are matched", async () => {
-    expect(await row(nadia)).toBeUndefined();
+describe("KoboToolbox removed (Part 2 step 7)", { timeout: 60_000 }, () => {
+  it("Home asks nobody to match KoboCollect accounts or link KoboCollect forms any more", async () => {
     const project = (await db.select().from(s.projects).where(eq(s.projects.code, code)))[0];
-    await db.insert(s.evidence).values({ organizationId: project.organizationId, projectId: project.id, source: "kobo", form: "visit", farmerCode: "F-0001", reviewStatus: "pending", completedBy: "stranger.kobo", completedAt: new Date(), koboAssetUid: "aVisit", koboSubmissionUuid: "11111111-2222-4333-8444-555555555555", koboSubmissionId: 91, payload: { farmer: "F-0001" } });
-    const mine = await row(nadia);
-    expect(mine).toMatchObject({ bucket: "fix", href: "/setup?step=kobo-connect" });
-    expect(mine!.text).toMatch(/^Match 1 KoboCollect account to the person who uses it/);
-    // An extension agent cannot match accounts, so it is not her row.
-    expect(await row(farida)).toBeUndefined();
-    await saveKoboApproval(code, { ...(await koboApprovalFor(code)), accounts: { "stranger.kobo": "farida" } });
-    expect(await row(nadia)).toBeUndefined();
-  });
-});
-
-describe("a linked KoboCollect form that counts toward no target", { timeout: 60_000 }, () => {
-  const row = async (u: typeof nadia) => (await loadHome(code, u)).actions.find((a) => a.key === "kobo-forms-loose");
-  it("is on the Home of the people who can link it, until a question is linked to a target", async () => {
-    const project = (await db.select().from(s.projects).where(eq(s.projects.code, code)))[0];
-    expect(await row(omar)).toBeUndefined();
+    // An old record from a KoboCollect account, and a form left over in the old setup.
+    await db.insert(s.evidence).values({ organizationId: project.organizationId, projectId: project.id, source: "kobo", form: "visit", farmerCode: "F-0001", reviewStatus: "pending", completedBy: "stranger.kobo", completedAt: new Date(), koboSubmissionUuid: "five-lens-old", payload: {} });
     await db.insert(s.koboForms).values({ projectId: project.id, assetUid: "aLooseVisit", name: "Farm visit (test)", purpose: "visit" });
-    const mine = await row(omar);
-    expect(mine).toMatchObject({ bucket: "fix", href: "/setup?step=kobo-map" });
-    expect(mine!.text).toMatch(/^1 linked KoboCollect form counts toward no target \(Farm visit \(test\)\)/);
-    expect(await row(nadia)).toBeDefined();
-    expect(await row(farida)).toBeUndefined();
-    // Linked to a target that no form feeds yet: nothing left to warn about.
-    const taken = new Set((await db.select({ id: s.koboMappings.indicatorId }).from(s.koboMappings)).map((m) => m.id));
-    const free = (await db.select().from(s.indicators).where(eq(s.indicators.projectId, project.id))).find((i) => !taken.has(i.id))!;
-    await db.insert(s.koboMappings).values({ indicatorId: free.id, assetUid: "aLooseVisit", question: "visit/farmer_id", method: "count_unique" });
-    expect(await row(omar)).toBeUndefined();
+    for (const u of [nadia, omar]) expect((await loadHome(code, u)).actions.filter((a) => a.key === "kobo-accounts" || a.key === "kobo-forms-loose")).toEqual([]);
   });
 });
 

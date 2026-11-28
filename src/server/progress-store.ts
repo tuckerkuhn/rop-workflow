@@ -11,7 +11,6 @@ import { ledgerUses } from "@/server/ledger-spent";
 import { BUILT_IN_SOURCES, forecastFor, periodOf, projectYears, reportPeriod, trackFor, type DonorInfo, type ForecastYear, type DonorInput, type IndicatorProgress, type Level, type ProgressData, type ReportValues } from "@/lib/progress";
 import { FORMATS } from "@/lib/report-formats";
 import { listSubmissions } from "@/server/kobo";
-import { mappedInputs, mappedValue } from "@/server/kobo-link";
 import { today } from "@/lib/clock";
 import { publicObligation } from "@/lib/obligations";
 import { loadObligations } from "@/server/obligations-store";
@@ -38,7 +37,6 @@ const asIndicator = (r: IndicatorRow): Indicator => ({
   donorRef: "",
 });
 
-type Mapped = Awaited<ReturnType<typeof mappedInputs>> extends Map<string, infer V> ? V : never;
 
 const base = (r: IndicatorRow) => ({
   code: r.code,
@@ -68,14 +66,6 @@ function forecastOf(r: IndicatorRow, dates: Dates, total: number | null, asOf: (
   return { forecast, track };
 }
 
-/** Counted from a mapped KoboToolbox question. */
-function fromMapping(r: IndicatorRow, m: Mapped, dates: Dates): IndicatorProgress {
-  const all = mappedValue(m.mapping, m.counted);
-  const p = periodOf(r.frequency, today());
-  const inPeriod = p ? mappedValue(m.mapping, m.counted.filter((x) => x.date >= p.from && x.date <= p.to)) : null;
-  const asOf = (d: string) => mappedValue(m.mapping, m.counted.filter((x) => x.date <= d)).value;
-  return { ...base(r), total: all.value, period: inPeriod?.value ?? null, pending: m.waiting, byGender: null, lastDate: all.dates.sort().at(-1) ?? null, dataSource: "kobo", ...forecastOf(r, dates, all.value, asOf) };
-}
 
 /**
  * Counted from results recorded with their proof and accepted by MEL: added up, or for a target
@@ -102,13 +92,13 @@ function fromResults(r: IndicatorRow, list: ResultRecord[], dates: Dates, measur
   };
 }
 
-function withValues(r: IndicatorRow, subs: Submission[], span: Dates, mapped?: Mapped, results?: ResultRecord[], measure: Measure = "sum"): IndicatorProgress {
+function withValues(r: IndicatorRow, subs: Submission[], span: Dates, results?: ResultRecord[], measure: Measure = "sum"): IndicatorProgress {
   // A results indicator counts its results, including those made from Kobo submissions, so
   // Progress, MEL's review and the report all count the same records. A survey's figure is
   // recorded the same way, with the survey file as proof.
-  if (r.source === "results" || (r.source === "survey" && !mapped)) return fromResults(r, results ?? [], span, measure);
-  if (mapped) return fromMapping(r, mapped, span);
-  // Added in setup and not mapped to a question yet: nothing to count.
+  if (r.source === "results" || r.source === "survey") return fromResults(r, results ?? [], span, measure);
+  // Any other source has nothing to count from (a KoboToolbox question, before Kobo was removed on
+  // 28 Nov 2026): its results are recorded in the app once the target is set to take them.
   if (!BUILT_IN_SOURCES.includes(r.source)) return { ...base(r), total: null, period: null, pending: 0, byGender: null, lastDate: null, dataSource: "none", ...forecastOf(r, span, null, () => null) };
   const ind = asIndicator(r);
   const all = actualFor(ind, subs);
@@ -165,7 +155,6 @@ export async function loadProgress(code: string, user: AppUser): Promise<Progres
   if (!project) return { saved: false, project: { code, name: demo?.name ?? code, startDate: null, endDate: null }, today: today(), indicators: [], donors: [], reports: [] };
   const rows = await db.select().from(s.indicators).where(eq(s.indicators.projectId, project.id)).orderBy(asc(s.indicators.position));
   const subs = rows.some((r) => BUILT_IN_SOURCES.includes(r.source)) ? (await listSubmissions(code)).submissions : [];
-  const mapped = rows.length ? await mappedInputs(project.id) : new Map<string, Mapped>();
   const donors = visibleDonors(await donorsOf(project.id), user);
   const results = rows.some((r) => RESULT_SOURCES.includes(r.source)) ? await loadResults(code) : [];
   const measureOf = await measuresFor(project.id);
@@ -174,8 +163,6 @@ export async function loadProgress(code: string, user: AppUser): Promise<Progres
     const { from, to } = reportPeriod(d, today(), project.startDate, project.endDate);
     const within = subs.filter((x) => x.date >= from && x.date <= to);
     const value = (r: IndicatorRow) => {
-      const m = mapped.get(r.code);
-      if (m) return mappedValue(m.mapping, m.counted.filter((x) => x.date >= from && x.date <= to)).value;
       if (RESULT_SOURCES.includes(r.source)) return measured({ baseline: r.baseline === null ? null : Number(r.baseline), unit: r.unit }, results.filter((x) => x.indicator === r.code), measureOf(r), from, to).reported;
       return !BUILT_IN_SOURCES.includes(r.source) ? null : actualFor(asIndicator(r), within).value;
     };
@@ -185,7 +172,7 @@ export async function loadProgress(code: string, user: AppUser): Promise<Progres
     saved: true,
     project: { code, name: project.name, startDate: project.startDate, endDate: project.endDate },
     today: today(),
-    indicators: rows.map((r) => withValues(r, subs, { start: project.startDate, end: project.endDate }, mapped.get(r.code), results, measureOf(r))),
+    indicators: rows.map((r) => withValues(r, subs, { start: project.startDate, end: project.endDate }, results, measureOf(r))),
     donors,
     reports,
   };

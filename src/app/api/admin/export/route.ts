@@ -30,8 +30,6 @@ const TABLES = {
   organization_state: s.organizationState,
   indicators: s.indicators,
   donors: s.donors,
-  kobo_forms: s.koboForms,
-  kobo_mappings: s.koboMappings,
   work_items: s.workItems,
   activities: s.activities,
   training_attendance: s.trainingAttendance,

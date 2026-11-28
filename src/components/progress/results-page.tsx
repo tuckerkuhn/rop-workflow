@@ -83,7 +83,7 @@ export function ResultsPage() {
   useEffect(() => {
     if (!v) return;
     const ind = params.get("indicator");
-    if (recordAsked && ind && v.indicators.some((i) => i.code === ind && !i.fromKobo)) setAdding(ind);
+    if (recordAsked && ind && v.indicators.some((i) => i.code === ind)) setAdding(ind);
     if (updateFor && v.activities.some((a) => a.code === updateFor)) {
       setAddingUpdate(true);
       document.getElementById("activity-updates")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -286,9 +286,7 @@ export function ResultsPage() {
                       </p>
                       {isOpen && (
                         <div className="space-y-3 px-3 pb-4">
-                          {i.fromKobo ? (
-                            <p className="text-sm text-muted">{t("pw.fromKobo")}</p>
-                          ) : adding === i.code ? (
+                          {adding === i.code ? (
                             <RecordForm ind={i} prefill={prefill} onClose={() => setAdding(null)} add={(r) => act({ action: "record", result: r }, "Recorded. MEL will check it.").then(() => setAdding(null))} />
                           ) : (
                             v.mayRecord && (
@@ -308,7 +306,7 @@ export function ResultsPage() {
             </section>
           ))}
 
-        {v?.mayRecord && v.indicators.some((i) => !i.fromKobo) && <ImportResults indicators={v.indicators.filter((i) => !i.fromKobo)} act={act} />}
+        {v?.mayRecord && v.indicators.length > 0 && <ImportResults indicators={v.indicators} act={act} />}
         {v && v.activities.length > 0 && (
           <section id="activity-updates" className="mt-10 scroll-mt-24">
             <SectionHead className="">Activity updates</SectionHead>
@@ -1367,7 +1365,7 @@ function WhatNeedsDoing({ v, me, onRecord }: { v: ResultsView; me: string; onRec
   const noProof = v.results.filter((r) => r.status === "accepted" && r.date >= `${year}-01-01` && !proofCount(r)).length;
   return (
     <section className="mt-6">
-      {v.mayRecord && v.indicators.some((i) => !i.fromKobo) && (
+      {v.mayRecord && v.indicators.length > 0 && (
         <form
           className="flex flex-wrap items-center gap-2"
           onSubmit={(e) => {
@@ -1377,7 +1375,7 @@ function WhatNeedsDoing({ v, me, onRecord }: { v: ResultsView; me: string; onRec
         >
           <select id="record-pick" value={pick} onChange={(e) => setPick(e.target.value)} className="min-h-11 min-w-0 flex-1 border border-line bg-paper px-3 py-2.5 text-sm" aria-label={t("pw.whichTarget")}>
             <option value="">{t("pw.whichTarget")}</option>
-            {v.indicators.filter((i) => !i.fromKobo).map((i) => (
+            {v.indicators.map((i) => (
               <option key={i.code} value={i.code}>
                 {i.donorCode ?? i.code} {i.name}
               </option>

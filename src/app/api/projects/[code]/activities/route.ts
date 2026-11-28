@@ -11,7 +11,7 @@ import { loadBudget, loadWorkplan } from "@/server/plan-store";
 import { loadPlan } from "@/server/procurement-plan-store";
 import { loadProcurements } from "@/server/procurement-store";
 import { loadUpdates } from "@/server/results-store";
-import { fieldRecordsByActivity } from "@/server/kobo-activities";
+import type { FieldRecords } from "@/lib/kobo-activities";
 
 const NONE: ActivityLinks = { procurements: [], grants: [], updates: [], budget: { lines: [], total: 0, spent: 0 } };
 
@@ -31,8 +31,8 @@ async function links(code: string, u: AppUser) {
 /** The activities, each with its indicator's result this year, so the page can say "target met". */
 async function withResults(code: string, u: AppUser) {
   const [v, review, l] = await Promise.all([loadActivities(code, u), loadReview(code, new Date().toISOString().slice(0, 7), u).catch(() => null), links(code, u)]);
-  // KoboCollect submissions of the forms that record each activity: counts only (server/kobo-activities).
-  const field = await fieldRecordsByActivity(code, v.rows, v.today).catch(() => ({}) as Awaited<ReturnType<typeof fieldRecordsByActivity>>);
+  // KoboCollect form counts per activity are gone with KoboToolbox (28 Nov 2026); none to show.
+  const field: Record<string, FieldRecords[]> = {};
   return {
     ...v,
     unlinked: { procurements: l.unlinked.procurements.length, grants: l.unlinked.grants.length },

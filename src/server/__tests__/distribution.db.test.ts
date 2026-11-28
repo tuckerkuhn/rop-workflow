@@ -9,7 +9,6 @@ import type { Farmer } from "@/lib/field";
 import { seedDatabase } from "@/server/demo-seed";
 import { checkKoboDistribution, countApprovedDistributions, decideDistribution, listDistributions, recordFromApp, resubmitDistribution, stockFor } from "@/server/distribution";
 import { saveKoboApproval } from "@/server/kobo-approval";
-import { saveMappings } from "@/server/kobo-link";
 import { realToday } from "@/lib/clock";
 import { loadField, saveItems, saveSetup, setupFor } from "@/server/field-store";
 import { loadHome } from "@/server/home-store";
@@ -271,12 +270,6 @@ describe("input distribution, field to finance (demo project)", { timeout: 60_00
     const made = (await loadResults(code)).filter((r) => r.distribution === row.id);
     expect(made).toHaveLength(1);
     expect(made[0]).toMatchObject({ indicator: "IND-2", value: 1, status: "pending", by: "farida" });
-  });
-
-  it("does not let a distribution form be mapped to a target in the KoboToolbox setup", async () => {
-    const project = (await db.select().from(s.projects).where(eq(s.projects.code, code)))[0];
-    await db.insert(s.koboForms).values({ projectId: project.id, assetUid: "aDistForm", name: "Input distribution", purpose: "distribution" });
-    expect(await refusal(() => saveMappings(code, [{ indicatorCode: "IND-2", assetUid: "aDistForm", question: "farmer", method: "count_answered", value: null }], "omar"))).toMatch(/Input package/);
   });
 
   it("reads nothing more for distributions already checked when they are listed (Home)", async () => {
