@@ -10,7 +10,7 @@ import { useCurrentProject } from "@/components/app/current-project";
 import { useProjectModules } from "@/components/app/project-modules";
 import { useT } from "@/components/app/i18n";
 import { useRequireUser, useSession } from "@/components/app/session";
-import { KoboConnect, KoboDone, KoboForms, KoboMap } from "@/components/setup/kobo-steps";
+import { KoboApprovalSetting } from "@/components/setup/kobo-approval";
 import { DeadlinesStep, RulesStep } from "@/components/setup/agreement-steps";
 import { BudgetStep, WorkplanStep } from "@/components/setup/plan-steps";
 import { VoucherCodingStep } from "@/components/setup/voucher-coding-step";
@@ -38,7 +38,8 @@ import { realToday } from "@/lib/clock";
 
 const DESIGN_STEPS = ["name", "country", "crop", "dates", "goal", "indicators", "donors", "review"] as const;
 const PLAN_STEPS = ["budget", "coding", "deadlines", "rules", "workplan"] as const;
-const KOBO_STEPS = ["kobo-connect", "kobo-forms", "kobo-map", "done"] as const;
+/** Field data is captured in the app's own forms (Kobo removed, 28 Nov): the last step names who checks it. */
+const KOBO_STEPS = ["field-approval", "done"] as const;
 type Step = (typeof DESIGN_STEPS)[number] | (typeof PLAN_STEPS)[number] | (typeof KOBO_STEPS)[number];
 
 const empty: ProjectDesign = { name: "", country: "AF", crop: "", startDate: realToday(), endDate: realToday(), goal: "", indicators: [], donors: [] };
@@ -292,10 +293,26 @@ function Wizard({ code: initialCode, first, from }: { code: string | null; first
         {step === "deadlines" && code && <DeadlinesStep code={code} start={draft.startDate} end={draft.endDate} onDone={next} />}
         {step === "rules" && code && <RulesStep code={code} onDone={next} />}
         {step === "workplan" && code && <WorkplanStep code={code} projectStart={draft.startDate} onDone={next} />}
-        {step === "kobo-connect" && code && <KoboConnect code={code} onDone={next} onSkip={() => go("done")} />}
-        {step === "kobo-forms" && code && <KoboForms code={code} onDone={next} />}
-        {step === "kobo-map" && code && <KoboMap code={code} onDone={next} />}
-        {step === "done" && code && <KoboDone code={code} name={draft.name} />}
+        {step === "field-approval" && code && (
+          <Question title={t("setup.q.fieldApproval")} help={t("setup.h.fieldApproval")}>
+            <KoboApprovalSetting code={code} />
+            <button type="button" onClick={next} className={`${primaryBtn} mt-6 w-full`}>
+              {t("setup.next")}
+            </button>
+          </Question>
+        )}
+        {step === "done" && code && (
+          <Question title={t("setup.q.done", { name: draft.name })} help={t("setup.h.done")}>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Link href="/home" className={quietBtn}>
+                {t("nav.home")}
+              </Link>
+              <Link href="/work?source=field" className={`${primaryBtn} flex-1 text-center`}>
+                {t("setup.fieldLink")}
+              </Link>
+            </div>
+          </Question>
+        )}
       </div>
 
       {error && (
@@ -576,8 +593,8 @@ function Review({ draft, code, onEdit }: { draft: ProjectDesign; code: string | 
       </dl>
       {editing && (
         <p className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-sm">
-          <button type="button" onClick={() => onEdit("kobo-connect")} className="btn-link">
-            {t("setup.koboLink")} <Arrow />
+          <button type="button" onClick={() => onEdit("field-approval")} className="btn-link">
+            {t("setup.fieldApprovalLink")} <Arrow />
           </button>
           {modules.market && (
             <Link href="/design" className="btn-link">

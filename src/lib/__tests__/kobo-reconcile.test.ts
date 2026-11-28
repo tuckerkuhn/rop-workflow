@@ -23,9 +23,9 @@ describe("nightly KoboToolbox reconcile", () => {
   it("says why a run failed", () => {
     expect(reconcileLine(run({ ok: false, error: "KoboToolbox did not answer." }))).toBe("Did not run: KoboToolbox did not answer.");
   });
-  it("is on the schedule, before the daily email", () => {
+  it("is off the schedule now KoboToolbox is removed (Part 2 step 7); the daily email stays", () => {
     const crons = (JSON.parse(readFileSync(path.resolve(import.meta.dirname, "../../../vercel.json"), "utf8")) as { crons: { path: string; schedule: string }[] }).crons;
-    expect(crons.find((c) => c.path === "/api/kobo/reconcile")?.schedule).toBe("45 0 * * *");
+    expect(crons.find((c) => c.path === "/api/kobo/reconcile")).toBeUndefined();
     expect(crons.find((c) => c.path === "/api/notify/digest")?.schedule).toBe("30 1 * * *");
   });
 });
