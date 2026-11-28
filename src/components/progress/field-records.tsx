@@ -8,7 +8,6 @@ import { useSubmissions } from "@/components/app/use-project-data";
 import { RecordProof } from "@/components/field/record-proof";
 import { Pill, dangerBtn, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { dataFlags, formLabel, personName, whoOf, type Submission } from "@/lib/project";
-import type { SyncCounts } from "@/lib/kobo-setup";
 import { longDate } from "@/lib/weekly";
 
 /**
@@ -61,13 +60,12 @@ export function useFieldForms(code: string, wanted = true) {
       return `${subs.length} record${subs.length === 1 ? "" : "s"} ${status === "accepted" ? "accepted" : "queried"}.`;
     });
   const settleHeld = (s: Submission, farmer: string, action: "record" | "leave_out") => run(`held-${s.id}-${farmer}`, async () => (action === "record" ? `Field activities updated: ${await kobo.settleHeld(s.dbId!, farmer, action)}` : await kobo.settleHeld(s.dbId!, farmer, action)));
-  const synced = (r: SyncCounts) => `Synced: ${r.fetched} on KoboToolbox, ${r.added} new${r.updated ? `, ${r.updated} changed` : ""}${r.removed ? `, ${r.removed} deleted in KoboToolbox` : ""}.`;
-  return { show: user?.kind === "employee", code, userId: user?.id ?? "", kobo, pending, forMe, toSendBack, queried, heldOpen, clean, flagsOf, name, busy, outcome, run, decide, settleHeld, synced };
+  return { show: user?.kind === "employee", code, userId: user?.id ?? "", kobo, pending, forMe, toSendBack, queried, heldOpen, clean, flagsOf, name, busy, outcome, run, decide, settleHeld };
 }
 export type FieldForms = ReturnType<typeof useFieldForms>;
 
 export function FieldRecords({ f, open, onToggle }: { f: FieldForms; open: boolean; onToggle: () => void }) {
-  const { code, userId, kobo, pending, forMe, toSendBack, queried, heldOpen, flagsOf, name, busy, outcome, run, decide, settleHeld, synced } = f;
+  const { code, userId, kobo, pending, forMe, toSendBack, queried, heldOpen, flagsOf, name, busy, outcome, decide, settleHeld } = f;
   const [querying, setQuerying] = useState<string | null>(null);
   // Records whose photo and place the checker has opened.
   const [proofOpen, setProofOpen] = useState<Set<string>>(new Set());
@@ -84,7 +82,7 @@ export function FieldRecords({ f, open, onToggle }: { f: FieldForms; open: boole
             {pending.length > forMe && !(toSendBack > 0 && forMe === 0) ? `, ${pending.length - forMe} waiting on others` : ""}
           </h3>
           <p className="mt-1 max-w-2xl text-sm text-muted">
-            Readiness visits, training attendance and farm visits from KoboCollect. Accepting one records it on the farmer in Field activities; a query sends it back to whoever collected it.
+            Readiness visits, training attendance and farm visits filled in by field staff. Accepting one records it on the farmer in Field activities; a query sends it back to whoever collected it.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -93,22 +91,6 @@ export function FieldRecords({ f, open, onToggle }: { f: FieldForms; open: boole
               {open ? "Hide" : `Review ${pending.length}`}
             </button>
           )}
-          <button type="button" disabled={!!busy} onClick={() => run("sync", async () => synced(await kobo.sync()))} className={`${quietBtn} py-1.5`}>
-            {busy === "sync" ? "Syncing…" : "Sync from KoboToolbox"}
-          </button>
-          <button
-            type="button"
-            disabled={!!busy}
-            onClick={() =>
-              run("push", async () => {
-                const r = await kobo.pushFarmers();
-                return `Farmer list sent to ${r.forms} form${r.forms === 1 ? "" : "s"} (${r.farmers} farmers)${r.redeployed ? "." : ". Redeploy the forms in KoboToolbox so phones get it."}`;
-              })
-            }
-            className={`${quietBtn} py-1.5`}
-          >
-            {busy === "push" ? "Sending…" : "Send farmer list to KoboToolbox"}
-          </button>
         </div>
       </div>
 
@@ -272,7 +254,7 @@ export function FieldRecords({ f, open, onToggle }: { f: FieldForms; open: boole
         })}
         {pending.length === 0 && (
           <li className="rounded-xl border border-dashed border-line p-4 text-sm text-muted">
-            {kobo.status === "loading" ? "Loading field forms…" : "Nothing waiting. New submissions arrive with the nightly sync, or press Sync from KoboToolbox."}
+            {kobo.status === "loading" ? "Loading field forms…" : "Nothing waiting. Field forms appear here as soon as field staff save them."}
           </li>
         )}
       </ul>

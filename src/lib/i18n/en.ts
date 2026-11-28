@@ -16,7 +16,6 @@ import { bdEn } from "./boards";
 import { cnEn } from "./connections";
 import { pwEn } from "./plain-words";
 import { qcEn } from "./qpr-checks";
-import { ksEn } from "./kobo-suggest";
 import { agEn } from "./agreement";
 import { evEn } from "./evidence";
 import { lvEn } from "./hr/leave";
@@ -94,6 +93,7 @@ export const en = {
   "work.new.farmerStepHint": "Each farmer's training, readiness, distribution and planting, from KoboCollect",
   "work.new.kobo": "Open KoboToolbox",
   "work.new.koboHint": "Register farmers and record visits in the Kobo forms",
+  "work.new.fieldFormHint": "Register a farmer, or record a visit, training or distribution",
   "work.newTab": "opens in a new tab",
   "work.group.procurement": "Procurement",
   "work.new.planPurchase": "Plan a purchase",
@@ -110,6 +110,7 @@ export const en = {
   "new.result": "Record a result",
   "new.weekly": "Weekly update item",
   "new.kobo": "Register a farmer",
+  "new.fieldForm": "Fill in a field form",
   "new.opportunity": "Record an opportunity",
   "new.empty": "Nothing needs you right now",
   "nav.people": "People",
@@ -584,7 +585,7 @@ export const en = {
   "kobo.auto.once": "Copy the password now: it is not shown again. This password works only for this project. Making a new one stops the old one at once.",
   "kobo.auto.copy": "Copy",
   "progress.notConnected": "Not counted from any data yet",
-  "progress.mapIt": "Map it to a question",
+  "progress.mapIt": "Record its results",
   "progress.sync": "Sync KoboToolbox",
   "progress.lastSync": "Last synced {date}",
   "assistant.name": "AI assistant",
@@ -656,7 +657,6 @@ export const en = {
   ...cnEn,
   ...pwEn,
   ...qcEn,
-  ...ksEn,
   ...agEn,
   ...evEn,
   ...expEn,

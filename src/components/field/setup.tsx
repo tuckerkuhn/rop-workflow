@@ -7,7 +7,6 @@ import { primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { FARMER_TEMPLATE, parseFarmers, type FarmerRow } from "@/lib/farmer-import";
 import { canEditProject, canSeePII } from "@/lib/demo";
 import { describePackage, keyFrom, setupProblem, type FieldSetup, type PackageItem } from "@/lib/package";
-import { FORM_STEPS } from "@/lib/distribution-form";
 import { peopleList } from "@/lib/people-words";
 
 /**
@@ -49,9 +48,6 @@ export function PackageSetup({ code, onSaved, onCancel }: { code: string; onSave
   const [targetAt, setTargetAt] = useState<"distribution" | "planting">("distribution");
   const [targets, setTargets] = useState<{ code: string; name: string; unit: string }[]>([]);
   const [fromDraft, setFromDraft] = useState(false);
-  // A package is saved: its KoboCollect form can be made from it.
-  const [hasSaved, setHasSaved] = useState(false);
-  const [formState, setFormState] = useState<{ busy: boolean; error: string; done: boolean }>({ busy: false, error: "", done: false });
   // A draft copied from another project says which one (lib/project-template).
   const [copiedFrom, setCopiedFrom] = useState("");
   // Projects this one can be started from, offered only while it has no package at all.
@@ -66,7 +62,6 @@ export function PackageSetup({ code, onSaved, onCancel }: { code: string; onSave
     if (!user) return;
     api<{ setup: FieldSetup | null; draft: (FieldSetup & { from?: string }) | null; lines: Line[]; targets?: { code: string; name: string; unit: string }[]; canEdit: boolean; crop?: string | null }>(`/api/projects/${encodeURIComponent(code)}/field/setup`, user.id)
       .then((r) => {
-        setHasSaved(!!r.setup?.items?.length);
         setLines(r.lines);
         setCanEdit(r.canEdit);
         setTargets(r.targets ?? []);
@@ -176,7 +171,7 @@ export function PackageSetup({ code, onSaved, onCancel }: { code: string; onSave
           <h3 id="start-from" className="font-medium">
             Start from a project that is already running
           </h3>
-          <p className="mt-1 text-sm text-muted">Copies its input package as a draft for you to check, who approves KoboCollect data, and its targets. Nothing about farmers, records or money is copied, and nothing already set on this project is changed.</p>
+          <p className="mt-1 text-sm text-muted">Copies its input package as a draft for you to check, who checks field data, and its targets. Nothing about farmers, records or money is copied, and nothing already set on this project is changed.</p>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <select value={source} onChange={(e) => setSource(e.target.value)} aria-label="Project to start from" className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm">
               {sources.map((p) => (
@@ -334,7 +329,7 @@ export function PackageSetup({ code, onSaved, onCancel }: { code: string; onSave
         <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-muted">Count it toward a target (optional)</legend>
         <label className="block text-sm font-medium">
           Target this package counts toward
-          <span className="mt-0.5 block text-xs font-normal text-muted">Each farmer adds one, from KoboCollect or recorded in the app. This is the only place they are counted, so nobody records them again on the Results page.</span>
+          <span className="mt-0.5 block text-xs font-normal text-muted">Each farmer adds one when their distribution is approved. This is the only place they are counted, so nobody records them again on the Results page.</span>
           <select value={target} onChange={(e) => setTarget(e.target.value)} className={`mt-1 ${field}`}>
             <option value="">Do not count distributions toward a target</option>
             {/* A saved target no longer on the list stays visible, so saving again does not drop it without anyone noticing. */}
@@ -395,47 +390,6 @@ export function PackageSetup({ code, onSaved, onCancel }: { code: string; onSave
           </div>
         </div>
       )}
-      {/* The package is entered once: the form the storekeeper fills in on a phone is made from it. */}
-      {hasSaved && (
-        <div className="rounded-xl border border-line bg-surface px-4 py-4">
-          <h3 className="font-semibold">The form for the phone</h3>
-          <p className="mt-1 text-sm text-muted">
-            The KoboCollect distribution form for this project, made from the package saved above: one question per item, the farmer&apos;s planned amount shown, the distribution receiptthe signed note&apos;s photo requiredapos;s photo required. The place is taken from the phone and nothing is
-            typed unless an amount differed.
-          </p>
-          <button
-            type="button"
-            className={`${quietBtn} mt-3`}
-            disabled={formState.busy}
-            onClick={() => {
-              setFormState({ busy: true, error: "", done: false });
-              void fetch(`/api/projects/${encodeURIComponent(code)}/field/form`, { headers: { "x-demo-user": user?.id ?? "" } })
-                .then(async (res) => {
-                  if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? plainError(res.status));
-                  const a = document.createElement("a");
-                  a.href = URL.createObjectURL(await res.blob());
-                  a.download = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "")?.[1] ?? `${code}-input-distribution-form.xlsx`;
-                  a.click();
-                  URL.revokeObjectURL(a.href);
-                  setFormState({ busy: false, error: "", done: true });
-                })
-                .catch((e: unknown) => setFormState({ busy: false, error: e instanceof Error ? e.message : String(e), done: false }));
-            }}
-          >
-            {formState.busy ? "Making the form…" : "Download the distribution form"}
-          </button>
-          {formState.error && (
-            <p role="alert" className="mt-2 text-sm text-clay">
-              {formState.error}
-            </p>
-          )}
-          <ol className="mt-3 list-decimal space-y-1 ps-5 text-sm">
-            {FORM_STEPS.map((step) => (
-              <li key={step}>{step}</li>
-            ))}
-          </ol>
-        </div>
-      )}
     </div>
   );
 }
@@ -491,7 +445,7 @@ export function FarmerImport({ code, onDone, onCancel }: { code: string; onDone:
         <h2 className="mt-2 font-display text-3xl tracking-tight">Load the farmer list</h2>
         <p className="mt-2 max-w-2xl text-sm text-muted">
           One row per farmer: Farmer ID, Village, Sex (F or M) and Hectares. Name, Phone, Age band, Household size, Household members (like &quot;Female 34, Male 12&quot;), Contribution paid and Step are optional. Save the sheet from Excel as CSV.
-          Names are kept separately and shown only to people allowed to see them; phones, Kobo and emails use the farmer ID.
+          Names are kept separately and shown only to people allowed to see them; phones, forms and emails use the farmer ID.
         </p>
         <a href={template} download="farmer-list-template.csv" className="mt-2 inline-block text-sm font-semibold text-forest hover:underline">
           Download the template

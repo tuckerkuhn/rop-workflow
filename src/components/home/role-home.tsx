@@ -2,9 +2,8 @@
 
 import { WeekAhead, startWeek } from "@/components/home/week-ahead";
 import { weekKindOf } from "@/lib/week";
-import { unitOf } from "@/lib/package";
 import Link from "next/link";
-import { Pill, Loading, StatusPill } from "@/components/workspace/ui";
+import { Pill, Loading } from "@/components/workspace/ui";
 import { NextReportPanel } from "@/components/home/next-report";
 import { Families } from "@/components/home/families";
 import { GettingStarted } from "@/components/home/getting-started";
@@ -16,7 +15,6 @@ import { type AppUser, type ProjectInfo } from "@/lib/demo";
 import type { HomeView, Lens } from "@/server/home-store";
 import type { NextReport } from "@/server/next-report";
 import { HomeLead, type HomeViewKind } from "@/components/home/home-views";
-import { WaitingOnYou } from "@/components/home/waiting";
 import { waitingCount, waitingRows } from "@/lib/home-buckets";
 import { useT } from "@/components/app/i18n";
 import { useSession } from "@/components/app/session";
@@ -106,7 +104,7 @@ function StatusBar({ counts, total }: { counts: HomeView["schedule"]["counts"]; 
 type HomeAnswer = HomeView & { nextReport?: NextReport };
 
 export function RoleHome({ user, project }: { user: AppUser; project: ProjectInfo }) {
-  const { t, tx, date } = useT();
+  const { t, tx } = useT();
   const { actor } = useSession();
   // One request for both: Home's data and the next report from pre-flight read the same review and figures.
   const homeUrl = `/api/projects/${project.id}/home?with=next-report`;
@@ -328,43 +326,6 @@ export function RoleHome({ user, project }: { user: AppUser; project: ProjectInf
     );
 
   const waiting = waitingRows({ actions: v.actions, lenses: v.lenses, report: nr, deadlines: v.deadlines });
-  // Field staff whose project collects everything in KoboCollect get a short Home: it tells them
-  // so, shows what has arrived, and lists anything MEL has sent back. No tiles, no data entry.
-  if (lens === "field" && v.lenses.length === 1 && v.kobo.only)
-    return (
-      <section aria-label={t("home.kobo.title")} className="space-y-5">
-        <div className="rounded-2xl border border-forest/40 bg-mist p-4">
-          <h2 className="text-xl font-semibold">{t("home.kobo.title")}</h2>
-          <p className="mt-1 text-sm">{t("home.kobo.body")}</p>
-        </div>
-        {waitingCount(waiting) > 0 && <WaitingOnYou rows={waiting} />}
-        <section className="rounded-2xl border border-line bg-surface p-4" aria-labelledby="kobo-recent">
-          <h2 id="kobo-recent" className="text-xl font-semibold">
-            {t("home.kobo.recent")}
-          </h2>
-          <p className="mt-1 text-xs text-muted">
-            {v.kobo.lastSyncedAt ? t("home.kobo.synced", { date: date(v.kobo.lastSyncedAt.slice(0, 10), { day: "numeric", month: "long" }) }) : t("home.kobo.neverSynced")} · {t("home.kobo.notYours")}
-          </p>
-          {v.kobo.recent.length === 0 ? (
-            <p className="mt-3 text-sm text-muted">{t("home.kobo.none")}</p>
-          ) : (
-            <ul className="mt-2 divide-y divide-line">
-              {v.kobo.recent.map((r) => (
-                <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5 text-sm">
-                  <span className="min-w-0 flex-1">
-                    <span className="font-semibold tabular-nums">{r.value.toLocaleString("en-US")}</span> {unitOf(r.value, r.unit)} · {r.target}
-                    <span className="block text-xs text-muted">{date(r.date, { day: "numeric", month: "long" })}</span>
-                  </span>
-                  <StatusPill tone={r.status === "accepted" ? "forest" : r.status === "queried" ? "clay" : "ochre"}>{t(`home.kobo.${r.status}`)}</StatusPill>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-        <Families project={project.id} user={user.id} mayWriteStory={false} />
-      </section>
-    );
-
   // Field staff (a field role such as extension agent or storekeeper, and not a lead or MEL) open in
   // Bands, the design made for them; everyone else in the Ledger. A storekeeper on a bid committee is still field staff.
   const fieldStaff = lens === "field" || (user.field.length > 0 && !v.lenses.includes("lead") && !v.lenses.includes("mel"));

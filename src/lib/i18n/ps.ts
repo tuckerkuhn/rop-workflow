@@ -17,7 +17,6 @@ import { bdPs } from "./boards.ps";
 import { cnPs } from "./connections.ps";
 import { pwPs } from "./plain-words.ps";
 import { qcPs } from "./qpr-checks.ps";
-import { ksPs } from "./kobo-suggest.ps";
 import { agPs } from "./agreement.ps";
 import { evPs } from "./evidence.ps";
 import { lvPs } from "./hr/leave.ps";
@@ -516,7 +515,6 @@ export const ps: Messages = {
   ...cnPs,
   ...pwPs,
   ...qcPs,
-  ...ksPs,
   ...agPs,
   ...evPs,
   ...expPs,

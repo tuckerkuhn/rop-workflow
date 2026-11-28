@@ -1,4 +1,3 @@
-import { randomBytes } from "node:crypto";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/db", () => import("@/server/__tests__/test-db"));
@@ -60,7 +59,6 @@ async function single(farmerCode: string, attended: "yes" | "no") {
 
 beforeAll(async () => {
   process.env.DEMO_SIGN_IN = "1";
-  process.env.KOBO_TOKEN_KEY = randomBytes(32).toString("base64");
   await ready;
   await seedDatabase();
   const [project] = await db.select().from(s.projects).where(eq(s.projects.code, code));

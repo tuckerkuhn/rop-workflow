@@ -17,7 +17,6 @@ import { bdFa } from "./boards.fa";
 import { cnFa } from "./connections.fa";
 import { pwFa } from "./plain-words.fa";
 import { qcFa } from "./qpr-checks.fa";
-import { ksFa } from "./kobo-suggest.fa";
 import { agFa } from "./agreement.fa";
 import { evFa } from "./evidence.fa";
 import { lvFa } from "./hr/leave.fa";
@@ -516,7 +515,6 @@ export const fa: Messages = {
   ...cnFa,
   ...pwFa,
   ...qcFa,
-  ...ksFa,
   ...agFa,
   ...evFa,
   ...expFa,

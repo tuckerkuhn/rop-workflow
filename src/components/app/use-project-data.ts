@@ -3,13 +3,11 @@
 import { trackSave } from "@/components/app/saving-sign";
 import { OFFLINE, plainError } from "@/lib/plain-error";
 import type { VoucherSetup } from "@/lib/voucher-setup";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSession } from "@/components/app/session";
 import type { FieldItem, Stock } from "@/lib/field";
 import type { FieldSetup } from "@/lib/package";
 import type { Shown } from "@/lib/selection";
-import type { AutoSyncSecret, FormPurpose, KoboFormInfo, KoboMapping, KoboQuestion, KoboState, SyncCounts } from "@/lib/kobo-setup";
-import type { ActivityLinkInput } from "@/lib/kobo-activities";
 import type { Procurement } from "@/lib/procurement";
 import type { Closeouts } from "@/lib/closeout";
 import type { AskInput, PlanAction, PlanItem } from "@/lib/procurement-plan";
@@ -409,29 +407,7 @@ export function useSubmissions(code = "A-2027", wanted = true) {
     [code, user?.id, reload],
   );
 
-  const sync = useCallback(async () => {
-    // The project's own Kobo link: readiness forms land in this queue, data forms count on Progress.
-    const r = await call<SyncCounts>(`/api/projects/${code}/kobo/sync`, user?.id, { method: "POST" });
-    await reload();
-    return r;
-  }, [code, user?.id, reload]);
-
-  const pushFarmers = useCallback(
-    () => call<{ farmers: number; forms: number; redeployed: boolean }>(`/api/kobo/push-farmers?project=${code}`, user?.id, { method: "POST" }),
-    [code, user?.id],
-  );
-
-  /** Saves farmers.csv. Fetched rather than linked so demo mode can send who is asking. */
-  const downloadFarmers = useCallback(async () => {
-    const res = await fetch(`/api/kobo/farmers?project=${code}`, { headers: { "x-demo-user": user?.id ?? "" } });
-    if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? `Download failed (${res.status})`);
-    const url = URL.createObjectURL(await res.blob());
-    const a = Object.assign(document.createElement("a"), { href: url, download: "farmers.csv" });
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [code, user?.id]);
-
-  return { submissions, roster, status, error, reload, decide, settleHeld, sync, pushFarmers, downloadFarmers };
+  return { submissions, roster, status, error, reload, decide, settleHeld };
 }
 
 /** Tasks and milestones on a project. `saved` is false for demo projects kept only in this browser. */
@@ -559,90 +535,3 @@ export function useDonors(code: string) {
   return donors;
 }
 
-/** The project's KoboToolbox link. Every action throws with the server's message so screens can show it. */
-/**
- * The KoboToolbox server this project collects on, for a plain link to it. Null code skips the request
- * (no field access, or a project kept in the browser only); without a connection it is the main server.
- */
-const koboServers = new Map<string, { at: number; server: Promise<string | null> }>();
-
-export function useKoboServer(code: string | null) {
-  const { user, ready } = useSession();
-  const [server, setServer] = useState("https://kf.kobotoolbox.org");
-  useEffect(() => {
-    if (!code || !ready || !user) return;
-    // The address is asked for by "+ New" in the top bar and in the tab bar on every screen: one
-    // request serves both, and is kept for a minute (the address changes only when someone reconnects).
-    const key = `${code}:${user.id}`;
-    let kept = koboServers.get(key);
-    if (!kept || Date.now() - kept.at > 60_000) {
-      kept = { at: Date.now(), server: call<KoboState>(`/api/projects/${code}/kobo`, user.id).then((s) => s.connection?.serverUrl ?? null) };
-      koboServers.set(key, kept);
-      kept.server.catch(() => koboServers.delete(key));
-    }
-    let live = true;
-    kept.server.then((url) => live && url && setServer(url)).catch(() => {});
-    return () => {
-      live = false;
-    };
-  }, [code, ready, user]);
-  return server;
-}
-
-export function useKobo(code: string) {
-  const { user, ready } = useSession();
-  const [state, setState] = useState<KoboState | null>(null);
-  const [error, setError] = useState("");
-  const base = `/api/projects/${code}/kobo`;
-
-  const reload = useCallback(async () => {
-    try {
-      setState(await call<KoboState>(base, user?.id));
-      setError("");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    }
-  }, [base, user?.id]);
-
-  useEffect(() => {
-    if (ready && user) void reload();
-  }, [ready, user, reload]);
-
-  const send = useCallback(<T,>(path: string, method: string, body?: unknown) => call<T>(`${base}${path}`, user?.id, { method, body: body === undefined ? undefined : JSON.stringify(body) }), [base, user?.id]);
-
-  // Stable between renders, so screens can load in effects without looping.
-  const actions = useMemo(
-    () => ({
-      connect: async (input: { serverUrl: string; token?: string; countOnly: "all" | "approved" }) => setState(await send<KoboState>("", "PUT", input)),
-      disconnect: async () => {
-        await send("", "DELETE");
-        await reload();
-      },
-      liveForms: () => send<{ forms: KoboFormInfo[] }>("/forms", "GET").then((r) => r.forms),
-      questions: (uid: string) => send<{ questions: KoboQuestion[] }>(`/forms/${encodeURIComponent(uid)}`, "GET").then((r) => r.questions),
-      saveForms: async (forms: { uid: string; name: string; purpose: FormPurpose }[]) => {
-        await send("/forms", "PUT", { forms });
-        await reload();
-      },
-      saveMappings: async (mappings: KoboMapping[]) => setState(await send<KoboState>("/mappings", "PUT", { mappings })),
-      saveActivities: async (links: ActivityLinkInput[]) => setState(await send<KoboState>("/activities", "PUT", { links })),
-      sync: async () => {
-        const r = await send<SyncCounts>("/sync", "POST");
-        await reload();
-        return r;
-      },
-      enableAutoSync: async () => {
-        const r = await send<AutoSyncSecret>("/auto", "POST");
-        await reload();
-        return r;
-      },
-      disableAutoSync: async () => {
-        await send("/auto", "DELETE");
-        await reload();
-      },
-    }),
-    [send, reload],
-  );
-
-  return { state, error, reload, ...actions };
-}

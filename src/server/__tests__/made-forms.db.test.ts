@@ -2,34 +2,28 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/db", () => import("@/server/__tests__/test-db"));
 
-import ExcelJS from "exceljs";
 import { eq } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { CROP_PLAN_KEY } from "@/lib/crops";
-import { FIELD_FORM_KINDS, type FieldFormKind } from "@/lib/field-forms";
+import { FIELD_FORM_KINDS, fieldForm, type FieldFormKind } from "@/lib/field-forms";
 import { seedDatabase } from "@/server/demo-seed";
-import { fieldFormFile } from "@/server/distribution-form";
+import { setupFor } from "@/server/field-store";
 import { toSubmission } from "@/server/kobo";
 import { saveProjectState } from "@/server/project-state";
 import { ready } from "@/server/__tests__/test-db";
 
 /**
- * The app makes a project's readiness, training and farm visit forms as files KoboToolbox takes,
- * and reads back every answer its own forms ask for.
+ * The app's own readiness, training and farm visit forms (filled in inside the app since KoboToolbox
+ * was removed), and every answer they ask for read back, as it was from KoboCollect.
  */
 const code = "A-2027";
 const project = async () => (await db.select().from(s.projects).where(eq(s.projects.code, code)))[0];
 
+/** The form as the app shows it (lib/field-forms), with the crop plan saved in Set up. */
 async function sheets(kind: FieldFormKind) {
-  const file = await fieldFormFile(code, kind);
-  const wb = new ExcelJS.Workbook();
-  await wb.xlsx.load(file.bytes as unknown as ArrayBuffer);
-  const rows = (name: string) => {
-    const out: string[][] = [];
-    wb.getWorksheet(name)!.eachRow((r) => out.push((r.values as unknown[]).slice(1).map((v) => (v == null ? "" : String(v)))));
-    return out;
-  };
-  return { file, names: wb.worksheets.map((w) => w.name), survey: rows("survey"), settings: rows("settings") };
+  const setup = await setupFor(code);
+  const f = fieldForm(kind, code, "app", setup?.plan ?? null);
+  return { survey: f.survey, settings: f.settings };
 }
 const questions = (survey: string[][]) => survey.slice(1).map((r) => r[1]);
 
@@ -49,11 +43,9 @@ beforeAll(async () => {
 });
 
 describe("a project's field forms, made by the app", () => {
-  it("each is an XLSForm file named for the project", async () => {
+  it("each is named for the project and says which project it is", async () => {
     for (const kind of FIELD_FORM_KINDS) {
       const f = await sheets(kind);
-      expect(f.names).toEqual(["survey", "choices", "settings"]);
-      expect(f.file.filename).toMatch(/^a-2027-(readiness-check|training-attendance|farm-visit)-form\.xlsx$/);
       expect(f.settings[1][0]).toMatch(/^A-2027 /);
       expect(questions(f.survey)).toContain("project_code");
     }

@@ -1,12 +1,12 @@
 "use client";
 
+import { mayOpenForms } from "@/lib/app-forms";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useCurrentProject } from "@/components/app/current-project";
 import { useT } from "@/components/app/i18n";
 import { hasStarted, useProjectStage } from "@/components/app/project-stage";
 import { useSession } from "@/components/app/session";
-import { useKoboServer } from "@/components/app/use-project-data";
 import { taskHref, taskSources } from "@/components/tasks/sources";
 import type { MessageKey } from "@/lib/i18n";
 import { holdsType } from "@/lib/authority";
@@ -41,7 +41,6 @@ export function useNewActions(): Action[] {
   const sources = user ? taskSources(user, project) : [];
   const field = sources.includes("field");
   const proc = sources.includes("procurement");
-  const kobo = useKoboServer(field && project.saved ? project.id : null);
   if (!user || user.kind !== "employee") return [];
   const started = hasStarted(stage);
   const canSeeOpportunities = acrossProjectsFor(user, (r) => holdsType(user.id, r)).some((a) => a.id === "opportunities");
@@ -56,9 +55,9 @@ export function useNewActions(): Action[] {
     !!project.saved && user.fieldAccess === "edit" && (project.handRecorded ?? 0) > 0 && { key: "result", label: "new.result", href: "/progress/results?record=1", group: "work.group.execute" },
     !!project.saved && (user.fieldAccess === "edit" || user.project.includes("mel-owner")) && { key: "weekly", label: "new.weekly", href: "/progress/weekly?new=1", group: "work.group.execute" },
     field && { key: "finding", label: "work.new.field", hint: "work.new.fieldHint", href: taskHref("field", "new=1"), group: "work.group.field" },
-    // Field activities shows where each farmer is; KoboCollect records the visits.
+    // Field activities shows where each farmer is; the field forms record the visits.
     field && { key: "step", label: "work.new.farmerStep", hint: "work.new.farmerStepHint", href: taskHref("field"), group: "work.group.field" },
-    field && { key: "kobo", label: "new.kobo", hint: "work.new.koboHint", href: kobo, external: true, group: "work.group.field" },
+    field && mayOpenForms(user) && { key: "form", label: "new.fieldForm", hint: "work.new.fieldFormHint", href: "/work?source=field#fill-in-a-form", group: "work.group.field" },
     !!requestHref && { key: "request", label: "work.new.procurement", hint: "work.new.procurementHint", href: requestHref, group: "work.group.procurement" },
     !!project.saved && mayRecordBills && { key: "bill", label: "work.new.bill", hint: "work.new.billHint", href: "/work/bills", group: "work.group.procurement" },
     started && { key: "report", label: "work.new.report", hint: "work.new.reportHint", href: "/progress/report", group: "work.group.report" },

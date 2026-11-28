@@ -753,7 +753,7 @@ function FormLinks({ hasPackage }: { hasPackage: boolean }) {
   if (!user || !mayOpenForms(user)) return null;
   const kinds = APP_FORM_KINDS.filter((k) => (k === "register" ? mayRegister(user) : mayFillForms(user)) && (k !== "distribution" || hasPackage));
   return (
-    <nav aria-labelledby="fill-in" className="mx-3 mt-4 font-bands sm:mx-4">
+    <nav id="fill-in-a-form" aria-labelledby="fill-in" className="mx-3 mt-4 font-bands sm:mx-4">
       <h2 id="fill-in" className="text-base font-extrabold">{tx("Fill in a form")}</h2>
       <ul className="mt-1.5 flex flex-wrap gap-1.5">
         {kinds.map((k) => (

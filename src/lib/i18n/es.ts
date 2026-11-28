@@ -17,7 +17,6 @@ import { bdEs } from "./boards.es";
 import { cnEs } from "./connections.es";
 import { pwEs } from "./plain-words.es";
 import { qcEs } from "./qpr-checks.es";
-import { ksEs } from "./kobo-suggest.es";
 import { agEs } from "./agreement.es";
 import { evEs } from "./evidence.es";
 import { lvEs } from "./hr/leave.es";
@@ -548,7 +547,6 @@ export const es: Messages = {
   ...cnEs,
   ...pwEs,
   ...qcEs,
-  ...ksEs,
   ...agEs,
   ...evEs,
   ...expEs,

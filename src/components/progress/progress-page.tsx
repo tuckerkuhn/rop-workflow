@@ -17,7 +17,7 @@ import { useCurrentProject } from "@/components/app/current-project";
 import { DonorFilter, useDonorChoice } from "@/components/app/donor-filter";
 import { useT } from "@/components/app/i18n";
 import { useRequireUser } from "@/components/app/session";
-import { useKobo, useProgress, useWorkItems } from "@/components/app/use-project-data";
+import { useProgress, useWorkItems } from "@/components/app/use-project-data";
 import { canEditProject } from "@/lib/demo";
 import { ReportView } from "@/components/progress/report-view";
 import { Pill, SectionLabel, TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
@@ -38,10 +38,6 @@ export function ProgressPage() {
   const work = useWorkItems(project.id);
   const donors = progress.data?.donors ?? [];
   const { donor, setDonor } = useDonorChoice(project.id, donors);
-  const kobo = useKobo(project.id);
-  const [syncing, setSyncing] = useState(false);
-  const [syncNote, setSyncNote] = useState("");
-  const [syncFailed, setSyncFailed] = useState(false);
   const [exporting, setExporting] = useState(false);
   const calendar = useReportCalendar();
   const closeExport = useCallback(() => setExporting(false), []);
@@ -73,22 +69,6 @@ export function ProgressPage() {
   // Donors see the numbers; the report itself reaches them only once Roots of Peace releases it.
   const staff = user.kind === "employee";
   const editor = canEditProject(user);
-  const canSync = !!kobo.state?.connection && (editor || user.project.includes("mel-owner"));
-  const sync = async () => {
-    setSyncing(true);
-    setSyncNote("");
-    setSyncFailed(false);
-    try {
-      const r = await kobo.sync();
-      setSyncNote(t("kobo.synced", { added: r.added, fetched: r.fetched, forms: r.forms }) + (r.updated || r.removed ? ` ${t("kobo.syncedChanges", { updated: r.updated, removed: r.removed })}` : ""));
-      await progress.reload();
-    } catch (e) {
-      setSyncFailed(true);
-      setSyncNote(e instanceof Error ? e.message : String(e));
-    } finally {
-      setSyncing(false);
-    }
-  };
   const doc = staff && data && tracked.length ? buildReport(data, donor, tracked, work.items, t, (iso) => date(iso, { day: "numeric", month: "short", year: "numeric" })) : null;
 
   return (
@@ -108,21 +88,7 @@ export function ProgressPage() {
         {staff && project.saved && <ProgressSummaryPanel projectId={project.id} userId={user.id} />}
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <DonorFilter donors={donors} donor={donor} onChange={setDonor} />
-          {canSync && (
-            <span className="flex flex-wrap items-center gap-2 text-sm">
-              <button type="button" onClick={() => void sync()} disabled={syncing} className={`${quietBtn} py-2`}>
-                {syncing ? t("kobo.syncing") : t("progress.sync")}
-              </button>
-              {kobo.state?.connection?.lastSyncedAt && <span className="text-xs text-muted">{t("progress.lastSync", { date: date(kobo.state.connection.lastSyncedAt.slice(0, 10)) })}</span>}
-            </span>
-          )}
         </div>
-        {syncNote && (
-          <p role={syncFailed ? "alert" : "status"} className={`mt-2 text-sm ${syncFailed ? "text-clay" : "text-forest"}`}>
-            {syncNote}
-          </p>
-        )}
-
         {progress.status === "loading" && <p className="py-16 text-center text-sm text-muted">{t("progress.loading")}</p>}
         {progress.error && (
           <p role="alert" className="mt-4 rounded-xl bg-clay-soft px-4 py-3 text-sm text-clay">
@@ -264,7 +230,7 @@ function IndicatorCard({ i, donorCode, canMap, staff, judged }: { i: IndicatorPr
             {canMap && (
               <>
                 {" · "}
-                <Link href="/setup?step=kobo-map" className="font-semibold text-forest hover:underline">
+                <Link href="/progress/results" className="font-semibold text-forest hover:underline">
                   {t("progress.mapIt")}
                 </Link>
               </>
