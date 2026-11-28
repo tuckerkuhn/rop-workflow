@@ -150,8 +150,8 @@ describe("the ledger screens", { timeout: 60_000 }, () => {
     expect((await view("nadia")).body.drafts).toHaveLength(0);
 
     const refused = await draft("yusuf", r.body.entryId, "post");
-    expect(refused.status).toBe(409);
-    expect(refused.body.error).toMatch(/someone other than/);
+    expect(refused.status).toBe(403);
+    expect(refused.body.error).toMatch(/someone else in Finance posts it/);
     expect((await draft("nadia", r.body.entryId, "post")).status).toBe(403);
     const posted = await draft("omid", r.body.entryId, "post");
     expect(posted.status).toBe(200);
@@ -202,6 +202,20 @@ describe("the ledger screens", { timeout: 60_000 }, () => {
     const r = await pay("yusuf", { ...f, thirdParty: { receivedBy: "Ahmad Noori", authorization: f.receipt, screenedOn: new Date().toISOString().slice(0, 10) } });
     expect(r.status).toBe(400);
     expect((r.body as unknown as { error: string }).error).toContain("a document of its own");
+  });
+
+  it("payments to one payee on one day are added up, and the held one is posted by someone else (R2-17)", async () => {
+    const { ledgerSettings } = await import("@/server/ledger");
+    const project = await projectByCode(code);
+    const limit = Number((await ledgerSettings(project.organizationId)).selfPostLimit);
+    if (limit < 2) return; // no self-posting allowed at all: every payment is a draft already
+    const payee = "Bamyan Seed Shop (fictional)";
+    const first = await pay("yusuf", form((Math.floor(limit / 2) + 1).toFixed(2), { payee }));
+    expect(first.body.outcome).toBe("posted");
+    const second = await pay("yusuf", form((Math.floor(limit / 2) + 1).toFixed(2), { payee }));
+    expect(second.body.outcome).toBe("draft");
+    expect((await draft("yusuf", second.body.entryId, "post")).status).toBe(403);
+    expect((await draft("omid", second.body.entryId, "post")).status).toBe(200);
   });
 
   // Review round 1, ISS-02: the review posted a purchase's payment here, to a third party, with no warning.

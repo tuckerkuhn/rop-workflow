@@ -27,6 +27,9 @@ export async function POST(req: Request, { params }: Ctx) {
     try {
       if (action === "post") {
         if (!may.post) throw new HttpError(403, "Finance posts drafts to the books.");
+        // A payment kept as a draft is waiting for a second person, whatever the reason it was held
+        // (over the limit, the payee supplies an open purchase, the day's total; code review of R2-06/R2-17).
+        if (e.sourceType === "payment" && e.recordedBy === v.user.id) throw new HttpError(403, "You recorded this payment, so someone else in Finance posts it.");
         // A reversal of a bill's or a purchase's entry also takes the amount off the old spent column.
         const r = await postExpenditureDraft(id, v.user.id);
         return NextResponse.json({ outcome: "posted", entryId: r.entry.id });
