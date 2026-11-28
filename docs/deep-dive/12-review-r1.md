@@ -148,8 +148,38 @@
       twice. `scripts/load-check.mjs` and `docs/deep-dive/14-db-connections-check.md` give the
       preview test of the transaction pooler (Needs Tucker 20).
     - `7efb003` the sample staff carry fictional grades, so the demo can form a hiring panel.
-    - Role-by-role pass on the seven scenarios: under way on the local copy.
-- **Tests:** 200 files, 1,422 tests, all passing (39 tests of removed Kobo features went with them). Typecheck and lint clean.
+    - Role-by-role pass on the seven scenarios, done on the local copy by a separate reviewer (not
+      the builder): 26 issues, `docs/deep-dive/15-review-r2.md` in round 1's shape (Critical 1,
+      High 11, Medium 12, Low 2). Fixed since, one commit each, each with a test:
+      - R2-01 `9644a0e` (Critical): nobody could sign a purchase above $25,000 or a sole source. The
+        person the approval table names may now sign with view access; the guard still limits them
+        to their own step.
+      - R2-02 `962336c`: only the procurement manager changes a calendar item's technical lead, never
+        to a procurement person or to themselves.
+      - R2-03, R2-04 `9f1958d`: a budget shortfall override needs a reason and Finance's
+        confirmation; a contract above the requisition (or chosen bid) or the line stops at
+        "Prepare the contract" until an approved amendment is confirmed by Finance.
+      - R2-05 `cf17bd3`: new requests on the demo project start from its calendar too.
+      - R2-06, 07, 08, 11, 17 `2075e00`: Record a payment finds a purchase number however written;
+        one receipt is paid once; a second person posts when the recorder may not post, when the
+        payee supplies an open purchase on the line, or when a day's payments to one payee pass the
+        limit; "paid via" a person asks the third-party questions.
+      - R2-09, 14, 25 `35d1f63`: Finance never pays their own advance; one open advance per person;
+        a refused HR action is not written to the HR record.
+      - R2-10 `88f3a5e`: a possible sanctions match is cleared by someone else, with a note; a
+        farmer's screenings are read by date and count for a year.
+      - R2-13, 16, 21 `798eb4f`: a delegate's procurement signature is accepted; an away
+        supervisor's delegate approves advances and timesheets; a delegate is the line manager or
+        holds the same role.
+      - R2-18 `4c284ab`, R2-26 `4a2aa05`, R2-22 `7d1d093`, R2-12 `77560e7`, R2-19 `923da4e`,
+        R2-24 `0f12aff`, R2-23 `017cda3`, R2-20 `6fd6bc9`: farmer IDs without case;
+        signatories from the staff list; a vacancy dated from the day it is opened; the
+        authorization is not the receipt; the bulk sample is drawn again by the server; a
+        reconciliation needs the statement's lines; a hire comes through Recruitment or says why;
+        a selection exception waits for a second person.
+      - Not fixed: R2-15 (advances are not yet in the books; Needs Tucker 21) and the second half
+        of R2-12 (the receiver's screening date is typed, not looked up; Needs Tucker 24).
+- **Tests:** 200 files, 1,443 tests, all passing (39 tests of removed Kobo features went with them). Typecheck and lint clean.
 - **Seen on screen** (desktop, local throwaway database, never Supabase): the ISS-18 flag as Nadia
   (queue and record), ISS-20 on Project settings and the donor view, ISS-12 as Daniel. Part 2
   step 1: as Farida, a readiness check filled in (the "what needs fixing" question appears on No,
@@ -205,16 +235,25 @@
      before a panel can sit; a panel member without one is refused.
   20. Database connections: run the preview load check in `14-db-connections-check.md` (session
      pooler, then `DB_POOL_MODE=transaction`), then pick: transaction pooler, or a bigger pool in Supabase.
+  21. R2-15: paying an advance writes only an HR record entry, not the books. Post it as Dr 1200
+     Staff advances, Cr the bank or cash account it came from (a registered one), and the
+     settlement against the budget lines? Not built: it decides how advances are coded.
+  22. R2-05: the demo project now follows its calendar for new requests; its sample records and the
+     supplier register stay exempt. Enforce the supplier register on the demo too?
+  23. R2-21: a delegate must be the line manager or hold the same role (authority table or app
+     role). Nadia can no longer name Omar (MEL, her report). Right rule?
+  24. R2-12: the third-party receiver's screening date is typed, not taken from a screening record.
+     Keep, or require a recorded screening of the receiver?
+  25. R2-23: a hire is matched to Recruitment by the candidate's name; anyone else needs a reason
+     for the signers. Make the reason a block instead (no hire outside Recruitment)?
   13. MF-01: D-13 says the board approves the authority table as the written delegation. That is
      a board step, not the app's: the app only lets a delegate act within the table.
   12. The Dari, Pashto and Spanish wording files still carry some old Kobo sentences that no screen
      shows; the new sentences are English only until translated.
-- **Half done:** step 4: photos already in the database stay there until a move script runs (to
-  write); a donor's share link does not yet show a photo kept in file storage. Kobo still works
-  beside the in-app forms until step 7.
-- **Next:** Part 2 step 3, the rules that carry over (nobody approves data they collected; the named
-  MEL approver checks field data before it flows on; every distribution needs its signed receipt
-  and photo; a visitor's photo is a picture of the work, not proof), then steps 4 to 7.
+- **Half done:** nothing in the middle of a change. Photos already in the database move to file
+  storage with `npm run photos:move` once Tucker switches it on (8).
+- **Next:** Tucker's review of the decision points below, then the phone test (9) and a round 3
+  pass on the screens not yet seen.
 
 Source: `ROP_Workflow_Review_Round_1.xlsx` (30 issues, 28 decisions, 13 missing features),
 reviewed 26 Nov 2026 for Daniel Sandoval and Tucker Kuhn. Branch:
