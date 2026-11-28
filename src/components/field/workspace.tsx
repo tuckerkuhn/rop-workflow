@@ -32,7 +32,7 @@ import {
 } from "@/components/workspace/ui";
 import { holderOf, type AppUser } from "@/lib/demo";
 import { NoAccess } from "@/components/workspace/ui";
-import { inFieldQueue, outcomeLabel, type Shown } from "@/lib/selection";
+import { inFieldQueue, noSelectionRule, outcomeLabel, STARTS_WITHOUT_RULE, type Shown } from "@/lib/selection";
 import {
   ISSUE_FOOTNOTE,
   addDays,
@@ -343,12 +343,15 @@ function Detail({
   onBack,
   onOpen,
   outcome,
+  noRule,
 }: {
   item: FieldItem;
   role: FieldRole | null;
   ctx: Ctx;
   /** The farmer's selection outcome, when the project uses selection. */
   outcome?: Shown;
+  /** ISS-18: no selection rule is saved for the project. */
+  noRule?: boolean;
   apply: (fn: (i: FieldItem) => FieldItem, stock?: Stock) => void;
   onBack: () => void;
   onOpen: (id: string) => void;
@@ -396,6 +399,14 @@ function Detail({
             {item.step === "correct" && <StatusPill tone="clay">{tx("Correcting")}</StatusPill>}
             {outcome && <Pill tone={outcome === "selected" ? "forest" : "ochre"}>{tx(outcomeLabel[outcome])}</Pill>}
           </div>
+          {noRule && STARTS_WITHOUT_RULE.has(item.step) && (
+            <p role="note" className="mt-3 border-s-[6px] border-ochre bg-ochre-soft px-3 py-2 text-sm font-medium">
+              {tx("No farmer selection rule is saved for this project, so nothing written says why this farmer takes part.")}{" "}
+              <Link href="/work/selection" className="font-bold underline">
+                {tx("Farmer selection")}
+              </Link>
+            </p>
+          )}
           <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3">
             <h2 className="break-words text-3xl font-extrabold leading-tight tracking-tight">{farmerName(item, user)}</h2>
             <Link href={`/field/farmers/${item.id}`} className={bandLink}>
@@ -744,6 +755,7 @@ export function FieldWorkspace() {
   const outcomeOfItem = (i: FieldItem) => (i.kind === "farmer" ? selection?.[i.id] : undefined);
   const items = all.filter((i) => inFieldQueue(outcomeOfItem(i)));
   const heldBack = all.length - items.length;
+  const ruleFlag = status === "ready" ? noSelectionRule(selection, all.filter((i) => i.kind === "farmer")) : null;
   const [panel, setPanel] = useState<"" | "package" | "farmers">("");
   const [pickedRole, setPickedRole] = useState<FieldRole | null>(null);
   const counts = Object.fromEntries(fieldRoles.map((r) => [r.id, items.filter((i) => ownerOfItem(i) === r.id).length]));
@@ -871,6 +883,14 @@ export function FieldWorkspace() {
               <p className="border-t border-line pt-2 font-bold">
                 {tx("Store: {items}", { items: status === "loading" ? "…" : ctx.setup.items.map((p) => qtyItem(stock[p.key] ?? 0, p.unit, p.item)).join(" · ") })}
               </p>
+              {ruleFlag && (
+                <p role="note" className="border-s-[6px] border-ochre bg-ochre-soft px-3 py-2 font-medium">
+                  {ruleFlag}{" "}
+                  <Link href="/work/selection" className="font-bold underline">
+                    {tx("Write the rule")}
+                  </Link>
+                </p>
+              )}
               {heldBack > 0 && (
                 <p className="border-t border-line pt-2 font-medium text-muted">
                   {heldBack === 1 ? tx("1 farmer waitlisted or not qualified is not in this queue.") : tx("{n} farmers waitlisted or not qualified are not in this queue.", { n: heldBack })}
@@ -1016,6 +1036,7 @@ export function FieldWorkspace() {
               ctx={ctx}
               apply={apply(current.id)}
               outcome={outcomeOfItem(current)}
+              noRule={!!ruleFlag}
               onBack={() => setMobileDetail(false)}
               onOpen={(id) => {
                 setSelected(id);

@@ -117,6 +117,20 @@ export function outcomesById(s: Selection): Record<string, Shown> | null {
   if (!s.criteria.length) return null;
   return Object.fromEntries(Object.entries(s.decisions).map(([id, d]) => [id, outcomeOf(s, d)]));
 }
+/**
+ * Review round 1, ISS-18: farmers are trained and given inputs while no selection rule is saved.
+ * Flagged (never blocked) on the screens where training and hand-outs start, until the rule is
+ * written. `outcomes`: outcomesById, null when no rule is saved. Null when there is nothing to say.
+ */
+export function noSelectionRule(outcomes: Record<string, Shown> | null, farmers: readonly { step: string }[]): string | null {
+  if (outcomes) return null;
+  const n = farmers.filter((f) => f.step !== "removed").length;
+  if (!n) return null;
+  return `No farmer selection rule is saved for this project, yet ${n === 1 ? "1 farmer is" : `${n} farmers are`} being trained and given inputs. The project manager or a plan approver writes the rule in Farmer selection.`;
+}
+/** The farmer steps where training or a hand-out starts: where the missing rule is flagged on the record. */
+export const STARTS_WITHOUT_RULE = new Set(["train", "distribute"]);
+
 /** Whether the field team should train and serve this farmer: no decision yet, or selected. */
 export const inFieldQueue = (o: Shown | undefined) => !o || o === "selected";
 
