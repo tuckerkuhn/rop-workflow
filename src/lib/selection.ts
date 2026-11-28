@@ -62,8 +62,8 @@ export const selectionAction = z.discriminatedUnion("action", [
     /** Rules checked against each farmer's record (lib/eligibility), at most one of each kind. */
     checks: z
       .array(ruleSchema)
-      .max(4)
-      .refine((l) => new Set(l.map((r) => r.kind)).size === l.length, "Each kind of checked rule is set once.")
+      .max(12)
+      .refine((l) => new Set(l.map((r) => `${r.kind}:${r.package ?? ""}`)).size === l.length, "Each kind of checked rule is set once for each package.")
       .optional(),
     /** Needed once any farmer has been decided: why the rule is changing. */
     reason: z.string().trim().max(600).default(""),
@@ -180,8 +180,10 @@ export const isException = (s: Selection, d: Decision) => d.selected && (d.excep
  * The rules as saved: the written ones, then the checked ones in words (lib/eligibility). Null and
  * a reason when they cannot be saved.
  */
-export function rulesFrom(criteria: string[], checks: Rule[] = []): { list: { text: string; rule?: Rule }[] } | { problem: string } {
-  const list = [...criteria.map((text) => ({ text })), ...checks.map((rule) => ({ text: ruleText(rule), rule }))];
+export function rulesFrom(criteria: string[], checks: Rule[] = [], packages: { key: string; name: string }[] = []): { list: { text: string; rule?: Rule }[] } | { problem: string } {
+  const unknown = checks.find((r) => r.package && !packages.some((p) => p.key === r.package));
+  if (unknown) return { problem: "A rule names a package this project does not offer. Reload the page." };
+  const list = [...criteria.map((text) => ({ text })), ...checks.map((rule) => ({ text: ruleText(rule, packages.find((p) => p.key === rule.package)?.name), rule }))];
   if (!list.length) return { problem: "Write at least one rule." };
   if (list.length > 12) return { problem: "Twelve rules at most." };
   if (new Set(list.map((r) => r.text.toLowerCase())).size !== list.length) return { problem: "Each rule is written once." };

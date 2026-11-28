@@ -27,6 +27,20 @@ async function call(url: string, user: string, init?: RequestInit): Promise<Sele
   return body as SelectionView;
 }
 
+type Draft = { min: string; max: string; villages: string; crops: string; rate: string; women: string };
+const num0 = (x: string) => (x.trim() === "" ? undefined : Number(x.replace(",", ".")));
+/** The checked rules typed for all farmers ("") or one package. */
+function checksOf(x: Draft, pkg: string): Rule[] {
+  const p = pkg ? { package: pkg } : {};
+  const [min, max, rate, women] = [num0(x.min), num0(x.max), num0(x.rate), num0(x.women)];
+  return [
+    ...(min !== undefined || max !== undefined ? [{ kind: "land" as const, ...p, ...(min !== undefined ? { min } : {}), ...(max !== undefined ? { max } : {}) }] : []),
+    ...(splitNames(x.villages).length ? [{ kind: "location" as const, ...p, villages: splitNames(x.villages) }] : []),
+    ...(splitNames(x.crops).length ? [{ kind: "crop" as const, ...p, crops: splitNames(x.crops) }] : []),
+    ...(rate !== undefined ? [{ kind: "contribution" as const, ...p, rate, ...(women !== undefined ? { womenRate: women } : {}) }] : []),
+  ];
+}
+
 function Rules({ v, act }: { v: SelectionView; act: (a: SelectionAction) => Promise<void> }) {
   const s = v.selection;
   const [editing, setEditing] = useState(!s.criteria.length);
@@ -34,23 +48,22 @@ function Rules({ v, act }: { v: SelectionView; act: (a: SelectionAction) => Prom
   const written = s.criteria.filter((c) => !c.rule);
   const [rules, setRules] = useState<string[]>(written.length ? written.map((c) => c.text) : s.criteria.length ? [""] : ["", "", ""]);
   const [reason, setReason] = useState("");
-  // Rules the app checks against each farmer's record (MF-12): kept as typed, made into rules on save.
-  const ruleOf = <K extends Rule["kind"]>(k: K) => s.criteria.find((c) => c.rule?.kind === k)?.rule as Extract<Rule, { kind: K }> | undefined;
+  // Rules the app checks against each farmer's record (MF-12), for all farmers ("") or one package
+  // (Tucker, 28 Nov): kept as typed, made into rules on save.
   const num = (n?: number) => (n === undefined ? "" : String(n));
-  const [land, setLand] = useState({ min: num(ruleOf("land")?.min), max: num(ruleOf("land")?.max) });
-  const [villages, setVillages] = useState((ruleOf("location")?.villages ?? []).join(", "));
-  const [crops, setCrops] = useState((ruleOf("crop")?.crops ?? []).join(", "));
-  const [share, setShare] = useState({ rate: num(ruleOf("contribution")?.rate), women: num(ruleOf("contribution")?.womenRate) });
+  const draftFor = (pkg: string): Draft => {
+    const of = <K extends Rule["kind"]>(k: K) => s.criteria.find((c) => c.rule?.kind === k && (c.rule.package ?? "") === pkg)?.rule as Extract<Rule, { kind: K }> | undefined;
+    return { min: num(of("land")?.min), max: num(of("land")?.max), villages: (of("location")?.villages ?? []).join(", "), crops: (of("crop")?.crops ?? []).join(", "), rate: num(of("contribution")?.rate), women: num(of("contribution")?.womenRate) };
+  };
+  const scopes = ["", ...v.packages.map((p) => p.key)];
+  const [drafts, setDrafts] = useState<Record<string, Draft>>(() => Object.fromEntries(scopes.map((k) => [k, draftFor(k)])));
+  const [scope, setScope] = useState("");
+  const d = drafts[scope] ?? draftFor(scope);
+  const put = (patch: Partial<Draft>) => setDrafts({ ...drafts, [scope]: { ...d, ...patch } });
   const decided = Object.keys(s.decisions).length;
   const clean = rules.map((r) => r.trim()).filter(Boolean);
-  const n = (x: string) => (x.trim() === "" ? undefined : Number(x.replace(",", ".")));
-  const checks: Rule[] = [
-    ...(n(land.min) !== undefined || n(land.max) !== undefined ? [{ kind: "land" as const, ...(n(land.min) !== undefined ? { min: n(land.min) } : {}), ...(n(land.max) !== undefined ? { max: n(land.max) } : {}) }] : []),
-    ...(splitNames(villages).length ? [{ kind: "location" as const, villages: splitNames(villages) }] : []),
-    ...(splitNames(crops).length ? [{ kind: "crop" as const, crops: splitNames(crops) }] : []),
-    ...(n(share.rate) !== undefined ? [{ kind: "contribution" as const, rate: n(share.rate)!, ...(n(share.women) !== undefined ? { womenRate: n(share.women) } : {}) }] : []),
-  ];
-  const badNumber = [land.min, land.max, share.rate, share.women].some((x) => x.trim() !== "" && !Number.isFinite(Number(x.replace(",", "."))));
+  const checks: Rule[] = scopes.flatMap((k) => checksOf(drafts[k] ?? draftFor(k), k));
+  const badNumber = Object.values(drafts).some((x) => [x.min, x.max, x.rate, x.women].some((y) => y.trim() !== "" && !Number.isFinite(Number(y.replace(",", ".")))));
   const anyRule = clean.length + checks.length > 0;
   if (!editing)
     return (
@@ -111,30 +124,39 @@ function Rules({ v, act }: { v: SelectionView; act: (a: SelectionAction) => Prom
       <fieldset className="mt-5 border-t border-line pt-3">
         <legend className="text-sm font-semibold">Rules the app checks against each farmer&apos;s record</legend>
         <p className="mt-1 text-xs text-muted">Leave a box empty for no rule. Each one filled becomes a rule above, and the app shows for each farmer whether their record meets it.</p>
+        {v.packages.length > 1 && (
+          <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="Rules for">
+            {scopes.map((k) => (
+              <button key={k} type="button" aria-pressed={scope === k} onClick={() => setScope(k)} className={scope === k ? primaryBtn : quietBtn}>
+                {k ? `${v.packages.find((p) => p.key === k)?.name} package` : "All farmers"}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="mt-2 grid gap-3 sm:grid-cols-2">
           <label className="block text-sm">
             Smallest plot (hectares)
-            <input className={input} inputMode="decimal" value={land.min} onChange={(e) => setLand({ ...land, min: e.target.value })} />
+            <input className={input} inputMode="decimal" value={d.min} onChange={(e) => put({ min: e.target.value })} />
           </label>
           <label className="block text-sm">
             Largest plot (hectares)
-            <input className={input} inputMode="decimal" value={land.max} onChange={(e) => setLand({ ...land, max: e.target.value })} />
+            <input className={input} inputMode="decimal" value={d.max} onChange={(e) => put({ max: e.target.value })} />
           </label>
           <label className="block text-sm">
             Villages (separate with commas)
-            <input className={input} value={villages} maxLength={2000} onChange={(e) => setVillages(e.target.value)} />
+            <input className={input} value={d.villages} maxLength={2000} onChange={(e) => put({ villages: e.target.value })} />
           </label>
           <label className="block text-sm">
             Grows now (separate with commas)
-            <input className={input} value={crops} maxLength={500} onChange={(e) => setCrops(e.target.value)} />
+            <input className={input} value={d.crops} maxLength={500} onChange={(e) => put({ crops: e.target.value })} />
           </label>
           <label className="block text-sm">
             Contribution (% of the package&apos;s value)
-            <input className={input} inputMode="decimal" value={share.rate} onChange={(e) => setShare({ ...share, rate: e.target.value })} />
+            <input className={input} inputMode="decimal" value={d.rate} onChange={(e) => put({ rate: e.target.value })} />
           </label>
           <label className="block text-sm">
             Contribution for women (%, if different)
-            <input className={input} inputMode="decimal" value={share.women} disabled={!share.rate.trim()} onChange={(e) => setShare({ ...share, women: e.target.value })} />
+            <input className={input} inputMode="decimal" value={d.women} disabled={!d.rate.trim()} onChange={(e) => put({ women: e.target.value })} />
           </label>
         </div>
       </fieldset>

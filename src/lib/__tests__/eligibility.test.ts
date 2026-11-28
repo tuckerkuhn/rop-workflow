@@ -44,3 +44,25 @@ describe("eligibility rules", () => {
     expect(rulesFrom(["Farms no more than 2 hectares"], [{ kind: "land", max: 2 }])).toEqual({ problem: "Each rule is written once." });
   });
 });
+
+describe("eligibility rules per package (Tucker, 28 Nov)", () => {
+  const pkgSetup = { items: [...setup.items, { key: "dt", item: "Drought seed", qty: 40, unit: "kg", per: "hectare" as const, budgetLine: "1.3", unitUsd: 3 }], packages: [{ key: "irrigated", name: "Irrigated", items: ["seed", "npk"] }, { key: "drought", name: "Drought-tolerant", items: ["dt", "npk"] }] };
+  const max1: Rule = { kind: "land", max: 1, package: "drought" };
+
+  it("a package's rule says so, and binds only the farmers who chose that package", () => {
+    expect(ruleText(max1, "Drought-tolerant")).toBe("Drought-tolerant package: farms no more than 1 hectare");
+    expect(ruleCheck(max1, { ...man, package: "drought" }).ok).toBe(false);
+    expect(ruleCheck(max1, { ...man, package: "irrigated" }, pkgSetup)).toEqual({ ok: true, detail: "Only for the Drought-tolerant package; this farmer chose Irrigated." });
+  });
+
+  it("the contribution is worked out on the value of the farmer's own package", () => {
+    expect(ruleCheck({ kind: "contribution", rate: 10 }, { ...woman, package: "drought" }, pkgSetup).detail).toBe("Contribution due: 10% of $85, $8.5. Not paid yet: tick if the farmer agreed.");
+  });
+
+  it("one rule of each kind per package, and only packages the project offers", () => {
+    const pk = [{ key: "drought", name: "Drought-tolerant" }];
+    const made = rulesFrom([], [{ kind: "land", max: 2 }, max1], pk);
+    expect("list" in made && made.list.map((r) => r.text)).toEqual(["Farms no more than 2 hectares", "Drought-tolerant package: farms no more than 1 hectare"]);
+    expect(rulesFrom([], [{ ...max1, package: "gold" }], pk)).toEqual({ problem: "A rule names a package this project does not offer. Reload the page." });
+  });
+});

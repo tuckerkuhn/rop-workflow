@@ -10,6 +10,7 @@ import { seedDatabase } from "@/server/demo-seed";
 import { saveForm } from "@/server/app-forms";
 import { importFarmers } from "@/server/farmers";
 import { loadField, saveSetup, setupFor } from "@/server/field-store";
+import { actOnSelection, loadSelection } from "@/server/selection-store";
 
 /** Tucker, 28 Nov: farmers choose one of the project's packages; the record keeps it and plans by it. */
 const code = "A-2027";
@@ -32,6 +33,14 @@ describe("packages on a project", { timeout: 60_000 }, () => {
     const farmers = (await loadField(code, farida)).items.filter((i): i is Farmer => i.kind === "farmer");
     for (const id of ["F-PKG-1", "F-PKG-2"]) expect(farmers.find((f) => f.id === id)!.package).toBe("seed_only");
     expect(itemsFor((await setupFor(code))!, 1, "seed_only").map((i) => i.key)).toEqual([a]);
+    // A rule set for one package binds only the farmers who chose it.
+    expect(await actOnSelection(code, { action: "criteria", outreach: "Announced at the village meeting.", criteria: [], checks: [{ kind: "land", max: 0.5, package: "seed_only" }], reason: "" }, nadia)).toBeNull();
+    const v = await loadSelection(code, nadia);
+    const rule = v.selection.criteria[0];
+    expect(rule.text).toBe("Seed only package: farms no more than 0.5 hectares");
+    expect(v.farmers.find((f) => f.id === "F-PKG-1")!.checks[rule.id].ok).toBe(false);
+    const other = v.farmers.find((f) => !f.package)!;
+    expect(other.checks[rule.id]).toEqual({ ok: true, detail: "Only for the Seed only package; this farmer has no package recorded." });
     await expect(importFarmers(code, [{ id: "F-PKG-3", village: "Qala", gender: "Male", hectares: 1, package: "Gold" }], { id: nadia.id, name: nadia.name })).rejects.toThrow(/does not offer: F-PKG-3 \("Gold"\)/);
   });
 });

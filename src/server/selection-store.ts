@@ -34,11 +34,12 @@ export async function loadSelection(code: string, u: AppUser) {
       community: f.community,
       hectares: f.hectares,
       enrolled: f.enrolled,
+      package: f.package ?? null,
       // What the record says for each rule the app checks (MF-12), by rule id.
       checks: Object.fromEntries(s.criteria.filter((c) => c.rule).map((c) => [c.id, ruleCheck(c.rule!, f, setup)])) as Record<string, RuleCheck>,
     }))
     .sort((a, b) => a.id.localeCompare(b.id));
-  return { project: { code, name: project.name }, selection: s, farmers, counts: selectionCounts(s, farmers), can: { rules: mayDecide(u), decide: mayDecide(u) } };
+  return { project: { code, name: project.name }, packages: (setup?.packages ?? []).map((p) => ({ key: p.key, name: p.name })), selection: s, farmers, counts: selectionCounts(s, farmers), can: { rules: mayDecide(u), decide: mayDecide(u) } };
 }
 export type SelectionView = Awaited<ReturnType<typeof loadSelection>>;
 
@@ -62,6 +63,8 @@ export async function actOnSelection(code: string, a: SelectionAction, u: AppUse
       .limit(1);
     if (!known) return "No such farmer on this project's list.";
   }
+  // The project's packages, for rules set per package: read before the rules are opened for writing.
+  const packagesNow = a.action === "criteria" ? await setupFor(code) : null;
   // The farmer's record and the package, read before the rules are opened for writing (MF-12 checks).
   const record =
     a.action === "decide"
@@ -78,7 +81,7 @@ export async function actOnSelection(code: string, a: SelectionAction, u: AppUse
     if (a.action === "criteria") {
       const decided = Object.keys(s.decisions).length;
       // Putting the same rules in another order is not a change of rules.
-      const made = rulesFrom(a.criteria, a.checks);
+      const made = rulesFrom(a.criteria, a.checks, (packagesNow?.packages ?? []).map((p) => ({ key: p.key, name: p.name })));
       if ("problem" in made) return { data: null, result: made.problem };
       const texts = made.list.map((r) => r.text);
       const rulesChanged = !sameRules(s.criteria.map((c) => c.text), texts);
