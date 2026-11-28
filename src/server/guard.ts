@@ -25,6 +25,8 @@ export class HttpError extends Error {
   constructor(
     readonly status: number,
     message: string,
+    /** More for the screen to act on, sent beside the message (never personal data). */
+    readonly extra?: Record<string, unknown>,
   ) {
     super(message);
     this.name = "HttpError";
@@ -46,7 +48,7 @@ export async function handle(fn: () => Promise<Response>, where = "api"): Promis
     // The route runs with its own short memory for repeated reads (server/request-memo).
     return await withRequestMemo(fn);
   } catch (e) {
-    if (e instanceof HttpError) return NextResponse.json({ error: e.message }, { status: e.status });
+    if (e instanceof HttpError) return NextResponse.json({ error: e.message, ...e.extra }, { status: e.status });
     const msg = e instanceof Error ? e.message : String(e);
     const setup = msg.startsWith("DATABASE_URL") || /ENOTFOUND|ECONNREFUSED|password authentication|getaddrinfo|relation .* does not exist/i.test(msg);
     console.error(e);

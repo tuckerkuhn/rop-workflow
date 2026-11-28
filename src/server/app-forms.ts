@@ -48,6 +48,8 @@ export type FormEntry = {
   answers: Answers;
   /** Each photo question's picture, by question name. */
   photos?: Record<string, string>;
+  /** Register a farmer: the person checked the possible duplicates shown and says this is someone new. */
+  duplicatesChecked?: boolean;
 };
 
 /**
@@ -72,7 +74,7 @@ export async function saveForm(code: string, kind: AppFormKind, entry: FormEntry
     answers[q.name] = `${photos[q.name].sha256.slice(0, 16)}.jpg`;
   }
 
-  if (kind === "register") return { farmer: await register(code, answers, user) };
+  if (kind === "register") return { farmer: await register(code, answers, user, !!entry.duplicatesChecked) };
 
   const project = await projectByCode(code);
   const key = `app:${entry.entryId}`;
@@ -115,7 +117,7 @@ export async function saveForm(code: string, kind: AppFormKind, entry: FormEntry
   return { id: row.id, again: false };
 }
 
-async function register(code: string, a: Answers, user: AppUser) {
+async function register(code: string, a: Answers, user: AppUser, duplicatesChecked: boolean) {
   const project = await projectByCode(code);
   const id = a.farmer_id!;
   const household = parseHousehold(a.household ?? "").members;
@@ -129,7 +131,7 @@ async function register(code: string, a: Answers, user: AppUser) {
         village: a.village!,
         gender: a.sex === "Male" ? "Male" : "Female",
         hectares: Number(a.hectares),
-        ...(a.farmer_name && canSeePII(user) ? { name: a.farmer_name } : {}),
+        ...(a.farmer_name && canSeePII(user) ? { name: a.farmer_name, ...(a.phone ? { phone: a.phone } : {}) } : {}),
         ...(a.age_band ? { ageBand: a.age_band as never } : {}),
         ...(a.household_size ? { householdSize: Number(a.household_size) } : {}),
         ...(household.length ? { household, householdSize: household.length } : {}),
@@ -137,6 +139,7 @@ async function register(code: string, a: Answers, user: AppUser) {
       },
     ],
     { id: user.id, name: user.name },
+    { duplicatesChecked },
   );
   return { id, ...r };
 }

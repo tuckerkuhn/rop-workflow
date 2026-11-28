@@ -134,7 +134,13 @@ export function registerForm(names: boolean): XlsForm {
     ["type", "name", "label", "hint", "required", "relevant", "appearance", "calculation", "default", "parameters", "constraint", "constraint_message"],
     ["start-geopoint", "start_geopoint", "", "", "", "", "", "", "", "", "", ""],
     ["text", "farmer_id", "Farmer ID", "As written on the farmer's card. Letters, digits, . _ and - only.", "yes", "", "", "", "", "", "", ""],
-    ...(names ? [["text", "farmer_name", "Farmer's name (optional)", "Kept in the app only. It never goes to donors, reports or the AI.", "", "", "", "", "", "", "", ""]] : []),
+    ...(names
+      ? [
+          ["text", "farmer_name", "Farmer's name (optional)", "Kept in the app only. It never goes to donors, reports or the AI.", "", "", "", "", "", "", "", ""],
+          // Kept with the name; used to find a farmer registered twice (lib/duplicates).
+          ["text", "phone", "Phone number (optional)", "Kept with the name, for the same people.", "", "string-length(${farmer_name}) > 0", "", "", "", "", "", ""],
+        ]
+      : []),
     ["text", "village", "Village", "", "yes", "", "", "", "", "", "", ""],
     ["select_one sex", "sex", "Sex", "", "yes", "", "", "", "", "", "", ""],
     ["select_one age_band", "age_band", "Age", "", "", "", "", "", "", "", "", ""],
@@ -223,7 +229,8 @@ export function formProblems(form: AppForm, answers: Answers, lists: FormLists, 
       if (q.required) out.push({ name: q.name, text: about(label, `this is needed.`) });
       continue;
     }
-    if (form.kind === "register" && q.name === "farmer_id" && !FARMER_ID.test(v)) out.push({ name: q.name, text: about(label, `use letters, digits, . _ and - only, up to 40.`) });
+    if (form.kind === "register" && q.name === "phone" && !/^\+?[\d\s().-]{7,20}$/.test(v)) out.push({ name: q.name, text: about(label, `enter a phone number, digits only.`) });
+    else if (form.kind === "register" && q.name === "farmer_id" && !FARMER_ID.test(v)) out.push({ name: q.name, text: about(label, `use letters, digits, . _ and - only, up to 40.`) });
     else if (q.kind === "decimal" && !NUMBER.test(v)) out.push({ name: q.name, text: about(label, `enter a number.`) });
     else if (q.kind === "integer" && !/^-?\d+$/.test(v)) out.push({ name: q.name, text: about(label, `enter a whole number.`) });
     else if (q.kind === "household" && parseHousehold(v).problem) out.push({ name: q.name, text: about(label, parseHousehold(v).problem!) });

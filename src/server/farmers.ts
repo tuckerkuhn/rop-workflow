@@ -8,6 +8,7 @@ import { selectionHold } from "@/lib/selection";
 import { selectionOutcomes } from "@/server/selection-store";
 import { projectByCode } from "@/server/field-store";
 import { HttpError } from "@/server/guard";
+import { duplicatesText, possibleDuplicates, type Duplicate } from "@/lib/duplicates";
 
 /**
  * Loads a farmer list into a project's Field activities. Each farmer becomes:
@@ -25,8 +26,31 @@ const initials = (name: string) =>
     .map((w) => `${w[0].toUpperCase()}.`)
     .join("");
 
-export async function importFarmers(code: string, rows: FarmerRow[], by: { id: string; name: string }) {
+/**
+ * Farmers on the list who may already be registered on this project, or appear twice on it
+ * (lib/duplicates). Names and phones are read here only; the answer names farmer IDs.
+ */
+export async function farmerDuplicates(projectId: string, rows: FarmerRow[]): Promise<Duplicate[]> {
+  const registered = await db
+    .select({ id: s.farmers.code, village: s.farmers.village, name: s.farmerPii.fullName, phone: s.farmerPii.phone })
+    .from(s.farmers)
+    .leftJoin(s.farmerPii, eq(s.farmerPii.farmerId, s.farmers.id))
+    .where(eq(s.farmers.projectId, projectId));
+  return possibleDuplicates(
+    rows.map((r) => ({ id: r.id, village: r.village, name: r.name, phone: r.phone })),
+    registered.map((r) => ({ ...r, village: r.village ?? "" })),
+  );
+}
+
+/**
+ * `duplicatesChecked`: the person saw the possible duplicates and says these are different people.
+ * Without it, a list with a possible duplicate is refused with the farmer IDs to check.
+ */
+export async function importFarmers(code: string, rows: FarmerRow[], by: { id: string; name: string }, o: { duplicatesChecked?: boolean } = {}) {
   const project = await projectByCode(code);
+  const duplicates = await farmerDuplicates(project.id, rows);
+  if (duplicates.length && !o.duplicatesChecked)
+    throw new HttpError(409, `${duplicates.length === 1 ? "One farmer" : `${duplicates.length} farmers`} may already be registered: ${duplicatesText(duplicates)} Check with the field team. If they are different people, confirm and save again.`, { duplicates });
   const ids = rows.map((r) => r.id);
   const existing = ids.length ? await db.select().from(s.farmers).where(inArray(s.farmers.code, ids)) : [];
   const elsewhere = existing.filter((f) => f.projectId !== project.id);
@@ -62,8 +86,8 @@ export async function importFarmers(code: string, rows: FarmerRow[], by: { id: s
       if (r.name)
         await tx
           .insert(s.farmerPii)
-          .values({ farmerId, fullName: r.name })
-          .onConflictDoUpdate({ target: s.farmerPii.farmerId, set: { fullName: r.name, updatedAt: new Date() } });
+          .values({ farmerId, fullName: r.name, ...(r.phone ? { phone: r.phone } : {}) })
+          .onConflictDoUpdate({ target: s.farmerPii.farmerId, set: { fullName: r.name, ...(r.phone ? { phone: r.phone } : {}), updatedAt: new Date() } });
 
       const item = items.get(r.id);
       if (item) {
@@ -102,7 +126,7 @@ export async function importFarmers(code: string, rows: FarmerRow[], by: { id: s
       await tx.insert(s.fieldItems).values({ organizationId: project.organizationId, projectId: project.id, itemKey: r.id, kind: "farmer", data: farmer });
       added++;
     }
-    await tx.insert(s.auditLog).values({ projectId: project.id, entity: "field", entityId: crypto.randomUUID(), action: "farmers_imported", detail: { by: by.id, added, updated, withNames: rows.filter((r) => r.name).length } });
+    await tx.insert(s.auditLog).values({ projectId: project.id, entity: "field", entityId: crypto.randomUUID(), action: "farmers_imported", detail: { by: by.id, added, updated, withNames: rows.filter((r) => r.name).length, ...(duplicates.length ? { duplicatesConfirmed: duplicates } : {}) } });
   });
   return { added, updated };
 }

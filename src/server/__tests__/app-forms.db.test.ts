@@ -101,6 +101,15 @@ describe("field forms filled in inside the app", { timeout: 60_000 }, () => {
     const f = await farmer("F-APP-001");
     expect(f).toMatchObject({ gender: "Female", hectares: 0.4, community: "Qala-e-Nau", householdSize: 3, household: [{ sex: "Female", age: 31 }, { sex: "Male", age: 35 }, { sex: "Female", age: 6 }] });
     await expect(saveForm(code, "register", entry({ farmer_id: "F-APP-001", village: "Qala", sex: "Male", hectares: "1" }), farida)).rejects.toThrow(/already registered on this project/);
+    // MF-08: the same person registered again under a new ID is caught by the phone, and saved once checked.
+    await saveForm(code, "register", entry({ farmer_id: "F-APP-003", farmer_name: "Zainab Fictional", phone: "070 111 2222", village: "Qala", sex: "Female", hectares: "1" }), farida);
+    const again = entry({ farmer_id: "F-APP-004", farmer_name: "Zaynab Fictionel", phone: "+93 70 111 2222", village: "Qala", sex: "Female", hectares: "1" });
+    const refused = await saveForm(code, "register", again, farida).catch((e) => e);
+    expect(refused.status).toBe(409);
+    expect(refused.message).toContain("F-APP-004 has the same phone number as F-APP-003");
+    expect(refused.message).not.toContain("Zainab");
+    expect(refused.extra.duplicates).toEqual([{ id: "F-APP-004", other: "F-APP-003", why: "phone" }]);
+    expect(await saveForm(code, "register", { ...again, duplicatesChecked: true }, farida)).toMatchObject({ farmer: { id: "F-APP-004", added: 1 } });
     // The MEL officer fills in forms but does not register farmers.
     await expect(saveForm(code, "register", entry({ farmer_id: "F-APP-002", village: "Qala", sex: "Male", hectares: "1" }), omar)).rejects.toThrow(/register farmers/);
   });

@@ -69,6 +69,8 @@ export function FormRunner({ kind }: { kind: AppFormKind }) {
   const [tried, setTried] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
+  // Register a farmer: the server found someone who may be this farmer (lib/duplicates).
+  const [maybeDuplicate, setMaybeDuplicate] = useState(false);
   const [saved, setSaved] = useState<null | { again: boolean; farmer?: string }>(null);
   const [placeNote, setPlaceNote] = useState("");
   const url = `/api/projects/${encodeURIComponent(code)}/field/entries?kind=${kind}`;
@@ -110,15 +112,16 @@ export function FormRunner({ kind }: { kind: AppFormKind }) {
   const set = (name: string, v: string) => setAnswers((a) => ({ ...a, [name]: v }));
   const text = APP_FORM_TEXT[kind];
 
-  const save = async () => {
+  const save = async (duplicatesChecked = false) => {
     if (!data) return;
     setTried(true);
     if (formProblems(data.form, answers, data.lists, day).length) return;
     setSaving(true);
     setSaveError("");
     try {
-      const res = await fetch(url, { method: "POST", headers: { ...headers, "Content-Type": "application/json" }, body: JSON.stringify({ entryId, answers, photos }) });
+      const res = await fetch(url, { method: "POST", headers: { ...headers, "Content-Type": "application/json" }, body: JSON.stringify({ entryId, answers, photos, ...(duplicatesChecked ? { duplicatesChecked } : {}) }) });
       const body = await res.json().catch(() => ({}));
+      setMaybeDuplicate(res.status === 409 && Array.isArray(body.duplicates));
       if (!res.ok) throw new Error(body.error ?? plainError(res.status));
       setSaved({ again: !!body.again, farmer: body.farmer?.id });
       window.scrollTo(0, 0);
@@ -215,6 +218,11 @@ export function FormRunner({ kind }: { kind: AppFormKind }) {
               <p role="alert" className="bg-clay px-4 py-3 font-bold text-white">
                 {saveError}
               </p>
+            )}
+            {maybeDuplicate && (
+              <button type="button" disabled={saving} onClick={() => void save(true)} className={`${quietBtn} min-h-12 w-full text-base ${focusRing}`}>
+                {tx("I checked: this is a different person. Register them")}
+              </button>
             )}
             <button type="submit" disabled={saving} className={`${primaryBtn} min-h-12 w-full text-base ${focusRing}`}>
               {saving ? tx("Saving…") : kind === "register" ? tx("Register the farmer") : tx("Save the form")}

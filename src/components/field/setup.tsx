@@ -392,14 +392,19 @@ export function FarmerImport({ code, onDone, onCancel }: { code: string; onDone:
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState<{ added: number; updated: number } | null>(null);
+  // The server found farmers who may already be registered (lib/duplicates): load again once checked.
+  const [maybeDuplicates, setMaybeDuplicates] = useState(false);
   const mayNames = canSeePII(user);
   const farmersN = (n: number) => `${n} ${n === 1 ? "farmer" : "farmers"}`;
 
-  async function upload() {
+  async function upload(duplicatesChecked = false) {
     if (!parsed?.rows.length) return;
     setBusy(true);
     try {
-      const r = await api<{ added: number; updated: number }>(`/api/projects/${encodeURIComponent(code)}/farmers`, user?.id, { method: "POST", body: JSON.stringify({ rows: parsed.rows }) });
+      const res = await fetch(`/api/projects/${encodeURIComponent(code)}/farmers`, { method: "POST", headers: { "Content-Type": "application/json", "x-demo-user": user?.id ?? "" }, body: JSON.stringify({ rows: parsed.rows, ...(duplicatesChecked ? { duplicatesChecked } : {}) }) });
+      const r = (await res.json().catch(() => ({}))) as { added: number; updated: number; error?: string; duplicates?: unknown[] };
+      setMaybeDuplicates(res.status === 409 && Array.isArray(r.duplicates));
+      if (!res.ok) throw new Error(r.error ?? plainError(res.status));
       setError("");
       // Say what happened before the panel closes, so loading the list is not a silent click.
       setLoaded(r);
@@ -429,7 +434,7 @@ export function FarmerImport({ code, onDone, onCancel }: { code: string; onDone:
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-warn">Field activities · {code}</p>
         <h2 className="mt-2 font-display text-3xl tracking-tight">Load the farmer list</h2>
         <p className="mt-2 max-w-2xl text-sm text-muted">
-          One row per farmer: Farmer ID, Village, Sex (F or M) and Hectares. Name, Age band, Household size, Contribution paid and Step are optional. Save the sheet from Excel as CSV.
+          One row per farmer: Farmer ID, Village, Sex (F or M) and Hectares. Name, Phone, Age band, Household size, Household members (like &quot;Female 34, Male 12&quot;), Contribution paid and Step are optional. Save the sheet from Excel as CSV.
           Names are kept separately and shown only to people allowed to see them; phones, Kobo and emails use the farmer ID.
         </p>
         <a href={template} download="farmer-list-template.csv" className="mt-2 inline-block text-sm font-semibold text-forest hover:underline">
@@ -448,6 +453,7 @@ export function FarmerImport({ code, onDone, onCancel }: { code: string; onDone:
             setFileName(f.name);
             setParsed(parseFarmers(await f.text()));
             setError("");
+            setMaybeDuplicates(false);
           }}
         />
       </label>
@@ -479,6 +485,11 @@ export function FarmerImport({ code, onDone, onCancel }: { code: string; onDone:
         <button type="button" disabled={!parsed?.rows.length || busy || (parsed.hasNames && !mayNames)} onClick={() => void upload()} className={primaryBtn}>
           {busy ? "Loading…" : `Load ${farmersN(parsed?.rows.length ?? 0)}`}
         </button>
+        {maybeDuplicates && (
+          <button type="button" disabled={busy} onClick={() => void upload(true)} className={quietBtn}>
+            I checked: these are different people. Load the list
+          </button>
+        )}
         {onCancel && (
           <button type="button" onClick={onCancel} className="rounded-full px-4 py-3 text-sm text-muted hover:text-ink">
             Cancel

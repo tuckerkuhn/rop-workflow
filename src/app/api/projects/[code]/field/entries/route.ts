@@ -32,6 +32,7 @@ const body = z.object({
   entryId: z.string().regex(/^[A-Za-z0-9-]{8,64}$/),
   answers: z.record(z.string().regex(/^[a-z][a-z0-9_]{0,40}$/), z.string().max(4000)),
   photos: z.record(z.string().regex(/^[a-z][a-z0-9_]{0,40}$/), z.string().max(2_000_000)).optional(),
+  duplicatesChecked: z.boolean().optional(),
 });
 
 export async function POST(req: Request, { params }: { params: Promise<{ code: string }> }) {

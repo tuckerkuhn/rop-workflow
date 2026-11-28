@@ -6,7 +6,7 @@ describe("parseFarmers: a farmer list saved from Excel", () => {
   it("reads the template", () => {
     const r = parseFarmers(FARMER_TEMPLATE);
     expect(r.problems).toEqual([]);
-    expect(r.rows).toEqual([{ id: "F-1001", village: "Example village", gender: "Female", hectares: 0.5, ageBand: "36–49", householdSize: 6, contributionPaid: true, step: "train" }]);
+    expect(r.rows).toEqual([{ id: "F-1001", village: "Example village", gender: "Female", hectares: 0.5, ageBand: "36–49", householdSize: 3, household: [{ sex: "Female", age: 34 }, { sex: "Male", age: 40 }, { sex: "Female", age: 6 }], contributionPaid: true, step: "train" }]);
     expect(r.hasNames).toBe(false);
   });
   it("accepts other column names, quotes, semicolons and ages as numbers", () => {

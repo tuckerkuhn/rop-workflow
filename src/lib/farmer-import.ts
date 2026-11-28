@@ -14,6 +14,8 @@ export type FarmerRow = {
   gender: Gender;
   hectares: number;
   name?: string;
+  /** Personal data, kept with the name (server/farmers): used to find a farmer registered twice. */
+  phone?: string;
   ageBand?: AgeBand;
   householdSize?: number;
   /** Who lives in the household by sex and age, as "Female 34, Male 12" (MF-07). */
@@ -32,6 +34,7 @@ const HEADERS: Record<keyof FarmerRow, string[]> = {
   gender: ["sex", "gender"],
   hectares: ["hectares", "ha", "area", "area (ha)", "plot size", "plot (ha)"],
   name: ["name", "full name", "farmer name"],
+  phone: ["phone", "phone number", "mobile", "telephone"],
   ageBand: ["age", "age band", "age group"],
   householdSize: ["household", "household size", "hh size"],
   household: ["household members", "members", "roster"],
@@ -124,6 +127,8 @@ export function parseFarmers(text: string): { rows: FarmerRow[]; problems: strin
     if (step && !(START_STEPS as readonly string[]).includes(step)) bad.push(`step "${get("step")}" is not one of ${START_STEPS.join(", ")}`);
     const hh = get("householdSize");
     if (hh && !(Number.isInteger(Number(hh)) && Number(hh) >= 0 && Number(hh) <= 100)) bad.push(`household size "${hh}" is not a whole number`);
+    if (get("phone") && !get("name")) bad.push("a phone number is kept with the farmer's name: add the name or leave the phone out");
+    else if (get("phone") && !/^\+?[\d\s().-]{7,20}$/.test(get("phone"))) bad.push(`phone "${get("phone")}" is not a phone number`);
     const roster = parseHousehold(get("household"));
     if (roster.problem) bad.push(`household members: ${roster.problem.replace(/\.$/, "")}`);
     else if (hh && roster.members.length && roster.members.length !== Number(hh)) bad.push(`household size ${hh} but ${roster.members.length} household members listed`);
@@ -138,6 +143,7 @@ export function parseFarmers(text: string): { rows: FarmerRow[]; problems: strin
       gender: g!,
       hectares: Math.round(ha * 1000) / 1000,
       ...(get("name") ? { name: get("name") } : {}),
+      ...(get("phone") ? { phone: get("phone") } : {}),
       ...(ageBand(get("ageBand")) ? { ageBand: ageBand(get("ageBand"))! } : {}),
       ...(hh ? { householdSize: Number(hh) } : {}),
       ...(roster.members.length ? { household: roster.members, householdSize: roster.members.length } : {}),
@@ -149,4 +155,4 @@ export function parseFarmers(text: string): { rows: FarmerRow[]; problems: strin
 }
 
 /** A blank list to fill in, with the columns in the order the reader expects. */
-export const FARMER_TEMPLATE = "Farmer ID,Village,Sex,Hectares,Name,Age band,Household size,Contribution paid,Step\nF-1001,Example village,F,0.5,,36–49,6,yes,train\n";
+export const FARMER_TEMPLATE = "Farmer ID,Village,Sex,Hectares,Name,Phone,Age band,Household size,Household members,Contribution paid,Step\nF-1001,Example village,F,0.5,,,36–49,3,\"Female 34, Male 40, Female 6\",yes,train\n";
