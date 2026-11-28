@@ -85,6 +85,8 @@ export function foldRecruitment(entries: Entry[], hr: HrState): { vacancies: Vac
     if (a.action === "open") {
       if (!isHr(e.actor, hr)) no(e, "HR opens a vacancy");
       else if (days(a.opened, a.closes) < MIN_OPEN_DAYS) no(e, `a vacancy is open at least ${MIN_OPEN_DAYS} days`);
+      // R2-22: the advertisement starts no earlier than the day it is recorded, so the 14 days are real.
+      else if (a.opened < e.at.slice(0, 10)) no(e, "a vacancy is advertised from the day it is opened here, not from an earlier date")
       else if (panelProblem(a.panel, a.grade, hr)) no(e, panelProblem(a.panel, a.grade, hr)!);
       else vacancies.set(e.n, { n: e.n, title: a.title, grade: a.grade, office: a.office, opened: a.opened, closes: a.closes, panel: a.panel, by: e.actor, candidates: [], shortlist: [] });
       continue;
@@ -107,7 +109,8 @@ export function foldRecruitment(entries: Entry[], hr: HrState): { vacancies: Vac
       if (!isHr(e.actor, hr)) no(e, "HR records the shortlist");
       else if (e.at.slice(0, 10) < v.closes) no(e, `the vacancy is open until ${v.closes}`);
       else if (v.candidates.some((x) => x.cvGrade === undefined)) no(e, "every CV is graded first");
-      else v.shortlist = a.candidates.filter((n) => v.candidates.some((x) => x.n === n));
+      else if (a.candidates.some((n) => !v.candidates.some((x) => x.n === n))) no(e, "the shortlist names someone who did not apply")
+      else v.shortlist = a.candidates;
     } else if (!c) no(e, "no such candidate");
     else if (a.action === "grade") {
       if (!isHr(e.actor, hr)) no(e, "HR grades the CVs");

@@ -20,8 +20,8 @@ describe("recruitment", () => {
   it("runs from a 14-day vacancy to a selection memo, with each rule held", () => {
     n = 0;
     const entries: Entry[] = [
-      e("sima", "rec-open", { ...OPEN, closes: "2026-11-10" }), // 9 days: refused
-      e("sima", "rec-open", OPEN), // n=2
+      e("sima", "rec-open", { ...OPEN, closes: "2026-11-10" }, "2026-11-01T08:00:00Z"), // 9 days: refused
+      e("sima", "rec-open", OPEN, "2026-11-01T08:00:00Z"), // n=2
       ...["A", "B", "C", "D"].map((x) => e("sima", "rec-candidate", { vacancy: 2, name: `Candidate ${x}`, related: "none", received: "2026-11-05" })), // n=3..6
       e("sima", "rec-grade", { vacancy: 2, candidate: 3, score: 4 }),
       e("sima", "rec-shortlist", { vacancy: 2, candidates: [3, 4, 5] }), // refused: not every CV graded
@@ -45,6 +45,7 @@ describe("recruitment", () => {
       "references come after the interviews, for finalists only",
       "the chosen candidate is not the top score: say why",
     ]);
+    expect(foldRecruitment([e("sima", "rec-open", OPEN, "2026-11-20T08:00:00Z")], hr).ignored[0]?.why).toMatch(/advertised from the day it is opened here/);
     expect(vacancies[0].selected).toMatchObject({ candidate: 3, deviation: expect.stringMatching(/no Dari/) });
   });
 });
