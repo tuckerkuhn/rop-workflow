@@ -18,6 +18,7 @@ import {
   type Proposal,
 } from "@/lib/hr";
 import type { AppUser } from "@/lib/demo";
+import { foldScreening, type Screening } from "@/lib/staff-screening";
 
 /**
  * What one person may see of the HR record. Pay and contact details only reach the person
@@ -67,6 +68,8 @@ export type HrView = {
   seals: HrState["seals"];
   /** Everyone in the app, for choosing a supervisor or a related person. */
   directory: { id: string; name: string }[];
+  /** MF-03: sanctions screenings by person (staff and finalists), for HR only. */
+  screenings: Record<string, Screening[]>;
 };
 
 export function viewFor(me: string, state: HrState, entries: Entry[], integrity: Integrity, appPeople: AppUser[], book: string, sample: boolean): HrView {
@@ -139,6 +142,7 @@ export function viewFor(me: string, state: HrState, entries: Entry[], integrity:
     ignored: all ? state.ignored : [],
     entries: all ? entries.slice(-300).reverse().map(({ n, at, actor, kind, subject, hash }) => ({ n, at, actor, kind, subject, hash })) : [],
     seals: state.seals.slice(-30).reverse(),
+    screenings: all ? foldScreening(entries, state) : {},
     directory: Object.entries(names)
       .map(([id, name]) => ({ id, name }))
       .sort((a, b) => a.name.localeCompare(b.name)),

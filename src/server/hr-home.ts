@@ -6,6 +6,7 @@ import { people } from "@/server/auth";
 import { waitingFor } from "@/server/hr-view";
 import { loadHr, todayIso } from "@/server/hr-store";
 import { offboardingView } from "@/server/offboarding-view";
+import { foldScreening, screeningProblem } from "@/lib/staff-screening";
 
 /**
  * Home for HR staff: are our people set up, paid and covered? Staff on record, this month's
@@ -44,6 +45,10 @@ export async function loadHrHome(me: string) {
   const starting = onboarding.filter((o) => progress(o).done < progress(o).total).map((o) => ({ name: names[o.person] ?? o.person, ...progress(o), due: o.due }));
   const off = await offboardingView(me);
 
+  // MF-03: staff whose sanctions screening is missing, a year old, or waiting on a match review.
+  const screenings = foldScreening(entries, hr);
+  const screeningDue = active.map((p) => ({ name: names[p.id] ?? p.id, why: screeningProblem(screenings[p.id], today) })).filter((x): x is { name: string; why: string } => !!x.why);
+
   const waiting = waitingFor(me, hr);
   return {
     month,
@@ -58,6 +63,7 @@ export async function loadHrHome(me: string) {
     renewals: off.renewals,
     renewalDays: off.renewalDays,
     waiting,
+    screeningDue,
     myLeavingSteps: off.leavers.reduce((n, l) => n + l.steps.filter((s) => s.canDo).length, 0),
   };
 }

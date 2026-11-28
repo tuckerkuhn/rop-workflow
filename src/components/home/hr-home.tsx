@@ -86,6 +86,9 @@ export function HrHome({ userId }: { userId: string }) {
         <Tile label={`${m} payroll`} value={notPrepared.length ? "To prepare" : v.payroll.every((p) => p.status === "approved") ? "Approved" : "In approval"} level={notPrepared.length && lastWeek ? "warning" : "good"} href="/payroll">
           {v.payroll.map((p) => `${p.group}: ${PAY[p.status] ?? p.status}`).join(" · ")}
         </Tile>
+        <Tile label="Sanctions screening" value={v.screeningDue.length ? `${v.screeningDue.length} due` : "Current"} level={v.screeningDue.length ? "warning" : "good"} href="/people">
+          {v.screeningDue.length ? `${v.screeningDue[0].name}: ${v.screeningDue[0].why}${v.screeningDue.length > 1 ? ` And ${v.screeningDue.length - 1} more.` : ""}` : "Every member of staff screened within the year."}
+        </Tile>
         <Tile label="Contracts ending" value={String(v.renewals.length)} level={overdue ? "critical" : v.renewals.length ? "warning" : "good"} href="/offboarding">
           {v.renewals.length ? `${v.renewals[0].name}, ${v.renewals[0].overdue ? "ended" : "ends"} ${day(v.renewals[0].contractEnd)}${v.renewals.length > 1 ? `, and ${v.renewals.length - 1} more` : ""}` : `None in the next ${v.renewalDays} days.`}
         </Tile>

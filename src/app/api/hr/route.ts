@@ -6,6 +6,7 @@ import { eligibleSigners } from "@/server/hr-signers";
 import { handle } from "@/server/guard";
 import { append, isSampleBook, loadHr } from "@/server/hr-store";
 import { viewFor, waitingFor } from "@/server/hr-view";
+import { foldScreening, hireBlock } from "@/lib/staff-screening";
 
 /** The HR record as this person may see it. */
 export async function GET(req: Request) {
@@ -59,6 +60,11 @@ export async function POST(req: Request) {
         const p = state.proposals.find((x) => x.id === a.proposal);
         if (!p || p.status !== "pending") return fail("This change is no longer waiting for a signature.", 409);
         const next = nextSigners(p, state)!;
+        // MF-03: the offer waits for the finalist's clear, current screening.
+        if (a.action === "approve" && p.type === "hire") {
+          const blocked = hireBlock(foldScreening((await loadHr()).entries, state)[p.subject as string], new Date().toISOString().slice(0, 10));
+          if (blocked) return fail(blocked, 409);
+        }
         if (!next.people.includes(me)) {
           const conflict = conflictOf(me, p, state);
           return fail(conflict ? `You cannot sign this: ${toYou(conflict)}.` : `This step is for the ${ROLE_LABEL[next.fellBack ? "board" : next.role]}.`);
@@ -73,6 +79,12 @@ export async function POST(req: Request) {
         const p = state.proposals.find((x) => x.id === a.proposal);
         if (!p || p.status !== "pending" || p.by !== me) return fail("Only the person who proposed a pending change can withdraw it.");
         n = await append(me, "withdraw", p.subject, { proposal: p.id });
+        break;
+      }
+      case "screen": {
+        if (!state.rules?.holders.hr.includes(me)) return fail("Only HR records a screening.");
+        if (a.screening.date > new Date().toISOString().slice(0, 10)) return fail("A screening cannot be dated in the future.", 400);
+        n = await append(me, "screening", a.screening.person, a.screening);
         break;
       }
       case "declare": {

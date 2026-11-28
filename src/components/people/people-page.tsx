@@ -34,6 +34,7 @@ import type { HrView, PersonView, ProposalView } from "@/server/hr-view";
 import { readBamboo, type BambooRow } from "@/lib/bamboo-import";
 import { ROLE_HELP, SIGNATURES, SIGNER_LABEL, namedGrants } from "@/lib/authority";
 import { users } from "@/lib/demo";
+import { DEFAULT_LISTS, screeningProblem } from "@/lib/staff-screening";
 
 /**
  * People: the HR record. Every change is proposed, signed by the people the rules name, and
@@ -356,6 +357,7 @@ export function PeoplePage() {
             onChange={isHr && person.id !== v.me ? () => setForm({ type: "update", subject: person.id }) : undefined}
             onLeave={isHr && person.id !== v.me && !person.separated ? () => setForm({ type: "separate", subject: person.id }) : undefined}
             onCorrect={isHr && person.id !== v.me ? (id) => setForm({ type: "update", subject: person.id, corrects: id }) : undefined}
+            screening={isHr && !person.separated ? <ScreeningPanel person={person.id} view={v} act={hr.act} onDone={setNotice} /> : undefined}
           />
         </Modal>
       )}
@@ -447,6 +449,7 @@ function PersonRecord({
   onChange,
   onLeave,
   onCorrect,
+  screening,
 }: {
   p: PersonView;
   view: HrView;
@@ -454,12 +457,15 @@ function PersonRecord({
   onChange?: () => void;
   onLeave?: () => void;
   onCorrect?: (proposal: number) => void;
+  /** MF-03: the sanctions screening panel, for HR. */
+  screening?: React.ReactNode;
 }) {
   const own = p.id === view.me;
   const history = view.proposals.filter((x) => x.subject === p.id).sort((a, b) => b.id - a.id);
   const related = view.relations.filter((r) => r.a === p.id || r.b === p.id);
   return (
     <div className="space-y-5">
+      {screening}
       {p.separated && (
         <p className="bg-sunken px-4 py-3 text-sm">
           Left ROP on {fmt(p.separated.effective)}: {p.separated.reason}
@@ -654,6 +660,8 @@ function ProposalCard({ p, view, fmt, act, onDone, first }: { p: ProposalView; v
           <span className="text-muted">Reason: </span>
           {p.reason}
         </p>
+        {/* MF-03: the finalist is screened before the offer. */}
+        {p.type === "hire" && p.status === "pending" && view.seesAll && <ScreeningPanel person={p.subject as string} view={view} act={act} onDone={onDone} hire />}
         {p.warnings.length > 0 && (
           <ul className="mt-3 space-y-1 bg-ochre-soft px-3 py-2 text-sm text-warn">
             {p.warnings.map((w) => (
@@ -1495,6 +1503,86 @@ export function MyDetailsPage() {
             setNotice("Sent to HR. Your record changes once HR approves.");
           }}
         />
+      )}
+    </div>
+  );
+}
+
+/**
+ * MF-03: the sanctions screening of a finalist or a member of staff. HR records each check (date,
+ * lists, result, the printout's link); a possible match is reviewed by a person and never decides
+ * by itself. A hire waits for a clear, current result.
+ */
+function ScreeningPanel({ person, view, act, onDone, hire }: { person: string; view: HrView; act: (a: HrAction) => Promise<void>; onDone: (s: string) => void; hire?: boolean }) {
+  const list = view.screenings[person] ?? [];
+  const today = new Date().toISOString().slice(0, 10);
+  const problem = screeningProblem(list, today);
+  const [open, setOpen] = useState(false);
+  const [f, setF] = useState({ date: today, lists: DEFAULT_LISTS, result: "clear" as "clear" | "possible_match", link: "", note: "" });
+  const [error, setError] = useState("");
+  const isHr = view.roles.includes("hr");
+  const last = list.at(-1);
+  return (
+    <div className={`mt-3 px-3 py-2 text-sm ${problem ? "bg-ochre-soft" : "bg-mist"}`}>
+      <p className="font-semibold">Sanctions screening</p>
+      <p className="mt-0.5">{problem ? (hire ? `Before the offer: ${problem}` : problem) : `Clear on ${last!.date} (${last!.lists}).`}</p>
+      {last?.link && (
+        <a href={last.link} target="_blank" rel="noreferrer" className="text-xs font-semibold text-forest hover:underline">
+          Open the printout
+        </a>
+      )}
+      {isHr && !open && (
+        <button type="button" className={`${quietBtn} mt-2`} onClick={() => setOpen(true)}>
+          Record a screening
+        </button>
+      )}
+      {isHr && open && (
+        <form
+          className="mt-2 grid gap-2 sm:grid-cols-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            setError("");
+            void act({ action: "screen", screening: { person, date: f.date, lists: f.lists, result: f.result, ...(f.link.trim() ? { link: f.link.trim() } : {}), ...(f.note.trim() ? { note: f.note.trim() } : {}) } })
+              .then(() => {
+                setOpen(false);
+                onDone(f.result === "clear" ? "Screening recorded: clear." : "Screening recorded: a possible match, for a person to review.");
+              })
+              .catch((x: unknown) => setError(x instanceof Error ? x.message : String(x)));
+          }}
+        >
+          <label className="block">
+            Date checked
+            <input type="date" value={f.date} max={today} onChange={(e) => setF({ ...f, date: e.target.value })} className="mt-1 w-full border border-line bg-surface px-2 py-1.5" />
+          </label>
+          <label className="block">
+            Result
+            <select value={f.result} onChange={(e) => setF({ ...f, result: e.target.value as typeof f.result })} className="mt-1 w-full border border-line bg-surface px-2 py-1.5">
+              <option value="clear">Clear: not on the lists</option>
+              <option value="possible_match">Possible match: a person reviews it</option>
+            </select>
+          </label>
+          <label className="block sm:col-span-2">
+            Lists checked
+            <input value={f.lists} maxLength={400} onChange={(e) => setF({ ...f, lists: e.target.value })} className="mt-1 w-full border border-line bg-surface px-2 py-1.5" />
+          </label>
+          <label className="block sm:col-span-2">
+            Link to the printout
+            <input type="url" value={f.link} placeholder="https://" onChange={(e) => setF({ ...f, link: e.target.value })} className="mt-1 w-full border border-line bg-surface px-2 py-1.5" />
+          </label>
+          {error && (
+            <p role="alert" className="text-clay sm:col-span-2">
+              {error}
+            </p>
+          )}
+          <div className="flex gap-2 sm:col-span-2">
+            <button type="submit" className={primaryBtn}>
+              Save the screening
+            </button>
+            <button type="button" className={quietBtn} onClick={() => setOpen(false)}>
+              Cancel
+            </button>
+          </div>
+        </form>
       )}
     </div>
   );

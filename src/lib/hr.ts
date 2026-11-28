@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { screeningInput } from "@/lib/staff-screening";
 
 /**
  * The HR record, built only from the append-only ledger (hr_ledger). Nothing here is stored as
@@ -214,6 +215,8 @@ export const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("withdraw"), proposal: z.number().int().positive() }),
   /** Anyone declares a person they are related to; HR may record it for two others. */
   z.object({ action: z.literal("declare"), a: personId, b: personId, relation: z.string().trim().min(2).max(100) }),
+  /** HR records a sanctions-list check for a finalist or a member of staff (lib/staff-screening, MF-03). */
+  z.object({ action: z.literal("screen"), screening: screeningInput }),
 ]);
 export type HrAction = z.infer<typeof actionSchema>;
 
@@ -533,6 +536,7 @@ export function fold(entries: Entry[], today: string): HrState {
       case "training-plan":
       case "training-void":
       case "training-start":
+      case "screening":
         // Read by foldTimesheets, foldExpenses and foldOnboarding (lib/timesheet.ts, expense.ts, onboarding.ts).
         break;
       default:
