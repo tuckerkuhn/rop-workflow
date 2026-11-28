@@ -15,6 +15,7 @@ const row = z.object({
   name: z.string().trim().min(1).max(200).optional(),
   ageBand: z.enum(AGE_BANDS).optional(),
   householdSize: z.number().int().min(0).max(100).optional(),
+  household: z.array(z.object({ sex: z.enum(["Female", "Male"]), age: z.number().int().min(0).max(120) })).max(100).optional(),
   contributionPaid: z.boolean().optional(),
   step: z.enum(START_STEPS).optional(),
 });

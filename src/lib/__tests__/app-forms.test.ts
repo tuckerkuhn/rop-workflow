@@ -103,3 +103,31 @@ describe("who fills in field forms", () => {
     expect(mayOpenForms(u("hamid"))).toBe(false);
   });
 });
+
+describe("the household roster (MF-07)", async () => {
+  const { parseHousehold, householdCounts, householdText } = await import("@/lib/household");
+  const { parseFarmers } = await import("@/lib/farmer-import");
+
+  it("reads sex and age for each person and counts women, men, girls and boys", () => {
+    const { members } = parseHousehold("Female 34, Male 40; f 12, boy 3");
+    expect(members).toEqual([{ sex: "Female", age: 34 }, { sex: "Male", age: 40 }, { sex: "Female", age: 12 }, { sex: "Male", age: 3 }]);
+    expect(householdCounts(members)).toEqual({ women: 1, men: 1, girls: 1, boys: 1, size: 4 });
+    expect(householdText(members)).toBe("Female 34, Male 40, Female 12, Male 3");
+    expect(parseHousehold("Female 34, Male ?").problem).toMatch(/person 2/);
+  });
+
+  it("on the register form, the roster gives the household's size, and a bad line is refused", () => {
+    const f = appForm("register", "A2027", {});
+    const base = { farmer_id: "F-1003", village: "Qala", sex: "Female", hectares: "0.4" };
+    expect(formState(f, { ...base, household: "Female 34, Male 5" }, lists, TODAY).shown.has("household_size")).toBe(false);
+    expect(formState(f, base, lists, TODAY).shown.has("household_size")).toBe(true);
+    expect(formProblems(f, { ...base, household: "Female" }, lists, TODAY).map((p) => p.name)).toEqual(["household"]);
+  });
+
+  it("a farmer list may carry the roster, and it must match the household size given", () => {
+    const ok = parseFarmers("id,village,sex,hectares,household members\nF-1,Qala,F,0.5,\"Female 30, Male 2\"");
+    expect(ok.rows[0]).toMatchObject({ household: [{ sex: "Female", age: 30 }, { sex: "Male", age: 2 }], householdSize: 2 });
+    const bad = parseFarmers("id,village,sex,hectares,household size,household members\nF-1,Qala,F,0.5,5,\"Female 30\"");
+    expect(bad.problems[0]).toContain("household size 5 but 1 household members listed");
+  });
+});

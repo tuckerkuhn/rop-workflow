@@ -1,4 +1,5 @@
 import type { AgeBand, Gender } from "@/lib/field";
+import { parseHousehold, type HouseholdMember } from "@/lib/household";
 
 /**
  * Reading a farmer list (CSV, as saved from Excel) into Field activities. One row per farmer:
@@ -15,6 +16,8 @@ export type FarmerRow = {
   name?: string;
   ageBand?: AgeBand;
   householdSize?: number;
+  /** Who lives in the household by sex and age, as "Female 34, Male 12" (MF-07). */
+  household?: HouseholdMember[];
   contributionPaid?: boolean;
   step?: StartStep;
 };
@@ -31,6 +34,7 @@ const HEADERS: Record<keyof FarmerRow, string[]> = {
   name: ["name", "full name", "farmer name"],
   ageBand: ["age", "age band", "age group"],
   householdSize: ["household", "household size", "hh size"],
+  household: ["household members", "members", "roster"],
   contributionPaid: ["contribution", "contribution paid"],
   step: ["step", "start step", "stage"],
 };
@@ -120,6 +124,9 @@ export function parseFarmers(text: string): { rows: FarmerRow[]; problems: strin
     if (step && !(START_STEPS as readonly string[]).includes(step)) bad.push(`step "${get("step")}" is not one of ${START_STEPS.join(", ")}`);
     const hh = get("householdSize");
     if (hh && !(Number.isInteger(Number(hh)) && Number(hh) >= 0 && Number(hh) <= 100)) bad.push(`household size "${hh}" is not a whole number`);
+    const roster = parseHousehold(get("household"));
+    if (roster.problem) bad.push(`household members: ${roster.problem.replace(/\.$/, "")}`);
+    else if (hh && roster.members.length && roster.members.length !== Number(hh)) bad.push(`household size ${hh} but ${roster.members.length} household members listed`);
     if (bad.length) {
       problems.push(`Row ${n}: ${bad.join("; ")}.`);
       return;
@@ -133,6 +140,7 @@ export function parseFarmers(text: string): { rows: FarmerRow[]; problems: strin
       ...(get("name") ? { name: get("name") } : {}),
       ...(ageBand(get("ageBand")) ? { ageBand: ageBand(get("ageBand"))! } : {}),
       ...(hh ? { householdSize: Number(hh) } : {}),
+      ...(roster.members.length ? { household: roster.members, householdSize: roster.members.length } : {}),
       ...(get("contributionPaid") ? { contributionPaid: yes(get("contributionPaid")) } : {}),
       ...(step ? { step: step as StartStep } : {}),
     });

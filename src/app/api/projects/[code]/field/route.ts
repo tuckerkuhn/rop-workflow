@@ -47,6 +47,7 @@ const farmer = z.looseObject({
   gender: z.enum(["Female", "Male"]),
   ageBand: z.enum(AGE_BANDS),
   householdSize: z.number().int().min(0).max(100),
+  household: z.array(z.object({ sex: z.enum(["Female", "Male"]), age: z.number().int().min(0).max(120) })).max(100).optional(),
   community: short,
   hectares: z.number().min(0).max(100000),
   enrolled: z.boolean(),

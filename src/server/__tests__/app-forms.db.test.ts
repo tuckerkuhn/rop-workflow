@@ -96,10 +96,10 @@ describe("field forms filled in inside the app", { timeout: 60_000 }, () => {
   });
 
   it("registering a farmer adds them to the farmer list, once", async () => {
-    const r = await saveForm(code, "register", entry({ farmer_id: "F-APP-001", village: "Qala-e-Nau", sex: "Female", hectares: "0.4", household_size: "6", contribution_paid: "no" }), farida);
+    const r = await saveForm(code, "register", entry({ farmer_id: "F-APP-001", village: "Qala-e-Nau", sex: "Female", hectares: "0.4", household: "Female 31, Male 35, Female 6", contribution_paid: "no" }), farida);
     expect(r).toMatchObject({ farmer: { id: "F-APP-001", added: 1 } });
     const f = await farmer("F-APP-001");
-    expect(f).toMatchObject({ gender: "Female", hectares: 0.4, community: "Qala-e-Nau" });
+    expect(f).toMatchObject({ gender: "Female", hectares: 0.4, community: "Qala-e-Nau", householdSize: 3, household: [{ sex: "Female", age: 31 }, { sex: "Male", age: 35 }, { sex: "Female", age: 6 }] });
     await expect(saveForm(code, "register", entry({ farmer_id: "F-APP-001", village: "Qala", sex: "Male", hectares: "1" }), farida)).rejects.toThrow(/already registered on this project/);
     // The MEL officer fills in forms but does not register farmers.
     await expect(saveForm(code, "register", entry({ farmer_id: "F-APP-002", village: "Qala", sex: "Male", hectares: "1" }), omar)).rejects.toThrow(/register farmers/);

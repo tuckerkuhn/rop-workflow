@@ -8,6 +8,7 @@ import { farmerListRows, photoFingerprint, projectByCode, setupFor } from "@/ser
 import { importFarmers } from "@/server/farmers";
 import { HttpError } from "@/server/guard";
 import { logAudit } from "@/server/audit";
+import { parseHousehold } from "@/lib/household";
 
 export { mayFillForms, mayRegister };
 
@@ -117,6 +118,7 @@ export async function saveForm(code: string, kind: AppFormKind, entry: FormEntry
 async function register(code: string, a: Answers, user: AppUser) {
   const project = await projectByCode(code);
   const id = a.farmer_id!;
+  const household = parseHousehold(a.household ?? "").members;
   const [known] = await db.select({ projectId: s.farmers.projectId }).from(s.farmers).where(eq(s.farmers.code, id)).limit(1);
   if (known) throw new HttpError(409, known.projectId === project.id ? `${id} is already registered on this project. Open them in Field activities to change their details.` : `${id} is already used on another project. Farmer IDs must be unique: give this farmer a new ID.`);
   const r = await importFarmers(
@@ -130,6 +132,7 @@ async function register(code: string, a: Answers, user: AppUser) {
         ...(a.farmer_name && canSeePII(user) ? { name: a.farmer_name } : {}),
         ...(a.age_band ? { ageBand: a.age_band as never } : {}),
         ...(a.household_size ? { householdSize: Number(a.household_size) } : {}),
+        ...(household.length ? { household, householdSize: household.length } : {}),
         ...(a.contribution_paid ? { contributionPaid: a.contribution_paid === "yes" } : {}),
       },
     ],

@@ -1,3 +1,4 @@
+import type { HouseholdMember } from "@/lib/household";
 /**
  * Field activities: roles, steps, checks, farmer profiles and synthetic records.
  * Steps follow docs/ROP-END-TO-END-WORKFLOW-DRAFT.md §2 (farm preparation to MEL follow-up).
@@ -154,6 +155,8 @@ export type Farmer = {
   gender: Gender;
   ageBand: StoredAgeBand;
   householdSize: number;
+  /** Who lives in the household, by sex and age (MF-07). The size above is its length when it is kept. */
+  household?: HouseholdMember[];
   community: string;
   hectares: number;
   enrolled: boolean;

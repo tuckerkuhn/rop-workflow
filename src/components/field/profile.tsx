@@ -18,6 +18,7 @@ import { useCurrentProject } from "@/components/app/current-project";
 import { today } from "@/lib/clock";
 import { DEMO_SETUP, packageUsd } from "@/lib/package";
 import { holderOf } from "@/lib/demo";
+import { householdCounts } from "@/lib/household";
 import {
   farmerStages,
   fieldPerson,
@@ -241,6 +242,7 @@ export function FarmerProfile({ id }: { id: string }) {
                   {farmer.community} · {tx("{n} ha", { n: farmer.hectares })}{setup.crop ? ` ${setup.crop.toLowerCase()}` : ""} · {tx("Enrolled {date}", { date: farmer.enrolledOn })} · {farmer.contributionPaid ? tx("Contribution paid") : tx("Contribution not paid")}
                   <br />
                   {farmer.gender} · {farmer.ageBand} · {tx("household of {n}", { n: farmer.householdSize })}
+                  {farmer.household?.length ? ` (${tx("{women} women, {men} men, {girls} girls, {boys} boys", householdCounts(farmer.household))})` : ""}
                 </p>
               </div>
               <Link

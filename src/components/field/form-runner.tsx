@@ -8,6 +8,7 @@ import { useCurrentProject } from "@/components/app/current-project";
 import { TopBar, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { today } from "@/lib/clock";
 import { plainError } from "@/lib/plain-error";
+import { householdCounts, parseHousehold, type HouseholdMember } from "@/lib/household";
 import { APP_FORM_TEXT, fillText, formProblems, formState, type Answers, type AppForm, type AppFormKind, type FormLists, type Problem, type Question } from "@/lib/app-forms";
 
 /**
@@ -249,6 +250,7 @@ function Input({ q, form, lists, value, photo, day, label, onChange, onPhoto }: 
   const { tx } = useT();
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState("");
+  if (q.kind === "household") return <Household value={value} label={label} onChange={onChange} />;
   if (q.kind === "one")
     return (
       <div className="grid gap-2 sm:grid-cols-2">
@@ -363,4 +365,41 @@ function Input({ q, form, lists, value, photo, day, label, onChange, onPhoto }: 
       </div>
     );
   return null;
+}
+
+/** The household roster (MF-07): one line per person, sex and age, no names. */
+function Household({ value, label, onChange }: { value: string; label: string; onChange: (v: string) => void }) {
+  const { tx } = useT();
+  // Kept as typed, so an age being typed is not lost; the answer is the roster text.
+  const [rows, setRows] = useState<{ sex: HouseholdMember["sex"]; age: string }[]>(() => parseHousehold(value).members.map((m) => ({ sex: m.sex, age: String(m.age) })));
+  const put = (next: typeof rows) => {
+    setRows(next);
+    onChange(next.map((r) => `${r.sex} ${r.age.trim() || "?"}`).join(", "));
+  };
+  const read = parseHousehold(value);
+  const c = householdCounts(read.members);
+  return (
+    <div className="grid gap-2">
+      {rows.map((r, i) => (
+        <div key={i} className="flex flex-wrap items-center gap-2">
+          <span className="w-8 font-mono text-sm text-muted">{i + 1}.</span>
+          {(["Female", "Male"] as const).map((s) => (
+            <button key={s} type="button" aria-pressed={r.sex === s} onClick={() => put(rows.map((x, k) => (k === i ? { ...x, sex: s } : x)))} className={`${choiceBtn(r.sex === s)} !w-auto`}>
+              {tx(s)}
+            </button>
+          ))}
+          <input type="text" inputMode="numeric" value={r.age} placeholder={tx("Age")} aria-label={tx("{label}: age of person {n}", { label, n: i + 1 })} onChange={(e) => put(rows.map((x, k) => (k === i ? { ...x, age: e.target.value.replace(/\D/g, "").slice(0, 3) } : x)))} className={`${field} !w-24`} />
+          <button type="button" onClick={() => put(rows.filter((_, k) => k !== i))} className={quietBtn}>
+            {tx("Remove")}
+          </button>
+        </div>
+      ))}
+      <div className="flex flex-wrap items-center gap-3">
+        <button type="button" onClick={() => put([...rows, { sex: "Female", age: "" }])} className={quietBtn}>
+          {tx("+ Add a person")}
+        </button>
+        {!read.problem && c.size > 0 && <span className="text-sm text-muted">{tx("{size} people: {women} women, {men} men, {girls} girls, {boys} boys", c)}</span>}
+      </div>
+    </div>
+  );
 }

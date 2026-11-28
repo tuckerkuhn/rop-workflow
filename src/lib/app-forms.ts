@@ -3,6 +3,7 @@ import { distributionForm, type XlsForm } from "@/lib/distribution-form";
 import { asText, evaluate, truthy, type ExprContext } from "@/lib/form-expr";
 import { AGE_BANDS } from "@/lib/field";
 import { FARMER_ID } from "@/lib/farmer-import";
+import { parseHousehold } from "@/lib/household";
 import type { CropPlan } from "@/lib/crops";
 import type { FieldSetup } from "@/lib/package";
 import { canEditProject, type AppUser } from "@/lib/demo";
@@ -48,7 +49,7 @@ export const mayOpenForms = (u: AppUser) => mayFillForms(u) || mayRegister(u);
  */
 export const mayRegister = (u: AppUser) => u.kind === "employee" && (canEditProject(u) || (u.fieldAccess === "edit" && (u.field.includes("manager") || u.field.includes("extension"))));
 
-export type QuestionKind = "calculate" | "here" | "farmer" | "farmers" | "date" | "one" | "decimal" | "integer" | "text" | "image" | "place";
+export type QuestionKind = "calculate" | "here" | "farmer" | "farmers" | "date" | "one" | "decimal" | "integer" | "text" | "image" | "place" | "household";
 
 export type Question = {
   kind: QuestionKind;
@@ -84,6 +85,8 @@ const KIND_OF: Record<string, QuestionKind> = {
   text: "text",
   image: "image",
   geopoint: "place",
+  // The household roster (lib/household): an app question with no KoboCollect type.
+  household: "household",
 };
 
 /** Reads a made form's rows into questions. A question type the app cannot show is refused, never skipped. */
@@ -136,7 +139,9 @@ export function registerForm(names: boolean): XlsForm {
     ["select_one sex", "sex", "Sex", "", "yes", "", "", "", "", "", "", ""],
     ["select_one age_band", "age_band", "Age", "", "", "", "", "", "", "", "", ""],
     ["decimal", "hectares", "Plot size (hectares)", "The land the farmer will plant on this project.", "yes", "", "", "", "", "", ". >= 0 and . <= 100", "Enter the plot size in hectares, between 0 and 100."],
-    ["integer", "household_size", "People in the household", "", "", "", "", "", "", "", ". >= 1 and . <= 100", "Enter the number of people, between 1 and 100."],
+    ["household", "household", "Who lives in the household", "Everyone, the farmer included: sex and age. No names.", "", "", "", "", "", "", "", ""],
+    // Asked only when the roster is left empty: the roster's length is the household's size.
+    ["integer", "household_size", "People in the household", "", "", "string-length(${household}) = 0", "", "", "", "", ". >= 1 and . <= 100", "Enter the number of people, between 1 and 100."],
     ["select_one yes_no", "contribution_paid", "Has the farmer paid their contribution?", "", "", "", "", "", "", "", "", ""],
   ];
   return {
@@ -221,6 +226,7 @@ export function formProblems(form: AppForm, answers: Answers, lists: FormLists, 
     if (form.kind === "register" && q.name === "farmer_id" && !FARMER_ID.test(v)) out.push({ name: q.name, text: about(label, `use letters, digits, . _ and - only, up to 40.`) });
     else if (q.kind === "decimal" && !NUMBER.test(v)) out.push({ name: q.name, text: about(label, `enter a number.`) });
     else if (q.kind === "integer" && !/^-?\d+$/.test(v)) out.push({ name: q.name, text: about(label, `enter a whole number.`) });
+    else if (q.kind === "household" && parseHousehold(v).problem) out.push({ name: q.name, text: about(label, parseHousehold(v).problem!) });
     else if (q.kind === "date" && !/^\d{4}-\d{2}-\d{2}$/.test(v)) out.push({ name: q.name, text: about(label, `enter a date.`) });
     else if (q.kind === "one" && !(form.choices[q.list!] ?? []).some((c) => c.name === v)) out.push({ name: q.name, text: about(label, `choose one of the answers.`) });
     else if (q.kind === "farmer" && !lists.farmers.some((f) => f.name === v)) out.push({ name: q.name, text: about(label, `${v} is not on this project's farmer list.`) });
