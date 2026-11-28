@@ -47,3 +47,27 @@ describe("a goods received note dated after today (code review of ISS-16)", { ti
     expect(((await res.json()) as { error: string }).error).toContain("cannot be dated after today");
   });
 });
+
+describe("the person the approval table names can sign with view access (review round 2, R2-01)", { timeout: 60_000 }, () => {
+  const put = async (who: string, items: Procurement[]) => {
+    process.env.DEMO_SIGN_IN = "1";
+    const { PUT } = await import("@/app/api/projects/[code]/procurements/route");
+    return PUT(new Request(`http://test/api/projects/${code}/procurements`, { method: "PUT", headers: { "x-demo-user": who, "content-type": "application/json" }, body: JSON.stringify({ items }) }), { params: Promise.resolve({ code }) });
+  };
+  it("the CEO (view access, signs above $25,000) gets past the door; the guard still limits them to their own step", async () => {
+    const p = (await loadProcurements(code)).find((x) => x.step !== "done" && x.step !== "need")!;
+    const ok = await put("tucker", [p]);
+    expect(ok.status).not.toBe(403);
+    const now = (await loadProcurements(code)).find((x) => x.id === p.id)!;
+    const changed = await put("tucker", [{ ...now, title: `${now.title} (changed)` }]);
+    expect([400, 409]).toContain(changed.status);
+    expect(((await changed.json()) as { error: string }).error).toMatch(/cannot change|Only the/);
+  });
+  it("someone with view access and no signing role is still refused", async () => {
+    const { users: DEMO_USERS } = await import("@/lib/demo");
+    const { procRolesFor } = await import("@/lib/procurement");
+    const viewer = DEMO_USERS.find((u) => u.kind === "employee" && u.procurementAccess === "view" && !procRolesFor(u).length && !u.admin)!;
+    const p = (await loadProcurements(code))[0];
+    expect((await put(viewer.id, [p])).status).toBe(403);
+  });
+});

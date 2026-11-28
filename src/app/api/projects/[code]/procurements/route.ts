@@ -5,7 +5,7 @@ import { EMPTY_VOUCHER_SETUP, VOUCHER_SETUP_KEY, type VoucherSetup } from "@/lib
 import { loadProjectState } from "@/server/project-state";
 import { actOnPlan } from "@/server/procurement-plan-store";
 import { z } from "zod";
-import type { Procurement } from "@/lib/procurement";
+import { procRolesFor, type Procurement } from "@/lib/procurement";
 import { requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
 import { claimNewProcurements, loadProcurements, procurementIdsOfOrg, releaseNewProcurements, saveProcurements } from "@/server/procurement-store";
@@ -41,7 +41,9 @@ const bodySchema = z.object({
 export async function PUT(req: Request, { params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
   return handle(async () => {
-    const v = await requireViewer(req, { write: true, allow: (u) => u.procurementAccess === "edit", why: "You can view Procurement but not change it." });
+    // R2-01: someone the approval table names to sign (the CEO above $25,000, management) may sign with
+    // view access only; the guard below lets them change nothing but the step they own.
+    const v = await requireViewer(req, { write: true, allow: (u) => u.kind === "employee", why: "You can view Procurement but not change it." });
     if (v instanceof NextResponse) return v;
     const parsed = bodySchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return NextResponse.json({ error: "That procurement could not be saved: the record is incomplete." }, { status: 400 });
@@ -85,6 +87,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ code: st
       else delete x.ai;
     }
     applyProcurementContext(ctx);
+    if (v.user.procurementAccess !== "edit" && !procRolesFor(v.user).length) return NextResponse.json({ error: "You can view Procurement but not change it." }, { status: 403 });
     for (const next of items) {
       const why = validateProcurementSave(stored.get(next.id), next, v.user, calendar, ctx.register, merged);
       if (why) return NextResponse.json({ error: `${next.id}: ${why}` }, { status: 409 });
