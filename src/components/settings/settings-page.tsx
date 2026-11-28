@@ -12,6 +12,7 @@ import { DonorFundingSection } from "@/components/settings/donor-funding";
 import { ProjectOriginRow } from "@/components/settings/project-origin";
 import { PasswordSection } from "@/components/settings/password-section";
 import { NotifySection } from "@/components/settings/notify-section";
+import { AwaySection } from "@/components/settings/away-section";
 import { TwoStepSettings } from "@/components/app/two-step";
 import { TopBar, dangerBtn, primaryBtn, quietBtn } from "@/components/workspace/ui";
 import { Empty, LedgerRow, LedgerTable, PageHead, SectionHead } from "@/components/workspace/ledger";
@@ -64,6 +65,7 @@ export function SettingsPage() {
         </SectionHead>
         <PasswordSection />
         <NotifySection />
+        <AwaySection />
         {mode === "live" && (
           <div className="mt-6">
             <TwoStepSettings />

@@ -1,4 +1,6 @@
 import { setRequestFileStores } from "@/server/request-memo";
+import { realToday } from "@/lib/clock";
+import { EMPTY_AWAY, holdersWithDelegation, withDelegation } from "@/lib/delegation";
 import { createServerClient } from "@supabase/ssr";
 import { eq, inArray, sql } from "drizzle-orm";
 import { cookies } from "next/headers";
@@ -102,11 +104,13 @@ async function twoStepState(supabase: Supabase, settings: Promise<OrgSettings>, 
 let holdersCache: { at: number; holders: Authority } | null = null;
 /** A read under way, shared by everyone who asks meanwhile (sign-in reads it ahead; see viewerAsStored). */
 let holdersReading: Promise<Authority> | null = null;
-async function roleHolders(): Promise<Authority> {
+/** Who holds each role type, with today's delegates beside them (MF-01). */
+export async function roleHolders(): Promise<Authority> {
   if (holdersCache && Date.now() - holdersCache.at < 60_000) return holdersCache.holders;
   holdersReading ??= (async () => {
     const loaded = await (await import("@/server/hr-store")).loadHr().catch(() => null);
-    const holders = (loaded?.state.rules?.holders ?? {}) as Authority;
+    // A delegate stands beside the role types the person they act for holds (lib/delegation, MF-01).
+    const holders = holdersWithDelegation((loaded?.state.rules?.holders ?? {}) as Authority, await awayState(), await rawPeople().catch(() => []), realToday());
     // A failed read is not remembered, so a database hiccup does not take approvals away for a minute.
     if (loaded) holdersCache = { at: Date.now(), holders };
     return holders;
@@ -133,8 +137,9 @@ async function resolveViewer(req: Request): Promise<{ viewer: Viewer | null; set
   const stored = await viewerAsStored(req);
   const v = stored.viewer;
   if (!v || v.twoStep) return stored;
-  const actor = await withRoleTypes(v.actor);
-  return { viewer: { ...v, actor, user: v.viewingAs ? await withRoleTypes(v.user) : actor }, settings: stored.settings };
+  // The roles of anyone this person acts for while they are away (MF-01), then those from role types.
+  const actor = await withRoleTypes(await withAwayRoles(v.actor));
+  return { viewer: { ...v, actor, user: v.viewingAs ? await withRoleTypes(await withAwayRoles(v.user)) : actor }, settings: stored.settings };
 }
 
 async function viewerAsStored(req: Request): Promise<{ viewer: Viewer | null; settings: Promise<OrgSettings> | null }> {
@@ -167,8 +172,32 @@ async function viewerAsStored(req: Request): Promise<{ viewer: Viewer | null; se
   return { viewer: { user: actor, actor, actorStaffId: row.id, organizationId: row.organizationId, viewingAs: false }, settings };
 }
 
-/** Everyone the app can name: the database staff list in live mode, the fictional cast in demo mode. */
+/**
+ * Everyone the app can name: the database staff list in live mode, the fictional cast in demo mode.
+ * While someone is away, the person acting for them also holds their roles (lib/delegation, MF-01).
+ */
 export function people(): Promise<AppUser[]> {
+  return oncePerRequest(`people+away:${demoMode() ? "demo" : "live"}`, async () => {
+    const [list, away] = await Promise.all([rawPeople(), awayState()]);
+    return withDelegation(list, away, realToday());
+  });
+}
+
+/** Who is away today, read at most once per request; nothing when it cannot be read. */
+function awayState() {
+  return oncePerRequest("away", () => import("@/server/away-store").then((m) => m.loadAway()).catch(() => EMPTY_AWAY));
+}
+
+/** The viewer with the roles of anyone they act for today (MF-01). */
+async function withAwayRoles(u: AppUser): Promise<AppUser> {
+  if (u.kind !== "employee") return u;
+  const [list, away] = await Promise.all([rawPeople(), awayState()]);
+  if (!away.entries.length) return u;
+  return withDelegation([...list.filter((p) => p.id !== u.id), u], away, realToday()).find((p) => p.id === u.id) ?? u;
+}
+
+/** The people as recorded, before anyone acts for anyone. */
+function rawPeople(): Promise<AppUser[]> {
   // Read once per read-only request (server/request-memo); a request that changes something reads it every time.
   return oncePerRequest(`people:${demoMode() ? "demo" : "live"}`, async () => {
     // Who reports to whom comes from the HR record when there is one (server/reporting-line).

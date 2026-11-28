@@ -78,8 +78,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       registerAuthority(s.authority);
       registerProposalAccess(s.proposalAccess);
       setTwoStep(s.mode === "live" ? (s.twoStep ?? null) : null);
+      // The people as the server has them today, with anyone acting for an away colleague holding
+      // their roles too (lib/delegation), in demo mode as in live.
+      if (s.people?.length) registerPeople(s.people);
       if (s.mode === "live") {
-        registerPeople(s.people);
         setLive({ user: s.user, actor: s.actor, viewingAs: s.viewingAs });
       }
       setConfigured(s.configured);

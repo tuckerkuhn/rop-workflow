@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { ownSelf, signedName, type Own } from "@/lib/delegation";
 import { z } from "zod";
 import { fieldRec, reviewRefusal } from "@/lib/kobo-approval";
 import { onProject, people, requireViewer } from "@/server/auth";
@@ -32,6 +33,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
     // Decided by whoever may accept the record itself.
     if ("held" in body) return NextResponse.json(await settleHeld(code, id, body.held, body.action, v.user, (source, by, form) => reviewRefusal(v.user, team, { ...fieldRec({ source, by }, rule, team), form }, rule, "accepted")));
     const { status, note } = body;
-    return NextResponse.json(await decide(code, id, status, v.user, note, (source, by, form) => reviewRefusal(v.user, team, { ...fieldRec({ source, by }, rule, team), form }, rule, status, note)));
+    // Deciding in the place of someone away (MF-01): the farmer's history says on whose behalf. The
+    // name is settled in the check, once the record is known, before anything is written with it.
+    const me = v.user as typeof v.user & { actingFor?: { id: string; name: string }[]; own?: Own };
+    const own = team.map((p) => ownSelf(p as typeof me));
+    const decider = { ...v.user };
+    return NextResponse.json(
+      await decide(code, id, status, decider, note, (source, by, form) => {
+        const why = reviewRefusal(v.user, team, { ...fieldRec({ source, by }, rule, team), form }, rule, status, note);
+        if (!why && me.actingFor?.length && reviewRefusal(ownSelf(me), own, { ...fieldRec({ source, by }, rule, own), form }, rule, status, note)) decider.name = signedName(me, () => false);
+        return why;
+      }),
+    );
   });
 }

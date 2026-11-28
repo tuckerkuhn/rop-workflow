@@ -1,14 +1,16 @@
 import { fileStoresFor, orgIdForPerson } from "@/server/org-settings-store";
 import { NextResponse } from "next/server";
-import { authConfigured, demoMode, getViewer, people } from "@/server/auth";
+import { authConfigured, demoMode, getViewer, people, roleHolders } from "@/server/auth";
 import { handle } from "@/server/guard";
 import { planDetails } from "@/server/plans";
-import { loadHr } from "@/server/hr-store";
 import { proposalMenuMap } from "@/server/funding-proposals-store";
 import { requestOnlyReads } from "@/server/request-memo";
 
-/** Who holds each role type, from the HR record. Names of roles are not secret; pay and records are not included. */
-const authority = async () => (await loadHr().catch(() => null))?.state.rules?.holders ?? {};
+/**
+ * Who holds each role type, from the HR record, with anyone acting for an away holder beside them
+ * (lib/delegation). Names of roles are not secret; pay and records are not included.
+ */
+const authority = () => roleHolders().catch(() => ({}));
 
 /**
  * What the browser needs to start: the sign-in mode, who is signed in (live mode), and the

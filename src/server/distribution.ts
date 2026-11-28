@@ -1,4 +1,5 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { ownSelf, signedName, type Own } from "@/lib/delegation";
 import { hasAnswers } from "@/lib/form-record";
 import { stampHistory } from "@/lib/history";
 import { mirrorFarmer } from "@/server/farmer-mirror";
@@ -675,6 +676,9 @@ export async function decideDistribution(code: string, id: string, decision: "ap
     decidersOf(everyone, { fromKobo: true, collector: collectorOf(row.completedBy, rule, everyone) }, rule).some((p) => p.id === by.id);
   const refused = by.id === "manager-link" || checkerSendsBack ? null : approvalRefusal(by.id, everyone, recorderOf(row, m, rule, everyone));
   if (refused) throw new HttpError(403, refused);
+  // Approving in the place of someone away (MF-01): the record says on whose behalf.
+  const me = everyone.find((p) => p.id === by.id) as (AppUser & { actingFor?: { id: string; name: string }[]; own?: Own }) | undefined;
+  if (me?.actingFor?.length && approvalRefusal(by.id, everyone.map((p) => ownSelf(p as AppUser & { own?: Own })), recorderOf(row, m, rule, everyone))) by = { ...by, name: signedName(me, () => false) };
 
   const g = gate(m.items, ctx.procs, ctx.given, ctx.setup, ctx.onDay(row));
   if (decision === "approved" && !g.ok) throw new HttpError(409, `Not approved: ${g.block}`);
