@@ -197,6 +197,13 @@ describe("the ledger screens", { timeout: 60_000 }, () => {
     }
   });
 
+  it("the payee's authorization is not the receipt itself (R2-12)", async () => {
+    const f = form("15.00", { payee: "Green Valley Agro Ltd (fictional)" });
+    const r = await pay("yusuf", { ...f, thirdParty: { receivedBy: "Ahmad Noori", authorization: f.receipt, screenedOn: new Date().toISOString().slice(0, 10) } });
+    expect(r.status).toBe(400);
+    expect((r.body as unknown as { error: string }).error).toContain("a document of its own");
+  });
+
   // Review round 1, ISS-02: the review posted a purchase's payment here, to a third party, with no warning.
   it("is not a way around a purchase's checks: a named purchase, an open one on the line, a third-party receiver", async () => {
     const v = (await view("yusuf")).body;

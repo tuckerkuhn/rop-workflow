@@ -58,6 +58,7 @@ export async function POST(req: Request, { params }: Ctx) {
     const everyPurchase = [...purchases, ...(await procurementIdsOfOrg(org)).filter((r) => r.projectId !== project.id)];
     const refusal = paymentGuard({ payee: f.payee, what: f.what, lineCode: line.code, date: f.date, notAPurchase: f.notAPurchase, thirdParty: f.thirdParty }, everyPurchase, open, realToday());
     if (refusal) throw new HttpError(refusal.status, refusal.error);
+    if (f.thirdParty && f.thirdParty.authorization.hash === f.receipt.hash) throw new HttpError(400, "The payee's written authorization is a document of its own, not the receipt. Attach it separately.");
     if (f.thirdParty) {
       const [auth] = await db.select({ hash: s.hrFiles.hash }).from(s.hrFiles).where(and(eq(s.hrFiles.book, hrBook()), eq(s.hrFiles.hash, f.thirdParty.authorization.hash))).limit(1);
       if (!auth) throw new HttpError(400, "The written authorization did not finish uploading. Attach it again.");
