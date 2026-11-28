@@ -795,7 +795,7 @@ function ResultCard({ r, ind, act, mayAddProof, me, first }: { r: Res; ind?: Ind
           ))}
           {r.distribution && (
             <a href={`/approve/${encodeURIComponent(project.id)}/${r.distribution}`} className="inline-flex min-h-11 items-center gap-1 border border-line px-2 py-1 text-xs font-semibold text-forest hover:bg-ochre-soft">
-              Distribution record: signed note and approval <span aria-hidden>→</span>
+              Distribution record: distribution receipt and approval <span aria-hidden>→</span>
             </a>
           )}
           {r.planting && (

@@ -221,5 +221,5 @@ export function PhotoTagger({
   );
 }
 
-/** How a tag is kept on a farmer's photo: the activity it shows, and whether it is the signed goods received note. */
+/** How a tag is kept on a farmer's photo: the activity it shows, and whether it is the signed distribution receipt. */
 export { filedAs } from "@/lib/kobo-photo";

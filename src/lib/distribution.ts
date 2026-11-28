@@ -69,7 +69,7 @@ export type GateLine = { key: string; item: string; unit: string; procurements: 
 export type Gate = { ok: boolean; lines: GateLine[]; block: string | null };
 
 /**
- * Whether this package may go out: each item's purchase has a signed goods received note, and what
+ * Whether this package may go out: each item's purchase has a signed distribution receipt, and what
  * was already given plus this package stays within what was received. `given` is what earlier
  * distributions of each item already took, in the package unit.
  */
@@ -236,7 +236,7 @@ export function flagsFor(d: { farmerId: string; items: DistItem[]; photo: boolea
     const asPlanned = p ? convert(it.qty, it.unit, p.unit) : null;
     if (p && asPlanned !== null && asPlanned > p.qty + 1e-9) out.push({ id: "aboveplan", text: `${it.item}: ${fmt(it.qty)} ${it.unit} given; the package plans ${fmt(p.qty)} ${p.unit}.` });
   }
-  if (!d.photo) out.push({ id: "nophoto", text: "No photo of the signed goods received note." });
+  if (!d.photo) out.push({ id: "nophoto", text: "No photo of the signed distribution receipt." });
   if (!d.signed) out.push({ id: "unsigned", text: "The recipient's signature or thumbprint is not confirmed." });
   // In the app the farmer has just moved on from "distribute"; from Kobo they should be at it.
   if (d.step !== null && !["distribute", "plant", "complete"].includes(d.step)) out.push({ id: "notready", text: `${d.farmerId} has not been cleared as ready (their step is "${d.step}").` });
@@ -346,8 +346,8 @@ export const badCondition = (c: string | null | undefined) => (c && !ACCEPTABLE.
  */
 export function closeBlock(d: { signed: boolean; photo?: boolean; source?: "app" | "kobo"; condition?: string | null }): string | null {
   const back = "Send it back so the person who recorded it can put it right; then it can be approved.";
-  if (!d.signed) return `The recipient's signature or thumbprint on the goods received note is not confirmed. ${ACKNOWLEDGMENT} ${back}`;
+  if (!d.signed) return `The recipient's signature or thumbprint on the distribution receipt is not confirmed. ${ACKNOWLEDGMENT} ${back}`;
   if (badCondition(d.condition)) return `The goods were recorded as damaged at handover, so the recipient has not accepted them in acceptable condition. ${back}`;
-  if (d.photo === false) return `There is no photo of the signed goods received note. ${ACKNOWLEDGMENT} The photo is the proof. ${back}`;
+  if (d.photo === false) return `There is no photo of the signed distribution receipt. ${ACKNOWLEDGMENT} The photo is the proof. ${back}`;
   return null;
 }

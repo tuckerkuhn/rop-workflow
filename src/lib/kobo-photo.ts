@@ -8,7 +8,7 @@ import { pointOf, type Point } from "@/lib/exif";
  *   found no place by itself), the phone's own fix when the form was opened (`start_geopoint`, the
  *   XLSForm "start-geopoint" metadata question: nothing to tap), then KoboToolbox's `_geolocation`.
  * - Its photos, each already tagged by the question it was taken on. The person in the field never
- *   picks a tag: taking the photo on "Photo of the signed goods received note" is the tag.
+ *   picks a tag: taking the photo on "Photo of the signed distribution receipt" is the tag.
  *
  * Pure: the same reading for the review queue, the approval page and the data set.
  */
@@ -54,7 +54,7 @@ export const PHOTO_TAGS = ["signed-note", "delivery", "training", "visit", "land
 export type PhotoTag = (typeof PHOTO_TAGS)[number];
 
 export const tagLabels: Record<PhotoTag, string> = {
-  "signed-note": "Signed goods received note",
+  "signed-note": "Signed distribution receipt",
   delivery: "Handover of the goods",
   training: "Training",
   visit: "Farm visit",
@@ -139,12 +139,12 @@ export const FARMER_TAGS = ["signed-note", "delivery", "training", "visit", "lan
 export type FarmerTag = (typeof FARMER_TAGS)[number];
 
 /**
- * May supply the proof of a distribution (the photo of the signed goods received note): the people
+ * May supply the proof of a distribution (the photo of the signed distribution receipt): the people
  * who hand goods out and record it, the storekeeper and the extension agent. Never a project
  * manager, MEL or a visitor: whoever checks or approves a record must not be the one who supplies its proof.
  */
 export const maySupplyProof = (u: { kind: string; field: readonly string[] }) => u.kind === "employee" && (u.field.includes("store") || u.field.includes("extension"));
-/** The tags this person may use: the signed goods received note only for those who may supply proof. */
+/** The tags this person may use: the signed distribution receipt only for those who may supply proof. */
 export const tagsFor = (u: { kind: string; field: readonly string[] }): FarmerTag[] => (maySupplyProof(u) ? [...FARMER_TAGS] : FARMER_TAGS.filter((t) => t !== "signed-note"));
 /** Where a tagged photo is filed on the farmer's record. */
 export const filedAs = (tag: PhotoTag): { activity: "training" | "landprep" | "visit" | "distribution" | "planting"; signedNote?: true } =>

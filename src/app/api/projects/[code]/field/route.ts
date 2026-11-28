@@ -97,12 +97,12 @@ export async function PUT(req: Request, { params }: { params: Promise<{ code: st
     // A stale page never writes over newer work: each record must be the version the page read.
     const stale = items.find((i) => stored.has(i.id) && stored.get(i.id)!.rev !== i.rev);
     if (stale) throw new HttpError(409, `${stale.kind === "farmer" ? `Farmer ${stale.id}` : `Finding ${stale.id}`} was changed by someone else since you opened this page, so your change was not saved. The page now shows the latest; make your change again.`);
-    // The photo of the signed goods received note is proof of a distribution: only the people who hand
+    // The photo of the signed distribution receipt is proof of a distribution: only the people who hand
     // goods out may add one (server/farmer-photo maySupplyProof), whatever the page offered. A photo
     // already on the record is left as it is.
     if (!maySupplyProof(v.user)) {
       const proof = items.find((i) => i.kind === "farmer" && addsSignedNote(raw.get(i.id) as Farmer | undefined, i));
-      if (proof) throw new HttpError(403, "The photo of the signed goods received note is added by the storekeeper or the extension agent, so that nobody who checks or approves a distribution also supplies its proof. Add it under another tag, or ask the storekeeper.");
+      if (proof) throw new HttpError(403, "The photo of the signed distribution receipt is added by the storekeeper or the extension agent, so that nobody who checks or approves a distribution also supplies its proof. Add it under another tag, or ask the storekeeper.");
     }
     // Field steps come from KoboCollect: ticking a check, moving a step or entering planting by hand is refused.
     const byHand = items.map((i) => handRecordProblem(raw.get(i.id), i)).find(Boolean);

@@ -67,7 +67,7 @@ export type PhotoItem = {
  * Every image on the project's results, weekly items and stories, and the farmers' photos (decision
  * AR, 25 Nov 2026), so they are checked like any other and the ones cleared reach a donor. A
  * farmer's photo is listed by farmer ID with no caption (staff type captions and may name the
- * person) and never the signed goods received note, which carries the farmer's name.
+ * person) and never the signed distribution receipt, which carries the farmer's name.
  */
 async function allPhotos(code: string): Promise<{ items: PhotoItem[]; stories: Story[] }> {
   const p = await projectByCode(code);

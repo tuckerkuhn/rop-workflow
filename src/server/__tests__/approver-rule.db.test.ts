@@ -45,7 +45,7 @@ describe("who approves an input distribution", { timeout: 60_000 }, () => {
   it("sends a distribution the project manager recorded herself to the person she reports to", async () => {
     const f = await farmer("F-0007");
     await saveItems(code, [f]);
-    own = await recordFromApp(code, { ...f, photos: [...f.photos, { id: "note", activity: "distribution" as const, date: "2027-01-01", caption: "Signed goods received note", src: "data:image/png;base64,AA==", signedNote: true }], checks: { ...f.checks, "distribute.recipient": true }, step: "plant" }, nadia, "http://test");
+    own = await recordFromApp(code, { ...f, photos: [...f.photos, { id: "note", activity: "distribution" as const, date: "2027-01-01", caption: "Signed distribution receipt", src: "data:image/png;base64,AA==", signedNote: true }], checks: { ...f.checks, "distribute.recipient": true }, step: "plant" }, nadia, "http://test");
     const d = await row(own);
     expect(d.approvers).toEqual(["karim"]);
     expect(d.approverNames).toBe("Karim Ahmadi");
@@ -100,7 +100,7 @@ describe("the signed note closes a distribution", { timeout: 60_000 }, () => {
     const d = await row(unsigned);
     expect(d.signed).toBe(false);
     expect(d.closeBlock).toMatch(/not confirmed/);
-    expect(await refusal(() => approveAs(code, unsigned, nadia))).toMatch(/^Not approved: The recipient's signature or thumbprint on the goods received note is not confirmed/);
+    expect(await refusal(() => approveAs(code, unsigned, nadia))).toMatch(/^Not approved: The recipient's signature or thumbprint on the distribution receipt is not confirmed/);
     expect((await row(unsigned)).status).toBe("pending");
   });
 
@@ -157,9 +157,9 @@ describe("a readiness No goes back to the agent who made the visit", { timeout: 
     await saveItems(code, [f]);
     const id = await recordFromApp(code, { ...f, checks: { ...f.checks, "distribute.recipient": true }, step: "plant" }, bilal, "http://test");
     expect((await row(id)).photo).toBe(false);
-    expect(await refusal(() => approveAs(code, id, nadia))).toMatch(/no photo of the signed goods received note/);
+    expect(await refusal(() => approveAs(code, id, nadia))).toMatch(/no photo of the signed distribution receipt/);
     // The storekeeper adds the photo on the farmer's record: the waiting distribution counts it at once.
-    await saveItems(code, [{ ...f, photos: [...f.photos, { id: "note-5", activity: "distribution", date: "2027-01-01", caption: "Signed goods received note", src: "data:image/png;base64,AA==", signedNote: true }] }]);
+    await saveItems(code, [{ ...f, photos: [...f.photos, { id: "note-5", activity: "distribution", date: "2027-01-01", caption: "Signed distribution receipt", src: "data:image/png;base64,AA==", signedNote: true }] }]);
     expect((await row(id)).closeBlock).toBeNull();
     expect((await approveAs(code, id, nadia)).decision).toBe("approved");
   });

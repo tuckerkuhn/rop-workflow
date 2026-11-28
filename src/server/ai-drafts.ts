@@ -80,7 +80,7 @@ function recordOf(p: Procurement, ctx: Context = {}) {
     policy_notes: [
       "Micro purchases need no purchase order or contract (Procurement Policy D1 §3.4, §4.11): the order is placed when procurement clears the screened supplier to deliver, so that date is the order date.",
       "The requester, not procurement, performs the physical check and signs the goods received note (D1 §4.12). The requester receiving the goods is correct; procurement receiving them would not be.",
-      "Goods handed out farmer by farmer in Field activities are checked handout by handout (signed note, photo, the project manager's approval); no recipient sample is required by any ROP manual.",
+      "Goods handed out farmer by farmer in Field activities are checked handout by handout (signed distribution receipt, photo, the project manager's approval); no recipient sample is required by any ROP manual.",
     ],
     order_date: levelFor(usd) === "Micro" ? (p.signatures["Screening record"]?.[0]?.date ?? null) : null,
     quotations: (p.bids ?? []).filter((b) => b.supplier.trim()).map((b) => ({ supplier: b.supplier, amount: b.amount, currency: b.currency, amount_usd: bidUsd(b), received: b.receivedAt, technically_acceptable: b.passes, chosen: b.id === p.selectedBid })),

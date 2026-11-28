@@ -16,7 +16,7 @@ import { requestWrote } from "@/server/request-memo";
  * management, communications or anyone else on the project who can open the farmer. A visitor's
  * photo is a picture of the work, not proof: it counts toward nothing and starts no approval.
  *
- * - Tags: everyone may use every tag except the signed goods received note. That photo lets a
+ * - Tags: everyone may use every tag except the signed distribution receipt. That photo lets a
  *   distribution be approved, so only the storekeeper and the extension agent may add it: whoever
  *   checks or approves must not be the one who supplies the proof.
  * - Every photo carries who added it. A visitor's is marked as such, so nobody later reads it as a
@@ -42,7 +42,7 @@ export async function addFarmerPhoto(
   photo: { tag: FarmerTag; src: string; taken?: { date?: string | null; time?: string | null } | null; gps?: { lat: number; lon: number } | null },
 ): Promise<Photo> {
   if (!mayAddPhoto(by, code)) throw new HttpError(403, "Only staff on this project who can open Field activities can add a photo to a farmer.");
-  if (!tagsFor(by).includes(photo.tag)) throw new HttpError(403, "The photo of the signed goods received note is added by the people who record the distribution, so that nobody who approves it also supplies its proof. Choose another tag, or ask the storekeeper to add it.");
+  if (!tagsFor(by).includes(photo.tag)) throw new HttpError(403, "The photo of the signed distribution receipt is added by the people who record the distribution, so that nobody who approves it also supplies its proof. Choose another tag, or ask the storekeeper to add it.");
   const project = await projectByCode(code);
   const visitor = !recordsField(by);
   const day = photo.taken?.date && /^\d{4}-\d{2}-\d{2}$/.test(photo.taken.date) ? photo.taken.date : today();

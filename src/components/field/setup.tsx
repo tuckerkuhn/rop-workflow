@@ -357,7 +357,7 @@ export function PackageSetup({ code, onSaved, onCancel }: { code: string; onSave
         <div className="rounded-xl border border-line bg-surface px-4 py-4">
           <h3 className="font-semibold">The form for the phone</h3>
           <p className="mt-1 text-sm text-muted">
-            The KoboCollect distribution form for this project, made from the package saved above: one question per item, the farmer&apos;s planned amount shown, the signed note&apos;s photo required. The place is taken from the phone and nothing is
+            The KoboCollect distribution form for this project, made from the package saved above: one question per item, the farmer&apos;s planned amount shown, the distribution receiptthe signed note&apos;s photo requiredapos;s photo required. The place is taken from the phone and nothing is
             typed unless an amount differed.
           </p>
           <button

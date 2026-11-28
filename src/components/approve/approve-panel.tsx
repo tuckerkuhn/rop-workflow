@@ -233,7 +233,7 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
               {!d.items.length && <li className="text-clay">{tx("Nothing is recorded as given.")}</li>}
             </ul>
             <p className="mt-2 text-sm text-muted">
-              {tx("Recipient: {gender}", { gender: d.gender ?? tx("sex not recorded") })} · {d.signed ? tx("Signature or thumbprint: confirmed") : tx("Signature or thumbprint: not confirmed")} · {tx("Photo of the signed goods received note:")}{" "}
+              {tx("Recipient: {gender}", { gender: d.gender ?? tx("sex not recorded") })} · {d.signed ? tx("Signature or thumbprint: confirmed") : tx("Signature or thumbprint: not confirmed")} · {tx("Photo of the signed distribution receipt:")}{" "}
               {d.source === "kobo" ? (
                 !d.photo ? (
                   <span className="text-clay">{tx("missing")}</span>
@@ -268,11 +268,11 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
             {koboShots.note && (
               <figure className="mt-3">
                 {/* eslint-disable-next-line @next/next/no-img-element -- fetched from the project's KoboToolbox account, shown from memory */}
-                <img src={koboShots.note} alt={tx("Signed goods received note for {id}", { id: d.farmerId })} className="max-h-96 w-full rounded-lg border border-line bg-mist object-contain" />
+                <img src={koboShots.note} alt={tx("Signed distribution receipt for {id}", { id: d.farmerId })} className="max-h-96 w-full rounded-lg border border-line bg-mist object-contain" />
                 <figcaption className="mt-1 text-xs text-muted">
                   {facts?.photo?.date
-                    ? tx("Signed goods received note, photographed {date}. Check the signature or thumbprint and the quantities before approving.", { date: `${longDate(facts.photo.date)}${facts.photo.time ? `, ${facts.photo.time}` : ""}` })
-                    : tx("Signed goods received note, from KoboCollect. Check the signature or thumbprint and the quantities before approving.")}
+                    ? tx("Signed distribution receipt, photographed {date}. Check the signature or thumbprint and the quantities before approving.", { date: `${longDate(facts.photo.date)}${facts.photo.time ? `, ${facts.photo.time}` : ""}` })
+                    : tx("Signed distribution receipt, from KoboCollect. Check the signature or thumbprint and the quantities before approving.")}
                 </figcaption>
               </figure>
             )}
@@ -286,9 +286,9 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
             {notePhoto && (
               <figure className="mt-3">
                 {/* eslint-disable-next-line @next/next/no-img-element -- a stored data URL, not a static asset */}
-                <img src={notePhoto.src} alt={tx("Signed goods received note for {id}", { id: d.farmerId })} className="max-h-96 w-full rounded-lg border border-line bg-mist object-contain" />
+                <img src={notePhoto.src} alt={tx("Signed distribution receipt for {id}", { id: d.farmerId })} className="max-h-96 w-full rounded-lg border border-line bg-mist object-contain" />
                 <figcaption className="mt-1 text-xs text-muted">
-                  {tx("Signed goods received note, photographed {date}. Check the signature or thumbprint and the quantities before approving.", { date: /^\d{4}-\d{2}-\d{2}$/.test(notePhoto.date) ? longDate(notePhoto.date) : notePhoto.date })}
+                  {tx("Signed distribution receipt, photographed {date}. Check the signature or thumbprint and the quantities before approving.", { date: /^\d{4}-\d{2}-\d{2}$/.test(notePhoto.date) ? longDate(notePhoto.date) : notePhoto.date })}
                 </figcaption>
               </figure>
             )}
@@ -319,7 +319,7 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
                 </li>
               ))}
             </ul>
-            {!d.gate.ok && pending && <p className="mt-2 text-sm text-clay">{d.items.length ? tx("This can't be approved until the goods received note is signed and the quantity is within what was received.") : d.gate.block}</p>}
+            {!d.gate.ok && pending && <p className="mt-2 text-sm text-clay">{d.items.length ? tx("This can't be approved until the supplier's goods received note is signed and the quantity is within what was received.") : d.gate.block}</p>}
           </section>
 
           {/* The signed note closes a distribution: say so before the tap, with what to do instead. */}
@@ -354,7 +354,7 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
                 <>
                   <p className="mt-3 font-semibold">{tx("Three things to look at, all on this page:")}</p>
                   <ol className="mt-1 list-decimal space-y-0.5 ps-5">
-                    <li>{tx("The photo shows this farmer’s signature or thumbprint on the goods received note.")}</li>
+                    <li>{tx("The photo shows this farmer’s signature or thumbprint on the distribution receipt.")}</li>
                     <li>{tx("The amounts on the note match the amounts handed out above.")}</li>
                     <li>{tx("The place and the day make sense for this farmer.")}</li>
                   </ol>
@@ -410,10 +410,10 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
               </div>
               <label className="mt-3 flex items-start gap-2 text-sm">
                 <input type="checkbox" className="mt-0.5 h-4 w-4" checked={fix.signed} onChange={(e) => setFix((f) => ({ ...f, signed: e.target.checked }))} />
-                {tx("The recipient signed or thumbprinted the goods received note: received in acceptable condition and responsible from now on")}
+                {tx("The recipient signed or thumbprinted the distribution receipt: received in acceptable condition and responsible from now on")}
               </label>
               <div className="mt-3 text-sm">
-                <p className="font-medium">{tx("Photo of the signed goods received note")}</p>
+                <p className="font-medium">{tx("Photo of the signed distribution receipt")}</p>
                 {noteAdded ? (
                   <p className="mt-1">✓ {tx("Photo added. It goes to the project manager with the record when you send this again.")}</p>
                 ) : (

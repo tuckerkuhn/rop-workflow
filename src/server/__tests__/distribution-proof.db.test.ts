@@ -154,7 +154,7 @@ describe("whoever checks a KoboCollect record can return it to the person who co
     const bare = await koboRow("proof-3", farmerId, { farmer: farmerId, distribution_date: "2026-11-24", seed_kg: "10", npk_kg: "50", condition: "good", signed: "yes" });
     await decideDistribution(code, bare, "sent_back", rahima, "No photo of the signed note");
     await resubmitDistribution(code, bare, bilal, { photo: true }, "Will add the photo", "http://test");
-    expect((await listDistributions(code)).find((x) => x.id === bare)!.closeBlock).toMatch(/no photo of the signed goods received note/);
+    expect((await listDistributions(code)).find((x) => x.id === bare)!.closeBlock).toMatch(/no photo of the signed distribution receipt/);
     await decideDistribution(code, bare, "sent_back", rahima, "Still no photo");
 
     // The collector adds it on the distribution's own page: filed on the farmer's record with what the photo says of itself.

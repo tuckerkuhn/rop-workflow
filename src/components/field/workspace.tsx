@@ -647,7 +647,7 @@ const KOBO_FORM: Record<string, string> = {
   prepare: msg("Readiness visit form, at the joint visit with MEL"),
   verify: msg("Readiness visit form"),
   correct: msg("Readiness visit form, at the recheck"),
-  distribute: msg("Distribution form, with the photo of the signed goods received note; then the project manager approves it"),
+  distribute: msg("Distribution form, with the photo of the signed distribution receipt; then the project manager approves it"),
   plant: msg("Farm visit form after planting"),
 };
 

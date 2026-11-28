@@ -181,7 +181,7 @@ export function FarmerProfile({ id }: { id: string }) {
   const canEdit = user.field.length > 0;
   // Anyone on the project who visits farmers can add a photo, not only the people who record field
   // work: management and communications too. A visitor's photo is a picture of the work, never proof,
-  // so the signed goods received note stays with field staff (server/farmer-photo).
+  // so the signed distribution receipt stays with field staff (server/farmer-photo).
   // Staff only: the server refuses a photo from an account outside Roots of Peace (a donor's).
   const canAddPhoto = canEdit || (user.kind === "employee" && user.fieldAccess !== "none");
   // The signed note is proof: only the people who hand goods out add it, never whoever checks or approves.

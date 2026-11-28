@@ -43,7 +43,7 @@ export type Photo = {
   date: string;
   caption: string;
   src?: string;
-  /** The photo is of the goods received note the recipient signed or thumbprinted (lib/distribution closeBlock). */
+  /** The photo is of the distribution receipt the recipient signed or thumbprinted (lib/distribution closeBlock). */
   signedNote?: boolean;
   /** The one tag picked when it was added (lib/kobo-photo PHOTO_TAGS): it decides where the photo is filed and what it sets going. */
   tag?: string;
@@ -60,7 +60,7 @@ export type Photo = {
   visitor?: boolean;
 };
 /**
- * Whether a save adds a photo of the signed goods received note that the stored record did not hold.
+ * Whether a save adds a photo of the signed distribution receipt that the stored record did not hold.
  * That photo is proof of a distribution, so only some people may add it (server/farmer-photo).
  */
 export function addsSignedNote(stored: { photos?: Pick<Photo, "id">[] } | null | undefined, sent: { photos?: Pick<Photo, "id" | "signedNote" | "tag">[] } | null | undefined): boolean {
@@ -68,18 +68,18 @@ export function addsSignedNote(stored: { photos?: Pick<Photo, "id">[] } | null |
   return (sent?.photos ?? []).some((p) => !had.has(p.id) && (!!p.signedNote || p.tag === "signed-note"));
 }
 
-/** Whether the farmer's record holds a photo of the signed goods received note. */
+/** Whether the farmer's record holds a photo of the signed distribution receipt. */
 export const hasSignedNotePhoto = (f: { photos?: Photo[] } | null | undefined) => !!f?.photos?.some((p) => p.activity === "distribution" && p.signedNote && !!p.src);
 
 /**
- * A stand-in photo of a signed goods received note for the demo farmers: a drawn form with the
+ * A stand-in photo of a signed distribution receipt for the demo farmers: a drawn form with the
  * farmer's ID, the package and a thumbprint. No names. Real records hold the photo Bilal takes.
  */
 export function sampleNotePhoto(farmerId: string, date: string): string {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="480" height="340" viewBox="0 0 480 340">
 <rect width="480" height="340" fill="#e9e4d8"/><rect x="24" y="16" width="432" height="308" fill="#fffdf6" stroke="#c9c2b0" transform="rotate(-1.2 240 170)"/>
 <g font-family="Georgia, serif" fill="#2b2b2b" transform="rotate(-1.2 240 170)">
-<text x="48" y="52" font-size="18" font-weight="bold">Roots of Peace · Goods received note</text>
+<text x="48" y="52" font-size="18" font-weight="bold">Roots of Peace · Distribution receipt</text>
 <text x="48" y="80" font-size="13">Farmer ID: ${farmerId}    Date: ${date}</text>
 <line x1="48" y1="94" x2="432" y2="94" stroke="#999"/>
 <text x="48" y="120" font-size="13">Certified maize seed ........ 10 kg</text>
@@ -391,7 +391,7 @@ export const fieldSteps: Record<string, SStep> = {
         },
         fix: msg("Store is short for this package: check the procurement status."),
       },
-      { id: "recipient", label: msg("Recipient signed the goods received note"), why: msg("By signature or thumbprint the recipient says they received the goods in acceptable condition and are responsible for them from then on."), tag: "TS" },
+      { id: "recipient", label: msg("Recipient signed the distribution receipt"), why: msg("By signature or thumbprint the recipient says they received the goods in acceptable condition and are responsible for them from then on."), tag: "TS" },
       { id: "voucher", label: msg("Store issue voucher number recorded"), why: msg("Links the distribution to expenditure evidence on the package's budget lines."), tag: "TS" },
     ],
     outcomes: [
@@ -735,7 +735,7 @@ function farmer(
     const date = addDays(TODAY, -(reached - k) * 5);
     timeline.push({ date, who: owners[s], what: outcome });
     if (s === "plant") extraPlanting.planting = { date, hectares };
-    if (s === "distribute") photos.push({ id: `${id}-note`, activity: "distribution", date, caption: `Signed goods received note · ${id}`, src: sampleNotePhoto(id, date), signedNote: true });
+    if (s === "distribute") photos.push({ id: `${id}-note`, activity: "distribution", date, caption: `Signed distribution receipt · ${id}`, src: sampleNotePhoto(id, date), signedNote: true });
     else if (s !== "verify" || k % 2 === 0) photos.push({ id: `${id}-${s}`, activity: photoFor[s], date, caption: `${fieldSteps[s].title} · ${id}` });
   });
   if (step === "removal") timeline.push({ date: addDays(TODAY, -2), who: "extension", what: "Recheck: No, sent for decision" });

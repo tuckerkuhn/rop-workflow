@@ -287,7 +287,7 @@ describe("nobody approves a distribution they recorded", () => {
 
 describe("the signed note closes a distribution", () => {
   it("blocks approval until the recipient's signature is confirmed", () => {
-    expect(closeBlock({ signed: false })).toMatch(/signature or thumbprint on the goods received note is not confirmed/);
+    expect(closeBlock({ signed: false })).toMatch(/signature or thumbprint on the distribution receipt is not confirmed/);
     expect(closeBlock({ signed: false })).toMatch(/acceptable condition and are responsible for them from then on/);
     expect(closeBlock({ signed: true })).toBeNull();
   });
@@ -296,8 +296,8 @@ describe("the signed note closes a distribution", () => {
     expect(closeBlock({ signed: true, source: "kobo", photo: true, condition: "good" })).toBeNull();
   });
   it("needs the photo of the signed note, from KoboCollect or the app", () => {
-    expect(closeBlock({ signed: true, source: "kobo", photo: false, condition: "good" })).toMatch(/no photo of the signed goods received note/);
-    expect(closeBlock({ signed: true, source: "app", photo: false })).toMatch(/no photo of the signed goods received note/);
+    expect(closeBlock({ signed: true, source: "kobo", photo: false, condition: "good" })).toMatch(/no photo of the signed distribution receipt/);
+    expect(closeBlock({ signed: true, source: "app", photo: false })).toMatch(/no photo of the signed distribution receipt/);
     expect(closeBlock({ signed: true, source: "app", photo: true })).toBeNull();
   });
 });

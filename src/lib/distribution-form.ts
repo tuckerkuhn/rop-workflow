@@ -62,8 +62,8 @@ export function distributionForm(code: string, title: string, setup: FieldSetup,
   }
   rows.push(
     { type: "select_one condition", name: "condition", label: "Condition of the inputs at handover", required: true },
-    { type: "select_one yes_no", name: "signed", label: "Did the recipient sign or thumbprint the goods received note, saying they received the goods in acceptable condition and are responsible for them from now on?", required: true },
-    { type: "image", name: "list_photo", label: "Photo of the signed goods received note", hint: "The page with this farmer's signature or thumbprint. Fill the frame: the mark and the amounts must be readable.", required: true, parameters: "max-pixels=1024" },
+    { type: "select_one yes_no", name: "signed", label: "Did the recipient sign or thumbprint the distribution receipt, saying they received the goods in acceptable condition and are responsible for them from now on?", required: true },
+    { type: "image", name: "list_photo", label: "Photo of the signed distribution receipt", hint: "The page with this farmer's signature or thumbprint. Fill the frame: the mark and the amounts must be readable.", required: true, parameters: "max-pixels=1024" },
     { type: "image", name: "handover_photo", label: "Photo of the handover (optional)", parameters: "max-pixels=1024" },
     // Asked only when the phone found no place by itself.
     { type: "geopoint", name: "location", label: "Location (GPS)", hint: "The phone did not find its place by itself. Record it here.", relevant: "string-length(${start_geopoint}) = 0" },

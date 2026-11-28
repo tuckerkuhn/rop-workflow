@@ -219,7 +219,7 @@ export async function farmersOf(projectId: string, codes: string[]): Promise<Map
 }
 
 /**
- * The photo of the signed goods received note on the farmer's record, newest first, so whoever
+ * The photo of the signed distribution receipt on the farmer's record, newest first, so whoever
  * approves can see the proof and not only that it exists. Null when there is none in the app
  * (a KoboCollect photo stays in KoboToolbox). Read for one distribution only: photos are large.
  */
@@ -873,7 +873,7 @@ export async function resubmitDistribution(code: string, id: string, by: { id: s
 /* ---------- the signed note's photo, added where it is asked for ---------- */
 
 /**
- * Adds the photo of the signed goods received note to the farmer's record, from the distribution's
+ * Adds the photo of the signed distribution receipt to the farmer's record, from the distribution's
  * own page: the person fixing a sent-back record takes or chooses the photo there and it is filed
  * in one step (tagged as the signed note, lib/kobo-photo). The day, time and place come from the
  * photo itself, read before it was shrunk; nobody types them. A record still waiting counts the
@@ -889,8 +889,8 @@ export async function addSignedNote(code: string, id: string, by: { id: string; 
   await db.transaction(async (tx) => {
     await changeFarmer(tx, project.id, row.farmerCode!, (f) => {
       added = true;
-      const entry = { id: `${f.id}-note-${Date.now()}`, activity: "distribution" as const, date: day, caption: `Signed goods received note · ${f.id}`, src: photo.src, signedNote: true, tag: "signed-note", ...(photo.taken?.date ? { taken: { date: photo.taken.date, time: photo.taken.time ?? null } } : {}), ...(photo.gps ? { gps: photo.gps } : {}) };
-      return { ...f, photos: [...(f.photos ?? []), entry], timeline: [...f.timeline, { date: today(), who: "system", what: `Photo of the signed goods received note added by ${by.name}` }] };
+      const entry = { id: `${f.id}-note-${Date.now()}`, activity: "distribution" as const, date: day, caption: `Signed distribution receipt · ${f.id}`, src: photo.src, signedNote: true, tag: "signed-note", ...(photo.taken?.date ? { taken: { date: photo.taken.date, time: photo.taken.time ?? null } } : {}), ...(photo.gps ? { gps: photo.gps } : {}) };
+      return { ...f, photos: [...(f.photos ?? []), entry], timeline: [...f.timeline, { date: today(), who: "system", what: `Photo of the signed distribution receipt added by ${by.name}` }] };
     });
     if (added) await tx.insert(s.auditLog).values({ projectId: project.id, entity: "distribution", entityId: id, action: "distribution_note_photo_added", detail: { by: by.id, farmer: row.farmerCode, taken: photo.taken?.date ?? null, hasPlace: !!photo.gps } });
   });
