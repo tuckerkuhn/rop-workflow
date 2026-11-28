@@ -115,7 +115,7 @@ export async function askAi<T extends z.ZodType>(a: Ask<T>): Promise<{ out: z.in
     return { out: res.parsed_output as z.infer<T>, model, runId };
   } catch (e) {
     const message = plainAiError(e, timedOut, a.say);
-    await record(a, runId, model, message);
+    await record(a, runId, model, message, aiFault(e));
     throw new Error(message);
   } finally {
     clearTimeout(timer);
@@ -130,7 +130,9 @@ export function plainAiError(e: unknown, timedOut: boolean, say: Say = {}): stri
   if (e instanceof Plain) return e.message;
   if (timedOut || e instanceof Anthropic.APIConnectionTimeoutError || e instanceof Anthropic.APIUserAbortError) return say.tooLong ?? "The AI took too long. Try again; if it repeats, try with less at once.";
   if (e instanceof Anthropic.RateLimitError) return "Too many AI requests at once. Wait a minute and try again.";
-  if (e instanceof Anthropic.AuthenticationError || e instanceof Anthropic.PermissionDeniedError) return "The AI key on this server was not accepted. An administrator needs to replace ANTHROPIC_API_KEY. Until then, do this by hand.";
+  // Two faults, two sentences (27 Nov): a 401 is a wrong or revoked key; a 403 is a good key that may not use this model or feature.
+  if (e instanceof Anthropic.AuthenticationError) return "The AI key on this server was not accepted. An administrator needs to replace ANTHROPIC_API_KEY. Until then, do this by hand.";
+  if (e instanceof Anthropic.PermissionDeniedError) return `The AI key works, but it may not use the model this app asks for (${DRAFT_MODEL}). Ask whoever manages the Anthropic account to allow it. Until then, do this by hand.`;
   if (e instanceof Anthropic.APIConnectionError) return "Could not reach the AI service. Check the connection and try again.";
   if (e instanceof Anthropic.AnthropicError && /parse structured output/i.test(e.message)) return "The answer came back cut short. Try again; if it repeats, try with less text at once.";
   if (e instanceof Anthropic.APIError) {
@@ -141,10 +143,25 @@ export function plainAiError(e: unknown, timedOut: boolean, say: Say = {}): stri
   return "The AI could not finish this. Nothing was changed. Try again; if it repeats, do this by hand and tell an administrator.";
 }
 
+/** Anything that looks like an API key, taken out of a message before it is kept. */
+const KEYLIKE = /sk-ant-[A-Za-z0-9_-]+|\b[A-Za-z0-9_-]{40,}\b/g;
+
+/**
+ * What the AI service itself said, for Settings, Health: its status and its own message. Never the
+ * key or any part of it (anything shaped like a key is taken out). Null when it was not the service.
+ */
+export function aiFault(e: unknown): { status: number | null; apiMessage: string } | null {
+  if (!(e instanceof Anthropic.APIError)) return null;
+  const body = (e.error as { error?: { message?: unknown; type?: unknown } } | undefined)?.error;
+  const said = typeof body?.message === "string" ? body.message : e.message;
+  const type = typeof body?.type === "string" ? `${body.type}: ` : "";
+  return { status: typeof e.status === "number" ? e.status : null, apiMessage: `${type}${said}`.replace(KEYLIKE, "[removed]").replace(/\s+/g, " ").trim().slice(0, 400) };
+}
+
 /** The audit row for a run. Never fails the run: the database may be what is down. */
-async function record(a: Ask<z.ZodType>, runId: string, model: string, error: string | null) {
+async function record(a: Ask<z.ZodType>, runId: string, model: string, error: string | null, fault: ReturnType<typeof aiFault> = null) {
   try {
-    await db.insert(s.auditLog).values({ projectId: a.projectId ?? null, entity: "ai", entityId: runId, action: error ? "ai_run_failed" : "ai_run", detail: { by: a.by, job: a.job, what: AI_JOBS[a.job].label, model, personalText: a.facts.how, ...(error ? { error } : {}) } });
+    await db.insert(s.auditLog).values({ projectId: a.projectId ?? null, entity: "ai", entityId: runId, action: error ? "ai_run_failed" : "ai_run", detail: { by: a.by, job: a.job, what: AI_JOBS[a.job].label, model, personalText: a.facts.how, ...(error ? { error } : {}), ...(fault ?? {}) } });
   } catch (e) {
     console.error("ai_run audit row not written", e);
   }

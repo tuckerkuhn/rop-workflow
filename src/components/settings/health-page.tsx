@@ -128,7 +128,7 @@ export function HealthPage() {
                       <div className="min-w-0 break-words">
                         {e.why && <p className="font-medium">{e.why}</p>}
                         <p>{e.message}</p>
-                        {e.cause && <p className="mt-1 text-xs text-muted">Reason given by the database: {e.cause}</p>}
+                        {e.cause && <p className="mt-1 text-xs text-muted">Reason given by the {e.from === "AI service" ? "AI service" : "database"}: {e.cause}</p>}
                       </div>
                     </LedgerRow>
                   ))}

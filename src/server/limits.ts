@@ -43,6 +43,14 @@ export async function recordError(where: string, e: unknown) {
   }
 }
 
+/** A failed AI run as a line on the health page: what was asked, the plain sentence, and what the service said. Pure. */
+export function aiFailure(detail: unknown) {
+  const d = (detail ?? {}) as { what?: string; job?: string; error?: string; status?: number | null; apiMessage?: string };
+  const said = d.apiMessage ? `${d.status ? `Status ${d.status}. ` : ""}${d.apiMessage}` : null;
+  const where = `AI: ${d.what ?? d.job ?? "a run"}`;
+  return { where, message: d.error ?? "The AI run failed.", stack: null, cause: said, why: where };
+}
+
 /** Recent server errors and AI use, for the administrators' health page. */
 export async function health() {
   const day = new Date(Date.now() - 86400_000);
@@ -53,13 +61,23 @@ export async function health() {
     .where(and(sql`${s.auditLog.action} = 'server_error'`, gte(s.auditLog.at, week)))
     .orderBy(sql`${s.auditLog.at} desc`)
     .limit(50);
+  // AI runs that failed (server/ai.ts): the service's own status and message, never the key.
+  const aiFailed = await db
+    .select({ at: s.auditLog.at, detail: s.auditLog.detail })
+    .from(s.auditLog)
+    .where(and(sql`${s.auditLog.action} = 'ai_run_failed'`, gte(s.auditLog.at, week)))
+    .orderBy(sql`${s.auditLog.at} desc`)
+    .limit(20);
   const [ai] = await db.select({ n: sql<number>`count(*)::int` }).from(s.auditLog).where(and(sql`${s.auditLog.action} = ${AI_STARTED}`, gte(s.auditLog.at, day)));
   return {
     // The reason under each error (lib/error-cause): kept since 27 Nov 2026, so older rows have none.
-    errors: errors.map((r) => {
-      const d = r.detail as { where: string; message: string; stack: string | null; cause?: string | null };
-      return { at: r.at.toISOString(), ...d, cause: d.cause ?? null, why: plainCause(d.cause) };
-    }),
+    errors: [
+      ...errors.map((r) => {
+        const d = r.detail as { where: string; message: string; stack: string | null; cause?: string | null };
+        return { at: r.at.toISOString(), ...d, cause: d.cause ?? null, why: plainCause(d.cause), from: "database" as const };
+      }),
+      ...aiFailed.map((r) => ({ at: r.at.toISOString(), ...aiFailure(r.detail), from: "AI service" as const })),
+    ].sort((x, y) => y.at.localeCompare(x.at)),
     errorsToday: (await db.select({ n: sql<number>`count(*)::int` }).from(s.auditLog).where(and(sql`${s.auditLog.action} = 'server_error'`, gte(s.auditLog.at, day))))[0]?.n ?? 0,
     ai: { lastDay: ai?.n ?? 0, perDay: AI_PER_DAY, perPersonHour: AI_PER_PERSON_HOUR },
     email: { configured: !!process.env.RESEND_API_KEY && !!process.env.CRON_SECRET },
