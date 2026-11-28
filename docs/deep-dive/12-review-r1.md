@@ -22,7 +22,31 @@
     unchanged (`lib/form-record` `hasAnswers`). Register a farmer goes through `importFarmers`.
     Photos are made smaller on the phone and kept, with their fingerprint, inside the record for
     now: step 4 moves them to file storage.
-- **Tests:** 178 files, 1,391 tests, all passing. Typecheck and lint clean.
+  - Part 2 step 2, branch `build/field-rules-2026-11-28` (cut from field-forms), one commit each:
+    - MF-07 `ed0db5b`: household roster (sex and age per person, no names) on the register form
+      and the farmer list ("Female 34, Male 12"); the size is the roster's length; the profile
+      counts women, men, girls and boys (`lib/household`).
+    - MF-08 `c5251bc`: duplicate check at registration and list loading (`lib/duplicates`): the
+      same ID is refused as before; the same phone, or a name spelt another way in the same
+      village, asks "I checked: this is a different person". Warnings name farmer IDs only. Phone
+      is asked only of people who may see names, and kept with the name.
+    - MF-12 `da800c7` (D-21, D-22): eligibility rules as fields in Farmer selection (land size,
+      villages, crops grown, contribution % with a women's %), saved as selection rules with
+      their words written from the numbers (`lib/eligibility`). Each farmer's record is checked
+      against them; a rule the record fails cannot be ticked. Crops grown is a new farmer field.
+    - MF-09 `e48dbba`: curriculum and version set in Set up and carried on every training record;
+      pre and post test scores per farmer on the in-app training form, kept on the farmer's record
+      when MEL accepts (`lib/field-training`).
+    - ISS-14 `8c2cb79`: before approving, the project manager types the receipt's date, whether
+      it names the farmer, and each quantity; any difference is listed (also under "To look at")
+      and blocks approval (`lib/receipt-check`). The check is kept on the record.
+    - ISS-15 `304e626`: one wording for every source, "Recorded in the app by <name>" or "Sent
+      from KoboCollect by <name>" (`lib/form-record` `sourceText`); the queue heading is "Field forms".
+    - ISS-27 `e61b005`: the farmer's signed receipt is a "distribution receipt" everywhere;
+      "goods received note" is left only for the supplier's delivery.
+    - Screen fixes `d2cb9a9`: one "(optional)" per label, a household member on one line at
+      380px, receipt mismatches under "To look at".
+- **Tests:** 182 files, 1,410 tests, all passing. Typecheck and lint clean.
 - **Seen on screen** (desktop, local throwaway database, never Supabase): the ISS-18 flag as Nadia
   (queue and record), ISS-20 on Project settings and the donor view, ISS-12 as Daniel. Part 2
   step 1: as Farida, a readiness check filled in (the "what needs fixing" question appears on No,
@@ -30,7 +54,12 @@
   Omar in the review queue, which moved the farmer to distribution. As Daniel, only "Register a
   farmer" shows. Not yet seen: the distribution, training, farm visit and register forms on screen
   (covered by tests), and a phone's real GPS.
-  **Not seen:** 380px width (this browser's window would not narrow), Settings Health's AI lines
+  Part 2 step 2 (28 Nov): the register form at 380px (inside a 380px frame, since the window
+  would not narrow) as Farida, with the household roster; the receipt check as Nadia at desktop
+  width, with a receipt dated 2027-02-27 and a wrong seed amount both flagged and Approve held.
+  Not seen yet: Farmer selection's new rule fields, the training scores and the duplicate warning
+  on screen (each covered by tests).
+  **Not seen:** 380px for the other screens, Settings Health's AI lines
   (no AI failure on the local copy), Progress's own next-report line, and the eleven screens listed under "Open".
 - **How the screens were looked at:** a local PGlite Postgres served on 127.0.0.1:54329 (script in
   the session scratchpad: migrations applied, `src/db/seed.ts` run with only local variables) and
@@ -45,9 +74,14 @@
   4. Answered 28 Nov: the project manager, plan approvers and extension agents register farmers (1a).
   5. Answered 28 Nov: an in-app distribution goes straight to the project manager, with no extra
      KoboCollect check (2a).
+  6. ISS-14: a receipt that does not match the record blocks approval and is sent back. The
+     easiest to undo would be a flag that asks for a note instead. Keep the block?
+  7. "Set per intervention" is read as per project (one project is one input package). A project
+     running two packages with different rules would need rules per package. Leave it per project?
 - **Half done:** nothing. Kobo still works beside the in-app forms until step 7.
-- **Next:** Part 2 step 2 (MF-07 household roster, MF-08 duplicate check, MF-12 eligibility rules,
-  MF-09 training details, ISS-14, ISS-15, ISS-27), then steps 3 to 7.
+- **Next:** Part 2 step 3, the rules that carry over (nobody approves data they collected; the named
+  MEL approver checks field data before it flows on; every distribution needs its signed receipt
+  and photo; a visitor's photo is a picture of the work, not proof), then steps 4 to 7.
 
 Source: `ROP_Workflow_Review_Round_1.xlsx` (30 issues, 28 decisions, 13 missing features),
 reviewed 26 Nov 2026 for Daniel Sandoval and Tucker Kuhn. Branch:
