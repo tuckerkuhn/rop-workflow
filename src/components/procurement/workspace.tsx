@@ -548,10 +548,13 @@ function Detail({
 
   const log = (q: Procurement, what: string): Procurement => ({ ...q, timeline: [...q.timeline, { date: today(), who: role ?? "procurement", what, ...(user ? { by: user.name } : {}) }] });
 
+  // MF-01: signing with a role held only while acting for someone away says on whose behalf.
+  const acting = (user as (typeof user & { actingFor?: { id: string; name: string }[]; own?: { procurement: string[] } }) | null)?.actingFor ?? [];
+  const onBehalfOf = owner && acting.length && !((user as { own?: { procurement: string[] } } | null)?.own?.procurement ?? user?.procurement ?? []).includes(owner) ? acting.filter((a) => procRolesFor(userById(a.id)).includes(owner)).map((a) => a.name).join(" and ") : "";
   const complete = (self?: { note: string }) =>
     update((q) => {
       const s = stepById[q.step];
-      return log(completeStep(q, { name: user?.name ?? roleLabel(s.owner), date: today(), ...(self ? { self } : {}) }), s.signs ? `${s.done} · signed ${s.signs.doc.toLowerCase()}${self ? " (self-approved, solo mode)" : ""}` : s.done);
+      return log(completeStep(q, { name: user?.name ?? roleLabel(s.owner), date: today(), ...(self ? { self } : {}), ...(onBehalfOf ? { onBehalfOf } : {}) }), `${s.signs ? `${s.done} · signed ${s.signs.doc.toLowerCase()}${self ? " (self-approved, solo mode)" : ""}` : s.done}${onBehalfOf ? ` (on behalf of ${onBehalfOf})` : ""}`);
     });
 
   return (

@@ -243,7 +243,7 @@ export type TimelineEvent = {
 };
 
 /** `self`: solo mode, the person who requested the purchase approves it, having confirmed so (server/solo.ts). */
-export type Signature = { as: string; name: string; role: Role; date: string; self?: { note: string } };
+export type Signature = { as: string; name: string; role: Role; date: string; self?: { note: string }; /** MF-01: signed while acting for someone away: their names. */ onBehalfOf?: string };
 
 /** A quotation or bid as received: who, when, how much, the file, and how it was judged. */
 export type Bid = {
@@ -1822,10 +1822,10 @@ export function prevStep(p: Procurement): string {
  * Completes the step under way: signs its document, moves on, and when an instalment has just
  * been paid, files it away so the next one starts clean.
  */
-export function completeStep(p: Procurement, sig: { name: string; date: string; self?: { note: string } }): Procurement {
+export function completeStep(p: Procurement, sig: { name: string; date: string; self?: { note: string }; onBehalfOf?: string }): Procurement {
   const s = stepById[p.step];
   if (!s) return p;
-  const signatures = s.signs ? { ...p.signatures, [s.signs.doc]: [...(p.signatures[s.signs.doc] ?? []), { as: s.signs.as, name: sig.name, role: s.owner, date: sig.date, ...(sig.self ? { self: sig.self } : {}) }] } : p.signatures;
+  const signatures = s.signs ? { ...p.signatures, [s.signs.doc]: [...(p.signatures[s.signs.doc] ?? []), { as: s.signs.as, name: sig.name, role: s.owner, date: sig.date, ...(sig.self ? { self: sig.self } : {}), ...(sig.onBehalfOf ? { onBehalfOf: sig.onBehalfOf } : {}) }] } : p.signatures;
   const signed = { ...p, signatures };
   const step = nextStep(signed);
   return s.id === "paid" ? { ...closeInstalment(signed), step } : { ...signed, step };

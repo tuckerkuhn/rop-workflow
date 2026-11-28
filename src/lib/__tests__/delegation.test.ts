@@ -41,3 +41,13 @@ describe("backup approvers", () => {
     expect(awayInput.safeParse({ person: "nadia", from: "2026-12-01", to: "2026-12-10", delegate: "nadia" }).success).toBe(false);
   });
 });
+
+describe("procurement signatures on behalf of someone away", async () => {
+  const { completeStep, stepById } = await import("@/lib/procurement");
+  it("keeps the signer's own name and says on whose behalf, so checks by name still hold", () => {
+    const signing = Object.values(stepById).find((s) => s.signs)!;
+    const p = { step: signing.id, signatures: {}, timeline: [], checks: {} } as never;
+    const q = completeStep(p, { name: "Nadia Rahimi", date: "2026-12-02", onBehalfOf: "Karim Ahmadi" }) as unknown as { signatures: Record<string, { name: string; onBehalfOf?: string }[]> };
+    expect(q.signatures[signing.signs!.doc][0]).toMatchObject({ name: "Nadia Rahimi", onBehalfOf: "Karim Ahmadi" });
+  });
+});

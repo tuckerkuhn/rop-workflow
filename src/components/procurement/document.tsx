@@ -151,7 +151,7 @@ export function DocumentViewer({
                     </div>
                     <p className="mt-1.5 text-xs font-semibold">{l.as}</p>
                     <p className="text-xs text-muted">
-                      {l.signed ? `Signed electronically in ROP Workflow, ${l.signed.date}` : isPending ? (user?.name ?? "") : (who ?? "")}
+                      {l.signed ? `Signed electronically in ROP Workflow, ${l.signed.date}${(l.signed as { onBehalfOf?: string }).onBehalfOf ? `, on behalf of ${(l.signed as { onBehalfOf?: string }).onBehalfOf}` : ""}` : isPending ? (user?.name ?? "") : (who ?? "")}
                     </p>
                   </div>
                 );
