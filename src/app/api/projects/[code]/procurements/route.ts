@@ -12,7 +12,7 @@ import { claimNewProcurements, loadProcurements, procurementIdsOfOrg, releaseNew
 import { db } from "@/db";
 import { logAudit } from "@/server/audit";
 import { projectByCode, setupOf } from "@/server/field-store";
-import { DEMO_PROJECT, applyProcurementContext, describeProcurementSave, loadProcurementContext, validateProcurementSave } from "@/server/procurement-guard";
+import { applyProcurementContext, describeProcurementSave, loadProcurementContext, validateProcurementSave } from "@/server/procurement-guard";
 import { loadPlan } from "@/server/procurement-plan-store";
 import { loadGrantBook } from "@/server/grants-store";
 import { orgIdForPerson } from "@/server/org-settings-store";
@@ -65,8 +65,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ code: st
     const merged = [...storedList.filter((p) => !items.some((x) => x.id === p.id)), ...items];
     const [ctx, calendar] = await Promise.all([
       loadProcurementContext(code, await orgIdForPerson(v.user.id), merged),
-      // A real project's requests must charge its procurement calendar; the demo keeps its sample lines.
-      code === DEMO_PROJECT ? Promise.resolve(undefined) : loadPlan(code),
+      // Every project's new requests charge its procurement calendar, the demo project's too (R2-05):
+      // it is where people learn the workflow. Its sample records keep their sample lines.
+      loadPlan(code),
     ]);
     // A new request's number must be free across the organization, not only on this project (ISS-11).
     const fresh = items.filter((x) => !stored.has(x.id));

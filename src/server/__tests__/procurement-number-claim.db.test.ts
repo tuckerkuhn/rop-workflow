@@ -71,3 +71,15 @@ describe("the person the approval table names can sign with view access (review 
     expect((await put(viewer.id, [p])).status).toBe(403);
   });
 });
+
+describe("the demo project follows the calendar for new requests (review round 2, R2-05)", { timeout: 60_000 }, () => {
+  it("a request with no calendar item is refused on A-2027 too", async () => {
+    process.env.DEMO_SIGN_IN = "1";
+    const { PUT } = await import("@/app/api/projects/[code]/procurements/route");
+    const base = (await loadProcurements(code))[0];
+    const id = await nextProcurementId(code);
+    const fresh = { ...base, id, step: "need", signatures: {}, checks: {}, timeline: [], issues: [], payments: [], overrides: {}, rev: 0, plan: undefined } as unknown as Procurement;
+    const res = await PUT(new Request(`http://test/api/projects/${code}/procurements`, { method: "PUT", headers: { "x-demo-user": "laila", "content-type": "application/json" }, body: JSON.stringify({ items: [fresh] }) }), { params: Promise.resolve({ code }) });
+    expect(((await res.json()) as { error: string }).error).toContain("Start the request from an approved item on the procurement calendar");
+  });
+});
