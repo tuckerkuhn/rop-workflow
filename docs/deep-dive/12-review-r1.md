@@ -83,7 +83,15 @@
     `docs/deep-dive/migrations-pending/` and NOT run. Old KoboCollect records stay readable.
     Seen on the local copy: Results and the review queue with no Kobo wording, "+ New" with
     "Fill in a field form".
-- **Tests:** 183 files, 1,390 tests, all passing (39 tests of removed Kobo features went with them). Typecheck and lint clean.
+  - Part 3, branch `build/part3-2026-11-28` (cut from kobo-out):
+    - MF-01 `d808651` backup approvers: Settings, You, "Time away": the days and who acts. For those
+      days the delegate holds the away person's approval roles, on the server and on screen
+      (`lib/delegation`, applied once in the people list and the authority table), and what they
+      approve says "X on behalf of Y" (distributions, field records). With nobody named, the line
+      manager steps in after 3 days (an organization setting). Administrator rights are never
+      passed on. Seen on the local copy as Nadia. Procurement signatures carry the delegate's own
+      name for now (the authority table already lets them sign); "on behalf of" there is next.
+- **Tests:** 185 files, 1,396 tests, all passing (39 tests of removed Kobo features went with them). Typecheck and lint clean.
 - **Seen on screen** (desktop, local throwaway database, never Supabase): the ISS-18 flag as Nadia
   (queue and record), ISS-20 on Project settings and the donor view, ISS-12 as Daniel. Part 2
   step 1: as Farida, a readiness check filled in (the "what needs fixing" question appears on No,
@@ -124,6 +132,8 @@
      rule, so it waits for your OK. Until then the empty tables do no harm.
   11. Targets that were counted from a KoboToolbox question (none on the demo project) now show "Not
      counted from any data yet" until switched to "results recorded in the app" in Set up.
+  13. MF-01: D-13 says the board approves the authority table as the written delegation. That is
+     a board step, not the app's: the app only lets a delegate act within the table.
   12. The Dari, Pashto and Spanish wording files still carry some old Kobo sentences that no screen
      shows; the new sentences are English only until translated.
 - **Half done:** step 4: photos already in the database stay there until a move script runs (to
