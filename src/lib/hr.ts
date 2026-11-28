@@ -119,6 +119,8 @@ export const FIELDS = {
   supervisor: { label: "Supervisor", group: "job", type: "person" },
   startDate: { label: "Start date", group: "job", type: "date" },
   contractEnd: { label: "Contract end", group: "job", type: "date" },
+  /** The post's grade (1 the most junior): a hiring panel sits at or above the grade of the post (MF-05, D-16). */
+  grade: { label: "Grade", group: "job", type: "number" },
   payBasis: { label: "Paid per", group: "pay", type: "select", options: ["Month", "Day", "Hour"] },
   pay: { label: "Pay rate", group: "pay", type: "money" },
   currency: { label: "Currency", group: "pay", type: "select", options: ["USD", "AFN"] },
@@ -544,6 +546,13 @@ export function fold(entries: Entry[], today: string): HrState {
       case "adv-accept":
       case "adv-return":
       case "adv-recover":
+      case "rec-open":
+      case "rec-candidate":
+      case "rec-grade":
+      case "rec-shortlist":
+      case "rec-score":
+      case "rec-reference":
+      case "rec-select":
         // Read by foldTimesheets, foldExpenses and foldOnboarding (lib/timesheet.ts, expense.ts, onboarding.ts).
         break;
       default:

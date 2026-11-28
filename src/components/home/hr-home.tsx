@@ -75,6 +75,12 @@ export function HrHome({ userId }: { userId: string }) {
         </Link>
       )}
       <p className="text-lg leading-snug">{headline}.</p>
+      <p className="text-sm">
+        <Link href="/recruitment" className="font-semibold text-forest underline">
+          Recruitment
+        </Link>{" "}
+        · <Link href="/advances" className="font-semibold text-forest underline">Advances</Link>
+      </p>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Tile label="Waiting for you" value={String(todo)} level={todo ? "warning" : "good"} href="/work">
           {todo ? [v.waiting ? `${v.waiting} record ${v.waiting === 1 ? "change" : "changes"} to sign` : "", v.myLeavingSteps ? `${v.myLeavingSteps} leaving ${v.myLeavingSteps === 1 ? "step" : "steps"}` : ""].filter(Boolean).join("; ") : "Nothing to sign."}
