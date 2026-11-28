@@ -537,6 +537,13 @@ export function fold(entries: Entry[], today: string): HrState {
       case "training-void":
       case "training-start":
       case "screening":
+      case "adv-request":
+      case "adv-approve":
+      case "adv-pay":
+      case "adv-settle":
+      case "adv-accept":
+      case "adv-return":
+      case "adv-recover":
         // Read by foldTimesheets, foldExpenses and foldOnboarding (lib/timesheet.ts, expense.ts, onboarding.ts).
         break;
       default:

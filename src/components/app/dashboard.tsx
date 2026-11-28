@@ -458,6 +458,7 @@ function PeopleCard() {
     { href: "/timesheets", label: "Timesheet", text: `${date(`${ts.month}-01`, { month: "long" })}: ${tsText[ts.status] ?? ts.status}`, on: ts.status === "returned" || ts.status === "missing" },
     ...(lv?.hasRecord ? [{ href: "/leave", label: "Leave", text: [lv.annualDays != null ? `${lv.annualDays} days of annual leave` : "", lv.returned ? `${lv.returned} sent back` : ""].filter(Boolean).join(" · ") || "Ask for leave", on: !!lv.returned }] : []),
     ...(ex?.hasRecord ? [{ href: "/expenses", label: "Expenses", text: ex.returned ? `${ex.returned} sent back to you` : "Claim expenses with receipts", on: !!ex.returned }] : []),
+    ...(ex?.hasRecord ? [{ href: "/advances", label: "Advances", text: "Ask for an advance, or settle one with receipts", on: false }] : []),
     { href: "/people/me", label: t("home.myDetails"), text: t("home.myDetailsHint"), on: false },
   ];
   // Unfinished first steps are shown at the top of Home (FirstSteps), not here.
