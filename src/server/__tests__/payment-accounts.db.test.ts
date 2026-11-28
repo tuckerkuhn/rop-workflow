@@ -32,6 +32,8 @@ describe("the payment accounts register", { timeout: 60_000 }, () => {
     expect(accountFlags(undefined)[0]).toMatch(/Not in the payment accounts register/);
     await expect(proposeAccount(org, { account: bank.bankAccountId, owner: "Yusuf Mohammadi", type: "bank", institution: "AIB", signatories: ["yusuf"] }, "Opening the project account", yusuf)).rejects.toThrow(/in its own name/);
     await expect(proposeAccount(org, { account: bank.bankAccountId, owner: orgName, type: "bank", institution: "AIB", last4: "1234", signatories: ["yusuf", "karim"] }, "Opening the project account", userById("farida")!)).rejects.toThrow(/Only Finance/);
+    // R2-26: signatories come from the staff list.
+    await expect(proposeAccount(org, { account: bank.bankAccountId, owner: orgName, type: "bank", institution: "AIB", last4: "1234", signatories: ["not-a-person"] }, "Opening the project account", yusuf)).rejects.toThrow(/from the staff list/);
     const c = await proposeAccount(org, { account: bank.bankAccountId, owner: orgName, type: "bank", institution: "AIB", last4: "1234", signatories: ["yusuf", "karim"] }, "Opening the project account", yusuf);
     expect((await loadAccounts(org)).accounts[bank.bankAccountId]).toBeUndefined();
     await expect(decideAccount(org, c.id, true, yusuf)).rejects.toThrow(/second person confirms/);

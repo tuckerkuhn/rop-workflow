@@ -33,6 +33,10 @@ export async function proposeAccount(orgId: string, d: AccountDetails, reason: s
   if (!(await moneyAccounts(orgId)).some((m) => m.bankAccountId === d.account)) throw new HttpError(400, "That is not one of the organization's bank or cash accounts.");
   const problem = detailsProblem(d, await orgName(orgId));
   if (problem) throw new HttpError(400, problem);
+  // R2-26: a signatory is someone on the staff, chosen from the list.
+  const staff = new Set((await (await import("@/server/auth")).people()).filter((p) => p.kind === "employee").map((p) => p.id));
+  const stranger = d.signatories.find((x) => !staff.has(x));
+  if (stranger) throw new HttpError(400, `Choose each signatory from the staff list ("${stranger}" is not on it).`);
   const cur = await loadAccounts(orgId);
   if (cur.pending.some((c) => c.details.account === d.account)) throw new HttpError(409, "A change to this account is already waiting for a second person.");
   const change = { id: randomUUID(), details: d, by: by.id, byName: by.name, at: new Date().toISOString(), reason };
