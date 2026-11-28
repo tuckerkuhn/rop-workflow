@@ -33,6 +33,20 @@ export type Screening = ScreeningInput & { n: number; by: string; at: string };
 
 const isHr = (u: string, hr: HrState) => !!hr.rules?.holders.hr.includes(u);
 
+/**
+ * R2-10: why a new screening result may not be recorded after the ones before it, or null. A clear
+ * result after a possible match is a review: by someone other than who found the match, on or after
+ * that day, with a note saying how it was found not to be this person. Used for staff and farmers.
+ */
+export function reviewProblem(before: { date: string; result: string; by: string }[], next: { date: string; result: string; note?: string }, by: string): string | null {
+  const last = [...before].sort((a, b) => a.date.localeCompare(b.date)).at(-1);
+  if (!last || last.result !== "possible_match" || next.result !== "clear") return null;
+  if (last.by === by) return "You recorded the possible match, so someone else reviews it and records the clear result.";
+  if (next.date < last.date) return `The review is dated before the possible match it clears (${last.date}).`;
+  if ((next.note ?? "").trim().length < 10) return "Say how the possible match was found not to be this person.";
+  return null;
+}
+
 /** Every screening recorded, by person (newest last). An entry from someone not holding HR does not count. */
 export function foldScreening(entries: Entry[], hr: HrState): Record<string, Screening[]> {
   const out: Record<string, Screening[]> = {};
@@ -40,6 +54,8 @@ export function foldScreening(entries: Entry[], hr: HrState): Record<string, Scr
     if (e.kind !== "screening" || !isHr(e.actor, hr)) continue;
     const d = screeningInput.safeParse(e.data);
     if (!d.success) continue;
+    // A clear result that is not a proper review of a possible match does not count (R2-10).
+    if (reviewProblem(out[d.data.person] ?? [], d.data, e.actor)) continue;
     (out[d.data.person] ??= []).push({ ...d.data, n: e.n, by: e.actor, at: e.at });
   }
   for (const list of Object.values(out)) list.sort((a, b) => a.date.localeCompare(b.date) || a.n - b.n);

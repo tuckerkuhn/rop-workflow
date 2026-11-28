@@ -6,7 +6,7 @@ import { eligibleSigners } from "@/server/hr-signers";
 import { handle } from "@/server/guard";
 import { append, isSampleBook, loadHr } from "@/server/hr-store";
 import { viewFor, waitingFor } from "@/server/hr-view";
-import { foldScreening, hireBlock } from "@/lib/staff-screening";
+import { foldScreening, hireBlock, reviewProblem } from "@/lib/staff-screening";
 
 /** The HR record as this person may see it. */
 export async function GET(req: Request) {
@@ -84,6 +84,11 @@ export async function POST(req: Request) {
       case "screen": {
         if (!state.rules?.holders.hr.includes(me)) return fail("Only HR records a screening.");
         if (a.screening.date > new Date().toISOString().slice(0, 10)) return fail("A screening cannot be dated in the future.", 400);
+        {
+          const { entries } = await loadHr();
+          const problem = reviewProblem(foldScreening(entries, state)[a.screening.person] ?? [], a.screening, me);
+          if (problem) return fail(problem, 409);
+        }
         n = await append(me, "screening", a.screening.person, a.screening);
         break;
       }

@@ -5,6 +5,7 @@ import { realToday } from "@/lib/clock";
 import { changeFarmer } from "@/server/distribution";
 import { projectByCode } from "@/server/field-store";
 import { HttpError } from "@/server/guard";
+import { reviewProblem } from "@/lib/staff-screening";
 
 /**
  * Records a farmer's sanctions screening (lib/farmer-screening, MF-04) on their record, with a line
@@ -21,6 +22,8 @@ export async function screenFarmer(code: string, input: FarmerScreeningInput, by
   await db.transaction(async (tx) => {
     await changeFarmer(tx, project.id, input.farmer, (f) => {
       found = true;
+      const problem = reviewProblem(f.screenings ?? [], input, by.id);
+      if (problem) throw new HttpError(409, problem);
       const entry = { date: input.date, lists: input.lists, result: input.result, ...(input.note ? { note: input.note } : {}), by: by.id, byName: by.name };
       const what = input.result === "clear" ? `Screened against the sanctions lists: clear (${input.lists}), by ${by.name}` : `Screened against the sanctions lists: a possible match, for a person to review, by ${by.name}`;
       return { ...f, screenings: [...(f.screenings ?? []), entry], timeline: [...f.timeline, { date: realToday(), who: "manager", what }] };

@@ -14,6 +14,7 @@ import type { FieldSetup } from "@/lib/package";
  */
 
 export const DEFAULT_SCREEN_ABOVE_USD = 50;
+export const FARMER_RESCREEN_DAYS = 365;
 export const FARMER_LISTS = "OFAC SDN list; UN Security Council 1267 list";
 
 export const farmerScreeningInput = z.object({
@@ -34,13 +35,15 @@ export const screenAbove = (setup: Pick<FieldSetup, "screenAboveUsd"> | null | u
  * worth more than the limit and they have no clear screening (none yet, or a possible match still
  * to review). A package with no unit costs cannot be valued, so nothing is held for it.
  */
-export function screeningHold(f: { id: string; hectares: number; package?: string; screenings?: FarmerScreening[] }, setup: Pick<FieldSetup, "items" | "packages" | "screenAboveUsd"> | null | undefined): string | null {
+export function screeningHold(f: { id: string; hectares: number; package?: string; screenings?: FarmerScreening[] }, setup: Pick<FieldSetup, "items" | "packages" | "screenAboveUsd"> | null | undefined, today = new Date().toISOString().slice(0, 10)): string | null {
   const value = packageValue(setup, f.hectares, f.package);
   const limit = screenAbove(setup);
   if (value === null || value <= limit) return null;
-  const last = f.screenings?.at(-1);
+  // By date, not by the order entered (R2-10); a screening counts for a year, as for staff.
+  const last = [...(f.screenings ?? [])].sort((a, b) => a.date.localeCompare(b.date)).at(-1);
   const worth = `${f.id}'s package is worth $${value.toLocaleString("en-US")}, above the $${limit} limit`;
   if (!last) return `${worth}: screen them against the sanctions lists before it is handed out. Someone who may see farmers' names does it, on the farmer's page.`;
   if (last.result === "possible_match") return `${worth}, and the check on ${last.date} found a possible match. A person reviews it; once it is found not to be this farmer, record a clear result.`;
+  if (Date.parse(`${today}T00:00:00Z`) - Date.parse(`${last.date}T00:00:00Z`) > FARMER_RESCREEN_DAYS * 86_400_000) return `${worth}, and the last check was on ${last.date}, more than a year ago: screen them again.`;
   return null;
 }

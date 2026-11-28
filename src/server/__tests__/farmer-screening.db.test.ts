@@ -38,7 +38,10 @@ describe("farmer screening before a package above $50", { timeout: 60_000 }, () 
     await expect(screenFarmer(code, { farmer: f.id, date: realToday(), lists: "OFAC SDN list", result: "clear" }, hamid)).rejects.toThrow(/may see farmers' names/);
     await screenFarmer(code, { farmer: f.id, date: realToday(), lists: "OFAC SDN list", result: "possible_match" }, omar);
     expect((await d()).screeningHold).toMatch(/possible match/);
-    await screenFarmer(code, { farmer: f.id, date: realToday(), lists: "OFAC SDN list", result: "clear", note: "Reviewed: a different person of the same name." }, omar);
+    // R2-10: whoever found the possible match does not clear it.
+    await expect(screenFarmer(code, { farmer: f.id, date: realToday(), lists: "OFAC SDN list", result: "clear", note: "Reviewed: a different person of the same name." }, omar)).rejects.toThrow(/someone else reviews it/);
+    await expect(screenFarmer(code, { farmer: f.id, date: realToday(), lists: "OFAC SDN list", result: "clear" }, nadia)).rejects.toThrow(/Say how the possible match was found/);
+    await screenFarmer(code, { farmer: f.id, date: realToday(), lists: "OFAC SDN list", result: "clear", note: "Reviewed: a different person of the same name." }, nadia);
     expect((await d()).screeningHold).toBeNull();
     await decideDistribution(code, id, "approved", nadia, undefined, await receipt());
     const after = (await loadField(code, nadia)).items.find((i): i is Farmer => i.kind === "farmer" && i.id === f.id)!;
