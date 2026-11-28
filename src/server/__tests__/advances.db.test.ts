@@ -63,3 +63,15 @@ describe("advances", { timeout: 60_000 }, () => {
     expect((await call(fin)).body.others.find((a) => a.n === n)!.owed).toBe(0);
   });
 });
+
+describe("a refused action is not written to the HR record (review round 2, R2-25)", { timeout: 60_000 }, () => {
+  it("approving your own advance is refused and leaves the book as it was", async () => {
+    const before = (await loadHr()).entries.length;
+    const mine = (await call(holder)).body.mine?.[0];
+    if (!mine) return;
+    const r = await call(holder, { action: "approve", advance: mine.n });
+    expect(r.status).toBeGreaterThanOrEqual(400);
+    expect(r.body.error ?? "").not.toContain("Recorded as entry");
+    expect((await loadHr()).entries.length).toBe(before);
+  });
+});

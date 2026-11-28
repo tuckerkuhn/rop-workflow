@@ -17,3 +17,27 @@ describe("advance age and settlement", () => {
     expect(settlementProblem(adv(), { ...s, lines: [{ ...s.lines[0], noReceipt: undefined }] })).toMatch(/attach the receipt/);
   });
 });
+
+describe("review round 2 (R2-09, R2-14)", async () => {
+  const { foldAdvances } = await import("@/lib/advance");
+  const hr = { rules: { holders: { finance: ["yusuf", "omid"], hr: ["sima"] } }, people: { yusuf: { id: "yusuf", current: { supervisor: "karim" } } }, relations: [] } as never;
+  let n = 0;
+  const e = (actor: string, kind: string, data: object, subject: string | null = null) => ({ n: ++n, at: "2026-11-28T09:00:00Z", actor, kind, subject, data, hash: "", prevHash: "" });
+  const ask = { amount: 500, currency: "USD", purpose: "Field trip to Balkh", source: "A-2027", neededBy: "2026-12-01" };
+  it("Finance does not pay their own advance, and a second one waits for the first to be settled", () => {
+    n = 0;
+    const { advances, ignored } = foldAdvances(
+      [
+        e("yusuf", "adv-request", ask, "yusuf"),
+        e("karim", "adv-approve", { advance: 1 }),
+        e("yusuf", "adv-pay", { advance: 1, paidOn: "2026-11-28", method: "mobile", reference: "MW-123", payee: "yusuf" }),
+        e("yusuf", "adv-request", ask, "yusuf"),
+        e("omid", "adv-pay", { advance: 1, paidOn: "2026-11-28", method: "bank", reference: "TR-9", payee: "yusuf" }),
+      ] as never,
+      hr,
+    );
+    expect(ignored.map((i) => i.why)).toEqual(["another Finance person pays your own advance", "settle the open advance, and pay back what is owed, before asking for another"]);
+    expect(advances).toHaveLength(1);
+    expect(advances[0]).toMatchObject({ status: "paid", paid: { by: "omid" } });
+  });
+});

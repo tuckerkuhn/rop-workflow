@@ -5,7 +5,7 @@ import { advActionSchema, ageOf, DEFAULT_SETTLE_DAYS, foldAdvances, owedOf, sett
 import { seesAll, type HrState } from "@/lib/hr";
 import { people, requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
-import { append, hrBook, loadHr, todayIso } from "@/server/hr-store";
+import { append, hrBook, loadHr, todayIso, wouldNotCount } from "@/server/hr-store";
 import { projectRules } from "@/server/policy-store";
 
 /**
@@ -86,6 +86,8 @@ export async function POST(req: Request) {
       // One open advance at a time: the last is settled before the next is paid.
       const open = foldAdvances(entries, hr).advances.find((x) => x.person === me && x.status !== "settled");
       if (open) return fail(`Settle advance #${open.n} (${open.request.purpose}) before asking for another.`, 409);
+      const why = wouldNotCount(entries, (x) => foldAdvances(x, hr).ignored, me, "adv-request", me, a.request);
+      if (why) return fail(`Not recorded: ${why}.`, 409);
       n = await append(me, "adv-request", me, a.request);
     } else {
       const id = a.action === "pay" ? a.payment.advance : a.action === "settle" ? a.settlement.advance : a.advance;
@@ -104,6 +106,8 @@ export async function POST(req: Request) {
       if (a.action === "recover" && a.amount > owedOf(adv)) return fail(`Only ${owedOf(adv)} is still owed on this advance.`, 400);
       const kind = { approve: "adv-approve", pay: "adv-pay", settle: "adv-settle", accept: "adv-accept", return: "adv-return", recover: "adv-recover" }[a.action];
       const data = a.action === "pay" ? a.payment : a.action === "settle" ? a.settlement : a.action === "return" ? { advance: a.advance, note: a.note } : a.action === "recover" ? { advance: a.advance, amount: a.amount } : { advance: a.advance };
+      const why = wouldNotCount(entries, (x) => foldAdvances(x, hr).ignored, me, kind, adv.person, data);
+      if (why) return fail(`Not recorded: ${why}.`, 409);
       n = await append(me, kind, adv.person, data);
     }
     const after = await loadHr();

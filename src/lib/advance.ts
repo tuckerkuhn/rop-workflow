@@ -80,6 +80,8 @@ export function foldAdvances(entries: Entry[], hr: HrState): { advances: Advance
       const p = requestSchema.safeParse(d);
       if (!p.success || !e.subject) no(e, "unreadable");
       else if (e.actor !== e.subject) no(e, "a person asks for their own advance");
+      // R2-14: one open advance per person. One not yet settled, or settled with money still owed, comes first.
+      else if ([...advances.values()].some((x) => x.person === e.subject && (["requested", "approved", "paid", "settling"].includes(x.status) || owedOf(x) > 0))) no(e, "settle the open advance, and pay back what is owed, before asking for another");
       else advances.set(e.n, { n: e.n, person: e.subject, at: e.at, request: p.data, status: "requested", recovered: 0 });
       continue;
     }
@@ -100,6 +102,8 @@ export function foldAdvances(entries: Entry[], hr: HrState): { advances: Advance
       if (!p.success) no(e, "unreadable");
       else if (a.status !== "approved") no(e, "not approved yet");
       else if (!isFinance(e.actor, hr)) no(e, "Finance pays advances");
+      // R2-09: Finance never pays their own advance; another Finance person does.
+      else if (e.actor === a.person) no(e, "another Finance person pays your own advance");
       else if (p.data.payee !== a.person) no(e, "an advance is paid only to the person who holds it");
       else Object.assign(a, { status: "paid", paid: { on: p.data.paidOn, method: p.data.method, reference: p.data.reference, by: e.actor } });
     } else if (e.kind === "adv-settle") {

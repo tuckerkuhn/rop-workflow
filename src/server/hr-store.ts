@@ -149,6 +149,17 @@ async function foldBook(book: string) {
 }
 
 /** Appends one entry and returns its number. */
+/**
+ * Why an entry would not count, checked against the book as it stands before it is written
+ * (R2-25: a refused action is not written to the tamper-evident book at all). `fold` returns the
+ * entries it ignores, as the HR record's folds do.
+ */
+export function wouldNotCount(entries: Entry[], fold: (entries: Entry[]) => { n: number; why: string }[], actor: string, kind: string, subject: string | null, data: unknown): string | null {
+  const n = entries.reduce((m, e) => Math.max(m, e.n), 0) + 1;
+  const trial = { n, at: new Date().toISOString(), actor, kind, subject, data, hash: "", prevHash: "" } as Entry;
+  return fold([...entries, trial]).find((x) => x.n === n)?.why ?? null;
+}
+
 export async function append(actor: string, kind: string, subject: string | null, data: unknown): Promise<number> {
   // n, at, prev_hash and hash are set by the database trigger; these placeholders are replaced.
   const [r] = await db.insert(s.hrLedger).values({ book: hrBook(), n: 0, actor, kind, subject, data, prevHash: "", hash: "" }).returning({ n: s.hrLedger.n });

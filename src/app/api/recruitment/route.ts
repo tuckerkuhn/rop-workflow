@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { foldRecruitment, panelScore, recActionSchema, type Vacancy } from "@/lib/recruitment";
 import { people, requireViewer } from "@/server/auth";
 import { handle } from "@/server/guard";
-import { append, loadHr, todayIso } from "@/server/hr-store";
+import { append, loadHr, todayIso, wouldNotCount } from "@/server/hr-store";
 
 /**
  * Recruitment (lib/recruitment, MF-05). HR sees every vacancy; a panel member sees the vacancies
@@ -40,6 +40,9 @@ export async function POST(req: Request) {
     const parsed = recActionSchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "That is not complete." }, { status: 400 });
     const { action, ...data } = parsed.data;
+    const before = await loadHr();
+    const why = wouldNotCount(before.entries, (x) => foldRecruitment(x, before.state).ignored, v.user.id, `rec-${action}`, null, data);
+    if (why) return NextResponse.json({ error: `Not recorded: ${why}.` }, { status: 409 });
     const n = await append(v.user.id, `rec-${action}`, null, data);
     const after = await loadHr();
     const bad = foldRecruitment(after.entries, after.state).ignored.find((x) => x.n === n);
