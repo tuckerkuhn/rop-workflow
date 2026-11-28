@@ -108,7 +108,22 @@ export function suggestedCollector(account: string, people: Person[]): string | 
   return hits.length === 1 ? hits[0].id : null;
 }
 
+/**
+ * `fromKobo`: the record is field data, collected on a phone (KoboCollect, or a field form filled in
+ * inside the app), so the project's named approver checks it before it flows on (review round 1,
+ * Part 2 step 3). False for a result typed into the app, which MEL checks as before.
+ */
 type Rec = { fromKobo: boolean; /** Who collected or recorded it (person id), when known. */ collector: string | null };
+
+/**
+ * A stored record's place in the approval rule. From KoboCollect, the collector is the person the
+ * account belongs to; from a form filled in inside the app, the person signed in (`by`), and it is
+ * field data all the same; anything else is a record typed into the app.
+ */
+export function fieldRec(r: { source: string | null | undefined; by: string | null | undefined; appForm?: boolean }, rule: KoboApproval, people: Person[]): Rec {
+  if (r.source === "kobo") return { fromKobo: true, collector: collectorOf(r.by, rule, people) };
+  return { fromKobo: !!r.appForm || r.source === "form", collector: r.by ?? null };
+}
 
 /**
  * The people who may decide a record. It starts from the usual group (the project's KoboCollect
@@ -137,7 +152,7 @@ export function refusalFor(u: Pick<Person, "id">, people: Person[], rec: Rec, ru
   if (mayDecideRecord(u, people, rec, rule)) return null;
   const who = deciderNames(people, rec, rule);
   if (rec.collector === u.id) return `You collected this record, so someone else decides it: ${who}.`;
-  return rec.fromKobo ? `This record came from KoboCollect. On this project ${who} approves it.` : `Only ${who} can accept or query this record.`;
+  return rec.fromKobo ? `This is field data. On this project ${who} checks it before it is used anywhere else.` : `Only ${who} can accept or query this record.`;
 }
 
 /* ---------- the technical lead sends field work back ---------- */

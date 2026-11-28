@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { collectorOf, deciderNames, maySendBack, refusalFor } from "@/lib/kobo-approval";
+import { deciderNames, fieldRec, maySendBack, refusalFor } from "@/lib/kobo-approval";
 import { gpsCheck, type Submission } from "@/lib/project";
 import { isEmployee, onProject, people, requireViewer } from "@/server/auth";
 import { roster } from "@/server/field-store";
@@ -22,10 +22,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
     const { project, submissions } = await listSubmissions(code);
     const rule = await koboApprovalFor(code);
     const team = (await people()).filter((p) => onProject(p, code));
-    const rec = (s: Submission) => {
-      const fromKobo = s.source === "kobo";
-      return { fromKobo, collector: fromKobo ? collectorOf(s.enumerator, rule, team) : s.enumerator };
-    };
+    // Field data, from KoboCollect or a form filled in here, goes to the project's named approver.
+    const rec = (s: Submission) => fieldRec({ source: s.source, by: s.enumerator }, rule, team);
     // `maySendBack`: the technical lead may send a field form back with a note, without accepting it.
     // Farmers left open on an accepted session record: what holds each one today (nothing, once they are selected).
     const outcomes = submissions.some((s) => s.held?.length) ? await selectionOutcomes(project.id) : null;

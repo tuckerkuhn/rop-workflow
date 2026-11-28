@@ -169,3 +169,26 @@ describe("what the form screen shows", () => {
     for (const k of ["register", "training"] as const) expect(appForm(k, "A2027", { setup, names: true }).questions.filter((q) => /\(optional\)$/.test(q.label)).map((q) => q.name)).toEqual([]);
   });
 });
+
+describe("the rules that carry over (Part 2 step 3)", async () => {
+  const { fieldRec, decidersOf, refusalFor } = await import("@/lib/kobo-approval");
+  const p = (id: string, project: string[] = [], reportsTo?: string) => ({ id, name: id, field: [], project, ...(reportsTo ? { reportsTo } : {}) });
+  const team = [p("dir", ["mel-owner"]), p("mel1", ["mel-owner"], "dir"), p("agent")];
+  const named = { who: "named" as const, person: "dir", standIn: "mel1" };
+
+  it("a form filled in inside the app is field data: the named approver checks it, as with KoboCollect", () => {
+    const rec = fieldRec({ source: "manual", by: "agent", appForm: true }, named, team);
+    expect(rec).toEqual({ fromKobo: true, collector: "agent" });
+    expect(decidersOf(team, rec, named).map((x) => x.id)).toEqual(["dir", "mel1"]);
+    // A result typed into the app stays with the MEL role.
+    expect(fieldRec({ source: "manual", by: "agent" }, named, team).fromKobo).toBe(false);
+  });
+
+  it("nobody approves data they collected; with nobody else, it goes to the person they report to", () => {
+    const own = fieldRec({ source: "form", by: "mel1" }, named, team);
+    expect(decidersOf(team, own, named).map((x) => x.id)).toEqual(["dir"]);
+    expect(refusalFor({ id: "mel1" }, team, own, named)).toMatch(/^You collected this record/);
+    const solo = { who: "named" as const, person: "mel1" };
+    expect(decidersOf(team, fieldRec({ source: "form", by: "mel1" }, solo, team), solo).map((x) => x.id)).toEqual(["dir"]);
+  });
+});

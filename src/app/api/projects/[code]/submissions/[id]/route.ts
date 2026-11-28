@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { collectorOf, reviewRefusal } from "@/lib/kobo-approval";
+import { fieldRec, reviewRefusal } from "@/lib/kobo-approval";
 import { onProject, people, requireViewer } from "@/server/auth";
 import { koboApprovalFor } from "@/server/kobo-approval";
 import { handle, HttpError, readBody } from "@/server/guard";
@@ -30,8 +30,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
     if (!z.uuid().safeParse(id).success) throw new HttpError(404, "That record is not in this project's review queue. Reload the queue.");
     const body = await readBody(req, bodySchema, "Choose Accept or Query. A query needs a short note.");
     // Decided by whoever may accept the record itself.
-    if ("held" in body) return NextResponse.json(await settleHeld(code, id, body.held, body.action, v.user, (fromKobo, by, form) => reviewRefusal(v.user, team, { fromKobo, collector: fromKobo ? collectorOf(by, rule, team) : by, form }, rule, "accepted")));
+    if ("held" in body) return NextResponse.json(await settleHeld(code, id, body.held, body.action, v.user, (source, by, form) => reviewRefusal(v.user, team, { ...fieldRec({ source, by }, rule, team), form }, rule, "accepted")));
     const { status, note } = body;
-    return NextResponse.json(await decide(code, id, status, v.user, note, (fromKobo, by, form) => reviewRefusal(v.user, team, { fromKobo, collector: fromKobo ? collectorOf(by, rule, team) : by, form }, rule, status, note)));
+    return NextResponse.json(await decide(code, id, status, v.user, note, (source, by, form) => reviewRefusal(v.user, team, { ...fieldRec({ source, by }, rule, team), form }, rule, status, note)));
   });
 }

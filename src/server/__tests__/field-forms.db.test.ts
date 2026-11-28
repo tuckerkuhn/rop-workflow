@@ -157,7 +157,7 @@ describe("training attendance and farm visit forms", { timeout: 60_000 }, () => 
     const forms = (h: Awaited<ReturnType<typeof loadHome>>) => h.actions.find((a) => a.key === "field-forms");
     // Collected by farida: MEL (omar) decides it, farida does not.
     expect(forms(await loadHome(code, omar))?.href).toBe("/progress/results#field-records");
-    expect(forms(await loadHome(code, omar))?.text).toMatch(/^Check \d+ field forms? from KoboCollect/);
+    expect(forms(await loadHome(code, omar))?.text).toMatch(/^Check \d+ field forms? \(readiness, training, farm visits\)/);
     expect(forms(await loadHome(code, farida))).toBeUndefined();
 
     const res = await listQueue(new Request(`http://test/api/projects/${code}/submissions`, { headers: { "x-demo-user": "farida" } }), { params: Promise.resolve({ code }) });

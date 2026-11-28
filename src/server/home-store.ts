@@ -8,7 +8,7 @@ import { and, asc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { fieldRows, purchaseRows, taskRow } from "@/lib/home-buckets";
 import { loadLineReasons } from "@/server/overspend-store";
 import { onProject, people } from "@/server/auth";
-import { collectorOf, mayApproveKobo, mayDecideRecord, maySendBack } from "@/lib/kobo-approval";
+import { collectorOf, fieldRec, mayApproveKobo, mayDecideRecord, maySendBack } from "@/lib/kobo-approval";
 import { koboApprovalFor } from "@/server/kobo-approval";
 import { koboState } from "@/server/kobo-link";
 import { loadProcurements } from "@/server/procurement-store";
@@ -205,14 +205,14 @@ function waitingReads(code: string, u: AppUser, project: Project, full: boolean)
     mismatches: lensesFor(u).includes("mel") ? early(koboMismatches(project.id)) : null,
     forms: early(
       db
-        .select({ source: s.evidence.source, form: s.evidence.form, by: s.evidence.completedBy, at: s.evidence.completedAt, made: s.evidence.createdAt })
+        .select({ source: s.evidence.source, form: s.evidence.form, by: s.evidence.completedBy, at: s.evidence.completedAt, made: s.evidence.createdAt, app: sql<string | null>`${s.evidence.payload}->>'_rop_app_form'` })
         .from(s.evidence)
         .where(and(eq(s.evidence.projectId, project.id), inArray(s.evidence.form, ["readiness", "training", "visit"]), eq(s.evidence.reviewStatus, "pending"), isNull(s.evidence.koboRemovedAt))),
     ),
     // Accepted training records with farmers left open on them (held in Farmer selection, decision P).
     held: early(
       db
-        .select({ source: s.evidence.source, form: s.evidence.form, by: s.evidence.completedBy, held: sql<string>`${s.evidence.payload}->>'_rop_held'`, at: s.evidence.updatedAt })
+        .select({ source: s.evidence.source, form: s.evidence.form, by: s.evidence.completedBy, held: sql<string>`${s.evidence.payload}->>'_rop_held'`, at: s.evidence.updatedAt, app: sql<string | null>`${s.evidence.payload}->>'_rop_app_form'` })
         .from(s.evidence)
         .where(and(eq(s.evidence.projectId, project.id), eq(s.evidence.form, "training"), eq(s.evidence.reviewStatus, "accepted"), isNull(s.evidence.koboRemovedAt), sql`coalesce(${s.evidence.payload}->>'_rop_held', '') <> ''`)),
     ),
@@ -440,22 +440,20 @@ async function homeActions(c: ActionsInput): Promise<{ actions: HomeAction[]; le
   // for whoever may decide each one; accepting them is what moves farmers in Field activities.
   {
     const forms = await reads.forms;
-    const mine = forms.filter((f) => {
-      const fromKobo = f.source === "kobo";
-      return mayDecideRecord(u, team, { fromKobo, collector: fromKobo ? collectorOf(f.by, koboRule, team) : f.by }, koboRule);
-    });
+    const recOf = (f: { source: string; by: string | null; app: string | null }) => fieldRec({ source: f.source, by: f.by, appForm: !!f.app }, koboRule, team);
+    const mine = forms.filter((f) => mayDecideRecord(u, team, recOf(f), koboRule));
     const n = mine.length;
-    if (n) actions.push({ key: "field-forms", for: isMel ? "mel" : lenses[0], bucket: "approve", urgent: false, text: `Check ${n} field ${n === 1 ? "form" : "forms"} from KoboCollect (readiness, training, farm visits)`, msg: { key: n === 1 ? "ha.fieldForms1" : "ha.fieldForms", vars: { n } }, href: "/progress/results#field-records", since: oldest(mine.map((f) => f.made?.toISOString())) });
+    if (n) actions.push({ key: "field-forms", for: isMel ? "mel" : lenses[0], bucket: "approve", urgent: false, text: `Check ${n} field ${n === 1 ? "form" : "forms"} (readiness, training, farm visits)`, msg: { key: n === 1 ? "ha.fieldForms1" : "ha.fieldForms", vars: { n } }, href: "/progress/results#field-records", since: oldest(mine.map((f) => f.made?.toISOString())) });
     // Farmers left open on an accepted training record: whoever may accept the record records each
     // one once selected, or leaves them out (decision P). Told here, not only in the queue.
-    const open = (await reads.held).filter((f) => mayDecideRecord(u, team, { fromKobo: f.source === "kobo", collector: f.source === "kobo" ? collectorOf(f.by, koboRule, team) : f.by }, koboRule));
+    const open = (await reads.held).filter((f) => mayDecideRecord(u, team, recOf(f), koboRule));
     const farmersOpen = open.reduce((t, f) => t + f.held.split(/\s+/).filter(Boolean).length, 0);
     if (farmersOpen) actions.push({ key: "held-farmers", for: isMel ? "mel" : lenses[0], bucket: "fix", urgent: false, text: farmersOpen === 1 ? "1 farmer is left open on a training record: record them once selected, or leave them out" : `${farmersOpen} farmers are left open on training records: record each once selected, or leave them out`, href: "/progress/results#field-records", since: oldest(open.map((f) => f.at?.toISOString())) });
     // The technical lead does not accept field forms but may send one back with a note
     // (lib/kobo-approval maySendBack). One quiet row, only when the forms are not already theirs
     // to check above, so it never doubles up with the "Check" row.
     if (!n) {
-      const readable = forms.filter((f) => maySendBack(u, team, { fromKobo: f.source === "kobo", collector: f.source === "kobo" ? collectorOf(f.by, koboRule, team) : f.by, form: f.form }));
+      const readable = forms.filter((f) => maySendBack(u, team, { ...recOf(f), form: f.form }));
       const k = readable.length;
       if (k) actions.push({ key: "field-forms-send-back", for: lenses[0] ?? "field", bucket: "fix", urgent: false, text: `${k} field ${k === 1 ? "form is" : "forms are"} waiting for MEL: send back any that need fixing, with a note`, msg: { key: k === 1 ? "ha.sendBack1" : "ha.sendBack", vars: { n: k } }, href: "/progress/results#field-records" });
     }

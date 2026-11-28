@@ -8,7 +8,7 @@ import { selectionHold } from "@/lib/selection";
 import { HELD_KEY, LEFT_OUT_KEY, TICKED_KEY, heldFarmers } from "@/lib/kobo-setup";
 import { selectionOutcomes } from "@/server/selection-store";
 import { toSubmission } from "@/server/kobo";
-import { hasAnswers, sourceText } from "@/lib/form-record";
+import { appFormOf, hasAnswers, sourceText } from "@/lib/form-record";
 import { today } from "@/lib/clock";
 import { parseScores, scoreLine } from "@/lib/field-training";
 import { projectByCode, setupFor } from "@/server/field-store";
@@ -28,7 +28,7 @@ const later = (a: string, b: string) => (a > b ? a : b);
 const refOf = (sub: { id: string; source?: string; recorderName?: string }) => (sub.source === "kobo" ? `Kobo ${sub.id}` : `${sourceText(sub.source, sub.recorderName)}, ${sub.id}`);
 
 /** `refusal(fromKobo, by, form)`: why this person may not decide this record (`by`: who sent or recorded it), or null when they may. */
-export async function decide(code: string, evidenceId: string, status: "accepted" | "queried", user: AppUser, note?: string, refusal?: (fromKobo: boolean, by: string | null, form: string | null) => string | null) {
+export async function decide(code: string, evidenceId: string, status: "accepted" | "queried", user: AppUser, note?: string, refusal?: (source: string, by: string | null, form: string | null) => string | null) {
   const project = await projectByCode(code);
   // Who would get a correction, worked out before the transaction opens (server/distribution correctionOwner).
   const [pre] = await db.select({ form: s.evidence.form, by: s.evidence.completedBy }).from(s.evidence).where(and(eq(s.evidence.id, evidenceId), eq(s.evidence.projectId, project.id))).limit(1);
@@ -46,7 +46,8 @@ export async function decide(code: string, evidenceId: string, status: "accepted
     // Results and updates recorded by hand are decided on the Results page, where the data checks
     // run and nobody accepts their own record unless solo mode allows it.
     if (row.source === "manual" && (row.form === "result" || row.form === "update")) throw new HttpError(409, "This is a recorded result. Accept or query it on the Results page, where its checks are shown.");
-    const why = refusal?.(row.source === "kobo", row.completedBy, row.form);
+    // A form filled in inside the app is field data like a KoboCollect one (lib/kobo-approval fieldRec).
+    const why = refusal?.(appFormOf(row) ? "form" : row.source, row.completedBy, row.form);
     if (why) throw new HttpError(403, why);
     if (row.reviewStatus !== "pending") return { already: row.reviewStatus, applied: null as string | null };
     // Distributions are approved by the project manager, from the email link or Home, where the
@@ -119,12 +120,13 @@ const heldSentence = (holds: string[]) =>
  * they join the record's tick list, so they count from now on. "leave_out": they come off the
  * record for good and nothing is recorded for them. Decided by whoever may accept the record.
  */
-export async function settleHeld(code: string, evidenceId: string, farmer: string, action: "record" | "leave_out", user: AppUser, refusal?: (fromKobo: boolean, by: string | null, form: string | null) => string | null) {
+export async function settleHeld(code: string, evidenceId: string, farmer: string, action: "record" | "leave_out", user: AppUser, refusal?: (source: string, by: string | null, form: string | null) => string | null) {
   const project = await projectByCode(code);
   return db.transaction(async (tx) => {
     const [row] = await tx.select().from(s.evidence).where(and(eq(s.evidence.id, evidenceId), eq(s.evidence.projectId, project.id))).for("update").limit(1);
     if (!row || row.form !== "training") throw new HttpError(404, "That record is not in this project's review queue. Reload the queue.");
-    const why = refusal?.(row.source === "kobo", row.completedBy, row.form);
+    // A form filled in inside the app is field data like a KoboCollect one (lib/kobo-approval fieldRec).
+    const why = refusal?.(appFormOf(row) ? "form" : row.source, row.completedBy, row.form);
     if (why) throw new HttpError(403, why);
     const p = (row.payload ?? {}) as Record<string, unknown>;
     const held = heldFarmers(p);
