@@ -153,6 +153,8 @@ export type Submission = {
   held?: { id: string; why?: string }[];
   date: string;
   enumerator: string;
+  /** Filled in inside the app: the name of the person who recorded it, kept on the record (lib/form-record). */
+  recorderName?: string;
   /** Missing when the form was submitted without a GPS point. */
   gps: [number, number] | null;
   /**

@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { db, schema as s } from "@/db";
 import { canSeePII, type AppUser } from "@/lib/demo";
-import { APP_FORM_KEY } from "@/lib/form-record";
+import { APP_FORM_KEY, RECORDED_BY_KEY } from "@/lib/form-record";
 import { appForm, farmerOfAnswers, mayFillForms, mayRegister, formProblems, savedAnswers, type Answers, type AppForm, type AppFormKind, type FormLists } from "@/lib/app-forms";
 import { today } from "@/lib/clock";
 import { farmerListRows, photoFingerprint, projectByCode, setupFor } from "@/server/field-store";
@@ -97,7 +97,7 @@ export async function saveForm(code: string, kind: AppFormKind, entry: FormEntry
         completedAt: new Date(),
         // The same submission key column KoboToolbox records use: one record per form filled in.
         koboSubmissionUuid: key,
-        payload: { ...answers, [APP_FORM_KEY]: kind, ...(Object.keys(photos).length ? { _rop_photos: photos } : {}) },
+        payload: { ...answers, [APP_FORM_KEY]: kind, [RECORDED_BY_KEY]: { id: user.id, name: user.name }, ...(Object.keys(photos).length ? { _rop_photos: photos } : {}) },
       })
       .onConflictDoNothing()
       .returning({ id: s.evidence.id });

@@ -55,7 +55,7 @@ describe("field forms filled in inside the app", { timeout: 60_000 }, () => {
     const { applied } = await decide(code, id, "accepted", omar);
     expect(applied).toBeTruthy();
     expect((await farmer(a.id)).step).toBe("prepare");
-    expect((await farmer(b.id)).timeline.at(-1)!.what).toMatch(/\(Form AF-[0-9a-f]{8}, accepted by Omar Sadiq\)/);
+    expect((await farmer(b.id)).timeline.at(-1)!.what).toMatch(/\(Recorded in the app by Farida Noori, AF-[0-9a-f]{8}, accepted by Omar Sadiq\)/);
     // MF-09: the curriculum and each farmer's scores go on their record.
     expect((await farmer(a.id)).trainings?.at(-1)).toMatchObject({ session: "Land prep", curriculum: "Wheat farmer field school, version 2.1", pre: 4, post: 8, outOf: 10 });
     expect((await farmer(a.id)).timeline.at(-1)!.what).toContain("pre-test 4/10, post-test 8/10");

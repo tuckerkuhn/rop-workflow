@@ -25,3 +25,20 @@ export const appFormOf = (r: Row): string | null => {
 
 /** Whether a record holds form answers, from KoboCollect or from a form filled in inside the app. */
 export const hasAnswers = (r: Row) => r.source === "kobo" || !!appFormOf(r);
+
+/** Who filled a form in inside the app, kept on the record when it is saved: their name then. */
+export const RECORDED_BY_KEY = "_rop_recorded_by";
+export const recordedByOf = (r: Row): string | null => {
+  const v = ((r.payload ?? {}) as Record<string, unknown>)[RECORDED_BY_KEY] as { name?: unknown } | undefined;
+  return typeof v?.name === "string" && v.name ? v.name : null;
+};
+
+/**
+ * Review round 1, ISS-15: where a record really came from, in the same words everywhere it is
+ * shown. `name`: the person who recorded it (for KoboCollect, the person its account is matched to).
+ */
+export function sourceText(source: string | undefined, name: string | null | undefined): string {
+  if (source === "kobo") return name ? `Sent from KoboCollect by ${name}` : "Sent from a KoboCollect account not yet matched to a person";
+  if (source === "sample") return "Sample record, made up for the demo";
+  return name ? `Recorded in the app by ${name}` : "Recorded in the app";
+}

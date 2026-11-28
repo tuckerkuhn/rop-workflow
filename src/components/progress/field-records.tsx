@@ -1,5 +1,6 @@
 "use client";
 
+import { sourceText } from "@/lib/form-record";
 import { useState } from "react";
 import { askConfirm } from "@/components/app/dialogs";
 import { useSession } from "@/components/app/session";
@@ -79,7 +80,7 @@ export function FieldRecords({ f, open, onToggle }: { f: FieldForms; open: boole
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="font-semibold">
-            KoboCollect field forms · {toSendBack > 0 && forMe === 0 ? `${toSendBack} you can send back` : `${forMe} for you`}
+            Field forms · {toSendBack > 0 && forMe === 0 ? `${toSendBack} you can send back` : `${forMe} for you`}
             {pending.length > forMe && !(toSendBack > 0 && forMe === 0) ? `, ${pending.length - forMe} waiting on others` : ""}
           </h3>
           <p className="mt-1 max-w-2xl text-sm text-muted">
@@ -165,11 +166,10 @@ export function FieldRecords({ f, open, onToggle }: { f: FieldForms; open: boole
                 <div className="min-w-0 flex-1">
                   <p className="text-sm">
                     <span className="font-medium">{formLabel[s.form]}</span> · {whoOf(s)}{" "}
-                    <Pill tone={s.source === "kobo" || s.source === "form" ? "sky" : "muted"}>{s.source === "kobo" ? "KoboCollect" : s.source === "form" ? "Filled in here" : "Sample"}</Pill>
+                    <Pill tone={s.source === "kobo" || s.source === "form" ? "sky" : "muted"}>{s.source === "kobo" ? "KoboCollect" : s.source === "form" ? "In the app" : "Sample"}</Pill>
                   </p>
                   <p className="mt-0.5 text-xs text-muted">
-                    {/^\d{4}-\d{2}-\d{2}$/.test(s.date) ? longDate(s.date) : s.date} · collected by {s.collectorName ?? name(s.enumerator)}
-                    {s.source === "kobo" && !s.collectorName ? " (a KoboCollect account not yet matched to a person)" : ""} · <span className="font-mono">{s.id}</span>
+                    {/^\d{4}-\d{2}-\d{2}$/.test(s.date) ? longDate(s.date) : s.date} · {sourceText(s.source, s.source === "kobo" ? s.collectorName : (s.recorderName ?? s.collectorName ?? name(s.enumerator)))} · <span className="font-mono">{s.id}</span>
                   </p>
                   {Object.keys(s.fields).length > 0 && (
                     <dl className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs">

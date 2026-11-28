@@ -6,7 +6,7 @@ import type { Submission, SubmissionForm } from "@/lib/project";
 import { farmerListRows, projectByCode, setupFor } from "@/server/field-store";
 import { readinessForms } from "@/server/kobo-link";
 import { heldFarmers, sessionFarmers } from "@/lib/kobo-setup";
-import { hasAnswers } from "@/lib/form-record";
+import { hasAnswers, recordedByOf } from "@/lib/form-record";
 
 /**
  * Readiness checks from KoboToolbox: the farmer list pushed to the project's readiness form as
@@ -162,6 +162,7 @@ export function toSubmission(row: EvidenceRow): Submission {
     date: str(p.visit_date) || str(p.training_date) || (row.completedAt ? row.completedAt.toISOString().slice(0, 10) : ""),
     // KoboCollect: the account that sent it. Filled in here: the person signed in (their id).
     enumerator: row.completedBy ?? (kobo ? "kobo" : ""),
+    ...(recordedByOf(row) ? { recorderName: recordedByOf(row)! } : {}),
     gps: gpsOf(p),
     fields,
     photo: !!str(p.photo) || !!str(p.list_photo),

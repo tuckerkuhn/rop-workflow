@@ -189,7 +189,8 @@ export function ApprovePanel({ code, id, token }: { code: string; id: string; to
       {d && (
         <>
           <p className="mt-2 text-sm text-muted">
-            {d.source === "kobo" ? tx("Handed out {date}, recorded by {name} in KoboCollect.", { date: longDate(d.date), name: d.recordedBy }) : tx("Handed out {date}, recorded by {name} in the app.", { date: longDate(d.date), name: d.recordedBy })}{" "}
+            {/* ISS-15: the real source, in the words every record uses (lib/form-record sourceText). */}
+            {d.source === "kobo" ? tx("Handed out {date}. Sent from KoboCollect by {name}.", { date: longDate(d.date), name: d.recordedBy }) : tx("Handed out {date}. Recorded in the app by {name}.", { date: longDate(d.date), name: d.recordedBy })}{" "}
             {d.status === "accepted"
               ? d.decided?.byName
                 ? tx("Approved by {name}.", { name: d.decided.byName })

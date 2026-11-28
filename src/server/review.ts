@@ -8,7 +8,7 @@ import { selectionHold } from "@/lib/selection";
 import { HELD_KEY, LEFT_OUT_KEY, TICKED_KEY, heldFarmers } from "@/lib/kobo-setup";
 import { selectionOutcomes } from "@/server/selection-store";
 import { toSubmission } from "@/server/kobo";
-import { hasAnswers } from "@/lib/form-record";
+import { hasAnswers, sourceText } from "@/lib/form-record";
 import { today } from "@/lib/clock";
 import { parseScores, scoreLine } from "@/lib/field-training";
 import { projectByCode, setupFor } from "@/server/field-store";
@@ -24,7 +24,8 @@ import { correctionOwner, correctionTask, countPlantingIn, plantingTarget } from
 const later = (a: string, b: string) => (a > b ? a : b);
 
 /** How a farmer's history names the record: "Kobo KB-12" from KoboCollect, "Form AF-1a2b3c4d" from a form filled in here. */
-const refOf = (sub: { id: string; source?: string }) => `${sub.source === "kobo" ? "Kobo" : "Form"} ${sub.id}`;
+/** The record a farmer's history line comes from, naming its real source (ISS-15). */
+const refOf = (sub: { id: string; source?: string; recorderName?: string }) => (sub.source === "kobo" ? `Kobo ${sub.id}` : `${sourceText(sub.source, sub.recorderName)}, ${sub.id}`);
 
 /** `refusal(fromKobo, by, form)`: why this person may not decide this record (`by`: who sent or recorded it), or null when they may. */
 export async function decide(code: string, evidenceId: string, status: "accepted" | "queried", user: AppUser, note?: string, refusal?: (fromKobo: boolean, by: string | null, form: string | null) => string | null) {

@@ -152,3 +152,14 @@ describe("training details (MF-09)", async () => {
     expect(formProblems(f, { ...a, score_max: "10", scores: "F-1001:4:9" }, lists, TODAY)).toEqual([]);
   });
 });
+
+describe("where a record came from (ISS-15)", async () => {
+  const { sourceText } = await import("@/lib/form-record");
+  it("names the real source and the person, the same way everywhere", () => {
+    expect(sourceText("form", "Farida Noori")).toBe("Recorded in the app by Farida Noori");
+    expect(sourceText("app", "Bilal Hotak")).toBe("Recorded in the app by Bilal Hotak");
+    expect(sourceText("kobo", "Farida Noori")).toBe("Sent from KoboCollect by Farida Noori");
+    expect(sourceText("kobo", null)).toBe("Sent from a KoboCollect account not yet matched to a person");
+    expect(sourceText("sample", "x")).toBe("Sample record, made up for the demo");
+  });
+});
