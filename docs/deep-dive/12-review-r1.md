@@ -107,7 +107,13 @@
       quetzal rate exists. Without a month's rate the afghani falls back to 70 and says so; the
       quetzal has none, so nothing converts until finance enters one. Not reworked yet: older
       finance screens that store USD only (budget lines, month close) still show dollars.
-- **Tests:** 191 files, 1,406 tests, all passing (39 tests of removed Kobo features went with them). Typecheck and lint clean.
+    - MF-02 `e138897` advances (Q3 audit finding 1, D-04): `/advances` (linked from Home's own
+      list). Ask; the supervisor approves; Finance pays the holder only (paid to anyone else is
+      refused); its age and settle-by date run from payment, the days from the project's rule
+      (`advanceSettlementDays`: 15 on UN-funded projects, 30 otherwise); settled with receipts;
+      Finance accepts or sends back; what was not spent is returned or recorded as recovered from
+      pay. One open advance per person. All in the HR ledger (`lib/advance`). Seen on the local copy.
+- **Tests:** 193 files, 1,409 tests, all passing (39 tests of removed Kobo features went with them). Typecheck and lint clean.
 - **Seen on screen** (desktop, local throwaway database, never Supabase): the ISS-18 flag as Nadia
   (queue and record), ISS-20 on Project settings and the donor view, ISS-12 as Daniel. Part 2
   step 1: as Farida, a readiness check filled in (the "what needs fixing" question appears on No,
@@ -152,6 +158,8 @@
      farmer screening. Keep $50, or raise the limit for this project in Set up?
   15. MF-11: enter November's afghani and quetzal rates (Organization settings, Exchange rates),
      with the source you want used (for example the central bank's rate on the first working day).
+  16. MF-02: D-04 says Guatemala follows its travel policy for settling advances. The app uses each
+     project's rule (30 days unless set); enter Guatemala's number in its project rules.
   13. MF-01: D-13 says the board approves the authority table as the written delegation. That is
      a board step, not the app's: the app only lets a delegate act within the table.
   12. The Dari, Pashto and Spanish wording files still carry some old Kobo sentences that no screen
